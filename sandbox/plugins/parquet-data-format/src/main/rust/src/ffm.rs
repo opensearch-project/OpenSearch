@@ -67,13 +67,15 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     created_by_buf: *mut u8,
     created_by_buf_len: i64,
     created_by_len_out: *mut i64,
+    crc32_out: *mut i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_finalize_writer: {}", e))?.to_string();
     match NativeParquetWriter::finalize_writer(filename) {
-        Ok(Some(metadata)) => {
-            if !version_out.is_null() { *version_out = metadata.version; }
-            if !num_rows_out.is_null() { *num_rows_out = metadata.num_rows; }
-            if let Some(ref cb) = metadata.created_by {
+        Ok(Some(result)) => {
+            let fm = result.metadata.file_metadata();
+            if !version_out.is_null() { *version_out = fm.version(); }
+            if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
+            if let Some(cb) = fm.created_by() {
                 if !created_by_buf.is_null() && created_by_buf_len > 0 {
                     let bytes = cb.as_bytes();
                     let n = bytes.len().min(created_by_buf_len as usize);
@@ -83,6 +85,7 @@ pub unsafe extern "C" fn parquet_finalize_writer(
             } else if !created_by_len_out.is_null() {
                 *created_by_len_out = -1;
             }
+            if !crc32_out.is_null() { *crc32_out = result.crc32 as i64; }
             Ok(0)
         }
         Ok(None) => Ok(1),

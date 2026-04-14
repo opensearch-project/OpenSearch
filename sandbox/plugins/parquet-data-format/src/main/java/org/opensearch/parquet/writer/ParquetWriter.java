@@ -14,6 +14,7 @@ import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
@@ -43,6 +44,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final long writerGeneration;
     private final ParquetDataFormat dataFormat;
     private final VSRManager vsrManager;
+    private final FormatChecksumStrategy checksumStrategy;
 
     /**
      * Creates a new ParquetWriter.
@@ -54,6 +56,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
      * @param bufferPool shared Arrow buffer pool
      * @param settings node settings for writer configuration
      * @param threadPool the thread pool for background native writes
+     * @param checksumStrategy strategy to register pre-computed checksums on
      */
     public ParquetWriter(
         String file,
@@ -62,12 +65,14 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         Schema schema,
         ArrowBufferPool bufferPool,
         Settings settings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy
     ) {
         this.file = file;
         this.writerGeneration = writerGeneration;
         this.dataFormat = dataFormat;
         this.vsrManager = new VSRManager(file, schema, bufferPool, ParquetSettings.MAX_ROWS_PER_VSR.get(settings), threadPool);
+        this.checksumStrategy = checksumStrategy;
     }
 
     @Override
@@ -83,10 +88,17 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             return FileInfos.empty();
         }
         Path filePath = Path.of(file);
+        String fileName = filePath.getFileName().toString();
+
+        // Register the pre-computed CRC32 so the upload path can read it in O(1)
+        if (checksumStrategy != null && metadata.crc32() != 0) {
+            checksumStrategy.registerChecksum(fileName, metadata.crc32(), writerGeneration);
+        }
+
         WriterFileSet writerFileSet = WriterFileSet.builder()
             .directory(filePath.getParent().getFileName())
             .writerGeneration(writerGeneration)
-            .addFile(filePath.getFileName().toString())
+            .addFile(fileName)
             .addNumRows(metadata.numRows())
             .build();
         return FileInfos.builder().putWriterFileSet(dataFormat, writerFileSet).build();

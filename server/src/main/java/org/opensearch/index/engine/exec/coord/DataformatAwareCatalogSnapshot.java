@@ -16,6 +16,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.store.FileMetadata;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -133,7 +134,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public void setUserData(Map<String, String> userData) {
+    public void setUserData(Map<String, String> userData, boolean commitData) {
         this.userData = Map.copyOf(userData);
     }
 
@@ -188,6 +189,20 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
+    public int getFormatVersionForFile(String file) {
+        // TODO: Return the actual format-specific version the file was written with.
+        // For lucene files, this should come from a per-segment version map populated
+        // by the composite engine (which has access to SegmentInfos). For non-lucene
+        // files, each DataFormat should provide its own version.
+        return org.opensearch.Version.CURRENT.major;
+    }
+
+    @Override
+    public byte[] serialize() throws IOException {
+        throw new UnsupportedOperationException("DataformatAwareCatalogSnapshot does not support serialize()");
+    }
+
+    @Override
     protected void closeInternal() {
         closed.set(true);
     }
@@ -198,5 +213,19 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      */
     public boolean isClosed() {
         return closed.get();
+    }
+
+    @Override
+    public Collection<String> getFiles(boolean includeSegmentsFile) throws IOException {
+        List<String> fileNames = new ArrayList<>();
+        for (Segment segment : segments) {
+            for (Map.Entry<String, WriterFileSet> entry : segment.dfGroupedSearchableFiles().entrySet()) {
+                String formatName = entry.getKey();
+                for (String file : entry.getValue().files()) {
+                    fileNames.add(FileMetadata.serialize(formatName, file));
+                }
+            }
+        }
+        return fileNames;
     }
 }
