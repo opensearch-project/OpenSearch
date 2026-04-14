@@ -35,7 +35,7 @@ jobs:
 
   open-issue-on-failure:
     if: failure() && github.event_name == 'schedule'
-    needs: precommit
+    needs: nightly-precommit
     runs-on: ubuntu-latest
     permissions:
       issues: write
