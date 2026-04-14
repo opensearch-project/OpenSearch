@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.cache.foyer;
+package org.opensearch.pagecache.foyer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
