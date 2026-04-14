@@ -14,15 +14,53 @@ use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::file::reader::{FileReader, SerializedFileReader};
-use parquet::file::metadata::ParquetMetaData;
-use parquet::format::FileMetaData as FormatFileMetaData;
 use std::fs::File;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use crate::{log_info, log_error, log_debug};
+use crate::{log_error, log_debug};
+
+/// A write wrapper that computes CRC32 as bytes flow through.
+/// Wraps a File and tracks the running checksum without buffering.
+pub struct Crc32Writer {
+    inner: File,
+    hasher: crc32fast::Hasher,
+}
+
+impl Crc32Writer {
+    fn new(file: File) -> Self {
+        Self {
+            inner: file,
+            hasher: crc32fast::Hasher::new(),
+        }
+    }
+
+    /// Finalizes and returns the CRC32 checksum of all bytes written.
+    fn checksum(&self) -> u32 {
+        self.hasher.clone().finalize()
+    }
+}
+
+impl Write for Crc32Writer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let n = self.inner.write(buf)?;
+        self.hasher.update(&buf[..n]);
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/// Result from finalizing a writer: Parquet metadata + whole-file CRC32.
+pub struct FinalizeResult {
+    pub metadata: parquet::file::metadata::ParquetMetaData,
+    pub crc32: u32,
+}
 
 lazy_static! {
-    pub static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<File>>>> = DashMap::new();
+    pub static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<Crc32Writer>>>> = DashMap::new();
     pub static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
 }
 
@@ -55,7 +93,8 @@ impl NativeParquetWriter {
             .set_bloom_filter_fpp(0.1)
             .set_bloom_filter_ndv(100000)
             .build();
-        let writer = ArrowWriter::try_new(file, schema, Some(props))?;
+        let crc_writer = Crc32Writer::new(file);
+        let writer = ArrowWriter::try_new(crc_writer, schema, Some(props))?;
         WRITER_MANAGER.insert(filename, Arc::new(Mutex::new(writer)));
         Ok(())
     }
@@ -94,28 +133,19 @@ impl NativeParquetWriter {
         }
     }
 
-    pub fn finalize_writer(filename: String) -> Result<Option<FormatFileMetaData>, Box<dyn std::error::Error>> {
+    pub fn finalize_writer(filename: String) -> Result<Option<FinalizeResult>, Box<dyn std::error::Error>> {
         log_debug!("finalize_writer called for file: {}", filename);
 
         if let Some((_, writer_arc)) = WRITER_MANAGER.remove(&filename) {
             match Arc::try_unwrap(writer_arc) {
                 Ok(mutex) => {
-                    let writer = mutex.into_inner().unwrap();
-                    let parquet_metadata = writer.close()?;
+                    let mut writer = mutex.into_inner().unwrap();
+                    let parquet_metadata = writer.finish()?;
                     let file_metadata = parquet_metadata.file_metadata();
-                    log_debug!("Successfully closed writer for file: {}, num_rows={}", filename, file_metadata.num_rows());
-                    let format_metadata = FormatFileMetaData {
-                        version: file_metadata.version(),
-                        num_rows: file_metadata.num_rows(),
-                        created_by: file_metadata.created_by().map(|s| s.to_string()),
-                        schema: vec![],
-                        row_groups: vec![],
-                        key_value_metadata: None,
-                        encryption_algorithm: None,
-                        footer_signing_key_metadata: None,
-                        column_orders: None,
-                    };
-                    Ok(Some(format_metadata))
+                    log_debug!("Successfully finalized writer for file: {}, num_rows={}", filename, file_metadata.num_rows());
+                    let crc32 = writer.inner().checksum();
+                    log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
+                    Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32 }))
                 }
                 Err(_) => {
                     log_error!("ERROR: Writer still in use for file: {}", filename);

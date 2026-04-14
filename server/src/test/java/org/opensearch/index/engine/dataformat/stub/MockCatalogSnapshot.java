@@ -74,7 +74,7 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public void setUserData(Map<String, String> userData) {}
+    public void setUserData(Map<String, String> userData, boolean commitData) {}
 
     @Override
     public CatalogSnapshot clone() {
@@ -84,6 +84,21 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+    }
+
+    @Override
+    public int getFormatVersionForFile(String file) {
+        return 0;
+    }
+
+    @Override
+    public byte[] serialize() throws IOException {
+        return new byte[0];
+    }
+
+    @Override
+    public Collection<String> getFiles(boolean includeSegmentsFile) {
+        return List.of();
     }
 
     @Override

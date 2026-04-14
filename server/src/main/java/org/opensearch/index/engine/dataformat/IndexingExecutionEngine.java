@@ -10,6 +10,7 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
+import org.opensearch.index.store.FormatChecksumStrategy;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -99,4 +100,19 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      * @return the store provider, or null if this engine does not expose one
      */
     IndexStoreProvider getProvider();
+
+    /**
+     * Returns the checksum strategy used by this engine, if any.
+     *
+     * <p>Engines that pre-compute checksums during write (e.g., Parquet computing CRC32
+     * in the native writer) return their strategy here so it can be wired into the
+     * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory} at shard init time.
+     * This allows the upload path to retrieve pre-computed checksums in O(1) instead of
+     * re-reading the entire file.
+     *
+     * @return the checksum strategy, or {@code null} if this engine does not pre-compute checksums
+     */
+    default FormatChecksumStrategy getChecksumStrategy() {
+        return null;
+    }
 }

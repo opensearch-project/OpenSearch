@@ -686,7 +686,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             storeFactories,
             null,
-            null
+            null,
+            Collections.emptyMap()
         );
 
         // Test that IndexService can be created successfully with valid store factory
@@ -718,7 +719,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             storeFactories,
             null,
-            null
+            null,
+            Collections.emptyMap()
         );
 
         // Test that IndexService uses default store when setting is empty
@@ -748,7 +750,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             null,
-            null
+            null,
+            Collections.emptyMap()
         );
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
