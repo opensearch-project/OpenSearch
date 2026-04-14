@@ -22,7 +22,6 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.RelNodeUtils;
-import org.opensearch.analytics.spi.OperatorCapability;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -87,46 +86,4 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
         return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
 
-    @Override
-    public List<OperatorAnnotation> getAnnotations() {
-        List<OperatorAnnotation> annotations = new ArrayList<>();
-        for (RexNode expr : getProjects()) {
-            if (expr instanceof AnnotatedProjectExpression annotated) {
-                annotations.add(annotated);
-            }
-        }
-        return annotations;
-    }
-
-    @Override
-    public OperatorCapability getOperatorCapability() {
-        return OperatorCapability.PROJECT;
-    }
-
-    @Override
-    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        int annotationIndex = 0;
-        List<RexNode> resolvedExprs = new ArrayList<>();
-        for (RexNode expr : getProjects()) {
-            if (expr instanceof AnnotatedProjectExpression) {
-                resolvedExprs.add((RexNode) resolvedAnnotations.get(annotationIndex++));
-            } else {
-                resolvedExprs.add(expr);
-            }
-        }
-        return new OpenSearchProject(getCluster(), getTraitSet(), children.getFirst(), resolvedExprs, getRowType(), List.of(backend));
-    }
-
-    @Override
-    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        List<RexNode> strippedExprs = new ArrayList<>();
-        for (RexNode expr : getProjects()) {
-            if (expr instanceof AnnotatedProjectExpression annotated) {
-                strippedExprs.add(annotated.unwrap());
-            } else {
-                strippedExprs.add(expr);
-            }
-        }
-        return LogicalProject.create(strippedChildren.getFirst(), List.of(), strippedExprs, getRowType());
-    }
 }

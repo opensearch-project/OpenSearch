@@ -18,7 +18,6 @@ import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.DelegationType;
-import org.opensearch.analytics.spi.OperatorCapability;
 import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.util.ArrayList;
@@ -55,7 +54,6 @@ public class OpenSearchTableScanRule extends RelOptRule {
             throw new IllegalArgumentException("Index [" + tableName + "] not found in cluster state");
         }
 
-        String primaryFormat = indexMetadata.getSettings().get("index.composite.primary_data_format", "lucene");
         CapabilityRegistry registry = context.getCapabilityRegistry();
         FieldStorageResolver fieldStorageResolver = registry.resolveFieldStorage(indexMetadata);
 
@@ -64,31 +62,24 @@ public class OpenSearchTableScanRule extends RelOptRule {
         List<String> fieldNames = scan.getRowType().getFieldList().stream().map(RelDataTypeField::getName).toList();
         List<FieldStorageInfo> fieldStorage = fieldStorageResolver.resolve(fieldNames);
 
-        // Viable backends: must support SCAN and be able to read ALL requested fields
-        // (natively or via delegation to another backend that can read the field)
-        List<String> scanCapable = registry.operatorBackends(OperatorCapability.SCAN);
+        // Viable backends: must be able to read ALL requested fields
+        // (natively via doc values or via delegation to another backend that can read the field)
+        // TODO: also check StoredFields scan capability once stored field support is implemented
         List<String> delegationSupporters = registry.delegationSupporters(DelegationType.SCAN);
         List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.SCAN);
-        List<String> viableBackends = new ArrayList<>(scanCapable);
+        List<String> viableBackends = new ArrayList<>(registry.scanCapableBackends());
 
         for (FieldStorageInfo field : fieldStorage) {
             if (field.isDerived()) {
-                continue;
+                throw new IllegalStateException(
+                    "TableScan encountered derived field [" + field.getFieldName() + "] — derived fields cannot appear in a scan"
+                );
             }
             // Backends that can natively scan this field's doc values
-            List<String> fieldBackends = new ArrayList<>();
-            for (String format : field.getDocValueFormats()) {
-                for (String backend : registry.scanBackends(format)) {
-                    if (!fieldBackends.contains(backend)) {
-                        fieldBackends.add(backend);
-                    }
-                }
-            }
+            List<String> fieldBackends = registry.scanBackendsForField(field);
             // Keep candidates that can scan natively or delegate to one that can
             viableBackends.removeIf(candidate -> {
-                if (fieldBackends.contains(candidate)) {
-                    return false;
-                }
+                if (fieldBackends.contains(candidate)) return false;
                 return !delegationSupporters.contains(candidate) || fieldBackends.stream().noneMatch(delegationAcceptors::contains);
             });
         }

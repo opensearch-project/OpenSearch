@@ -79,19 +79,4 @@ public class OpenSearchShuffleReader extends SingleRel implements OpenSearchRelN
         return super.explainTerms(pw).item("viableBackends", viableBackends).item("shuffleImpl", shuffleImpl);
     }
 
-    @Override
-    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        return new OpenSearchShuffleReader(getCluster(), getTraitSet(), children.getFirst(), List.of(backend), shuffleImpl);
-    }
-
-    @Override
-    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        return new OpenSearchShuffleReader(
-            getCluster(),
-            getTraitSet(),
-            strippedChildren.isEmpty() ? getInput() : strippedChildren.getFirst(),
-            viableBackends,
-            shuffleImpl
-        );
-    }
 }

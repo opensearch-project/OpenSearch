@@ -15,16 +15,21 @@ import java.util.Set;
  * Used by the coordinator-side planner to determine which backends can
  * evaluate each operator, predicate, aggregate call, and projection expression.
  *
- * <p>All methods except {@link #supportedOperators()} throw {@link UnsupportedOperationException}
- * by default so that backends fail fast and explicitly rather than silently returning empty sets.
- * {@link #supportedOperators()} is abstract — a backend with no operator support has no purpose.
+ * <p>A capability type belongs here only if a planner rule uses it to make a
+ * decision. Backend-internal optimizations (e.g. expression pushdown into scan)
+ * are not declared here.
  *
  * @opensearch.internal
  */
 public interface BackendCapabilityProvider {
 
     /** Relational operators this backend can execute as the primary operator. */
-    Set<OperatorCapability> supportedOperators();
+    Set<EngineCapability> supportedEngineCapabilities();
+
+    /** Storage sources this backend can scan, scoped to storage kind, formats, and field types. */
+    default Set<ScanCapability> scanCapabilities() {
+        return Set.of();
+    }
 
     /** Filter predicates this backend can evaluate, scoped to operator, field type, and data format. */
     default Set<FilterCapability> filterCapabilities() {
@@ -41,11 +46,6 @@ public interface BackendCapabilityProvider {
         return Set.of();
     }
 
-    /** Window functions this backend can evaluate, scoped to function, field type, and data format. */
-    default Set<WindowCapability> windowCapabilities() {
-        return Set.of();
-    }
-
     /**
      * Delegation types this backend can initiate — it has a custom physical operator
      * that calls Analytics Core's delegation API to offload work to another backend.
@@ -59,21 +59,6 @@ public interface BackendCapabilityProvider {
      * (e.g., a serialized QueryBuilder) and return results (e.g., a bitset of matching docIds).
      */
     default Set<DelegationType> acceptedDelegations() {
-        return Set.of();
-    }
-
-    /**
-     * Operators this backend can execute on Arrow batches, regardless of source
-     * (shard scan by another backend, shuffle read, in-memory). If an operator is NOT
-     * in this set, the backend requires its own native data structures (inverted index,
-     * BKD tree, etc.) and cannot operate on externally produced Arrow batches.
-     */
-    default Set<OperatorCapability> arrowCompatibleOperators() {
-        return Set.of();
-    }
-
-    /** Shuffle write modes this backend supports at data nodes. */
-    default Set<ShuffleCapability> supportedShuffleCapabilities() {
         return Set.of();
     }
 }

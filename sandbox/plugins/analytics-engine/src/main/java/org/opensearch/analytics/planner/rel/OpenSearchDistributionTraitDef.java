@@ -111,17 +111,9 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, viableBackends);
             result = new OpenSearchExchangeReducer(rel.getCluster(), rel.getTraitSet().replace(toTrait), rel, reduceViable);
         } else {
-            List<String> shuffleViable = CapabilityResolutionUtils.filterByShuffleCapability(registry, viableBackends);
-            ShuffleImpl shuffleImpl = CapabilityResolutionUtils.bestShuffleImpl(registry, shuffleViable);
-            OpenSearchExchangeWriter writer = new OpenSearchExchangeWriter(
-                rel.getCluster(),
-                rel.getTraitSet(),
-                rel,
-                shuffleViable,
-                shuffleImpl,
-                toTrait.getKeys()
-            );
-            result = new OpenSearchShuffleReader(rel.getCluster(), rel.getTraitSet().replace(toTrait), writer, shuffleViable, shuffleImpl);
+            // TODO: implement HASH/RANGE shuffle exchange when joins and shuffle aggregates are added.
+            // Requires DataTransferCapability producer/consumer intersection for shuffle impl selection.
+            throw new UnsupportedOperationException("HASH/RANGE exchange not yet implemented [toTrait=" + toTrait + "]");
         }
 
         return planner.register(result, rel);

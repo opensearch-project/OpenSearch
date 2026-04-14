@@ -27,10 +27,12 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
-import org.opensearch.analytics.spi.OperatorCapability;
+import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Converts {@link Aggregate} → {@link OpenSearchAggregate}.
@@ -47,7 +49,7 @@ import java.util.List;
  */
 public class OpenSearchAggregateRule extends RelOptRule {
 
-    private static final Logger logger = LogManager.getLogger(OpenSearchAggregateRule.class);
+    private static final Logger LOGGER = LogManager.getLogger(OpenSearchAggregateRule.class);
 
     private final PlannerContext context;
 
@@ -95,12 +97,9 @@ public class OpenSearchAggregateRule extends RelOptRule {
             );
         }
 
-        logger.debug("Aggregate viable backends: {} (child viable: {})", viableBackends, childViableBackends);
+        LOGGER.debug("Aggregate viable backends: {} (child viable: {})", viableBackends, childViableBackends);
 
-        RelTraitSet aggregateTraits = child.getTraitSet();
-        if (aggregateTraits.size() > 0) {
-            aggregateTraits = aggregateTraits.replace(context.getDistributionTraitDef().singleton());
-        }
+        RelTraitSet aggregateTraits = child.getTraitSet().replace(context.getDistributionTraitDef().singleton());
 
         call.transformTo(
             new OpenSearchAggregate(
@@ -125,50 +124,31 @@ public class OpenSearchAggregateRule extends RelOptRule {
         CapabilityRegistry registry = context.getCapabilityRegistry();
 
         if (aggCall.getArgList().isEmpty()) {
-            return new ArrayList<>(registry.operatorBackends(OperatorCapability.AGGREGATE));
+            return new ArrayList<>(registry.aggregateCapableBackends());
         }
 
         List<String> callViable = null;
         for (int fieldIndex : aggCall.getArgList()) {
-            if (fieldIndex >= childFieldStorage.size()) {
-                continue;
-            }
-            FieldStorageInfo storageInfo = childFieldStorage.get(fieldIndex);
+            FieldStorageInfo storageInfo = FieldStorageInfo.resolve(childFieldStorage, fieldIndex);
             FieldType fieldType = storageInfo.getFieldType();
-            if (fieldType == null) {
-                throw new IllegalStateException(
-                    "Unrecognized field type [" + storageInfo.getMappingType() + "] for field [" + storageInfo.getFieldName() + "]"
-                );
-            }
 
-            List<String> perFieldBackends = new ArrayList<>();
+            Set<String> perFieldBackends = new HashSet<>();
             if (storageInfo.isDerived()) {
                 perFieldBackends.addAll(registry.aggregateBackendsAnyFormat(func, fieldType));
             } else {
-                // Format-aware: backends that can read the data and compute
-                for (String format : storageInfo.getDocValueFormats()) {
-                    for (String name : registry.aggregateBackends(func, fieldType, format)) {
-                        if (!perFieldBackends.contains(name)) {
-                            perFieldBackends.add(name);
-                        }
-                    }
-                }
-                // Format-agnostic: delegation targets that can compute but don't need data access
-                for (String name : registry.aggregateBackendsAnyFormat(func, fieldType)) {
-                    if (!perFieldBackends.contains(name)) {
-                        perFieldBackends.add(name);
-                    }
-                }
+                // Format-aware + format-agnostic delegation targets
+                perFieldBackends.addAll(registry.aggregateBackendsForField(func, storageInfo));
+                perFieldBackends.addAll(registry.aggregateBackendsAnyFormat(func, fieldType));
             }
 
             if (callViable == null) {
-                callViable = perFieldBackends;
+                callViable = new ArrayList<>(perFieldBackends);
             } else {
                 callViable.retainAll(perFieldBackends);
             }
         }
 
-        return callViable != null ? callViable : new ArrayList<>(registry.operatorBackends(OperatorCapability.AGGREGATE));
+        return callViable != null ? callViable : new ArrayList<>(registry.aggregateCapableBackends());
     }
 
     private List<String> computeAggregateViableBackends(List<AggregateCall> annotatedCalls, List<String> childViableBackends) {
@@ -177,12 +157,10 @@ public class OpenSearchAggregateRule extends RelOptRule {
         }
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
-        List<String> delegationSupporters = registry.delegationSupporters(DelegationType.AGGREGATE);
-        List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.AGGREGATE);
 
         List<String> viable = new ArrayList<>();
         for (String candidateName : childViableBackends) {
-            if (!registry.operatorBackends(OperatorCapability.AGGREGATE).contains(candidateName)) {
+            if (!registry.aggregateCapableBackends().contains(candidateName)) {
                 continue;
             }
 
@@ -193,15 +171,10 @@ public class OpenSearchAggregateRule extends RelOptRule {
                     canHandleAll = false;
                     break;
                 }
-                List<String> callViable = annotation.getViableBackends();
-                if (callViable.contains(candidateName)) {
-                    continue;
+                if (!registry.canHandle(candidateName, annotation.getViableBackends(), DelegationType.AGGREGATE)) {
+                    canHandleAll = false;
+                    break;
                 }
-                if (delegationSupporters.contains(candidateName) && callViable.stream().anyMatch(delegationAcceptors::contains)) {
-                    continue;
-                }
-                canHandleAll = false;
-                break;
             }
             if (canHandleAll) {
                 viable.add(candidateName);

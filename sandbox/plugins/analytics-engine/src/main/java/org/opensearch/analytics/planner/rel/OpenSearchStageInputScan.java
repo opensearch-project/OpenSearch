@@ -67,18 +67,6 @@ public class OpenSearchStageInputScan extends AbstractRelNode implements OpenSea
     }
 
     @Override
-    public RelNode copyResolved(String backend, List<RelNode> children,
-                                List<OperatorAnnotation> resolvedAnnotations) {
-        return new OpenSearchStageInputScan(getCluster(), getTraitSet(),
-            childStageId, rowType, List.of(backend));
-    }
-
-    @Override
-    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        return this;
-    }
-
-    @Override
     protected RelDataType deriveRowType() {
         return rowType;
     }

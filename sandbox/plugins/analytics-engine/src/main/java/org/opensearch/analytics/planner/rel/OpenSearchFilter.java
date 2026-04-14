@@ -9,17 +9,16 @@
 package org.opensearch.analytics.planner.rel;
 
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptCost;
+import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Filter;
-import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
-import org.opensearch.analytics.spi.OperatorCapability;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -54,9 +53,9 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     }
 
     @Override
-    public org.apache.calcite.plan.RelOptCost computeSelfCost(
-        org.apache.calcite.plan.RelOptPlanner planner,
-        org.apache.calcite.rel.metadata.RelMetadataQuery mq
+    public RelOptCost computeSelfCost(
+        RelOptPlanner planner,
+        RelMetadataQuery mq
     ) {
         return planner.getCostFactory().makeTinyCost();
     }
@@ -66,75 +65,4 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
         return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
 
-    @Override
-    public OperatorCapability getOperatorCapability() {
-        return OperatorCapability.FILTER;
-    }
-
-    @Override
-    public List<OperatorAnnotation> getAnnotations() {
-        List<OperatorAnnotation> annotations = new ArrayList<>();
-        collectAnnotations(getCondition(), annotations);
-        return annotations;
-    }
-
-    private void collectAnnotations(RexNode node, List<OperatorAnnotation> result) {
-        if (node instanceof AnnotatedPredicate predicate) {
-            result.add(predicate);
-        } else if (node instanceof RexCall call) {
-            for (RexNode operand : call.getOperands()) {
-                collectAnnotations(operand, result);
-            }
-        }
-    }
-
-    @Override
-    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        RexNode resolvedCondition = replaceAnnotations(getCondition(), resolvedAnnotations, new int[] { 0 });
-        return new OpenSearchFilter(getCluster(), getTraitSet(), children.getFirst(), resolvedCondition, List.of(backend));
-    }
-
-    @Override
-    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        RexNode stripped = stripCondition(getCondition());
-        return LogicalFilter.create(strippedChildren.getFirst(), stripped);
-    }
-
-    private RexNode replaceAnnotations(RexNode node, List<OperatorAnnotation> resolved, int[] index) {
-        if (node instanceof AnnotatedPredicate) {
-            return (RexNode) resolved.get(index[0]++);
-        }
-        if (node instanceof RexCall call) {
-            List<RexNode> newOperands = new ArrayList<>();
-            boolean changed = false;
-            for (RexNode operand : call.getOperands()) {
-                RexNode replaced = replaceAnnotations(operand, resolved, index);
-                newOperands.add(replaced);
-                if (replaced != operand) {
-                    changed = true;
-                }
-            }
-            return changed ? call.clone(call.getType(), newOperands) : call;
-        }
-        return node;
-    }
-
-    private RexNode stripCondition(RexNode node) {
-        if (node instanceof AnnotatedPredicate predicate) {
-            return predicate.unwrap();
-        }
-        if (node instanceof RexCall call) {
-            List<RexNode> newOperands = new ArrayList<>();
-            boolean changed = false;
-            for (RexNode operand : call.getOperands()) {
-                RexNode stripped = stripCondition(operand);
-                newOperands.add(stripped);
-                if (stripped != operand) {
-                    changed = true;
-                }
-            }
-            return changed ? call.clone(call.getType(), newOperands) : call;
-        }
-        return node;
-    }
 }

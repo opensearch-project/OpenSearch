@@ -30,7 +30,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.analytics.spi.OperatorCapability;
+import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -82,10 +82,8 @@ public class OpenSearchFilterRule extends RelOptRule {
         List<String> childViableBackends = openSearchInput.getViableBackends();
         List<FieldStorageInfo> childFieldStorage = openSearchInput.getOutputFieldStorage();
 
-        RelDataType inputRowType = child.getRowType();
-
         // Annotate every leaf predicate with viable backends
-        RexNode annotatedCondition = annotateCondition(filter.getCondition(), inputRowType, childFieldStorage, childViableBackends);
+        RexNode annotatedCondition = annotateCondition(filter.getCondition(), childFieldStorage, childViableBackends);
 
         // Compute operator-level viable backends: must be viable for child AND handle predicates
         List<String> viableBackends = computeFilterViableBackends(annotatedCondition, childViableBackends);
@@ -120,7 +118,6 @@ public class OpenSearchFilterRule extends RelOptRule {
      */
     private RexNode annotateCondition(
         RexNode condition,
-        RelDataType inputRowType,
         List<FieldStorageInfo> fieldStorage,
         List<String> childViableBackends
     ) {
@@ -130,11 +127,11 @@ public class OpenSearchFilterRule extends RelOptRule {
         if (rexCall.getKind() == SqlKind.AND || rexCall.getKind() == SqlKind.OR || rexCall.getKind() == SqlKind.NOT) {
             List<RexNode> annotatedOperands = new ArrayList<>();
             for (RexNode operand : rexCall.getOperands()) {
-                annotatedOperands.add(annotateCondition(operand, inputRowType, fieldStorage, childViableBackends));
+                annotatedOperands.add(annotateCondition(operand, fieldStorage, childViableBackends));
             }
             return rexCall.clone(rexCall.getType(), annotatedOperands);
         }
-        List<String> viableBackends = resolveViableBackends(rexCall, inputRowType, fieldStorage, childViableBackends);
+        List<String> viableBackends = resolveViableBackends(rexCall, fieldStorage, childViableBackends);
         return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends, context.nextAnnotationId());
     }
 
@@ -146,7 +143,6 @@ public class OpenSearchFilterRule extends RelOptRule {
      */
     private List<String> resolveViableBackends(
         RexCall predicate,
-        RelDataType inputRowType,
         List<FieldStorageInfo> fieldStorage,
         List<String> childViableBackends
     ) {
@@ -156,7 +152,8 @@ public class OpenSearchFilterRule extends RelOptRule {
         CapabilityRegistry registry = context.getCapabilityRegistry();
 
         if (fieldIndices.isEmpty()) {
-            return new ArrayList<>(registry.operatorBackends(OperatorCapability.FILTER));
+            // No field references — literal predicate (e.g. 1=1). Any backend with filter capability can handle it.
+            return new ArrayList<>(childViableBackends);
         }
 
         FilterOperator operator = null;
@@ -170,56 +167,28 @@ public class OpenSearchFilterRule extends RelOptRule {
             throw new IllegalStateException("Unrecognized filter operator [" + predicate.getKind() + "]");
         }
 
-        Set<String> viableSet = new HashSet<>(registry.operatorBackends(OperatorCapability.FILTER));
+        Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
 
         for (int fieldIndex : fieldIndices) {
-            if (fieldIndex >= fieldStorage.size()) {
-                continue;
-            }
-            FieldStorageInfo storageInfo = fieldStorage.get(fieldIndex);
+            FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorage, fieldIndex);
             FieldType fieldType = storageInfo.getFieldType();
-            if (fieldType == null) {
-                throw new IllegalStateException(
-                    "Unrecognized field type [" + storageInfo.getMappingType() + "] for field [" + storageInfo.getFieldName() + "]"
-                );
-            }
 
             // TODO: for FULL_TEXT operators, extract required params from RexCall
-            // and use registry.fullTextFilterBackends() instead
-            Set<String> fieldViable = new HashSet<>();
             if (storageInfo.isDerived()) {
-                // Derived column — only child viable backends + their delegation targets
-                List<String> anyFormat = registry.filterBackendsAnyFormat(operator, fieldType);
-                List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.FILTER);
-                for (String name : childViableBackends) {
-                    if (anyFormat.contains(name)) {
-                        fieldViable.add(name);
-                    }
-                }
-                // Delegation targets reachable from child viable backends
-                List<String> delegationSupporters = registry.delegationSupporters(DelegationType.FILTER);
-                if (childViableBackends.stream().anyMatch(delegationSupporters::contains)) {
-                    for (String name : anyFormat) {
-                        if (!fieldViable.contains(name) && delegationAcceptors.contains(name)) {
-                            fieldViable.add(name);
-                        }
-                    }
-                }
-            } else {
-                // Format-aware: backends that can access the field's data
-                for (String format : storageInfo.getDocValueFormats()) {
-                    fieldViable.addAll(registry.filterBackends(operator, fieldType, format));
-                }
-                for (String format : storageInfo.getIndexFormats()) {
-                    fieldViable.addAll(registry.filterBackends(operator, fieldType, format));
-                }
-                // Format-agnostic: delegation targets that can evaluate but don't need data access
-                for (String name : registry.filterBackendsAnyFormat(operator, fieldType)) {
-                    if (!fieldViable.contains(name)) {
-                        fieldViable.add(name);
-                    }
-                }
+                // Derived column marking is not yet implemented.
+                // Requires DelegationType split (NATIVE_INDEX vs ARROW_BATCH) and
+                // DataTransferCapability-based execution model for within-stage delegation.
+                throw new UnsupportedOperationException(
+                    "Filter on derived column ["
+                        + storageInfo.getFieldName()
+                        + "] is not yet supported. Marking on derived/expression columns requires "
+                        + "a implementation for delegation model."
+                );
             }
+            // Format-aware: backends that can access the field's data
+            Set<String> fieldViable = new HashSet<>(registry.filterBackendsForField(operator, storageInfo));
+            // Format-agnostic: delegation targets that can evaluate but don't need data access
+            fieldViable.addAll(registry.filterBackendsAnyFormat(operator, fieldType));
 
             viableSet.retainAll(fieldViable);
         }
@@ -270,25 +239,18 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         List<String> viable = new ArrayList<>();
         CapabilityRegistry registry = context.getCapabilityRegistry();
-        List<String> delegationSupporters = registry.delegationSupporters(DelegationType.FILTER);
-        List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.FILTER);
 
         for (String candidateName : childViableBackends) {
-            if (!registry.operatorBackends(OperatorCapability.FILTER).contains(candidateName)) {
+            if (!registry.filterCapableBackends().contains(candidateName)) {
                 continue;
             }
 
             boolean canHandleAll = true;
             for (AnnotatedPredicate predicate : predicates) {
-                List<String> predViable = predicate.getViableBackends();
-                if (predViable.contains(candidateName)) {
-                    continue;
+                if (!registry.canHandle(candidateName, predicate.getViableBackends(), DelegationType.FILTER)) {
+                    canHandleAll = false;
+                    break;
                 }
-                if (delegationSupporters.contains(candidateName) && predViable.stream().anyMatch(delegationAcceptors::contains)) {
-                    continue;
-                }
-                canHandleAll = false;
-                break;
             }
             if (canHandleAll) {
                 viable.add(candidateName);

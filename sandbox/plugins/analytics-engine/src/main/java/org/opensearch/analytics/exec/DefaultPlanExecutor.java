@@ -62,9 +62,12 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
 
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
+        // TODO: replace this direct execution path with PlannerImpl → QueryDAG → Scheduler.
+        // PlannerImpl.createPlan() returns a QueryDAG; the Scheduler traverses it bottom-up,
+        // dispatches FragmentExecutionRequests to data nodes, and streams results back.
         String tableName = extractTableName(logicalFragment);
-        AnalyticsSearchBackendPlugin provider = selectBackEnd();
-        if (provider == null) {
+        AnalyticsSearchBackendPlugin backendPlugin = selectBackEnd();
+        if (backendPlugin == null) {
             return new ArrayList<>();
         }
 
@@ -78,8 +81,8 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         List<Object[]> rows = new ArrayList<>();
         try (var dataFormatAwareReader = indexReaderProvider.acquireReader()) {
             ExecutionContext ctx = new ExecutionContext(tableName, task, dataFormatAwareReader.get());
-            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = provider.getSearchExecEngineProvider().createSearchExecEngine(ctx)) {
-                logger.info("[DefaultPlanExecutor] Executing via [{}]", provider.name());
+            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = backendPlugin.getSearchExecEngineProvider().createSearchExecEngine(ctx)) {
+                logger.info("[DefaultPlanExecutor] Executing via [{}]", backendPlugin.name());
                 try (EngineResultStream resultStream = engine.execute(ctx)) {
                     Iterator<EngineResultBatch> batchIterator = resultStream.iterator();
                     while (batchIterator.hasNext()) {
@@ -96,7 +99,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
                 }
             }
         } catch (Exception e) {
-            throw new RuntimeException("Execution failed for [" + provider.name() + "]", e);
+            throw new RuntimeException("Execution failed for [" + backendPlugin.name() + "]", e);
         }
         return rows;
     }

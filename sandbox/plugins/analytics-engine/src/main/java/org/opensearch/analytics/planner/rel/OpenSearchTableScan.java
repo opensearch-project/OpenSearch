@@ -84,13 +84,4 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
         return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
 
-    @Override
-    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        return new OpenSearchTableScan(getCluster(), getTraitSet(), getTable(), List.of(backend), outputFieldStorage);
-    }
-
-    @Override
-    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        return LogicalTableScan.create(getCluster(), getTable(), List.of());
-    }
 }

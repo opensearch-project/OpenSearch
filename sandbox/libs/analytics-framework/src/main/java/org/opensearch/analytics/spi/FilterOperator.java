@@ -15,8 +15,8 @@ import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 
 /**
- * All filter operations a backend may support, covering standard comparisons,
- * full-text search, and expression-based filtering.
+ * All filter operations a backend may support, covering standard comparisons
+ * and full-text search.
  *
  * <p>Each operator carries a {@link Type} indicating its category and whether
  * it supports parameters (e.g., full-text operators accept analyzer, slop, etc.).
@@ -43,18 +43,14 @@ public enum FilterOperator {
     MATCH_PHRASE(Type.FULL_TEXT, SqlKind.OTHER),
     FUZZY(Type.FULL_TEXT, SqlKind.OTHER),
     WILDCARD(Type.FULL_TEXT, SqlKind.OTHER),
-    REGEXP(Type.FULL_TEXT, SqlKind.OTHER),
-
-    // Expression-based filtering (on derived columns, e.g., HAVING)
-    EXPRESSION(Type.EXPRESSION, SqlKind.OTHER);
+    REGEXP(Type.FULL_TEXT, SqlKind.OTHER);
 
     /**
-     * Category of filter operator. Declares whether the operator supports parameters.
+     * Category of filter operator.
      */
     public enum Type {
         STANDARD(false),
-        FULL_TEXT(true),
-        EXPRESSION(false);
+        FULL_TEXT(true);
 
         private final boolean supportsParams;
 

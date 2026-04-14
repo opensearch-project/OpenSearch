@@ -12,7 +12,12 @@ import java.util.Set;
 
 /**
  * Declares a backend's ability to evaluate filter predicates, scoped to data formats.
- * Three variants for the three categories of filter operations.
+ * Two variants for the two categories of filter operations.
+ *
+ * <p>TODO: add index-backed filter capability variants (ExactIndex, ApproximateIndex)
+ * to distinguish backends that can use index structures (terms index, BKD tree, bloom filter)
+ * for predicate evaluation. Exact vs approximate distinction matters for PlanForker when
+ * pruning alternatives based on query accuracy requirements.
  *
  * @opensearch.internal
  */
@@ -32,13 +37,6 @@ public sealed interface FilterCapability {
         public FullText {
             formats = Set.copyOf(formats);
             supportedParams = Set.copyOf(supportedParams);
-        }
-    }
-
-    /** Expression-based filter on derived columns (e.g., HAVING after aggregate). */
-    record Expression(Set<String> formats) implements FilterCapability {
-        public Expression {
-            formats = Set.copyOf(formats);
         }
     }
 }

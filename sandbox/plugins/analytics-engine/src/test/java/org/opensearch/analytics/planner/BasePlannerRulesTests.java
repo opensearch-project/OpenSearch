@@ -134,19 +134,9 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.metadata()).thenReturn(metadata);
 
-        // Build scan format index from backend names → format names
-        Map<String, List<String>> scanFormats = new LinkedHashMap<>();
-        for (var backend : backends) {
-            if (backend.name().contains("lucene")) {
-                scanFormats.computeIfAbsent(MockLuceneBackend.LUCENE_DATA_FORMAT, k -> new ArrayList<>()).add(backend.name());
-            } else if (backend.name().contains("parquet")) {
-                scanFormats.computeIfAbsent(MockDataFusionBackend.PARQUET_DATA_FORMAT, k -> new ArrayList<>()).add(backend.name());
-            }
-        }
-
         Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
 
-        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory, scanFormats), clusterState);
+        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState);
     }
 
     // ---- Table builders ----

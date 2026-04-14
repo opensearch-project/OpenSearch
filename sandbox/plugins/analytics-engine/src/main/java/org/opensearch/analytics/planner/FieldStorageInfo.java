@@ -84,25 +84,27 @@ public class FieldStorageInfo {
         return indexFormats;
     }
 
-    /** Data formats holding stored fields for this field (e.g. ["parquet"], ["lucene"]). */
-    public List<String> getStoredFieldFormats() {
-        return storedFieldFormats;
-    }
-
     /** True for computed columns (agg results, expressions) with no physical storage. */
     public boolean isDerived() {
         return derived;
     }
 
-    public boolean hasDocValues() {
-        return !docValueFormats.isEmpty();
-    }
-
-    public boolean hasIndex() {
-        return !indexFormats.isEmpty();
-    }
-
-    public boolean hasStoredFields() {
-        return !storedFieldFormats.isEmpty();
+    /**
+     * Resolves a field by index from a storage list, validating bounds and field type.
+     * Throws if the index is out of bounds or the field type is unrecognized.
+     */
+    public static FieldStorageInfo resolve(List<FieldStorageInfo> storage, int fieldIndex) {
+        if (fieldIndex >= storage.size()) {
+            throw new IllegalStateException(
+                "Field index [" + fieldIndex + "] out of bounds for storage of size [" + storage.size() + "]"
+            );
+        }
+        FieldStorageInfo info = storage.get(fieldIndex);
+        if (info.getFieldType() == null) {
+            throw new IllegalStateException(
+                "Unrecognized field type [" + info.getMappingType() + "] for field [" + info.getFieldName() + "]"
+            );
+        }
+        return info;
     }
 }

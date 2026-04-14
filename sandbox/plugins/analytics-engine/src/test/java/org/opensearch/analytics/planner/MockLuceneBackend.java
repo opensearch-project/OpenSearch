@@ -11,7 +11,7 @@ package org.opensearch.analytics.planner;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.analytics.spi.OperatorCapability;
+import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -39,8 +39,6 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     public static final String NAME = "mock-lucene";
     public static final String LUCENE_DATA_FORMAT = "lucene";
     private static final Set<String> LUCENE_FORMATS = Set.of(LUCENE_DATA_FORMAT);
-
-    private static final Set<OperatorCapability> OPERATOR_CAPS = Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER);
 
     private static final Set<FilterOperator> STANDARD_OPS = Set.of(
         FilterOperator.EQUALS, FilterOperator.NOT_EQUALS,
@@ -88,7 +86,6 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
 
     @Override public String name() { return NAME; }
 
-    @Override protected Set<OperatorCapability> supportedOperators() { return OPERATOR_CAPS; }
     @Override protected Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
 
     // ---- SearchBackEndPlugin (storage) ----

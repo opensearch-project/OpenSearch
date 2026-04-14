@@ -16,14 +16,14 @@ import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
-import org.opensearch.analytics.spi.OperatorCapability;
+import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.List;
 
 /**
  * Converts {@link Sort} → {@link OpenSearchSort}.
  *
- * <p>Validates that the chosen backend supports {@link OperatorCapability#SORT}.
+ * <p>Validates that the chosen backend supports {@link EngineCapability#SORT}.
  *
  * <p>TODO: for multi-shard Sort+Limit, the split into partial sort
  * per shard + final merge sort at coordinator happens via CBO trait
@@ -54,7 +54,7 @@ public class OpenSearchSortRule extends RelOptRule {
         }
 
         List<String> childViableBackends = openSearchChild.getViableBackends();
-        List<String> sortCapable = context.getCapabilityRegistry().operatorBackends(OperatorCapability.SORT);
+        List<String> sortCapable = context.getCapabilityRegistry().operatorBackends(EngineCapability.SORT);
 
         List<String> viableBackends = childViableBackends.stream().filter(sortCapable::contains).toList();
 

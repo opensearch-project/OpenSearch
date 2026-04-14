@@ -13,19 +13,18 @@ import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.analytics.spi.OperatorCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
-import org.opensearch.analytics.spi.ShuffleCapability;
-import org.opensearch.analytics.spi.WindowCapability;
-import org.opensearch.analytics.spi.WindowFunction;
+import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,44 +34,52 @@ import java.util.function.Function;
  * Pre-indexed capability lookups for planner rules. Built once at plugin startup,
  * shared across all queries. All indexes eagerly constructed in constructor.
  *
- * <p>Single-format lookups return precomputed lists — no allocation, no iteration
- * at query time. Callers collect across multiple formats when needed.
+ * <p>Single-format lookups return the stored list directly — no allocation at query time.
+ * Multi-format aggregations build a new list by collecting across entries.
  *
  * @opensearch.internal
  */
 public class CapabilityRegistry {
 
     private final List<AnalyticsSearchBackendPlugin> backends;
+    // O(1) backend lookup by name
+    private final Map<String, AnalyticsSearchBackendPlugin> backendsByName = new HashMap<>();
+
+    // Per-capability indexes: (capability key, format) → backends
+    // Shape: Map<Key, Map<format, List<backendName>>>
+    private final Map<ScanKey, Map<String, List<String>>> scanIndex = new HashMap<>();
     private final Map<FilterKey, Map<String, List<String>>> filterIndex = new HashMap<>();
     private final Map<AggregateKey, Map<String, List<String>>> aggregateIndex = new HashMap<>();
     private final Map<ScalarKey, Map<String, List<String>>> scalarIndex = new HashMap<>();
-    private final Map<WindowKey, Map<String, List<String>>> windowIndex = new HashMap<>();
+    // Opaque operations keyed by name (e.g. "painless") rather than a typed key
     private final Map<String, Map<String, List<String>>> opaqueIndex = new HashMap<>();
-    private final Map<OperatorCapability, List<String>> operatorIndex = new HashMap<>();
+
+    // Non-format-scoped indexes
+    private final Map<EngineCapability, List<String>> operatorIndex = new HashMap<>();
     private final Map<DelegationType, List<String>> delegationSupporters = new HashMap<>();
     private final Map<DelegationType, List<String>> delegationAcceptors = new HashMap<>();
     private final Map<FullTextParamKey, Set<String>> fullTextParamIndex = new HashMap<>();
-    // format → [backends that support SCAN for this format]
-    private final Map<String, List<String>> scanFormatIndex = new HashMap<>();
-    // backendName → ShuffleCapabilities
-    private final Map<String, Set<ShuffleCapability>> shuffleCapabilities = new HashMap<>();
-    // (backendName, OperatorCapability) → can operate on Arrow from another backend
-    private final Map<String, Set<OperatorCapability>> arrowCompatibleIndex = new HashMap<>();
+
     private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
+
+    // Backends that declared any capability for each operator — O(1) membership check
+    private final Set<String> scanCapableBackends = new HashSet<>();
+    private final Set<String> filterCapableBackends = new HashSet<>();
+    private final Set<String> aggregateCapableBackends = new HashSet<>();
+    private final Set<String> projectCapableBackends = new HashSet<>();
 
     public CapabilityRegistry(
         List<AnalyticsSearchBackendPlugin> backends,
-        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory,
-        Map<String, List<String>> scanFormats
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory
     ) {
         this.backends = backends;
         this.fieldStorageFactory = fieldStorageFactory;
-        this.scanFormatIndex.putAll(scanFormats);
         for (AnalyticsSearchBackendPlugin backend : backends) {
             String name = backend.name();
+            backendsByName.put(name, backend);
             BackendCapabilityProvider caps = backend.getCapabilityProvider();
 
-            for (OperatorCapability cap : caps.supportedOperators()) {
+            for (EngineCapability cap : caps.supportedEngineCapabilities()) {
                 operatorIndex.computeIfAbsent(cap, k -> new ArrayList<>()).add(name);
             }
             for (DelegationType type : caps.supportedDelegations()) {
@@ -81,7 +88,12 @@ public class CapabilityRegistry {
             for (DelegationType type : caps.acceptedDelegations()) {
                 delegationAcceptors.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
-
+            for (ScanCapability cap : caps.scanCapabilities()) {
+                for (FieldType fieldType : cap.supportedFieldTypes()) {
+                    addToFormatMap(scanIndex, new ScanKey(cap.getClass(), fieldType), cap.formats(), name);
+                }
+                scanCapableBackends.add(name);
+            }
             for (FilterCapability cap : caps.filterCapabilities()) {
                 switch (cap) {
                     case FilterCapability.Standard standard -> addToFormatMap(
@@ -97,19 +109,13 @@ public class CapabilityRegistry {
                             fullText.supportedParams()
                         );
                     }
-                    case FilterCapability.Expression expression -> addToFormatMap(
-                        filterIndex,
-                        new FilterKey(FilterOperator.EXPRESSION, null),
-                        expression.formats(),
-                        name
-                    );
                 }
+                filterCapableBackends.add(name);
             }
-
             for (AggregateCapability cap : caps.aggregateCapabilities()) {
                 addToFormatMap(aggregateIndex, new AggregateKey(cap.function(), cap.fieldType()), cap.formats(), name);
+                aggregateCapableBackends.add(name);
             }
-
             for (ProjectCapability cap : caps.projectCapabilities()) {
                 switch (cap) {
                     case ProjectCapability.Scalar scalar -> addToFormatMap(
@@ -125,26 +131,14 @@ public class CapabilityRegistry {
                         }
                     }
                 }
-            }
-
-            for (WindowCapability cap : caps.windowCapabilities()) {
-                addToFormatMap(windowIndex, new WindowKey(cap.function(), cap.fieldType()), cap.formats(), name);
-            }
-
-            // Shuffle capabilities
-            if (!caps.supportedShuffleCapabilities().isEmpty()) {
-                shuffleCapabilities.put(name, caps.supportedShuffleCapabilities());
-            }
-            // Arrow-compatible operators
-            if (!caps.arrowCompatibleOperators().isEmpty()) {
-                arrowCompatibleIndex.put(name, caps.arrowCompatibleOperators());
+                projectCapableBackends.add(name);
             }
         }
     }
 
-    // ---- Eager lookups ----
+    // ---- Operator / delegation lookups ----
 
-    public List<String> operatorBackends(OperatorCapability capability) {
+    public List<String> operatorBackends(EngineCapability capability) {
         return operatorIndex.getOrDefault(capability, List.of());
     }
 
@@ -156,34 +150,37 @@ public class CapabilityRegistry {
         return delegationAcceptors.getOrDefault(type, List.of());
     }
 
-    // ---- Single-format lookups (no allocation) ----
+    // ---- Capable-backend sets ----
+
+    public Set<String> scanCapableBackends() { return scanCapableBackends; }
+    public Set<String> filterCapableBackends() { return filterCapableBackends; }
+    public Set<String> aggregateCapableBackends() { return aggregateCapableBackends; }
+    public Set<String> projectCapableBackends() { return projectCapableBackends; }
+
+    // ---- Scan lookups ----
+
+    public List<String> scanBackends(Class<? extends ScanCapability> kind, FieldType fieldType, String format) {
+        return scanIndex.getOrDefault(new ScanKey(kind, fieldType), Map.of()).getOrDefault(format, List.of());
+    }
+
+    // ---- Single-format lookups ----
 
     public List<String> filterBackends(FilterOperator operator, FieldType fieldType, String format) {
-        Map<String, List<String>> formatMap = filterIndex.getOrDefault(new FilterKey(operator, fieldType), Map.of());
-        return formatMap.getOrDefault(format, List.of());
+        return filterIndex.getOrDefault(new FilterKey(operator, fieldType), Map.of()).getOrDefault(format, List.of());
     }
 
     public List<String> aggregateBackends(AggregateFunction function, FieldType fieldType, String format) {
-        Map<String, List<String>> formatMap = aggregateIndex.getOrDefault(new AggregateKey(function, fieldType), Map.of());
-        return formatMap.getOrDefault(format, List.of());
+        return aggregateIndex.getOrDefault(new AggregateKey(function, fieldType), Map.of()).getOrDefault(format, List.of());
     }
 
     public List<String> scalarBackends(ScalarFunction function, FieldType fieldType, String format) {
-        Map<String, List<String>> formatMap = scalarIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of());
-        return formatMap.getOrDefault(format, List.of());
-    }
-
-    public List<String> windowBackends(WindowFunction function, FieldType fieldType, String format) {
-        Map<String, List<String>> formatMap = windowIndex.getOrDefault(new WindowKey(function, fieldType), Map.of());
-        return formatMap.getOrDefault(format, List.of());
+        return scalarIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of()).getOrDefault(format, List.of());
     }
 
     public List<String> opaqueBackends(String name, String format) {
-        Map<String, List<String>> formatMap = opaqueIndex.getOrDefault(name, Map.of());
-        return formatMap.getOrDefault(format, List.of());
+        return opaqueIndex.getOrDefault(name, Map.of()).getOrDefault(format, List.of());
     }
 
-    /** Checks supported params for a full-text filter backend. */
     public Set<String> fullTextParams(FilterOperator operator, FieldType fieldType, String backendName) {
         return fullTextParamIndex.getOrDefault(new FullTextParamKey(operator, fieldType, backendName), Set.of());
     }
@@ -192,90 +189,99 @@ public class CapabilityRegistry {
         return opaqueIndex.containsKey(name);
     }
 
-    /** Backends that support SCAN for the given format. */
-    public List<String> scanBackends(String format) {
-        return scanFormatIndex.getOrDefault(format, List.of());
-    }
+    // ---- Field-level lookups (iterates all formats a field has) ----
 
-    /** Backends viable for scan across any of the given formats. */
-    public List<String> scanBackends(List<String> formats) {
+    /** All backends that can filter on this field across all its storage formats. */
+    public List<String> filterBackendsForField(FilterOperator operator, FieldStorageInfo field) {
+        FieldType fieldType = field.getFieldType();
         List<String> result = new ArrayList<>();
-        for (String format : formats) {
-            for (String name : scanBackends(format)) {
-                if (!result.contains(name)) {
-                    result.add(name);
-                }
-            }
+        for (String format : field.getDocValueFormats()) {
+            result.addAll(filterBackends(operator, fieldType, format));
+        }
+        for (String format : field.getIndexFormats()) {
+            result.addAll(filterBackends(operator, fieldType, format));
         }
         return result;
     }
 
-    /** Returns shuffle capabilities for a backend, or empty set if none. */
-    public Set<ShuffleCapability> getShuffleCapabilities(String backendName) {
-        return shuffleCapabilities.getOrDefault(backendName, Set.of());
-    }
-
-    /** Whether the backend can execute this operator on Arrow batches from another backend's output. */
-    public boolean isArrowCompatible(String backendName, OperatorCapability operator) {
-        return arrowCompatibleIndex.getOrDefault(backendName, Set.of()).contains(operator);
-    }
-
-    /** Returns the analytics backends. */
-    public List<AnalyticsSearchBackendPlugin> getBackends() {
-        return backends;
-    }
-
-    /** Returns a backend by name. */
-    public AnalyticsSearchBackendPlugin getBackend(String name) {
-        for (AnalyticsSearchBackendPlugin backend : backends) {
-            if (backend.name().equals(name)) {
-                return backend;
-            }
+    /** All backends that can aggregate on this field across all its storage formats. */
+    public List<String> aggregateBackendsForField(AggregateFunction function, FieldStorageInfo field) {
+        FieldType fieldType = field.getFieldType();
+        List<String> result = new ArrayList<>();
+        for (String format : field.getDocValueFormats()) {
+            result.addAll(aggregateBackends(function, fieldType, format));
         }
-        throw new IllegalArgumentException("No backend found with name [" + name + "]");
+        return result;
     }
 
-    /** Builds a FieldStorageResolver for the given index. */
-    public FieldStorageResolver resolveFieldStorage(IndexMetadata indexMetadata) {
-        return fieldStorageFactory.apply(indexMetadata);
+    /** All backends that can scan this field's doc values across all its formats. */
+    public List<String> scanBackendsForField(FieldStorageInfo field) {
+        FieldType fieldType = field.getFieldType();
+        List<String> result = new ArrayList<>();
+        for (String format : field.getDocValueFormats()) {
+            result.addAll(scanBackends(ScanCapability.DocValues.class, fieldType, format));
+        }
+        return result;
     }
 
-    /** All backends that support this filter operator on this field type, any format. */
+    // ---- Any-format lookups ----
+
     public List<String> filterBackendsAnyFormat(FilterOperator operator, FieldType fieldType) {
         return allBackends(filterIndex.getOrDefault(new FilterKey(operator, fieldType), Map.of()));
     }
 
-    /** All backends that support this aggregate function on this field type, any format. */
     public List<String> aggregateBackendsAnyFormat(AggregateFunction function, FieldType fieldType) {
         return allBackends(aggregateIndex.getOrDefault(new AggregateKey(function, fieldType), Map.of()));
     }
 
-    /** All backends that support this scalar function on this field type, any format. */
     public List<String> scalarBackendsAnyFormat(ScalarFunction function, FieldType fieldType) {
-        Map<String, List<String>> formatMap = scalarIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of());
-        return allBackends(formatMap);
+        return allBackends(scalarIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of()));
     }
 
-    /** All backends that support this opaque operation in any format. For project rule. */
     public List<String> opaqueBackendsAnyFormat(String name) {
-        Map<String, List<String>> formatMap = opaqueIndex.getOrDefault(name, Map.of());
-        return allBackends(formatMap);
+        return allBackends(opaqueIndex.getOrDefault(name, Map.of()));
     }
 
-    /** Collects unique backend names across all formats in a format map. */
-    private static List<String> allBackends(Map<String, List<String>> formatMap) {
-        List<String> result = new ArrayList<>();
-        for (List<String> backends : formatMap.values()) {
-            for (String name : backends) {
-                if (!result.contains(name)) {
-                    result.add(name);
-                }
-            }
+    // ---- Annotation handling ----
+
+    /**
+     * Whether a candidate backend can handle an annotated expression — either natively
+     * (candidate is in the annotation's viable backends) or via delegation (candidate
+     * supports delegation and at least one viable backend accepts it).
+     */
+    public boolean canHandle(String candidate, List<String> annotationViable, DelegationType delegationType) {
+        if (annotationViable.contains(candidate)) return true;
+        return delegationSupporters(delegationType).contains(candidate)
+            && annotationViable.stream().anyMatch(delegationAcceptors(delegationType)::contains);
+    }
+
+    // ---- Backend access ----
+
+    public List<AnalyticsSearchBackendPlugin> getBackends() {
+        return backends;
+    }
+
+    public AnalyticsSearchBackendPlugin getBackend(String name) {
+        AnalyticsSearchBackendPlugin backend = backendsByName.get(name);
+        if (backend == null) {
+            throw new IllegalArgumentException("No backend found with name [" + name + "]");
         }
-        return result;
+        return backend;
+    }
+
+    public FieldStorageResolver resolveFieldStorage(IndexMetadata indexMetadata) {
+        return fieldStorageFactory.apply(indexMetadata);
     }
 
     // ---- Helpers ----
+
+    private static List<String> allBackends(Map<String, List<String>> formatMap) {
+        List<String> result = new ArrayList<>();
+        for (List<String> names : formatMap.values()) {
+            result.addAll(names);
+        }
+        return result;
+    }
 
     private static <K> void addToFormatMap(Map<K, Map<String, List<String>>> index, K key, Set<String> formats, String backendName) {
         Map<String, List<String>> formatMap = index.computeIfAbsent(key, k -> new HashMap<>());
@@ -286,18 +292,9 @@ public class CapabilityRegistry {
 
     // ---- Keys ----
 
-    private record FilterKey(FilterOperator operator, FieldType fieldType) {
-    }
-
-    private record AggregateKey(AggregateFunction function, FieldType fieldType) {
-    }
-
-    private record ScalarKey(ScalarFunction function, FieldType fieldType) {
-    }
-
-    private record WindowKey(WindowFunction function, FieldType fieldType) {
-    }
-
-    private record FullTextParamKey(FilterOperator operator, FieldType fieldType, String backendName) {
-    }
+    private record ScanKey(Class<? extends ScanCapability> kind, FieldType fieldType) {}
+    private record FilterKey(FilterOperator operator, FieldType fieldType) {}
+    private record AggregateKey(AggregateFunction function, FieldType fieldType) {}
+    private record ScalarKey(ScalarFunction function, FieldType fieldType) {}
+    private record FullTextParamKey(FilterOperator operator, FieldType fieldType, String backendName) {}
 }

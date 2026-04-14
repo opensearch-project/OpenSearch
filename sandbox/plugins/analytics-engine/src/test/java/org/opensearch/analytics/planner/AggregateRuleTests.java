@@ -25,7 +25,7 @@ import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
-import org.opensearch.analytics.spi.OperatorCapability;
+import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.List;
 import java.util.Map;
@@ -104,9 +104,6 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
     public void testAggregateViableBackendsIntersection() {
         MockLuceneBackend luceneWithAgg = new MockLuceneBackend() {
-            @Override protected Set<OperatorCapability> supportedOperators() {
-                return Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER, OperatorCapability.AGGREGATE);
-            }
             @Override protected Set<AggregateCapability> aggregateCapabilities() {
                 return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
                     Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER), AggregateFunction.COUNT, Set.of(FieldType.INTEGER)));
@@ -146,9 +143,6 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
     public void testMixedPerCallViableBackends() {
         MockLuceneBackend lucenePartialAgg = new MockLuceneBackend() {
-            @Override protected Set<OperatorCapability> supportedOperators() {
-                return Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER, OperatorCapability.AGGREGATE);
-            }
             @Override protected Set<AggregateCapability> aggregateCapabilities() {
                 return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
                     Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER)));
@@ -192,9 +186,6 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.AGGREGATE); }
         };
         MockLuceneBackend luceneAccepting = new MockLuceneBackend() {
-            @Override protected Set<OperatorCapability> supportedOperators() {
-                return Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER, OperatorCapability.AGGREGATE);
-            }
             @Override protected Set<AggregateCapability> aggregateCapabilities() {
                 return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
                     Map.of(AggregateFunction.STDDEV_POP, Set.of(FieldType.INTEGER)));
@@ -211,9 +202,6 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
     public void testAggregateErrorsWithoutDelegation() {
         MockLuceneBackend luceneWithStddev = new MockLuceneBackend() {
-            @Override protected Set<OperatorCapability> supportedOperators() {
-                return Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER, OperatorCapability.AGGREGATE);
-            }
             @Override protected Set<AggregateCapability> aggregateCapabilities() {
                 return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
                     Map.of(AggregateFunction.STDDEV_POP, Set.of(FieldType.INTEGER)));

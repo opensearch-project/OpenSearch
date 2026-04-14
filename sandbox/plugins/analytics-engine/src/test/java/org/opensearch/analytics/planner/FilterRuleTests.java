@@ -195,8 +195,12 @@ public class FilterRuleTests extends BasePlannerRulesTests {
 
     // ---- Derived columns ----
 
-    /** HAVING on derived column — only FILTER_ON_EXPRESSIONS backends viable. */
-    public void testFilterOnDerivedColumnsAfterAggregate() {
+    /**
+     * HAVING on derived column must throw — marking on derived/expression columns
+     * is not yet implemented. Verifies the planner fails fast with a clear message
+     * rather than silently producing incorrect viableBackends.
+     */
+    public void testFilterOnDerivedColumnsAfterAggregateThrows() {
         PlannerContext context = buildContext("parquet", 1, Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer")));
 
         RelOptTable table = mockTable("test_index", "status", "size");
@@ -225,20 +229,14 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         );
         LogicalFilter having = LogicalFilter.create(aggregate, havingCondition);
 
-        RelNode result = runPlanner(having, context);
-        logger.info("Plan:\n{}", RelOptUtil.toString(result));
-
-        result = unwrapExchange(result);
-        assertTrue(result instanceof OpenSearchFilter);
-        OpenSearchFilter filter = (OpenSearchFilter) result;
-
-        assertTrue(filter.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertFalse(filter.getViableBackends().contains(MockLuceneBackend.NAME));
-
-        assertTrue(filter.getCondition() instanceof AnnotatedPredicate);
-        AnnotatedPredicate annotated = (AnnotatedPredicate) filter.getCondition();
-        assertEquals(1, annotated.getViableBackends().size());
-        assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
+        UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> runPlanner(having, context)
+        );
+        assertTrue(
+            "Expected message about derived column, got: " + ex.getMessage(),
+            ex.getMessage().contains("derived column")
+        );
     }
 
     // ---- Helpers ----

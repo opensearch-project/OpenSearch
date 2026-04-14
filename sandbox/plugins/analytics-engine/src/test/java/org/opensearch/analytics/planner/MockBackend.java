@@ -13,10 +13,9 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FilterCapability;
-import org.opensearch.analytics.spi.OperatorCapability;
+import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
-import org.opensearch.analytics.spi.ShuffleCapability;
-import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.ScanCapability;
 
 import java.util.Set;
 
@@ -33,26 +32,22 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     public final BackendCapabilityProvider getCapabilityProvider() {
         MockBackend self = this;
         return new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return self.supportedOperators(); }
+            @Override public Set<EngineCapability> supportedEngineCapabilities() { return self.supportedEngineCapabilities(); }
+            @Override public Set<ScanCapability> scanCapabilities() { return self.scanCapabilities(); }
             @Override public Set<FilterCapability> filterCapabilities() { return self.filterCapabilities(); }
             @Override public Set<AggregateCapability> aggregateCapabilities() { return self.aggregateCapabilities(); }
             @Override public Set<ProjectCapability> projectCapabilities() { return self.projectCapabilities(); }
-            @Override public Set<WindowCapability> windowCapabilities() { return self.windowCapabilities(); }
             @Override public Set<DelegationType> supportedDelegations() { return self.supportedDelegations(); }
             @Override public Set<DelegationType> acceptedDelegations() { return self.acceptedDelegations(); }
-            @Override public Set<OperatorCapability> arrowCompatibleOperators() { return self.arrowCompatibleOperators(); }
-            @Override public Set<ShuffleCapability> supportedShuffleCapabilities() { return self.supportedShuffleCapabilities(); }
         };
     }
 
     // Overridable capability methods — defaults return empty (no capability declared)
-    protected Set<OperatorCapability> supportedOperators() { return Set.of(); }
+    protected Set<EngineCapability> supportedEngineCapabilities() { return Set.of(); }
+    protected Set<ScanCapability> scanCapabilities() { return Set.of(); }
     protected Set<FilterCapability> filterCapabilities() { return Set.of(); }
     protected Set<AggregateCapability> aggregateCapabilities() { return Set.of(); }
     protected Set<ProjectCapability> projectCapabilities() { return Set.of(); }
-    protected Set<WindowCapability> windowCapabilities() { return Set.of(); }
     protected Set<DelegationType> supportedDelegations() { return Set.of(); }
     protected Set<DelegationType> acceptedDelegations() { return Set.of(); }
-    protected Set<OperatorCapability> arrowCompatibleOperators() { return Set.of(); }
-    protected Set<ShuffleCapability> supportedShuffleCapabilities() { return Set.of(); }
 }
