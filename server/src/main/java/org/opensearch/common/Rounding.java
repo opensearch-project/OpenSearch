@@ -54,7 +54,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.format.TextStyle;
 import java.time.temporal.ChronoField;
 import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalField;
@@ -634,7 +633,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public boolean isUTC() {
-            return "Z".equals(timeZone.normalized().getDisplayName(TextStyle.FULL, Locale.ENGLISH));
+            return ZoneOffset.UTC.equals(timeZone.normalized());
         }
 
         private abstract class TimeUnitPreparedRounding extends PreparedRounding {
@@ -1007,7 +1006,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public boolean isUTC() {
-            return "Z".equals(timeZone.normalized().getDisplayName(TextStyle.FULL, Locale.ENGLISH));
+            return ZoneOffset.UTC.equals(timeZone.normalized());
         }
 
         private long roundKey(long value, long interval) {
