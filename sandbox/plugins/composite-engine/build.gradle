@@ -8,7 +8,7 @@
 
 opensearchplugin {
   description = 'Composite indexing engine plugin that orchestrates multi-format indexing across multiple data format engines.'
-  classname = 'org.opensearch.composite.CompositeEnginePlugin'
+  classname = 'org.opensearch.composite.CompositeDataFormatPlugin'
 }
 
 dependencies {

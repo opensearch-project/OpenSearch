@@ -23,7 +23,7 @@ Format plugins (e.g., Parquet) extend this plugin by declaring `extendedPlugins 
 
 ## Key classes
 
-- **`CompositeEnginePlugin`** — The `ExtensiblePlugin` entry point. Discovers format plugins, validates settings, and creates the composite engine.
+- **`CompositeDataFormatPlugin`** — The `ExtensiblePlugin` entry point. Discovers format plugins, validates settings, and creates the composite engine.
 - **`CompositeIndexingExecutionEngine`** — Orchestrates indexing across primary and secondary format engines.
 - **`CompositeDataFormat`** — A `DataFormat` that wraps multiple per-format instances.
 - **`CompositeDocumentInput`** — Routes field additions to the appropriate per-format `DocumentInput` based on field type capabilities.
