@@ -8,12 +8,17 @@
 
 package org.opensearch.repositories.fs.native_store;
 
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.plugins.Plugin;
 
+import java.io.IOException;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
@@ -23,6 +28,11 @@ import java.lang.invoke.MethodHandle;
 /**
  * Stateless factory that creates native (Rust) local filesystem ObjectStore instances.
  * Primarily used for testing with FS-based repositories.
+ *
+ * <p>Intersection settings passed to Rust:
+ * <ul>
+ *   <li>{@code base_path} — from repo {@code location} setting</li>
+ * </ul>
  *
  * @opensearch.experimental
  */
@@ -69,9 +79,31 @@ public class FsNativeObjectStorePlugin extends Plugin implements NativeRemoteObj
     }
 
     @Override
+    public long createNativeStoreFromMetadata(final RepositoryMetadata metadata, final Settings nodeSettings) {
+        try {
+            final String configJson = buildConfigJson(metadata);
+            return createNativeStore(configJson);
+        } catch (final IOException e) {
+            throw new IllegalStateException("Failed to build native store config for repo [" + metadata.name() + "]", e);
+        }
+    }
+
+    @Override
     public void destroyNativeStore(final long ptr) {
         try (var call = new NativeCall()) {
             call.invoke(FS_DESTROY_STORE, ptr);
+        }
+    }
+
+    /**
+     * Build config JSON for the Rust FS backend from repo metadata.
+     */
+    static String buildConfigJson(final RepositoryMetadata metadata) throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            builder.field("base_path", metadata.settings().get("location", ""));
+            builder.endObject();
+            return Strings.toString(builder);
         }
     }
 }

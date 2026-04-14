@@ -38,11 +38,14 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreAwareRepository;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 
@@ -55,7 +58,7 @@ import static org.opensearch.common.settings.Setting.Property;
 import static org.opensearch.common.settings.Setting.byteSizeSetting;
 import static org.opensearch.common.settings.Setting.simpleString;
 
-class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
+class GoogleCloudStorageRepository extends MeteredBlobStoreRepository implements NativeStoreAwareRepository {
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRepository.class);
 
     // package private for testing
@@ -86,6 +89,10 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final ByteSizeValue chunkSize;
     private final String bucket;
     private final String clientName;
+
+    /** Native (Rust) object store pointer, or -1 if not initialized. */
+    private volatile long nativeStorePtr = -1;
+    private volatile NativeRemoteObjectStoreProvider nativeProvider;
 
     GoogleCloudStorageRepository(
         final RepositoryMetadata metadata,
@@ -134,6 +141,21 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     }
 
     @Override
+    protected void doClose() {
+        if (nativeStorePtr > 0 && nativeProvider != null) {
+            try {
+                nativeProvider.destroyNativeStore(nativeStorePtr);
+                logger.debug("Destroyed native store for repo [{}], ptr={}", metadata.name(), nativeStorePtr);
+            } catch (final Exception e) {
+                logger.warn("Failed to destroy native store for repo [{}]: {}", metadata.name(), e.getMessage());
+            }
+            nativeStorePtr = -1;
+            nativeProvider = null;
+        }
+        super.doClose();
+    }
+
+    @Override
     public List<Setting<?>> getRestrictedSystemRepositorySettings() {
         List<Setting<?>> restrictedSettings = new ArrayList<>();
         restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
@@ -154,5 +176,20 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is empty for repository");
         }
         return value;
+    }
+
+    @Override
+    public void initNativeStore(final NativeRemoteObjectStoreProvider provider, final Settings nodeSettings) {
+        final long ptr = provider.createNativeStoreFromMetadata(metadata, nodeSettings);
+        if (ptr > 0) {
+            this.nativeStorePtr = ptr;
+            this.nativeProvider = provider;
+            logger.info("Created native store for repo [{}], ptr={}", metadata.name(), ptr);
+        }
+    }
+
+    @Override
+    public long getNativeStorePtr() {
+        return nativeStorePtr;
     }
 }

@@ -76,6 +76,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.CryptoPlugin;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -93,6 +94,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -943,6 +945,184 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         @Override
         public BlobPath basePath() {
             return BlobPath.cleanPath();
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Native store init tests
+    // -----------------------------------------------------------------------
+
+    public void testNativeStoreInitCalledOnNativeAwareRepo() {
+        final AtomicLong createCalled = new AtomicLong();
+        final NativeRemoteObjectStoreProvider mockProvider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return NativeAwareTestRepository.TYPE;
+            }
+
+            @Override
+            public long createNativeStore(String configJson) {
+                return 0;
+            }
+
+            @Override
+            public long createNativeStoreFromMetadata(RepositoryMetadata metadata, Settings nodeSettings) {
+                createCalled.incrementAndGet();
+                return 42;
+            }
+
+            @Override
+            public void destroyNativeStore(long ptr) {}
+        };
+
+        final RepositoriesService svc = createRepositoriesServiceWithNativeProviders(
+            Map.of(NativeAwareTestRepository.TYPE, mockProvider)
+        );
+        svc.registerInternalRepository("native-repo", NativeAwareTestRepository.TYPE);
+
+        final Repository repo = svc.repository("native-repo");
+        assertEquals(1, createCalled.get());
+        assertEquals(42, repo.getNativeStorePtr());
+    }
+
+    public void testNativeStoreNotCalledOnNonNativeRepo() {
+        final AtomicLong createCalled = new AtomicLong();
+        final NativeRemoteObjectStoreProvider mockProvider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return TestRepository.TYPE;
+            }
+
+            @Override
+            public long createNativeStore(String configJson) {
+                return 0;
+            }
+
+            @Override
+            public long createNativeStoreFromMetadata(RepositoryMetadata metadata, Settings nodeSettings) {
+                createCalled.incrementAndGet();
+                return 99;
+            }
+
+            @Override
+            public void destroyNativeStore(long ptr) {}
+        };
+
+        // TestRepository does NOT implement NativeStoreAwareRepository
+        final RepositoriesService svc = createRepositoriesServiceWithNativeProviders(
+            Map.of(TestRepository.TYPE, mockProvider)
+        );
+        svc.registerInternalRepository("plain-repo", TestRepository.TYPE);
+
+        final Repository repo = svc.repository("plain-repo");
+        assertEquals(0, createCalled.get());
+        assertEquals(-1, repo.getNativeStorePtr());
+    }
+
+    public void testNativeStoreNotCalledWhenNoProvider() {
+        final RepositoriesService svc = createRepositoriesServiceWithNativeProviders(Collections.emptyMap());
+        svc.registerInternalRepository("repo", NativeAwareTestRepository.TYPE);
+
+        final Repository repo = svc.repository("repo");
+        assertEquals(-1, repo.getNativeStorePtr());
+    }
+
+    public void testNativeStoreInitFailureDoesNotBreakRepoCreation() {
+        final NativeRemoteObjectStoreProvider failProvider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return NativeAwareTestRepository.TYPE;
+            }
+
+            @Override
+            public long createNativeStore(String configJson) {
+                return 0;
+            }
+
+            @Override
+            public long createNativeStoreFromMetadata(RepositoryMetadata metadata, Settings nodeSettings) {
+                throw new RuntimeException("FFM init failed");
+            }
+
+            @Override
+            public void destroyNativeStore(long ptr) {}
+        };
+
+        final RepositoriesService svc = createRepositoriesServiceWithNativeProviders(
+            Map.of(NativeAwareTestRepository.TYPE, failProvider)
+        );
+        svc.registerInternalRepository("repo", NativeAwareTestRepository.TYPE);
+
+        final Repository repo = svc.repository("repo");
+        assertTrue(((NativeAwareTestRepository) repo).isStarted);
+        assertEquals(-1, repo.getNativeStorePtr());
+    }
+
+    public void testGetNativeStorePtrDefaultIsMinusOne() {
+        repositoriesService.registerInternalRepository("repo", TestRepository.TYPE);
+        final Repository repo = repositoriesService.repository("repo");
+        assertEquals(-1, repo.getNativeStorePtr());
+    }
+
+    private RepositoriesService createRepositoriesServiceWithNativeProviders(
+        Map<String, NativeRemoteObjectStoreProvider> nativeProviders
+    ) {
+        final ThreadPool tp = mock(ThreadPool.class);
+        final ClusterApplierService cas = mock(ClusterApplierService.class);
+        when(cas.threadPool()).thenReturn(tp);
+        final ClusterService cs = mock(ClusterService.class);
+        when(cs.getClusterApplierService()).thenReturn(cas);
+
+        final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.getMinNodeVersion()).thenReturn(Version.V_2_9_0);
+        final ClusterState state = mock(ClusterState.class);
+        when(state.getNodes()).thenReturn(nodes);
+        when(cs.state()).thenReturn(state);
+        when(cs.getSettings()).thenReturn(Settings.EMPTY);
+        when(cs.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+
+        final TransportService ts = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            tp,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            null,
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
+        );
+
+        final Map<String, Repository.Factory> types = Map.of(
+            TestRepository.TYPE, TestRepository::new,
+            NativeAwareTestRepository.TYPE, NativeAwareTestRepository::new
+        );
+
+        final RepositoriesService svc = new RepositoriesService(
+            Settings.EMPTY, cs, ts, types, types, tp, nativeProviders
+        );
+        svc.start();
+        return svc;
+    }
+
+    private static class NativeAwareTestRepository extends TestRepository implements NativeStoreAwareRepository {
+        private static final String TYPE = "native-aware";
+        private long nativeStorePtr = -1;
+
+        NativeAwareTestRepository(RepositoryMetadata metadata) {
+            super(metadata);
+        }
+
+        @Override
+        public void initNativeStore(NativeRemoteObjectStoreProvider provider, Settings nodeSettings) {
+            final long ptr = provider.createNativeStoreFromMetadata(getMetadata(), nodeSettings);
+            if (ptr > 0) {
+                this.nativeStorePtr = ptr;
+            }
+        }
+
+        @Override
+        public long getNativeStorePtr() {
+            return nativeStorePtr;
         }
     }
 }

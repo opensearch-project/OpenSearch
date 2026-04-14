@@ -41,10 +41,13 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreAwareRepository;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 
 import java.util.ArrayList;
@@ -67,7 +70,7 @@ import static org.opensearch.repositories.azure.AzureStorageService.MIN_CHUNK_SI
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class AzureRepository extends MeteredBlobStoreRepository {
+public class AzureRepository extends MeteredBlobStoreRepository implements NativeStoreAwareRepository {
     private static final Logger logger = LogManager.getLogger(AzureRepository.class);
 
     public static final String TYPE = "azure";
@@ -108,6 +111,10 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     private final ByteSizeValue chunkSize;
     private final AzureStorageService storageService;
     private final boolean readonly;
+
+    /** Native (Rust) object store pointer, or -1 if not initialized. */
+    private volatile long nativeStorePtr = -1;
+    private volatile NativeRemoteObjectStoreProvider nativeProvider;
 
     public AzureRepository(
         final RepositoryMetadata metadata,
@@ -189,11 +196,41 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     }
 
     @Override
+    protected void doClose() {
+        if (nativeStorePtr > 0 && nativeProvider != null) {
+            try {
+                nativeProvider.destroyNativeStore(nativeStorePtr);
+                logger.debug("Destroyed native store for repo [{}], ptr={}", metadata.name(), nativeStorePtr);
+            } catch (final Exception e) {
+                logger.warn("Failed to destroy native store for repo [{}]: {}", metadata.name(), e.getMessage());
+            }
+            nativeStorePtr = -1;
+            nativeProvider = null;
+        }
+        super.doClose();
+    }
+
+    @Override
     public List<Setting<?>> getRestrictedSystemRepositorySettings() {
         List<Setting<?>> restrictedSettings = new ArrayList<>();
         restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
         restrictedSettings.add(Repository.BASE_PATH_SETTING);
         restrictedSettings.add(Repository.LOCATION_MODE_SETTING);
         return restrictedSettings;
+    }
+
+    @Override
+    public void initNativeStore(final NativeRemoteObjectStoreProvider provider, final Settings nodeSettings) {
+        final long ptr = provider.createNativeStoreFromMetadata(metadata, nodeSettings);
+        if (ptr > 0) {
+            this.nativeStorePtr = ptr;
+            this.nativeProvider = provider;
+            logger.info("Created native store for repo [{}], ptr={}", metadata.name(), ptr);
+        }
+    }
+
+    @Override
+    public long getNativeStorePtr() {
+        return nativeStorePtr;
     }
 }

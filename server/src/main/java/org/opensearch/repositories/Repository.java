@@ -672,4 +672,18 @@ public interface Repository extends LifecycleComponent {
      * Validate the repository metadata
      */
     default void validateMetadata(RepositoryMetadata repositoryMetadata) {}
+
+    /**
+     * Returns the native (Rust) object store pointer for this repository, or {@code -1}
+     * if native object store is not supported or not initialized.
+     *
+     * <p>The pointer represents a {@code Box<Arc<dyn ObjectStore>>} on the Rust side.
+     * Consumers should treat it as opaque and never attempt to dereference it directly.
+     *
+     * @return native store pointer ({@code > 0}), or {@code -1} if not available
+     * @opensearch.experimental
+     */
+    default long getNativeStorePtr() {
+        return -1;
+    }
 }

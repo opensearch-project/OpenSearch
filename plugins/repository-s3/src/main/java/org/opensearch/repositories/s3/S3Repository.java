@@ -60,8 +60,10 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.NativeStoreAwareRepository;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
@@ -92,7 +94,7 @@ import java.util.function.Function;
  * <dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
  * </dl>
  */
-class S3Repository extends MeteredBlobStoreRepository {
+class S3Repository extends MeteredBlobStoreRepository implements NativeStoreAwareRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
@@ -363,6 +365,12 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     private volatile int bulkDeletesSize;
+
+    /** Native (Rust) object store pointer, or -1 if not initialized. */
+    private volatile long nativeStorePtr = -1;
+
+    /** Provider that created the native store — needed for destroy on close. */
+    private volatile NativeRemoteObjectStoreProvider nativeProvider;
 
     // Used by test classes
     S3Repository(
@@ -676,12 +684,37 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected void doClose() {
+        if (nativeStorePtr > 0 && nativeProvider != null) {
+            try {
+                nativeProvider.destroyNativeStore(nativeStorePtr);
+                logger.debug("Destroyed native store for repo [{}], ptr={}", metadata.name(), nativeStorePtr);
+            } catch (final Exception e) {
+                logger.warn("Failed to destroy native store for repo [{}]: {}", metadata.name(), e.getMessage());
+            }
+            nativeStorePtr = -1;
+            nativeProvider = null;
+        }
         final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
         if (cancellable != null) {
             logger.debug("Repository [{}] closed during cool-down period", metadata.name());
             cancellable.cancel();
         }
         super.doClose();
+    }
+
+    @Override
+    public void initNativeStore(final NativeRemoteObjectStoreProvider provider, final Settings nodeSettings) {
+        final long ptr = provider.createNativeStoreFromMetadata(metadata, nodeSettings);
+        if (ptr > 0) {
+            this.nativeStorePtr = ptr;
+            this.nativeProvider = provider;
+            logger.info("Created native store for repo [{}], ptr={}", metadata.name(), ptr);
+        }
+    }
+
+    @Override
+    public long getNativeStorePtr() {
+        return nativeStorePtr;
     }
 
     @Override

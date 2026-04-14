@@ -249,7 +249,6 @@ import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.repositories.NativeRemoteObjectStoreService;
 import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptContext;
@@ -1373,6 +1372,25 @@ public class Node implements Closeable {
             );
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
+
+            // Build native object store provider map — sandbox plugins that create Rust ObjectStores.
+            // Only on warm nodes — hot nodes don't need native stores, zero overhead.
+            // Empty map on non-warm or non-sandbox builds → no native stores → graceful no-op.
+            final Map<String, NativeRemoteObjectStoreProvider> nativeProviderMap;
+            if (DiscoveryNode.isWarmNode(settings)) {
+                nativeProviderMap = new HashMap<>();
+                for (final NativeRemoteObjectStoreProvider p : pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)) {
+                    final NativeRemoteObjectStoreProvider existing = nativeProviderMap.put(p.repositoryType(), p);
+                    if (existing != null) {
+                        throw new IllegalArgumentException(
+                            "Duplicate NativeRemoteObjectStoreProvider for type [" + p.repositoryType() + "]"
+                        );
+                    }
+                }
+            } else {
+                nativeProviderMap = Collections.emptyMap();
+            }
+
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class),
@@ -1380,7 +1398,8 @@ public class Node implements Closeable {
                 clusterService,
                 threadPool,
                 xContentRegistry,
-                recoverySettings
+                recoverySettings,
+                nativeProviderMap
             );
             CryptoHandlerRegistry.initRegistry(
                 pluginsService.filterPlugins(CryptoPlugin.class),
@@ -1389,13 +1408,6 @@ public class Node implements Closeable {
             );
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
-
-            // Native remote object store service — discovers NativeRemoteObjectStoreProvider plugins
-            // and provides cached native store pointers for consumers like tiered storage.
-            // Created unconditionally; empty providers list on non-sandbox builds → no-op service.
-            final NativeRemoteObjectStoreService nativeRemoteObjectStoreService = new NativeRemoteObjectStoreService(
-                pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)
-            );
 
             SnapshotsService snapshotsService = new SnapshotsService(
                 settings,
@@ -1671,7 +1683,6 @@ public class Node implements Closeable {
                 b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
                 b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
                 b.bind(RepositoriesService.class).toInstance(repositoryService);
-                b.bind(NativeRemoteObjectStoreService.class).toInstance(nativeRemoteObjectStoreService);
                 b.bind(SnapshotsService.class).toInstance(snapshotsService);
                 b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
                 b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);
@@ -2068,7 +2079,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
         toClose.add(injector.getInstance(RepositoriesService.class));
-        toClose.add(injector.getInstance(NativeRemoteObjectStoreService.class));
         toClose.add(() -> stopWatch.stop().start("client"));
         Releasables.close(injector.getInstance(Client.class));
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));
