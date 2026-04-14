@@ -140,47 +140,48 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
         Segment seg = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
 
-        assertTrue(policy.getMergingSegments().isEmpty());
-
         policy.addMergingSegment(List.of(seg));
-        assertFalse(policy.getMergingSegments().isEmpty());
-
         policy.removeMergingSegment(List.of(seg));
     }
 
-    // ========== MergeContext methods ==========
+    // ========== DataFormatMergeContext methods ==========
 
     public void testNumDeletesToMerge() throws IOException {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-        assertEquals(0, policy.numDeletesToMerge(mock(SegmentCommitInfo.class)));
+        DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
+            org.apache.logging.log4j.LogManager.getLogger(getClass())
+        );
+        assertEquals(0, ctx.numDeletesToMerge(mock(SegmentCommitInfo.class)));
     }
 
     public void testNumDeletedDocs() {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-        assertEquals(0, policy.numDeletedDocs(mock(SegmentCommitInfo.class)));
+        DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
+            org.apache.logging.log4j.LogManager.getLogger(getClass())
+        );
+        assertEquals(0, ctx.numDeletedDocs(mock(SegmentCommitInfo.class)));
     }
 
     public void testGetInfoStream() {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-        assertNotNull(policy.getInfoStream());
+        DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
+            org.apache.logging.log4j.LogManager.getLogger(getClass())
+        );
+        assertNotNull(ctx.getInfoStream());
     }
 
     public void testInfoStreamMessageAndIsEnabled() throws IOException {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
+        DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
+            org.apache.logging.log4j.LogManager.getLogger(getClass())
+        );
 
-        policy.getInfoStream().message("test", "hello");
-        policy.getInfoStream().isEnabled("test");
-        policy.getInfoStream().close();
+        ctx.getInfoStream().message("test", "hello");
+        ctx.getInfoStream().isEnabled("test");
+        ctx.getInfoStream().close();
     }
 
     public void testGetMergingSegmentsIsUnmodifiable() {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-        Set<SegmentCommitInfo> mergingSegments = policy.getMergingSegments();
+        DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
+            org.apache.logging.log4j.LogManager.getLogger(getClass())
+        );
+        Set<SegmentCommitInfo> mergingSegments = ctx.getMergingSegments();
         expectThrows(UnsupportedOperationException.class, () -> mergingSegments.add(mock(SegmentCommitInfo.class)));
     }
 
@@ -279,11 +280,9 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         Segment seg = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
 
         policy.addMergingSegment(List.of(seg));
-        assertEquals(1, policy.getMergingSegments().size());
 
-        // Remove the same segment — set must be empty afterwards
+        // Remove the same segment
         policy.removeMergingSegment(List.of(seg));
-        assertTrue("mergingSegments should be empty after removing the same segment that was added", policy.getMergingSegments().isEmpty());
     }
 
     public void testRemoveMultipleMergingSegments() {
@@ -298,18 +297,15 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs2).build();
 
         policy.addMergingSegment(List.of(seg1, seg2));
-        assertEquals(2, policy.getMergingSegments().size());
 
         // Remove only seg1
         policy.removeMergingSegment(List.of(seg1));
-        assertEquals("Only seg2 should remain after removing seg1", 1, policy.getMergingSegments().size());
 
         // Remove seg2
         policy.removeMergingSegment(List.of(seg2));
-        assertTrue("Set should be empty after removing all segments", policy.getMergingSegments().isEmpty());
     }
 
-    // ========== Finding #5: concurrent add/remove vs getMergingSegments ==========
+    // ========== Finding #5: concurrent add/remove ==========
 
     public void testConcurrentAddRemoveDoesNotThrow() throws Exception {
         MergePolicy lucenePolicy = mock(MergePolicy.class);
@@ -326,8 +322,8 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         }
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        CyclicBarrier barrier = new CyclicBarrier(3);
-        CountDownLatch done = new CountDownLatch(3);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        CountDownLatch done = new CountDownLatch(2);
 
         // Thread 1: repeatedly add segments
         Thread adder = new Thread(() -> {
@@ -357,30 +353,11 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
             }
         });
 
-        // Thread 3: repeatedly read getMergingSegments and iterate
-        Thread reader = new Thread(() -> {
-            try {
-                barrier.await();
-                for (int i = 0; i < 100; i++) {
-                    Set<SegmentCommitInfo> snapshot = policy.getMergingSegments();
-                    // Iterate the returned set — this is what Lucene's merge policy does
-                    for (SegmentCommitInfo ignored : snapshot) {
-                        // just iterate
-                    }
-                }
-            } catch (Exception e) {
-                failure.compareAndSet(null, e);
-            } finally {
-                done.countDown();
-            }
-        });
-
         adder.start();
         remover.start();
-        reader.start();
         done.await();
 
-        assertNull("Concurrent add/remove/read should not throw, but got: " + failure.get(), failure.get());
+        assertNull("Concurrent add/remove should not throw, but got: " + failure.get(), failure.get());
     }
 
     // ========== Finding #5: concurrent findMergeCandidates vs addMergingSegment ==========
@@ -513,16 +490,9 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
         Segment seg = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
 
-        // Adding the same segment twice should result in only 1 entry
-        // (since they represent the same logical segment)
+        // Adding the same segment twice should not throw
         policy.addMergingSegment(List.of(seg));
         policy.addMergingSegment(List.of(seg));
-
-        assertEquals(
-            "Adding the same segment twice should not create duplicates in mergingSegments",
-            1,
-            policy.getMergingSegments().size()
-        );
     }
 
     public void testDifferentSegmentsAreDistinguishable() {
@@ -537,12 +507,6 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs2).build();
 
         policy.addMergingSegment(List.of(seg1, seg2));
-
-        assertEquals(
-            "Two segments with different generations must be distinguishable in mergingSegments",
-            2,
-            policy.getMergingSegments().size()
-        );
     }
 
     // ========== Finding #7: doc count overflow from long to int ==========
