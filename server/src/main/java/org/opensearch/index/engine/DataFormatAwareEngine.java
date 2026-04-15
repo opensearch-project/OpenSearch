@@ -32,10 +32,15 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException;
+import org.opensearch.index.engine.dataformat.merge.MergeHandler;
+import org.opensearch.index.engine.dataformat.merge.MergeScheduler;
+import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
@@ -158,6 +163,9 @@ public class DataFormatAwareEngine implements Indexer {
     // Refresh tracker
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
+    // Merge
+    private final MergeScheduler mergeScheduler;
+
     @Nullable
     private final String historyUUID;
 
@@ -250,6 +258,22 @@ public class DataFormatAwareEngine implements Indexer {
                 this::updateAutoIdTimestamp,
                 (a, b) -> null
             );
+
+            // Merge
+            MergeHandler mergeHandler = new MergeHandler(
+                this::acquireSnapshot,
+                indexingExecutionEngine.getMerger(),
+                engineConfig.getIndexSettings(),
+                shardId
+            );
+            this.mergeScheduler = new MergeScheduler(
+                mergeHandler,
+                this::applyMergeChanges,
+                shardId,
+                engineConfig.getIndexSettings(),
+                engineConfig.getThreadPool()
+            );
+
             success = true;
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
@@ -557,13 +581,8 @@ public class DataFormatAwareEngine implements Indexer {
                         RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
                         catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
 
-                        // TODO: Add other Refresh listeners
-                        // Notify reader managers so they can create readers for the new snapshot
                         try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
-                            CatalogSnapshot newSnapshot = newSnapshotRef.get();
-                            for (EngineReaderManager<?> rm : readerManagers.values()) {
-                                rm.afterRefresh(refreshed, newSnapshot);
-                            }
+                            refreshListeners(refreshed, newSnapshotRef.get());
                         }
 
                         refreshed = true;
@@ -572,6 +591,7 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                     if (refreshed) {
                         lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
+                        triggerPossibleMerges(); // trigger merges
                     }
                 }
             } finally {
@@ -705,6 +725,9 @@ public class DataFormatAwareEngine implements Indexer {
         final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
+
+        // This checks if the settings related to merge are changed and based on that updates the local variables in the class
+        mergeScheduler.refreshConfig();
     }
 
     @Override
@@ -850,8 +873,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public MergeStats getMergeStats() {
-        // TODO: MergeHandler to provide this.
-        return new MergeStats();
+        return mergeScheduler.stats();
     }
 
     @Override
@@ -1003,6 +1025,35 @@ public class DataFormatAwareEngine implements Indexer {
             }
         }
         awaitPendingClose();
+    }
+
+    private synchronized void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
+        try {
+            catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
+            try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+                refreshListeners(true, newSnapshotRef.get());
+            }
+        } catch (Exception ex) {
+            try {
+                logger.error(() -> new ParameterizedMessage("Merge failed while registering merged files in Snapshot"), ex);
+                failEngine("Merge failed while registering merged files in Snapshot", ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
+            throw new MergeFailedEngineException(shardId, ex);
+        }
+    }
+
+    private void refreshListeners(boolean refreshed, CatalogSnapshot catalogSnapshot) throws IOException {
+        // TODO: Add other Refresh listeners
+        // Notify reader managers so they can create readers for the new snapshot
+        for (EngineReaderManager<?> rm : readerManagers.values()) {
+            rm.afterRefresh(refreshed, catalogSnapshot);
+        }
+    }
+
+    private void triggerPossibleMerges() {
+        mergeScheduler.triggerMerges();
     }
 
     private void closeNoLock(String reason) {

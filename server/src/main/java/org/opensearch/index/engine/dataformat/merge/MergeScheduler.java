@@ -21,6 +21,7 @@ import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.MergeStatsTracker;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -131,7 +132,7 @@ public class MergeScheduler {
      *
      * @param maxNumSegment the maximum number of segments after the force merge
      */
-    public void forceMerge(int maxNumSegment) {
+    public void forceMerge(int maxNumSegment) throws IOException {
         if (activeMerges.get() > 0) {
             logger.warn("Cannot force merge while background merges are active");
             throw new IllegalStateException("Cannot force merge while background merges are active");

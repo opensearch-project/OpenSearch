@@ -132,10 +132,9 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedWfs));
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
-        MergeHandler handler = CompositeMerger.create(
-            engineNoSecondary,
-            primaryOnlyFormat,
+        MergeHandler handler = new MergeHandler(
             snapshotSupplier,
+            new CompositeMerger(engineNoSecondary, primaryOnlyFormat),
             createIndexSettings(),
             SHARD_ID
         );
@@ -216,10 +215,9 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         when(secondaryMerger.merge(any())).thenThrow(new IOException("parquet error"));
         when(secondaryMerger2.merge(any())).thenThrow(new IOException("arrow error"));
 
-        MergeHandler handler = CompositeMerger.create(
-            multiEngine,
-            multiFormat,
+        MergeHandler handler = new MergeHandler(
             snapshotSupplier,
+            new CompositeMerger(multiEngine, multiFormat),
             createIndexSettings(),
             SHARD_ID
         );
@@ -369,7 +367,12 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedWfs), STUB_ROW_ID_MAPPING);
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
-        MergeHandler handler = CompositeMerger.create(dupEngine, dupFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplier,
+            new CompositeMerger(dupEngine, dupFormat),
+            createIndexSettings(),
+            SHARD_ID
+        );
 
         MergeResult result = handler.doMerge(oneMerge);
         assertNotNull(result);
@@ -557,7 +560,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
     // ========== Helper methods ==========
 
     private MergeHandler createHandler() {
-        return CompositeMerger.create(compositeEngine, compositeDataFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
+        return new MergeHandler(snapshotSupplier, new CompositeMerger(compositeEngine, compositeDataFormat), createIndexSettings(), SHARD_ID);
     }
 
     private static IndexSettings createIndexSettings() {
