@@ -51,7 +51,7 @@ public interface DataFormatPlugin {
      * @param indexSettings the index settings used to determine active formats
      * @return map of format name to descriptor
      */
-    default Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings) {
+    default Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         return Map.of();
     }
 }

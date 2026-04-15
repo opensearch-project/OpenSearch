@@ -55,7 +55,10 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.mapper.DocumentMapperForType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -117,6 +120,9 @@ public final class EngineConfig {
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final ClusterApplierService clusterApplierService;
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
+    private final DataFormatRegistry dataFormatRegistry;
+    private final MapperService mapperService;
+    private final CommitterFactory committerFactory;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -307,6 +313,9 @@ public final class EngineConfig {
         this.indexReaderWarmer = builder.indexReaderWarmer;
         this.clusterApplierService = builder.clusterApplierService;
         this.mergedSegmentTransferTracker = builder.mergedSegmentTransferTracker;
+        this.dataFormatRegistry = builder.dataFormatRegistry;
+        this.mapperService = builder.mapperService;
+        this.committerFactory = builder.committerFactory;
     }
 
     /**
@@ -634,6 +643,18 @@ public final class EngineConfig {
         return this.mergedSegmentTransferTracker;
     }
 
+    public DataFormatRegistry getDataFormatRegistry() {
+        return this.dataFormatRegistry;
+    }
+
+    public MapperService getMapperService() {
+        return this.mapperService;
+    }
+
+    public CommitterFactory getCommitterFactory() {
+        return this.committerFactory;
+    }
+
     /**
      * Builder for EngineConfig class
      *
@@ -672,6 +693,9 @@ public final class EngineConfig {
         private IndexWriter.IndexReaderWarmer indexReaderWarmer;
         private ClusterApplierService clusterApplierService;
         private MergedSegmentTransferTracker mergedSegmentTransferTracker;
+        private DataFormatRegistry dataFormatRegistry;
+        private MapperService mapperService;
+        private CommitterFactory committerFactory;
 
         public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
@@ -825,6 +849,21 @@ public final class EngineConfig {
 
         public Builder mergedSegmentTransferTracker(MergedSegmentTransferTracker mergedSegmentTransferTracker) {
             this.mergedSegmentTransferTracker = mergedSegmentTransferTracker;
+            return this;
+        }
+
+        public Builder dataFormatRegistry(DataFormatRegistry dataFormatRegistry) {
+            this.dataFormatRegistry = dataFormatRegistry;
+            return this;
+        }
+
+        public Builder mapperService(MapperService mapperService) {
+            this.mapperService = mapperService;
+            return this;
+        }
+
+        public Builder committerFactory(CommitterFactory committerFactory) {
+            this.committerFactory = committerFactory;
             return this;
         }
 

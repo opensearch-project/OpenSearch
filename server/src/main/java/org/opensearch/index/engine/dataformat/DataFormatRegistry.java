@@ -76,16 +76,6 @@ public class DataFormatRegistry {
             }
         }
 
-        if (readerManagerBuilders.keySet().equals(dataFormatPlugiRegistry.keySet()) == false) {
-            throw new IllegalStateException(
-                "Cannot build registry as data formats have missing indexing engine/reader managers"
-                    + " - formats with reader managers: "
-                    + readerManagerBuilders.keySet()
-                    + ", formats with plugins: "
-                    + dataFormatPlugiRegistry.keySet()
-            );
-        }
-
         this.dataFormatPluginRegistry = Map.copyOf(dataFormatPlugiRegistry);
         this.dataFormats = Map.copyOf(dataFormats);
         this.readerManagerBuilders = Map.copyOf(readerManagerBuilders);
@@ -104,7 +94,7 @@ public class DataFormatRegistry {
         if (plugin == null) {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
         }
-        Map<String, DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(settings.indexSettings());
+        Map<String, DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(settings.indexSettings(), this);
         DataFormatDescriptor descriptor = descriptors.get(format.name());
         FormatChecksumStrategy checksumStrategy = descriptor != null ? descriptor.getChecksumStrategy() : null;
         return plugin.indexingEngine(settings, checksumStrategy);
@@ -149,7 +139,7 @@ public class DataFormatRegistry {
     /**
      * Returns format descriptors for the active data format of the given index.
      * Resolves the data format from index settings via the {@code pluggable_dataformat} setting,
-     * then delegates to {@link DataFormatPlugin#getFormatDescriptors(IndexSettings)}.
+     * then delegates to {@link DataFormatPlugin#getFormatDescriptors(IndexSettings, DataFormatRegistry)}.
      *
      * @param indexSettings the index settings used to determine the active data format
      * @return unmodifiable map of format name to descriptor, or empty map if no pluggable data format is configured
@@ -161,7 +151,7 @@ public class DataFormatRegistry {
             if (format != null) {
                 DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
                 if (plugin != null) {
-                    return plugin.getFormatDescriptors(indexSettings);
+                    return plugin.getFormatDescriptors(indexSettings, this);
                 }
             }
         }

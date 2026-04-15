@@ -19,7 +19,6 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.Segment;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
@@ -30,8 +29,8 @@ import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -55,7 +54,7 @@ import java.util.function.Supplier;
  * time, where writer-specific settings (e.g., {@code parquet.max_rows_per_vsr}) are
  * extracted and applied.
  */
-public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDataFormat, ParquetDocumentInput>, Closeable {
+public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDataFormat, ParquetDocumentInput> {
 
     private static final Logger logger = LogManager.getLogger(ParquetIndexingEngine.class);
 
@@ -124,6 +123,13 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.settings = settings;
         this.threadPool = threadPool;
         this.checksumStrategy = checksumStrategy;
+        try {
+            Files.createDirectory(shardPath.resolve("parquet"));
+        } catch (FileAlreadyExistsException ex) {
+            logger.warn("Directory already exists: {}", shardPath.resolve("parquet"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -169,12 +175,10 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         if (refreshInput == null) {
             return new RefreshResult(List.of());
         }
-        List<Segment> segments = new ArrayList<>(refreshInput.existingSegments());
-        long gen = segments.stream().mapToLong(Segment::generation).max().orElse(-1) + 1;
-        for (WriterFileSet wfs : refreshInput.writerFiles()) {
-            segments.add(Segment.builder(gen++).addSearchableFiles(dataFormat, wfs).build());
-        }
-        return new RefreshResult(segments);
+        List<Segment> segments = new ArrayList<>();
+        segments.addAll(refreshInput.existingSegments());
+        segments.addAll(refreshInput.writerFiles());
+        return new RefreshResult(List.copyOf(segments));
     }
 
     @Override

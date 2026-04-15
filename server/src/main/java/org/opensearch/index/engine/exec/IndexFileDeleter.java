@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.ShardPath;
@@ -28,8 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * added or fully dereferenced after catalog snapshot changes.
  * <p>
  * This class does <em>not</em> notify reader managers itself — it returns the
- * computed change sets so the caller ({@link DataFormatAwareEngine})
- * can route notifications to the appropriate reader managers.
+ * computed change sets so the caller can route notifications to the appropriate reader managers.
  *
  * @opensearch.experimental
  */
