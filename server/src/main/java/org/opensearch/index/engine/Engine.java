@@ -345,10 +345,12 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
-     * is enabled
+     * is enabled.
+     * This class has been deprecated. See IndexingThrottler.java
      *
      * @opensearch.internal
      */
+    @Deprecated
     protected static final class IndexThrottle {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;

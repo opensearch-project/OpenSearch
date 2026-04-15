@@ -55,6 +55,7 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS
             )
         );
@@ -102,6 +103,7 @@ public class RustBridge {
             var f = call.str(file);
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
+            var crc32Out = call.longOut();
             var out = call.outBuffer(1024);
             long rc = call.invokeIO(
                 FINALIZE_WRITER,
@@ -111,7 +113,8 @@ public class RustBridge {
                 numRowsOut,
                 out.data(),
                 (long) out.capacity(),
-                out.lenOut()
+                out.lenOut(),
+                crc32Out
             );
             if (rc == 1) return null;
             int createdByLen = out.actualLength();
@@ -120,7 +123,8 @@ public class RustBridge {
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
                 createdByLen >= 0
                     ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
-                    : null
+                    : null,
+                crc32Out.get(ValueLayout.JAVA_LONG, 0)
             );
         }
     }
@@ -145,7 +149,8 @@ public class RustBridge {
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
                 createdByLen >= 0
                     ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
-                    : null
+                    : null,
+                0L
             );
         }
     }
