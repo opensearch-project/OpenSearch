@@ -249,7 +249,6 @@ import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -1373,24 +1372,6 @@ public class Node implements Closeable {
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
 
-            // Build native object store provider map — sandbox plugins that create Rust ObjectStores.
-            // Only on warm nodes — hot nodes don't need native stores, zero overhead.
-            // Empty map on non-warm or non-sandbox builds → no native stores → graceful no-op.
-            final Map<String, NativeRemoteObjectStoreProvider> nativeProviderMap;
-            if (DiscoveryNode.isWarmNode(settings)) {
-                nativeProviderMap = new HashMap<>();
-                for (final NativeRemoteObjectStoreProvider p : pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)) {
-                    final NativeRemoteObjectStoreProvider existing = nativeProviderMap.put(p.repositoryType(), p);
-                    if (existing != null) {
-                        throw new IllegalArgumentException(
-                            "Duplicate NativeRemoteObjectStoreProvider for type [" + p.repositoryType() + "]"
-                        );
-                    }
-                }
-            } else {
-                nativeProviderMap = Collections.emptyMap();
-            }
-
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class),
@@ -1398,8 +1379,7 @@ public class Node implements Closeable {
                 clusterService,
                 threadPool,
                 xContentRegistry,
-                recoverySettings,
-                nativeProviderMap
+                recoverySettings
             );
             CryptoHandlerRegistry.initRegistry(
                 pluginsService.filterPlugins(CryptoPlugin.class),

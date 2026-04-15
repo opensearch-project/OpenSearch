@@ -40,6 +40,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.plugins.RepositoryPlugin;
@@ -55,12 +57,15 @@ import java.util.Map;
 /**
  * A plugin to add a repository type that writes to and from the Azure cloud storage service.
  */
-public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin, ExtensiblePlugin {
 
     public static final String REPOSITORY_THREAD_POOL_NAME = "repository_azure";
 
     // protected for testing
     final AzureStorageService azureStoreService;
+
+    /** Native store provider loaded via ExtensiblePlugin — null if no native plugin is present. */
+    private NativeRemoteObjectStoreProvider nativeStoreProvider;
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
@@ -73,6 +78,16 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        for (NativeRemoteObjectStoreProvider provider : loader.loadExtensions(NativeRemoteObjectStoreProvider.class)) {
+            if (AzureRepository.TYPE.equals(provider.repositoryType())) {
+                this.nativeStoreProvider = provider;
+                break;
+            }
+        }
+    }
+
+    @Override
     public Map<String, Repository.Factory> getRepositories(
         Environment env,
         NamedXContentRegistry namedXContentRegistry,
@@ -81,7 +96,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     ) {
         return Collections.singletonMap(
             AzureRepository.TYPE,
-            (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService, recoverySettings)
+            (metadata) -> new AzureRepository(
+                metadata, namedXContentRegistry, azureStoreService, clusterService, recoverySettings, nativeStoreProvider
+            )
         );
     }
 

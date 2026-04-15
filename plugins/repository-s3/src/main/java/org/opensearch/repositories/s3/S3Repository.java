@@ -60,10 +60,10 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
-import org.opensearch.repositories.NativeStoreAwareRepository;
+import org.opensearch.repositories.NativeStoreRepository;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
@@ -94,7 +94,7 @@ import java.util.function.Function;
  * <dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
  * </dl>
  */
-class S3Repository extends MeteredBlobStoreRepository implements NativeStoreAwareRepository {
+class S3Repository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
@@ -366,11 +366,8 @@ class S3Repository extends MeteredBlobStoreRepository implements NativeStoreAwar
 
     private volatile int bulkDeletesSize;
 
-    /** Native (Rust) object store pointer, or -1 if not initialized. */
-    private volatile long nativeStorePtr = -1;
-
-    /** Provider that created the native store — needed for destroy on close. */
-    private volatile NativeRemoteObjectStoreProvider nativeProvider;
+    /** Native (Rust) object store — created during construction if native provider is available. */
+    private volatile NativeStoreRepository nativeStore = NativeStoreRepository.EMPTY;
 
     // Used by test classes
     S3Repository(
@@ -428,6 +425,36 @@ class S3Repository extends MeteredBlobStoreRepository implements NativeStoreAwar
         final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
         final GenericStatsMetricPublisher genericStatsMetricPublisher
     ) {
+        this(
+            metadata, namedXContentRegistry, service, clusterService, recoverySettings,
+            asyncUploadUtils, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder,
+            s3AsyncService, multipartUploadEnabled, pluginConfigPath,
+            normalPrioritySizeBasedBlockingQ, lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher, null
+        );
+    }
+
+    /**
+     * Constructs an s3 backed repository with optional native store provider.
+     */
+    S3Repository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final S3Service service,
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
+        final AsyncTransferManager asyncUploadUtils,
+        final AsyncExecutorContainer urgentExecutorBuilder,
+        final AsyncExecutorContainer priorityExecutorBuilder,
+        final AsyncExecutorContainer normalExecutorBuilder,
+        final S3AsyncService s3AsyncService,
+        final boolean multipartUploadEnabled,
+        Path pluginConfigPath,
+        final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
+        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
+        final GenericStatsMetricPublisher genericStatsMetricPublisher,
+        final NativeRemoteObjectStoreProvider nativeStoreProvider
+    ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.service = service;
         this.s3AsyncService = s3AsyncService;
@@ -443,6 +470,14 @@ class S3Repository extends MeteredBlobStoreRepository implements NativeStoreAwar
 
         validateRepositoryMetadata(metadata);
         readRepositoryMetadata();
+
+        // Initialize native store if provider is available (sandbox warm nodes only)
+        if (nativeStoreProvider != null) {
+            final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
+            if (store != null && store.isLive()) {
+                this.nativeStore = store;
+            }
+        }
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
@@ -684,16 +719,7 @@ class S3Repository extends MeteredBlobStoreRepository implements NativeStoreAwar
 
     @Override
     protected void doClose() {
-        if (nativeStorePtr > 0 && nativeProvider != null) {
-            try {
-                nativeProvider.destroyNativeStore(nativeStorePtr);
-                logger.debug("Destroyed native store for repo [{}], ptr={}", metadata.name(), nativeStorePtr);
-            } catch (final Exception e) {
-                logger.warn("Failed to destroy native store for repo [{}]: {}", metadata.name(), e.getMessage());
-            }
-            nativeStorePtr = -1;
-            nativeProvider = null;
-        }
+        nativeStore.close();
         final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
         if (cancellable != null) {
             logger.debug("Repository [{}] closed during cool-down period", metadata.name());
@@ -703,18 +729,8 @@ class S3Repository extends MeteredBlobStoreRepository implements NativeStoreAwar
     }
 
     @Override
-    public void initNativeStore(final NativeRemoteObjectStoreProvider provider, final Settings nodeSettings) {
-        final long ptr = provider.createNativeStoreFromMetadata(metadata, nodeSettings);
-        if (ptr > 0) {
-            this.nativeStorePtr = ptr;
-            this.nativeProvider = provider;
-            logger.info("Created native store for repo [{}], ptr={}", metadata.name(), ptr);
-        }
-    }
-
-    @Override
     public long getNativeStorePtr() {
-        return nativeStorePtr;
+        return nativeStore.getPointer();
     }
 
     @Override

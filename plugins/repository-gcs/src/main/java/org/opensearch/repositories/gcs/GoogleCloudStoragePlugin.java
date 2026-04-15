@@ -38,6 +38,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.plugins.RepositoryPlugin;
@@ -48,10 +50,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin, ExtensiblePlugin {
 
     // package-private for tests
     final GoogleCloudStorageService storageService;
+
+    /** Native store provider loaded via ExtensiblePlugin — null if no native plugin is present. */
+    private NativeRemoteObjectStoreProvider nativeStoreProvider;
 
     public GoogleCloudStoragePlugin(final Settings settings) {
         this.storageService = createStorageService();
@@ -62,6 +67,16 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     // overridable for tests
     protected GoogleCloudStorageService createStorageService() {
         return new GoogleCloudStorageService();
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        for (NativeRemoteObjectStoreProvider provider : loader.loadExtensions(NativeRemoteObjectStoreProvider.class)) {
+            if (GoogleCloudStorageRepository.TYPE.equals(provider.repositoryType())) {
+                this.nativeStoreProvider = provider;
+                break;
+            }
+        }
     }
 
     @Override
@@ -78,7 +93,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
                 namedXContentRegistry,
                 this.storageService,
                 clusterService,
-                recoverySettings
+                recoverySettings,
+                nativeStoreProvider
             )
         );
     }
