@@ -44,6 +44,7 @@ pub mod tree_eval;
 pub mod tree_provider;
 pub mod tree_stream;
 pub mod jni_tree_searcher;
+pub mod substrait_to_tree;
 
 pub use index::{BitsetMode, ShardSearcher};
 pub use jni_searcher::JniShardSearcher;
