@@ -12,7 +12,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 
 /**
@@ -22,13 +21,13 @@ import org.opensearch.index.store.Store;
  *
  * @param committer the committer for durable flush, or null if not available
  * @param mapperService the mapper service for field mapping resolution
- * @param shardPath the shard path for file storage
  * @param indexSettings the index-level settings
  * @param store the shard's store, or null if not available
+ * @param registry DataFormatRegistry containing information about registered data formats.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record IndexingEngineConfig(Committer committer, MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings,
-    Store store) {
+public record IndexingEngineConfig(Committer committer, MapperService mapperService, IndexSettings indexSettings, Store store,
+    DataFormatRegistry registry) {
 }

@@ -94,4 +94,12 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
     public void onFilesAdded(Collection<String> files) throws IOException {
         // no-op
     }
+
+    @Override
+    public void close() throws IOException {
+        for (DirectoryReader reader : readers.values()) {
+            reader.close();
+        }
+        readers.clear();
+    }
 }

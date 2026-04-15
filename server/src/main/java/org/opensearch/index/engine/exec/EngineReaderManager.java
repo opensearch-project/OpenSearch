@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -23,6 +24,6 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface EngineReaderManager<T> extends CatalogSnapshotLifecycleListener, FilesListener {
+public interface EngineReaderManager<T> extends CatalogSnapshotLifecycleListener, FilesListener, Closeable {
     T getReader(CatalogSnapshot catalogSnapshot) throws IOException;
 }

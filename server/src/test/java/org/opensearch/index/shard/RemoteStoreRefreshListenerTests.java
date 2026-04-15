@@ -29,11 +29,12 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
@@ -83,7 +84,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build(),
-            new InternalEngineFactory()
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
         );
 
         if (primary) {
@@ -185,7 +186,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
-        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+        indexShard = newStartedShard(false, indexSettings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
 
         // Mocking the IndexShard methods and dependent classes.
         ShardId shardId = new ShardId("index1", "_na_", 1);
@@ -213,7 +214,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             }
             throw new IOException();
         }).when(remoteMetadataDirectory)
-            .listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, METADATA_FILES_TO_FETCH);
+            .listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                METADATA_FILES_TO_FETCH
+            );
 
         SegmentInfos segmentInfos;
         try (Store indexShardStore = indexShard.store()) {
@@ -248,7 +252,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // listFilesByPrefixInLexicographicOrder has been called twice.
         verify(remoteMetadataDirectory, times(1)).getBlobStream(any());
         verify(remoteMetadataDirectory, times(2)).listFilesByPrefixInLexicographicOrder(
-            MetadataFilenameUtils.METADATA_PREFIX,
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
             METADATA_FILES_TO_FETCH
         );
     }
@@ -704,7 +708,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build(),
-            new InternalEngineFactory()
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
         );
 
         RemoteSegmentTransferTracker tracker = indexShard.getRemoteStoreStatsTrackerFactory()
@@ -767,21 +771,21 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         }).when(shard).isStartedPrimary();
 
         AtomicLong counter = new AtomicLong();
-        // Mock indexShard.getSegmentInfosSnapshot()
+        // Mock indexShard.getCatalogSnapshot()
         doAnswer(invocation -> {
             if (counter.incrementAndGet() <= succeedOnAttempt) {
-                logger.error("Failing in get segment info {}", counter.get());
+                logger.error("Failing in get catalog snapshot {}", counter.get());
                 throw new RuntimeException("Inducing failure in upload");
             }
-            return indexShard.getSegmentInfosSnapshot();
-        }).when(shard).getSegmentInfosSnapshot();
+            return indexShard.getCatalogSnapshot();
+        }).when(shard).getCatalogSnapshot();
 
         doAnswer((invocation -> {
             if (counter.incrementAndGet() <= succeedOnAttempt) {
                 throw new RuntimeException("Inducing failure in upload");
             }
             return indexShard.getLatestReplicationCheckpoint();
-        })).when(shard).computeReplicationCheckpoint(any());
+        })).when(shard).computeReplicationCheckpoint(any(CatalogSnapshot.class));
 
         doAnswer((invocationOnMock -> {
             if (closeShard && counter.get() == closeShardAfterAttempt) {
@@ -938,7 +942,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build(),
-            new InternalEngineFactory()
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
         );
 
         indexDocs(1, 3);

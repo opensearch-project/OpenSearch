@@ -105,6 +105,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
             throw new IllegalStateException("Cannot add document to writer in state " + state.get());
         }
         // Write to primary first
+        doc.setRowId("__row_id__", rowIdGenerator.currentRowId());
         WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
         switch (primaryResult) {
             case WriteResult.Success s -> logger.trace("Successfully added document in primary format [{}]", primaryFormat.name());
@@ -138,6 +139,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
 
     @Override
     public FileInfos flush() throws IOException {
+        setFlushPending();
         FileInfos.Builder builder = FileInfos.builder();
         // Flush primary
         Optional<WriterFileSet> primaryWfs = primaryWriter.flush().getWriterFileSet(primaryFormat);
@@ -159,6 +161,11 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
         for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
             writer.sync();
         }
+    }
+
+    @Override
+    public long generation() {
+        return getWriterGeneration();
     }
 
     @Override

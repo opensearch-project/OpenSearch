@@ -86,6 +86,7 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.InternalEngineTests;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.Uid;
@@ -303,7 +304,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
 
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
-        assertSame(indexService.getEngineFactory(), module.getEngineFactory());
+        assertSame(indexService.getIndexerFactory(), module.getIndexerFactory());
         indexService.close("simon says", false);
     }
 
@@ -677,7 +678,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         final IndexModule module = new IndexModule(
             indexSettings,
             emptyAnalysisRegistry,
-            new InternalEngineFactory(),
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
             new EngineConfigFactory(indexSettings),
             Collections.emptyMap(),
             Collections.emptyMap(),
@@ -686,7 +687,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             storeFactories,
             null,
-            null
+            null,
+            Collections.emptyMap()
         );
 
         // Test that IndexService can be created successfully with valid store factory
@@ -709,7 +711,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         final IndexModule module = new IndexModule(
             indexSettings,
             emptyAnalysisRegistry,
-            new InternalEngineFactory(),
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
             new EngineConfigFactory(indexSettings),
             Collections.emptyMap(),
             Collections.emptyMap(),
@@ -718,7 +720,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             storeFactories,
             null,
-            null
+            null,
+            Collections.emptyMap()
         );
 
         // Test that IndexService uses default store when setting is empty
@@ -739,7 +742,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         final IndexModule module = new IndexModule(
             indexSettings,
             emptyAnalysisRegistry,
-            new InternalEngineFactory(),
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
             new EngineConfigFactory(indexSettings),
             Collections.emptyMap(),
             Collections.emptyMap(),
@@ -748,7 +751,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             null,
-            null
+            null,
+            Collections.emptyMap()
         );
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
