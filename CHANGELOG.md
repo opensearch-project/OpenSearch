@@ -75,7 +75,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix unscaped commands in indexer-security-init.sh [(#1196)](https://github.com/wazuh/wazuh-indexer/pull/1196)
 - Fix broken link generation from the repository bumper script [(#1206)](https://github.com/wazuh/wazuh-indexer/pull/1206)
 - Fix demo certificates generation triggered by default [(#1235)](https://github.com/wazuh/wazuh-indexer/pull/1235)
-- Fix link-checker workflow [(#1344)(]https://github.com/wazuh/wazuh-indexer/pull/1344)
+- Fix link-checker workflow [(#1344)](https://github.com/wazuh/wazuh-indexer/pull/1344)
 
 ### Security
 - Reduce risk of GITHUB_TOKEN exposure [(#960)](https://github.com/wazuh/wazuh-indexer/pull/960)
