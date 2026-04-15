@@ -22,6 +22,8 @@ import org.opensearch.analytics.planner.FieldStorageInfo;
 import java.util.List;
 
 /**
+ * OpenSearch custom Filter carrying viable backend list and per-predicate annotations.
+ *
  * @opensearch.internal
  */
 public class OpenSearchFilter extends Filter implements OpenSearchRelNode {

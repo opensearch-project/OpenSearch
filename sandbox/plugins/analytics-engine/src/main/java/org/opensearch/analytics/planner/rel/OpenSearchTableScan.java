@@ -21,6 +21,8 @@ import org.opensearch.analytics.planner.FieldStorageInfo;
 import java.util.List;
 
 /**
+ * OpenSearch custom TableScan carrying viable backend list and per-field storage metadata.
+ *
  * @opensearch.internal
  */
 public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode {

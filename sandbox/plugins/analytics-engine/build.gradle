@@ -41,6 +41,10 @@ configurations {
 sourceSets.main.compileClasspath += configurations.calciteCompile
 sourceSets.test.compileClasspath += configurations.calciteTestCompile
 
+tasks.named('missingJavadoc').configure {
+  classpath += configurations.calciteCompile
+}
+
 dependencies {
   // Shared types and SPI interfaces (QueryPlanExecutor, EngineBridge, AnalyticsBackEndPlugin, etc.)
   // Also provides calcite-core transitively via api.

@@ -20,6 +20,8 @@ import org.opensearch.analytics.planner.FieldStorageInfo;
 import java.util.List;
 
 /**
+ * OpenSearch custom Sort carrying viable backend list.
+ *
  * @opensearch.internal
  */
 public class OpenSearchSort extends Sort implements OpenSearchRelNode {

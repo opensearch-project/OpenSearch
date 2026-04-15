@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * OpenSearch custom Project carrying viable backend list and per-expression annotations.
+ *
  * @opensearch.internal
  */
 public class OpenSearchProject extends Project implements OpenSearchRelNode {

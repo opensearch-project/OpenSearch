@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * OpenSearch custom Aggregate carrying viable backend list and per-call annotations.
+ *
  * @opensearch.internal
  */
 public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode {
