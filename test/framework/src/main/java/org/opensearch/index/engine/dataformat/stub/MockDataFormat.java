@@ -18,13 +18,15 @@ import java.util.Set;
  */
 public class MockDataFormat extends DataFormat {
 
+    public static final String DEFAULT_MOCK_FORMAT_NAME = "mock-columnar";
+
     private final String name;
     private final long priority;
     private final Set<FieldTypeCapabilities> supportedFields;
 
     public MockDataFormat() {
         this(
-            "mock-columnar",
+            DEFAULT_MOCK_FORMAT_NAME,
             100L,
             Set.of(
                 new FieldTypeCapabilities(
