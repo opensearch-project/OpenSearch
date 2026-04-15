@@ -89,6 +89,7 @@ public class LuceneCommitterFactoryTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
             null
         );
 
