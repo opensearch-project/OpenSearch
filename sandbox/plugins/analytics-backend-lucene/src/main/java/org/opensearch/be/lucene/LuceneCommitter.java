@@ -51,7 +51,7 @@ public class LuceneCommitter implements Committer {
      * @throws IOException if opening the IndexWriter fails
      */
     public LuceneCommitter(CommitterConfig committerConfig) throws IOException {
-        this.store = Objects.requireNonNull(committerConfig.store());
+        this.store = Objects.requireNonNull(committerConfig.engineConfig().getStore());
         this.store.incRef();
         try {
             IndexWriterConfig iwc = createIndexWriterConfig(committerConfig.engineConfig());

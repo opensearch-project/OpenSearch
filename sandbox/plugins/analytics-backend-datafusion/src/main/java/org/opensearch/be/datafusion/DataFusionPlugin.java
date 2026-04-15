@@ -23,6 +23,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.Plugin;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -118,7 +120,22 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      * Data formats this plugin can handle. Used by CompositeEngine to route queries.
      */
     public List<DataFormat> getSupportedFormats() {
-        return null; // TODO : List.of("parquet");
+        return List.of(new DataFormat() {
+            @Override
+            public String name() {
+                return "parquet";
+            }
+
+            @Override
+            public long priority() {
+                return 0;
+            }
+
+            @Override
+            public Set<FieldTypeCapabilities> supportedFields() {
+                return Set.of();
+            }
+        });
     }
 
     @Override

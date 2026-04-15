@@ -13,19 +13,26 @@ import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.plugins.Plugin;
+
+import java.util.Set;
 
 /**
  * A mock {@link DataFormatPlugin} for testing purposes.
  */
-public class MockDataFormatPlugin implements DataFormatPlugin {
+public class MockDataFormatPlugin extends Plugin implements DataFormatPlugin {
     private final MockDataFormat dataFormat;
 
     public MockDataFormatPlugin() {
-        this(new MockDataFormat());
+        this(new MockDataFormat("", 100L, Set.of()));
     }
 
-    public MockDataFormatPlugin(MockDataFormat dataFormat) {
-        this.dataFormat = dataFormat;
+    MockDataFormatPlugin(MockDataFormat mockDataFormat) {
+        this.dataFormat = mockDataFormat;
+    }
+
+    public static MockDataFormatPlugin of(MockDataFormat dataFormat) {
+        return new MockDataFormatPlugin(dataFormat);
     }
 
     @Override

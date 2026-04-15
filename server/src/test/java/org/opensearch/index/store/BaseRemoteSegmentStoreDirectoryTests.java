@@ -13,6 +13,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
@@ -104,7 +105,7 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             .build();
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
 
-        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+        indexShard = newStartedShard(false, indexSettings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
             remoteDataDirectory,
             remoteMetadataDirectory,

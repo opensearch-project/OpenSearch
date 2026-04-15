@@ -25,6 +25,7 @@ import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -503,7 +504,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         final IndexShard primaryTarget = newShard(
             primarySource.routingEntry().getTargetRelocatingShard(),
             getIndexSettings(),
-            new NRTReplicationEngineFactory()
+            new EngineBackedIndexerFactory(new NRTReplicationEngineFactory())
         );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
 

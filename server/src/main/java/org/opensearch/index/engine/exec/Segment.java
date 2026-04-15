@@ -83,6 +83,11 @@ public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearc
             return this;
         }
 
+        public Builder addSearchableFiles(String dataFormatName, WriterFileSet writerFileSetGroup) {
+            dfGroupedSearchableFiles.put(dataFormatName, writerFileSetGroup);
+            return this;
+        }
+
         public Segment build() {
             return new Segment(generation, dfGroupedSearchableFiles);
         }

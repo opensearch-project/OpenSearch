@@ -110,6 +110,22 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
+    public long generation() {
+        return writerGeneration;
+    }
+
+    @Override
+    public void lock() {}
+
+    @Override
+    public boolean tryLock() {
+        return false;
+    }
+
+    @Override
+    public void unlock() {}
+
+    @Override
     public void close() throws IOException {
         vsrManager.close();
     }

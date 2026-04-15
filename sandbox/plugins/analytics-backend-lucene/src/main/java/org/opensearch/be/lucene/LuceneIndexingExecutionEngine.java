@@ -24,6 +24,7 @@ import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.store.Store;
@@ -108,11 +109,12 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
         List<Directory> directories = new ArrayList<>();
         List<Path> sourcePaths = new ArrayList<>();
         try {
-            for (WriterFileSet wfs : refreshInput.writerFiles()) {
-                Path dirPath = Path.of(wfs.directory());
-                if (dirPath.getFileName().toString().equals(LUCENE_FORMAT_NAME) == false) {
+            for (Segment segment : refreshInput.writerFiles()) {
+                WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(LUCENE_FORMAT_NAME);
+                if (wfs == null) {
                     continue;
                 }
+                Path dirPath = Path.of(wfs.directory());
                 if (Files.isDirectory(dirPath)) {
                     directories.add(new HardlinkCopyDirectoryWrapper(new NIOFSDirectory(dirPath)));
                     sourcePaths.add(dirPath);
@@ -168,5 +170,10 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
     @Override
     public DocumentInput<?> newDocumentInput() {
         throw new UnsupportedOperationException("newDocumentInput not yet implemented — LuceneDocumentInput deferred to future PR");
+    }
+
+    @Override
+    public void close() throws IOException {
+        // LuceneCommitter owns the IndexWriter lifecycle; nothing to close here.
     }
 }

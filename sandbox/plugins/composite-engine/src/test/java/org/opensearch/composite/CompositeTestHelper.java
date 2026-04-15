@@ -16,6 +16,7 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -37,6 +38,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 /**
  * Shared test utilities for composite engine tests.
  */
@@ -48,11 +53,24 @@ final class CompositeTestHelper {
      * Creates a CompositeIndexingExecutionEngine with stub engines for testing.
      */
     static CompositeIndexingExecutionEngine createStubEngine(String primaryName, String... secondaryNames) {
+        Map<String, DataFormat> formats = new HashMap<>();
         Map<String, DataFormatPlugin> plugins = new HashMap<>();
+        formats.put(primaryName, stubFormat(primaryName, 1, Set.of()));
         plugins.put(primaryName, stubPlugin(primaryName, 1));
         for (String name : secondaryNames) {
+            formats.put(name, stubFormat(name, 2, Set.of()));
             plugins.put(name, stubPlugin(name, 2));
         }
+
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        for (Map.Entry<String, DataFormat> entry : formats.entrySet()) {
+            when(registry.format(entry.getKey())).thenReturn(entry.getValue());
+        }
+        when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
+            DataFormat format = invocation.getArgument(1);
+            DataFormatPlugin plugin = plugins.get(format.name());
+            return plugin.indexingEngine(null, null);
+        });
 
         Settings.Builder settingsBuilder = Settings.builder()
             .put("index.composite.primary_data_format", primaryName)
@@ -68,7 +86,7 @@ final class CompositeTestHelper {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        return new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, new StubCommitter(), null);
+        return new CompositeIndexingExecutionEngine(indexSettings, null, new StubCommitter(), registry, null, null);
     }
 
     static DataFormatPlugin stubPlugin(String formatName, long priority) {
@@ -174,6 +192,9 @@ final class CompositeTestHelper {
         public IndexStoreProvider getProvider() {
             return null;
         }
+
+        @Override
+        public void close() {}
     }
 
     /**
@@ -207,6 +228,22 @@ final class CompositeTestHelper {
 
         @Override
         public void close() {}
+
+        @Override
+        public long generation() {
+            return 0;
+        }
+
+        @Override
+        public void lock() {}
+
+        @Override
+        public boolean tryLock() {
+            return true;
+        }
+
+        @Override
+        public void unlock() {}
     }
 
     /**
