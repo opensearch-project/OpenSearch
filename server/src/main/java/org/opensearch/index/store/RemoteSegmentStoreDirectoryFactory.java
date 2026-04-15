@@ -8,17 +8,20 @@
 
 package org.opensearch.index.store;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.store.remote.DataFormatAwareRemoteDirectory;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -48,15 +51,26 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     private final String segmentsPathFixedPrefix;
 
     private final ThreadPool threadPool;
+    private final DataFormatRegistry dataFormatRegistry;
 
     public RemoteSegmentStoreDirectoryFactory(
         Supplier<RepositoriesService> repositoriesService,
         ThreadPool threadPool,
         String segmentsPathFixedPrefix
     ) {
+        this(repositoriesService, threadPool, segmentsPathFixedPrefix, null);
+    }
+
+    public RemoteSegmentStoreDirectoryFactory(
+        Supplier<RepositoriesService> repositoriesService,
+        ThreadPool threadPool,
+        String segmentsPathFixedPrefix,
+        DataFormatRegistry dataFormatRegistry
+    ) {
         this.repositoriesService = repositoriesService;
         this.segmentsPathFixedPrefix = segmentsPathFixedPrefix;
         this.threadPool = threadPool;
+        this.dataFormatRegistry = dataFormatRegistry;
     }
 
     @Override
@@ -75,7 +89,8 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             indexSettings.getRemoteStorePathStrategy(),
             null,
             RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata()),
-            indexSettings.isWarmIndex()
+            indexSettings.isWarmIndex(),
+            indexSettings
         );
     }
 
@@ -114,6 +129,28 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         boolean isServerSideEncryptionEnabled,
         boolean isWarmIndex
     ) throws IOException {
+        return newDirectory(
+            repositoryName,
+            indexUUID,
+            shardId,
+            pathStrategy,
+            indexFixedPrefix,
+            isServerSideEncryptionEnabled,
+            isWarmIndex,
+            null
+        );
+    }
+
+    public Directory newDirectory(
+        String repositoryName,
+        String indexUUID,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        String indexFixedPrefix,
+        boolean isServerSideEncryptionEnabled,
+        boolean isWarmIndex,
+        IndexSettings indexSettings
+    ) throws IOException {
         assert Objects.nonNull(pathStrategy);
         // We should be not calling close for repository.
         Repository repository = repositoriesService.get().repository(repositoryName);
@@ -134,18 +171,30 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .indexFixedPrefix(indexFixedPrefix)
                 .build();
 
-            // Derive the path for data directory of SEGMENTS
             BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
-            RemoteDirectory dataDirectory = new RemoteDirectory(
-                blobStoreRepository.blobStore(isServerSideEncryptionEnabled).blobContainer(dataPath),
-                blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
-                blobStoreRepository::maybeRateLimitLowPriorityRemoteUploadTransfers,
-                isWarmIndex
-                    ? blobStoreRepository::maybeRateLimitRemoteDownloadTransfersForWarm
-                    : blobStoreRepository::maybeRateLimitRemoteDownloadTransfers,
-                blobStoreRepository::maybeRateLimitLowPriorityDownloadTransfers,
-                pendingDownloadMergedSegments
-            );
+            RemoteDirectory dataDirectory = indexSettings != null && indexSettings.isPluggableDataFormatEnabled()
+                ? new DataFormatAwareRemoteDirectory(
+                    blobStoreRepository.blobStore(isServerSideEncryptionEnabled),
+                    dataPath,
+                    blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
+                    blobStoreRepository::maybeRateLimitLowPriorityRemoteUploadTransfers,
+                    blobStoreRepository::maybeRateLimitRemoteDownloadTransfers,
+                    blobStoreRepository::maybeRateLimitLowPriorityDownloadTransfers,
+                    pendingDownloadMergedSegments,
+                    LogManager.getLogger("index.store.remote.composite." + shardId),
+                    dataFormatRegistry,
+                    indexSettings
+                )
+                : new RemoteDirectory(
+                    blobStoreRepository.blobStore(isServerSideEncryptionEnabled).blobContainer(dataPath),
+                    blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
+                    blobStoreRepository::maybeRateLimitLowPriorityRemoteUploadTransfers,
+                    isWarmIndex
+                        ? blobStoreRepository::maybeRateLimitRemoteDownloadTransfersForWarm
+                        : blobStoreRepository::maybeRateLimitRemoteDownloadTransfers,
+                    blobStoreRepository::maybeRateLimitLowPriorityDownloadTransfers,
+                    pendingDownloadMergedSegments
+                );
 
             RemoteStorePathStrategy.ShardDataPathInput mdPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
                 .basePath(repositoryBasePath)

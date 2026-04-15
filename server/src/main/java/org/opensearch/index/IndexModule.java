@@ -84,6 +84,7 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
 import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
@@ -274,6 +275,7 @@ public final class IndexModule {
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
+    private final Map<String, DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
@@ -307,7 +309,8 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final Map<String, IndexStorePlugin.StoreFactory> storeFactories,
         final FileCache fileCache,
-        final CompositeIndexSettings compositeIndexSettings
+        final CompositeIndexSettings compositeIndexSettings,
+        final Map<String, DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -317,6 +320,7 @@ public final class IndexModule {
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.compositeDirectoryFactories = Collections.unmodifiableMap(compositeDirectoryFactories);
+        this.dataFormatAwareStoreDirectoryFactories = Collections.unmodifiableMap(dataFormatAwareStoreDirectoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
@@ -348,7 +352,8 @@ public final class IndexModule {
             recoveryStateFactories,
             Collections.emptyMap(),
             null,
-            null
+            null,
+            Collections.emptyMap()
         );
     }
 
@@ -946,6 +951,10 @@ public final class IndexModule {
             indexSettings,
             compositeDirectoryFactories
         );
+        final DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory = getDataFormatAwareStoreDirectoryFactory(
+            indexSettings,
+            dataFormatAwareStoreDirectoryFactories
+        );
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
         QueryCache queryCache = null;
         IndexAnalyzers indexAnalyzers = null;
@@ -1009,7 +1018,8 @@ public final class IndexModule {
                 segmentReplicationStatsProvider,
                 clusterDefaultMaxMergeAtOnceSupplier,
                 clusterMergeSchedulerConfig,
-                dataFormatRegistry
+                dataFormatRegistry,
+                dataFormatAwareStoreDirectoryFactory
             );
             success = true;
             return indexService;
@@ -1077,6 +1087,16 @@ public final class IndexModule {
             }
         }
         return factory;
+    }
+
+    private static DataFormatAwareStoreDirectoryFactory getDataFormatAwareStoreDirectoryFactory(
+        final IndexSettings indexSettings,
+        final Map<String, DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories
+    ) {
+        if (dataFormatAwareStoreDirectoryFactories.isEmpty()) {
+            return null;
+        }
+        return dataFormatAwareStoreDirectoryFactories.get("default");
     }
 
     private static IndexStorePlugin.RecoveryStateFactory getRecoveryStateFactory(

@@ -28,8 +28,10 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
@@ -137,8 +139,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         if (shouldSync(didRefresh, true) && isReadyForUpload()) {
             try {
                 segmentTracker.updateLocalRefreshTimeAndSeqNo();
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-                    Collection<String> localSegmentsPostRefresh = segmentInfosGatedCloseable.get().files(true);
+                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+                    Collection<String> localSegmentsPostRefresh = catalogSnapshotRef.get().getFiles(true);
                     updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
                 }
             } catch (Throwable t) {
@@ -206,8 +208,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true iff all the local files are uploaded to remote store.
      */
     boolean isRemoteSegmentStoreInSync() {
-        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-            return segmentInfosGatedCloseable.get().files(true).stream().allMatch(this::skipUpload);
+        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+            return catalogSnapshotRef.get().getFiles(true).stream().allMatch(this::skipUpload);
         } catch (Throwable throwable) {
             logger.error("Throwable thrown during isRemoteSegmentStoreInSync", throwable);
         }
@@ -250,9 +252,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
                 }
 
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-                    SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
-                    final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(segmentInfos);
+                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+                    CatalogSnapshot catalogSnapshot = catalogSnapshotRef.get();
+                    final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(catalogSnapshot);
                     if (checkpoint.getPrimaryTerm() != indexShard.getOperationPrimaryTerm()) {
                         throw new IllegalStateException(
                             String.format(
@@ -266,7 +268,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
                     long lastRefreshedCheckpoint = indexShard.getIndexer().lastRefreshedCheckpoint();
-                    Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
+                    Collection<String> localSegmentsPostRefresh = catalogSnapshot.getFiles(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
@@ -278,8 +280,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         public void onResponse(Void unused) {
                             try {
                                 logger.debug("New segments upload successful");
-                                // Start metadata file upload in plaintext
-                                uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                // Start metadata file upload
+                                uploadMetadata(localSegmentsPostRefresh, catalogSnapshot, checkpoint);
                                 logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
@@ -456,14 +458,17 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return threshold != -1 && remoteDirectory.getSegmentsUploadedToRemoteStoreSize() > threshold;
     }
 
-    void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
-        throws IOException {
+    void uploadMetadata(
+        Collection<String> localSegmentsPostRefresh,
+        CatalogSnapshot catalogSnapshot,
+        ReplicationCheckpoint replicationCheckpoint
+    ) throws IOException {
         final long maxSeqNo = indexShard.getIndexer().currentOngoingRefreshCheckpoint();
-        SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
-        Map<String, String> userData = segmentInfosSnapshot.getUserData();
+        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.cloneNoAcquire();
+        Map<String, String> userData = new HashMap<>(catalogSnapshotCloned.getUserData());
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
-        segmentInfosSnapshot.setUserData(userData, false);
+        catalogSnapshotCloned.setUserData(userData, false);
 
         Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
@@ -472,7 +477,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             long translogFileGeneration = translogGeneration.translogFileGeneration;
             remoteDirectory.uploadMetadata(
                 localSegmentsPostRefresh,
-                segmentInfosSnapshot,
+                catalogSnapshotCloned,
                 storeDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,
@@ -506,6 +511,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     private String getChecksumOfLocalFile(String file) throws IOException {
         if (!localSegmentChecksumMap.containsKey(file)) {
+            if (indexShard.indexSettings().isPluggableDataFormatEnabled()) {
+                DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
+                if (dfasd == null) {
+                    throw new IllegalStateException("DataFormatAwareStoreDirectory expected when pluggable data format is enabled");
+                }
+                String checksum = dfasd.calculateUploadChecksum(file);
+                localSegmentChecksumMap.put(file, checksum);
+                return checksum;
+            }
             try (IndexInput indexInput = storeDirectory.openInput(file, IOContext.READONCE)) {
                 String checksum = Long.toString(CodecUtil.retrieveChecksum(indexInput));
                 localSegmentChecksumMap.put(file, checksum);

@@ -78,7 +78,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
                     new ShardPath(false, Path.of("/tmp/uuid/0"), Path.of("/tmp/uuid/0"), new ShardId("index", "uuid", 0)),
                     new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings),
                     null
-                )
+                ),
+                null
             );
         assertEquals(format, engine.getDataFormat());
 
