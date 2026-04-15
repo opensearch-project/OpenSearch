@@ -12,10 +12,11 @@ use std::num::NonZeroUsize;
  * compatible open source license.
  */
 use std::ptr::addr_of_mut;
-use jni::objects::{JByteArray, JClass, JMap, JObject};
+use jni::objects::{GlobalRef, JByteArray, JClass, JMap, JObject};
 use jni::objects::JLongArray;
-use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jint, jlong, jlongArray, jstring};
 use jni::{JNIEnv, JavaVM};
+use std::future::Future;
 use std::sync::{Arc, OnceLock};
 use arrow_array::{Array, RecordBatch, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
@@ -45,6 +46,8 @@ mod cross_rt_stream;
 mod executor;
 mod io;
 mod runtime_manager;
+mod metrics_collector;
+mod metrics_layout;
 mod cache_jni;
 mod partial_agg_optimizer;
 mod query_executor;
@@ -67,7 +70,7 @@ use tokio::runtime::Runtime;
 use std::result;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-use futures::TryStreamExt;
+use futures::{TryStreamExt, FutureExt};
 
 pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
@@ -96,6 +99,18 @@ static QUERY_EXECUTION_MONITOR: Lazy<TaskMonitor> = Lazy::new(|| {
 
 static STREAM_NEXT_MONITOR: Lazy<TaskMonitor> = Lazy::new(|| {
     TaskMonitor::with_slow_poll_threshold(Duration::from_micros(50)).clone()
+});
+
+static FETCH_PHASE_MONITOR: Lazy<TaskMonitor> = Lazy::new(|| {
+    TaskMonitor::with_slow_poll_threshold(Duration::from_micros(100)).clone()
+});
+
+static SEGMENT_STATS_MONITOR: Lazy<TaskMonitor> = Lazy::new(|| {
+    TaskMonitor::with_slow_poll_threshold(Duration::from_micros(100)).clone()
+});
+
+static INDEXED_QUERY_EXECUTION_MONITOR: Lazy<TaskMonitor> = Lazy::new(|| {
+    TaskMonitor::with_slow_poll_threshold(Duration::from_micros(100)).clone()
 });
 
 // Global runtime manager
@@ -128,6 +143,128 @@ where
     })
 }
 
+/// Extract a human-readable message from a panic payload.
+fn panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic payload".to_string()
+    }
+}
+
+/// Spawn an async task on `runtime` that calls an ActionListener exactly once.
+///
+/// The entire `task` future runs inside `catch_unwind`. Any panic is converted
+/// to a `DataFusionError` and surfaced to the Java caller via `listener_ref`.
+/// This ensures the `CompletableFuture` on the Java side is always completed,
+/// never left hanging.
+///
+/// `on_ok` receives the success value and is responsible for calling the
+/// appropriate `set_action_listener_ok_*` variant. `T` is inferred from
+/// the closure, which in turn pins the `Output` type of `task`.
+fn spawn_jni_task<Fut, T, FOk>(
+    runtime: &tokio::runtime::Handle,
+    task_name: &'static str,
+    listener_ref: GlobalRef,
+    task: Fut,
+    on_ok: FOk,
+)
+where
+    Fut: Future<Output = Result<T, DataFusionError>> + Send + 'static,
+    T: Send + 'static,
+    FOk: FnOnce(&mut JNIEnv, &GlobalRef, T) + Send + 'static,
+{
+    let _ = runtime.spawn(async move {
+        let result = std::panic::AssertUnwindSafe(task)
+            .catch_unwind()
+            .await
+            .unwrap_or_else(|panic| {
+                let msg = panic_message(&panic);
+                log_error!("{} panicked: {}", task_name, msg);
+                Err(DataFusionError::Execution(format!("{} panicked: {}", task_name, msg)))
+            });
+
+        with_jni_env(|env| match result {
+            Ok(value) => on_ok(env, &listener_ref, value),
+            Err(e) => {
+                log_error!("{} failed: {}", task_name, e);
+                set_action_listener_error_global(env, &listener_ref, &e);
+            }
+        });
+    });
+}
+
+/// Helper: TaskMonitor → `[i64; 3]` flat array (from cumulative metrics)
+fn task_monitor_to_longs(monitor: &TaskMonitor) -> [i64; metrics_layout::TASK_MONITOR_SIZE] {
+    let m = monitor.cumulative();
+    let mut buf = [0i64; metrics_layout::TASK_MONITOR_SIZE];
+    buf[metrics_layout::TASK_MONITOR_TOTAL_POLL_DURATION_MS] = m.total_poll_duration.as_millis() as i64;
+    buf[metrics_layout::TASK_MONITOR_TOTAL_SCHEDULED_DURATION_MS] = m.total_scheduled_duration.as_millis() as i64;
+    buf[metrics_layout::TASK_MONITOR_TOTAL_IDLE_DURATION_MS] = m.total_idle_duration.as_millis() as i64;
+    buf
+}
+
+// ── Flat long[] stats JNI function ──
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_stats<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) -> jlongArray {
+    let mut buf = [0i64; metrics_layout::TOTAL_SIZE];
+
+    // IO runtime [0..6] + CPU runtime [6..12]
+    if let Some(rm) = TOKIO_RUNTIME_MANAGER.get() {
+        let io_snap = rm.io_metrics.snapshot();
+        buf[0..metrics_layout::RUNTIME_SIZE].copy_from_slice(&io_snap);
+
+        if let Some(cpu) = rm.cpu_metrics.as_ref() {
+            let cpu_snap = cpu.snapshot();
+            buf[metrics_layout::RUNTIME_SIZE..metrics_layout::RUNTIME_SIZE * 2].copy_from_slice(&cpu_snap);
+        }
+    }
+
+    // Task monitors [12..27]
+    let base = metrics_layout::RUNTIME_SIZE * 2;
+    let qe = task_monitor_to_longs(&QUERY_EXECUTION_MONITOR);
+    buf[base..base + metrics_layout::TASK_MONITOR_SIZE].copy_from_slice(&qe);
+
+    let sn = task_monitor_to_longs(&STREAM_NEXT_MONITOR);
+    buf[base + metrics_layout::TASK_MONITOR_SIZE..base + metrics_layout::TASK_MONITOR_SIZE * 2].copy_from_slice(&sn);
+
+    let fp = task_monitor_to_longs(&FETCH_PHASE_MONITOR);
+    buf[base + metrics_layout::TASK_MONITOR_SIZE * 2..base + metrics_layout::TASK_MONITOR_SIZE * 3].copy_from_slice(&fp);
+
+    let ss = task_monitor_to_longs(&SEGMENT_STATS_MONITOR);
+    buf[base + metrics_layout::TASK_MONITOR_SIZE * 3..base + metrics_layout::TASK_MONITOR_SIZE * 4].copy_from_slice(&ss);
+
+    let iq = task_monitor_to_longs(&INDEXED_QUERY_EXECUTION_MONITOR);
+    buf[base + metrics_layout::TASK_MONITOR_SIZE * 4..base + metrics_layout::TASK_MONITOR_SIZE * 5].copy_from_slice(&iq);
+
+    match env.new_long_array(metrics_layout::TOTAL_SIZE as i32) {
+        Ok(arr) => {
+            if let Err(e) = env.set_long_array_region(&arr, 0, &buf) {
+                let _ = env.throw_new(
+                    "java/lang/RuntimeException",
+                    format!("Failed to set stats long array region: {:?}", e),
+                );
+                return std::ptr::null_mut();
+            }
+            arr.into_raw()
+        }
+        Err(e) => {
+            let _ = env.throw_new(
+                "java/lang/RuntimeException",
+                format!("Failed to create stats long array: {:?}", e),
+            );
+            std::ptr::null_mut()
+        }
+    }
+}
+
+
 /// Initialize the logger for Rust->Java logging bridge.
 /// This should be called once when the native library is loaded.
 #[no_mangle]
@@ -155,7 +292,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_initTokio
 
     TOKIO_RUNTIME_MANAGER.get_or_init(|| {
         log_info!("Runtime manager initialized with {} CPU threads", cpu_threads);
-        Arc::new(RuntimeManager::new(cpu_threads as usize))
+        let manager = Arc::new(RuntimeManager::new(cpu_threads as usize));
+
+        manager
     });
 }
 
@@ -172,56 +311,16 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_shutdownT
 }
 
 
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_startTokioRuntimeMonitoring(
-    _env: JNIEnv,
-    _class: JClass,
-) {
-    let manager = match TOKIO_RUNTIME_MANAGER.get() {
-        Some(m) => m,
-        None => {
-            log_info!("Tokio runtime manager not initialized");
-            return;
-        }
-    };
-
-    // Uncomment this to monitor tokio metrics
-
-    // let io_runtime = manager.io_runtime.clone();
-    // io_runtime.spawn(async move {
-    //     let handle = tokio::runtime::Handle::current();
-    //     let runtime_monitor = RuntimeMonitor::new(&handle);
-    //
-    //     // Monitor at 120-second intervals
-    //     for metrics in runtime_monitor.intervals() {
-    //         log_runtime_metrics(&metrics);
-    //         tokio::time::sleep(Duration::from_secs(120)).await;
-    //     }
-    // });
-    //
-    // println!("Runtime monitoring started");
-}
-
 /// Log runtime metrics with performance analysis
 #[allow(dead_code)]
 fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
     log_info!("=== Runtime Metrics ===");
     log_info!("  Workers: {}", metrics.workers_count);
+    log_info!("  Total polls: {}", metrics.total_polls_count);
+    log_info!("  Total busy duration ms: {}", metrics.total_busy_duration.as_millis());
+    log_info!("  Total overflow: {}", metrics.total_overflow_count);
     log_info!("  Global queue depth: {}", metrics.global_queue_depth);
-    /*
-    //unstable tokio causes build failures, uncomment this when monitoring
-
-    log_info!("  Worker overflow: {}", metrics.total_overflow_count);
-    log_info!("  Remote schedule: {}", metrics.max_local_schedule_count);
-    log_info!("  Worker steal ops: {}", metrics.total_steal_operations);
     log_info!("  Blocking queue depth: {}", metrics.blocking_queue_depth);
-    log_info!("  Max local queue depth: {}", metrics.max_local_queue_depth);
-    log_info!("  Min local queue depth: {}", metrics.min_local_queue_depth);
-    log_info!("  Max local schedule count: {}", metrics.max_local_schedule_count);
-    log_info!("  Min local schedule count: {}", metrics.min_local_schedule_count);
-    log_info!("  Queue depth: {}", metrics.total_local_queue_depth);
-    log_info!("  Total schedule count: {}", metrics.total_local_schedule_count);
-    */
     let query_metrics = QUERY_EXECUTION_MONITOR.cumulative();
     log_task_metrics("Query exec (via CrossRtStream)", &query_metrics);
     let stream_metrics = STREAM_NEXT_MONITOR.cumulative();
@@ -233,14 +332,9 @@ fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
 #[allow(dead_code)]
 fn log_task_metrics(operation: &str, metrics: &tokio_metrics::TaskMetrics) {
     log_info!("=== Task Metrics: {} ===", operation);
-    log_info!("  Scheduled duration: {:?}", metrics.total_scheduled_duration);
     log_info!("  Poll duration: {:?}", metrics.total_poll_duration);
+    log_info!("  Scheduled duration: {:?}", metrics.total_scheduled_duration);
     log_info!("  Idle duration: {:?}", metrics.total_idle_duration);
-    log_info!("  Mean poll duration: {:?}", metrics.mean_poll_duration());
-    log_info!("  Slow poll ratio: {:.2}%", metrics.slow_poll_ratio() * 100.0);
-    log_info!("  Mean first poll delay: {:?}", metrics.mean_first_poll_delay());
-    log_info!("  Total slow polls: {}", metrics.total_slow_poll_count);
-    log_info!("  Total long delays: {}", metrics.total_long_delay_count);
 }
 
 #[no_mangle]
@@ -619,9 +713,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     let table_path = shard_view.table_path();
     let files_meta = shard_view.files_metadata();
 
-    io_runtime.block_on(async move {
-
-        let result = query_executor::execute_query_with_cross_rt_stream(
+    spawn_jni_task(
+        &io_runtime,
+        "executeQueryPhaseAsync",
+        listener_ref,
+        QUERY_EXECUTION_MONITOR.instrument(query_executor::execute_query_with_cross_rt_stream(
             table_path,
             files_meta,
             table_name,
@@ -630,22 +726,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             target_partitions,
             runtime,
             cpu_executor,
-        ).await;
-
-        match result {
-            Ok(stream_ptr) => {
-                with_jni_env(|env| {
-                    set_action_listener_ok_global(env, &listener_ref, stream_ptr);
-                });
-            }
-            Err(e) => {
-                with_jni_env(|env| {
-                    log_error!("Query execution failed: {}", e);
-                    set_action_listener_error_global(env, &listener_ref, &e);
-                });
-            }
-        }
-    });
+        )),
+        |env, listener_ref, stream_pointer| set_action_listener_ok_global(env, listener_ref, stream_pointer),
+    );
 }
 
 #[no_mangle]
@@ -680,22 +763,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_fetchSegm
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
     let files_meta = shard_view.files_metadata();
 
-    io_runtime.block_on(async move {
-        let file_stats = util::fetch_segment_statistics(files_meta).await;
-        match file_stats {
-            Ok(map) => {
-                with_jni_env(|env| {
-                    set_action_listener_ok_global_with_map(env, &listener_ref, &map);
-                });
-            }
-            Err(e) => {
-                with_jni_env(|env| {
-                    log_error!("Collecting file stats failed: {}", e);
-                    set_action_listener_error_global(env, &listener_ref, &e);
-                });
-            }
-        }
-    });
+    spawn_jni_task(
+        &io_runtime,
+        "fetchSegmentStats",
+        listener_ref,
+        SEGMENT_STATS_MONITOR.instrument(async move { util::fetch_segment_statistics(files_meta).await }),
+        |env, listener_ref, stats_map| set_action_listener_ok_global_with_map(env, listener_ref, &stats_map),
+    );
 }
 
 #[no_mangle]
@@ -732,41 +806,36 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     let stream_ptr = stream;
     let io_runtime = manager.io_runtime.clone();
 
-    io_runtime.block_on(async move {
+    // Ensure stream_ptr lifetime is guaranteed beyond the spawn boundary
+    // (e.g., wrap in Arc<Mutex<...>> or ensure sequential access contract)
+    spawn_jni_task(
+        &io_runtime,
+        "streamNext",
+        listener_ref,
+        STREAM_NEXT_MONITOR.instrument(async move {
+            let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
+            // Poll the stream with monitoring
+            let result = stream.try_next().await?;
 
-        let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
-        let result = stream.try_next().await;
-
-        // Uncomment for monitoring stream next
-        // let result = STREAM_NEXT_MONITOR.instrument(async {
-        //         stream.try_next().await
-        // }).await;
-
-        // Use thread-local JNI env - auto-attaches!
-        with_jni_env(|env| {
             match result {
-                Ok(Some(batch)) => {
+                Some(batch) => {
                     log_info!("[RUST streamNext] Batch produced: {} rows, {} columns, schema: {:?}",
                         batch.num_rows(), batch.num_columns(), batch.schema().fields().iter().map(|f| f.name().as_str()).collect::<Vec<_>>());
                     // Convert to FFI
                     let struct_array: StructArray = batch.into();
                     let array_data = struct_array.into_data();
                     let ffi_array = FFI_ArrowArray::new(&array_data);
-                    let ffi_array_ptr = Box::into_raw(Box::new(ffi_array));
-                    set_action_listener_ok_global(env, &listener_ref, ffi_array_ptr as jlong);
+                    Ok(Box::into_raw(Box::new(ffi_array)) as jlong)
                 }
-                Ok(None) => {
+                None => {
                     log_info!("[RUST streamNext] End of stream reached");
                     // End of stream
-                    set_action_listener_ok_global(env, &listener_ref, 0);
-                }
-                Err(err) => {
-                    log_error!("Stream next failed: {}", err);
-                    set_action_listener_error_global(env, &listener_ref, &err);
+                    Ok(0)
                 }
             }
-        });
-    });
+        }),
+        |env, listener_ref, data_pointer| set_action_listener_ok_global(env, listener_ref, data_pointer),
+    );
     // Function returns immediately to java - async rust work continues in background
 }
 
@@ -872,7 +941,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     let io_runtime = manager.io_runtime.clone();
     let cpu_executor = manager.cpu_executor();
 
-    io_runtime.block_on(async {
+    io_runtime.block_on(FETCH_PHASE_MONITOR.instrument(async {
         match query_executor::execute_fetch_phase(
             table_path,
             files_metadata,
@@ -891,7 +960,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
                 0 // return 0
             }
         }
-    })
+    }))
 }
 
 #[no_mangle]
@@ -902,6 +971,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
 ) {
     let _ = unsafe { Box::from_raw(stream as *mut RecordBatchStreamAdapter<CrossRtStream>) };
 }
+
+
 
 /// Execute an indexed query asynchronously.
 ///
@@ -1039,7 +1110,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeIn
     // worker threads handle the tasks concurrently.
     let (tx, rx) = std::sync::mpsc::channel();
 
-    io_runtime.spawn(async move {
+    io_runtime.spawn(INDEXED_QUERY_EXECUTION_MONITOR.instrument(async move {
         let result = indexed_query_executor::execute_indexed_query_stream(
             weight_ptr,
             seg_max_docs,
@@ -1055,7 +1126,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeIn
             cpu_executor,
         ).await;
         let _ = tx.send(result);
-    });
+    }));
 
     let result = rx.recv().unwrap_or_else(|_| Err(DataFusionError::Execution("Channel closed".to_string())));
 

@@ -52,6 +52,7 @@ import static org.opensearch.datafusion.search.cache.CacheSettings.STATISTICS_CA
 import static org.opensearch.index.engine.Engine.SearcherScope.INTERNAL;
 
 public class DataFusionReaderManagerTests extends OpenSearchTestCase {
+
     private static DataFusionService service;
     Supplier<IndexFileDeleter> noOpFileDeleterSupplier;
 
@@ -468,7 +469,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
 
     private void verifySearchResults(DatafusionSearcher searcher, DatafusionQuery datafusionQuery, Map<String, Long> expectedResults) throws Exception {
         Map<String, Object[]> finalRes = new HashMap<>();
-        searcher.searchAsync(datafusionQuery, service.getRuntimePointer()).whenComplete((streamPointer, error)-> {
+        searcher.searchAsync(datafusionQuery, service.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer(), allocator);
 

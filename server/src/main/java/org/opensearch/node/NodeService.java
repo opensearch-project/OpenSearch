@@ -70,6 +70,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import org.opensearch.action.admin.cluster.node.stats.NativeExecutorsStats;
+import org.opensearch.common.cache.ServiceCache;
+import org.opensearch.vectorized.execution.metrics.DataFusionPluginStats;
+
 /**
  * Services exposed to nodes
  *
@@ -102,6 +106,8 @@ public class NodeService implements Closeable {
     private final AdmissionControlService admissionControlService;
     private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
     private final CacheService cacheService;
+    @Nullable
+    private final ServiceCache<DataFusionPluginStats> dataFusionService;
 
     NodeService(
         Settings settings,
@@ -129,7 +135,8 @@ public class NodeService implements Closeable {
         SegmentReplicationStatsTracker segmentReplicationStatsTracker,
         RepositoriesService repositoriesService,
         AdmissionControlService admissionControlService,
-        CacheService cacheService
+        CacheService cacheService,
+        @Nullable ServiceCache<DataFusionPluginStats> dataFusionService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -159,6 +166,7 @@ public class NodeService implements Closeable {
         clusterService.addStateApplier(searchPipelineService);
         this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
         this.cacheService = cacheService;
+        this.dataFusionService = dataFusionService;
     }
 
     public NodeInfo info(
@@ -243,10 +251,13 @@ public class NodeService implements Closeable {
         boolean repositoriesStats,
         boolean admissionControl,
         boolean cacheService,
-        boolean remoteStoreNodeStats
+        boolean remoteStoreNodeStats,
+        boolean nativeExecutors
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
+        DataFusionPluginStats dataFusionPluginStats = (nativeExecutors && dataFusionService != null) ? dataFusionService.getOrRefresh() : null;
+        NativeExecutorsStats nativeExecutorsStats = (dataFusionPluginStats != null) ? new NativeExecutorsStats(dataFusionPluginStats) : null;
         return new NodeStats(
             transportService.getLocalNode(),
             System.currentTimeMillis(),
@@ -277,7 +288,8 @@ public class NodeService implements Closeable {
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
-            remoteStoreNodeStats ? new RemoteStoreNodeStats() : null
+            remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
+            nativeExecutorsStats
         );
     }
 

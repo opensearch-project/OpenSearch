@@ -48,6 +48,10 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
+import org.opensearch.datafusion.jni.NativeBridge;
+import org.opensearch.vectorized.execution.metrics.DataFusionPluginStats;
+import org.opensearch.vectorized.execution.metrics.MetricProvider;
+import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
@@ -78,6 +82,7 @@ import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_SPI
 public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEnginePlugin, AnalyticsBackEndPlugin, ExtensiblePlugin, SearchAnalyticsBackEndPlugin {
 
     private DataFusionService dataFusionService;
+    private DataFusionMetricProvider metricProvider;
 
     public DataFusionService getDataFusionService() {
         return dataFusionService;
@@ -129,6 +134,8 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
             return Collections.emptyList();
         }
         dataFusionService = new DataFusionService(dataSourceCodecs, clusterService, spill_dir);
+
+        metricProvider = new DataFusionMetricProvider();
 
         for(DataFormat format : this.getSupportedFormats()) {
             dataSourceCodecs.get(format);
@@ -282,6 +289,16 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
     public interface ParentAware {
         void setParentPlugin(DataFusionPlugin parent);
     }
+
+    /**
+     * Returns the MetricProvider for native metrics collection.
+     * @return The MetricProvider instance.
+     */
+    @Override
+    public MetricProvider<DataFusionPluginStats> getMetricProvider() {
+        return metricProvider;
+    }
+
 //
 //    @Override
 //    public List<Setting<?>> getSettings() {
