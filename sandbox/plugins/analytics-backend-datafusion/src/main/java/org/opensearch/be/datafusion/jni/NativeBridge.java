@@ -174,6 +174,31 @@ public final class NativeBridge {
         org.opensearch.core.action.ActionListener<Long> listener
     );
 
+    // ---- Substrait-driven tree query execution ----
+
+    /**
+     * Executes a Substrait-driven tree query asynchronously. No tree bytes — Rust builds
+     * the boolean tree by extracting the filter from the Substrait plan. Collectors are
+     * created at runtime via JNI callbacks to {@code IndexFilterBridge}.
+     *
+     * @param contextId      context ID registered with IndexFilterBridge
+     * @param parquetPaths   one parquet file path per segment (String[])
+     * @param tableName      table name for DataFusion registration
+     * @param substraitBytes serialized substrait plan bytes
+     * @param numPartitions  number of DataFusion partitions
+     * @param runtimePtr     pointer to the DataFusion runtime
+     * @param listener       callback receiving the stream pointer (Long) or error
+     */
+    public static native void executeSubstraitTreeQueryAsync(
+        long contextId,
+        String[] parquetPaths,
+        String tableName,
+        byte[] substraitBytes,
+        int numPartitions,
+        long runtimePtr,
+        org.opensearch.core.action.ActionListener<Long> listener
+    );
+
     // ---- Test helpers ----
 
     /**
@@ -186,6 +211,20 @@ public final class NativeBridge {
      * @return serialized substrait plan bytes
      */
     public static native byte[] sqlToSubstrait(long readerPtr, String tableName, String sql, long runtimePtr);
+
+    /**
+     * Converts a SQL query to serialized Substrait plan bytes with the {@code index_filter}
+     * UDF registered (test only). Same as {@link #sqlToSubstrait} but registers the
+     * {@code index_filter} UDF before parsing SQL, so that SQL containing
+     * {@code index_filter('column', 'value')} calls can be converted to Substrait.
+     *
+     * @param readerPtr  the native reader pointer
+     * @param tableName  the table name to register
+     * @param sql        the SQL query string
+     * @param runtimePtr the native runtime pointer
+     * @return serialized substrait plan bytes containing index_filter extension functions
+     */
+    public static native byte[] sqlToSubstraitWithIndexFilter(long readerPtr, String tableName, String sql, long runtimePtr);
 
     /**
      * Deliberately panics in native code (test only). Used to verify panic catching.
