@@ -24,8 +24,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -34,6 +36,7 @@ import org.mockito.Mockito;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -192,11 +195,11 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
         when(blobContainer.listBlobs()).thenReturn(Map.of(blobName, new PlainBlobMetadata(blobName, 100)));
 
         final Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
-        final List<String> filesToBeDeleted = metadataFilenameContentMapping.get(metadataFilename3)
+        final Set<String> filesToBeDeleted = metadataFilenameContentMapping.get(metadataFilename3)
             .values()
             .stream()
             .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
-            .collect(Collectors.toList());
+            .collect(Collectors.toSet());
 
         updatePinnedTimstampTask.run();
 
@@ -206,11 +209,39 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
 
-        for (final String file : filesToBeDeleted) {
-            verify(remoteDataDirectory).deleteFile(file);
-        }
+        // Verify batch deletion was called with the list of files (order-independent)
+        assertBusy(() -> {
+            verify(remoteDataDirectory).deleteFiles(
+                org.mockito.ArgumentMatchers.argThat(files -> files != null && new HashSet<>(files).equals(filesToBeDeleted))
+            );
+        });
+
         assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
         verify(remoteMetadataDirectory, times(0)).deleteFile(metadataFilename2);
+    }
+
+    public void testDeleteStaleSegmentsBatchesDeletions_cache() throws Exception {
+        Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        // Collect expected files to be deleted
+        Set<String> expectedFilesToDelete = metadataFilenameContentMapping.get(metadataFilename2)
+            .values()
+            .stream()
+            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .collect(Collectors.toSet());
+
+        // Execute deletion
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(0);
+
+        // Verify that deleteFiles was called with the batch of files (order-independent)
+        assertBusy(() -> {
+            verify(remoteDataDirectory).deleteFiles(argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete)));
+            assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true));
+        });
+
+        // Verify metadata file was deleted
+        verify(remoteMetadataDirectory).deleteFile(metadataFilename2);
     }
 }
