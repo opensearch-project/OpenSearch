@@ -94,6 +94,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         return new CommitterConfig(engineConfig);
