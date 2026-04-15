@@ -85,8 +85,7 @@ public class DslSortIT extends DslIntegTestBase {
     public void testSortModeMedian() {
         createTestIndexWithArrayField();
         FieldSortBuilder sortBuilder = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.MEDIAN);
-        // MEDIAN is not yet supported, expect failure
-        expectThrows(Exception.class, () -> search(new SearchSourceBuilder().sort(sortBuilder)));
+        assertOk(search(new SearchSourceBuilder().sort(sortBuilder)));
     }
 
     public void testSortModeWithMultipleSorts() {

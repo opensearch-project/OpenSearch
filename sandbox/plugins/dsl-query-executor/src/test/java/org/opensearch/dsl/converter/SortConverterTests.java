@@ -155,13 +155,14 @@ public class SortConverterTests extends OpenSearchTestCase {
         assertTrue(((LogicalSort) result).getInput() instanceof LogicalProject);
     }
 
-    public void testSortModeMedian() {
+    public void testSortModeMedian() throws ConversionException {
         FieldSortBuilder fieldSort = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.MEDIAN);
         SearchSourceBuilder source = new SearchSourceBuilder().sort(fieldSort);
         ConversionContext ctx = TestUtils.createContextWithArrayField(source);
+        RelNode result = converter.convert(TestUtils.createTestRelNodeWithArrayField(), ctx);
 
-        expectThrows(ConversionException.class, () -> 
-            converter.convert(TestUtils.createTestRelNodeWithArrayField(), ctx));
+        assertTrue(result instanceof LogicalSort);
+        assertTrue(((LogicalSort) result).getInput() instanceof LogicalProject);
     }
 
     public void testSortModeWithRegularSort() throws ConversionException {

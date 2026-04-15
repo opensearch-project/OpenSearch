@@ -126,8 +126,39 @@ public class SortConverter extends AbstractDslConverter {
         );
         
         org.apache.calcite.sql.SqlAggFunction aggFunc = getAggFunction(mode);
-        org.apache.calcite.rel.core.AggregateCall aggCall = 
-            org.apache.calcite.rel.core.AggregateCall.create(
+        
+        org.apache.calcite.rel.core.AggregateCall aggCall;
+        
+        if (mode == SortMode.MEDIAN) {
+            List<RexNode> operands = List.of(
+                rexBuilder.makeLiteral(
+                    java.math.BigDecimal.valueOf(0.5),
+                    ctx.getCluster().getTypeFactory().createSqlType(SqlTypeName.DECIMAL, 2, 1),
+                    false
+                )
+            );
+            
+            RelCollation collation = RelCollations.of(
+                new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING)
+            );
+            
+            aggCall = org.apache.calcite.rel.core.AggregateCall.create(
+                aggFunc,
+                false,
+                false,
+                false,
+                operands,
+                Collections.singletonList(0),
+                -1,
+                null,
+                collation,
+                0,
+                unnest,
+                elementType,
+                modeField
+            );
+        } else {
+            aggCall = org.apache.calcite.rel.core.AggregateCall.create(
                 aggFunc,
                 false,
                 Collections.singletonList(0),
@@ -137,6 +168,7 @@ public class SortConverter extends AbstractDslConverter {
                 null,
                 modeField
             );
+        }
         
         LogicalAggregate aggregate = LogicalAggregate.create(
             unnest,
@@ -174,7 +206,7 @@ public class SortConverter extends AbstractDslConverter {
             case MAX -> SqlStdOperatorTable.MAX;
             case SUM -> SqlStdOperatorTable.SUM;
             case AVG -> SqlStdOperatorTable.AVG;
-            case MEDIAN -> throw new ConversionException("MEDIAN sort mode is not yet supported");
+            case MEDIAN -> SqlStdOperatorTable.PERCENTILE_CONT;
             default -> throw new ConversionException("Unsupported sort mode: " + mode);
         };
     }
