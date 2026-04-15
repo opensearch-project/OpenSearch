@@ -12,18 +12,30 @@ import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.CorrelationId;
+import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalCorrelate;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
+import org.apache.calcite.rel.logical.LogicalTableFunctionScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -45,11 +57,126 @@ public class SortConverter extends AbstractDslConverter {
 
     @Override
     protected RelNode doConvert(RelNode input, ConversionContext ctx) throws ConversionException {
-        RelCollation collation = buildCollation(input, ctx);
+        RelNode processedInput = processSortModes(input, ctx);
+        RelCollation collation = buildCollation(processedInput, ctx);
         RexNode offset = buildOffset(ctx);
         RexNode fetch = buildFetch(ctx);
 
-        return LogicalSort.create(input, collation, offset, fetch);
+        return LogicalSort.create(processedInput, collation, offset, fetch);
+    }
+
+    private RelNode processSortModes(RelNode input, ConversionContext ctx) throws ConversionException {
+        if (!hasSort(ctx)) {
+            return input;
+        }
+
+        RelNode current = input;
+        List<String> addedFields = new ArrayList<>();
+
+        for (SortBuilder<?> sortBuilder : ctx.getSearchSource().sorts()) {
+            if (sortBuilder instanceof FieldSortBuilder fieldSort && fieldSort.sortMode() != null) {
+                String fieldName = fieldSort.getFieldName();
+                String modeFieldName = fieldName + "_mode";
+                current = addModeField(current, fieldName, modeFieldName, fieldSort.sortMode(), ctx);
+                addedFields.add(modeFieldName);
+            }
+        }
+
+        return current;
+    }
+
+    private RelNode addModeField(RelNode input, String arrayField, String modeField, SortMode mode, ConversionContext ctx) 
+            throws ConversionException {
+        RexBuilder rexBuilder = ctx.getRexBuilder();
+        CorrelationId correlationId = ctx.getCluster().createCorrel();
+        
+        RelNode left = input;
+        
+        RelDataTypeField field = input.getRowType().getField(arrayField, false, false);
+        if (field == null) {
+            throw new ConversionException("Field '" + arrayField + "' not found");
+        }
+        
+        RelDataType fieldType = field.getType();
+        RelDataType elementType = fieldType.getComponentType();
+        
+        // If field is not an array type, wrap it as an array for UNNEST
+        if (elementType == null) {
+            elementType = fieldType;
+            fieldType = ctx.getCluster().getTypeFactory().createArrayType(elementType, -1);
+        }
+        
+        RexNode correlVar = rexBuilder.makeCorrel(input.getRowType(), correlationId);
+        RexNode arrayRef = rexBuilder.makeFieldAccess(correlVar, field.getIndex());
+        
+        // Cast to array type if needed
+        if (field.getType().getComponentType() == null) {
+            arrayRef = rexBuilder.makeCast(fieldType, arrayRef);
+        }
+        
+        LogicalTableFunctionScan unnest = LogicalTableFunctionScan.create(
+            ctx.getCluster(),
+            Collections.emptyList(),
+            rexBuilder.makeCall(SqlStdOperatorTable.UNNEST, arrayRef),
+            null,
+            ctx.getCluster().getTypeFactory().builder()
+                .add("value", elementType)
+                .build(),
+            Collections.emptySet()
+        );
+        
+        org.apache.calcite.sql.SqlAggFunction aggFunc = getAggFunction(mode);
+        org.apache.calcite.rel.core.AggregateCall aggCall = 
+            org.apache.calcite.rel.core.AggregateCall.create(
+                aggFunc,
+                false,
+                Collections.singletonList(0),
+                -1,
+                0,
+                unnest,
+                null,
+                modeField
+            );
+        
+        LogicalAggregate aggregate = LogicalAggregate.create(
+            unnest,
+            false,
+            ImmutableBitSet.of(),
+            null,
+            Collections.singletonList(aggCall)
+        );
+        
+        LogicalCorrelate correlate = LogicalCorrelate.create(
+            left,
+            aggregate,
+            correlationId,
+            ImmutableBitSet.of(field.getIndex()),
+            JoinRelType.INNER
+        );
+        
+        List<RexNode> projects = new ArrayList<>();
+        List<String> fieldNames = new ArrayList<>();
+        
+        for (int i = 0; i < left.getRowType().getFieldCount(); i++) {
+            projects.add(rexBuilder.makeInputRef(correlate, i));
+            fieldNames.add(left.getRowType().getFieldList().get(i).getName());
+        }
+        
+        projects.add(rexBuilder.makeInputRef(correlate, left.getRowType().getFieldCount()));
+        fieldNames.add(modeField);
+        
+        return LogicalProject.create(correlate, Collections.emptyList(), projects, fieldNames);
+    }
+
+    private org.apache.calcite.sql.SqlAggFunction getAggFunction(SortMode mode) throws ConversionException {
+        return switch (mode) {
+            case MIN -> SqlStdOperatorTable.MIN;
+            case MAX -> SqlStdOperatorTable.MAX;
+            case SUM -> SqlStdOperatorTable.SUM;
+            case AVG -> SqlStdOperatorTable.AVG;
+            case MEDIAN -> throw new ConversionException("MEDIAN sort mode is not yet supported");
+            default -> throw new ConversionException("Unsupported sort mode: " + mode);
+        };
     }
 
     private RelCollation buildCollation(RelNode input, ConversionContext ctx) throws ConversionException {
@@ -62,7 +189,10 @@ public class SortConverter extends AbstractDslConverter {
 
         for (SortBuilder<?> sortBuilder : ctx.getSearchSource().sorts()) {
             if (sortBuilder instanceof FieldSortBuilder fieldSort) {
-                String fieldName = fieldSort.getFieldName();
+                String fieldName = fieldSort.sortMode() != null 
+                    ? fieldSort.getFieldName() + "_mode" 
+                    : fieldSort.getFieldName();
+                    
                 RelDataTypeField field = rowType.getField(fieldName, false, false);
                 if (field == null) {
                     throw new ConversionException("Sort field '" + fieldName + "' not found in schema");
