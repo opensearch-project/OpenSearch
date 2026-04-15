@@ -92,6 +92,8 @@ import org.opensearch.index.BucketedCompositeDirectory;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
@@ -231,6 +233,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.isIndexSortEnabled = indexSettings.getIndexSortConfig().hasIndexSort();
         this.isParentFieldEnabledVersion = indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0);
         this.directoryFactory = directoryFactory;
+
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
@@ -392,6 +395,31 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         failIfCorrupted();
         try {
             return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
+        } catch (NoSuchFileException | CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        }
+    }
+
+    /**
+     * Segment Replication method - Fetch a map of StoreFileMetadata for segments from a {@link CatalogSnapshot},
+     * ignoring Segment_N files. Dispatches to the appropriate metadata loading strategy based on the snapshot type.
+     *
+     * @param catalogSnapshot {@link CatalogSnapshot} from which to compute metadata.
+     * @return {@link Map} map file name to {@link StoreFileMetadata}.
+     * @throws IOException in case of I/O error during metadata computation.
+     */
+    // TODO: Remove the SegmentInfosCatalogSnapshot instanceof check once loadMetadata(CatalogSnapshot, ...) is fully implemented.
+    public Map<String, StoreFileMetadata> getSegmentMetadataMap(CatalogSnapshot catalogSnapshot) throws IOException {
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
+        failIfCorrupted();
+
+        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot segmentInfosCatalogSnapshot) {
+            return getSegmentMetadataMap(segmentInfosCatalogSnapshot.getSegmentInfos());
+        }
+
+        try {
+            return loadMetadata(catalogSnapshot, directory, logger, true).fileMetadata;
         } catch (NoSuchFileException | CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -571,7 +599,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         // Leverage try-with-resources to close the shard lock for us
         try (Closeable c = shardLock) {
             try {
-                directory.innerClose(); // this closes the distributorDirectory as well
+                directory.innerClose(); // this closes the entire directory chain including DataFormatAwareStoreDirectory
             } finally {
                 onClose.accept(shardLock);
             }
@@ -1210,6 +1238,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
             }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
+        }
+
+        public static LoadedMetadata loadMetadata(
+            CatalogSnapshot catalogSnapshot,
+            Directory directory,
+            Logger logger,
+            boolean ignoreSegmentsFile
+        ) throws IOException {
+            // TODO: Implement format-aware loadMetadata equivalent to the SegmentInfos version
+            throw new UnsupportedOperationException("loadMetadata for CatalogSnapshot is not yet implemented");
         }
 
         private static void checksumFromLuceneFile(

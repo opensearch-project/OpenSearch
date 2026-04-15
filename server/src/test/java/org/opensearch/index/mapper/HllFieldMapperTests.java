@@ -10,8 +10,10 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitMixer;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.metrics.AbstractHyperLogLog;
@@ -20,6 +22,8 @@ import org.opensearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.search.DocValueFormat.BINARY;
 import static org.hamcrest.Matchers.containsString;
@@ -764,5 +768,62 @@ public class HllFieldMapperTests extends MapperTestCase {
         // 1. Doc values are stored
         // 2. Sketches can be reconstructed from doc values
         // 3. DocValueFormat is BINARY
+    }
+
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+    }
+
+    private byte[] createValidSketchBytes() throws IOException {
+        HyperLogLogPlusPlus sketch = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        try {
+            sketch.collect(0, 1L);
+            BytesStreamOutput out = new BytesStreamOutput();
+            sketch.writeTo(0, out);
+            BytesRef ref = out.bytes().toBytesRef();
+            return Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
+        } finally {
+            sketch.close();
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatValidSketch() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "hll").endObject())
+        );
+        byte[] sketchBytes = createValidSketchBytes();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", sketchBytes)), docInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields();
+        boolean found = captured.stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertTrue("Expected hll field captured with sketch bytes", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "hll").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field for null value", hasField);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatInvalidSketchThrows() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "hll").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        byte[] invalidBytes = new byte[] { 0, 1, 2, 3 };
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", invalidBytes)), docInput));
+        assertThat(e.getMessage(), containsString("field [field]"));
     }
 }

@@ -11,6 +11,7 @@ package org.opensearch.dsl;
 import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgram;
 import org.apache.calcite.prepare.CalciteCatalogReader;
@@ -23,6 +24,8 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.dsl.converter.ConversionContext;
+import org.opensearch.search.builder.SearchSourceBuilder;
 
 import java.util.Collections;
 import java.util.List;
@@ -33,15 +36,31 @@ import java.util.Properties;
  * Shared test utilities for creating Calcite objects.
  * Mockito can't mock Calcite classes due to classloader conflicts with OpenSearch's
  * RandomizedRunner, so tests use real objects built here.
+ *
+ * Standard test schema: name (VARCHAR), price (INTEGER), brand (VARCHAR), rating (DOUBLE).
  */
 public class TestUtils {
 
     private TestUtils() {}
 
-    /**
-     * Creates a LogicalTableScan with fields: name (VARCHAR), price (INTEGER), brand (VARCHAR), rating (DOUBLE).
-     */
+    /** Creates a LogicalTableScan backed by the standard test schema. */
     public static LogicalTableScan createTestRelNode() {
+        Infra infra = buildInfra();
+        return LogicalTableScan.create(infra.cluster, infra.table, List.of());
+    }
+
+    /** Creates a ConversionContext with the given search source and standard test schema. */
+    public static ConversionContext createContext(SearchSourceBuilder searchSource) {
+        Infra infra = buildInfra();
+        return new ConversionContext(searchSource, infra.cluster, infra.table);
+    }
+
+    /** Creates a ConversionContext with an empty search source and standard test schema. */
+    public static ConversionContext createContext() {
+        return createContext(new SearchSourceBuilder());
+    }
+
+    private static Infra buildInfra() {
         RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
         HepPlanner planner = new HepPlanner(HepProgram.builder().build());
         RelOptCluster cluster = RelOptCluster.create(planner, new RexBuilder(typeFactory));
@@ -50,11 +69,12 @@ public class TestUtils {
         schema.add("test", new AbstractTable() {
             @Override
             public RelDataType getRowType(RelDataTypeFactory tf) {
+                // Nullable fields — matches OpenSearchSchemaBuilder behavior
                 return tf.builder()
-                    .add("name", SqlTypeName.VARCHAR)
-                    .add("price", SqlTypeName.INTEGER)
-                    .add("brand", SqlTypeName.VARCHAR)
-                    .add("rating", SqlTypeName.DOUBLE)
+                    .add("name", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
+                    .add("price", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.INTEGER), true))
+                    .add("brand", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
+                    .add("rating", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.DOUBLE), true))
                     .build();
             }
         });
@@ -65,6 +85,10 @@ public class TestUtils {
             typeFactory,
             new CalciteConnectionConfigImpl(new Properties())
         );
-        return LogicalTableScan.create(cluster, Objects.requireNonNull(reader.getTable(List.of("test"))), List.of());
+        RelOptTable table = Objects.requireNonNull(reader.getTable(List.of("test")));
+        return new Infra(cluster, table);
+    }
+
+    private record Infra(RelOptCluster cluster, RelOptTable table) {
     }
 }

@@ -1,0 +1,47 @@
+[package]
+name = "opensearch-datafusion"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+workspace = "../../../libs/dataformat-native/rust"
+
+[lib]
+name = "opensearch_datafusion"
+crate-type = ["rlib"]
+
+[dependencies]
+datafusion = { workspace = true }
+datafusion-expr = { workspace = true }
+datafusion-datasource = { workspace = true }
+datafusion-common = { workspace = true }
+datafusion-execution = { workspace = true }
+datafusion-substrait = { workspace = true }
+
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+
+parquet = { workspace = true }
+object_store = { workspace = true }
+url = { workspace = true }
+
+prost = { workspace = true }
+substrait = { workspace = true }
+
+tokio = { workspace = true }
+futures = { workspace = true }
+tokio-stream = { workspace = true }
+parking_lot = { workspace = true }
+once_cell = { workspace = true }
+log = { workspace = true }
+num_cpus = { workspace = true }
+mimalloc = { workspace = true }
+native-bridge-common = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tempfile = { workspace = true }
+
+[[bench]]
+name = "query_bench"
+harness = false

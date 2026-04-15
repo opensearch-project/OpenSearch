@@ -8,28 +8,10 @@
 
 package org.opensearch.analytics.spi;
 
-import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
-import org.opensearch.analytics.backend.SearchExecEngine;
-import org.opensearch.index.engine.dataformat.DataFormat;
-
-import java.util.List;
-
 /**
- * SPI extension point for back-end query engines (DataFusion, Lucene, etc.).
- * @opensearch.internal
+ * SPI extension point for back-end query engines for query planning and execution capabilities
+ * as needed by the {@link org.opensearch.analytics.exec.QueryPlanExecutor}
  */
-public interface AnalyticsSearchBackendPlugin {
+public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
 
-    /** Unique engine name (e.g., "lucene", "datafusion"). */
-    String name();
-
-    /**
-     * Creates a searcher bound to the given reader snapshot.
-     * @param ctx the execution context
-     */
-    SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx);
-
-    /** Returns the data formats supported by this backend. */
-    List<DataFormat> getSupportedFormats();
 }

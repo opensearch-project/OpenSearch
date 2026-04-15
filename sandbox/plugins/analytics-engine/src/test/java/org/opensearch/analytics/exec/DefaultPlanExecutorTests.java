@@ -33,10 +33,10 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -114,11 +114,45 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
             readerManager.afterRefresh(true, ref.get());
         }
 
-        DataFormatAwareEngine engine = new DataFormatAwareEngine(Map.of(format, readerManager), snapshotManager);
+        // Create a mock IndexReaderProvider that returns a reader backed by the snapshot manager
+        IndexReaderProvider readerProvider = mock(IndexReaderProvider.class);
+        when(readerProvider.acquireReader()).thenAnswer(invocation -> {
+            GatedCloseable<CatalogSnapshot> snapRef = snapshotManager.acquireSnapshot();
+            CatalogSnapshot snap = snapRef.get();
+            Map<DataFormat, Object> readers = new HashMap<>();
+            Object reader = readerManager.getReader(snap);
+            if (reader != null) {
+                readers.put(format, reader);
+            }
+            IndexReaderProvider.Reader dfReader = new IndexReaderProvider.Reader() {
+                @Override
+                public Object reader(DataFormat f) {
+                    return readers.get(f);
+                }
+
+                @Override
+                public <R> R getReader(DataFormat f, Class<R> readerType) {
+                    Object r = readers.get(f);
+                    if (r == null) return null;
+                    return readerType.cast(r);
+                }
+
+                @Override
+                public CatalogSnapshot catalogSnapshot() {
+                    return snap;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    snapRef.close();
+                }
+            };
+            return new GatedCloseable<>(dfReader, dfReader::close);
+        });
 
         // Mock shard + cluster wiring
         IndexShard shard = mock(IndexShard.class);
-        when(shard.getCompositeEngine()).thenReturn(engine);
+        when(shard.getReaderProvider()).thenReturn(readerProvider);
 
         Index index = new Index("my_index", "uuid");
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -239,6 +273,11 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
 
         @Override
         public void onFilesAdded(Collection<String> files) {}
+
+        @Override
+        public void close() throws IOException {
+            readers.clear();
+        }
     }
 
     static class MockCatalogSnapshot extends CatalogSnapshot {
@@ -292,16 +331,26 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void setUserData(Map<String, String> userData) {}
-
-        @Override
-        public Object getReader(DataFormat dataFormat) {
-            return null;
-        }
+        public void setUserData(Map<String, String> userData, boolean commitData) {}
 
         @Override
         public MockCatalogSnapshot clone() {
             return new MockCatalogSnapshot(generation, segments, format);
+        }
+
+        @Override
+        public int getFormatVersionForFile(String file) {
+            return 0;
+        }
+
+        @Override
+        public byte[] serialize() throws IOException {
+            return new byte[0];
+        }
+
+        @Override
+        public Collection<String> getFiles(boolean includeSegmentsFile) {
+            return List.of();
         }
 
         @Override
@@ -399,15 +448,10 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
+        public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
             Object reader = ctx.getReader().reader(format);
             long rows = reader instanceof Long ? (Long) reader : 0L;
             return new MockSearchExecEngine(rows);
-        }
-
-        @Override
-        public List<DataFormat> getSupportedFormats() {
-            return List.of(format);
         }
     }
 }

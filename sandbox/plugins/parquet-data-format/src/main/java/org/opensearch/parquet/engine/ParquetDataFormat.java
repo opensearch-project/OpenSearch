@@ -27,7 +27,8 @@ public class ParquetDataFormat extends DataFormat {
     /** Creates a new ParquetDataFormat. */
     public ParquetDataFormat() {}
 
-    static final String PARQUET_DATA_FORMAT_NAME = "parquet";
+    /** The parquet data format name constant. */
+    public static final String PARQUET_DATA_FORMAT_NAME = "parquet";
 
     @Override
     public String name() {

@@ -6,29 +6,50 @@
  * compatible open source license.
  */
 
+import org.gradle.api.publish.plugins.PublishingPlugin
+
 /**
  * This module provides a space in OpenSearch for the community to easily experiment with new ideas and innovate.
  * Ideally, this is where an experimental features will reside before it can be promoted to the corresponding directory
  * in the project root. The sandbox module contains three subdirectories, that mirror the root libs, modules and
  * plugins directories, each with similar intention.
  *
- * All artifacts from the sandbox/libs and sandbox/modules will be included in the snapshot distributions automatically.
+ * All artifacts from the sandbox/libs and sandbox/modules can be included in the snapshot distributions.
  * During assembling distributions, however, we will check if the following two conditions are met, for including the
  * sandbox modules,
-
+ *
  * 1. The distribution is a snapshot i.e. the build system property build.snapshot is set to true. We use this because,
  * it will prevent accidental inclusion of these artifacts in a release distribution.
  *
- * 2. The sandbox.enabled system property is set to true. This new extra flag is added because we can exclude the
- * modules from the snapshot distributions, if needed. For instance, we may want to run performance tests on snapshots
- * without the sandbox modules.
+ * 2. The sandbox.enabled system property is set to true. This extra flag keeps sandbox artifacts disabled by default
+ * and allows opting in only when needed.
  *
- * To build the distributions without the sandbox modules,
- *   ./gradlew assemble -Dsandbox.enabled=false
+ * To build the distributions with the sandbox modules,
+ *   ./gradlew assemble -Dsandbox.enabled=true
  *
- * Similarly we can run OpenSearch from source without the sandbox modules
- *   ./gradlew run -Dsandbox.enabled=false
+ * Similarly we can publish sandbox artifacts to Maven local with
+ *   ./gradlew publishToMavenLocal -Dsandbox.enabled=true
  */
+def sandboxEnabled = System.getProperty("sandbox.enabled", "false") == "true"
+
 subprojects {
   group = 'org.opensearch.sandbox'
+
+  if (sandboxEnabled == false) {
+    afterEvaluate {
+      tasks.configureEach { task ->
+        if (
+          task.group == PublishingPlugin.PUBLISH_TASK_GROUP
+            || task.name.startsWith('generatePomFileFor')
+            || task.name.startsWith('generateMetadataFileFor')
+            || task.name == 'validatePom'
+            || (task.name.startsWith('validate') && task.name.endsWith('Pom'))
+        ) {
+          task.enabled = false
+          task.setDependsOn([])
+          task.onlyIf { false }
+        }
+      }
+    }
+  }
 }

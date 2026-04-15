@@ -23,8 +23,9 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -46,7 +48,7 @@ import java.util.function.Supplier;
  * per-shard {@link DatafusionSearchExecEngine} instances via the
  * {@link AnalyticsSearchBackendPlugin} SPI.
  */
-public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, AnalyticsSearchBackendPlugin {
+public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader>, AnalyticsSearchBackendPlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -90,11 +92,16 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        // TODO : Get the spill directory from configuration
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
 
-        dataFusionService = new DataFusionService(memoryPoolLimit, spillDir, spillMemoryLimit);
+        dataFusionService = DataFusionService.builder()
+            .memoryPoolLimit(memoryPoolLimit)
+            .spillMemoryLimit(spillMemoryLimit)
+            .spillDirectory(spillDir)
+            .build();
         dataFusionService.start();
-        logger.info("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
+        logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
 
         return Collections.singletonList(dataFusionService);
     }
@@ -105,25 +112,51 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
     }
 
     @Override
-    public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
-        // TODO: resolve DataFormat properly instead of passing null
-        DatafusionReader dfReader = (DatafusionReader) ctx.getReader().reader(null);
-        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
-        DatafusionSearchExecEngine datafusionSearchExecEngine = new DatafusionSearchExecEngine(context);
-        datafusionSearchExecEngine.prepare(ctx);
-        return datafusionSearchExecEngine;
-    }
-
-    @Override
-    public EngineReaderManager<?> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
-        return new DatafusionReaderManager(format, shardPath);
+    public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
+        return new DatafusionReaderManager(settings.format(), settings.shardPath(), dataFusionService);
     }
 
     /**
      * Data formats this plugin can handle. Used by CompositeEngine to route queries.
      */
     public List<DataFormat> getSupportedFormats() {
-        return null; // TODO : List.of("parquet");
+        return List.of(new DataFormat() {
+            @Override
+            public String name() {
+                return "parquet";
+            }
+
+            @Override
+            public long priority() {
+                return 0;
+            }
+
+            @Override
+            public Set<FieldTypeCapabilities> supportedFields() {
+                return Set.of();
+            }
+        });
+    }
+
+    @Override
+    public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
+        DatafusionReader dfReader = null;
+        List<DataFormat> formats = getSupportedFormats();
+        if (formats != null) {
+            for (DataFormat format : formats) {
+                dfReader = ctx.getReader().getReader(format, DatafusionReader.class);
+                if (dfReader != null) {
+                    break;
+                }
+            }
+        }
+        if (dfReader == null) {
+            throw new IllegalStateException("No DatafusionReader available in the acquired reader");
+        }
+        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+        DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context, dataFusionService::newChildAllocator);
+        engine.prepare(ctx);
+        return engine;
     }
 
     @Override
