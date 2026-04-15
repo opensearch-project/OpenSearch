@@ -52,10 +52,9 @@ import java.util.function.Supplier;
  * {@link #createComponents} and passes them to the per-shard
  * {@link ParquetIndexingEngine} instances created in {@link #indexingEngine}.
  *
- * <p>The descriptor provides a {@link PrecomputedChecksumStrategy} that the directory
- * holds at construction time. The {@link ParquetIndexingEngine} receives the same
- * strategy instance from the directory via
- * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory#getChecksumStrategy},
+ * <p>The descriptor provides a {@link PrecomputedChecksumStrategy} that is created once
+ * per shard during initialization. The same strategy instance is shared between the
+ * directory and the {@link ParquetIndexingEngine} via the checksum strategies map,
  * so pre-computed CRC32 values registered during write are directly visible to the
  * upload path — no post-construction wiring needed.
  *
@@ -99,7 +98,10 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig, FormatChecksumStrategy checksumStrategy) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig) {
+        FormatChecksumStrategy checksumStrategy = engineConfig.checksumStrategies() != null
+            ? engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME)
+            : null;
         return new ParquetIndexingEngine(
             settings,
             dataFormat,

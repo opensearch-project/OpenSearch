@@ -100,6 +100,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -773,6 +774,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
 
             Directory directory = null;
+            Map<String, FormatChecksumStrategy> checksumStrategies = Collections.emptyMap();
+            if (this.indexSettings.isPluggableDataFormatEnabled() && dataFormatRegistry != null) {
+                checksumStrategies = dataFormatRegistry.createChecksumStrategies(this.indexSettings);
+            }
             if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isWarmIndex()) {
@@ -788,7 +793,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
             } else {
                 // Will be enabled in case of formatAware indices.
-                directory = createDataFormatAwareStoreDirectory(shardId, path);
+                directory = createDataFormatAwareStoreDirectory(shardId, path, checksumStrategies);
             }
             store = storeFactory.newStore(
                 shardId,
@@ -839,6 +844,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 clusterService.getClusterApplierService(),
                 this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null,
                 this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null,
+                checksumStrategies,
                 dataFormatRegistry
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
@@ -1344,7 +1350,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Creates DataFormatAwareStoreDirectory using the factory if available, otherwise fallback to Store's internal creation.
      * This method centralizes the directory creation logic and enables plugin-based format discovery.
      */
-    private DataFormatAwareStoreDirectory createDataFormatAwareStoreDirectory(ShardId shardId, ShardPath shardPath) throws IOException {
+    private DataFormatAwareStoreDirectory createDataFormatAwareStoreDirectory(
+        ShardId shardId,
+        ShardPath shardPath,
+        Map<String, FormatChecksumStrategy> checksumStrategies
+    ) throws IOException {
         if (dataFormatAwareStoreDirectoryFactory != null) {
             logger.debug("Using DataFormatAwareStoreDirectoryFactory to create directory for shard path: {}", shardPath);
             return dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
@@ -1352,7 +1362,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 shardId,
                 shardPath,
                 directoryFactory,
-                dataFormatRegistry
+                checksumStrategies
             );
         }
 

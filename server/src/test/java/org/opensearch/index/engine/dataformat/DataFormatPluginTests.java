@@ -87,9 +87,9 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
                     mock(MapperService.class),
                     new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings),
                     null,
-                    null
-                ),
-                null
+                    null,
+                    Map.of()
+                )
             );
         assertEquals(format, engine.getDataFormat());
 
