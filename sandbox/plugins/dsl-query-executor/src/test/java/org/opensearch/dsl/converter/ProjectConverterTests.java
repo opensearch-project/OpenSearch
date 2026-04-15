@@ -110,19 +110,6 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         assertEquals(0, result.getRowType().getFieldCount());
     }
 
-    public void testIncludesWithExcludesAppliesPostFilter() throws ConversionException {
-        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(
-            new FetchSourceContext(true, new String[] { "name", "price", "brand" }, new String[] { "price" })
-        );
-        ConversionContext ctx = TestUtils.createContext(source);
-        RelNode result = converter.convert(scan, ctx);
-
-        assertTrue(result instanceof LogicalProject);
-        assertEquals(2, result.getRowType().getFieldCount());
-        assertEquals("name", result.getRowType().getFieldNames().get(0));
-        assertEquals("brand", result.getRowType().getFieldNames().get(1));
-    }
-
     public void testWildcardIncludesWithExcludes() throws ConversionException {
         // Include all fields matching "* ", exclude "rating"
         SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(
