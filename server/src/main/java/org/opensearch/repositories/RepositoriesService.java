@@ -68,7 +68,6 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
-import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.threadpool.ThreadPool;
@@ -131,7 +130,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final ClusterManagerTaskThrottler.ThrottlingKey putRepositoryTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey deleteRepositoryTaskKey;
     private final Settings settings;
-    private final Map<String, NativeRemoteObjectStoreProvider> nativeProviders;
 
     public RepositoriesService(
         Settings settings,
@@ -141,24 +139,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool
     ) {
-        this(settings, clusterService, transportService, typesRegistry, internalTypesRegistry, threadPool, Collections.emptyMap());
-    }
-
-    public RepositoriesService(
-        Settings settings,
-        ClusterService clusterService,
-        TransportService transportService,
-        Map<String, Repository.Factory> typesRegistry,
-        Map<String, Repository.Factory> internalTypesRegistry,
-        ThreadPool threadPool,
-        Map<String, NativeRemoteObjectStoreProvider> nativeProviders
-    ) {
         this.settings = settings;
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.nativeProviders = Collections.unmodifiableMap(nativeProviders);
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
         if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isClusterManagerNode(settings)) {
@@ -702,7 +687,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         try {
             repository = factory.create(repositoryMetadata, factories::get);
             repository.start();
-            initNativeStoreIfSupported(repository, repositoryMetadata);
             return repository;
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(repository);
@@ -711,38 +695,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 e
             );
             throw new RepositoryException(repositoryMetadata.name(), "failed to create repository", e);
-        }
-    }
-
-    /**
-     * Initialize native object store on the repository if a native provider exists
-     * for the repository type and the repository supports it.
-     */
-    private void initNativeStoreIfSupported(final Repository repository, final RepositoryMetadata repositoryMetadata) {
-        if (repository instanceof NativeStoreAwareRepository == false) {
-            return;
-        }
-        final NativeRemoteObjectStoreProvider provider = nativeProviders.get(repositoryMetadata.type());
-        if (provider == null) {
-            return;
-        }
-        try {
-            ((NativeStoreAwareRepository) repository).initNativeStore(provider, settings);
-            logger.debug(
-                "Initialized native store for repository [{}] type [{}], ptr={}",
-                repositoryMetadata.name(),
-                repositoryMetadata.type(),
-                repository.getNativeStorePtr()
-            );
-        } catch (final Exception e) {
-            logger.warn(
-                new ParameterizedMessage(
-                    "Failed to initialize native store for repository [{}] type [{}]",
-                    repositoryMetadata.name(),
-                    repositoryMetadata.type()
-                ),
-                e
-            );
         }
     }
 

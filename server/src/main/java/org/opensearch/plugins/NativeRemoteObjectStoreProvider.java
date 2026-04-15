@@ -11,18 +11,21 @@ package org.opensearch.plugins;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.repositories.NativeStoreRepository;
 
 /**
  * SPI for plugins that provide native (Rust) remote ObjectStore backends.
  *
  * <p>Each repository plugin that supports native reads implements this interface
  * as a stateless factory. Consumers discover providers via
- * {@code pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)}.
+ * {@link org.opensearch.plugins.ExtensiblePlugin} extension loading.
  *
- * <p>The returned pointer is an opaque {@code long} representing a
- * {@code Box<Arc<dyn ObjectStore>>} on the Rust side. Callers are responsible
- * for lifecycle management — typically the {@code Repository} that owns the
- * pointer destroys it on close.
+ * <p>Returns a {@link NativeStoreRepository} that wraps the native pointer
+ * with use-after-close protection. The repository is {@link AutoCloseable}
+ * — callers close it to free the native resource.
+ *
+ * <p>JSON serialization for the FFM boundary is an implementation detail
+ * of each provider plugin, not part of this SPI.
  *
  * @opensearch.experimental
  */
@@ -35,51 +38,19 @@ public interface NativeRemoteObjectStoreProvider {
     String repositoryType();
 
     /**
-     * Create a native Rust ObjectStore from the given config JSON.
-     * Uses the default credential chain on the Rust side.
-     *
-     * @param configJson JSON string with backend-specific settings
-     * @return native store pointer ({@code > 0} on success)
-     */
-    long createNativeStore(String configJson);
-
-    /**
-     * Create a native Rust ObjectStore with a custom credential provider.
-     * If {@code credProviderPtr} is 0, uses the default credential chain.
-     *
-     * @param configJson JSON string with backend-specific settings
-     * @param credProviderPtr native credential provider pointer, or 0 for default
-     * @return native store pointer ({@code > 0} on success)
-     */
-    default long createNativeStore(String configJson, long credProviderPtr) {
-        return createNativeStore(configJson);
-    }
-
-    /**
      * Create a native Rust ObjectStore from repository metadata and node settings.
      *
      * <p>The provider resolves backend-specific configuration (bucket, region,
      * endpoint, credentials) from the repository metadata and node settings
-     * (which include keystore values). This is the preferred method when
-     * creating native stores from existing repositories.
+     * (which include keystore values), serializes it for the FFM boundary,
+     * and returns a {@link NativeStoreRepository} wrapping the native pointer.
      *
-     * <p>Default implementation returns {@code -1} (not supported). Providers
-     * should override this to extract settings and delegate to
-     * {@link #createNativeStore(String)}.
+     * <p>Returns {@link NativeStoreRepository#EMPTY} if native store creation is
+     * not supported or the provider cannot create a store for this metadata.
      *
      * @param metadata repository metadata with type-specific settings
      * @param nodeSettings node-level settings including keystore entries
-     * @return native store pointer ({@code > 0} on success), or {@code -1} if not supported
+     * @return a live native store, or {@link NativeStoreRepository#EMPTY}
      */
-    default long createNativeStoreFromMetadata(RepositoryMetadata metadata, Settings nodeSettings) {
-        return -1;
-    }
-
-    /**
-     * Free a native store previously created by {@link #createNativeStore}.
-     * After this call the pointer is invalid.
-     *
-     * @param ptr the pointer returned by {@link #createNativeStore}
-     */
-    void destroyNativeStore(long ptr);
+    NativeStoreRepository createNativeStore(RepositoryMetadata metadata, Settings nodeSettings);
 }

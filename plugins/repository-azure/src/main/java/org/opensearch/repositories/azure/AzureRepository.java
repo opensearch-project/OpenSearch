@@ -47,7 +47,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
-import org.opensearch.repositories.NativeStoreAwareRepository;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 
 import java.util.ArrayList;
@@ -70,7 +70,7 @@ import static org.opensearch.repositories.azure.AzureStorageService.MIN_CHUNK_SI
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class AzureRepository extends MeteredBlobStoreRepository implements NativeStoreAwareRepository {
+public class AzureRepository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(AzureRepository.class);
 
     public static final String TYPE = "azure";
@@ -112,9 +112,8 @@ public class AzureRepository extends MeteredBlobStoreRepository implements Nativ
     private final AzureStorageService storageService;
     private final boolean readonly;
 
-    /** Native (Rust) object store pointer, or -1 if not initialized. */
-    private volatile long nativeStorePtr = -1;
-    private volatile NativeRemoteObjectStoreProvider nativeProvider;
+    /** Native (Rust) object store — created during construction if native provider is available. */
+    private volatile NativeStoreRepository nativeStore = NativeStoreRepository.EMPTY;
 
     public AzureRepository(
         final RepositoryMetadata metadata,
@@ -122,6 +121,17 @@ public class AzureRepository extends MeteredBlobStoreRepository implements Nativ
         final AzureStorageService storageService,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
+    ) {
+        this(metadata, namedXContentRegistry, storageService, clusterService, recoverySettings, null);
+    }
+
+    public AzureRepository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final AzureStorageService storageService,
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
+        final NativeRemoteObjectStoreProvider nativeStoreProvider
     ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
@@ -146,6 +156,14 @@ public class AzureRepository extends MeteredBlobStoreRepository implements Nativ
             this.readonly = READONLY_SETTING.get(metadata.settings());
         } else {
             this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
+        }
+
+        // Initialize native store if provider is available (sandbox warm nodes only)
+        if (nativeStoreProvider != null) {
+            final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
+            if (store != null && store.isLive()) {
+                this.nativeStore = store;
+            }
         }
     }
 
@@ -197,16 +215,7 @@ public class AzureRepository extends MeteredBlobStoreRepository implements Nativ
 
     @Override
     protected void doClose() {
-        if (nativeStorePtr > 0 && nativeProvider != null) {
-            try {
-                nativeProvider.destroyNativeStore(nativeStorePtr);
-                logger.debug("Destroyed native store for repo [{}], ptr={}", metadata.name(), nativeStorePtr);
-            } catch (final Exception e) {
-                logger.warn("Failed to destroy native store for repo [{}]: {}", metadata.name(), e.getMessage());
-            }
-            nativeStorePtr = -1;
-            nativeProvider = null;
-        }
+        nativeStore.close();
         super.doClose();
     }
 
@@ -220,17 +229,7 @@ public class AzureRepository extends MeteredBlobStoreRepository implements Nativ
     }
 
     @Override
-    public void initNativeStore(final NativeRemoteObjectStoreProvider provider, final Settings nodeSettings) {
-        final long ptr = provider.createNativeStoreFromMetadata(metadata, nodeSettings);
-        if (ptr > 0) {
-            this.nativeStorePtr = ptr;
-            this.nativeProvider = provider;
-            logger.info("Created native store for repo [{}], ptr={}", metadata.name(), ptr);
-        }
-    }
-
-    @Override
     public long getNativeStorePtr() {
-        return nativeStorePtr;
+        return nativeStore.getPointer();
     }
 }
