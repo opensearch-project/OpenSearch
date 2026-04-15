@@ -15,6 +15,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -22,8 +23,10 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +41,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -78,20 +80,39 @@ public class MergeTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    private MergeHandler createNoopHandler(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier) {
-        DataFormatAwareMergePolicy policy = mock(DataFormatAwareMergePolicy.class);
-        return new MergeHandler(snapshotSupplier, policy, oneMerge -> new MergeResult(Map.of()), SHARD_ID);
+    private static IndexSettings defaultIndexSettings() {
+        return new IndexSettings(newIndexMeta("test", Settings.EMPTY), Settings.EMPTY);
     }
 
-    private MergeHandler createHandlerWithResult(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier, MergeResult result) {
-        DataFormatAwareMergePolicy policy = mock(DataFormatAwareMergePolicy.class);
-        return new MergeHandler(snapshotSupplier, policy, oneMerge -> result, SHARD_ID);
+    private MergeHandler createNoopHandler(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier) {
+        Merger noopMerger = mergeInput -> new MergeResult(Map.of());
+        return new MergeHandler(snapshotSupplier, noopMerger, defaultIndexSettings(), SHARD_ID);
+    }
+
+    private static Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplierOf(List<Segment> segments) {
+        CatalogSnapshot snap = mock(CatalogSnapshot.class);
+        when(snap.getSegments()).thenReturn(segments);
+        return () -> new GatedCloseable<>(snap, () -> {});
     }
 
     private static Supplier<GatedCloseable<CatalogSnapshot>> emptySnapshotSupplier() {
-        CatalogSnapshot snap = mock(CatalogSnapshot.class);
-        when(snap.getSegments()).thenReturn(Collections.emptyList());
-        return () -> new GatedCloseable<>(snap, () -> {});
+        return snapshotSupplierOf(Collections.emptyList());
+    }
+
+    private static List<Segment> createSegments(int count) {
+        List<Segment> segments = new ArrayList<>();
+        for (int i = 1; i <= count; i++) {
+            segments.add(Segment.builder(i).build());
+        }
+        return segments;
+    }
+
+    private static IndexSettings mergeSchedulerSettings() {
+        Settings settings = Settings.builder()
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
+            .build();
+        return new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
     }
 
     private MergeScheduler createMergeScheduler() {
@@ -152,11 +173,7 @@ public class MergeTests extends OpenSearchTestCase {
     }
 
     public void testMergeHandlerLifecycleCallbacks() {
-        CatalogSnapshot mockSnapshot = mock(CatalogSnapshot.class);
-        when(mockSnapshot.getSegments()).thenReturn(Collections.emptyList());
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(mockSnapshot, () -> {});
-
-        MergeHandler handler = createNoopHandler(snapshotSupplier);
+        MergeHandler handler = createNoopHandler(emptySnapshotSupplier());
         OneMerge merge = new OneMerge(Collections.emptyList());
         handler.registerMerge(merge);
         handler.updatePendingMerges();
@@ -168,11 +185,7 @@ public class MergeTests extends OpenSearchTestCase {
         Segment seg1 = Segment.builder(1L).build();
         Segment seg2 = Segment.builder(2L).build();
 
-        CatalogSnapshot mockSnapshot = mock(CatalogSnapshot.class);
-        when(mockSnapshot.getSegments()).thenReturn(List.of(seg1, seg2));
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(mockSnapshot, () -> {});
-
-        MergeHandler handler = createNoopHandler(snapshotSupplier);
+        MergeHandler handler = createNoopHandler(snapshotSupplierOf(List.of(seg1, seg2)));
         OneMerge merge = new OneMerge(List.of(seg1, seg2));
         handler.registerMerge(merge);
 
@@ -185,11 +198,7 @@ public class MergeTests extends OpenSearchTestCase {
         Segment catalogSeg = Segment.builder(1L).build();
         Segment unknownSeg = Segment.builder(99L).build();
 
-        CatalogSnapshot mockSnapshot = mock(CatalogSnapshot.class);
-        when(mockSnapshot.getSegments()).thenReturn(List.of(catalogSeg));
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(mockSnapshot, () -> {});
-
-        MergeHandler handler = createNoopHandler(snapshotSupplier);
+        MergeHandler handler = createNoopHandler(snapshotSupplierOf(List.of(catalogSeg)));
         handler.registerMerge(new OneMerge(List.of(unknownSeg)));
 
         assertFalse(handler.hasPendingMerges());
@@ -204,11 +213,7 @@ public class MergeTests extends OpenSearchTestCase {
     }
 
     public void testRegisterMergeWithEmptySegmentsList() {
-        CatalogSnapshot mockSnapshot = mock(CatalogSnapshot.class);
-        when(mockSnapshot.getSegments()).thenReturn(Collections.emptyList());
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(mockSnapshot, () -> {});
-
-        MergeHandler handler = createNoopHandler(snapshotSupplier);
+        MergeHandler handler = createNoopHandler(emptySnapshotSupplier());
         handler.registerMerge(new OneMerge(Collections.emptyList()));
         assertTrue(handler.hasPendingMerges());
     }
@@ -216,11 +221,7 @@ public class MergeTests extends OpenSearchTestCase {
     public void testOnMergeFinishedRemovesSegments() {
         Segment seg = Segment.builder(1L).build();
 
-        CatalogSnapshot mockSnapshot = mock(CatalogSnapshot.class);
-        when(mockSnapshot.getSegments()).thenReturn(List.of(seg));
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(mockSnapshot, () -> {});
-
-        MergeHandler handler = createNoopHandler(snapshotSupplier);
+        MergeHandler handler = createNoopHandler(snapshotSupplierOf(List.of(seg)));
         OneMerge merge = new OneMerge(List.of(seg));
         handler.registerMerge(merge);
         assertTrue(handler.hasPendingMerges());
@@ -232,11 +233,7 @@ public class MergeTests extends OpenSearchTestCase {
     public void testOnMergeFailureRemovesSegments() {
         Segment seg = Segment.builder(1L).build();
 
-        CatalogSnapshot mockSnapshot = mock(CatalogSnapshot.class);
-        when(mockSnapshot.getSegments()).thenReturn(List.of(seg));
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(mockSnapshot, () -> {});
-
-        MergeHandler handler = createNoopHandler(snapshotSupplier);
+        MergeHandler handler = createNoopHandler(snapshotSupplierOf(List.of(seg)));
         OneMerge merge = new OneMerge(List.of(seg));
         handler.registerMerge(merge);
         assertTrue(handler.hasPendingMerges());
@@ -249,11 +246,7 @@ public class MergeTests extends OpenSearchTestCase {
         Segment seg1 = Segment.builder(1L).build();
         Segment seg2 = Segment.builder(2L).build();
 
-        CatalogSnapshot mockSnapshot = mock(CatalogSnapshot.class);
-        when(mockSnapshot.getSegments()).thenReturn(List.of(seg1, seg2));
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(mockSnapshot, () -> {});
-
-        MergeHandler handler = createNoopHandler(snapshotSupplier);
+        MergeHandler handler = createNoopHandler(snapshotSupplierOf(List.of(seg1, seg2)));
         OneMerge merge1 = new OneMerge(List.of(seg1));
         OneMerge merge2 = new OneMerge(List.of(seg2));
 
@@ -270,11 +263,7 @@ public class MergeTests extends OpenSearchTestCase {
         Segment catalogSeg = Segment.builder(1L).build();
         Segment unknownSeg = Segment.builder(99L).build();
 
-        CatalogSnapshot mockSnapshot = mock(CatalogSnapshot.class);
-        when(mockSnapshot.getSegments()).thenReturn(List.of(catalogSeg));
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(mockSnapshot, () -> {});
-
-        MergeHandler handler = createNoopHandler(snapshotSupplier);
+        MergeHandler handler = createNoopHandler(snapshotSupplierOf(List.of(catalogSeg)));
         handler.registerMerge(new OneMerge(List.of(catalogSeg, unknownSeg)));
 
         assertFalse(handler.hasPendingMerges());
@@ -282,14 +271,11 @@ public class MergeTests extends OpenSearchTestCase {
 
     // ---- MergeHandler doMerge tests ----
 
-    public void testDoMergeReturnsResult() {
+    public void testDoMergeReturnsResult() throws IOException {
         MergeResult expectedResult = new MergeResult(Map.of());
+        Merger merger = mergeInput -> expectedResult;
 
-        CatalogSnapshot snap = mock(CatalogSnapshot.class);
-        when(snap.getSegments()).thenReturn(Collections.emptyList());
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(snap, () -> {});
-
-        MergeHandler handler = createHandlerWithResult(snapshotSupplier, expectedResult);
+        MergeHandler handler = new MergeHandler(emptySnapshotSupplier(), merger, defaultIndexSettings(), SHARD_ID);
         MergeResult result = handler.doMerge(new OneMerge(Collections.emptyList()));
 
         assertSame(expectedResult, result);
@@ -317,7 +303,7 @@ public class MergeTests extends OpenSearchTestCase {
         scheduler.refreshConfig();
     }
 
-    public void testSchedulerTriggerAndForceMerge() {
+    public void testSchedulerTriggerAndForceMerge() throws IOException {
         MergeScheduler scheduler = createMergeScheduler();
         scheduler.triggerMerges();
         scheduler.forceMerge(1);
@@ -337,12 +323,12 @@ public class MergeTests extends OpenSearchTestCase {
     }
 
     public void testStatsWithAutoThrottleEnabled() {
-        Settings settings = Settings.builder()
+        Settings autoThrottleSettings = Settings.builder()
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
             .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
             .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "true")
             .build();
-        IndexSettings idxSettings = new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
+        IndexSettings idxSettings = new IndexSettings(newIndexMeta("test", autoThrottleSettings), Settings.EMPTY);
         MergeScheduler scheduler = new MergeScheduler(
             createNoopHandler(emptySnapshotSupplier()),
             (mr, om) -> {},
@@ -357,35 +343,26 @@ public class MergeTests extends OpenSearchTestCase {
     // ---- MergeScheduler: integration with real merge execution ----
 
     public void testTriggerMergesExecutesMergeThread() throws Exception {
-        Segment seg = Segment.builder(1L).build();
+        List<Segment> segments = createSegments(15);
         MergeResult mergeResult = new MergeResult(Map.of());
         CountDownLatch latch = new CountDownLatch(1);
 
-        CatalogSnapshot snap = mock(CatalogSnapshot.class);
-        when(snap.getSegments()).thenReturn(List.of(seg));
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(snap, () -> {});
+        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = snapshotSupplierOf(segments);
 
-        DataFormatAwareMergePolicy policy = mock(DataFormatAwareMergePolicy.class);
-        AtomicBoolean returned = new AtomicBoolean(false);
-        when(policy.findMergeCandidates(any())).thenAnswer(inv -> {
-            if (returned.compareAndSet(false, true)) {
-                return List.of(List.of(seg));
-            }
-            return Collections.emptyList();
-        });
-
-        MergeHandler handler = new MergeHandler(snapshotSupplier, policy, oneMerge -> {
+        Merger merger = mergeInput -> {
             latch.countDown();
             return mergeResult;
-        }, SHARD_ID);
+        };
+        MergeHandler handler = new MergeHandler(snapshotSupplier, merger, defaultIndexSettings(), SHARD_ID);
 
         AtomicReference<MergeResult> captured = new AtomicReference<>();
-        Settings settings = Settings.builder()
-            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
-            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
-            .build();
-        IndexSettings idxSettings = new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
-        MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> captured.set(mr), SHARD_ID, idxSettings, mockThreadPool());
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> captured.set(mr),
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
 
         scheduler.triggerMerges();
         assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -394,33 +371,16 @@ public class MergeTests extends OpenSearchTestCase {
     }
 
     public void testTriggerMergesHandlesMergeFailure() throws Exception {
-        Segment seg = Segment.builder(1L).build();
+        List<Segment> segments = createSegments(15);
         CountDownLatch latch = new CountDownLatch(1);
 
-        CatalogSnapshot snap = mock(CatalogSnapshot.class);
-        when(snap.getSegments()).thenReturn(List.of(seg));
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(snap, () -> {});
-
-        DataFormatAwareMergePolicy policy = mock(DataFormatAwareMergePolicy.class);
-        AtomicBoolean returned = new AtomicBoolean(false);
-        when(policy.findMergeCandidates(any())).thenAnswer(inv -> {
-            if (returned.compareAndSet(false, true)) {
-                return List.of(List.of(seg));
-            }
-            return Collections.emptyList();
-        });
-
-        MergeHandler handler = new MergeHandler(snapshotSupplier, policy, oneMerge -> {
+        Merger failingMerger = mergeInput -> {
             latch.countDown();
-            throw new RuntimeException("merge boom");
-        }, SHARD_ID);
+            throw new IOException("merge boom");
+        };
+        MergeHandler handler = new MergeHandler(snapshotSupplierOf(segments), failingMerger, defaultIndexSettings(), SHARD_ID);
 
-        Settings settings = Settings.builder()
-            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
-            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
-            .build();
-        IndexSettings idxSettings = new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
-        MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {}, SHARD_ID, idxSettings, mockThreadPool());
+        MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
 
         scheduler.triggerMerges();
         assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -428,25 +388,20 @@ public class MergeTests extends OpenSearchTestCase {
     }
 
     public void testForceMergeExecutesMerges() throws Exception {
-        Segment seg = Segment.builder(1L).build();
+        List<Segment> segments = createSegments(3);
         MergeResult mergeResult = new MergeResult(Map.of());
 
-        CatalogSnapshot snap = mock(CatalogSnapshot.class);
-        when(snap.getSegments()).thenReturn(List.of(seg));
-        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier = () -> new GatedCloseable<>(snap, () -> {});
-
-        DataFormatAwareMergePolicy policy = mock(DataFormatAwareMergePolicy.class);
-        when(policy.findForceMergeCandidates(any(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of(List.of(seg)));
-
-        MergeHandler handler = new MergeHandler(snapshotSupplier, policy, oneMerge -> mergeResult, SHARD_ID);
+        Merger merger = mergeInput -> mergeResult;
+        MergeHandler handler = new MergeHandler(snapshotSupplierOf(segments), merger, defaultIndexSettings(), SHARD_ID);
 
         AtomicReference<MergeResult> captured = new AtomicReference<>();
-        Settings settings = Settings.builder()
-            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
-            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "6")
-            .build();
-        IndexSettings idxSettings = new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
-        MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> captured.set(mr), SHARD_ID, idxSettings, mockThreadPool());
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> captured.set(mr),
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool()
+        );
 
         scheduler.forceMerge(1);
         assertNotNull(captured.get());

@@ -14,10 +14,15 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -31,10 +36,8 @@ import java.util.function.Supplier;
  * Manages the segment merge queue, lifecycle callbacks, and merge candidate
  * selection via {@link MergePolicyProvider}.
  * <p>
- * Merge execution is delegated to a {@link MergeExecutor} provided at construction.
- * The composite plugin provides a {@link MergeExecutor} that orchestrates
- * primary-then-secondary merges; single-format setups provide a simpler one.
- * Per-format plugins (Parquet, Lucene) implement {@link org.opensearch.index.engine.dataformat.Merger}
+ * Merge execution is delegated to a {@link Merger} provided at construction.
+ * Per-format plugins (Parquet, Lucene) implement {@link Merger}
  * only — they don't know about multi-format orchestration.
  *
  * @opensearch.experimental
@@ -42,40 +45,31 @@ import java.util.function.Supplier;
 @ExperimentalApi
 public class MergeHandler {
 
-    /**
-     * Functional interface for executing a single merge operation.
-     * Implementations define how the merge is performed (single-format vs composite).
-     */
-    @FunctionalInterface
-    public interface MergeExecutor {
-        MergeResult execute(OneMerge oneMerge);
-    }
-
     private final Deque<OneMerge> pendingMerges = new ArrayDeque<>();
     private final Set<Segment> currentlyMergingSegments = new HashSet<>();
     private final Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier;
     private final MergePolicyProvider mergePolicy;
-    private final MergeExecutor mergeExecutor;
+    private final Merger merger;
     private final Logger logger;
 
     /**
      * Creates a new merge handler.
      *
      * @param snapshotSupplier supplier for acquiring catalog snapshots for segment validation
-     * @param mergePolicy      the merge policy for selecting merge candidates
-     * @param mergeExecutor    the executor that performs the actual merge (single-format or composite)
+     * @param merger           the merger that performs the actual merge operation
+     * @param indexSettings    the index settings used to configure the merge policy
      * @param shardId          the shard this handler is associated with (used for logging)
      */
     public MergeHandler(
         Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier,
-        MergePolicyProvider mergePolicy,
-        MergeExecutor mergeExecutor,
+        Merger merger,
+        IndexSettings indexSettings,
         ShardId shardId
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.snapshotSupplier = snapshotSupplier;
-        this.mergePolicy = mergePolicy;
-        this.mergeExecutor = mergeExecutor;
+        this.mergePolicy = new DataFormatAwareMergePolicy(indexSettings.getMergePolicy(true), shardId);
+        this.merger = merger;
     }
 
     /**
@@ -212,13 +206,19 @@ public class MergeHandler {
     }
 
     /**
-     * Executes the given merge operation by delegating to the {@link MergeExecutor}.
+     * Executes the given merge operation by delegating to the {@link Merger}.
      *
      * @param oneMerge the merge to execute
      * @return the result of the merge
+     * @throws IOException if the merge operation fails
      */
-    public MergeResult doMerge(OneMerge oneMerge) {
-        return mergeExecutor.execute(oneMerge);
+    public MergeResult doMerge(OneMerge oneMerge) throws IOException {
+        List<WriterFileSet> writerFiles = oneMerge.getSegmentsToMerge()
+            .stream()
+            .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
+            .toList();
+        MergeInput mergeInput = MergeInput.builder().fileMetadataList(writerFiles).build();
+        return merger.merge(mergeInput);
     }
 
     private synchronized void removeMergingSegments(OneMerge oneMerge) {

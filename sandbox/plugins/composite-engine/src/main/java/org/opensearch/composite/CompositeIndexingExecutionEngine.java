@@ -27,6 +27,7 @@ import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.composite.merge.CompositeMerger;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -129,7 +130,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
         this.secondaryEngines = Set.copyOf(secondaries);
 
-        this.compositeDataFormat = new CompositeDataFormat(primaryPlugin.getDataFormat(), allFormats);
+        this.compositeDataFormat = new CompositeDataFormat(primaryFormat, allFormats);
         this.committer = committer;
     }
 
