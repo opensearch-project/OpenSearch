@@ -18,6 +18,7 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -164,23 +165,95 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
     }
 
     public void testGetTaskResourceUsageFromThreadContext() {
+        // Legacy JSON format is no longer supported — should return null gracefully
         String taskResourceUsageJson =
             "{\"action\":\"testAction\",\"taskId\":1,\"parentTaskId\":2,\"nodeId\":\"nodeId\",\"taskResourceUsage\":{\"cpu_time_in_nanos\":1000,\"memory_in_bytes\":2000}}";
         threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, taskResourceUsageJson);
         TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
-        assertNotNull(result);
-        assertEquals("testAction", result.getAction());
-        assertEquals(1L, result.getTaskId());
-        assertEquals(2L, result.getParentTaskId());
-        assertEquals("nodeId", result.getNodeId());
-        assertEquals(1000L, result.getTaskResourceUsage().getCpuTimeInNanos());
-        assertEquals(2000L, result.getTaskResourceUsage().getMemoryInBytes());
+        assertNull("Legacy JSON header should return null since binary format is now required", result);
     }
 
     private void verifyThreadContextFixedHeaders(String key, String value) {
         assertEquals(threadPool.getThreadContext().getHeader(key), value);
         assertEquals(threadPool.getThreadContext().getTransient(key), value);
         assertEquals(threadPool.getThreadContext().getResponseHeaders().get(key).get(0), value);
+    }
+
+    public void testSerializeToBase64RoundTrip() throws Exception {
+        TaskResourceInfo original = new TaskResourceInfo(
+            "indices:data/read/search[phase/query]",
+            12345L,
+            67890L,
+            "U0rMsZg9RGOxdnVfMtMNVA",
+            new TaskResourceUsage(15000000L, 2048000L)
+        );
+
+        String encoded = TaskResourceTrackingService.serializeToBase64(original);
+        TaskResourceInfo deserialized = TaskResourceTrackingService.deserializeFromBase64(encoded);
+        assertEquals(original, deserialized);
+    }
+
+    public void testBinaryHeaderReadFromThreadContext() throws Exception {
+        TaskResourceInfo original = new TaskResourceInfo(
+            "indices:data/read/search[phase/query]",
+            1L,
+            2L,
+            "nodeA",
+            new TaskResourceUsage(1000L, 2000L)
+        );
+
+        String binaryHeader = TaskResourceTrackingService.serializeToBase64(original);
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, binaryHeader);
+
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNotNull(result);
+        assertEquals(original, result);
+    }
+
+    public void testJsonFallbackReturnsNullGracefully() {
+        // Simulate a header from an older node that uses JSON format — should fail gracefully
+        String jsonHeader =
+            "{\"action\":\"testAction\",\"taskId\":1,\"parentTaskId\":2,\"nodeId\":\"nodeId\",\"taskResourceUsage\":{\"cpu_time_in_nanos\":1000,\"memory_in_bytes\":2000}}";
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, jsonHeader);
+
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNull("Legacy JSON header should return null gracefully without binary prefix", result);
+    }
+
+    public void testCorruptedHeaderReturnsNullGracefully() {
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, "not-valid-base64!!!");
+
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNull("Corrupted header should return null gracefully", result);
+    }
+
+    public void testEmptyHeaderReturnsNull() {
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, "");
+
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNull(result);
+    }
+
+    public void testWriteTaskResourceUsageUsesBinaryFormat() {
+        SearchShardTask task = new SearchShardTask(1, "test", "test", "task", TaskId.EMPTY_TASK_ID, new HashMap<>());
+        taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
+        taskResourceTrackingService.startTracking(task);
+        task.startThreadResourceTracking(
+            Thread.currentThread().threadId(),
+            ResourceStatsType.WORKER_STATS,
+            new ResourceUsageMetric(CPU, 100),
+            new ResourceUsageMetric(MEMORY, 100)
+        );
+        taskResourceTrackingService.writeTaskResourceUsage(task, "node_1");
+        Map<String, List<String>> headers = threadPool.getThreadContext().getResponseHeaders();
+        String headerValue = headers.get(TASK_RESOURCE_USAGE).get(0);
+        // Binary Base64 headers should not start with '{' (JSON)
+        assertFalse("Header should not be JSON format", headerValue.startsWith("{"));
+
+        // Verify it can be deserialized back
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNotNull(result);
+        assertEquals("node_1", result.getNodeId());
     }
 
 }

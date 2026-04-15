@@ -17,14 +17,15 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageInfo;
@@ -32,16 +33,13 @@ import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
-import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -322,7 +320,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
                 )
                 .build();
             // Remove the existing TASK_RESOURCE_USAGE header since it would have come from an earlier phase in the same request.
-            threadPool.getThreadContext().updateResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
+            threadPool.getThreadContext().updateResponseHeader(TASK_RESOURCE_USAGE, serializeToBase64(taskResourceInfo));
         } catch (Exception e) {
             logger.debug("Error during writing task resource usage: ", e);
         }
@@ -336,29 +334,57 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     /**
-     * Get the task resource usages from {@link ThreadContext}
+     * Get the task resource usages from {@link ThreadContext}.
+     * <p>
+     * Deserializes from Base64-encoded binary format. If deserialization fails (e.g., due to a legacy
+     * JSON-formatted header from an older node during a rolling upgrade), the failure is handled gracefully
+     * and null is returned. The resource usage data for that shard is simply skipped.
      *
-     * @return {@link TaskResourceInfo}
+     * @return {@link TaskResourceInfo} or null if the header is absent or cannot be deserialized
      */
     public TaskResourceInfo getTaskResourceUsageFromThreadContext() {
         List<String> taskResourceUsages = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE);
         if (taskResourceUsages != null && taskResourceUsages.size() > 0) {
             String usage = taskResourceUsages.get(0);
             try {
-                if (usage != null && !usage.isEmpty()) {
-                    XContentParser parser = XContentHelper.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        new BytesArray(usage),
-                        MediaTypeRegistry.JSON
-                    );
-                    return TaskResourceInfo.PARSER.apply(parser, null);
+                if (usage != null && usage.isEmpty() == false) {
+                    return deserializeFromBase64(usage);
                 }
-            } catch (IOException e) {
-                logger.debug("fail to parse phase resource usages: ", e);
+            } catch (Exception e) {
+                logger.debug("failed to parse task resource usage header, skipping: ", e);
             }
         }
         return null;
+    }
+
+    /**
+     * Serializes a {@link TaskResourceInfo} to a Base64-encoded binary string for use in response headers.
+     * Uses the efficient binary serialization instead of JSON to reduce CPU overhead.
+     *
+     * @param taskResourceInfo the task resource info to serialize
+     * @return a Base64-encoded string
+     * @throws IOException if serialization fails
+     */
+    static String serializeToBase64(TaskResourceInfo taskResourceInfo) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            taskResourceInfo.writeTo(out);
+            byte[] bytes = BytesReference.toBytes(out.bytes());
+            return Base64.getEncoder().encodeToString(bytes);
+        }
+    }
+
+    /**
+     * Deserializes a {@link TaskResourceInfo} from a Base64-encoded binary string.
+     *
+     * @param headerValue the Base64-encoded header value
+     * @return the deserialized {@link TaskResourceInfo}
+     * @throws IOException if deserialization fails
+     */
+    static TaskResourceInfo deserializeFromBase64(String headerValue) throws IOException {
+        byte[] bytes = Base64.getDecoder().decode(headerValue);
+        try (StreamInput in = StreamInput.wrap(bytes)) {
+            return TaskResourceInfo.readFromStream(in);
+        }
     }
 
     /**
