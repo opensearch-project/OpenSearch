@@ -24,7 +24,7 @@ use std::time::Instant;
 
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
-use log::info;
+use log::debug;
 
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
@@ -205,7 +205,7 @@ impl Drop for QueryTrackingContext {
     fn drop(&mut self) {
         if let Some(tracker) = &self.tracker {
             tracker.mark_completed();
-            info!(
+            debug!(
                 "Query completed ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
                 tracker.context_id,
                 tracker.wall_secs(),
