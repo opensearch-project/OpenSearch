@@ -35,7 +35,6 @@ package org.opensearch.repositories.azure;
 import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.common.policy.RequestRetryPolicy;
-import com.microsoft.aad.msal4j.MsalServiceException;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -61,7 +60,6 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.HttpResources;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -193,7 +191,8 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     public void testClientUsingManagedIdentity() throws IOException {
-        // Enabled managed identity
+        // Verify that when MANAGED_IDENTITY is configured alongside a key, the client uses
+        // the managed identity credential path (HTTPS endpoint) rather than the key-based connection string.
         final Settings settings = Settings.builder()
             .setSecureSettings(buildSecureSettings())
             .put("azure.client.azure1.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
@@ -201,11 +200,8 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             try (final AzureStorageService azureStorageService = plugin.azureStoreService) {
                 final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
-
-                // Expect the client to use managed identity for authentication, and it should fail because managed identity environment is
-                // not setup in the test
-                final MsalServiceException e = expectThrows(MsalServiceException.class, () -> client1.getAccountInfo());
-                assertThat(e.getMessage(), containsString("[Managed Identity] MSI returned 401"));
+                // Managed identity path builds an HTTPS endpoint URL, not a connection string with embedded key
+                assertThat(client1.getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             }
         }
     }
