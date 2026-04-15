@@ -53,6 +53,8 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private volatile boolean closed;
     private volatile boolean prefetchStarted;
     private volatile Header initialHeader;
+    private volatile boolean arrowHandlerResolved;
+    private volatile ArrowStreamHandler<T> cachedArrowHandler;
 
     FlightTransportResponse(
         TransportResponseHandler<T> handler,
@@ -123,6 +125,20 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
             VectorSchemaRoot root = flightStream.getRoot();
             currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(root);
+
+            // Check if the underlying handler supports native Arrow consumption.
+            // MetricsTrackingResponseHandler is a decorator — unwrap to find the real handler.
+            if (!arrowHandlerResolved) {
+                cachedArrowHandler = resolveArrowStreamHandler();
+                arrowHandlerResolved = true;
+            }
+            ArrowStreamHandler<T> arrowHandler = cachedArrowHandler;
+            if (arrowHandler != null) {
+                // Native Arrow path: hand VectorSchemaRoot directly to the handler
+                return arrowHandler.readArrow(root);
+            }
+
+            // Existing byte path: deserialize via VectorStreamInput
             try (VectorStreamInput input = new VectorStreamInput(root, namedWriteableRegistry)) {
                 input.setVersion(initialHeader.getVersion());
                 return handler.read(input);
@@ -138,6 +154,24 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             }
             logger.debug("FlightClient.next() for correlationId: {} took {}ms", correlationId, took);
         }
+    }
+
+    /**
+     * Resolves the {@link ArrowStreamHandler} from the handler chain, walking the
+     * decorator chain via {@link TransportResponseHandler#getDelegate()}.
+     *
+     * @return the ArrowStreamHandler, or null if the handler does not support native Arrow
+     */
+    @SuppressWarnings("unchecked")
+    private ArrowStreamHandler<T> resolveArrowStreamHandler() {
+        TransportResponseHandler<T> current = handler;
+        while (current != null) {
+            if (current instanceof ArrowStreamHandler) {
+                return (ArrowStreamHandler<T>) current;
+            }
+            current = current.getDelegate();
+        }
+        return null;
     }
 
     long getCurrentBatchSize() {

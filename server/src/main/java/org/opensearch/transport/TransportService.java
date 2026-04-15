@@ -1618,6 +1618,11 @@ public class TransportService extends AbstractLifecycleComponent
             return getClass().getName() + "/" + delegate.toString();
         }
 
+        @Override
+        public TransportResponseHandler<T> getDelegate() {
+            return delegate;
+        }
+
         void setTimeoutHandler(TimeoutHandler handler) {
             this.handler = handler;
         }
@@ -1834,6 +1839,11 @@ public class TransportService extends AbstractLifecycleComponent
                     @Override
                     public T read(StreamInput in) throws IOException {
                         return handler.read(in);
+                    }
+
+                    @Override
+                    public TransportResponseHandler<T> getDelegate() {
+                        return handler;
                     }
 
                     @Override

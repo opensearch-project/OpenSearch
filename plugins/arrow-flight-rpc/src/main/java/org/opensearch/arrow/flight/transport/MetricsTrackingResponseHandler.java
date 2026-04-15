@@ -39,6 +39,11 @@ class MetricsTrackingResponseHandler<T extends TransportResponse> implements Tra
     }
 
     @Override
+    public TransportResponseHandler<T> getDelegate() {
+        return delegate;
+    }
+
+    @Override
     public void handleResponse(T response) {
         delegate.handleResponse(response);
     }

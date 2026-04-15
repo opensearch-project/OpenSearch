@@ -102,6 +102,18 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
      */
     default void handleRejection(Exception exp) {}
 
+    /**
+     * Returns the delegate handler wrapped by this handler, or {@code null} if this handler
+     * does not wrap another. Used by transport implementations to walk decorator chains
+     * and discover handler capabilities (e.g., native Arrow stream support).
+     *
+     * @return the delegate handler, or null
+     */
+    @ExperimentalApi
+    default TransportResponseHandler<T> getDelegate() {
+        return null;
+    }
+
     default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
         final TransportResponseHandler<T> self = this;
         return new TransportResponseHandler<Q>() {

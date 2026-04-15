@@ -114,4 +114,9 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
             span.endSpan();
         }
     }
+
+    @Override
+    public TransportResponseHandler<T> getDelegate() {
+        return delegate;
+    }
 }

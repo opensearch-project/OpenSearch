@@ -53,6 +53,7 @@ class FlightServerChannel implements TcpChannel {
     private volatile VectorSchemaRoot root = null;
     private final FlightCallTracker callTracker;
     private volatile boolean cancelled = false;
+    private volatile boolean externalRoot = false;
     private final ExecutorService executor;
     private final long correlationId;
     private final AtomicInteger batchNumber = new AtomicInteger(0);
@@ -136,6 +137,49 @@ class FlightServerChannel implements TcpChannel {
             );
         } else {
             logger.debug("Batch #{} sent for correlation ID: {}, putNext: {}ms", batchNumber, correlationId, putNextTime);
+        }
+    }
+
+    /**
+     * Sends a batch of native Arrow data directly, bypassing byte serialization.
+     * Used when the response implements {@link ArrowBatchResponse}.
+     *
+     * @param header the serialized transport header
+     * @param arrowResponse the response carrying native Arrow data
+     */
+    public void sendArrowBatch(ByteBuffer header, ArrowBatchResponse arrowResponse) {
+        if (cancelled) {
+            throw StreamException.cancelled("Cannot flush more batches. Stream cancelled by the client");
+        }
+        if (!open.get()) {
+            throw new IllegalStateException("FlightServerChannel already closed.");
+        }
+        batchNumber.incrementAndGet();
+        long batchStartTime = System.nanoTime();
+        VectorSchemaRoot arrowRoot = arrowResponse.getArrowRoot();
+        externalRoot = true;
+        if (root == null) {
+            middleware.setHeader(header);
+            root = arrowRoot;
+            serverStreamListener.start(root);
+        } else {
+            root = arrowRoot;
+        }
+        logger.debug("Sending native Arrow batch #{} for correlation ID: {}", batchNumber, correlationId);
+        serverStreamListener.putNext();
+        long putNextTime = (System.nanoTime() - batchStartTime) / 1_000_000;
+        if (callTracker != null) {
+            long rootSize = FlightUtils.calculateVectorSchemaRootSize(root);
+            callTracker.recordBatchSent(rootSize, System.nanoTime() - batchStartTime);
+            logger.debug(
+                "Native Arrow batch #{} sent for correlation ID: {}, size: {} bytes, putNext: {}ms",
+                batchNumber,
+                correlationId,
+                rootSize,
+                putNextTime
+            );
+        } else {
+            logger.debug("Native Arrow batch #{} sent for correlation ID: {}, putNext: {}ms", batchNumber, correlationId, putNextTime);
         }
     }
 
@@ -235,7 +279,7 @@ class FlightServerChannel implements TcpChannel {
             return;
         }
         open.set(false);
-        if (root != null) {
+        if (root != null && !externalRoot) {
             root.close();
         }
         notifyCloseListeners();
