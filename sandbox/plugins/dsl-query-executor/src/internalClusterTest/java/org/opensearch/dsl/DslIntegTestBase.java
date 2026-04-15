@@ -45,6 +45,24 @@ public abstract class DslIntegTestBase extends OpenSearchIntegTestCase {
         refresh(INDEX);
     }
 
+    protected void createTestIndexWithArrayField() {
+        createIndex(INDEX);
+        ensureGreen();
+        client().prepareIndex(INDEX)
+            .setId("1")
+            .setSource("{\"name\":\"product1\",\"tags\":[1,5,3]}", XContentType.JSON)
+            .get();
+        client().prepareIndex(INDEX)
+            .setId("2")
+            .setSource("{\"name\":\"product2\",\"tags\":[2,8,4]}", XContentType.JSON)
+            .get();
+        client().prepareIndex(INDEX)
+            .setId("3")
+            .setSource("{\"name\":\"product3\",\"tags\":[]}", XContentType.JSON)
+            .get();
+        refresh(INDEX);
+    }
+
     protected SearchResponse search(SearchSourceBuilder source) {
         return client().search(new SearchRequest(INDEX).source(source)).actionGet();
     }

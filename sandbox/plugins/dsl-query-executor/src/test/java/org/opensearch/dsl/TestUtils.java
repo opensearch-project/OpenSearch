@@ -49,9 +49,21 @@ public class TestUtils {
         return LogicalTableScan.create(infra.cluster, infra.table, List.of());
     }
 
+    /** Creates a LogicalTableScan with array field for testing sort.mode. */
+    public static LogicalTableScan createTestRelNodeWithArrayField() {
+        Infra infra = buildInfraWithArrayField();
+        return LogicalTableScan.create(infra.cluster, infra.table, List.of());
+    }
+
     /** Creates a ConversionContext with the given search source and standard test schema. */
     public static ConversionContext createContext(SearchSourceBuilder searchSource) {
         Infra infra = buildInfra();
+        return new ConversionContext(searchSource, infra.cluster, infra.table);
+    }
+
+    /** Creates a ConversionContext with array field for testing sort.mode. */
+    public static ConversionContext createContextWithArrayField(SearchSourceBuilder searchSource) {
+        Infra infra = buildInfraWithArrayField();
         return new ConversionContext(searchSource, infra.cluster, infra.table);
     }
 
@@ -75,6 +87,34 @@ public class TestUtils {
                     .add("price", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.INTEGER), true))
                     .add("brand", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
                     .add("rating", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.DOUBLE), true))
+                    .build();
+            }
+        });
+
+        CalciteCatalogReader reader = new CalciteCatalogReader(
+            CalciteSchema.from(schema),
+            Collections.singletonList(""),
+            typeFactory,
+            new CalciteConnectionConfigImpl(new Properties())
+        );
+        RelOptTable table = Objects.requireNonNull(reader.getTable(List.of("test")));
+        return new Infra(cluster, table);
+    }
+
+    private static Infra buildInfraWithArrayField() {
+        RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
+        HepPlanner planner = new HepPlanner(HepProgram.builder().build());
+        RelOptCluster cluster = RelOptCluster.create(planner, new RexBuilder(typeFactory));
+
+        SchemaPlus schema = CalciteSchema.createRootSchema(true).plus();
+        schema.add("test", new AbstractTable() {
+            @Override
+            public RelDataType getRowType(RelDataTypeFactory tf) {
+                RelDataType intType = tf.createSqlType(SqlTypeName.INTEGER);
+                RelDataType intArrayType = tf.createArrayType(intType, -1);
+                return tf.builder()
+                    .add("name", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
+                    .add("tags", tf.createTypeWithNullability(intArrayType, true))
                     .build();
             }
         });
