@@ -42,6 +42,7 @@ import java.util.function.Function;
  *   --tests "*.CompositeParquetIndexIT" \
  *   -Dsandbox.enabled=true
  */
+@AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21238")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
 
