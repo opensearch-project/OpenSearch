@@ -24,7 +24,6 @@ import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
@@ -99,9 +98,6 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
 
     @Override
     public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig) {
-        FormatChecksumStrategy checksumStrategy = engineConfig.checksumStrategies() != null
-            ? engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME)
-            : null;
         return new ParquetIndexingEngine(
             settings,
             dataFormat,
@@ -109,7 +105,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
             () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService()),
             engineConfig.indexSettings(),
             threadPool,
-            checksumStrategy
+            engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME)
         );
     }
 

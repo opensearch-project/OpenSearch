@@ -85,11 +85,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
      * @param shardPath           the shard path for resolving subdirectories
      * @param checksumStrategies  pre-built checksum strategies keyed by format name
      */
-    public DataFormatAwareStoreDirectory(
-        Directory delegate,
-        ShardPath shardPath,
-        Map<String, FormatChecksumStrategy> checksumStrategies
-    ) {
+    public DataFormatAwareStoreDirectory(Directory delegate, ShardPath shardPath, Map<String, FormatChecksumStrategy> checksumStrategies) {
         super(new SubdirectoryAwareDirectory(delegate, shardPath));
         this.shardPath = shardPath;
         this.checksumStrategies = new HashMap<>(checksumStrategies);

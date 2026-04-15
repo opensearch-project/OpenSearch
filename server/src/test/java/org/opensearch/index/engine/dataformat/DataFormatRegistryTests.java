@@ -162,7 +162,10 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> registry.getIndexingEngine(new IndexingEngineConfig(null, mapperService, indexSettings, null, null, Map.of()), unregistered)
+            () -> registry.getIndexingEngine(
+                new IndexingEngineConfig(null, mapperService, indexSettings, null, null, Map.of()),
+                unregistered
+            )
         );
         assertTrue(e.getMessage().contains("unknown"));
     }
