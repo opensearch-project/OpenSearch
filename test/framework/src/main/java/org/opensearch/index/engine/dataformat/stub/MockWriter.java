@@ -58,5 +58,21 @@ public class MockWriter implements Writer<MockDocumentInput> {
     public void sync() {}
 
     @Override
+    public long generation() {
+        return writerGeneration;
+    }
+
+    @Override
+    public void lock() {}
+
+    @Override
+    public boolean tryLock() {
+        return true;
+    }
+
+    @Override
+    public void unlock() {}
+
+    @Override
     public void close() {}
 }

@@ -79,6 +79,8 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MapperService;
@@ -170,7 +172,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NamedXContentRegistry xContentRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
-    private final EngineFactory engineFactory;
+    private final IndexerFactory indexerFactory;
     private final EngineConfigFactory engineConfigFactory;
     private final IndexWarmer warmer;
     private volatile Map<Integer, IndexShard> shards = emptyMap();
@@ -224,7 +226,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
         IndexAnalyzers indexAnalyzers,
-        EngineFactory engineFactory,
+        IndexerFactory indexerFactory,
         EngineConfigFactory engineConfigFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -334,7 +336,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.dataFormatAwareStoreDirectoryFactory = dataFormatAwareStoreDirectoryFactory;
         this.remoteDirectoryFactory = remoteDirectoryFactory;
         this.recoveryStateFactory = recoveryStateFactory;
-        this.engineFactory = Objects.requireNonNull(engineFactory);
+        this.indexerFactory = Objects.requireNonNull(indexerFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.readerWrapper = wrapperFactory.apply(this);
@@ -388,7 +390,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
         IndexAnalyzers indexAnalyzers,
-        EngineFactory engineFactory,
+        IndexerFactory indexerFactory,
         EngineConfigFactory engineConfigFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -429,7 +431,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             similarityService,
             shardStoreDeleter,
             indexAnalyzers,
-            engineFactory,
+            indexerFactory,
             engineConfigFactory,
             circuitBreakerService,
             bigArrays,
@@ -800,7 +802,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexCache,
                 mapperService,
                 similarityService,
-                engineFactory,
+                indexerFactory,
                 engineConfigFactory,
                 eventListener,
                 readerWrapper,
@@ -1401,8 +1403,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
     }
 
+    public final IndexerFactory getIndexerFactory() {
+        return indexerFactory;
+    }
+
     public final EngineFactory getEngineFactory() {
-        return engineFactory;
+        if (indexerFactory instanceof EngineBackedIndexerFactory) {
+            return ((EngineBackedIndexerFactory) indexerFactory).getEngineFactory();
+        }
+        throw new UnsupportedOperationException("Engine Factory doesn't exist for current index.");
     }
 
     final CheckedFunction<DirectoryReader, DirectoryReader, IOException> getReaderWrapper() {

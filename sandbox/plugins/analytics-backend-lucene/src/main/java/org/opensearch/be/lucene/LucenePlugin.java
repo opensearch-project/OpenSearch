@@ -54,7 +54,7 @@ public class LucenePlugin extends Plugin implements SearchBackEndPlugin<Director
     }
 
     @Override
-    public Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) throws IOException {
+    public Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) {
         return Optional.of(new LuceneCommitterFactory());
     }
 }

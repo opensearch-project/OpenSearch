@@ -99,7 +99,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
 
     @Override
     public List<Segment> getSegments() {
-        return segments;
+        return List.copyOf(segments);
     }
 
     @Override
