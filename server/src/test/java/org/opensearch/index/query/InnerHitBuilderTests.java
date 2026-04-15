@@ -181,7 +181,7 @@ public class InnerHitBuilderTests extends OpenSearchTestCase {
         FetchSourceContext randomFetchSourceContext;
         int randomInt = randomIntBetween(0, 2);
         if (randomInt == 0) {
-            randomFetchSourceContext = new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+            randomFetchSourceContext = FetchSourceContext.FETCH_SOURCE;
         } else if (randomInt == 1) {
             randomFetchSourceContext = new FetchSourceContext(
                 true,
