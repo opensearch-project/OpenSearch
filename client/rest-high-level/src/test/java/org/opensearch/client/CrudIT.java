@@ -509,7 +509,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "id");
-            getRequest.fetchSourceContext(new FetchSourceContext(false));
+            getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
             OpenSearchException exception = expectThrows(
                 OpenSearchException.class,
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync)

@@ -189,7 +189,7 @@ public class InnerHitBuilderTests extends OpenSearchTestCase {
                 generateRandomStringArray(12, 16, false)
             );
         } else {
-            randomFetchSourceContext = new FetchSourceContext(randomBoolean());
+            randomFetchSourceContext = randomBoolean() ? FetchSourceContext.FETCH_SOURCE : FetchSourceContext.DO_NOT_FETCH_SOURCE;
         }
         innerHits.setFetchSourceContext(randomFetchSourceContext);
         if (randomBoolean()) {
@@ -248,7 +248,7 @@ public class InnerHitBuilderTests extends OpenSearchTestCase {
         modifiers.add(() -> copy.setFetchSourceContext(randomValueOtherThan(copy.getFetchSourceContext(), () -> {
             FetchSourceContext randomFetchSourceContext;
             if (randomBoolean()) {
-                randomFetchSourceContext = new FetchSourceContext(randomBoolean());
+                randomFetchSourceContext = randomBoolean() ? FetchSourceContext.FETCH_SOURCE : FetchSourceContext.DO_NOT_FETCH_SOURCE;
             } else {
                 randomFetchSourceContext = new FetchSourceContext(
                     true,
