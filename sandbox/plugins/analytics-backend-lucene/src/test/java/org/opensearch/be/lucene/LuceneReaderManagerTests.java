@@ -8,6 +8,7 @@
 
 package org.opensearch.be.lucene;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -19,9 +20,14 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
@@ -30,8 +36,12 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.plugins.EnginePlugin;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -258,7 +268,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
-        CommitterConfig cs = new CommitterConfig(idxSettings, null, store, null);
+        CommitterConfig cs = new CommitterConfig(createEngineConfig(store, idxSettings, shardId));
         LuceneCommitter committer = new LuceneCommitter(cs);
 
         try {
@@ -278,5 +288,45 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> LuceneSearchBackEnd.createReaderManager(settings));
         assertTrue(ex.getMessage().contains("IndexStoreProvider is required"));
+    }
+
+    private EngineConfig createEngineConfig(Store store, IndexSettings indexSettings, ShardId shardId) {
+        PluginsService mockPluginsService = org.mockito.Mockito.mock(PluginsService.class);
+        org.mockito.Mockito.when(mockPluginsService.filterPlugins(EnginePlugin.class)).thenReturn(java.util.List.of(new LucenePlugin()));
+
+        return new EngineConfigFactory(mockPluginsService, indexSettings).newEngineConfig(
+            shardId,
+            null,
+            indexSettings,
+            null,
+            store,
+            null,
+            new MockAnalyzer(random()),
+            null,
+            new CodecService(null, indexSettings, LogManager.getLogger(getClass()), java.util.List.of()),
+            null,
+            null,
+            null,
+            null,
+            TimeValue.timeValueMinutes(5),
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> new RetentionLeases(0, 0, java.util.Collections.emptyList()),
+            null,
+            null,
+            false,
+            () -> Boolean.TRUE,
+            new InternalTranslogFactory(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 }

@@ -41,6 +41,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -62,7 +64,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperSizePlugin.class, InternalSettingsPlugin.class);
+        return pluginList(
+            MapperSizePlugin.class,
+            InternalSettingsPlugin.class,
+            MockDataFormatPlugin.class,
+            MockCommitterEnginePlugin.class
+        );
     }
 
     public void testSizeEnabled() throws Exception {

@@ -8,6 +8,7 @@
 
 package org.opensearch.be.lucene;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -16,15 +17,24 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.plugins.EnginePlugin;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -32,6 +42,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link LuceneIndexingExecutionEngine}.
@@ -46,10 +61,47 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId("test", "_na_", 0);
         Path dataPath = baseDir.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
         Files.createDirectories(dataPath);
-        ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
-        CommitterConfig settings = new CommitterConfig(indexSettings, null, store, null);
+
+        PluginsService mockPluginsService = mock(PluginsService.class);
+        when(mockPluginsService.filterPlugins(EnginePlugin.class)).thenReturn(List.of(new LucenePlugin()));
+
+        EngineConfig engineConfig = new EngineConfigFactory(mockPluginsService, indexSettings).newEngineConfig(
+            shardId,
+            null,
+            indexSettings,
+            null,
+            store,
+            null,
+            new MockAnalyzer(random()),
+            null,
+            new CodecService(null, indexSettings, LogManager.getLogger(getClass()), List.of()),
+            null,
+            null,
+            null,
+            null,
+            TimeValue.timeValueMinutes(5),
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> new RetentionLeases(0, 0, Collections.emptyList()),
+            null,
+            null,
+            false,
+            () -> Boolean.TRUE,
+            new InternalTranslogFactory(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        CommitterConfig settings = new CommitterConfig(engineConfig);
         return new LuceneCommitter(settings);
     }
 
@@ -95,7 +147,8 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         }
 
         WriterFileSet writerFileSet = WriterFileSet.builder().directory(externalDir).writerGeneration(1L).addNumRows(numDocs).build();
-        RefreshInput refreshInput = RefreshInput.builder().addWriterFileSet(writerFileSet).build();
+        Segment segment = Segment.builder(1L).addSearchableFiles("lucene", writerFileSet).build();
+        RefreshInput refreshInput = RefreshInput.builder().addSegment(segment).build();
 
         RefreshResult result = engine.refresh(refreshInput);
         assertNotNull(result);
@@ -122,7 +175,8 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         }
 
         WriterFileSet writerFileSet = WriterFileSet.builder().directory(parquetDir).writerGeneration(1L).addNumRows(1).build();
-        RefreshInput refreshInput = RefreshInput.builder().addWriterFileSet(writerFileSet).build();
+        Segment segment = Segment.builder(1L).addSearchableFiles("parquet", writerFileSet).build();
+        RefreshInput refreshInput = RefreshInput.builder().addSegment(segment).build();
 
         engine.refresh(refreshInput);
         assertEquals("Non-lucene directories should be skipped", 0, writer.getDocStats().numDocs);

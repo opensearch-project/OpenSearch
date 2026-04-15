@@ -71,4 +71,10 @@ public class MockReaderManager implements EngineReaderManager<MockReader> {
     public void onFilesAdded(Collection<String> files) {
         addedFiles.addAll(files);
     }
+
+    @Override
+    public void close() {
+        readers.values().forEach(MockReader::close);
+        readers.clear();
+    }
 }
