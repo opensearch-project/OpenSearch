@@ -25,8 +25,8 @@ import java.util.List;
  * Arrow batches from data nodes via Analytics Core transport. The backend
  * decides internally how to reduce (in-memory table, streaming sink, etc.).
  *
- * <p>Only used for SINGLETON distribution. Shuffle exchanges use
- * {@link OpenSearchShuffleReader} instead.
+ * <p>Only used for SINGLETON distribution. Shuffle exchanges (HASH/RANGE) are
+ * not yet implemented — see {@link OpenSearchDistributionTraitDef}.
  *
  * @opensearch.internal
  */
