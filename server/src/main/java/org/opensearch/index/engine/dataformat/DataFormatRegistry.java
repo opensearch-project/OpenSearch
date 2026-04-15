@@ -20,6 +20,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -94,10 +95,7 @@ public class DataFormatRegistry {
         if (plugin == null) {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
         }
-        Map<String, DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(settings.indexSettings(), this);
-        DataFormatDescriptor descriptor = descriptors.get(format.name());
-        FormatChecksumStrategy checksumStrategy = descriptor != null ? descriptor.getChecksumStrategy() : null;
-        return plugin.indexingEngine(settings, checksumStrategy);
+        return plugin.indexingEngine(settings);
     }
 
     public DataFormat format(String name) {
@@ -156,6 +154,24 @@ public class DataFormatRegistry {
             }
         }
         return Map.of();
+    }
+
+    /**
+     * Creates checksum strategies for all formats of the given index, intended to be called
+     * once per shard during initialization. The returned map should be shared between the
+     * directory and the engine so that pre-computed checksums registered during write are
+     * visible to the upload path.
+     *
+     * @param indexSettings the index settings used to determine the active data format
+     * @return unmodifiable map of format name to checksum strategy
+     */
+    public Map<String, FormatChecksumStrategy> createChecksumStrategies(IndexSettings indexSettings) {
+        Map<String, DataFormatDescriptor> descriptors = getFormatDescriptors(indexSettings);
+        Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
+        for (Map.Entry<String, DataFormatDescriptor> entry : descriptors.entrySet()) {
+            strategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
+        }
+        return Collections.unmodifiableMap(strategies);
     }
 
     /**
