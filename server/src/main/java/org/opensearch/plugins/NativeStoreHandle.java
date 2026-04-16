@@ -20,8 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * so the pointer and its cleanup are always paired.
  *
  * <p>Instances are created by {@link NativeRemoteObjectStoreProvider} and
- * owned by the repository that implements
- * {@link org.opensearch.repositories.NativeStoreAwareRepository}.
+ * owned by the repository that holds the native store pointer.
  *
  * @opensearch.experimental
  */

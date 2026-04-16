@@ -231,6 +231,7 @@ import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.IngestionConsumerPlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.MetadataUpgrader;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
@@ -1372,6 +1373,16 @@ public class Node implements Closeable {
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
 
+            // Only pass the FS native provider to RepositoriesModule — S3/GCS/Azure
+            // wire their own native providers via ExtensiblePlugin, not through here.
+            NativeRemoteObjectStoreProvider fsNativeProvider = null;
+            for (NativeRemoteObjectStoreProvider p : pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)) {
+                if ("fs".equals(p.repositoryType())) {
+                    fsNativeProvider = p;
+                    break;
+                }
+            }
+
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class),
@@ -1379,7 +1390,8 @@ public class Node implements Closeable {
                 clusterService,
                 threadPool,
                 xContentRegistry,
-                recoverySettings
+                recoverySettings,
+                fsNativeProvider
             );
             CryptoHandlerRegistry.initRegistry(
                 pluginsService.filterPlugins(CryptoPlugin.class),

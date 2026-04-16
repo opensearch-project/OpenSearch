@@ -37,6 +37,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
@@ -66,10 +67,23 @@ public final class RepositoriesModule {
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings
     ) {
+        this(env, repoPlugins, transportService, clusterService, threadPool, namedXContentRegistry, recoverySettings, null);
+    }
+
+    public RepositoriesModule(
+        Environment env,
+        List<RepositoryPlugin> repoPlugins,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        NamedXContentRegistry namedXContentRegistry,
+        RecoverySettings recoverySettings,
+        NativeRemoteObjectStoreProvider fsNativeProvider
+    ) {
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,
-            metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings)
+            metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings, fsNativeProvider)
         );
 
         factories.put(

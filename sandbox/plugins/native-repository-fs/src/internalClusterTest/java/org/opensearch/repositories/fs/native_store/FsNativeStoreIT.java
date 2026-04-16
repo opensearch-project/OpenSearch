@@ -1,0 +1,124 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.repositories.fs.native_store;
+
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.test.OpenSearchIntegTestCase;
+
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
+
+/**
+ * Integration test verifying FsRepository native store lifecycle.
+ */
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class FsNativeStoreIT extends OpenSearchIntegTestCase {
+
+    private Path repoPath;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(FsNativeObjectStorePlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        if (repoPath == null) {
+            repoPath = createTempDir();
+        }
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("path.repo", repoPath.toAbsolutePath().toString()).build();
+    }
+
+    public void testFsRepoGetsNativeStore() {
+        internalCluster().startNode();
+
+        String location = repoPath.resolve("test-repo").toAbsolutePath().toString();
+        repoPath.resolve("test-repo").toFile().mkdirs();
+
+        AcknowledgedResponse response = client().admin()
+            .cluster()
+            .preparePutRepository("test-fs-repo")
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", location))
+            .get();
+        assertTrue("Repository creation should be acknowledged", response.isAcknowledged());
+
+        RepositoriesService repoService = internalCluster().getInstance(RepositoriesService.class);
+        Repository repo = repoService.repository("test-fs-repo");
+
+        long ptr = repo.getNativeStorePtr();
+        assertThat("Native store pointer should be > 0", ptr, greaterThan(0L));
+        assertEquals("Pointer should be consistent across calls", ptr, repo.getNativeStorePtr());
+    }
+
+    public void testDifferentReposGetDifferentPointers() {
+        internalCluster().startNode();
+
+        // Create two repos with different locations
+        Path loc1 = repoPath.resolve("repo-1");
+        Path loc2 = repoPath.resolve("repo-2");
+        loc1.toFile().mkdirs();
+        loc2.toFile().mkdirs();
+
+        client().admin()
+            .cluster()
+            .preparePutRepository("repo-1")
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", loc1.toAbsolutePath().toString()))
+            .get();
+        client().admin()
+            .cluster()
+            .preparePutRepository("repo-2")
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", loc2.toAbsolutePath().toString()))
+            .get();
+
+        RepositoriesService repoService = internalCluster().getInstance(RepositoriesService.class);
+        long ptr1 = repoService.repository("repo-1").getNativeStorePtr();
+        long ptr2 = repoService.repository("repo-2").getNativeStorePtr();
+
+        assertThat("Both pointers should be > 0", ptr1, greaterThan(0L));
+        assertThat("Both pointers should be > 0", ptr2, greaterThan(0L));
+        assertThat("Different repos should get different native store pointers", ptr1, not(equalTo(ptr2)));
+    }
+
+    public void testNativeStoreDestroyedOnRepoDelete() {
+        internalCluster().startNode();
+
+        Path loc = repoPath.resolve("repo-delete");
+        loc.toFile().mkdirs();
+
+        client().admin()
+            .cluster()
+            .preparePutRepository("repo-delete")
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", loc.toAbsolutePath().toString()))
+            .get();
+
+        RepositoriesService repoService = internalCluster().getInstance(RepositoriesService.class);
+        Repository repo = repoService.repository("repo-delete");
+        long ptr = repo.getNativeStorePtr();
+        assertThat("Pointer should be > 0 before delete", ptr, greaterThan(0L));
+
+        // Delete the repo — triggers doClose() which destroys native store
+        client().admin().cluster().prepareDeleteRepository("repo-delete").get();
+
+        // After close, getPointer() throws IllegalStateException (use-after-close protection)
+        expectThrows(IllegalStateException.class, repo::getNativeStorePtr);
+    }
+}

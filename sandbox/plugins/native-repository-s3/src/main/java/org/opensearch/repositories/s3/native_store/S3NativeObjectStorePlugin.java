@@ -11,7 +11,6 @@ package org.opensearch.repositories.s3.native_store;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
@@ -69,10 +68,7 @@ public class S3NativeObjectStorePlugin extends Plugin implements NativeRemoteObj
         final Linker linker = Linker.nativeLinker();
         S3_CREATE_STORE = linker.downcallHandle(
             lib.find(FFM_CREATE).orElseThrow(),
-            FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG
-            )
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
         S3_DESTROY_STORE = linker.downcallHandle(
             lib.find(FFM_DESTROY).orElseThrow(),
@@ -80,7 +76,12 @@ public class S3NativeObjectStorePlugin extends Plugin implements NativeRemoteObj
         );
     }
 
-    public S3NativeObjectStorePlugin(final Settings settings) {}
+    /** No-arg constructor for ExtensiblePlugin SPI discovery via createExtension(). */
+    public S3NativeObjectStorePlugin() {}
+
+    /** Settings constructor for PluginsService plugin loading. Package-private to avoid
+     *  "no unique public constructor" error — createExtension requires exactly one public constructor. */
+    S3NativeObjectStorePlugin(final Settings settings) {}
 
     @Override
     public String repositoryType() {
@@ -179,7 +180,7 @@ public class S3NativeObjectStorePlugin extends Plugin implements NativeRemoteObj
             }
 
             builder.endObject();
-            return Strings.toString(builder);
+            return builder.toString();
         }
     }
 }

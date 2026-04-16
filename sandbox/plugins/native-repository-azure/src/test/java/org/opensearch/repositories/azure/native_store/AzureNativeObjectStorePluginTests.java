@@ -23,12 +23,12 @@ import java.util.Map;
 public class AzureNativeObjectStorePluginTests extends OpenSearchTestCase {
 
     public void testBuildConfigJsonMinimal() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("my-repo", "azure", Settings.builder()
-            .put("container", "my-container")
-            .build());
-        final Settings nodeSettings = Settings.builder()
-            .put("azure.client.default.account", "myaccount")
-            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "my-repo",
+            "azure",
+            Settings.builder().put("container", "my-container").build()
+        );
+        final Settings nodeSettings = Settings.builder().put("azure.client.default.account", "myaccount").build();
 
         final String json = AzureNativeObjectStorePlugin.buildConfigJson(metadata, nodeSettings);
 
@@ -40,9 +40,7 @@ public class AzureNativeObjectStorePluginTests extends OpenSearchTestCase {
 
     public void testBuildConfigJsonDefaultContainer() throws IOException {
         final RepositoryMetadata metadata = new RepositoryMetadata("repo", "azure", Settings.EMPTY);
-        final Settings nodeSettings = Settings.builder()
-            .put("azure.client.default.account", "acc")
-            .build();
+        final Settings nodeSettings = Settings.builder().put("azure.client.default.account", "acc").build();
 
         final String json = AzureNativeObjectStorePlugin.buildConfigJson(metadata, nodeSettings);
 
@@ -50,9 +48,7 @@ public class AzureNativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonWithMaxRetries() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "azure", Settings.builder()
-            .put("container", "c")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "azure", Settings.builder().put("container", "c").build());
         final Settings nodeSettings = Settings.builder()
             .put("azure.client.default.account", "acc")
             .put("azure.client.default.max_retries", "5")
@@ -64,12 +60,8 @@ public class AzureNativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonNoMaxRetriesWhenDefault() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "azure", Settings.builder()
-            .put("container", "c")
-            .build());
-        final Settings nodeSettings = Settings.builder()
-            .put("azure.client.default.account", "acc")
-            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "azure", Settings.builder().put("container", "c").build());
+        final Settings nodeSettings = Settings.builder().put("azure.client.default.account", "acc").build();
 
         final String json = AzureNativeObjectStorePlugin.buildConfigJson(metadata, nodeSettings);
 
@@ -77,10 +69,11 @@ public class AzureNativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonNamedClient() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "azure", Settings.builder()
-            .put("client", "prod")
-            .put("container", "prod-container")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "repo",
+            "azure",
+            Settings.builder().put("client", "prod").put("container", "prod-container").build()
+        );
         final Settings nodeSettings = Settings.builder()
             .put("azure.client.prod.account", "prodaccount")
             .put("azure.client.prod.max_retries", "3")
@@ -94,12 +87,8 @@ public class AzureNativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonProducesValidJson() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "azure", Settings.builder()
-            .put("container", "c")
-            .build());
-        final Settings nodeSettings = Settings.builder()
-            .put("azure.client.default.account", "acc")
-            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "azure", Settings.builder().put("container", "c").build());
+        final Settings nodeSettings = Settings.builder().put("azure.client.default.account", "acc").build();
 
         final String json = AzureNativeObjectStorePlugin.buildConfigJson(metadata, nodeSettings);
 

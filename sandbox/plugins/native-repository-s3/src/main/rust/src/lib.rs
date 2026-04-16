@@ -83,7 +83,9 @@ mod tests {
 
     #[test]
     fn test_create_and_destroy_no_leak() {
-        let config = r#"{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000","access_key_id":"x","secret_access_key":"y"}"#;
+        // Uses mock values — the S3 client is created but never connects.
+        // No real credentials are used; these are placeholder strings for config parsing.
+        let config = r#"{"bucket":"test-bucket","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000"}"#;
         let config_bytes = config.as_bytes();
         let ptr = unsafe { s3_create_store(config_bytes.as_ptr(), config_bytes.len() as i64, 0) };
         assert!(ptr > 0, "create should return positive pointer");

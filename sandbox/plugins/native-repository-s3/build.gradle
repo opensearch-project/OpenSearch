@@ -12,11 +12,28 @@ opensearchplugin {
   extendedPlugins = ['repository-s3']
 }
 
+apply plugin: 'opensearch.internal-cluster-test'
+
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
   implementation project(':sandbox:libs:dataformat-native')
   compileOnly project(':plugins:repository-s3')
+  internalClusterTestImplementation project(':test:framework')
+  internalClusterTestImplementation project(':plugins:repository-s3')
 }
 
 testingConventions.enabled = false
+
+tasks.named('compileInternalClusterTestJava').configure {
+  sourceCompatibility = JavaVersion.toVersion(25)
+  targetCompatibility = JavaVersion.toVersion(25)
+}
+
+tasks.named('internalClusterTest').configure {
+  jvmArgs += [
+    '--enable-native-access=ALL-UNNAMED'
+  ]
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}

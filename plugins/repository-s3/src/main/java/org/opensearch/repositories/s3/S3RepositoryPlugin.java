@@ -32,6 +32,8 @@
 
 package org.opensearch.repositories.s3;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -84,6 +86,8 @@ import java.util.function.Supplier;
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin, ExtensiblePlugin {
+
+    private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
 
     private static final String URGENT_FUTURE_COMPLETION = "urgent_future_completion";
     private static final String URGENT_STREAM_READER = "urgent_stream_reader";
@@ -186,11 +190,20 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        for (NativeRemoteObjectStoreProvider provider : loader.loadExtensions(NativeRemoteObjectStoreProvider.class)) {
+        List<NativeRemoteObjectStoreProvider> providers = loader.loadExtensions(NativeRemoteObjectStoreProvider.class);
+        for (NativeRemoteObjectStoreProvider provider : providers) {
             if (S3Repository.TYPE.equals(provider.repositoryType())) {
                 this.nativeStoreProvider = provider;
+                logger.info(
+                    "Loaded native object store provider [{}] for repository type [{}]",
+                    provider.getClass().getName(),
+                    S3Repository.TYPE
+                );
                 break;
             }
+        }
+        if (this.nativeStoreProvider == null) {
+            logger.info("No native object store provider found for repository type [{}]", S3Repository.TYPE);
         }
     }
 

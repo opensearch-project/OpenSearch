@@ -25,12 +25,12 @@ import org.opensearch.plugins.NativeStoreHandle;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public final class NativeStoreRepository implements AutoCloseable {
+public record NativeStoreRepository(NativeStoreHandle handle) implements AutoCloseable {
 
-    /** Sentinel representing "no native store". Safe to close (no-op). */
+    /**
+     * Sentinel representing "no native store". Safe to close (no-op).
+     */
     public static final NativeStoreRepository EMPTY = new NativeStoreRepository(NativeStoreHandle.EMPTY);
-
-    private final NativeStoreHandle handle;
 
     public NativeStoreRepository(NativeStoreHandle handle) {
         this.handle = handle != null ? handle : NativeStoreHandle.EMPTY;
@@ -57,6 +57,7 @@ public final class NativeStoreRepository implements AutoCloseable {
      * Returns the underlying handle. Prefer using facade methods over
      * accessing the handle directly.
      */
+    @Override
     public NativeStoreHandle handle() {
         return handle;
     }

@@ -60,10 +60,10 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
-import org.opensearch.repositories.NativeStoreRepository;
-import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
@@ -426,11 +426,22 @@ class S3Repository extends MeteredBlobStoreRepository {
         final GenericStatsMetricPublisher genericStatsMetricPublisher
     ) {
         this(
-            metadata, namedXContentRegistry, service, clusterService, recoverySettings,
-            asyncUploadUtils, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder,
-            s3AsyncService, multipartUploadEnabled, pluginConfigPath,
-            normalPrioritySizeBasedBlockingQ, lowPrioritySizeBasedBlockingQ,
-            genericStatsMetricPublisher, null
+            metadata,
+            namedXContentRegistry,
+            service,
+            clusterService,
+            recoverySettings,
+            asyncUploadUtils,
+            urgentExecutorBuilder,
+            priorityExecutorBuilder,
+            normalExecutorBuilder,
+            s3AsyncService,
+            multipartUploadEnabled,
+            pluginConfigPath,
+            normalPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher,
+            null
         );
     }
 

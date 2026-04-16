@@ -23,9 +23,11 @@ import java.util.Map;
 public class FsNativeObjectStorePluginTests extends OpenSearchTestCase {
 
     public void testBuildConfigJsonWithLocation() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("my-repo", "fs", Settings.builder()
-            .put("location", "/tmp/test-repo")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "my-repo",
+            "fs",
+            Settings.builder().put("location", "/tmp/test-repo").build()
+        );
 
         final String json = FsNativeObjectStorePlugin.buildConfigJson(metadata);
 
@@ -41,9 +43,11 @@ public class FsNativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonEscapesSpecialChars() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "fs", Settings.builder()
-            .put("location", "C:\\Users\\test\\repo")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "repo",
+            "fs",
+            Settings.builder().put("location", "C:\\Users\\test\\repo").build()
+        );
 
         final String json = FsNativeObjectStorePlugin.buildConfigJson(metadata);
 
@@ -52,9 +56,7 @@ public class FsNativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonProducesValidJson() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "fs", Settings.builder()
-            .put("location", "/data/repo")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "fs", Settings.builder().put("location", "/data/repo").build());
 
         final String json = FsNativeObjectStorePlugin.buildConfigJson(metadata);
 

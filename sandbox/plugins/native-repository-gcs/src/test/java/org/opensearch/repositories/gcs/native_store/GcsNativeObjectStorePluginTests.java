@@ -23,9 +23,11 @@ import java.util.Map;
 public class GcsNativeObjectStorePluginTests extends OpenSearchTestCase {
 
     public void testBuildConfigJsonMinimal() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("my-repo", "gcs", Settings.builder()
-            .put("bucket", "my-gcs-bucket")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "my-repo",
+            "gcs",
+            Settings.builder().put("bucket", "my-gcs-bucket").build()
+        );
 
         final String json = GcsNativeObjectStorePlugin.buildConfigJson(metadata, Settings.EMPTY);
 
@@ -34,10 +36,11 @@ public class GcsNativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonWithClientName() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "gcs", Settings.builder()
-            .put("bucket", "b")
-            .put("client", "custom")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "repo",
+            "gcs",
+            Settings.builder().put("bucket", "b").put("client", "custom").build()
+        );
 
         final String json = GcsNativeObjectStorePlugin.buildConfigJson(metadata, Settings.EMPTY);
 
@@ -45,9 +48,7 @@ public class GcsNativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonProducesValidJson() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "gcs", Settings.builder()
-            .put("bucket", "test-bucket")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "gcs", Settings.builder().put("bucket", "test-bucket").build());
 
         final String json = GcsNativeObjectStorePlugin.buildConfigJson(metadata, Settings.EMPTY);
 

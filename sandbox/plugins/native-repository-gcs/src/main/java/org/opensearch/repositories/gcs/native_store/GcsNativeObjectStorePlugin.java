@@ -11,7 +11,6 @@ package org.opensearch.repositories.gcs.native_store;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
@@ -55,10 +54,7 @@ public class GcsNativeObjectStorePlugin extends Plugin implements NativeRemoteOb
         final Linker linker = Linker.nativeLinker();
         GCS_CREATE_STORE = linker.downcallHandle(
             lib.find(FFM_CREATE).orElseThrow(),
-            FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG
-            )
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
         GCS_DESTROY_STORE = linker.downcallHandle(
             lib.find(FFM_DESTROY).orElseThrow(),
@@ -66,7 +62,10 @@ public class GcsNativeObjectStorePlugin extends Plugin implements NativeRemoteOb
         );
     }
 
-    public GcsNativeObjectStorePlugin(final Settings settings) {}
+    /** No-arg constructor for ExtensiblePlugin SPI discovery via createExtension(). */
+    public GcsNativeObjectStorePlugin() {}
+
+    GcsNativeObjectStorePlugin(final Settings settings) {}
 
     @Override
     public String repositoryType() {
@@ -121,7 +120,7 @@ public class GcsNativeObjectStorePlugin extends Plugin implements NativeRemoteOb
             builder.startObject();
             builder.field("bucket", metadata.settings().get("bucket", ""));
             builder.endObject();
-            return Strings.toString(builder);
+            return builder.toString();
         }
     }
 }

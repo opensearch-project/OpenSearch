@@ -32,6 +32,8 @@
 
 package org.opensearch.repositories.azure;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -59,6 +61,8 @@ import java.util.Map;
  */
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin, ExtensiblePlugin {
 
+    private static final Logger logger = LogManager.getLogger(AzureRepositoryPlugin.class);
+
     public static final String REPOSITORY_THREAD_POOL_NAME = "repository_azure";
 
     // protected for testing
@@ -79,11 +83,20 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        for (NativeRemoteObjectStoreProvider provider : loader.loadExtensions(NativeRemoteObjectStoreProvider.class)) {
+        List<NativeRemoteObjectStoreProvider> providers = loader.loadExtensions(NativeRemoteObjectStoreProvider.class);
+        for (NativeRemoteObjectStoreProvider provider : providers) {
             if (AzureRepository.TYPE.equals(provider.repositoryType())) {
                 this.nativeStoreProvider = provider;
+                logger.info(
+                    "Loaded native object store provider [{}] for repository type [{}]",
+                    provider.getClass().getName(),
+                    AzureRepository.TYPE
+                );
                 break;
             }
+        }
+        if (this.nativeStoreProvider == null) {
+            logger.info("No native object store provider found for repository type [{}]", AzureRepository.TYPE);
         }
     }
 
@@ -97,7 +110,12 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         return Collections.singletonMap(
             AzureRepository.TYPE,
             (metadata) -> new AzureRepository(
-                metadata, namedXContentRegistry, azureStoreService, clusterService, recoverySettings, nativeStoreProvider
+                metadata,
+                namedXContentRegistry,
+                azureStoreService,
+                clusterService,
+                recoverySettings,
+                nativeStoreProvider
             )
         );
     }

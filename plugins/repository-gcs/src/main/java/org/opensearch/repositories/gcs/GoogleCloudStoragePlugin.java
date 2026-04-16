@@ -32,6 +32,8 @@
 
 package org.opensearch.repositories.gcs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -52,6 +54,8 @@ import java.util.Map;
 
 public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin, ExtensiblePlugin {
 
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStoragePlugin.class);
+
     // package-private for tests
     final GoogleCloudStorageService storageService;
 
@@ -71,11 +75,20 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        for (NativeRemoteObjectStoreProvider provider : loader.loadExtensions(NativeRemoteObjectStoreProvider.class)) {
+        List<NativeRemoteObjectStoreProvider> providers = loader.loadExtensions(NativeRemoteObjectStoreProvider.class);
+        for (NativeRemoteObjectStoreProvider provider : providers) {
             if (GoogleCloudStorageRepository.TYPE.equals(provider.repositoryType())) {
                 this.nativeStoreProvider = provider;
+                logger.info(
+                    "Loaded native object store provider [{}] for repository type [{}]",
+                    provider.getClass().getName(),
+                    GoogleCloudStorageRepository.TYPE
+                );
                 break;
             }
+        }
+        if (this.nativeStoreProvider == null) {
+            logger.info("No native object store provider found for repository type [{}]", GoogleCloudStorageRepository.TYPE);
         }
     }
 

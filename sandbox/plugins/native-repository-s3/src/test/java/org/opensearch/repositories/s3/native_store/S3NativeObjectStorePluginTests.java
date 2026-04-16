@@ -10,7 +10,6 @@ package org.opensearch.repositories.s3.native_store;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
@@ -25,9 +24,7 @@ import java.util.Map;
 public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
 
     public void testBuildConfigJsonMinimal() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("my-repo", "s3", Settings.builder()
-            .put("bucket", "my-bucket")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata("my-repo", "s3", Settings.builder().put("bucket", "my-bucket").build());
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, Settings.EMPTY);
 
@@ -39,10 +36,11 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonWithRegionAndEndpoint() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("my-repo", "s3", Settings.builder()
-            .put("bucket", "test-bucket")
-            .put("client", "my-client")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "my-repo",
+            "s3",
+            Settings.builder().put("bucket", "test-bucket").put("client", "my-client").build()
+        );
         final Settings nodeSettings = Settings.builder()
             .put("s3.client.my-client.region", "us-west-2")
             .put("s3.client.my-client.endpoint", "https://s3.us-west-2.amazonaws.com")
@@ -56,12 +54,8 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonDefaultClient() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .build());
-        final Settings nodeSettings = Settings.builder()
-            .put("s3.client.default.region", "eu-west-1")
-            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder().put("bucket", "b").build());
+        final Settings nodeSettings = Settings.builder().put("s3.client.default.region", "eu-west-1").build();
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, nodeSettings);
 
@@ -69,12 +63,8 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonPathStyleAccess() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .build());
-        final Settings nodeSettings = Settings.builder()
-            .put("s3.client.default.path_style_access", "true")
-            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder().put("bucket", "b").build());
+        final Settings nodeSettings = Settings.builder().put("s3.client.default.path_style_access", "true").build();
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, nodeSettings);
 
@@ -82,12 +72,8 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonAllowHttp() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .build());
-        final Settings nodeSettings = Settings.builder()
-            .put("s3.client.default.protocol", "http")
-            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder().put("bucket", "b").build());
+        final Settings nodeSettings = Settings.builder().put("s3.client.default.protocol", "http").build();
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, nodeSettings);
 
@@ -95,12 +81,8 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonHttpsDoesNotSetAllowHttp() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .build());
-        final Settings nodeSettings = Settings.builder()
-            .put("s3.client.default.protocol", "https")
-            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder().put("bucket", "b").build());
+        final Settings nodeSettings = Settings.builder().put("s3.client.default.protocol", "https").build();
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, nodeSettings);
 
@@ -108,9 +90,7 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonProxy() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder().put("bucket", "b").build());
         final Settings nodeSettings = Settings.builder()
             .put("s3.client.default.proxy.host", "proxy.example.com")
             .put("s3.client.default.proxy.port", "8080")
@@ -122,9 +102,7 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonProxyWithHttpProtocol() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder().put("bucket", "b").build());
         final Settings nodeSettings = Settings.builder()
             .put("s3.client.default.protocol", "http")
             .put("s3.client.default.proxy.host", "proxy.local")
@@ -137,10 +115,11 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonSseKms() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .put("server_side_encryption_kms_key_id", "arn:aws:kms:us-east-1:123:key/abc")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "repo",
+            "s3",
+            Settings.builder().put("bucket", "b").put("server_side_encryption_kms_key_id", "arn:aws:kms:us-east-1:123:key/abc").build()
+        );
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, Settings.EMPTY);
 
@@ -148,10 +127,11 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonBucketKeyDisabled() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .put("server_side_encryption_bucket_key_enabled", "false")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "repo",
+            "s3",
+            Settings.builder().put("bucket", "b").put("server_side_encryption_bucket_key_enabled", "false").build()
+        );
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, Settings.EMPTY);
 
@@ -159,12 +139,8 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonMaxRetries() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .build());
-        final Settings nodeSettings = Settings.builder()
-            .put("s3.client.default.max_retries", "5")
-            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder().put("bucket", "b").build());
+        final Settings nodeSettings = Settings.builder().put("s3.client.default.max_retries", "5").build();
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, nodeSettings);
 
@@ -172,9 +148,7 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonNoMaxRetriesWhenDefault() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "b")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder().put("bucket", "b").build());
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, Settings.EMPTY);
 
@@ -182,12 +156,16 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonAllSettings() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("full-repo", "s3", Settings.builder()
-            .put("bucket", "prod-bucket")
-            .put("client", "prod")
-            .put("server_side_encryption_kms_key_id", "arn:aws:kms:us-east-1:123:key/xyz")
-            .put("server_side_encryption_bucket_key_enabled", "true")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "full-repo",
+            "s3",
+            Settings.builder()
+                .put("bucket", "prod-bucket")
+                .put("client", "prod")
+                .put("server_side_encryption_kms_key_id", "arn:aws:kms:us-east-1:123:key/xyz")
+                .put("server_side_encryption_bucket_key_enabled", "true")
+                .build()
+        );
         final Settings nodeSettings = Settings.builder()
             .put("s3.client.prod.region", "us-east-1")
             .put("s3.client.prod.endpoint", "https://s3.us-east-1.amazonaws.com")
@@ -215,9 +193,7 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonProducesValidJson() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "test\"bucket")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder().put("bucket", "test\"bucket").build());
 
         final String json = S3NativeObjectStorePlugin.buildConfigJson(metadata, Settings.EMPTY);
 
@@ -229,12 +205,16 @@ public class S3NativeObjectStorePluginTests extends OpenSearchTestCase {
     }
 
     public void testBuildConfigJsonAllSettingsRoundTrip() throws IOException {
-        final RepositoryMetadata metadata = new RepositoryMetadata("repo", "s3", Settings.builder()
-            .put("bucket", "prod-bucket")
-            .put("client", "prod")
-            .put("server_side_encryption_kms_key_id", "arn:aws:kms:us-east-1:123:key/xyz")
-            .put("server_side_encryption_bucket_key_enabled", "true")
-            .build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "repo",
+            "s3",
+            Settings.builder()
+                .put("bucket", "prod-bucket")
+                .put("client", "prod")
+                .put("server_side_encryption_kms_key_id", "arn:aws:kms:us-east-1:123:key/xyz")
+                .put("server_side_encryption_bucket_key_enabled", "true")
+                .build()
+        );
         final Settings nodeSettings = Settings.builder()
             .put("s3.client.prod.region", "us-east-1")
             .put("s3.client.prod.endpoint", "https://s3.us-east-1.amazonaws.com")

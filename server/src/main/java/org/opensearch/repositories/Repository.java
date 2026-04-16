@@ -677,10 +677,17 @@ public interface Repository extends LifecycleComponent {
      * Returns the native (Rust) object store pointer for this repository, or {@code -1}
      * if native object store is not supported or not initialized.
      *
-     * <p>The pointer represents a {@code Box<Arc<dyn ObjectStore>>} on the Rust side.
-     * Consumers should treat it as opaque and never attempt to dereference it directly.
+     * <p>The returned value is an opaque handle managed by {@link NativeStoreRepository}
+     * and {@link org.opensearch.plugins.NativeStoreHandle}. Callers must NOT dereference,
+     * cache, or pass this value across repository lifecycle boundaries. The pointer is
+     * invalidated when the repository is closed — accessing it after close throws
+     * {@link IllegalStateException}.
+     *
+     * <p>Only sandbox tiered storage code should call this method. The default
+     * implementation returns {@code -1} (no native store).
      *
      * @return native store pointer ({@code > 0}), or {@code -1} if not available
+     * @throws IllegalStateException if the native store has been closed
      * @opensearch.experimental
      */
     default long getNativeStorePtr() {
