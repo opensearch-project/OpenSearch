@@ -57,6 +57,8 @@ import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.query.DistanceFeatureQueryBuilder;
 import org.opensearch.index.query.IntervalMode;
@@ -69,9 +71,11 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -92,6 +96,12 @@ public abstract class MappedFieldType {
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
+
+    /**
+     * Capability map assigning each registered {@link DataFormat} to the set of capabilities it owns for this field type.
+     * Set once at mapping creation time, read at indexing time. Volatile for cross-thread visibility.
+     */
+    private volatile Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap = Map.of();
 
     public MappedFieldType(
         String name,
@@ -464,6 +474,71 @@ public abstract class MappedFieldType {
 
     public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+    }
+
+    /**
+     * Returns an unmodifiable view of the capability map for this field type.
+     * The map assigns each registered {@link DataFormat} to the set of capabilities it owns for this field type.
+     * Returns an empty map if no capability map has been set.
+     *
+     * @return an unmodifiable capability map
+     */
+    public Map<DataFormat, Set<FieldTypeCapabilities.Capability>> getCapabilityMap() {
+        return capabilityMap;
+    }
+
+    /**
+     * Sets the capability map for this field type. Stores a defensive immutable copy.
+     * Called at mapping creation time by the composite engine.
+     *
+     * @param capabilityMap the capability map to set
+     */
+    public void setCapabilityMap(Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap) {
+        this.capabilityMap = Map.copyOf(capabilityMap);
+    }
+
+    /**
+     * Returns the default set of capabilities that this field type requires.
+     * Used by the capability assignment algorithm for metadata fields whose type names
+     * are not declared in any {@link DataFormat#supportedFields()}.
+     * <p>
+     * The default implementation returns an empty set. Metadata field types should override
+     * this to declare their intrinsic storage and query needs (e.g., {@code STORED_FIELDS},
+     * {@code POINT_RANGE}).
+     *
+     * @return the default capabilities for this field type
+     */
+    public Set<FieldTypeCapabilities.Capability> defaultCapabilities() {
+        return Set.of();
+    }
+
+    /**
+     * Returns the set of capabilities that the user's mapping configuration requests for this field.
+     * Derived from the field's indexing, storage, and doc-values settings.
+     * <p>
+     * The base implementation maps:
+     * <ul>
+     *   <li>{@code isSearchable() == true} → {@link FieldTypeCapabilities.Capability#FULL_TEXT_SEARCH}</li>
+     *   <li>{@code hasDocValues() == true} → {@link FieldTypeCapabilities.Capability#COLUMNAR_STORAGE}</li>
+     *   <li>{@code isStored() == true} → {@link FieldTypeCapabilities.Capability#STORED_FIELDS}</li>
+     * </ul>
+     * Subclasses should override when the mapping between settings and capabilities differs
+     * (e.g., numeric types use {@code POINT_RANGE} instead of {@code FULL_TEXT_SEARCH} for indexing).
+     *
+     * @return the set of capabilities requested by the user's mapping configuration
+     */
+    public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
+        Set<FieldTypeCapabilities.Capability> caps = new HashSet<>();
+        if (isSearchable()) {
+            caps.add(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH);
+        }
+        if (hasDocValues()) {
+            caps.add(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
+        }
+        if (isStored()) {
+            caps.add(FieldTypeCapabilities.Capability.STORED_FIELDS);
+        }
+        return caps.isEmpty() ? Set.of() : Set.copyOf(caps);
     }
 
     /** Return a {@link DocValueFormat} that can be used to display and parse

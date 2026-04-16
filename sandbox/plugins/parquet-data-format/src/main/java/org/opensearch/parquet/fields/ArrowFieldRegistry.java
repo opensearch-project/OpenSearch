@@ -8,13 +8,16 @@
 
 package org.opensearch.parquet.fields;
 
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.parquet.fields.plugins.CoreDataFieldPlugin;
 import org.opensearch.parquet.fields.plugins.MetadataFieldPlugin;
 import org.opensearch.parquet.fields.plugins.ParquetFieldPlugin;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Registry mapping OpenSearch field types to their corresponding Parquet field implementations.
@@ -73,5 +76,18 @@ public final class ArrowFieldRegistry {
      */
     public static Map<String, ParquetField> getRegisteredFields() {
         return Collections.unmodifiableMap(FIELD_REGISTRY);
+    }
+
+    /**
+     * Returns the supported field type capabilities for all registered fields,
+     * querying each {@link ParquetField} for its supported capabilities.
+     *
+     * @return unmodifiable set of {@link FieldTypeCapabilities} for all registered field types
+     */
+    public static Set<FieldTypeCapabilities> getSupportedFieldCapabilities() {
+        return FIELD_REGISTRY.entrySet()
+            .stream()
+            .map(e -> new FieldTypeCapabilities(e.getKey(), e.getValue().supportedCapabilities()))
+            .collect(Collectors.toUnmodifiableSet());
     }
 }

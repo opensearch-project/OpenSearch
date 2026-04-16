@@ -10,8 +10,12 @@ package org.opensearch.parquet.fields;
 
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.vsr.ManagedVSR;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Abstract base class for Parquet field implementations that handle conversion
@@ -40,6 +44,16 @@ public abstract class ParquetField {
         assert fieldType != null : "MappedFieldType cannot be null";
         assert managedVSR != null : "ManagedVSR cannot be null";
         addToGroup(fieldType, managedVSR, parseValue);
+    }
+
+    /**
+     * Returns the set of capabilities supported by this field type.
+     * Subclasses may override to declare different capabilities.
+     *
+     * @return set of supported {@link FieldTypeCapabilities.Capability}
+     */
+    public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
+        return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER);
     }
 
     /** Returns the Arrow type for this field. */

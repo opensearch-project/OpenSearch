@@ -151,8 +151,55 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             null
         );
 
+        ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
+        doc.addField(idField, 1);
+        doc.addField(nameField, "alice");
+        doc.addField(scoreField, 100L);
+        WriteResult result = writer.addDoc(doc);
+        assertTrue(result instanceof WriteResult.Success);
+        doc.close();
+        writer.flush();
+    }
+
+    public void testSingleDocumentFlush() throws Exception {
+        String filePath = createTempDir().resolve("single.parquet").toString();
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
+        doc.addField(idField, 42);
+        doc.addField(nameField, "bob");
+        doc.addField(scoreField, 500L);
+        writer.addDoc(doc);
+        doc.close();
+
+        writer.flush();
+        assertEquals(1, RustBridge.getFileMetadata(filePath).numRows());
+    }
+
+    public void testMultipleDocumentsFlush() throws Exception {
+        String filePath = createTempDir().resolve("multi.parquet").toString();
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
         for (int i = 0; i < 10; i++) {
-            ParquetDocumentInput doc = new ParquetDocumentInput();
+            ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
             populateMetadataFields(doc);
             doc.addField(idField, i);
             doc.addField(nameField, "user_" + i);
@@ -198,7 +245,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             null
         );
 
-        ParquetDocumentInput doc = new ParquetDocumentInput();
+        ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
         populateMetadataFields(doc);
         doc.addField(idField, 1);
         doc.addField(nameField, "alice");

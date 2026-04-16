@@ -43,6 +43,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.script.ScriptService;
@@ -72,11 +73,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public static class BuilderContext {
         private final Settings indexSettings;
         private final ContentPath contentPath;
+        @Nullable
+        private final DataFormatRegistry dataFormatRegistry;
 
         public BuilderContext(Settings indexSettings, ContentPath contentPath) {
+            this(indexSettings, contentPath, null);
+        }
+
+        public BuilderContext(Settings indexSettings, ContentPath contentPath, @Nullable DataFormatRegistry dataFormatRegistry) {
             Objects.requireNonNull(indexSettings, "indexSettings is required");
             this.contentPath = contentPath;
             this.indexSettings = indexSettings;
+            this.dataFormatRegistry = dataFormatRegistry;
         }
 
         public ContentPath path() {
@@ -85,6 +93,36 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public Settings indexSettings() {
             return this.indexSettings;
+        }
+
+        /**
+         * Returns the data format registry, or {@code null} if pluggable data formats are not enabled.
+         */
+        @Nullable
+        public DataFormatRegistry dataFormatRegistry() {
+            return dataFormatRegistry;
+        }
+
+        /**
+         * Computes and assigns the capability map on the given {@link MappedFieldType} using the
+         * {@link DataFormatRegistry}. No-op if the registry is not available (non-composite path).
+         * <p>
+         * Passes the field type's {@link MappedFieldType#defaultCapabilities()} as fallback for
+         * metadata fields, and {@link MappedFieldType#requestedCapabilities()} to filter the map
+         * to only capabilities the user's mapping configuration actually needs.
+         *
+         * @param fieldType the field type to assign capabilities to
+         */
+        public void assignCapabilities(MappedFieldType fieldType) {
+            if (dataFormatRegistry != null) {
+                fieldType.setCapabilityMap(
+                    dataFormatRegistry.computeCapabilityMap(
+                        fieldType.typeName(),
+                        fieldType.defaultCapabilities(),
+                        fieldType.requestedCapabilities()
+                    )
+                );
+            }
         }
 
         public Version indexCreatedVersion() {
@@ -154,6 +192,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final ScriptService scriptService;
 
+            private final DataFormatRegistry dataFormatRegistry;
+
             public ParserContext(
                 Function<String, SimilarityProvider> similarityLookupService,
                 MapperService mapperService,
@@ -163,6 +203,28 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 DateFormatter dateFormatter,
                 ScriptService scriptService
             ) {
+                this(
+                    similarityLookupService,
+                    mapperService,
+                    typeParsers,
+                    indexVersionCreated,
+                    queryShardContextSupplier,
+                    dateFormatter,
+                    scriptService,
+                    null
+                );
+            }
+
+            public ParserContext(
+                Function<String, SimilarityProvider> similarityLookupService,
+                MapperService mapperService,
+                Function<String, TypeParser> typeParsers,
+                Version indexVersionCreated,
+                Supplier<QueryShardContext> queryShardContextSupplier,
+                DateFormatter dateFormatter,
+                ScriptService scriptService,
+                @Nullable DataFormatRegistry dataFormatRegistry
+            ) {
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
@@ -170,6 +232,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 this.queryShardContextSupplier = queryShardContextSupplier;
                 this.dateFormatter = dateFormatter;
                 this.scriptService = scriptService;
+                this.dataFormatRegistry = dataFormatRegistry;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
@@ -228,6 +291,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return scriptService;
             }
 
+            /**
+             * Returns the DataFormatRegistry, or null if not available.
+             * Only non-null when pluggable data format is enabled.
+             */
+            @Nullable
+            public DataFormatRegistry dataFormatRegistry() {
+                return dataFormatRegistry;
+            }
+
             public ParserContext createMultiFieldContext(ParserContext in) {
                 return new MultiFieldParserContext(in);
             }
@@ -246,7 +318,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                         in.indexVersionCreated(),
                         in.queryShardContextSupplier(),
                         in.getDateFormatter(),
-                        in.scriptService()
+                        in.scriptService(),
+                        in.dataFormatRegistry()
                     );
                 }
 

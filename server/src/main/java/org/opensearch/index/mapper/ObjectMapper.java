@@ -47,6 +47,9 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -59,6 +62,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Field mapper for object field types
@@ -634,6 +638,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     if (Boolean.TRUE.equals(objBuilder.disableObjects.value())) {
                         // Use the full field name as-is without splitting
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
+                        // Validate field type is supported by at least one registered data format
+                        validateFieldTypeSupported(type, fieldName, propNode, parserContext);
                         objBuilder.add(fieldBuilder);
                     } else {
                         // Standard behavior: split dotted names and create intermediate object mappers
@@ -644,6 +650,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         }
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                        // Validate field type is supported by at least one registered data format
+                        validateFieldTypeSupported(type, fieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                             ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
                             intermediate.add(fieldBuilder);
@@ -669,6 +677,126 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 "DocType mapping definition has unsupported parameters: "
             );
 
+        }
+
+        /**
+         * Validates that the given field type's requested capabilities are supported by at least one
+         * registered data format when pluggable data format is enabled. Derives the required capabilities
+         * from the raw property map and verifies each is supported by at least one format.
+         * <p>
+         * Capability mapping from field configuration:
+         * <ul>
+         *   <li>{@code index: true} → requires {@code FULL_TEXT_SEARCH} or {@code POINT_RANGE}</li>
+         *   <li>{@code doc_values: true} → requires {@code COLUMNAR_STORAGE}</li>
+         *   <li>{@code store: true} → requires {@code STORED_FIELDS}</li>
+         * </ul>
+         * Skips validation when pluggable data format is not enabled.
+         */
+        private static void validateFieldTypeSupported(
+            String type,
+            String fieldName,
+            Map<String, Object> propNode,
+            ParserContext parserContext
+        ) {
+            DataFormatRegistry registry = parserContext.dataFormatRegistry();
+            if (registry == null) {
+                return;
+            }
+
+            // First check: at least one format must support this field type at all
+            boolean typeSupported = registry.getRegisteredFormats()
+                .stream()
+                .anyMatch(format -> format.supportedFields().stream().anyMatch(ftc -> ftc.fieldType().equals(type)));
+            if (typeSupported == false) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + fieldName
+                        + "] of type ["
+                        + type
+                        + "] is not supported by any registered data format "
+                        + registry.getRegisteredFormats().stream().map(DataFormat::name).collect(Collectors.toList())
+                );
+            }
+
+            // Second check: validate each requested capability is supported.
+            // For index/doc_values/store, check both explicit settings and defaults.
+            // Most field types default to index:true and doc_values:true, so we must
+            // validate even when the property is not explicitly set.
+            boolean isIndexed = isPropertyTrueOrAbsent(propNode, "index", true);
+            boolean hasDocValues = isPropertyTrueOrAbsent(propNode, "doc_values", true);
+            boolean isStored = isPropertyTrue(propNode, "store");
+
+            if (isIndexed) {
+                boolean hasIndexSupport = registry.supportsCapability(type, FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)
+                    .isEmpty() == false
+                    || registry.supportsCapability(type, FieldTypeCapabilities.Capability.POINT_RANGE).isEmpty() == false;
+                if (hasIndexSupport == false) {
+                    throw new MapperParsingException(
+                        "Field ["
+                            + fieldName
+                            + "] of type ["
+                            + type
+                            + "] has [index: true] but no registered data format supports "
+                            + "FULL_TEXT_SEARCH or POINT_RANGE for this type"
+                    );
+                }
+            }
+
+            if (hasDocValues) {
+                if (registry.supportsCapability(type, FieldTypeCapabilities.Capability.COLUMNAR_STORAGE).isEmpty()) {
+                    throw new MapperParsingException(
+                        "Field ["
+                            + fieldName
+                            + "] of type ["
+                            + type
+                            + "] has [doc_values: true] but no registered data format supports "
+                            + "COLUMNAR_STORAGE for this type"
+                    );
+                }
+            }
+
+            if (isStored) {
+                if (registry.supportsCapability(type, FieldTypeCapabilities.Capability.STORED_FIELDS).isEmpty()) {
+                    throw new MapperParsingException(
+                        "Field ["
+                            + fieldName
+                            + "] of type ["
+                            + type
+                            + "] has [store: true] but no registered data format supports "
+                            + "STORED_FIELDS for this type"
+                    );
+                }
+            }
+        }
+
+        /**
+         * Returns true if the given property is explicitly set to true in the property map.
+         * Returns false if the property is absent, null, or set to false.
+         */
+        private static boolean isPropertyTrue(Map<String, Object> propNode, String property) {
+            Object value = propNode.get(property);
+            if (value == null) {
+                return false;
+            }
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+            return Boolean.parseBoolean(value.toString());
+        }
+
+        /**
+         * Returns true if the given property is explicitly set to true, or if absent, returns the default.
+         * This handles the common case where field types default to index:true / doc_values:true.
+         */
+        private static boolean isPropertyTrueOrAbsent(Map<String, Object> propNode, String property, boolean defaultValue) {
+            Object value = propNode.get(property);
+            if (value == null) {
+                return defaultValue;
+            }
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+            return Boolean.parseBoolean(value.toString());
         }
 
     }

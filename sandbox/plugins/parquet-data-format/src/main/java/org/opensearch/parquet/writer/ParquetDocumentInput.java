@@ -8,7 +8,9 @@
 
 package org.opensearch.parquet.writer;
 
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -16,6 +18,9 @@ import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Document input for the Parquet data format.
@@ -29,17 +34,35 @@ import java.util.List;
  */
 public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>> {
 
+    private final DataFormat owningFormat;
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
     private long rowId = -1;
     private boolean isClosed = false;
 
-    /** Creates a new ParquetDocumentInput. */
-    public ParquetDocumentInput() {}
+    /**
+     * Creates a new ParquetDocumentInput with the owning data format for capability filtering.
+     *
+     * @param owningFormat the DataFormat instance that owns this document input
+     */
+    public ParquetDocumentInput(DataFormat owningFormat) {
+        this.owningFormat = Objects.requireNonNull(owningFormat, "owningFormat must not be null");
+    }
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
         ensureOpen();
-        collectedFields.add(new FieldValuePair(fieldType, value));
+        // Check capability map — accept only if this format owns capabilities for this field type
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = fieldType.getCapabilityMap();
+        if (capMap.isEmpty()) {
+            // No capability map set — no format declared support for this field type, skip it
+            return;
+        }
+
+        Set<FieldTypeCapabilities.Capability> ownedCaps = capMap.get(owningFormat);
+        if (ownedCaps != null && ownedCaps.isEmpty() == false) {
+            collectedFields.add(new FieldValuePair(fieldType, value));
+        }
+        // else: silently skip — this format has no capabilities for this field type
     }
 
     @Override

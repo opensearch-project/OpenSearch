@@ -457,4 +457,281 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.getDeleteExecutionEngine(mock(Committer.class)));
         assertTrue(e.getMessage().contains("No DataFormatPlugin provides a DeleteExecutionEngine"));
     }
+
+    // --- computeCapabilityMap tests ---
+
+    private DataFormatRegistry createRegistryWith(MockDataFormat... formats) {
+        List<DataFormatPlugin> plugins = new java.util.ArrayList<>();
+        List<String> formatNames = new java.util.ArrayList<>();
+        for (MockDataFormat f : formats) {
+            plugins.add(MockDataFormatPlugin.of(f));
+            formatNames.add(f.name());
+        }
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(plugins);
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(new MockSearchBackEndPlugin(formatNames)));
+        return new DataFormatRegistry(pluginsService);
+    }
+
+    public void testComputeCapabilityMapSingleFormat() {
+        MockDataFormat parquet = new MockDataFormat(
+            "parquet",
+            0L,
+            Set.of(
+                new FieldTypeCapabilities(
+                    "keyword",
+                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER)
+                )
+            )
+        );
+        DataFormatRegistry registry = createRegistryWith(parquet);
+
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = registry.computeCapabilityMap("keyword");
+
+        assertEquals(1, capMap.size());
+        assertTrue(capMap.containsKey(parquet));
+        assertEquals(
+            Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER),
+            capMap.get(parquet)
+        );
+    }
+
+    public void testComputeCapabilityMapHighestPriorityWins() {
+        MockDataFormat parquet = new MockDataFormat(
+            "parquet",
+            0L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+        );
+        MockDataFormat lucene = new MockDataFormat(
+            "lucene",
+            50L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormatRegistry registry = createRegistryWith(parquet, lucene);
+
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = registry.computeCapabilityMap("keyword");
+
+        assertTrue(capMap.containsKey(parquet));
+        assertTrue(capMap.get(parquet).contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
+        assertFalse(capMap.containsKey(lucene));
+    }
+
+    public void testComputeCapabilityMapSplitAcrossFormats() {
+        MockDataFormat parquet = new MockDataFormat(
+            "parquet",
+            0L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+        );
+        MockDataFormat lucene = new MockDataFormat(
+            "lucene",
+            50L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)))
+        );
+        DataFormatRegistry registry = createRegistryWith(parquet, lucene);
+
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = registry.computeCapabilityMap("keyword");
+
+        assertEquals(2, capMap.size());
+        assertEquals(Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE), capMap.get(parquet));
+        assertEquals(Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH), capMap.get(lucene));
+    }
+
+    public void testComputeCapabilityMapUnknownFieldTypeReturnsEmpty() {
+        MockDataFormat parquet = new MockDataFormat(
+            "parquet",
+            0L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormatRegistry registry = createRegistryWith(parquet);
+
+        assertTrue(registry.computeCapabilityMap("unknown_type").isEmpty());
+    }
+
+    public void testComputeCapabilityMapEmptyRegistryReturnsEmpty() {
+        DataFormatRegistry registry = createRegistryWith();
+        assertTrue(registry.computeCapabilityMap("keyword").isEmpty());
+    }
+
+    public void testComputeCapabilityMapDefaultCapabilitiesFallback() {
+        MockDataFormat parquet = new MockDataFormat(
+            "parquet",
+            0L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+        );
+        MockDataFormat lucene = new MockDataFormat(
+            "lucene",
+            50L,
+            Set.of(new FieldTypeCapabilities("text", Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)))
+        );
+        DataFormatRegistry registry = createRegistryWith(parquet, lucene);
+
+        // No format declares support for "_id", but defaults include FULL_TEXT_SEARCH + STORED_FIELDS
+        Set<FieldTypeCapabilities.Capability> defaults = Set.of(
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH,
+            FieldTypeCapabilities.Capability.STORED_FIELDS
+        );
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = registry.computeCapabilityMap("_id", defaults);
+
+        // Both default capabilities assigned to highest-priority format (parquet, priority 0)
+        assertEquals(1, capMap.size());
+        assertTrue(capMap.containsKey(parquet));
+        assertEquals(defaults, capMap.get(parquet));
+    }
+
+    public void testComputeCapabilityMapFormatDeclarationTakesPrecedenceOverDefaults() {
+        MockDataFormat parquet = new MockDataFormat(
+            "parquet",
+            0L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+        );
+        MockDataFormat lucene = new MockDataFormat(
+            "lucene",
+            50L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS)))
+        );
+        DataFormatRegistry registry = createRegistryWith(parquet, lucene);
+
+        Set<FieldTypeCapabilities.Capability> defaults = Set.of(
+            FieldTypeCapabilities.Capability.COLUMNAR_STORAGE,
+            FieldTypeCapabilities.Capability.STORED_FIELDS
+        );
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = registry.computeCapabilityMap("keyword", defaults);
+
+        // Format declarations win: COLUMNAR_STORAGE → parquet, STORED_FIELDS → lucene
+        assertEquals(2, capMap.size());
+        assertEquals(Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE), capMap.get(parquet));
+        assertEquals(Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS), capMap.get(lucene));
+    }
+
+    public void testComputeCapabilityMapPartialDefaultFallback() {
+        MockDataFormat parquet = new MockDataFormat(
+            "parquet",
+            0L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormatRegistry registry = createRegistryWith(parquet);
+
+        // STORED_FIELDS not declared by any format, but is in defaults
+        Set<FieldTypeCapabilities.Capability> defaults = Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS);
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = registry.computeCapabilityMap("keyword", defaults);
+
+        // COLUMNAR_STORAGE from format + STORED_FIELDS from default, both on parquet
+        assertEquals(1, capMap.size());
+        assertTrue(capMap.get(parquet).contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
+        assertTrue(capMap.get(parquet).contains(FieldTypeCapabilities.Capability.STORED_FIELDS));
+    }
+
+    public void testComputeCapabilityMapEmptyDefaultsNoFallback() {
+        MockDataFormat parquet = new MockDataFormat(
+            "parquet",
+            0L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormatRegistry registry = createRegistryWith(parquet);
+
+        assertTrue(registry.computeCapabilityMap("_id", Set.of()).isEmpty());
+    }
+
+    public void testComputeCapabilityMapResultIsImmutable() {
+        MockDataFormat parquet = new MockDataFormat(
+            "parquet",
+            0L,
+            Set.of(new FieldTypeCapabilities("keyword", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+        );
+        DataFormatRegistry registry = createRegistryWith(parquet);
+
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = registry.computeCapabilityMap("keyword");
+        expectThrows(UnsupportedOperationException.class, () -> capMap.put(parquet, Set.of()));
+    }
+
+    // --- MappedFieldType capability map tests ---
+
+    public void testMappedFieldTypeCapabilityMapDefaultsToEmpty() {
+        org.opensearch.index.mapper.MappedFieldType ft = new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("test");
+        assertTrue(ft.getCapabilityMap().isEmpty());
+    }
+
+    public void testMappedFieldTypeSetAndGetCapabilityMap() {
+        org.opensearch.index.mapper.MappedFieldType ft = new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("test");
+        MockDataFormat parquet = new MockDataFormat("parquet", 0L, Set.of());
+
+        ft.setCapabilityMap(
+            Map.of(parquet, Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER))
+        );
+
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> result = ft.getCapabilityMap();
+        assertEquals(1, result.size());
+        assertEquals(
+            Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER),
+            result.get(parquet)
+        );
+    }
+
+    public void testMappedFieldTypeCapabilityMapIsUnmodifiable() {
+        org.opensearch.index.mapper.MappedFieldType ft = new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("test");
+        MockDataFormat parquet = new MockDataFormat("parquet", 0L, Set.of());
+
+        ft.setCapabilityMap(Map.of(parquet, Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)));
+
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> result = ft.getCapabilityMap();
+        expectThrows(UnsupportedOperationException.class, () -> result.put(parquet, Set.of()));
+    }
+
+    public void testMappedFieldTypeDefaultCapabilitiesIsEmpty() {
+        org.opensearch.index.mapper.MappedFieldType ft = new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("test");
+        assertTrue(ft.defaultCapabilities().isEmpty());
+    }
+
+    // --- requestedCapabilities tests ---
+
+    public void testKeywordFieldTypeRequestedCapabilities() {
+        org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType ft =
+            new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("test");
+        Set<FieldTypeCapabilities.Capability> caps = ft.requestedCapabilities();
+        // keyword defaults: indexed=true, docValues=true, stored=false
+        assertTrue(caps.contains(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH));
+        assertTrue(caps.contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
+        assertFalse(caps.contains(FieldTypeCapabilities.Capability.STORED_FIELDS));
+    }
+
+    public void testNumberFieldTypeRequestedCapabilities() {
+        org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType ft =
+            new org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType(
+                "test",
+                org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG
+            );
+        Set<FieldTypeCapabilities.Capability> caps = ft.requestedCapabilities();
+        // numeric fields use POINT_RANGE instead of FULL_TEXT_SEARCH
+        assertTrue(caps.contains(FieldTypeCapabilities.Capability.POINT_RANGE));
+        assertTrue(caps.contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
+        assertFalse(caps.contains(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH));
+    }
+
+    public void testDateFieldTypeRequestedCapabilities() {
+        org.opensearch.index.mapper.DateFieldMapper.DateFieldType ft = new org.opensearch.index.mapper.DateFieldMapper.DateFieldType(
+            "test"
+        );
+        Set<FieldTypeCapabilities.Capability> caps = ft.requestedCapabilities();
+        // date fields use POINT_RANGE instead of FULL_TEXT_SEARCH
+        assertTrue(caps.contains(FieldTypeCapabilities.Capability.POINT_RANGE));
+        assertTrue(caps.contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
+        assertFalse(caps.contains(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH));
+    }
+
+    // --- metadata field defaultCapabilities tests ---
+
+    public void testSeqNoFieldTypeDefaultCapabilities() {
+        org.opensearch.index.mapper.MappedFieldType ft = new org.opensearch.index.mapper.SeqNoFieldMapper().fieldType();
+        Set<FieldTypeCapabilities.Capability> caps = ft.defaultCapabilities();
+        assertEquals(2, caps.size());
+        assertTrue(caps.contains(FieldTypeCapabilities.Capability.POINT_RANGE));
+        assertTrue(caps.contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
+    }
+
+    public void testVersionFieldTypeDefaultCapabilitiesBase() {
+        // VersionFieldType is package-private; the override is tested in
+        // VersionFieldMapperTests in the mapper package. Here we verify the
+        // base MappedFieldType returns empty defaults.
+        org.opensearch.index.mapper.MappedFieldType ft = new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("test");
+        assertTrue(ft.defaultCapabilities().isEmpty());
+    }
 }

@@ -127,4 +127,12 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 .get();
         }
     }
+
+    public void testDefaultCapabilities() {
+        IdFieldMapper.IdFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
+        java.util.Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability> caps = ft.defaultCapabilities();
+        assertEquals(2, caps.size());
+        assertTrue(caps.contains(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH));
+        assertTrue(caps.contains(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS));
+    }
 }

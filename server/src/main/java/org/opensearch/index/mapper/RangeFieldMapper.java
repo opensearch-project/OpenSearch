@@ -51,6 +51,7 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.util.LocaleUtils;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -343,6 +344,25 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return rangeType.name;
+        }
+
+        /**
+         * Range fields use {@link FieldTypeCapabilities.Capability#POINT_RANGE} for indexing
+         * instead of {@link FieldTypeCapabilities.Capability#FULL_TEXT_SEARCH}.
+         */
+        @Override
+        public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
+            Set<FieldTypeCapabilities.Capability> caps = new HashSet<>();
+            if (isSearchable()) {
+                caps.add(FieldTypeCapabilities.Capability.POINT_RANGE);
+            }
+            if (hasDocValues()) {
+                caps.add(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
+            }
+            if (isStored()) {
+                caps.add(FieldTypeCapabilities.Capability.STORED_FIELDS);
+            }
+            return caps.isEmpty() ? Set.of() : Set.copyOf(caps);
         }
 
         public DateFormatter dateTimeFormatter() {

@@ -39,6 +39,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
@@ -51,6 +52,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.MetadataFieldMapper.TypeParser;
@@ -91,8 +93,12 @@ public class DocumentMapper implements ToXContentFragment {
         private final Mapper.BuilderContext builderContext;
 
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
+            this(builder, mapperService, null);
+        }
+
+        public Builder(RootObjectMapper.Builder builder, MapperService mapperService, @Nullable DataFormatRegistry dataFormatRegistry) {
             final Settings indexSettings = mapperService.getIndexSettings().getSettings();
-            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
+            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1), dataFormatRegistry);
             this.rootObjectMapper = builder.build(builderContext);
 
             final DocumentMapper existingMapper = mapperService.documentMapper();
@@ -110,6 +116,28 @@ public class DocumentMapper implements ToXContentFragment {
                     metadataMapper = existingMetadataMapper;
                 }
                 metadataMappers.put(metadataMapper.getClass(), metadataMapper);
+            }
+
+            // Assign capability maps to all field types during mapper building.
+            // Each field type (including metadata) participates in capability-based routing:
+            // the registry assigns each capability to the highest-priority format that supports it.
+            if (dataFormatRegistry != null) {
+                assignCapabilitiesRecursive(rootObjectMapper, builderContext);
+                for (MetadataFieldMapper metadataMapper : metadataMappers.values()) {
+                    builderContext.assignCapabilities(metadataMapper.fieldType());
+                }
+            }
+        }
+
+        /**
+         * Recursively walks the mapper tree and assigns capability maps to all field types.
+         */
+        private static void assignCapabilitiesRecursive(Mapper mapper, Mapper.BuilderContext context) {
+            if (mapper instanceof FieldMapper) {
+                context.assignCapabilities(((FieldMapper) mapper).fieldType());
+            }
+            for (Mapper child : mapper) {
+                assignCapabilitiesRecursive(child, context);
             }
         }
 

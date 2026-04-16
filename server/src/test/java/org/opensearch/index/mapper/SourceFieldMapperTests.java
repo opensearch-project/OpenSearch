@@ -572,4 +572,16 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         documentMapper = parser3.parse("type", new CompressedXContent(mapping3));
         assertTrue(documentMapper.sourceMapper().enabled());
     }
+
+    public void testDefaultCapabilities() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().toString();
+        DocumentMapper docMapper = createIndex("test_caps").mapperService()
+            .documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+        SourceFieldMapper sourceMapper = docMapper.sourceMapper();
+        java.util.Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability> caps = sourceMapper.fieldType()
+            .defaultCapabilities();
+        assertEquals(1, caps.size());
+        assertTrue(caps.contains(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS));
+    }
 }

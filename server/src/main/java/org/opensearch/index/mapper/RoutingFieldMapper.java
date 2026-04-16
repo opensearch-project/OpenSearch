@@ -37,11 +37,13 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Internal field mapper for _routing fields
@@ -125,6 +127,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Set<FieldTypeCapabilities.Capability> defaultCapabilities() {
+            return Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.STORED_FIELDS);
         }
 
         @Override
