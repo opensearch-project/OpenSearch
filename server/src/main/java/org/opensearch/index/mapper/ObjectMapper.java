@@ -47,6 +47,9 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -59,6 +62,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Field mapper for object field types
@@ -634,6 +638,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     if (Boolean.TRUE.equals(objBuilder.disableObjects.value())) {
                         // Use the full field name as-is without splitting
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
+                        // Validate field type is supported by at least one registered data format
+                        validateFieldTypeSupported(type, fieldName, propNode, parserContext);
                         objBuilder.add(fieldBuilder);
                     } else {
                         // Standard behavior: split dotted names and create intermediate object mappers
@@ -644,6 +650,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         }
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                        // Validate field type is supported by at least one registered data format
+                        validateFieldTypeSupported(type, fieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                             ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
                             intermediate.add(fieldBuilder);
@@ -669,6 +677,120 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 "DocType mapping definition has unsupported parameters: "
             );
 
+        }
+
+        /**
+         * Validates that the given field type's requested capabilities are supported by at least one
+         * registered data format when pluggable data format is enabled. Checks the raw property map
+         * to determine which capabilities the user's configuration requires, then verifies each
+         * required capability is supported by at least one format.
+         * <p>
+         * Capability mapping from field configuration:
+         * <ul>
+         *   <li>{@code index: true} → requires {@code FULL_TEXT_SEARCH} or {@code POINT_RANGE}</li>
+         *   <li>{@code doc_values: true} → requires {@code COLUMNAR_STORAGE}</li>
+         *   <li>{@code store: true} → requires {@code STORED_FIELDS}</li>
+         * </ul>
+         * Skips validation for metadata fields and when pluggable data format is not enabled.
+         */
+        private static void validateFieldTypeSupported(
+            String type,
+            String fieldName,
+            Map<String, Object> propNode,
+            ParserContext parserContext
+        ) {
+            DataFormatRegistry registry = parserContext.dataFormatRegistry();
+            if (registry == null) {
+                return;
+            }
+            if (Mapper.isPluggableDataFormatEnabled(parserContext.getSettings()) == false) {
+                return;
+            }
+            if (MappedFieldType.isMetadataField(fieldName)) {
+                return;
+            }
+
+            // First check: at least one format must support this field type at all
+            boolean typeSupported = false;
+            for (DataFormat format : registry.getRegisteredFormats()) {
+                for (FieldTypeCapabilities ftc : format.supportedFields()) {
+                    if (ftc.fieldType().equals(type)) {
+                        typeSupported = true;
+                        break;
+                    }
+                }
+                if (typeSupported) break;
+            }
+            if (typeSupported == false) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + fieldName
+                        + "] of type ["
+                        + type
+                        + "] is not supported by any registered data format "
+                        + registry.getRegisteredFormats().stream().map(DataFormat::name).collect(Collectors.toList())
+                );
+            }
+
+            // Second check: validate each explicitly requested capability is supported
+            if (isPropertyTrue(propNode, "index")) {
+                // index: true requires FULL_TEXT_SEARCH or POINT_RANGE
+                List<DataFormat> fullTextSupport = registry.supportsCapability(type, FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH);
+                List<DataFormat> pointRangeSupport = registry.supportsCapability(type, FieldTypeCapabilities.Capability.POINT_RANGE);
+                if (fullTextSupport.isEmpty() && pointRangeSupport.isEmpty()) {
+                    throw new MapperParsingException(
+                        "Field ["
+                            + fieldName
+                            + "] of type ["
+                            + type
+                            + "] has [index: true] but no registered data format supports "
+                            + "FULL_TEXT_SEARCH or POINT_RANGE for this type"
+                    );
+                }
+            }
+
+            if (isPropertyTrue(propNode, "doc_values")) {
+                List<DataFormat> columnarSupport = registry.supportsCapability(type, FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
+                if (columnarSupport.isEmpty()) {
+                    throw new MapperParsingException(
+                        "Field ["
+                            + fieldName
+                            + "] of type ["
+                            + type
+                            + "] has [doc_values: true] but no registered data format supports "
+                            + "COLUMNAR_STORAGE for this type"
+                    );
+                }
+            }
+
+            if (isPropertyTrue(propNode, "store")) {
+                List<DataFormat> storedSupport = registry.supportsCapability(type, FieldTypeCapabilities.Capability.STORED_FIELDS);
+                if (storedSupport.isEmpty()) {
+                    throw new MapperParsingException(
+                        "Field ["
+                            + fieldName
+                            + "] of type ["
+                            + type
+                            + "] has [store: true] but no registered data format supports "
+                            + "STORED_FIELDS for this type"
+                    );
+                }
+            }
+        }
+
+        /**
+         * Returns true if the given property is explicitly set to true in the property map.
+         * Returns false if the property is absent, null, or set to false.
+         */
+        private static boolean isPropertyTrue(Map<String, Object> propNode, String property) {
+            Object value = propNode.get(property);
+            if (value == null) {
+                return false;
+            }
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+            return Boolean.parseBoolean(value.toString());
         }
 
     }

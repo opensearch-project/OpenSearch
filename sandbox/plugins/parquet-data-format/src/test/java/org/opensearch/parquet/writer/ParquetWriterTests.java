@@ -82,7 +82,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             null
         );
 
-        ParquetDocumentInput doc = new ParquetDocumentInput();
+        ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
         doc.addField(idField, 1);
         doc.addField(nameField, "alice");
         doc.addField(scoreField, 100L);
@@ -105,7 +105,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             null
         );
 
-        ParquetDocumentInput doc = new ParquetDocumentInput();
+        ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
         doc.addField(idField, 42);
         doc.addField(nameField, "bob");
         doc.addField(scoreField, 500L);
@@ -130,7 +130,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         );
 
         for (int i = 0; i < 10; i++) {
-            ParquetDocumentInput doc = new ParquetDocumentInput();
+            ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
             doc.addField(idField, i);
             doc.addField(nameField, "user_" + i);
             doc.addField(scoreField, (long) (i * 100));
@@ -172,7 +172,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             null
         );
 
-        ParquetDocumentInput doc = new ParquetDocumentInput();
+        ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
         doc.addField(idField, 1);
         doc.addField(nameField, "alice");
         doc.addField(scoreField, 100L);

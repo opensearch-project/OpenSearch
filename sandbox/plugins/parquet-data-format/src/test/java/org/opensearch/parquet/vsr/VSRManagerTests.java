@@ -18,6 +18,7 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.test.OpenSearchTestCase;
@@ -96,7 +97,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         VSRManager manager = new VSRManager(filePath, schema, bufferPool, 50000, threadPool);
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        ParquetDocumentInput doc = new ParquetDocumentInput();
+        ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
         doc.addField(valField, 42);
         manager.addDocument(doc);
 

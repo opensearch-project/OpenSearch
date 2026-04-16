@@ -18,6 +18,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
@@ -28,6 +29,7 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
@@ -126,6 +128,11 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         this.compositeDataFormat = new CompositeDataFormat(allFormats);
         this.committer = committer;
+
+        // Compute and assign capability maps for all field types
+        if (mapperService != null) {
+            computeAndAssignCapabilityMaps(mapperService, dataFormatRegistry, allFormats);
+        }
     }
 
     /**
@@ -285,6 +292,36 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     public Set<IndexingExecutionEngine<?, ?>> getSecondaryDelegates() {
         return secondaryEngines;
+    }
+
+    /**
+     * Computes capability maps for all mapped field types.
+     * Must be called after all engines are initialized but before any indexing.
+     * <p>
+     * Computes which capabilities each data format owns for each field type using
+     * {@link CapabilityAssigner#computeCapabilityMap} and sets the result on the field type
+     * via {@link MappedFieldType#setCapabilityMap}.
+     * <p>
+     * Note: Field type validation (rejecting unsupported types) is handled at mapper creation time
+     * in {@code ObjectMapper.TypeParser.parseProperties()}, not here.
+     *
+     * @param mapperService      the mapper service providing field type information
+     * @param dataFormatRegistry the registry for capability lookups
+     * @param allFormats         all DataFormat instances (primary + secondaries)
+     */
+    private void computeAndAssignCapabilityMaps(
+        MapperService mapperService,
+        DataFormatRegistry dataFormatRegistry,
+        List<DataFormat> allFormats
+    ) {
+        Set<DataFormat> formatSet = Set.copyOf(allFormats);
+
+        // Compute and assign capability maps for all field types
+        for (MappedFieldType fieldType : mapperService.fieldTypes()) {
+            Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap =
+                CapabilityAssigner.computeCapabilityMap(fieldType.typeName(), dataFormatRegistry, formatSet);
+            fieldType.setCapabilityMap(capMap);
+        }
     }
 
 }
