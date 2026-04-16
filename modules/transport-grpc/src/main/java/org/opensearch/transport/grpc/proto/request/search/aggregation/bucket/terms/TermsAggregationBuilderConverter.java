@@ -35,11 +35,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Converter from proto {@link TermsAggregation} to {@link TermsAggregationBuilder}
+ * Converter from proto {@link TermsAggregation} to {@link TermsAggregationBuilder}.
  */
 public class TermsAggregationBuilderConverter implements AggregationBuilderProtoConverter {
 
     private AggregationBuilderProtoConverterRegistry registry;
+
+    /**
+     * Constructs a new TermsAggregationBuilderConverter.
+     */
+    public TermsAggregationBuilderConverter() {
+        // Default constructor
+    }
 
     @Override
     public AggregationContainer.AggregationContainerCase getHandledAggregationCase() {
@@ -49,7 +56,9 @@ public class TermsAggregationBuilderConverter implements AggregationBuilderProto
     /**
      * This method parallels the REST parsing logic in {@link TermsAggregationBuilder#PARSER}
      *
-     * {@inheritDoc}
+     * @param name the aggregation name
+     * @param container the protobuf aggregation container
+     * @return the constructed {@link TermsAggregationBuilder}
      */
     @Override
     public AggregationBuilder fromProto(String name, AggregationContainer container) {

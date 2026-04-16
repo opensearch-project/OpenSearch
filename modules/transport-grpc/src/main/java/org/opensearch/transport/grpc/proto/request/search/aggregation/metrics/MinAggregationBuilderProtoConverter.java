@@ -17,6 +17,13 @@ import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverter;
  */
 public class MinAggregationBuilderProtoConverter implements AggregationBuilderProtoConverter {
 
+    /**
+     * Constructs a new MinAggregationBuilderProtoConverter.
+     */
+    public MinAggregationBuilderProtoConverter() {
+        // Default constructor
+    }
+
     @Override
     public AggregationContainer.AggregationContainerCase getHandledAggregationCase() {
         return AggregationContainer.AggregationContainerCase.MIN;
@@ -25,6 +32,10 @@ public class MinAggregationBuilderProtoConverter implements AggregationBuilderPr
     /**
      * Converts protobuf MinAggregation to {@link MinAggregationBuilder}.
      * Equivalent to REST parsing via {@link MinAggregationBuilder#PARSER}.
+     *
+     * @param name the aggregation name
+     * @param container the protobuf aggregation container
+     * @return the constructed {@link MinAggregationBuilder}
      */
     @Override
     public AggregationBuilder fromProto(String name, AggregationContainer container) {

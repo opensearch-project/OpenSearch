@@ -28,26 +28,32 @@ public class ValuesSourceProtoFields {
         this.valueTypeProto = builder.valueTypeProto;
     }
 
+    /** Returns a new builder. */
     public static Builder builder() {
         return new Builder();
     }
 
+    /** Returns the field name. */
     public String getField() {
         return field;
     }
 
+    /** Returns the format string. */
     public String getFormat() {
         return format;
     }
 
+    /** Returns the missing value. */
     public Object getMissing() {
         return missing;
     }
 
+    /** Returns the script. */
     public Script getScript() {
         return script;
     }
 
+    /** Returns the proto value type enum. */
     public Enum<?> getValueTypeProto() {
         return valueTypeProto;
     }
@@ -64,31 +70,52 @@ public class ValuesSourceProtoFields {
 
         private Builder() {}
 
+        /**
+         * Sets the field name.
+         * @param field the field name
+         */
         public Builder field(String field) {
             this.field = field;
             return this;
         }
 
+        /**
+         * Sets the format string.
+         * @param format the format string
+         */
         public Builder format(String format) {
             this.format = format;
             return this;
         }
 
+        /**
+         * Sets the missing value.
+         * @param missing the missing value
+         */
         public Builder missing(Object missing) {
             this.missing = missing;
             return this;
         }
 
+        /**
+         * Sets the script.
+         * @param script the script
+         */
         public Builder script(Script script) {
             this.script = script;
             return this;
         }
 
+        /**
+         * Sets the proto value type enum.
+         * @param valueTypeProto the value type enum
+         */
         public Builder valueType(Enum<?> valueTypeProto) {
             this.valueTypeProto = valueTypeProto;
             return this;
         }
 
+        /** Builds the {@link ValuesSourceProtoFields} instance. */
         public ValuesSourceProtoFields build() {
             return new ValuesSourceProtoFields(this);
         }

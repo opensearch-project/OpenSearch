@@ -17,6 +17,13 @@ import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverter;
  */
 public class MaxAggregationBuilderProtoConverter implements AggregationBuilderProtoConverter {
 
+    /**
+     * Constructs a new MaxAggregationBuilderProtoConverter.
+     */
+    public MaxAggregationBuilderProtoConverter() {
+        // Default constructor
+    }
+
     @Override
     public AggregationContainer.AggregationContainerCase getHandledAggregationCase() {
         return AggregationContainer.AggregationContainerCase.MAX;
@@ -25,6 +32,10 @@ public class MaxAggregationBuilderProtoConverter implements AggregationBuilderPr
     /**
      * Converts protobuf MaxAggregation to {@link MaxAggregationBuilder}.
      * Equivalent to REST parsing via {@link MaxAggregationBuilder#PARSER}.
+     *
+     * @param name the aggregation name
+     * @param container the protobuf aggregation container
+     * @return the constructed {@link MaxAggregationBuilder}
      */
     @Override
     public AggregationBuilder fromProto(String name, AggregationContainer container) {
