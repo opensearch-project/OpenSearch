@@ -47,6 +47,9 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -59,6 +62,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Field mapper for object field types
@@ -634,6 +638,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     if (Boolean.TRUE.equals(objBuilder.disableObjects.value())) {
                         // Use the full field name as-is without splitting
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
+                        // Validate field type is supported by at least one registered data format
+                        validateFieldTypeSupported(type, fieldName, parserContext);
                         objBuilder.add(fieldBuilder);
                     } else {
                         // Standard behavior: split dotted names and create intermediate object mappers
@@ -644,6 +650,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         }
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                        // Validate field type is supported by at least one registered data format
+                        validateFieldTypeSupported(type, fieldName, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                             ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
                             intermediate.add(fieldBuilder);
@@ -669,6 +677,45 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 "DocType mapping definition has unsupported parameters: "
             );
 
+        }
+
+        /**
+         * Validates that the given field type is supported by at least one registered data format
+         * when pluggable data format is enabled. Skips validation for metadata fields and when
+         * pluggable data format is not enabled.
+         */
+        private static void validateFieldTypeSupported(String type, String fieldName, ParserContext parserContext) {
+            DataFormatRegistry registry = parserContext.dataFormatRegistry();
+            if (registry == null) {
+                return;  // pluggable data format not enabled
+            }
+            if (Mapper.isPluggableDataFormatEnabled(parserContext.getSettings()) == false) {
+                return;
+            }
+            if (MappedFieldType.isMetadataField(fieldName)) {
+                return;  // metadata fields bypass validation
+            }
+            // Check if any registered format supports this field type
+            boolean supported = false;
+            for (DataFormat format : registry.getRegisteredFormats()) {
+                for (FieldTypeCapabilities ftc : format.supportedFields()) {
+                    if (ftc.fieldType().equals(type)) {
+                        supported = true;
+                        break;
+                    }
+                }
+                if (supported) break;
+            }
+            if (supported == false) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + fieldName
+                        + "] of type ["
+                        + type
+                        + "] is not supported by any registered data format "
+                        + registry.getRegisteredFormats().stream().map(DataFormat::name).collect(Collectors.toList())
+                );
+            }
         }
 
     }
