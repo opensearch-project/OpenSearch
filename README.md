@@ -12,6 +12,7 @@
 
 - [Welcome!](#welcome)
 - [Project Resources](#project-resources)
+- [Getting Started](#getting-started)
 - [Code of Conduct](#code-of-conduct)
 - [Security](#security)
 - [License](#license)
@@ -35,6 +36,16 @@ OpenSearch is an open-source, enterprise-grade search and observability suite th
 * [Testing](TESTING.md)
 * [Security](SECURITY.md)
 
+## Getting Started
+
+To get started with OpenSearch, you can run it using Docker:
+
+```bash
+docker run -p 9200:9200 -p 9600:9600 -e "discovery.type=single-node" opensearchproject/opensearch:latest
+```
+
+For detailed installation instructions, including Tarball, RPM, and Debian distributions, please refer to the [Setup Guide](https://opensearch.org/docs/latest/opensearch/install/index/).
+
 ## Code of Conduct
 
 The project's [Code of Conduct](CODE_OF_CONDUCT.md) outlines our expectations for all participants in our community, based on the [OpenSearch Code of Conduct](https://opensearch.org/code-of-conduct/). Please contact [conduct@opensearch.foundation](mailto:conduct@opensearch.foundation) with any additional questions or comments.
@@ -55,4 +66,3 @@ Copyright OpenSearch Contributors. See [NOTICE](NOTICE.txt) for details.
 OpenSearch is a registered trademark of LF Projects, LLC.
 
 OpenSearch includes certain Apache-licensed Elasticsearch code from Elasticsearch B.V. and other source code. Elasticsearch B.V. is not the source of that other source code. ELASTICSEARCH is a registered trademark of Elasticsearch B.V.
-
