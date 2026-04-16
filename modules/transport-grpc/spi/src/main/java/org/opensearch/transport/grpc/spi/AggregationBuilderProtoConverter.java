@@ -40,6 +40,7 @@ public interface AggregationBuilderProtoConverter {
 
     /**
      * Sets the registry for nested aggregations. Default no-op for metric aggregations.
+     * @param registry the converter registry
      */
     default void setRegistry(AggregationBuilderProtoConverterRegistry registry) {}
 }
