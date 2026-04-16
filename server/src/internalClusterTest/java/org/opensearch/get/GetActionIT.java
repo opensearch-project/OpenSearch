@@ -1078,6 +1078,50 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertEquals("2025-07-30T00:00:00.000Z", source.get("date_field"));
     }
 
+    public void testDerivedSourceHonorsMappingSourceFiltersOnGet() throws Exception {
+        String index = "test_derive_filtered";
+        assertAcked(
+            prepareCreate(index).setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.refresh_interval", -1)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping("""
+                {
+                  "_source": {
+                    "includes": ["name", "city", "age"],
+                    "excludes": ["age"]
+                  },
+                  "properties": {
+                    "name": { "type": "keyword" },
+                    "age": { "type": "integer" },
+                    "city": { "type": "keyword" },
+                    "country": { "type": "keyword" }
+                  }
+                }""")
+        );
+        ensureGreen();
+
+        client().prepareIndex(index)
+            .setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("name", "test")
+                    .field("age", 25)
+                    .field("city", "seattle")
+                    .field("country", "usa")
+                    .endObject()
+            )
+            .get();
+
+        assertDerivedSourceFilteredGet(index);
+        refresh();
+        assertDerivedSourceFilteredGet(index);
+        flush();
+        assertDerivedSourceFilteredGet(index);
+    }
+
     void validateDeriveSource(Map<String, Object> source) {
         Map<String, Object> latLon = (Map<String, Object>) source.get("geopoint_field");
         assertEquals(75.98, (Double) latLon.get("lat"), 0.001);
@@ -1088,6 +1132,23 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertEquals(true, source.get("bool_field"));
         assertEquals("test text", source.get("text_field"));
         assertEquals("1.2.3.4", source.get("ip_field"));
+    }
+
+    void assertDerivedSourceFilteredGet(String index) {
+        GetResponse getResponse = client().prepareGet(index, "1").get();
+        assertTrue(getResponse.isExists());
+        Map<String, Object> source = getResponse.getSourceAsMap();
+        assertThat(source.size(), equalTo(2));
+        assertThat(source.get("name"), equalTo("test"));
+        assertThat(source.get("city"), equalTo("seattle"));
+        assertThat(source, not(hasKey("age")));
+        assertThat(source, not(hasKey("country")));
+
+        getResponse = client().prepareGet(index, "1").setFetchSource(new String[] { "city" }, null).get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertThat(source.size(), equalTo(1));
+        assertThat(source.get("city"), equalTo("seattle"));
     }
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
