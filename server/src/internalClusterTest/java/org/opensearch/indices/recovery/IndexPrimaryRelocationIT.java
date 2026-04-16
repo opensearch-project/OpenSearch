@@ -39,6 +39,7 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -78,14 +79,25 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
         });
         indexingThread.start();
 
-        ClusterState initialState = client().admin().cluster().prepareState().get().getState();
-        DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(new DiscoveryNode[0]);
         for (int i = 0; i < RELOCATION_COUNT; i++) {
-            // Fetch fresh cluster state to get current shard location
+            // Fetch fresh cluster state to get current shard location and available nodes
             ClusterState currentState = client().admin().cluster().prepareState().get().getState();
-            DiscoveryNode relocationSource = currentState.getNodes()
-                .getDataNodes()
-                .get(currentState.getRoutingTable().shardRoutingTable("test", 0).primaryShard().currentNodeId());
+            DiscoveryNode[] dataNodes = currentState.getNodes().getDataNodes().values().toArray(new DiscoveryNode[0]);
+            
+            ShardRouting primaryShard = currentState.getRoutingTable().shardRoutingTable("test", 0).primaryShard();
+            if (primaryShard == null || primaryShard.currentNodeId() == null) {
+                logger.warn("--> [iteration {}] primary shard not found or not assigned, retrying", i);
+                i--; // retry this iteration
+                continue;
+            }
+            
+            DiscoveryNode relocationSource = currentState.getNodes().getDataNodes().get(primaryShard.currentNodeId());
+            if (relocationSource == null) {
+                logger.warn("--> [iteration {}] source node not found in cluster, retrying", i);
+                i--; // retry this iteration
+                continue;
+            }
+            
             DiscoveryNode relocationTarget = randomFrom(dataNodes);
             while (relocationTarget.equals(relocationSource)) {
                 relocationTarget = randomFrom(dataNodes);
