@@ -204,4 +204,53 @@ public class SslConfigurationTests extends OpenSearchTestCase {
         Mockito.verifyNoMoreInteractions(trustConfig, keyConfig);
     }
 
+    public void testCreateSslContextWithUnsupportedProtocols() {
+        final SslTrustConfig trustConfig = Mockito.mock(SslTrustConfig.class);
+        final SslKeyConfig keyConfig = Mockito.mock(SslKeyConfig.class);
+        SslConfiguration configuration = new SslConfiguration(
+            trustConfig,
+            keyConfig,
+            randomFrom(SslVerificationMode.values()),
+            randomFrom(SslClientAuthenticationMode.values()),
+            DEFAULT_CIPHERS,
+            Collections.singletonList("DTLSv1.2")
+        );
+
+        Exception e = assertThrows(SslConfigException.class, configuration::createSslContext);
+        assertThat(
+            e.getMessage(),
+            containsString("no supported SSL/TLS protocol was found in the configured supported protocols: [DTLSv1.2]")
+        );
+    }
+
+    public void testInitValuesExist() {
+        final SslTrustConfig trustConfig = Mockito.mock(SslTrustConfig.class);
+        final SslKeyConfig keyConfig = Mockito.mock(SslKeyConfig.class);
+
+        assertThrows(
+            "cannot configure SSL/TLS without any supported cipher suites",
+            SslConfigException.class,
+            () -> new SslConfiguration(
+                trustConfig,
+                keyConfig,
+                SslVerificationMode.CERTIFICATE,
+                SslClientAuthenticationMode.REQUIRED,
+                Collections.emptyList(),
+                List.of("SSLv2")
+            )
+        );
+
+        assertThrows(
+            "cannot configure SSL/TLS without any supported protocols",
+            SslConfigException.class,
+            () -> new SslConfiguration(
+                trustConfig,
+                keyConfig,
+                SslVerificationMode.CERTIFICATE,
+                SslClientAuthenticationMode.REQUIRED,
+                DEFAULT_CIPHERS,
+                Collections.emptyList()
+            )
+        );
+    }
 }

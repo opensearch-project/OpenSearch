@@ -132,11 +132,35 @@ public class PolicyFile extends java.security.Policy {
     private static String expandKnownSystemProperty(final String property, final String value) {
         final int index = value.indexOf("${" + property + "}/");
         final String path = System.getProperty(property);
-        if (path.endsWith(File.pathSeparator)) {
+        if (path.endsWith(File.separator)) {
             return path + value.substring(index + property.length() + 4 /* replace the path separator */);
         } else {
             return path + value.substring(index + property.length() + 3 /* keep the path separator */);
         }
+    }
+
+    /**
+     * Expands additional system property placeholders with arbitrary position and value semantics (like
+     * cgroup fe)
+     */
+    private static String expandKnownSystemProperty(final String property, String separator, final String value) {
+        final int index = value.indexOf(separator + "${" + property + "}" + separator);
+        String path = System.getProperty(property);
+
+        if (path == null || path.isBlank()) {
+            path = separator;
+        } else {
+            if (path.endsWith(separator) == false) {
+                path += separator;
+            }
+            if (path.startsWith(separator) == false) {
+                path = separator + path;
+            }
+        }
+
+        return value.substring(0, index) + path + value.substring(
+            index + property.length() + 3 + 2 * separator.length() /* replace the path separators */
+        );
     }
 
     private static PermissionEntry expandPermissionName(PermissionEntry pe) {
@@ -148,6 +172,12 @@ public class PolicyFile extends java.security.Policy {
             return new PermissionEntry(pe.permission(), expandKnownSystemProperty("java.home", pe.name()), pe.action());
         } else if (pe.name().startsWith("${user.home}")) {
             return new PermissionEntry(pe.permission(), expandKnownSystemProperty("user.home", pe.name()), pe.action());
+        } else if (pe.name().contains("${opensearch.cgroups.hierarchy.override}")) {
+            return new PermissionEntry(
+                pe.permission(),
+                expandKnownSystemProperty("opensearch.cgroups.hierarchy.override", "/", pe.name()),
+                pe.action()
+            );
         }
 
         if (!pe.name().contains("${{")) {

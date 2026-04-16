@@ -13,7 +13,6 @@ import org.opensearch.index.query.MatchBoolPrefixQueryBuilder;
 import org.opensearch.index.query.Operator;
 import org.opensearch.protobufs.MatchBoolPrefixQuery;
 import org.opensearch.protobufs.MinimumShouldMatch;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class MatchBoolPrefixQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
@@ -185,22 +184,13 @@ public class MatchBoolPrefixQueryBuilderProtoUtilsTests extends OpenSearchTestCa
         MatchBoolPrefixQuery queryWithRewrite = MatchBoolPrefixQuery.newBuilder()
             .setField("message")
             .setQuery("test")
-            .setFuzzyRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setFuzzyRewrite("constant_score")
             .build();
         MatchBoolPrefixQueryBuilder builderWithRewrite = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryWithRewrite);
         assertNotNull("Builder should not be null (CONSTANT_SCORE)", builderWithRewrite);
         assertNotNull("Fuzzy rewrite should not be null (CONSTANT_SCORE)", builderWithRewrite.fuzzyRewrite());
         assertEquals("Fuzzy rewrite should match (CONSTANT_SCORE)", "constant_score", builderWithRewrite.fuzzyRewrite());
 
-        // Test 3: Fuzzy rewrite with UNSPECIFIED value
-        MatchBoolPrefixQuery queryUnspecified = MatchBoolPrefixQuery.newBuilder()
-            .setField("message")
-            .setQuery("test")
-            .setFuzzyRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED)
-            .build();
-        MatchBoolPrefixQueryBuilder builderUnspecified = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryUnspecified);
-        assertNotNull("Builder should not be null (UNSPECIFIED)", builderUnspecified);
-        assertNull("Fuzzy rewrite should be null (UNSPECIFIED)", builderUnspecified.fuzzyRewrite());
     }
 
 }

@@ -12,7 +12,7 @@ import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
+import org.opensearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
 import java.util.Optional;
@@ -46,7 +46,13 @@ class ReactorNetty4NonStreamingHttpChannel implements HttpChannel {
 
     @Override
     public void close() {
-        request.withConnection(connection -> connection.channel().close());
+        request.withConnection(connection -> {
+            if (closeContext.isDone() == false) {
+                Netty4Utils.addListener(connection.channel().close(), closeContext);
+            } else {
+                connection.channel().close();
+            }
+        });
     }
 
     @Override

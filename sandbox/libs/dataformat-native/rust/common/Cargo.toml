@@ -1,0 +1,12 @@
+[package]
+name = "native-bridge-common"
+version = "0.1.0"
+edition = "2021"
+description = "Shared Rust utilities for OpenSearch native plugins"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+native-bridge-macros = { path = "../macros" }

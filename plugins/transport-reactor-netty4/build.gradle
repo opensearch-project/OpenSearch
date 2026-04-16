@@ -30,16 +30,28 @@ opensearchplugin {
 }
 
 dependencies {
+  api project(':libs:opensearch-netty4')
+
   // network stack
   api libs.bundles.netty
 
   api libs.bundles.reactornetty
   api libs.netty.codec.http3
+  api libs.netty.codec.classes.quic
+  api libs.netty.codec.native.quic
+
+  // Bundle all supported OSes and Archs
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:linux-x86_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:linux-aarch_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:osx-x86_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:osx-aarch_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:windows-x86_64"
 
   testImplementation libs.log4jslf4jimpl
   javaRestTestImplementation libs.reactor.test
   testImplementation project(":modules:transport-netty4")
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
   testFipsRuntimeOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
   testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
@@ -103,6 +115,7 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.SSLCredential',
 
     // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
     'org.bouncycastle.cert.X509v3CertificateBuilder',
@@ -149,6 +162,7 @@ thirdPartyAudit {
     'io.netty.channel.epoll.EpollDatagramChannel',
     'io.netty.channel.epoll.EpollServerSocketChannel',
     'io.netty.channel.epoll.EpollSocketChannel',
+    'io.netty.channel.epoll.SegmentedDatagramPacket',
     'io.netty.channel.kqueue.KQueue',
     'io.netty.channel.kqueue.KQueueDatagramChannel',
     'io.netty.channel.kqueue.KQueueServerSocketChannel',
@@ -166,20 +180,6 @@ thirdPartyAudit {
     'io.netty.channel.uring.IoUringIoHandler',
     'io.netty.channel.uring.IoUringServerSocketChannel',
     'io.netty.channel.uring.IoUringSocketChannel',
-    'io.netty.handler.codec.quic.QuicChannel',
-    'io.netty.handler.codec.quic.QuicChannelBootstrap',
-    'io.netty.handler.codec.quic.QuicClientCodecBuilder',
-    'io.netty.handler.codec.quic.QuicCodecBuilder',
-    'io.netty.handler.codec.quic.QuicException',
-    'io.netty.handler.codec.quic.QuicServerCodecBuilder',
-    'io.netty.handler.codec.quic.QuicSslContext',
-    'io.netty.handler.codec.quic.QuicSslContextBuilder',
-    'io.netty.handler.codec.quic.QuicSslEngine',
-    'io.netty.handler.codec.quic.QuicStreamChannel',
-    'io.netty.handler.codec.quic.QuicStreamChannelBootstrap',
-    'io.netty.handler.codec.quic.QuicStreamFrame',
-    'io.netty.handler.codec.quic.QuicStreamType',
-    'io.netty.handler.codec.quic.QuicTokenHandler',
 
     'io.netty.pkitesting.CertificateBuilder',
     'io.netty.pkitesting.CertificateBuilder$Algorithm',
@@ -266,7 +266,6 @@ thirdPartyAudit {
     'io.netty.buffer.FreeBufferEvent',
     'io.netty.buffer.FreeChunkEvent',
     'io.netty.buffer.PooledByteBufAllocator',
-    'io.netty.buffer.ReallocateBufferEvent',
-    'io.netty.buffer.ReturnChunkEvent'
+    'io.netty.buffer.ReallocateBufferEvent'
   )
 }

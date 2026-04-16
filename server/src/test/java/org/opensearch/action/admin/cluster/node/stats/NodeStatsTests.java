@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.indices.stats.StatusCounterStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.cluster.coordination.PendingClusterStateStats;
 import org.opensearch.cluster.coordination.PersistedStateStats;
@@ -1061,7 +1062,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             indicesStats = new NodeIndicesStats(
                 new CommonStats(CommonStatsFlags.ALL),
                 new HashMap<>(),
-                new SearchRequestStats(clusterSettings)
+                new SearchRequestStats(clusterSettings),
+                new StatusCounterStats()
             );
             RemoteSegmentStats remoteSegmentStats = indicesStats.getSegments().getRemoteSegmentStats();
             remoteSegmentStats.addUploadBytesStarted(10L);
@@ -1120,18 +1122,20 @@ public class NodeStatsTests extends OpenSearchTestCase {
         public MockNodeIndicesStats(
             CommonStats oldStats,
             Map<Index, List<IndexShardStats>> statsByShard,
-            SearchRequestStats searchRequestStats
+            SearchRequestStats searchRequestStats,
+            StatusCounterStats statusCounterStats
         ) {
-            super(oldStats, statsByShard, searchRequestStats);
+            super(oldStats, statsByShard, searchRequestStats, statusCounterStats);
         }
 
         public MockNodeIndicesStats(
             CommonStats oldStats,
             Map<Index, List<IndexShardStats>> statsByShard,
             SearchRequestStats searchRequestStats,
+            StatusCounterStats statusCounterStats,
             StatsLevel level
         ) {
-            super(oldStats, statsByShard, searchRequestStats, level);
+            super(oldStats, statsByShard, searchRequestStats, statusCounterStats, level);
         }
 
         public CommonStats getStats() {
@@ -1326,7 +1330,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
         final MockNodeIndicesStats nonAggregatedNodeIndicesStats = new MockNodeIndicesStats(
             new CommonStats(commonStatsFlags),
             statsByShards,
-            new SearchRequestStats(clusterSettings)
+            new SearchRequestStats(clusterSettings),
+            new StatusCounterStats()
         );
 
         commonStatsFlags.setIncludeIndicesStatsByLevel(true);
@@ -1336,6 +1341,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 new CommonStats(commonStatsFlags),
                 statsByShards,
                 new SearchRequestStats(clusterSettings),
+                new StatusCounterStats(),
                 level
             );
 
@@ -1491,10 +1497,16 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 new CommonStats(commonStatsFlags),
                 statsByShard,
                 new SearchRequestStats(clusterSettings),
+                new StatusCounterStats(),
                 level
             );
         } else {
-            return new MockNodeIndicesStats(new CommonStats(commonStatsFlags), statsByShard, new SearchRequestStats(clusterSettings));
+            return new MockNodeIndicesStats(
+                new CommonStats(commonStatsFlags),
+                statsByShard,
+                new SearchRequestStats(clusterSettings),
+                new StatusCounterStats()
+            );
         }
     }
 }

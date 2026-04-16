@@ -74,6 +74,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.flush.FlushStats;
@@ -703,7 +704,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             indexService.cache(),
             indexService.mapperService(),
             indexService.similarityService(),
-            shard.getEngineFactory(),
+            shard.getIndexerFactory(),
             shard.getEngineConfigFactory(),
             indexService.getIndexEventListener(),
             wrapper,
@@ -732,7 +733,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             indexService.getRefreshMutex(),
             clusterService.getClusterApplierService(),
             MergedSegmentPublisher.EMPTY,
-            ReferencedSegmentsPublisher.EMPTY
+            ReferencedSegmentsPublisher.EMPTY,
+            null // TODO
         );
     }
 
@@ -852,7 +854,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 
         for (IndexShard indexShard : indexService) {
-            assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+            assertThat(((EngineBackedIndexer) (indexShard.getIndexer())).getEngine(), instanceOf(NoOpEngine.class));
         }
     }
 

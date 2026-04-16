@@ -14,6 +14,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
@@ -77,6 +78,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -84,6 +86,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -237,6 +240,22 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
         );
     }
 
+    public EngineConfig config(Store store) {
+        return config(
+            INDEX_SETTINGS,
+            store,
+            primaryTranslogDir,
+            NoMergePolicy.INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new NoneCircuitBreakerService(),
+            null
+        );
+    }
+
     public EngineConfig config(
         final IndexSettings indexSettings,
         final Store store,
@@ -296,7 +315,7 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
             .mergePolicy(mergePolicy)
             .analyzer(iwc.getAnalyzer())
             .similarity(iwc.getSimilarity())
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .eventListener(eventListener)
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
@@ -485,5 +504,62 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
         );
 
         return softDeletesPolicy;
+    }
+
+    protected static class FlushingIndexWriterFactory extends NativeLuceneIndexWriterFactory implements Closeable {
+
+        private final Supplier<Directory> failingWriteDirectorySupplier;
+        private final List<Directory> directories;
+        private final AtomicBoolean useFailingDirectorySupplier;
+
+        FlushingIndexWriterFactory(Supplier<Directory> failingWriteDirectorySupplier, AtomicBoolean useFailingDirectorySupplier) {
+            this.failingWriteDirectorySupplier = failingWriteDirectorySupplier;
+            this.directories = new ArrayList<>();
+            this.useFailingDirectorySupplier = useFailingDirectorySupplier;
+        }
+
+        @Override
+        public IndexWriter createWriter(Directory directory, IndexWriterConfig config) throws IOException {
+            Directory failingDirectory = useFailingDirectorySupplier.get() ? failingWriteDirectorySupplier.get() : directory;
+            directories.add(failingDirectory);
+            return new IndexWriter(failingDirectory, config) {
+                @Override
+                public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                    long seqNo = super.addDocument(doc);
+                    flush();
+                    return seqNo;
+                }
+
+                @Override
+                public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                    long seqNo = super.addDocuments(docs);
+                    flush();
+                    return seqNo;
+                }
+
+                @Override
+                public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes) throws IOException {
+                    long seqNo = super.softUpdateDocument(term, doc, softDeletes);
+                    flush();
+                    return seqNo;
+                }
+
+                @Override
+                public long softUpdateDocuments(
+                    Term term,
+                    Iterable<? extends Iterable<? extends IndexableField>> docs,
+                    Field... softDeletes
+                ) throws IOException {
+                    long seqNo = super.softUpdateDocuments(term, docs, softDeletes);
+                    flush();
+                    return seqNo;
+                }
+            };
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(directories);
+        }
     }
 }

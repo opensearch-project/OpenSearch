@@ -32,6 +32,8 @@
 
 package org.opensearch.index.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -97,9 +99,11 @@ import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields
  * @opensearch.internal
  */
 public class QueryStringQueryParser extends XQueryParser {
+    private static final Logger logger = LogManager.getLogger(QueryStringQueryParser.class);
     private static final String EXISTS_FIELD = "_exists_";
     @SuppressWarnings("NonFinalStaticField")
     private static int maxQueryStringLength = SearchService.SEARCH_MAX_QUERY_STRING_LENGTH.get(Settings.EMPTY);
+    private static boolean maxQueryStringLengthMonitorMode = SearchService.SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY.get(Settings.EMPTY);
 
     private final QueryShardContext context;
     private final Map<String, Float> fieldsAndWeights;
@@ -872,14 +876,24 @@ public class QueryStringQueryParser extends XQueryParser {
             return Queries.newMatchNoDocsQuery("Matching no documents because no terms present");
         }
         if (query.length() > maxQueryStringLength) {
-            throw new ParseException(
-                "Query string length exceeds max allowed length "
-                    + maxQueryStringLength
-                    + " ("
-                    + SearchService.SEARCH_MAX_QUERY_STRING_LENGTH.getKey()
-                    + "); actual length: "
-                    + query.length()
-            );
+            if (maxQueryStringLengthMonitorMode) {
+                // Log a warning and continue
+                logger.warn(
+                    "Query string length exceeds max allowed length {} ({}); actual length: {}",
+                    maxQueryStringLength,
+                    SearchService.SEARCH_MAX_QUERY_STRING_LENGTH.getKey(),
+                    query.length()
+                );
+            } else {
+                throw new ParseException(
+                    "Query string length exceeds max allowed length "
+                        + maxQueryStringLength
+                        + " ("
+                        + SearchService.SEARCH_MAX_QUERY_STRING_LENGTH.getKey()
+                        + "); actual length: "
+                        + query.length()
+                );
+            }
         }
         return super.parse(query);
     }
@@ -889,5 +903,13 @@ public class QueryStringQueryParser extends XQueryParser {
      */
     public static void setMaxQueryStringLength(int maxQueryStringLength) {
         QueryStringQueryParser.maxQueryStringLength = maxQueryStringLength;
+    }
+
+    /**
+     * Sets whether the max query string length should be enforced in or not
+     * @param monitorMode if true, the max query string length will not be enforced
+     */
+    public static void setMaxQueryStringLengthMonitorMode(boolean monitorMode) {
+        QueryStringQueryParser.maxQueryStringLengthMonitorMode = monitorMode;
     }
 }

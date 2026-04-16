@@ -35,6 +35,7 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
+import org.opensearch.index.mapper.HllFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -150,6 +151,11 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 CoreValuesSourceType.BOOLEAN
             )
         );
+    }
+
+    @Override
+    protected List<String> unsupportedMappedFieldTypes() {
+        return List.of(HllFieldMapper.CONTENT_TYPE);
     }
 
     @Override

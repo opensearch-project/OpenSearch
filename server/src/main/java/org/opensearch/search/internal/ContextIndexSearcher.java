@@ -527,6 +527,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:
+        // acceptDocs.approximateCardinality() scorer.iterator().cost()
         DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
             Arrays.asList(new BitSetIterator(acceptDocs, acceptDocs.approximateCardinality()), scorer.iterator())
         );
@@ -577,7 +578,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return slicesInternal(leaves, searchContext.getTargetMaxSliceCount());
+        if (leaves == null || leaves.isEmpty()) {
+            return new LeafSlice[0];
+        }
+        int targetMaxSlice = searchContext.getTargetMaxSliceCount();
+        if (targetMaxSlice == 0) {
+            LeafSlice[] leafSlices = super.slices(leaves);
+            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
+            return leafSlices;
+        }
+        LeafSlice[] leafSlices = MaxTargetSliceSupplier.getSlices(
+            leaves,
+            targetMaxSlice,
+            searchContext.shouldUseIntraSegmentSearch(),
+            searchContext.getPartitionStrategy(),
+            searchContext.getPartitionMinSegmentSize()
+        );
+        logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
+        return leafSlices;
     }
 
     public DirectoryReader getDirectoryReader() {
@@ -644,20 +662,5 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
         return true;
-    }
-
-    // package-private for testing
-    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
-        LeafSlice[] leafSlices;
-        if (targetMaxSlice == 0) {
-            // use the default lucene slice calculation
-            leafSlices = super.slices(leaves);
-            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
-        } else {
-            // use the custom slice calculation based on targetMaxSlice
-            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
-            logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
-        }
-        return leafSlices;
     }
 }

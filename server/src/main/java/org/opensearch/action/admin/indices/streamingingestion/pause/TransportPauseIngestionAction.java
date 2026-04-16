@@ -36,7 +36,7 @@ import java.io.IOException;
 /**
  * Pause ingestion transport action.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class TransportPauseIngestionAction extends TransportClusterManagerNodeAction<PauseIngestionRequest, PauseIngestionResponse>
     implements

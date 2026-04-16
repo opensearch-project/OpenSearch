@@ -130,6 +130,14 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         return status;
     }
 
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public String getTag() {
+        return tag;
+    }
+
     /**
      * Adds or updates the input data for this processor execution detail.
      *

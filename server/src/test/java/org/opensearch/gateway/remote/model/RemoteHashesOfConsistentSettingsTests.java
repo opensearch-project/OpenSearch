@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.common.blobstore.BlobPath;
@@ -71,7 +72,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
         RemoteHashesOfConsistentSettings remoteObjectForDownload = new RemoteHashesOfConsistentSettings(
             TEST_BLOB_NAME,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         assertEquals(remoteObjectForDownload.clusterUUID(), clusterUUID);
     }
@@ -89,7 +91,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
         RemoteHashesOfConsistentSettings remoteObjectForDownload = new RemoteHashesOfConsistentSettings(
             TEST_BLOB_NAME,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         assertEquals(remoteObjectForDownload.getFullBlobName(), TEST_BLOB_NAME);
     }
@@ -107,7 +110,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
         RemoteHashesOfConsistentSettings remoteObjectForDownload = new RemoteHashesOfConsistentSettings(
             TEST_BLOB_NAME,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         assertEquals(remoteObjectForDownload.getBlobFileName(), TEST_BLOB_FILE_NAME);
     }
@@ -117,7 +121,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
         RemoteHashesOfConsistentSettings remoteObjectForDownload = new RemoteHashesOfConsistentSettings(
             uploadedFile,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         assertArrayEquals(
             remoteObjectForDownload.getBlobPathTokens(),

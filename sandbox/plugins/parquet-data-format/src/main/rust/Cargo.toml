@@ -1,0 +1,31 @@
+[package]
+name = "opensearch-parquet-format"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+workspace = "../../../../../libs/dataformat-native/rust"
+
+[features]
+test-utils = []
+
+[lib]
+name = "opensearch_parquet_format"
+crate-type = ["rlib"]
+
+[dependencies]
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+arrow-buffer = { workspace = true }
+log = { workspace = true }
+parquet = { workspace = true }
+lazy_static = { workspace = true }
+dashmap = { workspace = true }
+chrono = { workspace = true }
+mimalloc = { workspace = true }
+tempfile = { workspace = true }
+native-bridge-common = { workspace = true }
+crc32fast = { workspace = true }
+
+[dev-dependencies]
+opensearch-parquet-format = { path = ".", features = ["test-utils"] }

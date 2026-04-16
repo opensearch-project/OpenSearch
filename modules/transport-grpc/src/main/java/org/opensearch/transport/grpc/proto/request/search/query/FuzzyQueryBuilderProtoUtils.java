@@ -11,9 +11,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.FuzzyQueryBuilder;
 import org.opensearch.protobufs.FuzzyQuery;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
-import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 /**
  * Utility class for converting FuzzyQuery Protocol Buffers to OpenSearch objects.
@@ -74,10 +72,7 @@ class FuzzyQueryBuilderProtoUtils {
         }
 
         if (fuzzyQueryProto.hasRewrite()) {
-            MultiTermQueryRewrite rewriteEnum = fuzzyQueryProto.getRewrite();
-            if (rewriteEnum != MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
-                rewrite = ProtobufEnumUtils.convertToString(rewriteEnum);
-            }
+            rewrite = fuzzyQueryProto.getRewrite();
         }
 
         if (fuzzyQueryProto.hasXName()) {

@@ -183,6 +183,16 @@ public class SearchRequestProtoUtils {
                 ? parseTimeValue(request.getCancelAfterTimeInterval(), null, "cancel_after_time_interval")
                 : null
         );
+
+        // TODO support typed_keys
+        if (request.hasTypedKeys()) {
+            throw new UnsupportedOperationException("typed_keys param is not supported yet");
+        }
+
+        // TODO support global_params
+        if (request.hasGlobalParams()) {
+            throw new UnsupportedOperationException("global_params param is not supported yet");
+        }
     }
 
     /**

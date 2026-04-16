@@ -10,9 +10,7 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.RegexpQueryBuilder;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.RegexpQuery;
-import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 /**
  * Utility class for converting RegexpQuery Protocol Buffers to OpenSearch objects.
@@ -51,11 +49,7 @@ class RegexpQueryBuilderProtoUtils {
         }
 
         if (regexpQueryProto.hasRewrite()) {
-            MultiTermQueryRewrite rewriteEnum = regexpQueryProto.getRewrite();
-            // Skip setting rewrite method if it's UNSPECIFIED
-            if (rewriteEnum != MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
-                rewrite = ProtobufEnumUtils.convertToString(rewriteEnum);
-            }
+            rewrite = regexpQueryProto.getRewrite();
         }
 
         if (regexpQueryProto.hasFlags()) {

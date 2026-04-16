@@ -388,4 +388,40 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testParseSearchRequestWithTypedKeysThrowsUnsupportedOperationException() throws IOException {
+        // Create a protobuf SearchRequest with typed_keys
+        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
+            .setTypedKeys(true)
+            .build();
+
+        // Create a SearchRequest to populate
+        SearchRequest searchRequest = new SearchRequest();
+
+        // Call the method under test, should throw UnsupportedOperationException
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils)
+        );
+
+        assertEquals("typed_keys param is not supported yet", exception.getMessage());
+    }
+
+    public void testParseSearchRequestWithGlobalParamsThrowsUnsupportedOperationException() throws IOException {
+        // Create a protobuf SearchRequest with global_params
+        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().build())
+            .build();
+
+        // Create a SearchRequest to populate
+        SearchRequest searchRequest = new SearchRequest();
+
+        // Call the method under test, should throw UnsupportedOperationException
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils)
+        );
+
+        assertEquals("global_params param is not supported yet", exception.getMessage());
+    }
+
 }

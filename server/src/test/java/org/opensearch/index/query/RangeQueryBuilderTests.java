@@ -500,6 +500,113 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertEquals(json, "now", parsed.to());
     }
 
+    public void testInvalidUpperBound() throws IOException {
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"from\" : \"2015-01-01 00:00:00\",\n"
+                + "      \"lt\" : \"2015-01-01 00:00:00\",\n"
+                + "      \"to\" : \"now\",\n"
+                + "      \"include_lower\" : true,\n"
+                + "      \"include_upper\" : true,\n"
+                + "      \"time_zone\" : \"+01:00\",\n"
+                + "      \"boost\" : 1.0\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"lte\" : 4,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"lt\" : 12,\n"
+                + "      \"to\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"lt\" : 12,\n"
+                + "      \"include_upper\" : true\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+    }
+
+    public void testInvalidLowerBound() {
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"gte\" : 4,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid lower bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"from\" : 4,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid lower bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json2 = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"include_lower\" : true,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json2));
+            assertEquals("invalid lower bound for [range] query", pe.getMessage());
+        }
+    }
+
     public void testNamedQueryParsing() throws IOException {
         String json = "{\n"
             + "  \"range\" : {\n"

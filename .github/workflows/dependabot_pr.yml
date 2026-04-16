@@ -18,7 +18,7 @@ jobs:
           installation_id: 22958780
 
       - name: Check out code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           token: ${{ steps.github_app_token.outputs.token }}
           ref: ${{ github.head_ref }}
@@ -51,20 +51,6 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: Spotless formatting
-          branch: ${{ github.head_ref }}
-          commit_user_name: dependabot[bot]
-          commit_user_email: support@github.com
-          commit_options: '--signoff'
-
-      - name: Update the changelog
-        uses: dangoslen/dependabot-changelog-helper@v4
-        with:
-          version: 'Unreleased 3.x'
-
-      - name: Commit the changes
-        uses: stefanzweifel/git-auto-commit-action@v7
-        with:
-          commit_message: "Update changelog"
           branch: ${{ github.head_ref }}
           commit_user_name: dependabot[bot]
           commit_user_email: support@github.com

@@ -9,10 +9,11 @@ package org.opensearch.transport.grpc.proto.response.search;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.transport.grpc.proto.response.common.ObjectMapProtoUtils;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Utility class for converting SearchResponse objects to Protocol Buffers.
@@ -38,6 +39,36 @@ public class SearchResponseSectionsProtoUtils {
         org.opensearch.protobufs.HitsMetadata.Builder hitsBuilder = org.opensearch.protobufs.HitsMetadata.newBuilder();
         SearchHitsProtoUtils.toProto(response.getHits(), hitsBuilder);
         builder.setHits(hitsBuilder.build());
+
+        // Convert processor results
+        List<org.opensearch.search.pipeline.ProcessorExecutionDetail> processorResults = response.getInternalResponse()
+            .getProcessorResult();
+        if (processorResults != null && !processorResults.isEmpty()) {
+            for (org.opensearch.search.pipeline.ProcessorExecutionDetail detail : processorResults) {
+                org.opensearch.protobufs.ProcessorExecutionDetail.Builder detailBuilder = org.opensearch.protobufs.ProcessorExecutionDetail
+                    .newBuilder();
+                if (detail.getProcessorName() != null) {
+                    detailBuilder.setProcessorName(detail.getProcessorName());
+                }
+                detailBuilder.setDurationMillis(detail.getDurationMillis());
+                if (detail.getInputData() != null) {
+                    detailBuilder.setInputData(ObjectMapProtoUtils.toProto(detail.getInputData()).getObjectMap());
+                }
+                if (detail.getOutputData() != null) {
+                    detailBuilder.setOutputData(ObjectMapProtoUtils.toProto(detail.getOutputData()).getObjectMap());
+                }
+                if (detail.getStatus() != null) {
+                    detailBuilder.setStatus(detail.getStatus().name().toLowerCase(Locale.ROOT));
+                }
+                if (detail.getErrorMessage() != null) {
+                    detailBuilder.setError(detail.getErrorMessage());
+                }
+                if (detail.getTag() != null) {
+                    detailBuilder.setTag(detail.getTag());
+                }
+                builder.addProcessorResults(detailBuilder.build());
+            }
+        }
 
         // Check for unsupported features
         checkUnsupportedFeatures(response);

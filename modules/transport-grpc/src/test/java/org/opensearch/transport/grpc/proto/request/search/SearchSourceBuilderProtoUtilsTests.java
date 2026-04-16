@@ -726,15 +726,15 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseProtoWithSuggest() throws IOException {
-        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .setSuggest(org.opensearch.protobufs.Suggester.newBuilder().setText("opensearch").build())
-            .build();
+        // Suggester field was removed from SearchRequestBody in protobufs 1.0.0
+        // Suggest functionality is now handled via SearchRequest URL parameters (suggest_field, suggest_text, etc.)
+        // This test is no longer applicable as the field doesn't exist
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().build();
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
+        // Should not throw exception as suggest field no longer exists
         SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
-
-        assertNotNull("SuggestBuilder should not be null", searchSourceBuilder.suggest());
     }
 
     public void testParseProtoWithXSourceIncludes() throws IOException {

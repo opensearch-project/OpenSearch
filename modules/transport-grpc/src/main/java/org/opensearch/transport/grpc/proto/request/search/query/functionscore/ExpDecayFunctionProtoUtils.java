@@ -14,6 +14,7 @@ import org.opensearch.protobufs.DateDecayPlacement;
 import org.opensearch.protobufs.DecayFunction;
 import org.opensearch.protobufs.DecayPlacement;
 import org.opensearch.protobufs.GeoDecayPlacement;
+import org.opensearch.protobufs.MultiValueMode;
 import org.opensearch.protobufs.NumericDecayPlacement;
 import org.opensearch.transport.grpc.proto.request.common.GeoPointProtoUtils;
 
@@ -49,21 +50,29 @@ class ExpDecayFunctionProtoUtils {
         String fieldName = entry.getKey();
         DecayPlacement decayPlacement = entry.getValue();
 
+        ExponentialDecayFunctionBuilder builder;
         if (decayPlacement.hasNumericDecayPlacement()) {
-            return parseNumericExpDecay(fieldName, decayPlacement.getNumericDecayPlacement());
+            builder = parseNumericExpDecay(fieldName, decayPlacement.getNumericDecayPlacement());
         } else if (decayPlacement.hasGeoDecayPlacement()) {
-            return parseGeoExpDecay(fieldName, decayPlacement.getGeoDecayPlacement());
+            builder = parseGeoExpDecay(fieldName, decayPlacement.getGeoDecayPlacement());
         } else if (decayPlacement.hasDateDecayPlacement()) {
-            return parseDateExpDecay(fieldName, decayPlacement.getDateDecayPlacement());
+            builder = parseDateExpDecay(fieldName, decayPlacement.getDateDecayPlacement());
         } else {
             throw new IllegalArgumentException("Unsupported decay placement type");
         }
+
+        // Set multi_value_mode if present
+        if (decayFunction.hasMultiValueMode() && decayFunction.getMultiValueMode() != MultiValueMode.MULTI_VALUE_MODE_UNSPECIFIED) {
+            builder.setMultiValueMode(DecayFunctionProtoUtils.parseMultiValueMode(decayFunction.getMultiValueMode()));
+        }
+
+        return builder;
     }
 
     /**
      * Parses a numeric decay placement for exponential decay.
      */
-    private static ScoreFunctionBuilder<?> parseNumericExpDecay(String fieldName, NumericDecayPlacement numericPlacement) {
+    private static ExponentialDecayFunctionBuilder parseNumericExpDecay(String fieldName, NumericDecayPlacement numericPlacement) {
         ExponentialDecayFunctionBuilder builder;
         if (numericPlacement.hasDecay()) {
             builder = new ExponentialDecayFunctionBuilder(
@@ -88,7 +97,7 @@ class ExpDecayFunctionProtoUtils {
     /**
      * Parses a geo decay placement for exponential decay.
      */
-    private static ScoreFunctionBuilder<?> parseGeoExpDecay(String fieldName, GeoDecayPlacement geoPlacement) {
+    private static ExponentialDecayFunctionBuilder parseGeoExpDecay(String fieldName, GeoDecayPlacement geoPlacement) {
         GeoPoint geoPoint = GeoPointProtoUtils.parseGeoPoint(geoPlacement.getOrigin());
 
         ExponentialDecayFunctionBuilder builder;
@@ -115,7 +124,7 @@ class ExpDecayFunctionProtoUtils {
     /**
      * Parses a date decay placement for exponential decay.
      */
-    private static ScoreFunctionBuilder<?> parseDateExpDecay(String fieldName, DateDecayPlacement datePlacement) {
+    private static ExponentialDecayFunctionBuilder parseDateExpDecay(String fieldName, DateDecayPlacement datePlacement) {
         Object origin = datePlacement.hasOrigin() ? datePlacement.getOrigin() : null;
 
         ExponentialDecayFunctionBuilder builder;

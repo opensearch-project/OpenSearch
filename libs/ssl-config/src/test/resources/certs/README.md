@@ -57,7 +57,7 @@ rm cert1/cert1.csr
 ```
 
 # Create "cert2" PEM (same as cert1, but with a password)
-
+export KEY_PW='6!6428DQXwPpi7@$ggeg/='
 ```bash
 openssl genpkey -algorithm RSA -out cert2/cert2.key -aes256 -pass pass:"$KEY_PW"
 openssl req -new \
@@ -78,7 +78,7 @@ openssl x509 -req \
 rm cert2/cert2.csr
 ```
 
-# Convert CAs to PKCS#12
+# Convert Certs to PKCS#12
 
 ```bash
 for n in 1 2 3
@@ -88,7 +88,7 @@ do
 done
 ```
 
-# Convert CAs to JKS
+# Convert Certs to JKS
 
 ```bash
 for n in 1 2 3
@@ -103,6 +103,33 @@ done
 for Cert in cert1 cert2
 do
     openssl pkcs12 -export -out $Cert/$Cert.p12 -inkey $Cert/$Cert.key -in $Cert/$Cert.crt -name $Cert -passout pass:p12-pass
+done
+```
+
+# Convert Certs to PKCS#12 without MAC
+
+```bash
+cat ca1/ca.crt ca2/ca.crt ca3/ca.crt >> chain.crt
+openssl pkcs12 -export \
+        -out ca-all/ca_nomac.p12 \
+        -in chain.crt \
+        -caname "Test CA 1" \
+        -caname "Test CA 2" \
+        -caname "Test CA 3" \
+        -passout pass: \
+        -nomac \
+        -nokeys \
+        -jdktrust anyExtendedKeyUsage
+rm -f chain.crt
+```
+
+# Convert Certs to BCFKS
+
+```bash
+for n in 1 2 3
+do
+    keytool -importcert -file ca${n}/ca.crt -alias ca -keystore ca${n}/ca.bcfks -storetype BCFKS -storepass bcfks-pass -providername BCFIPS -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider -providerpath $LIB_PATH/bc-fips-2.0.0.jar -v
+    keytool -importcert -file ca${n}/ca.crt -alias ca${n} -keystore ca-all/ca.bcfks -storetype BCFKS -storepass bcfks-pass -providername BCFIPS -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider -providerpath $LIB_PATH/bc-fips-2.0.0.jar -v
 done
 ```
 
@@ -126,6 +153,34 @@ do
             -srckeystore $Cert/$Cert.p12 -srcstoretype PKCS12 -srcstorepass p12-pass  \
             -destkeystore cert-all/certs.jks -deststoretype jks -deststorepass jks-pass
     keytool -keypasswd -keystore cert-all/certs.jks -alias $Cert -keypass p12-pass -new key-pass -storepass jks-pass
+done
+```
+
+# Import Certs into single BCFKS keystore with separate key-password
+
+```bash
+for Cert in cert1 cert2
+do
+    keytool -importkeystore -noprompt \
+            -srckeystore $Cert/$Cert.p12 \
+            -srcstoretype PKCS12 \
+            -srcstorepass p12-pass \
+            -destkeystore cert-all/certs.bcfks \
+            -deststoretype BCFKS \
+            -deststorepass bcfks-pass \
+            -providername BCFIPS \
+            -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
+            -providerpath $LIB_PATH/bc-fips-2.0.0.jar
+    keytool -keypasswd -noprompt \
+            -keystore cert-all/certs.bcfks \
+            -alias $Cert \
+            -keypass p12-pass \
+            -new bcfks-pass \
+            -storepass bcfks-pass \
+            -storetype BCFKS \
+            -providername BCFIPS \
+            -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
+            -providerpath $LIB_PATH/bc-fips-2.0.0.jar
 done
 ```
 

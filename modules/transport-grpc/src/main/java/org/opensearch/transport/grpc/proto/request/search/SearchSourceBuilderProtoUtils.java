@@ -21,7 +21,6 @@ import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProt
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
-import org.opensearch.transport.grpc.proto.request.search.suggest.SuggestBuilderProtoUtils;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
@@ -153,17 +152,24 @@ public class SearchSourceBuilderProtoUtils {
             }
         }
 
-        // TODO support aggregations
+        // Aggregations field was removed in protobufs 1.0.0
+        // TODO: Support aggregations when they are re-added to the proto
         /*
-        if(protoRequest.hasAggs()){}
+        if (protoRequest.getAggregationsCount() > 0) {
+            throw new UnsupportedOperationException("aggregations param is not supported yet");
+        }
         */
-
         if (protoRequest.hasHighlight()) {
             searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), registry));
         }
+
+        // TODO support suggest once added back to the protos
+        /*
         if (protoRequest.hasSuggest()) {
-            searchSourceBuilder.suggest(SuggestBuilderProtoUtils.fromProto(protoRequest.getSuggest()));
+            throw new UnsupportedOperationException("suggest param is not supported yet");
+            // searchSourceBuilder.suggest(SuggestBuilderProtoUtils.fromProto(protoRequest.getSuggest()));
         }
+        */
         if (protoRequest.getRescoreCount() > 0) {
             for (Rescore rescore : protoRequest.getRescoreList()) {
                 searchSourceBuilder.addRescorer(RescorerBuilderProtoUtils.parseFromProto(rescore));

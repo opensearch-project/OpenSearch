@@ -33,24 +33,28 @@
 package org.opensearch.http.netty4;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpPipelinedRequest;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.util.AttributeKey;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
-    private final Netty4HttpServerTransport serverTransport;
+    private final AbstractHttpServerTransport serverTransport;
+    private final AttributeKey<Netty4HttpChannel> channelKey;
 
-    Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport) {
+    Netty4HttpRequestHandler(AbstractHttpServerTransport serverTransport, AttributeKey<Netty4HttpChannel> channelKey) {
         this.serverTransport = serverTransport;
+        this.channelKey = channelKey;
     }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest httpRequest) {
-        final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        final Netty4HttpChannel channel = ctx.channel().attr(channelKey).get();
         boolean success = false;
         try {
             serverTransport.incomingRequest(httpRequest, channel);
@@ -65,7 +69,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         ExceptionsHelper.maybeDieOnAnotherThread(cause);
-        Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        Netty4HttpChannel channel = ctx.channel().attr(channelKey).get();
         if (cause instanceof Error) {
             serverTransport.onException(channel, new Exception(cause));
         } else {

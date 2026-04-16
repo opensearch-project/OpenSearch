@@ -67,6 +67,9 @@ import static org.hamcrest.Matchers.nullValue;
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class ReloadSecureSettingsIT extends OpenSearchIntegTestCase {
 
+    // Minimal required characters to fulfill the BouncyCastle's FIPS requirement of 112 bit strong passwords
+    protected static final int MIN_112_BIT_STRONG = 14;
+
     public void testMissingKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
@@ -181,7 +184,7 @@ public class ReloadSecureSettingsIT extends OpenSearchIntegTestCase {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
-        final char[] password = randomAlphaOfLength(12).toCharArray();
+        final char[] password = randomAlphaOfLength(MIN_112_BIT_STRONG).toCharArray();
         writeEmptyKeystore(environment, password);
         final CountDownLatch latch = new CountDownLatch(1);
         client().admin()
@@ -228,7 +231,7 @@ public class ReloadSecureSettingsIT extends OpenSearchIntegTestCase {
     public void testReloadLocalNodeWithPasswordWithoutTLSSucceeds() throws Exception {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
-        final char[] password = randomAlphaOfLength(12).toCharArray();
+        final char[] password = randomAlphaOfLength(MIN_112_BIT_STRONG).toCharArray();
         writeEmptyKeystore(environment, password);
         final CountDownLatch latch = new CountDownLatch(1);
         client().admin()
@@ -274,14 +277,15 @@ public class ReloadSecureSettingsIT extends OpenSearchIntegTestCase {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
+        final char[] password = randomAlphaOfLength(MIN_112_BIT_STRONG).toCharArray();
         // "some" keystore should be present in this case
-        writeEmptyKeystore(environment, new char[0]);
+        writeEmptyKeystore(environment, password);
         final CountDownLatch latch = new CountDownLatch(1);
         client().admin()
             .cluster()
             .prepareReloadSecureSettings()
             .setNodesIds("_local")
-            .setSecureStorePassword(new SecureString(new char[] { 'W', 'r', 'o', 'n', 'g' }))
+            .setSecureStorePassword(new SecureString("thewrongkeystorepassword".toCharArray()))
             .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
                 @Override
                 public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {

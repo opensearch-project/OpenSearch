@@ -46,7 +46,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.Assertions;
@@ -84,6 +84,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -153,15 +154,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Long.MAX_VALUE,
         limit -> {
             // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
-            if (limit > XContentContraints.DEFAULT_MAX_DEPTH) {
+            if (limit > XContentConstraints.DEFAULT_MAX_DEPTH) {
                 throw new IllegalArgumentException(
                     "The provided value "
                         + limit
                         + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
-                        + XContentContraints.DEFAULT_MAX_DEPTH
+                        + XContentConstraints.DEFAULT_MAX_DEPTH
                         + ". Please change the setting value or increase per-JVM limit "
                         + "using '"
-                        + XContentContraints.DEFAULT_MAX_DEPTH_PROPERTY
+                        + XContentConstraints.DEFAULT_MAX_DEPTH_PROPERTY
                         + "' system property."
                 );
             }
@@ -176,15 +177,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Long.MAX_VALUE,
         limit -> {
             // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
-            if (limit > XContentContraints.DEFAULT_MAX_NAME_LEN) {
+            if (limit > XContentConstraints.DEFAULT_MAX_NAME_LEN) {
                 throw new IllegalArgumentException(
                     "The provided value "
                         + limit
                         + " of the index setting 'index.mapping.field_name_length.limit' exceeds per-JVM configured limit of "
-                        + XContentContraints.DEFAULT_MAX_NAME_LEN
+                        + XContentConstraints.DEFAULT_MAX_NAME_LEN
                         + ". Please change the setting value or increase per-JVM limit "
                         + "using '"
-                        + XContentContraints.DEFAULT_MAX_NAME_LEN_PROPERTY
+                        + XContentConstraints.DEFAULT_MAX_NAME_LEN_PROPERTY
                         + "' system property."
                 );
             }
@@ -690,7 +691,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public Set<CompositeMappedFieldType> getCompositeFieldTypes() {
-        return compositeMappedFieldTypes;
+        return compositeMappedFieldTypes.stream()
+            .filter(compositeMappedFieldType -> compositeMappedFieldType instanceof CompositeDataCubeFieldType)
+            .collect(Collectors.toSet());
     }
 
     private Set<CompositeMappedFieldType> getCompositeFieldTypesFromMapper() {

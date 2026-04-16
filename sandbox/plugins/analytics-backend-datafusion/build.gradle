@@ -1,0 +1,71 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'DataFusion native execution engine plugin for the query engine.'
+  classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
+  extendedPlugins = ['analytics-engine']
+}
+
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
+dependencies {
+  // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
+  implementation project(':sandbox:libs:dataformat-native')
+
+  // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
+  compileOnly project(':sandbox:libs:analytics-framework')
+
+  compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+  // Apache Arrow dependencies
+  implementation "org.apache.arrow:arrow-memory-core:18.3.0"
+  implementation "org.apache.arrow:arrow-memory-unsafe:18.3.0"
+  implementation "org.apache.arrow:arrow-vector:18.3.0"
+  implementation "org.apache.arrow:arrow-c-data:18.3.0"
+  implementation "org.apache.arrow:arrow-format:18.3.0"
+  implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "org.checkerframework:checker-qual:3.43.0"
+
+  // Jackson — required by Arrow's schema import (C Data Interface)
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+}
+
+test {
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+tasks.withType(JavaCompile).configureEach {
+  // Arrow references Jackson annotations not on classpath — harmless warnings
+  options.compilerArgs -= '-Werror'
+}
+
+// TODO: Remove once back-end is built out with test suite
+testingConventions.enabled = false
+
+tasks.named('forbiddenPatterns').configure {
+    exclude '**/*.parquet'
+}
+
+tasks.named('thirdPartyAudit').configure {
+  ignoreViolations(
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1'
+  )
+}
+
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+    enabled = false
+}
