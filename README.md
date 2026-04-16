@@ -11,6 +11,7 @@
 [![Linkedin](https://img.shields.io/badge/Follow-Linkedin-blue)](https://www.linkedin.com/company/opensearch-project)
 
 - [Welcome!](#welcome)
+- [Getting Started](#getting-started)
 - [Project Resources](#project-resources)
 - [Code of Conduct](#code-of-conduct)
 - [Security](#security)
@@ -21,6 +22,13 @@
 ## Welcome!
 
 OpenSearch is an open-source, enterprise-grade search and observability suite that brings order to unstructured data at scale.
+
+## Getting Started
+
+To get up and running with OpenSearch:
+- **Download:** Get the latest distribution from the [OpenSearch Downloads](https://opensearch.org/downloads/) page.
+- **Docker:** Run a single node cluster using `docker run -p 9200:9200 -p 9600:9600 -e "discovery.type=single-node" opensearchproject/opensearch:latest`
+- **Build from Source:** OpenSearch is a Java project built with Gradle. Run `./gradlew assemble` to build the distribution.
 
 ## Project Resources
 
@@ -55,4 +63,3 @@ Copyright OpenSearch Contributors. See [NOTICE](NOTICE.txt) for details.
 OpenSearch is a registered trademark of LF Projects, LLC.
 
 OpenSearch includes certain Apache-licensed Elasticsearch code from Elasticsearch B.V. and other source code. Elasticsearch B.V. is not the source of that other source code. ELASTICSEARCH is a registered trademark of Elasticsearch B.V.
-
