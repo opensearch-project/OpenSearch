@@ -67,7 +67,7 @@ public final class RepositoriesModule {
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings
     ) {
-        this(env, repoPlugins, transportService, clusterService, threadPool, namedXContentRegistry, recoverySettings, null);
+        this(env, repoPlugins, transportService, clusterService, threadPool, namedXContentRegistry, recoverySettings, List.of());
     }
 
     public RepositoriesModule(
@@ -78,8 +78,15 @@ public final class RepositoriesModule {
         ThreadPool threadPool,
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings,
-        NativeRemoteObjectStoreProvider fsNativeProvider
+        List<NativeRemoteObjectStoreProvider> nativeProviders
     ) {
+        // Resolve the FS native provider from the list — S3/GCS/Azure wire
+        // their own via ExtensiblePlugin, only FS needs explicit lookup here.
+        final NativeRemoteObjectStoreProvider fsNativeProvider = nativeProviders.stream()
+            .filter(p -> FsRepository.TYPE.equals(p.repositoryType()))
+            .findFirst()
+            .orElse(null);
+
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,

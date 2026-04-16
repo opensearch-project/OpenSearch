@@ -228,7 +228,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     }
 
     @Override
-    public long getNativeStorePtr() {
-        return nativeStore.getPointer();
+    public NativeStoreRepository getNativeStore() {
+        return nativeStore;
     }
 }

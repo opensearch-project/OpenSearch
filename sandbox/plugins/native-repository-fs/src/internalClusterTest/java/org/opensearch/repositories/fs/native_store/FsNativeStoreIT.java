@@ -61,9 +61,9 @@ public class FsNativeStoreIT extends OpenSearchIntegTestCase {
         RepositoriesService repoService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         Repository repo = repoService.repository("test-fs-repo");
 
-        long ptr = repo.getNativeStorePtr();
+        long ptr = repo.getNativeStore().getPointer();
         assertThat("Native store pointer should be > 0", ptr, greaterThan(0L));
-        assertEquals("Pointer should be consistent across calls", ptr, repo.getNativeStorePtr());
+        assertEquals("Pointer should be consistent across calls", ptr, repo.getNativeStore().getPointer());
     }
 
     public void testDifferentReposGetDifferentPointers() throws IOException {
@@ -86,8 +86,8 @@ public class FsNativeStoreIT extends OpenSearchIntegTestCase {
             .get();
 
         RepositoriesService repoService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
-        long ptr1 = repoService.repository("repo-1").getNativeStorePtr();
-        long ptr2 = repoService.repository("repo-2").getNativeStorePtr();
+        long ptr1 = repoService.repository("repo-1").getNativeStore().getPointer();
+        long ptr2 = repoService.repository("repo-2").getNativeStore().getPointer();
 
         assertThat("Both pointers should be > 0", ptr1, greaterThan(0L));
         assertThat("Both pointers should be > 0", ptr2, greaterThan(0L));
@@ -107,11 +107,11 @@ public class FsNativeStoreIT extends OpenSearchIntegTestCase {
 
         RepositoriesService repoService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         Repository repo = repoService.repository("repo-delete");
-        long ptr = repo.getNativeStorePtr();
+        long ptr = repo.getNativeStore().getPointer();
         assertThat("Pointer should be > 0 before delete", ptr, greaterThan(0L));
 
         client().admin().cluster().prepareDeleteRepository("repo-delete").get();
 
-        expectThrows(IllegalStateException.class, repo::getNativeStorePtr);
+        expectThrows(IllegalStateException.class, () -> repo.getNativeStore().getPointer());
     }
 }

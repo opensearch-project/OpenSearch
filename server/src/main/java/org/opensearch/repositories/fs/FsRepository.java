@@ -240,7 +240,7 @@ public class FsRepository extends BlobStoreRepository {
     }
 
     @Override
-    public long getNativeStorePtr() {
-        return nativeStore.getPointer();
+    public NativeStoreRepository getNativeStore() {
+        return nativeStore;
     }
 }

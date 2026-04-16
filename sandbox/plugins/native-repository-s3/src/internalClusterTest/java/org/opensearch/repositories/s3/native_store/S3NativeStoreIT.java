@@ -85,10 +85,10 @@ public class S3NativeStoreIT extends OpenSearchIntegTestCase {
         RepositoriesService repoService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         Repository repo = repoService.repository("test-s3-repo");
 
-        long ptr = repo.getNativeStorePtr();
+        long ptr = repo.getNativeStore().getPointer();
         assertThat("Native store pointer should be > 0", ptr, greaterThan(0L));
 
         // Pointer should be stable across calls
-        assertEquals("Pointer should be consistent across calls", ptr, repo.getNativeStorePtr());
+        assertEquals("Pointer should be consistent across calls", ptr, repo.getNativeStore().getPointer());
     }
 }

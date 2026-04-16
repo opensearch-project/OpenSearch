@@ -250,7 +250,6 @@ import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -1374,16 +1373,6 @@ public class Node implements Closeable {
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
 
-            // Only pass the FS native provider to RepositoriesModule — S3/GCS/Azure
-            // wire their own native providers via ExtensiblePlugin, not through here.
-            NativeRemoteObjectStoreProvider fsNativeProvider = null;
-            for (NativeRemoteObjectStoreProvider p : pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)) {
-                if (FsRepository.TYPE.equals(p.repositoryType())) {
-                    fsNativeProvider = p;
-                    break;
-                }
-            }
-
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class),
@@ -1392,7 +1381,7 @@ public class Node implements Closeable {
                 threadPool,
                 xContentRegistry,
                 recoverySettings,
-                fsNativeProvider
+                pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)
             );
             CryptoHandlerRegistry.initRegistry(
                 pluginsService.filterPlugins(CryptoPlugin.class),

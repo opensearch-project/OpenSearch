@@ -952,10 +952,10 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
     // RepositoriesService no longer participates in native store init.
     // -----------------------------------------------------------------------
 
-    public void testGetNativeStorePtrDefaultIsMinusOne() {
+    public void testGetNativeStoreDefaultIsEmpty() {
         repositoriesService.registerInternalRepository("repo", TestRepository.TYPE);
         final Repository repo = repositoriesService.repository("repo");
-        assertEquals(-1, repo.getNativeStorePtr());
+        assertSame(NativeStoreRepository.EMPTY, repo.getNativeStore());
     }
 
     private static class NativeAwareTestRepository extends TestRepository {

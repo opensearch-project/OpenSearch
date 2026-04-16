@@ -67,8 +67,8 @@ public class GcsNativeStoreIT extends OpenSearchIntegTestCase {
         RepositoriesService repoService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         Repository repo = repoService.repository("test-gcs-repo");
 
-        long ptr = repo.getNativeStorePtr();
+        long ptr = repo.getNativeStore().getPointer();
         assertThat("Native store pointer should be > 0", ptr, greaterThan(0L));
-        assertEquals("Pointer should be consistent across calls", ptr, repo.getNativeStorePtr());
+        assertEquals("Pointer should be consistent across calls", ptr, repo.getNativeStore().getPointer());
     }
 }
