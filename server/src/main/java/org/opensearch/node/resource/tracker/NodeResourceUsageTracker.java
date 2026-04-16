@@ -85,7 +85,7 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
             return memoryUsageTracker.isReady() && cpuUsageTracker.isReady() && ioUsageTracker.isReady()
                 && nativeMemoryUsageTracker.isReady();
         }
-        return memoryUsageTracker.isReady() && cpuUsageTracker.isReady() && nativeMemoryUsageTracker.isReady();
+        return memoryUsageTracker.isReady() && cpuUsageTracker.isReady();
     }
 
     void initialize() {
