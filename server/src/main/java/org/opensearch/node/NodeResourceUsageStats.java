@@ -76,7 +76,9 @@ public class NodeResourceUsageStats implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             out.writeOptionalWriteable(this.ioUsageStats);
         }
-        out.writeDouble(this.nativeMemoryUtilizationPercent);
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            out.writeDouble(this.nativeMemoryUtilizationPercent);
+        }
     }
 
     @Override
