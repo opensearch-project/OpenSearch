@@ -15,7 +15,7 @@ import java.util.List;
 
 /**
  * Filter or reorder resolved target shards before dispatch.
- * Called by PlanWalker after resolveTargets() and before submitting tasks.
+ * Called by the stage scheduler after target resolution and before dispatch.
  * Operates on ShardTarget (post-resolution shard+node pairs), analogous
  * to CanMatch operating on SearchShardIterator.
  *

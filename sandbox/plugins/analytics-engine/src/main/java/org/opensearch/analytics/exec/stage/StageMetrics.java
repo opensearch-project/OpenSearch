@@ -14,9 +14,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * Per-stage atomic counters for query lifecycle metrics: rowsProcessed,
  * bytesRead, tasksCompleted, tasksFailed, startTimeMs, endTimeMs.
  * <p>
- * Created by PlanWalker in {@code dispatchStage()} and stored in a
- * per-stage metrics map. For MVP the counters are incremented but
- * nothing reads them — future: exposed via explain/profile API.
+ * Created by {@link AbstractStageExecution} at construction time and
+ * owned for the lifetime of the stage. Counters are incremented during
+ * execution; future: exposed via explain/profile API.
  *
  * @opensearch.internal
  */

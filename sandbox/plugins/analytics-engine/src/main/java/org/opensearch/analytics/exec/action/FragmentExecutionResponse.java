@@ -17,16 +17,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Transport response carrying field names and result rows from a single shard scan execution.
- * <p>
- * This is the DATA-only subset of the former {@code FragmentExecutionResponse}. No payload-type
- * discriminator, no shuffle manifest, no broadcast handle, no metadata.
- * <p>
- * Each cell value is serialized via {@link StreamOutput#writeGenericValue(Object)} /
+ * Transport response carrying field names and result rows from a shard
+ * fragment execution.
+ *
+ * <p>Each cell value is serialized via {@link StreamOutput#writeGenericValue(Object)} /
  * {@link StreamInput#readGenericValue()}, which handle common Java types
  * (String, Long, Double, Integer, null, byte[], etc.).
- * <p>
- * Wire format: {@code fieldNames (string list) + rowCount (vint) + per-row (colCount (vint) + cells)}.
+ *
+ * <p>Wire format: {@code fieldNames (string list) + rowCount (vint) + per-row (colCount (vint) + cells)}.
+ *
+ * @opensearch.internal
  */
 public class FragmentExecutionResponse extends ActionResponse {
 
