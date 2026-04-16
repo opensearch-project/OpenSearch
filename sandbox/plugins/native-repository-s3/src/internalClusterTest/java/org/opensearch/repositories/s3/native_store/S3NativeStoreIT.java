@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.greaterThan;
  *   --tests "*.S3NativeStoreIT" -Dsandbox.enabled=true
  * </pre>
  */
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class S3NativeStoreIT extends OpenSearchIntegTestCase {
 
     @Override
@@ -73,8 +73,6 @@ public class S3NativeStoreIT extends OpenSearchIntegTestCase {
     }
 
     public void testS3RepoGetsNativeStoreViaExtensiblePlugin() {
-        internalCluster().startNode();
-
         AcknowledgedResponse response = client().admin()
             .cluster()
             .preparePutRepository("test-s3-repo")
@@ -84,7 +82,7 @@ public class S3NativeStoreIT extends OpenSearchIntegTestCase {
             .get();
         assertTrue("Repository creation should be acknowledged", response.isAcknowledged());
 
-        RepositoriesService repoService = internalCluster().getInstance(RepositoriesService.class);
+        RepositoriesService repoService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         Repository repo = repoService.repository("test-s3-repo");
 
         long ptr = repo.getNativeStorePtr();

@@ -22,7 +22,7 @@
 //!
 //! - [`types`] — `TieredFileEntry` (with acquire/release), `FileLocation`, `ReadGuard`, errors
 //! - [`registry`] — `FileRegistry` trait + `TieredStorageRegistry` concrete impl
-//! - [`tiered_object_store`] — `TieredObjectStore` routes reads between local and remote stores, owns remote_stores
+//! - [`tiered_object_store`] — `TieredObjectStore` routes reads between local and remote stores
 //! - [`ffm`] — `extern "C"` FFM bridge for Java ↔ Rust interop
 //!
 //! Cloud backends (S3, GCS, Azure, FS) live in separate plugin crates

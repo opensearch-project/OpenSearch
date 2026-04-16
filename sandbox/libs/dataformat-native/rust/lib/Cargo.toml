@@ -17,4 +17,5 @@ opensearch-repository-gcs = { workspace = true }
 opensearch-repository-azure = { workspace = true }
 opensearch-repository-fs = { workspace = true }
 native-bridge-common = { workspace = true }
+opensearch-tiered-storage = { path = "../../../../libs/tiered-storage/src/main/rust" }
 mimalloc = { workspace = true }

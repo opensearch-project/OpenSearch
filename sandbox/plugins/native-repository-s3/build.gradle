@@ -37,3 +37,14 @@ tasks.named('internalClusterTest').configure {
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
+
+tasks.named('test').configure {
+  jvmArgs += ['--enable-native-access=ALL-UNNAMED']
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+// missingJavadoc hardcodes --release 21 which hides FFM types (stable since JDK 22).
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+    enabled = false
+}

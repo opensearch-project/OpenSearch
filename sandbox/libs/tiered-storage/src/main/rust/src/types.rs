@@ -98,8 +98,8 @@ pub struct TieredFileEntry {
     pub(crate) remote_path: Option<Arc<str>>,
     /// Repository key for looking up the remote [`ObjectStore`].
     pub(crate) repo_key: Option<Arc<str>>,
-    /// Cached remote [`ObjectStore`] reference, resolved at registration time.
-    pub(crate) cached_store: Option<Arc<dyn ObjectStore>>,
+    /// Remote [`ObjectStore`] reference, resolved at registration time.
+    pub(crate) remote_store: Option<Arc<dyn ObjectStore>>,
     /// Cached file size in bytes (from head or put).
     pub(crate) size: Option<u64>,
     /// Current location of the file data.
@@ -113,8 +113,8 @@ impl fmt::Debug for TieredFileEntry {
             .field("remote_path", &self.remote_path)
             .field("repo_key", &self.repo_key)
             .field(
-                "cached_store",
-                if self.cached_store.is_some() {
+                "remote_store",
+                if self.remote_store.is_some() {
                     &"Some(...)" as &dyn fmt::Debug
                 } else {
                     &"None" as &dyn fmt::Debug
@@ -132,14 +132,14 @@ impl TieredFileEntry {
         location: FileLocation,
         remote_path: Option<Arc<str>>,
         repo_key: Option<String>,
-        cached_store: Option<Arc<dyn ObjectStore>>,
+        remote_store: Option<Arc<dyn ObjectStore>>,
         size: Option<u64>,
     ) -> Self {
         Self {
             active_reads: AtomicI64::new(0),
             remote_path,
             repo_key: repo_key.map(Arc::from),
-            cached_store,
+            remote_store,
             size,
             location,
         }
@@ -187,10 +187,10 @@ impl TieredFileEntry {
         self.repo_key.as_deref()
     }
 
-    /// Cached remote [`ObjectStore`] reference, if any.
+    /// Remote [`ObjectStore`] reference, if any.
     #[must_use]
-    pub fn cached_store(&self) -> Option<&Arc<dyn ObjectStore>> {
-        self.cached_store.as_ref()
+    pub fn remote_store(&self) -> Option<&Arc<dyn ObjectStore>> {
+        self.remote_store.as_ref()
     }
 
     /// Cached file size.
@@ -234,9 +234,9 @@ impl<'a> ReadGuard<'a> {
         self.entry.value().remote_path()
     }
 
-    /// Cached remote [`ObjectStore`] reference, if any.
-    pub fn cached_store(&self) -> Option<&Arc<dyn ObjectStore>> {
-        self.entry.value().cached_store()
+    /// Remote [`ObjectStore`] reference, if any.
+    pub fn remote_store(&self) -> Option<&Arc<dyn ObjectStore>> {
+        self.entry.value().remote_store()
     }
 
     /// Current reference count (including this guard).

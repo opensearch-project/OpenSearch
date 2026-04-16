@@ -9,6 +9,7 @@
 package org.opensearch.repositories.azure.native_store;
 
 import org.opensearch.Version;
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
@@ -25,7 +26,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Integration test verifying Azure native store discovery via ExtensiblePlugin + META-INF/services.
  */
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class AzureNativeStoreIT extends OpenSearchIntegTestCase {
 
     @Override
@@ -50,9 +51,15 @@ public class AzureNativeStoreIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testAzureRepoGetsNativeStoreViaExtensiblePlugin() {
-        internalCluster().startNode();
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.default.account", "test_account");
+        secureSettings.setString("azure.client.default.key", "dGVzdF9rZXk="); // base64 "test_key"
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).setSecureSettings(secureSettings).build();
+    }
 
+    public void testAzureRepoGetsNativeStoreViaExtensiblePlugin() {
         client().admin()
             .cluster()
             .preparePutRepository("test-azure-repo")
@@ -61,7 +68,7 @@ public class AzureNativeStoreIT extends OpenSearchIntegTestCase {
             .setSettings(Settings.builder().put("container", "test-container"))
             .get();
 
-        RepositoriesService repoService = internalCluster().getInstance(RepositoriesService.class);
+        RepositoriesService repoService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         Repository repo = repoService.repository("test-azure-repo");
 
         long ptr = repo.getNativeStorePtr();

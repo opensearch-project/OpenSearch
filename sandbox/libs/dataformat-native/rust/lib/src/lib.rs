@@ -31,3 +31,4 @@ extern crate opensearch_repository_s3;
 extern crate opensearch_repository_gcs;
 extern crate opensearch_repository_azure;
 extern crate opensearch_repository_fs;
+extern crate opensearch_tiered_storage;

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Integration test verifying GCS native store discovery via ExtensiblePlugin + META-INF/services.
  */
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class GcsNativeStoreIT extends OpenSearchIntegTestCase {
 
     @Override
@@ -50,18 +50,21 @@ public class GcsNativeStoreIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testGcsRepoGetsNativeStoreViaExtensiblePlugin() {
-        internalCluster().startNode();
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("gcs.client.default.project_id", "test-project").build();
+    }
 
+    public void testGcsRepoGetsNativeStoreViaExtensiblePlugin() {
         client().admin()
             .cluster()
             .preparePutRepository("test-gcs-repo")
             .setType("gcs")
             .setVerify(false)
-            .setSettings(Settings.builder().put("bucket", "test-bucket"))
+            .setSettings(Settings.builder().put("bucket", "test-bucket").put("client", "default"))
             .get();
 
-        RepositoriesService repoService = internalCluster().getInstance(RepositoriesService.class);
+        RepositoriesService repoService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         Repository repo = repoService.repository("test-gcs-repo");
 
         long ptr = repo.getNativeStorePtr();

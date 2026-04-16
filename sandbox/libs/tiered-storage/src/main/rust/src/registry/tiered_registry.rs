@@ -274,7 +274,7 @@ mod tests {
         let guard = reg.get("/a.parquet").unwrap();
         assert_eq!(guard.location(), FileLocation::Remote);
         assert_eq!(guard.remote_path(), Some("remote/a.parquet"));
-        assert!(guard.cached_store().is_some());
+        assert!(guard.remote_store().is_some());
         assert_eq!(guard.ref_count(), 1);
     }
 

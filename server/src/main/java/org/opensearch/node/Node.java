@@ -250,6 +250,7 @@ import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -1377,7 +1378,7 @@ public class Node implements Closeable {
             // wire their own native providers via ExtensiblePlugin, not through here.
             NativeRemoteObjectStoreProvider fsNativeProvider = null;
             for (NativeRemoteObjectStoreProvider p : pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)) {
-                if ("fs".equals(p.repositoryType())) {
+                if (FsRepository.TYPE.equals(p.repositoryType())) {
                     fsNativeProvider = p;
                     break;
                 }
