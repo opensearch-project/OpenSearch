@@ -66,6 +66,7 @@ public class UnsignedLongTermsAggregateConverter implements AggregateProtoConver
     private UnsignedLongTermsBucket convertBucket(UnsignedLongTerms.Bucket bucket) throws IOException {
         UnsignedLongTermsBucket.Builder builder = UnsignedLongTermsBucket.newBuilder();
 
+        // BigInteger.longValue() preserves the uint64 bit pattern for proto's uint64 field.
         builder.setKey(((Number) bucket.getKey()).longValue());
 
         if (bucket.getFormat() != DocValueFormat.RAW
@@ -81,7 +82,7 @@ public class UnsignedLongTermsAggregateConverter implements AggregateProtoConver
 
         for (Aggregation subAgg : bucket.getAggregations()) {
             if (subAgg instanceof InternalAggregation internalAgg) {
-                builder.getMutableAggregate().put(subAgg.getName(), AggregateProtoUtils.toProto(internalAgg, registry));
+                builder.putAggregate(subAgg.getName(), AggregateProtoUtils.toProto(internalAgg, registry));
             } else {
                 throw new IllegalStateException(
                     "Unexpected aggregation type in terms bucket sub-aggregations: "

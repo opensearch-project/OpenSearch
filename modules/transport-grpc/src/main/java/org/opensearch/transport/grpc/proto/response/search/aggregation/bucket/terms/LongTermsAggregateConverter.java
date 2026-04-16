@@ -85,7 +85,7 @@ public class LongTermsAggregateConverter implements AggregateProtoConverter {
 
         for (Aggregation subAgg : bucket.getAggregations()) {
             if (subAgg instanceof InternalAggregation internalAgg) {
-                builder.getMutableAggregate().put(subAgg.getName(), AggregateProtoUtils.toProto(internalAgg, registry));
+                builder.putAggregate(subAgg.getName(), AggregateProtoUtils.toProto(internalAgg, registry));
             } else {
                 throw new IllegalStateException(
                     "Unexpected aggregation type in terms bucket sub-aggregations: "
