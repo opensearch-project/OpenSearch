@@ -69,7 +69,7 @@ jobs:
       - name: Checkout OpenSearch repo
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: 'main'
 
       - name: Setup environment variables (PR)
         if: github.event_name == 'pull_request_target'
@@ -117,18 +117,11 @@ jobs:
           echo "pr_or_commit_description=$(jq --ascii-output .head_commit.message $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "post_merge_action=true" >> $GITHUB_ENV
 
-      - name: Checkout opensearch-build repo
-        uses: actions/checkout@v6
-        with:
-          repository: opensearch-project/opensearch-build
-          ref: main
-          path: opensearch-build
-
       - name: Trigger jenkins workflow to run gradle check
         run: |
           set -e
           set -o pipefail
-          bash opensearch-build/scripts/gradle/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER}} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN}} | tee -a gradle-check.log
+          bash .ci/jenkins/scripts/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER }} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN }} | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()
