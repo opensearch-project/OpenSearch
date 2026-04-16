@@ -20,12 +20,15 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.shard.ShardStateMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
@@ -84,7 +87,14 @@ public class TransportNodesGatewayStartedShardHelper {
                     if (shardPath == null) {
                         throw new IllegalStateException(shardId + " no shard path found");
                     }
-                    Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
+                    Store.tryOpenIndex(
+                        shardPath.resolveIndex(),
+                        shardId,
+                        nodeEnv::shardLock,
+                        logger,
+                        resolveDirectoryFactory(shardId, indicesService, settings, clusterService),
+                        resolveIndexSettings(shardId, indicesService, settings, clusterService)
+                    );
                 } catch (Exception exception) {
                     final ShardPath finalShardPath = shardPath;
                     logger.trace(
@@ -112,6 +122,47 @@ public class TransportNodesGatewayStartedShardHelper {
         }
         logger.trace("{} no local shard info found", shardId);
         return new GatewayStartedShard(null, false, null);
+    }
+
+    /**
+     * Resolves the {@link IndexStorePlugin.DirectoryFactory} for the given shard's index.
+     * Returns null if the index uses the default store type.
+     */
+    private static IndexStorePlugin.DirectoryFactory resolveDirectoryFactory(
+        ShardId shardId,
+        IndicesService indicesService,
+        Settings settings,
+        ClusterService clusterService
+    ) {
+        IndexSettings indexSettings = resolveIndexSettings(shardId, indicesService, settings, clusterService);
+        if (indexSettings == null) {
+            return null;
+        }
+        String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings.getSettings());
+        if (storeType.isEmpty()) {
+            return null;
+        }
+        return indicesService.getDirectoryFactories().get(storeType);
+    }
+
+    /**
+     * Resolves the {@link IndexSettings} for the given shard's index.
+     */
+    private static IndexSettings resolveIndexSettings(
+        ShardId shardId,
+        IndicesService indicesService,
+        Settings settings,
+        ClusterService clusterService
+    ) {
+        IndexService indexService = indicesService.indexService(shardId.getIndex());
+        if (indexService != null) {
+            return indexService.getIndexSettings();
+        }
+        IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
+        if (metadata != null) {
+            return new IndexSettings(metadata, settings);
+        }
+        return null;
     }
 
     /**

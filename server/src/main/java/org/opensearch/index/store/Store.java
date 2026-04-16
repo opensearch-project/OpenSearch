@@ -619,9 +619,27 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         NodeEnvironment.ShardLocker shardLocker,
         Logger logger
     ) throws IOException {
+        return readMetadataSnapshot(indexLocation, shardId, shardLocker, logger, null, null);
+    }
+
+    /**
+     * Reads a MetadataSnapshot from the given index locations or returns an empty snapshot if it can't be read.
+     * When a {@link IndexStorePlugin.DirectoryFactory} and {@link IndexSettings} are provided, the directory
+     * is created using the factory (e.g. for encrypted indices). Otherwise falls back to a plain {@link NIOFSDirectory}.
+     *
+     * @throws IOException if the index we try to read is corrupted
+     */
+    public static MetadataSnapshot readMetadataSnapshot(
+        Path indexLocation,
+        ShardId shardId,
+        NodeEnvironment.ShardLocker shardLocker,
+        Logger logger,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexSettings indexSettings
+    ) throws IOException {
         try (
             ShardLock lock = shardLocker.lock(shardId, "read metadata snapshot", TimeUnit.SECONDS.toMillis(5));
-            Directory dir = new NIOFSDirectory(indexLocation)
+            Directory dir = openDirectory(indexLocation, directoryFactory, indexSettings, shardId)
         ) {
             failIfCorrupted(dir);
             return new MetadataSnapshot((IndexCommit) null, dir, logger);
@@ -642,14 +660,49 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static void tryOpenIndex(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker, Logger logger)
         throws IOException, ShardLockObtainFailedException {
+        tryOpenIndex(indexLocation, shardId, shardLocker, logger, null, null);
+    }
+
+    /**
+     * Tries to open an index for the given location. This includes reading the
+     * segment infos and possible corruption markers. If the index can not
+     * be opened, an exception is thrown.
+     * When a {@link IndexStorePlugin.DirectoryFactory} and {@link IndexSettings} are provided, the directory
+     * is created using the factory (e.g. for encrypted indices). Otherwise falls back to a plain {@link NIOFSDirectory}.
+     */
+    public static void tryOpenIndex(
+        Path indexLocation,
+        ShardId shardId,
+        NodeEnvironment.ShardLocker shardLocker,
+        Logger logger,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexSettings indexSettings
+    ) throws IOException, ShardLockObtainFailedException {
         try (
             ShardLock lock = shardLocker.lock(shardId, "open index", TimeUnit.SECONDS.toMillis(5));
-            Directory dir = new NIOFSDirectory(indexLocation)
+            Directory dir = openDirectory(indexLocation, directoryFactory, indexSettings, shardId)
         ) {
             failIfCorrupted(dir);
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
             logger.trace("{} loaded segment info [{}]", shardId, segInfo);
         }
+    }
+
+    /**
+     * Opens a directory for the given index location. If a {@link IndexStorePlugin.DirectoryFactory} is provided,
+     * it is used to create the directory; otherwise a plain {@link NIOFSDirectory} is used.
+     */
+    private static Directory openDirectory(
+        Path indexLocation,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexSettings indexSettings,
+        ShardId shardId
+    ) throws IOException {
+        if (directoryFactory != null && indexSettings != null) {
+            ShardPath shardPath = new ShardPath(false, indexLocation.getParent(), indexLocation.getParent(), shardId);
+            return directoryFactory.newDirectory(indexSettings, shardPath);
+        }
+        return new NIOFSDirectory(indexLocation);
     }
 
     /**
