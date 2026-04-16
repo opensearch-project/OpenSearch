@@ -55,6 +55,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -1467,7 +1468,18 @@ public class StoreTests extends OpenSearchTestCase {
         };
 
         // Should not throw — index is valid
+<<<<<<< HEAD
         Store.tryOpenIndex(indexDir, shardId, (id, l, d) -> new DummyShardLock(id), logger, trackingFactory, INDEX_SETTINGS);
+=======
+        Store.tryOpenIndex(
+            indexDir,
+            shardId,
+            (id, l, d) -> new DummyShardLock(id),
+            logger,
+            trackingFactory,
+            INDEX_SETTINGS
+        );
+>>>>>>> 8a95da1ca4e (feat(store): Use pluggable DirectoryFactory in shard store validation)
 
         assertEquals("DirectoryFactory should have been called once", 1, factoryCalls.get());
     }
