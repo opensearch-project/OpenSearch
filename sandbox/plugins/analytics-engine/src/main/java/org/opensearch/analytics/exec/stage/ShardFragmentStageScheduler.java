@@ -22,19 +22,19 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * Builds a {@link ShardScanStageExecution} that fans out shard requests via
+ * Builds a {@link ShardFragmentStageExecution} that fans out shard requests via
  * {@link AnalyticsSearchTransportService}. Takes a pre-resolved {@link ExchangeSink}
  * and doesn't care whether it is a root sink or a parent-provided child sink
  * — {@link StageExecutionBuilder} resolves that distinction before calling.
  *
  * @opensearch.internal
  */
-final class ShardScanStageScheduler {
+final class ShardFragmentStageScheduler {
 
     private final ClusterService clusterService;
     private final AnalyticsSearchTransportService transport;
 
-    ShardScanStageScheduler(ClusterService clusterService, AnalyticsSearchTransportService transport) {
+    ShardFragmentStageScheduler(ClusterService clusterService, AnalyticsSearchTransportService transport) {
         this.clusterService = clusterService;
         this.transport = transport;
     }
@@ -53,7 +53,7 @@ final class ShardScanStageScheduler {
             planAlternatives
         );
 
-        return new ShardScanStageExecution(stage, config, sink, targets, requestBuilder, transport);
+        return new ShardFragmentStageExecution(stage, config, sink, targets, requestBuilder, transport);
     }
 
     private static List<FragmentExecutionRequest.PlanAlternative> buildPlanAlternatives(Stage stage) {

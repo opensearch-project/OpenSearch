@@ -68,7 +68,7 @@ public class AnalyticsSearchTransportService {
     ) {
         this.transportService = streamTransportService != null ? streamTransportService : transportService;
         this.clusterService = clusterService;
-        registerfragmentHandler(this.transportService, searchService, indicesService);
+        registerFragmentHandler(this.transportService, searchService, indicesService);
     }
 
     /**
@@ -85,7 +85,7 @@ public class AnalyticsSearchTransportService {
      * Routes {@link FragmentExecutionRequest} to {@link AnalyticsSearchService}
      * and responds with a {@link FragmentExecutionResponse}.
      */
-    private static void registerfragmentHandler(
+    private static void registerFragmentHandler(
         TransportService transportService,
         AnalyticsSearchService searchService,
         IndicesService indicesService
@@ -126,7 +126,7 @@ public class AnalyticsSearchTransportService {
      * @param parentTask the parent task for child-request propagation
      * @param pending    the per-node concurrency gate owned by the caller
      */
-    public void dispatchfragment(
+    public void dispatchFragment(
         FragmentExecutionRequest request,
         DiscoveryNode targetNode,
         StreamingResponseListener<FragmentExecutionResponse> listener,

@@ -21,7 +21,7 @@ import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 public class FragmentExecutionAction extends ActionType<FragmentExecutionResponse> {
 
     /** Action name registered with the transport layer. */
-    public static final String NAME = "indices:data/read/analytics/scan";
+    public static final String NAME = "indices:data/read/analytics/fragment";
 
     /** Singleton instance. */
     public static final FragmentExecutionAction INSTANCE = new FragmentExecutionAction();

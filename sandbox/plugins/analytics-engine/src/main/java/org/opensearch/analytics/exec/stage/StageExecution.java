@@ -15,7 +15,7 @@ import org.opensearch.common.Nullable;
  * lifecycle control, state-change observation, and a
  * cancellation hook. Implementations:
  * <ul>
- *   <li>{@link ShardScanStageExecution} — fan-out scan dispatch to data nodes</li>
+ *   <li>{@link ShardFragmentStageExecution} — fan-out scan dispatch to data nodes</li>
  *   <li>{@link LocalStageExecution} — coordinator-local execution, backend-provided stage</li>
  * </ul>
  *

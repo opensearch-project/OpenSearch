@@ -100,7 +100,7 @@ public class AnalyticsSearchService {
             AnalyticsSearchBackendPlugin backend = backends.get(selectedPlan.getBackendId());
 
             // createSearchExecEngine calls prepare() internally — do NOT call prepare() again
-            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = backend.createSearchExecEngine(ctx)) {
+            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx)) {
                 try (EngineResultStream stream = engine.execute(ctx)) {
                     return collectResponse(stream, task);
                 }

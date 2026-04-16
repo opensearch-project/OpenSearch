@@ -47,7 +47,7 @@ import java.util.function.Function;
 /**
  * Per-stage execution for row-producing DATA_NODE stages (scans, filters,
  * partial aggregates). Dispatches shard requests via
- * {@link AnalyticsSearchTransportService#dispatchScan}, collects streaming
+ * {@link AnalyticsSearchTransportService#dispatchFragment}, collects streaming
  * {@link FragmentExecutionResponse} batches, and feeds them into the stage's
  * {@link org.opensearch.analytics.backend.ExchangeSink}.
  *
@@ -63,7 +63,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-final class ShardScanStageExecution extends AbstractStageExecution implements SinkProvidingStageExecution {
+final class ShardFragmentStageExecution extends AbstractStageExecution implements SinkProvidingStageExecution {
 
     private final AtomicInteger inFlight = new AtomicInteger(0);
     private final AtomicInteger completedTasks = new AtomicInteger(0);
@@ -76,7 +76,7 @@ final class ShardScanStageExecution extends AbstractStageExecution implements Si
     private final AnalyticsSearchTransportService dispatcher;
     private final Map<String, PendingExecutions> pendingPerNode = new ConcurrentHashMap<>();
 
-    ShardScanStageExecution(
+    ShardFragmentStageExecution(
         Stage stage,
         QueryContext config,
         ExchangeSink sink,
@@ -110,7 +110,7 @@ final class ShardScanStageExecution extends AbstractStageExecution implements Si
     private void dispatchShardTask(ShardTarget target) {
         FragmentExecutionRequest request = requestBuilder.apply(target);
         PendingExecutions pending = pendingFor(target);
-        dispatcher.dispatchScan(request, target.node(), new StreamingResponseListener<>() {
+        dispatcher.dispatchFragment(request, target.node(), new StreamingResponseListener<>() {
             @Override
             public void onStreamResponse(FragmentExecutionResponse response, boolean isLast) {
                 config.searchExecutor().execute(() -> {

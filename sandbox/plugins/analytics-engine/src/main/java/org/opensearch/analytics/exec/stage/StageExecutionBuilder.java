@@ -53,7 +53,7 @@ import java.util.Map;
  *   <li>Broadcast-write: {@code exchange.distributionType() == BROADCAST_DISTRIBUTED}
  *       → manifest output → broadcast-write scheduler <i>(TODO)</i></li>
  *   <li>LOCAL: row output → {@link LocalStageScheduler}</li>
- *   <li>DATA_NODE (fallback): row output → {@link ShardScanStageScheduler}</li>
+ *   <li>DATA_NODE (fallback): row output → {@link ShardFragmentStageScheduler}</li>
  * </ol>
  *
  * <p>When shuffle/broadcast schedulers are reintroduced, each arm becomes a
@@ -67,7 +67,7 @@ public class StageExecutionBuilder {
     private static final Logger logger = LogManager.getLogger(StageExecutionBuilder.class);
 
     private final LocalStageScheduler localScheduler;
-    private final ShardScanStageScheduler shardFanOutScheduler;
+    private final ShardFragmentStageScheduler shardFanOutScheduler;
 
     /**
      * Guice-injected constructor. {@code backends} maps backend name →
@@ -86,7 +86,7 @@ public class StageExecutionBuilder {
         Map<String, AnalyticsSearchBackendPlugin> backends
     ) {
         this.localScheduler = new LocalStageScheduler(backends);
-        this.shardFanOutScheduler = new ShardScanStageScheduler(clusterService, dispatcher);
+        this.shardFanOutScheduler = new ShardFragmentStageScheduler(clusterService, dispatcher);
     }
 
     /**

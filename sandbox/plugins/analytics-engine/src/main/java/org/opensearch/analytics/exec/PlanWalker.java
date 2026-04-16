@@ -81,7 +81,6 @@ public class PlanWalker {
 
         buildChildrenRecursively(rootExec, rootStage);
 
-
         for (StageExecution leaf : findLeaves()) {
             leaf.start();
         }
@@ -177,7 +176,7 @@ public class PlanWalker {
                         fireTerminal(() -> completionListener.onFailure(new TaskCancelledException("query cancelled")));
                     } else if (failure != null) {
                         // The failure is already wrapped as "Stage N failed" at the point of origin
-                        // (see ShardScanStageExecution.dispatchShardTask.onFailure). Forward as-is
+                        // (see ShardFragmentStageExecution.dispatchShardTask.onFailure). Forward as-is
                         // so the originating stage id is preserved through propagation.
                         fireTerminal(() -> completionListener.onFailure(failure));
                     } else {
