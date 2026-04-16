@@ -62,7 +62,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterService clusterService;
-    private final TransportService transportService;
     private final Scheduler scheduler;
     private final Executor searchExecutor;
     private final TaskManager taskManager;
@@ -84,7 +83,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         });
         this.capabilityRegistry = capabilityRegistry;
         this.clusterService = clusterService;
-        this.transportService = transportService;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.taskManager = transportService.getTaskManager();
         this.client = client;

@@ -9,24 +9,24 @@
 package org.opensearch.analytics.exec.action;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.analytics.backend.ScanResponse;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 
 /**
  * {@link ActionType} singleton for the analytics scan transport action.
- * Pairs the action name with the {@link ScanResponse} deserializer.
+ * Pairs the action name with the {@link FragmentExecutionResponse} deserializer.
  * <p>
  * This is the typed replacement for the scan path previously handled by
  * {@link AnalyticsShardAction} with a generic {@code FragmentExecutionResponse}.
  */
-public class FragmentExecutionAction extends ActionType<ScanResponse> {
+public class FragmentExecutionAction extends ActionType<FragmentExecutionResponse> {
 
     /** Action name registered with the transport layer. */
     public static final String NAME = "indices:data/read/analytics/scan";
 
     /** Singleton instance. */
-    public static final AnalyticsScanAction INSTANCE = new FragmentExecutionAction();
+    public static final FragmentExecutionAction INSTANCE = new FragmentExecutionAction();
 
     private FragmentExecutionAction() {
-        super(NAME, ScanResponse::new);
+        super(NAME, FragmentExecutionResponse::new);
     }
 }

@@ -8,8 +8,8 @@
 
 package org.opensearch.analytics.exec;
 
-import org.opensearch.analytics.backend.ScanResponse;
-import org.opensearch.analytics.exec.action.AnalyticsScanAction;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
+import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -34,13 +34,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Stateless transport dispatch component for scan requests. Owns
+ * Stateless transport dispatch component for fragment requests. Owns
  * {@link TransportService} (or {@link StreamTransportService}) and
  * connection lookup. Does NOT track per-query or per-node concurrency
  * state — callers provide their own {@link PendingExecutions} instance
  * to gate dispatch concurrency.
  *
- * <p>Also registers the server-side scan request handler at construction
+ * <p>Also registers the server-side fragment request handler at construction
  * time (delegating fragment execution to {@link AnalyticsSearchService}).
  *
  * <p>Marked {@link Singleton} because the constructor has a side effect —
@@ -56,7 +56,7 @@ public class AnalyticsSearchTransportService {
     /**
      * Guice-injected constructor. Selects {@link StreamTransportService} when
      * available (Arrow Flight configured), otherwise falls back to regular
-     * {@link TransportService}. Registers the server-side scan request handler.
+     * {@link TransportService}. Registers the server-side fragment request handler.
      */
     @Inject
     public AnalyticsSearchTransportService(
@@ -68,7 +68,7 @@ public class AnalyticsSearchTransportService {
     ) {
         this.transportService = streamTransportService != null ? streamTransportService : transportService;
         this.clusterService = clusterService;
-        registerScanHandler(this.transportService, searchService, indicesService);
+        registerfragmentHandler(this.transportService, searchService, indicesService);
     }
 
     /**
@@ -81,17 +81,17 @@ public class AnalyticsSearchTransportService {
     }
 
     /**
-     * Registers the server-side handler for {@link AnalyticsScanAction#NAME}.
+     * Registers the server-side handler for {@link FragmentExecutionAction#NAME}.
      * Routes {@link FragmentExecutionRequest} to {@link AnalyticsSearchService}
-     * and responds with a {@link ScanResponse}.
+     * and responds with a {@link FragmentExecutionResponse}.
      */
-    private static void registerScanHandler(
+    private static void registerfragmentHandler(
         TransportService transportService,
         AnalyticsSearchService searchService,
         IndicesService indicesService
     ) {
         transportService.registerRequestHandler(
-            AnalyticsScanAction.NAME,
+            FragmentExecutionAction.NAME,
             ThreadPool.Names.SAME,
             false,
             true,
@@ -99,7 +99,7 @@ public class AnalyticsSearchTransportService {
             FragmentExecutionRequest::new,
             (request, channel, task) -> {
                 IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
-                ScanResponse response = searchService.executeFragment(request, shard);
+                FragmentExecutionResponse response = searchService.executeFragment(request, shard);
                 channel.sendResponse(response);
             }
         );
@@ -115,28 +115,28 @@ public class AnalyticsSearchTransportService {
     }
 
     /**
-     * Dispatches a scan request to the target data node, gated by the
+     * Dispatches a fragment request to the target data node, gated by the
      * caller-provided {@link PendingExecutions}. Uses the typed
-     * {@link AnalyticsScanAction} and delivers streaming {@link ScanResponse}
+     * {@link FragmentExecutionAction} and delivers streaming {@link FragmentExecutionResponse}
      * batches to the listener.
      *
      * @param request    the fragment execution request
      * @param targetNode the node hosting the target shard
-     * @param listener   the streaming response listener for scan batches
+     * @param listener   the streaming response listener for fragment batches
      * @param parentTask the parent task for child-request propagation
      * @param pending    the per-node concurrency gate owned by the caller
      */
-    public void dispatchScan(
+    public void dispatchfragment(
         FragmentExecutionRequest request,
         DiscoveryNode targetNode,
-        StreamingResponseListener<ScanResponse> listener,
+        StreamingResponseListener<FragmentExecutionResponse> listener,
         Task parentTask,
         PendingExecutions pending
     ) {
-        TransportResponseHandler<ScanResponse> handler = new TransportResponseHandler<>() {
+        TransportResponseHandler<FragmentExecutionResponse> handler = new TransportResponseHandler<>() {
             @Override
-            public ScanResponse read(StreamInput in) throws IOException {
-                return new ScanResponse(in);
+            public FragmentExecutionResponse read(StreamInput in) throws IOException {
+                return new FragmentExecutionResponse(in);
             }
 
             @Override
@@ -145,10 +145,10 @@ public class AnalyticsSearchTransportService {
             }
 
             @Override
-            public void handleStreamResponse(StreamTransportResponse<ScanResponse> stream) {
+            public void handleStreamResponse(StreamTransportResponse<FragmentExecutionResponse> stream) {
                 try {
-                    ScanResponse current;
-                    ScanResponse last = null;
+                    FragmentExecutionResponse current;
+                    FragmentExecutionResponse last = null;
                     while ((current = stream.nextResponse()) != null) {
                         if (last != null) {
                             listener.onStreamResponse(last, false);
@@ -169,7 +169,7 @@ public class AnalyticsSearchTransportService {
             }
 
             @Override
-            public void handleResponse(ScanResponse response) {
+            public void handleResponse(FragmentExecutionResponse response) {
                 try {
                     listener.onStreamResponse(response, true);
                 } finally {
@@ -192,7 +192,7 @@ public class AnalyticsSearchTransportService {
                 Transport.Connection connection = getConnection(null, targetNode.getId());
                 transportService.sendChildRequest(
                     connection,
-                    AnalyticsScanAction.NAME,
+                    FragmentExecutionAction.NAME,
                     request,
                     parentTask,
                     TransportRequestOptions.EMPTY,

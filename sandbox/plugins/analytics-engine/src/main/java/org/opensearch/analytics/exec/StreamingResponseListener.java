@@ -15,8 +15,8 @@ import org.opensearch.core.action.ActionResponse;
  * Follows {@code StreamSearchActionListener.onStreamResponse(result, isLast)} pattern.
  *
  * <p>The type parameter {@code <Resp>} is the response type for the transport action.
- * For scan stages this is {@code ScanResponse}; the legacy untyped path uses the
- * raw type with {@code ScanResponse}.
+ * For scan stages this is {@code FragmentExecutionResponse}; the legacy untyped path uses the
+ * raw type with {@code FragmentExecutionResponse}.
  *
  * <p>Contract:
  * <ul>

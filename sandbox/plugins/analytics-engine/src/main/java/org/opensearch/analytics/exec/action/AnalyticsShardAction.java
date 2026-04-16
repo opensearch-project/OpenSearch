@@ -9,14 +9,14 @@
 package org.opensearch.analytics.exec.action;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.analytics.backend.ScanResponse;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 
 /**
  * {@link ActionType} singleton for the analytics shard-level execution action.
- * Pairs the action name with the {@link ScanResponse} deserializer
+ * Pairs the action name with the {@link FragmentExecutionResponse} deserializer
  * for registration in {@code getActions()}.
  */
-public class AnalyticsShardAction extends ActionType<ScanResponse> {
+public class AnalyticsShardAction extends ActionType<FragmentExecutionResponse> {
 
     /** Action name registered with the transport layer. */
     public static final String NAME = "indices:data/read/analytics/shard";
@@ -25,6 +25,6 @@ public class AnalyticsShardAction extends ActionType<ScanResponse> {
     public static final AnalyticsShardAction INSTANCE = new AnalyticsShardAction();
 
     private AnalyticsShardAction() {
-        super(NAME, ScanResponse::new);
+        super(NAME, FragmentExecutionResponse::new);
     }
 }

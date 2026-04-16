@@ -20,13 +20,13 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.analytics.backend.ScanResponse;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * Converts row-oriented {@link ScanResponse} data to an Arrow
+ * Converts row-oriented {@link FragmentExecutionResponse} data to an Arrow
  * {@link VectorSchemaRoot}. This is MVP scaffolding — it will be deleted when
  * the wire format carries Arrow batches directly.
  *
@@ -45,7 +45,7 @@ final class RowBatchToArrowConverter {
      * @param allocator   the buffer allocator for Arrow vectors
      * @return a new VectorSchemaRoot; caller owns and must close it
      */
-    public static VectorSchemaRoot convert(ScanResponse response, Schema targetSchema, BufferAllocator allocator) {
+    public static VectorSchemaRoot convert(FragmentExecutionResponse response, Schema targetSchema, BufferAllocator allocator) {
         VectorSchemaRoot vsr = VectorSchemaRoot.create(targetSchema, allocator);
         try {
             vsr.allocateNew();

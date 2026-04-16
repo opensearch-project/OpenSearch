@@ -26,7 +26,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.ExchangeSink;
-import org.opensearch.analytics.backend.ScanResponse;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.PendingExecutions;
 import org.opensearch.analytics.exec.QueryContext;
@@ -48,7 +48,7 @@ import java.util.function.Function;
  * Per-stage execution for row-producing DATA_NODE stages (scans, filters,
  * partial aggregates). Dispatches shard requests via
  * {@link AnalyticsSearchTransportService#dispatchScan}, collects streaming
- * {@link ScanResponse} batches, and feeds them into the stage's
+ * {@link FragmentExecutionResponse} batches, and feeds them into the stage's
  * {@link org.opensearch.analytics.backend.ExchangeSink}.
  *
  * <p>Replaces the scan path that previously lived in the generic
@@ -112,7 +112,7 @@ final class ShardScanStageExecution extends AbstractStageExecution implements Si
         PendingExecutions pending = pendingFor(target);
         dispatcher.dispatchScan(request, target.node(), new StreamingResponseListener<>() {
             @Override
-            public void onStreamResponse(ScanResponse response, boolean isLast) {
+            public void onStreamResponse(FragmentExecutionResponse response, boolean isLast) {
                 config.searchExecutor().execute(() -> {
                     if (isDone()) return;
 
@@ -180,7 +180,7 @@ final class ShardScanStageExecution extends AbstractStageExecution implements Si
     // TODO: EVERYTHING BELOW THIS LINE SHOULD BE REMOVED WHEN WE HAVE VSR STREAMING
 
     /**
-     * Converts a {@link ScanResponse} (Java-native rows) to an Arrow
+     * Converts a {@link FragmentExecutionResponse} (Java-native rows) to an Arrow
      * {@link VectorSchemaRoot}. Infers the Arrow type for each column from
      * the first non-null Java value in that column:
      * <ul>
@@ -201,7 +201,7 @@ final class ShardScanStageExecution extends AbstractStageExecution implements Si
      * @param allocator the buffer allocator for Arrow vectors
      * @return a new VectorSchemaRoot; caller owns and must close it
      */
-    static VectorSchemaRoot scanResponseToArrow(ScanResponse response, BufferAllocator allocator) {
+    static VectorSchemaRoot scanResponseToArrow(FragmentExecutionResponse response, BufferAllocator allocator) {
         List<String> fieldNames = response.getFieldNames();
         List<Object[]> rows = response.getRows();
 

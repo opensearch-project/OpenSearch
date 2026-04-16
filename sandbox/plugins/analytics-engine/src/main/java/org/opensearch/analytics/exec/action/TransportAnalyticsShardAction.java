@@ -10,7 +10,7 @@ package org.opensearch.analytics.exec.action;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.analytics.backend.ScanResponse;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.AnalyticsSearchService;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.common.inject.Inject;
@@ -28,7 +28,7 @@ import org.opensearch.transport.TransportService;
  * <p>This is the only component that holds {@code IndicesService} —
  * {@code AnalyticsSearchService} receives an already-resolved shard.
  */
-public class TransportAnalyticsShardAction extends HandledTransportAction<FragmentExecutionRequest, ScanResponse> {
+public class TransportAnalyticsShardAction extends HandledTransportAction<FragmentExecutionRequest, FragmentExecutionResponse> {
 
     public static final String ACTION_NAME = "indices:data/read/analytics/shard";
 
@@ -48,7 +48,7 @@ public class TransportAnalyticsShardAction extends HandledTransportAction<Fragme
     }
 
     @Override
-    protected void doExecute(Task task, FragmentExecutionRequest request, ActionListener<ScanResponse> listener) {
+    protected void doExecute(Task task, FragmentExecutionRequest request, ActionListener<FragmentExecutionResponse> listener) {
         try {
             AnalyticsShardTask shardTask = task instanceof AnalyticsShardTask ? (AnalyticsShardTask) task : null;
             IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());

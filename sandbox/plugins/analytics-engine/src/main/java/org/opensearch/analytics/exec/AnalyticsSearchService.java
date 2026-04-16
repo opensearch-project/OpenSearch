@@ -12,7 +12,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
-import org.opensearch.analytics.backend.ScanResponse;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
@@ -55,7 +55,7 @@ public class AnalyticsSearchService {
      * @param shard   the already-resolved index shard
      * @return a response containing field names and result rows
      */
-    public ScanResponse executeFragment(FragmentExecutionRequest request, IndexShard shard) {
+    public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard) {
         return executeFragment(request, shard, null);
     }
 
@@ -68,7 +68,7 @@ public class AnalyticsSearchService {
      * @param task    the shard task to poll for cancellation (nullable)
      * @return a response containing field names and result rows
      */
-    public ScanResponse executeFragment(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
+    public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
         DataFormatAwareEngine compositeEngine = shard.getCompositeEngine();
         if (compositeEngine == null) {
             throw new IllegalStateException("No CompositeEngine on " + shard.shardId());
@@ -115,22 +115,22 @@ public class AnalyticsSearchService {
     }
 
     /**
-     * Collects all batches from the result stream into a single {@link ScanResponse}.
+     * Collects all batches from the result stream into a single {@link FragmentExecutionResponse}.
      * Field names are captured from the first batch.
      */
-    ScanResponse collectResponse(EngineResultStream stream) {
+    FragmentExecutionResponse collectResponse(EngineResultStream stream) {
         return collectResponse(stream, null);
     }
 
     /**
-     * Collects all batches from the result stream into a single {@link ScanResponse}.
+     * Collects all batches from the result stream into a single {@link FragmentExecutionResponse}.
      * Field names are captured from the first batch. Polls the shard task for cancellation
      * at each batch boundary.
      *
      * @param stream the result stream to drain
      * @param task   the shard task to poll for cancellation (nullable)
      */
-    ScanResponse collectResponse(EngineResultStream stream, @Nullable AnalyticsShardTask task) {
+    FragmentExecutionResponse collectResponse(EngineResultStream stream, @Nullable AnalyticsShardTask task) {
         List<Object[]> rows = new ArrayList<>();
         List<String> fieldNames = null;
         Iterator<EngineResultBatch> it = stream.iterator();
@@ -150,6 +150,6 @@ public class AnalyticsSearchService {
                 rows.add(vals);
             }
         }
-        return new ScanResponse(fieldNames != null ? fieldNames : List.of(), rows);
+        return new FragmentExecutionResponse(fieldNames != null ? fieldNames : List.of(), rows);
     }
 }
