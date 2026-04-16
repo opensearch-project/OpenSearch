@@ -595,107 +595,6 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         );
     }
 
-    public void testBatchedUpdateTaskState() {
-        ClusterState clusterState = initialState();
-        ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
-            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
-        );
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
-            .localNodeId("_node_1")
-            .clusterManagerNodeId("_node_1");
-
-        String taskId1 = addTask(tasks, "assign_me", "_node_1");
-        String taskId2 = addTask(tasks, "assign_me", "_node_1");
-
-        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
-        clusterState = csBuilder.metadata(metadata).nodes(nodes).build();
-        setState(clusterService, clusterState);
-
-        PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
-
-        // Verify the executor can process multiple update-state entries in a single batch
-        PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
-        PersistentTaskState newState = new TestPersistentTasksPlugin.State("test_phase");
-
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry1 = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.UPDATE_STATE,
-            taskId1,
-            tasks.getLastAllocationId() - 1,
-            newState,
-            ActionListener.wrap(r -> {}, e -> fail())
-        );
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry2 = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.UPDATE_STATE,
-            taskId2,
-            tasks.getLastAllocationId(),
-            newState,
-            ActionListener.wrap(r -> {}, e -> fail())
-        );
-
-        ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
-            clusterState,
-            Arrays.asList(entry1, entry2)
-        );
-
-        // Both tasks should succeed
-        assertThat(result.executionResults.get(entry1).isSuccess(), is(true));
-        assertThat(result.executionResults.get(entry2).isSuccess(), is(true));
-        // Resulting state should have both tasks updated
-        PersistentTasksCustomMetadata updatedTasks = result.resultingState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-        assertThat(updatedTasks.getTask(taskId1).getState(), equalTo(newState));
-        assertThat(updatedTasks.getTask(taskId2).getState(), equalTo(newState));
-    }
-
-    public void testBatchedRemoveTask() {
-        ClusterState clusterState = initialState();
-        ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
-            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
-        );
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
-            .localNodeId("_node_1")
-            .clusterManagerNodeId("_node_1");
-
-        String taskId1 = addTask(tasks, "assign_me", "_node_1");
-        String taskId2 = addTask(tasks, "assign_me", "_node_1");
-
-        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
-        clusterState = csBuilder.metadata(metadata).nodes(nodes).build();
-        setState(clusterService, clusterState);
-
-        PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
-        PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
-
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry1 = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.REMOVE,
-            taskId1,
-            0,
-            null,
-            ActionListener.wrap(r -> {}, e -> fail())
-        );
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry2 = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.REMOVE,
-            taskId2,
-            0,
-            null,
-            ActionListener.wrap(r -> {}, e -> fail())
-        );
-
-        ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
-            clusterState,
-            Arrays.asList(entry1, entry2)
-        );
-
-        assertThat(result.executionResults.get(entry1).isSuccess(), is(true));
-        assertThat(result.executionResults.get(entry2).isSuccess(), is(true));
-        PersistentTasksCustomMetadata updatedTasks = result.resultingState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-        assertThat(updatedTasks.getTask(taskId1), is(nullValue()));
-        assertThat(updatedTasks.getTask(taskId2), is(nullValue()));
-    }
-
     public void testBatchedMixedOperations() {
         ClusterState clusterState = initialState();
         ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
@@ -716,6 +615,9 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
 
         PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
+
+        // Verify throttling key is available
+        assertThat(executor.getClusterManagerThrottlingKey(), is(notNullValue()));
 
         PersistentTasksCustomMetadata builtTasks = tasks.build();
         PersistentTaskState newState = new TestPersistentTasksPlugin.State("updated");
@@ -746,6 +648,9 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
             clusterState,
             Arrays.asList(updateEntry, removeEntry, completeEntry)
         );
+
+        // Verify toString
+        assertThat(updateEntry.toString(), equalTo("UPDATE_STATE[" + taskToUpdate + "]"));
 
         assertThat(result.executionResults.get(updateEntry).isSuccess(), is(true));
         assertThat(result.executionResults.get(removeEntry).isSuccess(), is(true));
@@ -805,6 +710,248 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
 
         PersistentTasksCustomMetadata updatedTasks = result.resultingState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(updatedTasks.getTask(existingTask), is(nullValue()));
+    }
+
+    public void testUpdateStateWithWrongAllocationId() {
+        ClusterState clusterState = initialState();
+        ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+        );
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("_node_1")
+            .clusterManagerNodeId("_node_1");
+
+        String taskId = addTask(tasks, "assign_me", "_node_1");
+
+        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        clusterState = csBuilder.metadata(metadata).nodes(nodes).build();
+
+        PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
+        PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
+
+        // Use a wrong allocation id - task exists but allocation id doesn't match
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
+            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.UPDATE_STATE,
+            taskId,
+            999999L,
+            new TestPersistentTasksPlugin.State("test"),
+            ActionListener.wrap(r -> fail(), e -> {})
+        );
+
+        ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
+            clusterState,
+            Collections.singletonList(entry)
+        );
+
+        assertThat(result.executionResults.get(entry).isSuccess(), is(false));
+        assertThat(result.executionResults.get(entry).getFailure(), instanceOf(ResourceNotFoundException.class));
+    }
+
+    public void testUpdateStateWithNonExistingTask() {
+        ClusterState clusterState = initialState();
+        ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+        );
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("_node_1")
+            .clusterManagerNodeId("_node_1");
+
+        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        clusterState = csBuilder.metadata(metadata).nodes(nodes).build();
+
+        PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
+        PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
+
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
+            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.UPDATE_STATE,
+            "non-existing-task",
+            1L,
+            new TestPersistentTasksPlugin.State("test"),
+            ActionListener.wrap(r -> fail(), e -> {})
+        );
+
+        ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
+            clusterState,
+            Collections.singletonList(entry)
+        );
+
+        assertThat(result.executionResults.get(entry).isSuccess(), is(false));
+        assertThat(result.executionResults.get(entry).getFailure(), instanceOf(ResourceNotFoundException.class));
+    }
+
+    public void testCompleteWithWrongAllocationId() {
+        ClusterState clusterState = initialState();
+        ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+        );
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("_node_1")
+            .clusterManagerNodeId("_node_1");
+
+        String taskId = addTask(tasks, "assign_me", "_node_1");
+
+        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        clusterState = csBuilder.metadata(metadata).nodes(nodes).build();
+
+        PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
+        PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
+
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
+            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.COMPLETE,
+            taskId,
+            999999L,
+            null,
+            ActionListener.wrap(r -> fail(), e -> {})
+        );
+
+        ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
+            clusterState,
+            Collections.singletonList(entry)
+        );
+
+        assertThat(result.executionResults.get(entry).isSuccess(), is(false));
+        assertThat(result.executionResults.get(entry).getFailure(), instanceOf(ResourceNotFoundException.class));
+    }
+
+    public void testCompleteWithNonExistingTask() {
+        ClusterState clusterState = initialState();
+        ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+        );
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("_node_1")
+            .clusterManagerNodeId("_node_1");
+
+        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        clusterState = csBuilder.metadata(metadata).nodes(nodes).build();
+
+        PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
+        PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
+
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
+            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.COMPLETE,
+            "non-existing-task",
+            1L,
+            null,
+            ActionListener.wrap(r -> fail(), e -> {})
+        );
+
+        ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
+            clusterState,
+            Collections.singletonList(entry)
+        );
+
+        assertThat(result.executionResults.get(entry).isSuccess(), is(false));
+        assertThat(result.executionResults.get(entry).getFailure(), instanceOf(ResourceNotFoundException.class));
+    }
+
+    public void testCompletePersistentTaskDelegation() throws Exception {
+        ClusterState clusterState = initialState();
+        ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+        );
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("_node_1")
+            .clusterManagerNodeId("_node_1");
+
+        String taskId1 = addTask(tasks, "assign_me", "_node_1");
+        String taskId2 = addTask(tasks, "assign_me", "_node_1");
+
+        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        clusterState = csBuilder.metadata(metadata).nodes(nodes).build();
+        setState(clusterService, clusterState);
+
+        PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
+
+        // Test completion without failure
+        AtomicBoolean completed1 = new AtomicBoolean(false);
+        service.completePersistentTask(taskId1, tasks.getLastAllocationId() - 1, null, ActionListener.wrap(task -> {
+            assertThat(task, is(notNullValue()));
+            assertThat(task.getId(), equalTo(taskId1));
+            completed1.set(true);
+        }, e -> fail()));
+        assertBusy(() -> assertThat(completed1.get(), is(true)));
+
+        // Test completion with failure (covers the failure logging branch)
+        AtomicBoolean completed2 = new AtomicBoolean(false);
+        service.completePersistentTask(
+            taskId2,
+            tasks.getLastAllocationId(),
+            new RuntimeException("test failure"),
+            ActionListener.wrap(task -> {
+                assertThat(task, is(notNullValue()));
+                completed2.set(true);
+            }, e -> fail())
+        );
+        assertBusy(() -> assertThat(completed2.get(), is(true)));
+    }
+
+    public void testRemovePersistentTaskDelegation() throws Exception {
+        ClusterState clusterState = initialState();
+        ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+        );
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("_node_1")
+            .clusterManagerNodeId("_node_1");
+
+        String taskId = addTask(tasks, "assign_me", "_node_1");
+
+        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        clusterState = csBuilder.metadata(metadata).nodes(nodes).build();
+        setState(clusterService, clusterState);
+
+        PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
+
+        AtomicBoolean completed = new AtomicBoolean(false);
+        service.removePersistentTask(taskId, ActionListener.wrap(task -> {
+            assertThat(task, is(notNullValue()));
+            assertThat(task.getId(), equalTo(taskId));
+            completed.set(true);
+        }, e -> fail()));
+        assertBusy(() -> assertThat(completed.get(), is(true)));
+    }
+
+    public void testUpdatePersistentTaskStateDelegation() throws Exception {
+        ClusterState clusterState = initialState();
+        ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+        );
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("_node_1")
+            .clusterManagerNodeId("_node_1");
+
+        String taskId = addTask(tasks, "assign_me", "_node_1");
+
+        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        clusterState = csBuilder.metadata(metadata).nodes(nodes).build();
+        setState(clusterService, clusterState);
+
+        PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
+
+        AtomicBoolean completed = new AtomicBoolean(false);
+        PersistentTaskState newState = new TestPersistentTasksPlugin.State("updated_phase");
+        service.updatePersistentTaskState(taskId, tasks.getLastAllocationId(), newState, ActionListener.wrap(task -> {
+            assertThat(task, is(notNullValue()));
+            assertThat(task.getId(), equalTo(taskId));
+            assertThat(task.getState(), equalTo(newState));
+            completed.set(true);
+        }, e -> fail()));
+        assertBusy(() -> assertThat(completed.get(), is(true)));
     }
 
     private ClusterService createRecheckTestClusterService(ClusterState initialState, boolean shouldSimulateFailure) {
