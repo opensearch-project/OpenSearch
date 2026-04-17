@@ -94,7 +94,9 @@ public class UnsignedLongTermsAggregateConverterTests extends OpenSearchTestCase
 
         UnsignedLongTermsBucket protoBucket = converter.toProto(terms).build().getUlterms().getBuckets(0);
 
-        assertEquals(largeValue.longValue(), protoBucket.getKey());
+        // Long.MAX_VALUE + 1 overflows to Long.MIN_VALUE in two's complement,
+        // which is the correct uint64 bit pattern for proto's uint64 field.
+        assertEquals(Long.MIN_VALUE, protoBucket.getKey());
     }
 
     public void testMultipleBuckets() throws IOException {
