@@ -22,11 +22,12 @@ public class GoldenTestCase {
 
     private String testName;
     private String indexName;
+    // TODO: Consider centralizing indexMapping as a shared template to avoid duplication across golden files
     private Map<String, String> indexMapping;
     private Map<String, Object> inputDsl;
-    private String expectedRelNodePlan;
-    private List<String> executionFieldNames;
-    private List<List<Object>> executionRows;
+    private List<String> expectedRelNodePlan;
+    private List<String> mockResultFieldNames;
+    private List<List<Object>> mockResultRows;
     private Map<String, Object> expectedOutputDsl;
     private String planType;
 
@@ -62,28 +63,28 @@ public class GoldenTestCase {
         this.inputDsl = inputDsl;
     }
 
-    public String getExpectedRelNodePlan() {
+    public List<String> getExpectedRelNodePlan() {
         return expectedRelNodePlan;
     }
 
-    public void setExpectedRelNodePlan(String expectedRelNodePlan) {
+    public void setExpectedRelNodePlan(List<String> expectedRelNodePlan) {
         this.expectedRelNodePlan = expectedRelNodePlan;
     }
 
-    public List<String> getExecutionFieldNames() {
-        return executionFieldNames;
+    public List<String> getMockResultFieldNames() {
+        return mockResultFieldNames;
     }
 
-    public void setExecutionFieldNames(List<String> executionFieldNames) {
-        this.executionFieldNames = executionFieldNames;
+    public void setMockResultFieldNames(List<String> mockResultFieldNames) {
+        this.mockResultFieldNames = mockResultFieldNames;
     }
 
-    public List<List<Object>> getExecutionRows() {
-        return executionRows;
+    public List<List<Object>> getMockResultRows() {
+        return mockResultRows;
     }
 
-    public void setExecutionRows(List<List<Object>> executionRows) {
-        this.executionRows = executionRows;
+    public void setMockResultRows(List<List<Object>> mockResultRows) {
+        this.mockResultRows = mockResultRows;
     }
 
     public Map<String, Object> getExpectedOutputDsl() {
@@ -101,8 +102,6 @@ public class GoldenTestCase {
     public void setPlanType(String planType) {
         this.planType = planType;
     }
-
-
 
     @Override
     public String toString() {
