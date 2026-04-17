@@ -20,22 +20,17 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Default {@link Scheduler} implementation. Pool manager for per-query
- * {@link PlanWalker} instances. Constructs a walker on each
- * {@link #execute} call, tracks it by query id, and removes it on
- * terminal (success or failure).
+ * Default {@link Scheduler} implementation. Two-phase execution:
+ * <ol>
+ *   <li>{@link #plan(QueryContext)} — builds the execution graph without
+ *       starting any stages. Returns an {@link ExecutionGraph} that can
+ *       be inspected for EXPLAIN.</li>
+ *   <li>{@link #execute(QueryContext, ActionListener)} — builds and starts
+ *       execution in one call (the normal query path).</li>
+ * </ol>
  *
- * <p>Responsibilities:
- * <ul>
- *   <li><b>Walker construction</b>: creates a {@link PlanWalker} with the
- *       per-query {@link QueryContext} and the shared {@link StageExecutionBuilder}.</li>
- *   <li><b>Pool tracking</b>: maintains {@link #walkerPool} for
- *       future observability and concurrency limiting.</li>
- *   <li><b>Cancellation wiring</b>: installs a cancel callback on the query
- *       task that calls {@link PlanWalker#cancelAll(String)}.</li>
- *   <li><b>Per-query cleanup</b>: removes the walker from the pool on the
- *       terminal path before firing the caller's listener.</li>
- * </ul>
+ * <p>Also manages a pool of active {@link PlanWalker} instances for
+ * observability and cancellation.
  *
  * @opensearch.internal
  */
@@ -51,23 +46,39 @@ public class QueryScheduler implements Scheduler {
         this.stageExecutionBuilder = stageExecutionBuilder;
     }
 
+    /**
+     * Builds the execution graph without starting any stages.
+     * Use for EXPLAIN — inspect the returned graph, then discard.
+     *
+     * @param config the per-query context
+     * @return the fully-wired but unstarted execution graph
+     */
+    public ExecutionGraph plan(QueryContext config) {
+        PlanWalker walker = new PlanWalker(config, stageExecutionBuilder, ActionListener.wrap(r -> {}, e -> {}));
+        return walker.build();
+    }
+
     @Override
     public void execute(QueryContext config, ActionListener<Iterable<Object[]>> listener) {
         final String queryId = config.queryId();
-        PlanWalker walker = getPlanWalker(config, listener, queryId);
+        PlanWalker walker = createWalker(config, listener, queryId);
         walkerPool.put(queryId, walker);
 
         final AnalyticsQueryTask queryTask = config.parentTask();
         queryTask.setOnCancelCallback(() -> {
-                String reason = "task cancelled: "
-                    + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
-                logger.info("[QueryScheduler] AnalyticsQueryTask.onCancelled fired, reason={}", reason);
-                walker.cancelAll(reason);
-            });
-        walker.walk();
+            String reason = "task cancelled: "
+                + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
+            logger.info("[QueryScheduler] AnalyticsQueryTask.onCancelled fired, reason={}", reason);
+            walker.cancelAll(reason);
+        });
+
+        // Two-phase: build graph, then start execution
+        ExecutionGraph graph = walker.build();
+        logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
+        walker.start(graph);
     }
 
-    private PlanWalker getPlanWalker(QueryContext config, ActionListener<Iterable<Object[]>> listener, String queryId) {
+    private PlanWalker createWalker(QueryContext config, ActionListener<Iterable<Object[]>> listener, String queryId) {
         ActionListener<Iterable<Object[]>> wrapped = ActionListener.wrap(
             result -> {
                 walkerPool.remove(queryId);
@@ -81,12 +92,12 @@ public class QueryScheduler implements Scheduler {
         return new PlanWalker(config, stageExecutionBuilder, wrapped);
     }
 
-    /** Pool-level lookup for future observability / metrics. */
+    /** Pool-level lookup for observability / metrics. */
     public PlanWalker walkerFor(String queryId) {
         return walkerPool.get(queryId);
     }
 
-    /** Pool-level iteration for future concurrency limiting. */
+    /** Pool-level iteration for concurrency limiting. */
     public Collection<PlanWalker> activeWalkers() {
         return walkerPool.values();
     }

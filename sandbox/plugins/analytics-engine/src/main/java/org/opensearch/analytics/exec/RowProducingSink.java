@@ -30,9 +30,15 @@ import java.util.List;
 public class RowProducingSink implements ExchangeSink, ExchangeSource {
 
     private final List<VectorSchemaRoot> batches = new ArrayList<>();
+    private final List<String> fieldNames = new ArrayList<>();
 
     @Override
     public void feed(VectorSchemaRoot batch) {
+        if (fieldNames.isEmpty() && batch.getSchema().getFields().isEmpty() == false) {
+            for (org.apache.arrow.vector.types.pojo.Field f : batch.getSchema().getFields()) {
+                fieldNames.add(f.getName());
+            }
+        }
         batches.add(batch);
     }
 
@@ -67,6 +73,28 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
             total += batch.getRowCount();
         }
         return total;
+    }
+
+    /**
+     * Look up a cell value by column name and row index.
+     *
+     * @param column   the column name
+     * @param rowIndex the zero-based row index
+     * @return the cell value, or {@code null} if the column is unknown or the row index is out of range
+     */
+    public Object getValueAt(String column, int rowIndex) {
+        int colIdx = fieldNames.indexOf(column);
+        if (colIdx < 0) return null;
+
+        int offset = 0;
+        for (VectorSchemaRoot batch : batches) {
+            int batchRows = batch.getRowCount();
+            if (rowIndex < offset + batchRows) {
+                return toJavaValue(batch.getVector(colIdx), rowIndex - offset);
+            }
+            offset += batchRows;
+        }
+        return null;
     }
 
     private static Object toJavaValue(FieldVector vector, int index) {
