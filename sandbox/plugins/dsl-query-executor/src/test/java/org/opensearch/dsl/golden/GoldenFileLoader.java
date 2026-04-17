@@ -83,8 +83,8 @@ public class GoldenFileLoader {
         requireNonNull(testCase.getIndexMapping(), "indexMapping", filePath);
         requireNonNull(testCase.getInputDsl(), "inputDsl", filePath);
         requireNonNull(testCase.getExpectedRelNodePlan(), "expectedRelNodePlan", filePath);
-        requireNonNull(testCase.getExecutionFieldNames(), "executionFieldNames", filePath);
-        requireNonNull(testCase.getExecutionRows(), "executionRows", filePath);
+        requireNonNull(testCase.getMockResultFieldNames(), "mockResultFieldNames", filePath);
+        requireNonNull(testCase.getMockResultRows(), "mockResultRows", filePath);
         requireNonNull(testCase.getExpectedOutputDsl(), "expectedOutputDsl", filePath);
         requireNonNull(testCase.getPlanType(), "planType", filePath);
         try {
