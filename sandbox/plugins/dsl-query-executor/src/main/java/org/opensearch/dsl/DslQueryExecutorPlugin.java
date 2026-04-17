@@ -59,7 +59,7 @@ public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        this.searchActionFilter = new SearchActionFilter((NodeClient) client);
+        this.searchActionFilter = new SearchActionFilter((NodeClient) client, clusterService, indexNameExpressionResolver);
         return Collections.emptyList();
     }
 
