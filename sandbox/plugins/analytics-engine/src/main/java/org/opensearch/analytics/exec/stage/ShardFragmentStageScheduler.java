@@ -13,6 +13,7 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.action.ShardTarget;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.cluster.service.ClusterService;
@@ -27,16 +28,31 @@ import java.util.function.Function;
  * and doesn't care whether it is a root sink or a parent-provided child sink
  * — {@link StageExecutionBuilder} resolves that distinction before calling.
  *
+ * <p>Injects a {@link ResponseCodec} into the execution to decouple the wire
+ * format from stage logic. The default codec ({@link RowResponseCodec}) handles
+ * the current {@code Object[]} row format; a future Arrow IPC codec would be
+ * swapped in here.
+ *
  * @opensearch.internal
  */
 final class ShardFragmentStageScheduler {
 
     private final ClusterService clusterService;
     private final AnalyticsSearchTransportService transport;
+    private final ResponseCodec<FragmentExecutionResponse> responseCodec;
 
     ShardFragmentStageScheduler(ClusterService clusterService, AnalyticsSearchTransportService transport) {
+        this(clusterService, transport, RowResponseCodec.INSTANCE);
+    }
+
+    ShardFragmentStageScheduler(
+        ClusterService clusterService,
+        AnalyticsSearchTransportService transport,
+        ResponseCodec<FragmentExecutionResponse> responseCodec
+    ) {
         this.clusterService = clusterService;
         this.transport = transport;
+        this.responseCodec = responseCodec;
     }
 
     StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
@@ -53,7 +69,7 @@ final class ShardFragmentStageScheduler {
             planAlternatives
         );
 
-        return new ShardFragmentStageExecution(stage, config, sink, targets, requestBuilder, transport);
+        return new ShardFragmentStageExecution(stage, config, sink, targets, requestBuilder, transport, responseCodec);
     }
 
     private static List<FragmentExecutionRequest.PlanAlternative> buildPlanAlternatives(Stage stage) {

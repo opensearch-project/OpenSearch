@@ -10,7 +10,7 @@ package org.opensearch.analytics.exec;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.analytics.exec.stage.SinkProvidingStageExecution;
+import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -36,8 +36,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * closures (no global dispatcher).
  *
  * <p>The walker is pure topology: it does not know about scheduler types,
- * {@link SinkProvidingStageExecution}, or how a child's sink is resolved
- * from its parent. That logic lives entirely in {@link StageExecutionBuilder}.
+ * {@link DataProducer}, {@link org.opensearch.analytics.exec.stage.DataConsumer},
+ * or how a child's sink is resolved from its parent. That logic lives
+ * entirely in {@link StageExecutionBuilder}.
  *
  * <p>Lifecycle: constructed by {@link QueryScheduler#execute},
  * tracked in the scheduler's pool by query id, removed on terminal.
@@ -76,7 +77,7 @@ public class PlanWalker {
         // Walk the DAG and build StageExecutions - this sets up stage control flow
         Stage rootStage = config.dag().rootStage();
         final StageExecution rootExec = stageExecutionBuilder.buildRootExecution(rootStage, config);
-        wireCompletionListener((SinkProvidingStageExecution) rootExec);
+        wireCompletionListener(rootExec);
         executions.put(rootStage.getStageId(), rootExec);
 
         buildChildrenRecursively(rootExec, rootStage);
@@ -166,10 +167,16 @@ public class PlanWalker {
         }
     }
 
-    private void wireCompletionListener(SinkProvidingStageExecution rootExec) {
+    private void wireCompletionListener(StageExecution rootExec) {
+        if ((rootExec instanceof DataProducer) == false) {
+            throw new IllegalStateException(
+                "Root execution " + rootExec.getClass().getSimpleName() + " does not implement DataProducer"
+            );
+        }
+        final DataProducer producer = (DataProducer) rootExec;
         rootExec.addStateListener((from, to) -> {
             switch (to) {
-                case SUCCEEDED -> fireTerminal(() -> completionListener.onResponse(rootExec.sink().readResult()));
+                case SUCCEEDED -> fireTerminal(() -> completionListener.onResponse(producer.outputSource().readResult()));
                 case FAILED, CANCELLED -> {
                     Exception failure = rootExec.getFailure();
                     if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {

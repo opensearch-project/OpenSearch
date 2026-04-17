@@ -35,7 +35,7 @@ import java.util.Map;
  *       different {@code createExecution} signature.</li>
  *   <li><b>Output resolution.</b> For row-producing stages, resolves the
  *       {@link ExchangeSink} from the parent's
- *       {@link SinkProvidingStageExecution} contract. For manifest-producing
+ *       {@link DataConsumer} contract. For manifest-producing
  *       stages (future), it will resolve a manifest receiver from the parent's
  *       corresponding contract.</li>
  * </ol>
@@ -93,11 +93,11 @@ public class StageExecutionBuilder {
      * Builds the root stage's execution. Creates a fresh {@link ExchangeSink}
      * internally — the walker doesn't see it. The walker reads the final
      * result by casting the returned execution to
-     * {@link SinkProvidingStageExecution} and calling
-     * {@code sink().readResult()}.
+     * {@link DataProducer} and calling
+     * {@code outputSink().readResult()}.
      */
     public StageExecution buildRootExecution(Stage rootStage, QueryContext config) {
-        ExchangeSink rootSink = new org.opensearch.analytics.exec.RowProducingSink();
+        org.opensearch.analytics.exec.RowProducingSink rootSink = new org.opensearch.analytics.exec.RowProducingSink();
         return dispatchRowStage(rootStage, rootSink, config);
     }
 
@@ -112,7 +112,7 @@ public class StageExecutionBuilder {
      *
      * @throws IllegalStateException if a row-producing stage's
      *     {@code parentExec} does not implement
-     *     {@link SinkProvidingStageExecution} — this is a planner bug.
+     *     {@link DataConsumer} — this is a planner bug.
      * @throws UnsupportedOperationException if {@code stage} produces a
      *     manifest (shuffle-write or broadcast-write) — not yet implemented.
      */
@@ -145,16 +145,22 @@ public class StageExecutionBuilder {
         return shardFanOutScheduler.createExecution(stage, sink, config);
     }
 
+    /**
+     * Resolves the output sink for a child stage from its parent. The parent
+     * must implement {@link DataConsumer} to accept child input. The returned
+     * sink is the same object the child will write into via
+     * {@link DataProducer#outputSink()}.
+     */
     private static ExchangeSink resolveRowSink(Stage stage, StageExecution parentExec) {
-        if (parentExec instanceof SinkProvidingStageExecution exec) {
-            return exec.sink(stage.getStageId());
+        if (parentExec instanceof DataConsumer consumer) {
+            return consumer.inputSink(stage.getStageId());
         }
         throw new IllegalStateException(
             "row-producing stage "
                 + stage.getStageId()
                 + " has parent "
                 + parentExec.getClass().getSimpleName()
-                + " which does not receive row input"
+                + " which does not accept child input (does not implement DataConsumer)"
         );
     }
 }
