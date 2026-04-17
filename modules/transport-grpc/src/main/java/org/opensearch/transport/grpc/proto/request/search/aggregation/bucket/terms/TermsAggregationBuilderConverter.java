@@ -23,6 +23,7 @@ import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.support.ValuesSourceAggregationProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.support.ValuesSourceProtoFields;
@@ -142,8 +143,10 @@ public class TermsAggregationBuilderConverter implements AggregationBuilderProto
         return aggBuilder;
     }
 
+    /**
+     * See {@link TermsAggregatorFactory.ExecutionMode#fromString(String)}
+     */
     private static String convertExecutionHint(TermsAggregationExecutionHint hint) {
-        // TODO: Seems the schema is a bit off sync'd between proto and java impl? Enum in proto but string in java
         return switch (hint) {
             case TERMS_AGGREGATION_EXECUTION_HINT_MAP -> "map";
             case TERMS_AGGREGATION_EXECUTION_HINT_GLOBAL_ORDINALS -> "global_ordinals";

@@ -74,6 +74,7 @@ public class AggregationBuilderProtoConverterRegistryImpl implements Aggregation
      */
     public void registerConverter(AggregationBuilderProtoConverter converter) {
         delegate.registerConverter(converter);
+        converter.setRegistry(this);
     }
 
     /**

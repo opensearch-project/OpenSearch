@@ -39,7 +39,7 @@ public class MaxAggregateProtoUtils {
         AggregateProtoUtils.addMetadata(builder::setMeta, internalMax);
 
         double max = internalMax.getValue();
-        boolean hasValue = !Double.isInfinite(max);
+        boolean hasValue = Double.isFinite(max);
 
         SingleMetricAggregateBaseAllOfValue.Builder valueBuilder = SingleMetricAggregateBaseAllOfValue.newBuilder();
         if (hasValue) {

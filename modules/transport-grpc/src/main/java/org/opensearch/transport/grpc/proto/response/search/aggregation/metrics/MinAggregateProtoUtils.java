@@ -39,7 +39,7 @@ public class MinAggregateProtoUtils {
         AggregateProtoUtils.addMetadata(builder::setMeta, internalMin);
 
         double min = internalMin.getValue();
-        boolean hasValue = !Double.isInfinite(min);
+        boolean hasValue = Double.isFinite(min);
 
         SingleMetricAggregateBaseAllOfValue.Builder valueBuilder = SingleMetricAggregateBaseAllOfValue.newBuilder();
         if (hasValue) {

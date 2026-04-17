@@ -11,8 +11,11 @@ import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.MaxAggregation;
 import org.opensearch.protobufs.MinAggregation;
 import org.opensearch.protobufs.ObjectMap;
+import org.opensearch.protobufs.TermsAggregation;
+import org.opensearch.protobufs.TermsAggregationFields;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -86,31 +89,22 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
 
     /**
      * Test that unsupported aggregation types throw appropriate exception.
-     *
-     * Note: Temporarily disabled as TermsAggregation is not yet implemented in the proto.
-     * TODO: Re-enable when TermsAggregation support is added.
      */
     public void testUnsupportedAggregationType() {
-        // Skip this test until TermsAggregation is added to the proto
-        // AggregationBuilderProtoConverterRegistryImpl registry = new AggregationBuilderProtoConverterRegistryImpl();
-        //
-        // // Create a container with Terms aggregation (not implemented yet)
-        // AggregationContainer termsContainer = AggregationContainer.newBuilder()
-        // .setTerms(
-        // org.opensearch.protobufs.TermsAggregationFields.newBuilder()
-        // .setField("category")
-        // .build()
-        // )
-        // .build();
-        //
-        // IllegalArgumentException exception = expectThrows(
-        // IllegalArgumentException.class,
-        // () -> registry.fromProto("category_terms", termsContainer)
-        // );
-        // assertTrue(
-        // "Exception should mention unsupported aggregation type",
-        // exception.getMessage().contains("Unsupported aggregation type")
-        // );
+        AggregationBuilderProtoConverterSpiRegistry emptyRegistry = new AggregationBuilderProtoConverterSpiRegistry();
+
+        AggregationContainer container = AggregationContainer.newBuilder()
+            .setMin(MinAggregation.newBuilder().setField("price").build())
+            .build();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> emptyRegistry.fromProto("min_price", container)
+        );
+        assertTrue(
+            "Exception should mention unsupported aggregation type",
+            exception.getMessage().contains("Unsupported aggregation type")
+        );
     }
 
     /**
@@ -234,42 +228,34 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
     }
 
     /**
-     * Test that nested aggregations infrastructure is in place.
-     * Note: Min/Max are metric aggregations and explicitly reject subaggregations.
-     * This test verifies that the registry TRIES to add them (proving the infrastructure works),
-     * even though Min will throw an exception rejecting them.
-     * Full nested aggregation support will be tested when bucket aggregations are implemented.
-     *
-     * Temporarily disabled as nested aggregations are not yet supported in the proto.
-     * TODO: Re-enable when nested aggregations support is added.
+     * Test nested aggregations via a terms aggregation with a max sub-aggregation.
      */
     public void testNestedAggregationsInfrastructure() {
-        // Skip this test until nested aggregations are added to the proto
-        // AggregationBuilderProtoConverterRegistryImpl registry = new AggregationBuilderProtoConverterRegistryImpl();
-        //
-        // // Create a nested aggregation structure
-        // AggregationContainer subAgg = AggregationContainer.newBuilder()
-        // .setMax(MaxAggregation.newBuilder().setField("price").build())
-        // .build();
-        //
-        // Map<String, AggregationContainer> subAggMap = new HashMap<>();
-        // subAggMap.put("max_price", subAgg);
-        //
-        // AggregationContainer container = AggregationContainer.newBuilder()
-        // .setMin(MinAggregation.newBuilder().setField("quantity").build())
-        // .putAllAggregations(subAggMap)
-        // .build();
-        //
-        // // Min explicitly rejects subaggregations, so this should throw
-        // // This proves that the registry infrastructure is correctly attempting to add them
-        // org.opensearch.search.aggregations.AggregationInitializationException exception = expectThrows(
-        // org.opensearch.search.aggregations.AggregationInitializationException.class,
-        // () -> registry.fromProto("min_quantity", container)
-        // );
-        // assertTrue(
-        // "Exception should mention that min cannot accept sub-aggregations",
-        // exception.getMessage().contains("cannot accept sub-aggregations")
-        // );
+        AggregationBuilderProtoConverterRegistryImpl registry = new AggregationBuilderProtoConverterRegistryImpl();
+
+        AggregationContainer subAgg = AggregationContainer.newBuilder()
+            .setMax(MaxAggregation.newBuilder().setField("price").build())
+            .build();
+
+        AggregationContainer container = AggregationContainer.newBuilder()
+            .setTermsAggregation(
+                TermsAggregation.newBuilder()
+                    .setTerms(TermsAggregationFields.newBuilder().setField("category").build())
+                    .putAggregations("max_price", subAgg)
+                    .build()
+            )
+            .build();
+
+        AggregationBuilder builder = registry.fromProto("by_category", container);
+        assertTrue(builder instanceof TermsAggregationBuilder);
+        assertEquals("by_category", builder.getName());
+        assertEquals("category", ((TermsAggregationBuilder) builder).field());
+
+        assertEquals(1, builder.getSubAggregations().size());
+        AggregationBuilder subBuilder = builder.getSubAggregations().iterator().next();
+        assertTrue(subBuilder instanceof MaxAggregationBuilder);
+        assertEquals("max_price", subBuilder.getName());
+        assertEquals("price", ((MaxAggregationBuilder) subBuilder).field());
     }
 
     /**

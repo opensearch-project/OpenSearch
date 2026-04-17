@@ -65,6 +65,7 @@ public class AggregateProtoConverterRegistryImpl implements AggregateProtoConver
      */
     public void registerConverter(AggregateProtoConverter converter) {
         spiRegistry.registerConverter(converter);
+        converter.setRegistry(this);
     }
 
     /**

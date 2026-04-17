@@ -167,7 +167,7 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
 
             // Build terms aggregation request on the status keyword field
             TermsAggregation termsAgg = TermsAggregation.newBuilder()
-                .setTerms(TermsAggregationFields.newBuilder().setField("status").build())
+                .setTerms(TermsAggregationFields.newBuilder().setField("status.keyword").build())
                 .build();
 
             SearchRequestBody requestBody = SearchRequestBody.newBuilder()
