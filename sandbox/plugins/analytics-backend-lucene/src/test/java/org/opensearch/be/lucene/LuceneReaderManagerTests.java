@@ -20,6 +20,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.opensearch.be.lucene.index.LuceneCommitter;
+import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -33,6 +36,7 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
@@ -47,6 +51,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link LuceneReaderManager} lifecycle with CatalogSnapshot interactions.
@@ -260,9 +266,9 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         Path dataPath = dir.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
         java.nio.file.Files.createDirectories(dataPath);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
-        Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
-        store.createEmpty(org.apache.lucene.util.Version.LATEST);
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
+        Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId), (x) -> {}, shardPath);
+        store.createEmpty(org.apache.lucene.util.Version.LATEST);
         Path translogPath = dataPath.resolve("translog");
         java.nio.file.Files.createDirectories(translogPath);
         EngineConfig engineConfig = new EngineConfig.Builder().indexSettings(idxSettings)
@@ -284,7 +290,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         LuceneCommitter committer = new LuceneCommitter(cs);
 
         try {
-            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
+            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mock(MapperService.class), store);
             ReaderManagerConfig settings = new ReaderManagerConfig(Optional.of(engine), dataFormat, shardPath);
 
             EngineReaderManager<?> rm = LuceneSearchBackEnd.createReaderManager(settings);

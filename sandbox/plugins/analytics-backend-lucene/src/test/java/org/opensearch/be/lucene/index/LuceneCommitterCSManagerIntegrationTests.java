@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.lucene;
+package org.opensearch.be.lucene.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
