@@ -46,24 +46,28 @@ public class DAGBuilder {
     public static QueryDAG build(RelNode cboOutput, CapabilityRegistry registry, ClusterService clusterService) {
         int[] counter = { 0 };
         List<Stage> childStages = new ArrayList<>();
-        RelNode rootFragment = sever(cboOutput, counter, childStages, registry, clusterService);
+
+        RelNode rootFragment;
+        if (cboOutput instanceof OpenSearchExchangeReducer reducer) {
+            // Root IS an ExchangeReducer — pure gather (no compute above the exchange).
+            // Cut directly: child stage is the subtree below, root fragment is
+            // ExchangeReducer → StageInputScan.
+            rootFragment = cutSingleton(reducer, counter, childStages, clusterService);
+        } else {
+            rootFragment = sever(cboOutput, counter, childStages, registry, clusterService);
+        }
 
         ExchangeSinkProvider sinkProvider = null;
-        TargetResolver rootTargetResolver = null;
-
-        if (childStages.isEmpty()) {
-            // Single-stage query — no exchange, dispatch directly to shards.
-            // Scheduler uses RowProducingSink (exchangeSinkProvider is null).
-            rootTargetResolver = new ShardTargetResolver(rootFragment, clusterService);
-        } else {
-            // Multi-stage — root is coordinator gather/compute.
-            if (cboOutput instanceof OpenSearchRelNode rootRel) {
-                List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
-                    registry, rootRel.getViableBackends()
-                );
-                sinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
-            }
+        if (!childStages.isEmpty()) {
+            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
+                registry, ((OpenSearchRelNode) cboOutput).getViableBackends()
+            );
+            sinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
         }
+
+        TargetResolver rootTargetResolver = childStages.isEmpty()
+            ? new ShardTargetResolver(rootFragment, clusterService)
+            : null;
 
         Stage rootStage = new Stage(counter[0]++, rootFragment, childStages, null, sinkProvider, rootTargetResolver);
         return new QueryDAG(UUID.randomUUID().toString(), rootStage);
@@ -98,10 +102,15 @@ public class DAGBuilder {
         List<Stage> parentChildStages,
         ClusterService clusterService
     ) {
+        // Recurse into child fragment to handle nested exchanges.
+        // TODO: recurse with full sever() (passing registry) when shuffle/broadcast
+        // exchanges are added — not needed for PR2 (pure DF, max 2 stages).
+        List<Stage> grandchildren = new ArrayList<>();
         RelNode childFragment = reducer.getInput();
+
         int childStageId = counter[0]++;
         parentChildStages.add(
-            new Stage(childStageId, childFragment, List.of(), ExchangeInfo.singleton(), null,
+            new Stage(childStageId, childFragment, grandchildren, ExchangeInfo.singleton(), null,
                 new ShardTargetResolver(childFragment, clusterService))
         );
 
