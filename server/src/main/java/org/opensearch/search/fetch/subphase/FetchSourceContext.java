@@ -85,6 +85,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         validateAmbiguousFields();
     }
 
+    /**
+     * @deprecated use {@link #FETCH_SOURCE} or {@link #DO_NOT_FETCH_SOURCE} instead
+     */
+    @Deprecated
     public FetchSourceContext(boolean fetchSource) {
         this(fetchSource, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
     }
