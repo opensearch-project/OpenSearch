@@ -33,6 +33,7 @@ tasks.named('internalClusterTest').configure {
 
 internalClusterTest {
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
 dependencies {
