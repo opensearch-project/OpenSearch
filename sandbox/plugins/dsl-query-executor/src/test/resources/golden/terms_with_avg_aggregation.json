@@ -25,9 +25,13 @@
       }
     }
   },
-  "expectedRelNodePlan": "LogicalAggregate(group=[{2}], avg_price=[AVG($1)], _count=[COUNT()])\n  LogicalTableScan(table=[[test-index]])",
-  "executionFieldNames": ["brand", "avg_price", "_count"],
-  "executionRows": [
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$2], sort1=[$0], dir0=[DESC], dir1=[ASC])",
+    "  LogicalAggregate(group=[{2}], avg_price=[AVG($1)], _count=[COUNT()])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "avg_price", "_count"],
+  "mockResultRows": [
     ["BrandA", 850.0, 3],
     ["BrandB", 1100.0, 2]
   ],

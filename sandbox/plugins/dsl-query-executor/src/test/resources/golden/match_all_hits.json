@@ -13,9 +13,11 @@
       "match_all": {}
     }
   },
-  "expectedRelNodePlan": "LogicalTableScan(table=[[test-index]])\n",
-  "executionFieldNames": ["name", "price", "brand", "rating"],
-  "executionRows": [
+  "expectedRelNodePlan": [
+    "LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultRows": [
     ["laptop", 999, "BrandA", 4.5],
     ["phone", 699, "BrandB", 4.2]
   ],
