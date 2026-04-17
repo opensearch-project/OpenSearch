@@ -7,10 +7,15 @@
  */
 package org.opensearch.transport.grpc.proto.response.search.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.protobufs.Aggregate;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.test.OpenSearchTestCase;
@@ -21,6 +26,7 @@ import org.opensearch.transport.grpc.spi.AggregateProtoConverter;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,9 +37,8 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
 
     public void testRegistryLoadsBuiltInConverters() {
         AggregateProtoConverterRegistryImpl registry = new AggregateProtoConverterRegistryImpl();
-        AggregateProtoConverterSpiRegistry spiRegistry = registry.getSpiRegistry();
 
-        assertEquals("Should have 7 built-in converters", 7, spiRegistry.size());
+        assertEquals("Should have 7 built-in converters", 7, registry.size());
     }
 
     public void testRegisterConverterSucceeds() {
@@ -174,5 +179,43 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
         assertNotNull("Result should not be null", result);
         assertTrue("Should have max set", result.hasMax());
         assertEquals("Value should match", 99.9, result.getMax().getValue().getDouble(), 0.001);
+    }
+
+    public void testNestedAggregation() throws IOException {
+        AggregateProtoConverterRegistryImpl registry = new AggregateProtoConverterRegistryImpl();
+
+        InternalMax subAgg = new InternalMax("max_price", 42.0, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations subAggs = new InternalAggregations(List.of(subAgg));
+
+        StringTerms.Bucket bucket = new StringTerms.Bucket(new BytesRef("active"), 10, subAggs, false, 0, DocValueFormat.RAW);
+        StringTerms terms = new StringTerms(
+            "status_terms",
+            BucketOrder.count(false),
+            BucketOrder.count(false),
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            10,
+            false,
+            0,
+            List.of(bucket),
+            0,
+            new TermsAggregator.BucketCountThresholds(1, 0, 10, -1)
+        );
+
+        Aggregate result = registry.toProto(terms);
+
+        assertNotNull("Result should not be null", result);
+        assertTrue("Should have sterms set", result.hasSterms());
+        assertEquals("Should have 1 bucket", 1, result.getSterms().getBucketsCount());
+
+        var protoBucket = result.getSterms().getBuckets(0);
+        assertEquals("active", protoBucket.getKey());
+        assertEquals(10L, protoBucket.getDocCount());
+        assertTrue("Bucket should have sub-aggregations", protoBucket.getAggregateCount() > 0);
+
+        Aggregate subResult = protoBucket.getAggregateMap().get("max_price");
+        assertNotNull("Sub-aggregation max_price should exist", subResult);
+        assertTrue("Sub-aggregation should be max", subResult.hasMax());
+        assertEquals("Sub-aggregation value should match", 42.0, subResult.getMax().getValue().getDouble(), 0.001);
     }
 }

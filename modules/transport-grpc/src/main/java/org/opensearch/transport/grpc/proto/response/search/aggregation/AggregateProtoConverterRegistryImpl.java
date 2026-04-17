@@ -76,11 +76,11 @@ public class AggregateProtoConverterRegistryImpl implements AggregateProtoConver
     }
 
     /**
-     * Returns the underlying SPI registry for advanced use cases.
+     * Returns the number of registered converters.
      *
-     * @return The SPI registry
+     * @return The converter count
      */
-    public AggregateProtoConverterSpiRegistry getSpiRegistry() {
-        return spiRegistry;
+    public int size() {
+        return spiRegistry.size();
     }
 }

@@ -523,9 +523,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                     converter.getHandledAggregationType().getName()
                 );
 
-                // Register the converter in the SPI registry
-                aggregateRegistry.getSpiRegistry().registerConverter(converter);
-                logger.info("Registered aggregate converter: {}", converter.getClass().getName());
+                aggregateRegistry.registerConverter(converter);
             }
             logger.info("Successfully registered all {} external aggregate converters", aggregateConverters.size());
 
