@@ -27,6 +27,10 @@ dependencies {
 
   compileOnly project(':server')
   api "org.apache.calcite:calcite-core:${calciteVersion}"
+  // Arrow — first-class citizen for all backends. VectorSchemaRoot is the exchange format
+  // between Analytics Core and backends (coordinator reduce, delegation, shuffle).
+  // Version aligned with arrow-flight-rpc plugin.
+  api "org.apache.arrow:arrow-vector:${versions.arrow}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
   api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
   // Calcite's JDBC abstraction layer — required by calcite-core internals

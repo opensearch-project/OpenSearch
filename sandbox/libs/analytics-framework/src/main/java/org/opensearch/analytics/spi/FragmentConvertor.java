@@ -26,6 +26,17 @@ import java.util.List;
  */
 public interface FragmentConvertor {
 
+    /**
+     * Converts the coordinator-stage fragment (final aggregate, sort, etc.) whose input
+     * is Arrow Record Batches streamed from data nodes via an {@link ExchangeSink}.
+     *
+     * @param fragment resolved coordinator RelNode fragment (annotations stripped)
+     * @return backend-specific serialized plan bytes passed to {@link ExchangeSinkProvider#createSink}
+     */
+    default byte[] convertCoordinatorFragment(RelNode fragment) {
+        throw new UnsupportedOperationException("convertCoordinatorFragment not implemented for this backend");
+    }
+
     // ---- Source-aware fragment conversion (Bottom + Middle) ----
 
     /**

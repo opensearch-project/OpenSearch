@@ -271,18 +271,6 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         );
     }
 
-    private AggregateCall sumCall() {
-        return AggregateCall.create(
-            SqlStdOperatorTable.SUM,
-            false,
-            List.of(1),
-            1,
-            defaultScan(),
-            typeFactory.createSqlType(SqlTypeName.INTEGER),
-            "total_size"
-        );
-    }
-
     private AggregateCall countCall() {
         return AggregateCall.create(
             SqlStdOperatorTable.COUNT,
@@ -309,10 +297,6 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
     private RelNode defaultScan() {
         return stubScan(mockTable("test_index", "status", "size"));
-    }
-
-    private LogicalAggregate makeAggregate(int shardCount, AggregateCall aggCall) {
-        return LogicalAggregate.create(defaultScan(), List.of(), ImmutableBitSet.of(0), null, List.of(aggCall));
     }
 
     private LogicalAggregate makeMultiCallAggregate(AggregateCall... aggCalls) {

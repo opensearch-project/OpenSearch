@@ -21,7 +21,10 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.spi.AggregateCapability;
@@ -311,5 +314,24 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         public EngineReaderManager<Object> createReaderManager(ReaderManagerConfig settings) {
             return null;
         }
+    }
+
+    // ---- Shared aggregate helpers ----
+    // TODO: AggregateRuleTests has private copies of these — replace with these shared versions.
+
+    protected AggregateCall sumCall() {
+        return AggregateCall.create(
+            SqlStdOperatorTable.SUM, false, List.of(1), 1,
+            stubScan(mockTable("test_index", "status", "size")),
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total_size"
+        );
+    }
+
+    protected LogicalAggregate makeAggregate(int shardCount, AggregateCall aggCall) {
+        return LogicalAggregate.create(
+            stubScan(mockTable("test_index", "status", "size")),
+            List.of(), ImmutableBitSet.of(0), null, List.of(aggCall)
+        );
     }
 }
