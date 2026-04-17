@@ -6,5 +6,6 @@
  * compatible open source license.
  */
 
+pub mod range_cache;
 pub mod traits;
 pub mod foyer;

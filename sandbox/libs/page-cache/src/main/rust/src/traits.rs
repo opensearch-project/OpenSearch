@@ -6,24 +6,38 @@
  * compatible open source license.
  */
 
-//! [`PageCache`] trait — the abstraction for byte-range disk caching.
+//! [`PageCache`] trait — the abstraction for disk caching with typed keys.
 
 use bytes::Bytes;
+use crate::range_cache::CacheKey;
 
-/// A disk page cache that stores arbitrary byte ranges keyed by `(path, start, end)`.
+/// A disk page cache.
 ///
-/// Implementations are expected to be `Send + Sync` so they can be shared
-/// across async tasks and threads.
+/// Keys are [`CacheKey`] values — opaque newtypes that can only be constructed
+/// via the helpers in [`crate::range_cache`]. This enforces the `\x1F` separator
+/// convention at compile time and prevents accidental use of raw strings.
+///
+/// ## Eviction
+///
+/// `evict_prefix` still accepts `&str` because the eviction prefix is the bare
+/// file path (no separator) — there is nothing to encode, and any valid path
+/// string is a correct eviction prefix.
+///
+/// Implementations must be `Send + Sync` so they can be shared across async
+/// tasks and threads.
 pub trait PageCache: Send + Sync {
-    /// Look up a cached byte range. Returns `Some(Bytes)` on hit, `None` on miss.
-    fn get(&self, path: &str, start: u64, end: u64)
+    /// Look up a cached entry. Returns `Some(Bytes)` on hit, `None` on miss.
+    fn get(&self, key: &CacheKey)
         -> impl std::future::Future<Output = Option<Bytes>> + Send;
 
-    /// Insert a byte range into the cache.
-    fn put(&self, path: &str, start: u64, end: u64, data: Bytes);
+    /// Insert bytes under the given key.
+    fn put(&self, key: &CacheKey, data: Bytes);
 
-    /// Evict all cached ranges for a given file path. A no-op if the path has no entries.
-    fn evict_file(&self, path: &str);
+    /// Evict all entries whose key starts with `prefix`. A no-op if nothing matches.
+    ///
+    /// For range entries: pass the file path — evicts all byte-range keys for that file.
+    /// For block entries: pass the segment base path — evicts all block keys for that segment.
+    fn evict_prefix(&self, prefix: &str);
 
     /// Remove all entries from the cache.
     fn clear(&self) -> impl std::future::Future<Output = ()> + Send;

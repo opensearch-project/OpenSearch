@@ -33,11 +33,16 @@ pub unsafe extern "C" fn foyer_create_cache(
 
 /// Destroy a [`FoyerCache`] previously created by [`foyer_create_cache`].
 ///
+/// Returns `0` on success, `< 0` (error pointer) if `ptr` is invalid.
+///
 /// # Safety
 /// `ptr` must be a value returned by [`foyer_create_cache`] not yet destroyed.
+#[ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn foyer_destroy_cache(ptr: i64) {
-    if ptr > 0 {
-        drop(Arc::from_raw(ptr as *const FoyerCache));
+pub unsafe extern "C" fn foyer_destroy_cache(ptr: i64) -> i64 {
+    if ptr <= 0 {
+        return Err(format!("foyer_destroy_cache: invalid ptr {}", ptr));
     }
+    drop(Arc::from_raw(ptr as *const FoyerCache));
+    Ok(0)
 }
