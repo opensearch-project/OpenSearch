@@ -9,27 +9,31 @@
 package org.opensearch.analytics.exec.stage;
 
 import org.opensearch.analytics.backend.ExchangeSink;
+import org.opensearch.analytics.backend.ExchangeSource;
+import org.opensearch.analytics.exec.RowProducingSink;
 import org.opensearch.analytics.planner.dag.Stage;
 
 /**
  * Sentinel {@link StageExecution} for LOCAL pass-through (root gather)
- * stages. Owns an {@link ExchangeSink} and transitions synchronously through
- * {@code CREATED → RUNNING → SUCCEEDED} on {@link #start()} — there is
- * no real dispatch work. The driver calls {@code start()} only after all
- * children have reached {@code SUCCEEDED}, which is the normal driver rule.
+ * stages. Owns a {@link RowProducingSink} and transitions synchronously
+ * through {@code CREATED → RUNNING → SUCCEEDED} on {@link #start()}.
  *
- * <p>Keeps the registry fully populated so cancellation, EXPLAIN, and
- * metrics traversal all work uniformly without pass-through special cases.
+ * <p>Implements both {@link DataConsumer} and {@link DataProducer} via
+ * {@link SinkProvidingStageExecution}: children write into the same sink
+ * that the root reads from.
  *
  * @opensearch.internal
  */
 final class PassThroughStageExecution extends AbstractStageExecution implements SinkProvidingStageExecution {
 
-    private final ExchangeSink sink;
+    private final RowProducingSink ownedSink;
 
     public PassThroughStageExecution(Stage stage, ExchangeSink sink) {
         super(stage);
-        this.sink = sink;
+        if ((sink instanceof RowProducingSink) == false) {
+            throw new IllegalArgumentException("PassThroughStageExecution requires a RowProducingSink");
+        }
+        this.ownedSink = (RowProducingSink) sink;
     }
 
     @Override
@@ -44,7 +48,17 @@ final class PassThroughStageExecution extends AbstractStageExecution implements 
     }
 
     @Override
-    public ExchangeSink sink() {
-        return sink;
+    public ExchangeSink inputSink(int childStageId) {
+        return ownedSink;
+    }
+
+    @Override
+    public ExchangeSink outputSink() {
+        return ownedSink;
+    }
+
+    @Override
+    public ExchangeSource outputSource() {
+        return ownedSink;
     }
 }

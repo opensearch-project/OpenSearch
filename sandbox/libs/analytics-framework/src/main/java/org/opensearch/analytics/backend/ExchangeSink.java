@@ -11,8 +11,14 @@ package org.opensearch.analytics.backend;
 import org.apache.arrow.vector.VectorSchemaRoot;
 
 /**
- * Per-stage result accumulator that collects Arrow {@link VectorSchemaRoot} batches
- * from shard executions and provides access to the accumulated result set.
+ * Write-only interface for feeding Arrow batches into a stage exchange.
+ * Producers (shard scan stages, local compute stages) call {@link #feed}
+ * to push data; they never read from the sink.
+ *
+ * <p>Implementations must be thread-safe — multiple shard response
+ * handlers may call {@link #feed} concurrently.
+ *
+ * @see ExchangeSource for the read-side counterpart
  */
 public interface ExchangeSink {
 
@@ -23,26 +29,7 @@ public interface ExchangeSink {
     void feed(VectorSchemaRoot batch);
 
     /**
-     * Signal that no more responses will be fed.
+     * Signal that no more batches will be fed. Releases resources.
      */
     void close();
-
-    /**
-     * Return all accumulated rows in insertion order.
-     */
-    Iterable<Object[]> readResult();
-
-    /**
-     * Return the total number of accumulated rows.
-     */
-    long getRowCount();
-
-    /**
-     * Look up a cell value by column name and row index.
-     *
-     * @param column   the column name
-     * @param rowIndex the zero-based row index
-     * @return the cell value, or {@code null} if the column is unknown or the row index is out of range
-     */
-    Object getValueAt(String column, int rowIndex);
 }

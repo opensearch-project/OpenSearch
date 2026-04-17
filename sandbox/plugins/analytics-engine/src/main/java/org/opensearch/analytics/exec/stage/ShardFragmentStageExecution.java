@@ -8,36 +8,19 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.BitVector;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.Float4Vector;
-import org.apache.arrow.vector.Float8Vector;
-import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.SmallIntVector;
-import org.apache.arrow.vector.TinyIntVector;
-import org.apache.arrow.vector.VarBinaryVector;
-import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.ExchangeSink;
-import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
+import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.PendingExecutions;
 import org.opensearch.analytics.exec.QueryContext;
-import org.opensearch.analytics.exec.action.ShardTarget;
-import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
+import org.opensearch.analytics.exec.action.ShardTarget;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.core.action.ActionResponse;
 
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,49 +30,54 @@ import java.util.function.Function;
 /**
  * Per-stage execution for row-producing DATA_NODE stages (scans, filters,
  * partial aggregates). Dispatches shard requests via
- * {@link AnalyticsSearchTransportService#dispatchFragment}, collects streaming
- * {@link FragmentExecutionResponse} batches, and feeds them into the stage's
- * {@link org.opensearch.analytics.backend.ExchangeSink}.
+ * {@link AnalyticsSearchTransportService#dispatchFragment}, decodes streaming
+ * responses through a {@link ResponseCodec}, and feeds the resulting Arrow
+ * batches into the stage's output {@link ExchangeSink}.
  *
- * <p>Replaces the scan path that previously lived in the generic
- * fan-out execution + sink-feeding handler.
+ * <p>The codec abstracts the wire format: the current {@link RowResponseCodec}
+ * converts {@code Object[]} rows to Arrow; a future Arrow IPC codec would
+ * import IPC buffers directly with zero conversion. The stage execution logic
+ * is format-agnostic.
+ *
+ * <p>Implements {@link DataProducer} because it writes batches into a sink
+ * owned by its parent stage. Does not implement {@link DataConsumer} because
+ * it is a leaf stage with no children.
  *
  * <p>Lifecycle: {@code CREATED → RUNNING → SUCCEEDED | FAILED | CANCELLED}.
  * Instances are one-shot: constructed, {@link #start()} called once,
  * listener signaled once, discarded.
  *
- * <p>No {@code completedStages} tracking — that responsibility moves to
- * the caller (PlanWalker / scheduler) in a later change.
- *
  * @opensearch.internal
  */
-final class ShardFragmentStageExecution extends AbstractStageExecution implements SinkProvidingStageExecution {
+final class ShardFragmentStageExecution extends AbstractStageExecution implements DataProducer {
 
     private final AtomicInteger inFlight = new AtomicInteger(0);
-    private final AtomicInteger completedTasks = new AtomicInteger(0);
 
     // Immutable config
     private final QueryContext config;
-    private final ExchangeSink sink;
+    private final ExchangeSink outputSink;
     private final List<ShardTarget> targets;
     private final Function<ShardTarget, FragmentExecutionRequest> requestBuilder;
     private final AnalyticsSearchTransportService dispatcher;
+    private final ResponseCodec<FragmentExecutionResponse> responseCodec;
     private final Map<String, PendingExecutions> pendingPerNode = new ConcurrentHashMap<>();
 
     ShardFragmentStageExecution(
         Stage stage,
         QueryContext config,
-        ExchangeSink sink,
+        ExchangeSink outputSink,
         List<ShardTarget> targets,
         Function<ShardTarget, FragmentExecutionRequest> requestBuilder,
-        AnalyticsSearchTransportService dispatcher
+        AnalyticsSearchTransportService dispatcher,
+        ResponseCodec<FragmentExecutionResponse> responseCodec
     ) {
         super(stage);
         this.config = config;
-        this.sink = sink;
+        this.outputSink = outputSink;
         this.targets = targets;
         this.requestBuilder = requestBuilder;
         this.dispatcher = dispatcher;
+        this.responseCodec = responseCodec;
     }
 
     @Override
@@ -99,7 +87,6 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
             transitionTo(StageExecution.State.SUCCEEDED);
             return;
         }
-        // TODO: Introduce Shard Filter & Termination Decider logic to this execution type
         if (transitionTo(StageExecution.State.RUNNING) == false) return;
         inFlight.set(targets.size());
         for (ShardTarget target : targets) {
@@ -116,14 +103,13 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                 config.searchExecutor().execute(() -> {
                     if (isDone()) return;
 
-                    // TODO: This serialization should not be required
-                    VectorSchemaRoot vsr = scanResponseToArrow(response, config.bufferAllocator());
-                    sink.feed(vsr);
+                    VectorSchemaRoot vsr = responseCodec.decode(response, config.bufferAllocator());
+                    outputSink.feed(vsr);
                     metrics.addRowsProcessed(vsr.getRowCount());
 
                     if (isLast) {
                         metrics.incrementTasksCompleted();
-                        onTaskCompletion();
+                        onShardTerminated();
                     }
                 });
             }
@@ -132,22 +118,16 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
             public void onFailure(Exception e) {
                 captureFailure(new RuntimeException("Stage " + stage.getStageId() + " failed", e));
                 metrics.incrementTasksFailed();
-                onTaskCompletion();
+                onShardTerminated();
             }
         }, config.parentTask(), pending);
     }
 
-    private void onTaskCompletion() {
-        completedTasks.incrementAndGet();
+    private void onShardTerminated() {
         if (inFlight.decrementAndGet() == 0) {
-            finishStageInternal();
+            Exception captured = getFailure();
+            transitionTo(captured != null ? StageExecution.State.FAILED : StageExecution.State.SUCCEEDED);
         }
-    }
-
-    private void finishStageInternal() {
-        Exception captured = getFailure();
-        StageExecution.State target = (captured != null) ? StageExecution.State.FAILED : StageExecution.State.SUCCEEDED;
-        transitionTo(target);
     }
 
     @Override
@@ -156,13 +136,16 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     }
 
     @Override
-    public ExchangeSink sink() {
-        return sink;
+    public ExchangeSink outputSink() {
+        return outputSink;
     }
 
-    /** Returns the sink this execution writes batches into. */
-    public ExchangeSink getSink() {
-        return sink;
+    @Override
+    public ExchangeSource outputSource() {
+        if (outputSink instanceof ExchangeSource source) {
+            return source;
+        }
+        throw new UnsupportedOperationException("outputSink does not implement ExchangeSource");
     }
 
     private boolean isDone() {

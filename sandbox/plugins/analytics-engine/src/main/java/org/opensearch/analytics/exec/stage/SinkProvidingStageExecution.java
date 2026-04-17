@@ -8,24 +8,17 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.opensearch.analytics.backend.ExchangeSink;
-
 /**
- * Implemented by {@link StageExecution} types whose children may write
- * row batches into them. Used by the walker during construction to thread
- * a sink from parent to row-producing child without an instanceof cascade
- * over concrete execution types.
+ * Combines {@link DataConsumer} and {@link DataProducer} for stages that
+ * both accept child input and produce output (root gather, local compute).
+ *
+ * <p>Stages that own a single shared sink (like {@link PassThroughStageExecution})
+ * return the same sink from both {@link DataConsumer#inputSink(int)} and
+ * {@link DataProducer#outputSink()}. Stages with per-child routing (like
+ * {@link LocalStageExecution}) override {@link DataConsumer#inputSink(int)}
+ * to delegate to the backend.
  *
  * @opensearch.internal
  */
-public interface SinkProvidingStageExecution extends StageExecution {
-    /**
-     * Returns the {@link ExchangeSink} that the given child stage should write
-     * into.
-     */
-    default ExchangeSink sink(int childStageId) {
-        return sink();
-    }
-
-    ExchangeSink sink();
+public interface SinkProvidingStageExecution extends StageExecution, DataConsumer, DataProducer {
 }

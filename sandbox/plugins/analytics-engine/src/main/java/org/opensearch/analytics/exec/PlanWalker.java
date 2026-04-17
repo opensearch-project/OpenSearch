@@ -10,7 +10,7 @@ package org.opensearch.analytics.exec;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.analytics.exec.stage.SinkProvidingStageExecution;
+import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -28,19 +28,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Per-query walker that owns the execution graph. Walks the DAG once,
- * constructs all {@link StageExecution} instances via
- * {@link StageExecutionBuilder#buildExecution} (including the root, wired through a
- * virtual sink-holder parent), wires per-parent listeners inline
- * during construction, and drives state transitions via local listener
- * closures (no global dispatcher).
+ * Per-query walker that owns the execution graph. Two-phase lifecycle:
+ * <ol>
+ *   <li>{@link #build()} — walks the DAG, constructs all {@link StageExecution}
+ *       instances, wires listeners, and returns an inspectable
+ *       {@link ExecutionGraph}. No stages are started.</li>
+ *   <li>{@link #start(ExecutionGraph)} — starts leaf stages, triggering
+ *       the event-driven cascade.</li>
+ * </ol>
  *
- * <p>The walker is pure topology: it does not know about scheduler types,
- * {@link SinkProvidingStageExecution}, or how a child's sink is resolved
- * from its parent. That logic lives entirely in {@link StageExecutionBuilder}.
+ * <p>The split enables EXPLAIN: call {@link #build()} to get the graph,
+ * inspect it via {@link ExecutionGraph#explain()}, and optionally call
+ * {@link #start(ExecutionGraph)} to execute.
  *
- * <p>Lifecycle: constructed by {@link QueryScheduler#execute},
- * tracked in the scheduler's pool by query id, removed on terminal.
+ * <p>The legacy {@link #walk()} method calls both phases for backward
+ * compatibility.
  *
  * @opensearch.internal
  */
@@ -50,9 +52,9 @@ public class PlanWalker {
 
     private final QueryContext config;
     private final StageExecutionBuilder stageExecutionBuilder;
-    private final Map<Integer, StageExecution> executions = new ConcurrentHashMap<>();
     private final AtomicBoolean terminalFired = new AtomicBoolean(false);
     private final ActionListener<Iterable<Object[]>> completionListener;
+    private volatile ExecutionGraph graph;
 
     public PlanWalker(QueryContext config, StageExecutionBuilder stageExecutionBuilder, ActionListener<Iterable<Object[]>> listener) {
         this.config = config;
@@ -61,39 +63,56 @@ public class PlanWalker {
     }
 
     /**
-     * Walks the DAG, builds all executions, wires per-parent listeners,
-     * wires the root terminal listener, and starts leaves.
+     * Phase 1: Build the execution graph without starting any stages.
+     * All stages are in {@link StageExecution.State#CREATED} state.
+     * Listeners are wired. The graph is inspectable for EXPLAIN.
      *
-     * <p>Four phases:
-     * <ol>
-     *   <li>Build root execution with a locally-owned {@link RowProducingSink}.</li>
-     *   <li>Walk children recursively, wiring per-parent listeners inline.</li>
-     *   <li>Wire the root's terminal listener.</li>
-     *   <li>Start leaves.</li>
-     * </ol>
+     * @return the fully-wired execution graph
      */
-    public void walk() {
-        // Walk the DAG and build StageExecutions - this sets up stage control flow
+    public ExecutionGraph build() {
+        Map<Integer, StageExecution> executions = new ConcurrentHashMap<>();
+
         Stage rootStage = config.dag().rootStage();
         final StageExecution rootExec = stageExecutionBuilder.buildRootExecution(rootStage, config);
-        wireCompletionListener((SinkProvidingStageExecution) rootExec);
+        wireCompletionListener(rootExec);
         executions.put(rootStage.getStageId(), rootExec);
 
-        buildChildrenRecursively(rootExec, rootStage);
+        buildChildrenRecursively(executions, rootExec, rootStage);
 
-        for (StageExecution leaf : findLeaves()) {
+        List<StageExecution> leaves = findLeaves(executions, rootStage);
+
+        this.graph = new ExecutionGraph(config.queryId(), executions, rootExec, leaves);
+        return this.graph;
+    }
+
+    /**
+     * Phase 2: Start execution by dispatching leaf stages.
+     * Must be called after {@link #build()}.
+     *
+     * @param executionGraph the graph returned by {@link #build()}
+     */
+    public void start(ExecutionGraph executionGraph) {
+        for (StageExecution leaf : executionGraph.leaves()) {
             leaf.start();
         }
     }
 
     /**
+     * Legacy single-call entry point. Builds the graph and starts
+     * execution in one shot. Equivalent to {@code start(build())}.
+     */
+    public void walk() {
+        start(build());
+    }
+
+    /**
      * Top-down cancel: iterates all executions and cancels any in
-     * {@code RUNNING} or {@code CREATED} state. Used by external
-     * cancellation (task cancel, timeout) via
-     * {@link QueryScheduler}.
+     * {@code RUNNING} or {@code CREATED} state.
      */
     public void cancelAll(String reason) {
-        for (StageExecution exec : executions.values()) {
+        ExecutionGraph g = this.graph;
+        if (g == null) return;
+        for (StageExecution exec : g.allExecutions()) {
             StageExecution.State state = exec.getState();
             if (state == StageExecution.State.RUNNING || state == StageExecution.State.CREATED) {
                 try {
@@ -101,6 +120,11 @@ public class PlanWalker {
                 } catch (Exception ignore) {}
             }
         }
+    }
+
+    /** Returns the built execution graph, or null if {@link #build()} hasn't been called. */
+    public ExecutionGraph getGraph() {
+        return graph;
     }
 
     public String getQueryId() {
@@ -116,20 +140,26 @@ public class PlanWalker {
     }
 
     public StageExecution executionFor(int stageId) {
-        return executions.get(stageId);
+        ExecutionGraph g = this.graph;
+        return g != null ? g.executionFor(stageId) : null;
     }
 
     public Collection<StageExecution> activeExecutions() {
-        return executions.values().stream()
+        ExecutionGraph g = this.graph;
+        if (g == null) return List.of();
+        return g.allExecutions().stream()
             .filter(e -> e.getState() == StageExecution.State.RUNNING)
             .toList();
     }
 
     public Collection<StageExecution> allExecutions() {
-        return executions.values();
+        ExecutionGraph g = this.graph;
+        return g != null ? g.allExecutions() : List.of();
     }
 
-    private void buildChildrenRecursively(StageExecution parentExec, Stage parentStage) {
+    // ─── Internal graph construction ────────────────────────────────────
+
+    private void buildChildrenRecursively(Map<Integer, StageExecution> executions, StageExecution parentExec, Stage parentStage) {
         List<Stage> children = parentStage.getChildStages();
         if (children.isEmpty()) {
             return;
@@ -141,8 +171,6 @@ public class PlanWalker {
             StageExecution childExec = stageExecutionBuilder.buildExecution(child, parentExec, config);
             executions.put(child.getStageId(), childExec);
 
-            // Per-parent listener: this child → this specific parent.
-            // No global dispatch, no parentsByChild lookup, no re-deriving readiness.
             childExec.addStateListener((from, to) -> {
                 switch (to) {
                     case SUCCEEDED -> {
@@ -161,23 +189,25 @@ public class PlanWalker {
                     default -> { }
                 }
             });
-            // Recurse into grandchildren
-            buildChildrenRecursively(childExec, child);
+            buildChildrenRecursively(executions, childExec, child);
         }
     }
 
-    private void wireCompletionListener(SinkProvidingStageExecution rootExec) {
+    private void wireCompletionListener(StageExecution rootExec) {
+        if ((rootExec instanceof DataProducer) == false) {
+            throw new IllegalStateException(
+                "Root execution " + rootExec.getClass().getSimpleName() + " does not implement DataProducer"
+            );
+        }
+        final DataProducer producer = (DataProducer) rootExec;
         rootExec.addStateListener((from, to) -> {
             switch (to) {
-                case SUCCEEDED -> fireTerminal(() -> completionListener.onResponse(rootExec.sink().readResult()));
+                case SUCCEEDED -> fireTerminal(() -> completionListener.onResponse(producer.outputSource().readResult()));
                 case FAILED, CANCELLED -> {
                     Exception failure = rootExec.getFailure();
                     if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
                         fireTerminal(() -> completionListener.onFailure(new TaskCancelledException("query cancelled")));
                     } else if (failure != null) {
-                        // The failure is already wrapped as "Stage N failed" at the point of origin
-                        // (see ShardFragmentStageExecution.dispatchShardTask.onFailure). Forward as-is
-                        // so the originating stage id is preserved through propagation.
                         fireTerminal(() -> completionListener.onFailure(failure));
                     } else {
                         fireTerminal(() -> completionListener.onFailure(
@@ -189,13 +219,13 @@ public class PlanWalker {
         });
     }
 
-    private List<StageExecution> findLeaves() {
+    private static List<StageExecution> findLeaves(Map<Integer, StageExecution> executions, Stage rootStage) {
         final List<StageExecution> leaves = new ArrayList<>();
-        collectLeaves(config.dag().rootStage(), leaves);
+        collectLeaves(executions, rootStage, leaves);
         return leaves;
     }
 
-    private void collectLeaves(Stage stage, List<StageExecution> leaves) {
+    private static void collectLeaves(Map<Integer, StageExecution> executions, Stage stage, List<StageExecution> leaves) {
         if (stage.getChildStages().isEmpty()) {
             StageExecution exec = executions.get(stage.getStageId());
             if (exec != null) {
@@ -203,7 +233,7 @@ public class PlanWalker {
             }
         } else {
             for (Stage child : stage.getChildStages()) {
-                collectLeaves(child, leaves);
+                collectLeaves(executions, child, leaves);
             }
         }
     }

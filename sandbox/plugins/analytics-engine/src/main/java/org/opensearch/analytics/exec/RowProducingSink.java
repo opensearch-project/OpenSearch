@@ -11,21 +11,23 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.types.pojo.Field;
 import org.opensearch.analytics.backend.ExchangeSink;
+import org.opensearch.analytics.backend.ExchangeSource;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Default {@link ExchangeSink} implementation that collects Arrow
- * {@link VectorSchemaRoot} batches. Converts back to {@code Object[]} rows
- * on {@link #readResult()} for caller compatibility.
+ * Default exchange implementation that collects Arrow
+ * {@link VectorSchemaRoot} batches via {@link ExchangeSink#feed} and
+ * converts to {@code Object[]} rows on {@link ExchangeSource#readResult}.
  *
- * <p>The sink takes ownership of fed batches and releases them on
- * {@link #close()}.
+ * <p>Implements both {@link ExchangeSink} (write side for producers) and
+ * {@link ExchangeSource} (read side for consumers). The builder passes
+ * the {@link ExchangeSink} view to child stages and the walker reads
+ * results via the {@link ExchangeSource} view.
  */
-public class RowProducingSink implements ExchangeSink {
+public class RowProducingSink implements ExchangeSink, ExchangeSource {
 
     private final List<VectorSchemaRoot> batches = new ArrayList<>();
     private final List<String> fieldNames = new ArrayList<>();
@@ -33,7 +35,7 @@ public class RowProducingSink implements ExchangeSink {
     @Override
     public void feed(VectorSchemaRoot batch) {
         if (fieldNames.isEmpty() && batch.getSchema().getFields().isEmpty() == false) {
-            for (Field f : batch.getSchema().getFields()) {
+            for (org.apache.arrow.vector.types.pojo.Field f : batch.getSchema().getFields()) {
                 fieldNames.add(f.getName());
             }
         }
@@ -73,7 +75,13 @@ public class RowProducingSink implements ExchangeSink {
         return total;
     }
 
-    @Override
+    /**
+     * Look up a cell value by column name and row index.
+     *
+     * @param column   the column name
+     * @param rowIndex the zero-based row index
+     * @return the cell value, or {@code null} if the column is unknown or the row index is out of range
+     */
     public Object getValueAt(String column, int rowIndex) {
         int colIdx = fieldNames.indexOf(column);
         if (colIdx < 0) return null;
@@ -89,11 +97,6 @@ public class RowProducingSink implements ExchangeSink {
         return null;
     }
 
-    /**
-     * Converts an Arrow vector value to a Java-native type. VarChar vectors
-     * return {@code org.apache.arrow.vector.util.Text} which callers don't
-     * expect — convert to {@code String}. Other types pass through as-is.
-     */
     private static Object toJavaValue(FieldVector vector, int index) {
         if (vector.isNull(index)) return null;
         if (vector instanceof VarCharVector) {

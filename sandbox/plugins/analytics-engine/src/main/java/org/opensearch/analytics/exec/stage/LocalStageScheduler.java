@@ -111,7 +111,7 @@ final class LocalStageScheduler {
         } catch (Exception e) {
             throw new RuntimeException("Failed to create local stage context for stageId=" + stage.getStageId(), e);
         }
-        return new LocalStageExecution(stage, ctx);
+        return new LocalStageExecution(stage, ctx, sink);
     }
 
     /**

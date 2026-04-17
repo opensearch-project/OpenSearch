@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec.stage;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ExchangeSink;
+import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.backend.LocalStageContext;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.core.action.ActionListener;
@@ -19,6 +20,11 @@ import org.opensearch.core.action.ActionListener;
  * {@link StageExecution} implementation for LOCAL stages. Owns the
  * {@link LocalStageContext} lifecycle (start, finalize, fail, cancel)
  * and ensures the downstream listener is signaled exactly once.
+ *
+ * <p>Implements {@link SinkProvidingStageExecution} as both a
+ * {@link DataConsumer} (children write into per-child input sinks via
+ * {@link #inputSink(int)}) and a {@link DataProducer} (output is
+ * produced by the backend into the parent's sink).
  *
  * <p>Lifecycle:
  * {@code CREATED → RUNNING → (SUCCEEDED | FAILED | CANCELLED)}
@@ -33,10 +39,12 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     private static final Logger logger = LogManager.getLogger(LocalStageExecution.class);
 
     private final LocalStageContext ctx;
+    private final ExchangeSink outputSinkRef;
 
-    public LocalStageExecution(Stage stage, LocalStageContext ctx) {
+    public LocalStageExecution(Stage stage, LocalStageContext ctx, ExchangeSink outputSink) {
         super(stage);
         this.ctx = ctx;
+        this.outputSinkRef = outputSink;
         logger.info("[LocalStage] CREATED stageId={} childCount={}", stage.getStageId(), stage.getChildStages().size());
     }
 
@@ -46,21 +54,21 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     }
 
     @Override
-    public ExchangeSink sink(int childStageId) {
+    public ExchangeSink inputSink(int childStageId) {
         return ctx.sinkFor(childStageId);
     }
 
-    /**
-     * LocalStage routes per-child via {@link #sink(int)} / {@code ctx.sinkFor(childStageId)}
-     * — there is no single shared sink. Callers must use the childStageId-aware
-     * overload; this one is never reached because {@link #sink(int)} is overridden
-     * above, bypassing the default delegation in {@link SinkProvidingStageExecution}.
-     */
     @Override
-    public ExchangeSink sink() {
-        throw new UnsupportedOperationException(
-            "LocalStageExecution has per-child input sinks — call sink(int childStageId) instead"
-        );
+    public ExchangeSink outputSink() {
+        return outputSinkRef;
+    }
+
+    @Override
+    public ExchangeSource outputSource() {
+        if (outputSinkRef instanceof ExchangeSource source) {
+            return source;
+        }
+        throw new UnsupportedOperationException("outputSink does not implement ExchangeSource");
     }
 
     /**
