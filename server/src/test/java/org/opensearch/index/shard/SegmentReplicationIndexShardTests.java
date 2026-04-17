@@ -42,6 +42,7 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.TestReplicationSource;
@@ -351,14 +352,18 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
      * Test that latestReplicationCheckpoint returns ReplicationCheckpoint for segrep enabled indices
      */
     public void testReplicationCheckpointNotNullForSegRep() throws IOException {
-        final IndexShard indexShard = newStartedShard(randomBoolean(), getIndexSettings(), new NRTReplicationEngineFactory());
+        final IndexShard indexShard = newStartedShard(
+            randomBoolean(),
+            getIndexSettings(),
+            new EngineBackedIndexerFactory(new NRTReplicationEngineFactory())
+        );
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
         assertNotNull(replicationCheckpoint);
         closeShards(indexShard);
     }
 
     public void testNRTReplicasDoNotAcceptRefreshListeners() throws IOException {
-        final IndexShard indexShard = newStartedShard(false, settings, new NRTReplicationEngineFactory());
+        final IndexShard indexShard = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         indexShard.addRefreshListener(mock(Translog.Location.class), Assert::assertFalse);
         closeShards(indexShard);
     }
@@ -419,7 +424,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         final IndexShard primaryTarget = newShard(
             primarySource.routingEntry().getTargetRelocatingShard(),
             getIndexSettings(),
-            new NRTReplicationEngineFactory()
+            new EngineBackedIndexerFactory(new NRTReplicationEngineFactory())
         );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
 
@@ -462,7 +467,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testIsSegmentReplicationAllowed_WrongEngineType() throws IOException {
-        final IndexShard indexShard = newShard(false, getIndexSettings(), new InternalEngineFactory());
+        final IndexShard indexShard = newShard(false, getIndexSettings(), new EngineBackedIndexerFactory(new InternalEngineFactory()));
         assertFalse(indexShard.isSegmentReplicationAllowed());
         closeShards(indexShard);
     }
@@ -1152,7 +1157,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testComputeReplicationCheckpointNullInfosReturnsEmptyCheckpoint() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir())) {
             final IndexShard primaryShard = shards.getPrimary();
-            assertEquals(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard.computeReplicationCheckpoint(null));
+            assertEquals(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard.computeReplicationCheckpoint((SegmentInfos) null));
         }
     }
 

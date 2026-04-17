@@ -14,12 +14,26 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
+// Guava comes transitively from calcite-core — forbidden on compile classpaths
+// by OpenSearch policy. Calcite API exposes ImmutableList in type annotations,
+// so the compiler needs Guava. Bypass via custom config (same pattern as analytics-engine).
+configurations {
+  calciteCompile
+  compileClasspath { exclude group: 'com.google.guava' }
+  testCompileClasspath { exclude group: 'com.google.guava' }
+}
+sourceSets.main.compileClasspath += configurations.calciteCompile
+sourceSets.test.compileClasspath += configurations.calciteCompile
+
 dependencies {
   compileOnly project(':server')
   compileOnly project(':sandbox:libs:analytics-framework')
   compileOnly project(':sandbox:plugins:analytics-engine')
   // TODO: Consume Calcite dependency from Analytics Framework instead of declaring it separately.
   compileOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
+
+  // Guava for compilation — Calcite API exposes guava types in annotations
+  calciteCompile "com.google.guava:guava:${versions.guava}"
 
   testImplementation project(':test:framework')
   testImplementation "org.mockito:mockito-core:${versions.mockito}"

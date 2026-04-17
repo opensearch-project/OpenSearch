@@ -10,7 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.be.datafusion.jni.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.WriterFileSet;
 

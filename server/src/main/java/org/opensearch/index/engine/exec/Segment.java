@@ -22,6 +22,7 @@ import java.util.function.Function;
 /**
  * Represents a segment in the catalog snapshot containing files grouped by data format.
  * Each segment has a unique generation number and maintains searchable files organized by their data format type.
+ * This class is serializable and can be transmitted across nodes for replication and recovery operations.
  */
 @ExperimentalApi
 public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearchableFiles) implements Writeable {
@@ -79,6 +80,11 @@ public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearc
 
         public Builder addSearchableFiles(DataFormat dataFormat, WriterFileSet writerFileSetGroup) {
             dfGroupedSearchableFiles.put(dataFormat.name(), writerFileSetGroup);
+            return this;
+        }
+
+        public Builder addSearchableFiles(String dataFormatName, WriterFileSet writerFileSetGroup) {
+            dfGroupedSearchableFiles.put(dataFormatName, writerFileSetGroup);
             return this;
         }
 

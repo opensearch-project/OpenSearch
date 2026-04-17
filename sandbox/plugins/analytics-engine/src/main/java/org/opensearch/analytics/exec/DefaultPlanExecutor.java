@@ -20,7 +20,7 @@ import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 
@@ -62,24 +62,30 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
 
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
+        // TODO: replace this direct execution path with PlannerImpl → QueryDAG → Scheduler.
+        // PlannerImpl.createPlan() returns a QueryDAG; the Scheduler traverses it bottom-up,
+        // dispatches FragmentExecutionRequests to data nodes, and streams results back.
         String tableName = extractTableName(logicalFragment);
-        AnalyticsSearchBackendPlugin provider = selectBackEnd();
-        if (provider == null) {
+        AnalyticsSearchBackendPlugin backendPlugin = selectBackEnd();
+        if (backendPlugin == null) {
             return new ArrayList<>();
         }
 
         IndexShard shard = resolveShard(tableName);
-        DataFormatAwareEngine dataFormatAwareEngine = shard.getCompositeEngine();
-        if (dataFormatAwareEngine == null) {
+        IndexReaderProvider indexReaderProvider = shard.getReaderProvider();
+        if (indexReaderProvider == null) {
             throw new IllegalStateException("No CompositeEngine on shard [" + shard.shardId() + "]");
         }
 
         SearchShardTask task = null; // TODO: init task
         List<Object[]> rows = new ArrayList<>();
-        try (var dataFormatAwareReader = dataFormatAwareEngine.acquireReader()) {
+        try (var dataFormatAwareReader = indexReaderProvider.acquireReader()) {
             ExecutionContext ctx = new ExecutionContext(tableName, task, dataFormatAwareReader.get());
-            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = provider.createSearchExecEngine(ctx)) {
-                logger.info("[DefaultPlanExecutor] Executing via [{}]", provider.name());
+            try (
+                SearchExecEngine<ExecutionContext, EngineResultStream> engine = backendPlugin.getSearchExecEngineProvider()
+                    .createSearchExecEngine(ctx)
+            ) {
+                logger.info("[DefaultPlanExecutor] Executing via [{}]", backendPlugin.name());
                 try (EngineResultStream resultStream = engine.execute(ctx)) {
                     Iterator<EngineResultBatch> batchIterator = resultStream.iterator();
                     while (batchIterator.hasNext()) {
@@ -96,7 +102,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
                 }
             }
         } catch (Exception e) {
-            throw new RuntimeException("Execution failed for [" + provider.name() + "]", e);
+            throw new RuntimeException("Execution failed for [" + backendPlugin.name() + "]", e);
         }
         return rows;
     }
