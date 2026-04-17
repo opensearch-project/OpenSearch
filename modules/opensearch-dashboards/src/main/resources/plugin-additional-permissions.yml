@@ -1,0 +1,8 @@
+cluster_permissions:
+  - "osd:admin/advanced_settings/*"
+  - "osd:saved_object/*"
+index_permissions:
+  - index_patterns:
+      - ".kibana*"
+    allowed_actions:
+      - "indices:*"

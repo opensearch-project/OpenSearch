@@ -15,13 +15,12 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.dashboards.DashboardsPluginClient;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
-import org.opensearch.transport.client.Client;
 
 import java.util.Map;
 
@@ -29,20 +28,19 @@ public class TransportGetAdvancedSettingsAction extends HandledTransportAction<G
 
     private static final Logger log = LogManager.getLogger(TransportGetAdvancedSettingsAction.class);
 
-    private final Client client;
+    private final DashboardsPluginClient client;
 
     @Inject
-    public TransportGetAdvancedSettingsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportGetAdvancedSettingsAction(TransportService transportService, ActionFilters actionFilters, DashboardsPluginClient client) {
         super(GetAdvancedSettingsAction.NAME, transportService, actionFilters, GetAdvancedSettingsRequest::new);
         this.client = client;
     }
 
     @Override
     protected void doExecute(Task task, GetAdvancedSettingsRequest request, ActionListener<AdvancedSettingsResponse> listener) {
-        final ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext();
         GetRequest getRequest = new GetRequest(request.getIndex(), request.getDocumentId());
 
-        client.get(getRequest, ActionListener.runBefore(ActionListener.wrap(getResponse -> {
+        client.get(getRequest, ActionListener.wrap(getResponse -> {
             if (getResponse.isExists()) {
                 Map<String, Object> source = getResponse.getSourceAsMap();
                 listener.onResponse(new AdvancedSettingsResponse(source));
@@ -55,6 +53,6 @@ public class TransportGetAdvancedSettingsAction extends HandledTransportAction<G
             } else {
                 listener.onFailure(e);
             }
-        }), ctx::restore));
+        }));
     }
 }

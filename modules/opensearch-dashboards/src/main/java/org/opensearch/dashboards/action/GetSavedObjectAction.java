@@ -9,16 +9,16 @@
 package org.opensearch.dashboards.action;
 
 import org.opensearch.action.ActionType;
+import org.opensearch.action.get.GetResponse;
 
-/**
- * Action for getting a single saved object by type and id.
- */
-public class GetSavedObjectAction extends ActionType<SavedObjectResponse> {
+public class GetSavedObjectAction extends ActionType<GetResponse> {
 
     public static final GetSavedObjectAction INSTANCE = new GetSavedObjectAction();
     public static final String NAME = "osd:saved_object/get";
 
     private GetSavedObjectAction() {
-        super(NAME, SavedObjectResponse::new);
+        super(NAME, in -> {
+            return new GetResponse(new org.opensearch.index.get.GetResult(in));
+        });
     }
 }

@@ -14,45 +14,33 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.dashboards.DashboardsPluginClient;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
-import org.opensearch.transport.client.Client;
 
-/**
- * Transport action for creating or updating a saved object.
- */
 public class TransportWriteSavedObjectAction extends HandledTransportAction<WriteSavedObjectRequest, SavedObjectResponse> {
 
     private static final Logger log = LogManager.getLogger(TransportWriteSavedObjectAction.class);
 
-    private final Client client;
+    private final DashboardsPluginClient client;
 
     @Inject
-    public TransportWriteSavedObjectAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportWriteSavedObjectAction(TransportService transportService, ActionFilters actionFilters, DashboardsPluginClient client) {
         super(WriteSavedObjectAction.NAME, transportService, actionFilters, WriteSavedObjectRequest::new);
         this.client = client;
     }
 
     @Override
     protected void doExecute(Task task, WriteSavedObjectRequest request, ActionListener<SavedObjectResponse> listener) {
-        final ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext();
-
         IndexRequest indexRequest = new IndexRequest(request.getIndex()).id(request.getDocumentId()).source(request.getDocument());
         if (request.isCreateOperation()) {
             indexRequest.create(true);
         }
 
-        client.index(
-            indexRequest,
-            ActionListener.runBefore(
-                ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new SavedObjectResponse(request.getDocument())),
-                    listener::onFailure
-                ),
-                ctx::restore
-            )
-        );
+        client.index(indexRequest, ActionListener.wrap(
+            indexResponse -> listener.onResponse(new SavedObjectResponse(request.getDocument())),
+            listener::onFailure
+        ));
     }
 }

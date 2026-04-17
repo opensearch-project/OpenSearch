@@ -10,6 +10,7 @@ package org.opensearch.dashboards.action;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocRequest;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -23,7 +24,7 @@ import static org.opensearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS
 /**
  * Request to get a single saved object by index and document id.
  */
-public class GetSavedObjectRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class GetSavedObjectRequest extends ActionRequest implements IndicesRequest.Replaceable, DocRequest {
 
     private String index;
     private String documentId;
@@ -66,6 +67,25 @@ public class GetSavedObjectRequest extends ActionRequest implements IndicesReque
 
     public String getDocumentId() {
         return documentId;
+    }
+
+    @Override
+    public String index() {
+        return index;
+    }
+
+    @Override
+    public String id() {
+        return documentId;
+    }
+
+    @Override
+    public String type() {
+        // Extract resource type from document ID prefix (e.g. "visualization:abc" → "visualization")
+        if (documentId != null && documentId.contains(":")) {
+            return documentId.substring(0, documentId.indexOf(':'));
+        }
+        return DocRequest.super.type();
     }
 
     @Override

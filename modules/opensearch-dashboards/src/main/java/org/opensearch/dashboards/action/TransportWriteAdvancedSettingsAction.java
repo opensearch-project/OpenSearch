@@ -14,42 +14,33 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.dashboards.DashboardsPluginClient;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
-import org.opensearch.transport.client.Client;
 
 public class TransportWriteAdvancedSettingsAction extends HandledTransportAction<WriteAdvancedSettingsRequest, AdvancedSettingsResponse> {
 
     private static final Logger log = LogManager.getLogger(TransportWriteAdvancedSettingsAction.class);
 
-    private final Client client;
+    private final DashboardsPluginClient client;
 
     @Inject
-    public TransportWriteAdvancedSettingsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportWriteAdvancedSettingsAction(TransportService transportService, ActionFilters actionFilters, DashboardsPluginClient client) {
         super(WriteAdvancedSettingsAction.NAME, transportService, actionFilters, WriteAdvancedSettingsRequest::new);
         this.client = client;
     }
 
     @Override
     protected void doExecute(Task task, WriteAdvancedSettingsRequest request, ActionListener<AdvancedSettingsResponse> listener) {
-        final ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext();
-
         IndexRequest indexRequest = new IndexRequest(request.getIndex()).id(request.getDocumentId()).source(request.getDocument());
         if (request.isCreateOperation()) {
             indexRequest.create(true);
         }
 
-        client.index(
-            indexRequest,
-            ActionListener.runBefore(
-                ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new AdvancedSettingsResponse(request.getDocument())),
-                    listener::onFailure
-                ),
-                ctx::restore
-            )
-        );
+        client.index(indexRequest, ActionListener.wrap(
+            indexResponse -> listener.onResponse(new AdvancedSettingsResponse(request.getDocument())),
+            listener::onFailure
+        ));
     }
 }
