@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -152,7 +153,8 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
             eq(mockTcpChannel),
             eq(channel),
             eq(123L),
-            eq("test-action")
+            eq("test-action"),
+            isNull()
         );
 
         // Simulate async completion by manually creating and closing a BatchTask
@@ -168,6 +170,7 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
             false,
             true,
             false,
+            null,
             null
         );
         completeTask.close();
@@ -188,7 +191,7 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
 
     public void testCompleteStreamWithException() {
         RuntimeException outboundException = new RuntimeException("outbound error");
-        doThrow(outboundException).when(mockOutboundHandler).completeStream(any(), any(), any(), any(), anyLong(), any());
+        doThrow(outboundException).when(mockOutboundHandler).completeStream(any(), any(), any(), any(), anyLong(), any(), any());
 
         StreamException thrown = assertThrows(StreamException.class, () -> channel.completeStream());
         assertEquals(StreamErrorCode.INTERNAL, thrown.getErrorCode());

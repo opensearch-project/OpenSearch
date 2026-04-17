@@ -42,6 +42,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Optional;
 
@@ -80,6 +81,18 @@ public interface TransportChannel {
      */
     @ExperimentalApi
     default void completeStream() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Completes the streaming response and runs the given cleanup callback on the transport
+     * executor after all batches have been flushed. Use this to close producer-side resources
+     * (e.g., allocators) that must outlive the async batch transfers.
+     *
+     * @param onComplete cleanup to run after all batches are sent
+     */
+    @ExperimentalApi
+    default void completeStream(Closeable onComplete) {
         throw new UnsupportedOperationException();
     }
 

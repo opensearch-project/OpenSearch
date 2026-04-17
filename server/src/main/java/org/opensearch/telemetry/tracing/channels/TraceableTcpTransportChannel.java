@@ -18,6 +18,7 @@ import org.opensearch.transport.BaseTcpTransportChannel;
 import org.opensearch.transport.TcpTransportChannel;
 import org.opensearch.transport.TransportChannel;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Optional;
 
@@ -106,6 +107,15 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
     public void completeStream() {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.completeStream();
+        } finally {
+            span.endSpan();
+        }
+    }
+
+    @Override
+    public void completeStream(Closeable onComplete) {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
+            delegate.completeStream(onComplete);
         } finally {
             span.endSpan();
         }
