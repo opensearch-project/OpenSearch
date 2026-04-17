@@ -21,6 +21,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.opensearch.be.lucene.index.LuceneCommitter;
+import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
@@ -36,6 +38,7 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
@@ -266,13 +269,28 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         Path dataPath = dir.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
         java.nio.file.Files.createDirectories(dataPath);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
-        Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
+        Store store = new Store(
+            shardId,
+            idxSettings,
+            new NIOFSDirectory(dataPath),
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            shardPath
+        );
         CommitterConfig cs = new CommitterConfig(createEngineConfig(store, idxSettings, shardId));
         LuceneCommitter committer = new LuceneCommitter(cs);
 
         try {
-            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
+            MapperService mockMapperService = org.mockito.Mockito.mock(MapperService.class);
+            org.mockito.Mockito.when(mockMapperService.indexAnalyzer()).thenReturn(new MockAnalyzer(random()));
+            org.mockito.Mockito.when(mockMapperService.getIndexSettings()).thenReturn(idxSettings);
+            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+                new LuceneDataFormat(),
+                committer,
+                mockMapperService,
+                store
+            );
             ReaderManagerConfig settings = new ReaderManagerConfig(Optional.of(engine), dataFormat, shardPath);
 
             EngineReaderManager<?> rm = LuceneSearchBackEnd.createReaderManager(settings);
