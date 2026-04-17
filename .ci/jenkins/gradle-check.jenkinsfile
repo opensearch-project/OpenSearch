@@ -1,0 +1,232 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+// @job-name: gradle-check
+// @description: Runs Gradle check on OpenSearch core repository for a given branch or commit.
+
+def secret_dockerhub_readonly = [
+    [envVar: 'DOCKER_USERNAME', secretRef: 'op://opensearch-infra-secrets/dockerhub-production-readonly-credentials/username'],
+    [envVar: 'DOCKER_PASSWORD', secretRef: 'op://opensearch-infra-secrets/dockerhub-production-readonly-credentials/password']
+]
+
+lib = library(identifier: 'jenkins@11.6.0', retriever: modernSCM([
+    $class: 'GitSCMSource',
+    remote: 'https://github.com/opensearch-project/opensearch-build-libraries.git',
+]))
+
+pipeline {
+    agent { label AGENT_LABEL }
+    options {
+        timeout(time: 2, unit: 'HOURS')
+        buildDiscarder(logRotator(daysToKeepStr: '90'))
+        throttleJobProperty(
+            categories: [],
+            limitOneJobWithMatchingParams: false,
+            maxConcurrentPerNode: 0,
+            maxConcurrentTotal: 45,
+            paramsToUseForLimit: '',
+            throttleEnabled: true,
+            throttleOption: 'project',
+        )
+    }
+    parameters {
+        string(
+            name: 'GIT_REPO_URL',
+            description: 'OpenSearch core repository url on git, can be either the official upstream url or your fork url.',
+            defaultValue: 'https://github.com/opensearch-project/OpenSearch.git',
+            trim: true
+        )
+        string(
+            name: 'GIT_REFERENCE',
+            description: 'Git branch, tag, commitid for reference to checkout commit of OpenSearch core before running the gradle check.',
+            defaultValue: 'main',
+            trim: true
+        )
+        string(
+            name: 'GRADLE_CHECK_COMMAND',
+            description: '<Optional> Custom command to pass to runGradleCheck.',
+            defaultValue: 'check -Dtests.coverage=true',
+            trim: true
+        )
+        // Must use agent with 1 executor or gradle check will show a lot of java-related errors
+        // The c524xlarge is the instance type that has the least amount of errors during gradle check
+        // https://github.com/opensearch-project/OpenSearch/issues/1975
+        //
+        // Update 20230724: Recent investigation shows gradle check is memory-bound thus switch to a new
+        //                  runner of M58xlarge for more stable runs
+        //                  https://github.com/opensearch-project/opensearch-ci/issues/321
+        choice(
+            name: 'AGENT_LABEL',
+            description: '<Optional> Choose which jenkins agent to run gradle check on. Defaults to Jenkins-Agent-Ubuntu2404-X64-M58xlarge-Single-Host.',
+            choices: ['Jenkins-Agent-Ubuntu2404-X64-M7a8xlarge-Single-Host', 'Jenkins-Agent-Windows2019-X64-C524xlarge-Single-Host'],
+        )
+    }
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [key: 'pr_from_sha', value: '$.pr_from_sha'],
+                [key: 'pr_from_clone_url', value: '$.pr_from_clone_url'],
+                [key: 'pr_to_clone_url', value: '$.pr_to_clone_url'],
+                [key: 'pr_title', value: '$.pr_title'],
+                [key: 'pr_number', value: '$.pr_number'],
+                [key: 'post_merge_action', value: '$.post_merge_action'],
+                [key: 'pr_owner', value: '$.pr_owner'],
+                [key: 'gradle_check_command', value: '$.gradle_check_command']
+            ],
+            tokenCredentialId: 'jenkins-gradle-check-generic-webhook-token',
+            causeString: 'Triggered by PR on OpenSearch core repository',
+            printContributedVariables: false,
+            printPostContent: false
+        )
+        parameterizedCron '''
+            H */2 * * * %GIT_REFERENCE=main;AGENT_LABEL=Jenkins-Agent-Ubuntu2404-X64-M58xlarge-Single-Host
+            H 6 * * * %GIT_REFERENCE=2.19;AGENT_LABEL=Jenkins-Agent-Ubuntu2404-X64-M58xlarge-Single-Host
+        '''
+    }
+    environment {
+        BUILD_CAUSE = currentBuild.getBuildCauses()
+    }
+    stages {
+        stage('Run Gradle Check') {
+            steps {
+                script {
+
+                    // Use webhook value if provided, otherwise fall back to pipeline parameter default
+                    if (binding.hasVariable('gradle_check_command') && gradle_check_command?.trim()) {
+                        env.GRADLE_CHECK_COMMAND = gradle_check_command
+                    }
+
+                    if (!(env.GRADLE_CHECK_COMMAND ==~ /^[a-zA-Z0-9\-._=: \/*#]+$/)) {
+                        error("Invalid GRADLE_CHECK_COMMAND '${env.GRADLE_CHECK_COMMAND}': contains disallowed characters")
+                    }
+
+                    sh """
+                        set +x
+                        set -e
+                        JAVA_HOME_LIST=`env | grep JAVA | grep HOME`
+                        echo "JAVA_HOME_LIST \$JAVA_HOME_LIST"
+
+                        if [ -n "\$JAVA_HOME_LIST" ] && [ "\$JAVA_HOME_LIST" != "" ]; then
+                            for java_version in \$JAVA_HOME_LIST; do
+                                echo \$java_version
+                                java_path="`echo \$java_version | cut -d= -f2`/bin/java -version"
+                                eval \$java_path
+                            done
+                        else
+                            echo "Missing JAVA_HOME information in env vars, exit 1"
+                            exit 1
+                        fi
+                    """
+
+                    def agent_name_array = params.AGENT_LABEL.tokenize('-')
+                    def agent_name = agent_name_array[2] + " " + agent_name_array[4]
+
+                    echo("Build Cause: ${BUILD_CAUSE}")
+                    withSecrets(secrets: secret_dockerhub_readonly){
+                        def bwc_checkout_align = "false"
+
+                        def dockerLogin = sh(returnStdout: true, script: "set +x && (echo $DOCKER_PASSWORD | docker login --username $DOCKER_USERNAME --password-stdin) || echo docker error").trim()
+
+                        if (!env.BUILD_CAUSE.contains('Started by user') && !env.BUILD_CAUSE.contains('Started by timer')) {
+                            def pr_url = "${pr_to_clone_url}".replace(".git", "/pull/${pr_number}")
+                            println("Triggered by GitHub: ${pr_to_clone_url}")
+                            if ("$post_merge_action" == "true") {
+                                currentBuild.description = """runner: ${agent_name}<br><a href="${pr_to_clone_url}">Others</a>: ${pr_title}"""
+                            }
+                            else {
+                                currentBuild.description = """runner: ${agent_name}<br><a href="${pr_url}">PR #${pr_number}</a>: ${pr_title} with bwc.checkout.align=true"""
+                                bwc_checkout_align = "true"
+                            }
+
+                            abortStaleJenkinsJobs(jobName: 'gradle-check', lookupTime: 3)
+
+                            runGradleCheck(
+                                gitRepoUrl: "${pr_from_clone_url}",
+                                gitReference: "${pr_from_sha}",
+                                bwcCheckoutAlign: "${bwc_checkout_align}",
+                                command: "${GRADLE_CHECK_COMMAND}"
+                            )
+                        }
+                        else {
+                            println("Triggered by User or Triggered by Timer")
+                            def repo_url = "${GIT_REPO_URL}".replace(".git", "/commit")
+                            currentBuild.description = """runner: ${agent_name}<br>git: <a href="${GIT_REPO_URL}">${GIT_REPO_URL}</a><br>ref: <a href="${repo_url}/${GIT_REFERENCE}">${GIT_REFERENCE}</a>"""
+
+                            runGradleCheck(
+                                gitRepoUrl: "${GIT_REPO_URL}",
+                                gitReference: "${GIT_REFERENCE}",
+                                bwcCheckoutAlign: "${bwc_checkout_align}",
+                                command: "${GRADLE_CHECK_COMMAND}"
+                            )
+                        }
+
+                        sh("docker logout || echo docker error")
+                    }
+                }
+            }
+            post() {
+                failure {
+                    archiveArtifacts artifacts: '**/build/heapdump/*.hprof', allowEmptyArchive: true
+                }
+                always {
+                    sh ("cp -v `find search/build/reports/jacoco/ -name '*.xml' | head -n 1` codeCoverage.xml || echo")
+                    junit allowEmptyResults: true, testResults: '**/build/test-results/**/*.xml'
+                    archiveArtifacts artifacts: 'codeCoverage.xml', onlyIfSuccessful: true
+                    script {
+                        def invokedBy
+                        def pullRequest
+                        def pullRequestTitle
+                        def gitReference
+                        def pullRequestOwner
+                        switch (true) {
+                            case env.BUILD_CAUSE.contains('Started by user'):
+                                invokedBy = 'User'
+                                pullRequest = "null"
+                                pullRequestTitle = "null"
+                                gitReference = "${GIT_REFERENCE}"
+                                pullRequestOwner = "null"
+                                break
+                            case env.BUILD_CAUSE.contains('Started by timer'):
+                                invokedBy = 'Timer'
+                                pullRequest = "null"
+                                pullRequestTitle = "null"
+                                gitReference = "${GIT_REFERENCE}"
+                                pullRequestOwner = "null"
+                                break
+                            case "${post_merge_action}" == "true":
+                                invokedBy = 'Post Merge Action'
+                                pullRequest = "${pr_number}"
+                                pullRequestTitle = "${pr_title}"
+                                gitReference = "${pr_from_sha}"
+                                pullRequestOwner = "${pr_owner}"
+                                break
+                            default:
+                                invokedBy = 'Pull Request'
+                                pullRequest = "${pr_number}"
+                                pullRequestTitle = "${pr_title}"
+                                gitReference = "${pr_from_sha}"
+                                pullRequestOwner = "${pr_owner}"
+                        }
+                        publishGradleCheckTestResults(prNumber: "${pullRequest}" , prTitle: "${pullRequestTitle}", prOwner: "${pullRequestOwner}", invokeType: "${invokedBy}", gitReference: "${gitReference}", command: "${GRADLE_CHECK_COMMAND}")
+                        sh("rm -rf *")
+                        postCleanup()
+                    }
+                }
+            }
+        }
+    }
+    post() {
+        always {
+            script {
+                postCleanup()
+                sh "(docker logout && docker image prune -f --all) || echo docker error"
+            }
+        }
+    }
+}
