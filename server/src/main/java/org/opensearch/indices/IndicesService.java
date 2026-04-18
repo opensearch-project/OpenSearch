@@ -1412,6 +1412,13 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Returns the registered directory factories keyed by store type name.
+     */
+    public Map<String, IndexStorePlugin.DirectoryFactory> getDirectoryFactories() {
+        return directoryFactories;
+    }
+
+    /**
      * Accumulate stats from the passed Object. Use this instead of
      * {@link #addDocStatusStats(org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats)} after
      * Version 3.4.0
