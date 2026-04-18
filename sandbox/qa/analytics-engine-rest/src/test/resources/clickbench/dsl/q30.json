@@ -1,0 +1,17 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "aggregations": {
+    "sum(ResolutionWidth)": {
+      "sum": {
+        "field": "ResolutionWidth"
+      }
+    },
+    "sum(ResolutionWidth+1)_COUNT": {
+      "value_count": {
+        "field": "ResolutionWidth"
+      }
+    }
+  }
+}
