@@ -19,16 +19,35 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+/**
+ * A {@link StreamInput} backed by a {@link VectorSchemaRoot} from the Flight transport.
+ *
+ * @opensearch.internal
+ */
 class VectorStreamInput extends StreamInput {
 
     private final VarBinaryVector vector;
+    private final VectorSchemaRoot root;
     private final NamedWriteableRegistry registry;
     private int row = 0;
     private ByteBuffer buffer = null;
 
+    /**
+     * Creates a new VectorStreamInput.
+     * @param root the Arrow root containing the data
+     * @param registry the named writeable registry
+     */
     public VectorStreamInput(VectorSchemaRoot root, NamedWriteableRegistry registry) {
+        this.root = root;
         vector = (VarBinaryVector) root.getVector("0");
         this.registry = registry;
+    }
+
+    /**
+     * Returns the underlying {@link VectorSchemaRoot}.
+     */
+    public VectorSchemaRoot getRoot() {
+        return root;
     }
 
     @Override
@@ -112,7 +131,9 @@ class VectorStreamInput extends StreamInput {
 
     @Override
     public void close() throws IOException {
-        vector.close();
+        if (vector != null) {
+            vector.close();
+        }
     }
 
     @Override

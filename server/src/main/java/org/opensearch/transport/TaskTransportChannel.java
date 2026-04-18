@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.transport.TransportResponse;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Optional;
 
@@ -84,6 +85,15 @@ public class TaskTransportChannel implements TransportChannel {
             onTaskFinished.close();
         } finally {
             channel.completeStream();
+        }
+    }
+
+    @Override
+    public void completeStream(Closeable onComplete) {
+        try {
+            onTaskFinished.close();
+        } finally {
+            channel.completeStream(onComplete);
         }
     }
 
