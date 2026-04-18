@@ -133,6 +133,14 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     @Override
     public void cancel(String reason) {
         if (transitionTo(StageExecution.State.CANCELLED) == false) return;
+        // Bridge to task framework: cancel the parent task so data nodes
+        // see the cancellation via TaskCancellationService ban propagation.
+        // AnalyticsQueryTask.shouldCancelChildrenOnCancellation() == true
+        // ensures child shard tasks on data nodes are cancelled.
+        org.opensearch.tasks.Task parentTask = config.parentTask();
+        if (parentTask instanceof org.opensearch.tasks.CancellableTask ct && ct.isCancelled() == false) {
+            ct.cancel(reason);
+        }
     }
 
     @Override

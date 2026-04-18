@@ -43,7 +43,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-final class LocalStageScheduler {
+final class LocalStageScheduler implements StageScheduler {
 
     private static final Logger logger = LogManager.getLogger(LocalStageScheduler.class);
 
@@ -53,7 +53,8 @@ final class LocalStageScheduler {
         this.backends = backends != null ? backends : Map.of();
     }
 
-    StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
+    @Override
+    public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
         if (isPassThrough(stage)) {
             return new PassThroughStageExecution(stage, sink);
         }

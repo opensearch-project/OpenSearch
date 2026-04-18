@@ -35,7 +35,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-final class ShardFragmentStageScheduler {
+final class ShardFragmentStageScheduler implements StageScheduler {
 
     private final ClusterService clusterService;
     private final AnalyticsSearchTransportService transport;
@@ -55,7 +55,8 @@ final class ShardFragmentStageScheduler {
         this.responseCodec = responseCodec;
     }
 
-    StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
+    @Override
+    public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
         List<FragmentExecutionRequest.PlanAlternative> planAlternatives = buildPlanAlternatives(stage);
         List<ShardTarget> targets = TargetResolver.resolveTargets(stage, clusterService, config);
         targets = stage.getShardFilterPhase().filter(targets, stage);

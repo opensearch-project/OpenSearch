@@ -32,21 +32,42 @@ public class QueryContext {
     // TODO: make configurable via cluster setting (like search.max_concurrent_shard_requests)
     private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
 
+    /** Default per-query memory limit for Arrow allocations (256 MB). */
+    private static final long DEFAULT_PER_QUERY_MEMORY_LIMIT = 256L * 1024 * 1024;
+
+    /**
+     * Shared root allocator across all queries. Per-query child allocators
+     * are created from this root with individual limits.
+     */
+    private static final BufferAllocator SHARED_ROOT = new RootAllocator(Long.MAX_VALUE);
+
     private final QueryDAG dag;
     private final Executor searchExecutor;
     private final AnalyticsQueryTask parentTask;
     private final int maxConcurrentShardRequests;
+    private final long perQueryMemoryLimit;
     private volatile BufferAllocator bufferAllocator;
 
     public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask) {
-        this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS);
+        this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT);
     }
 
     public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask, int maxConcurrentShardRequests) {
+        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, DEFAULT_PER_QUERY_MEMORY_LIMIT);
+    }
+
+    public QueryContext(
+        QueryDAG dag,
+        Executor searchExecutor,
+        AnalyticsQueryTask parentTask,
+        int maxConcurrentShardRequests,
+        long perQueryMemoryLimit
+    ) {
         this.dag = dag;
         this.searchExecutor = searchExecutor;
         this.parentTask = parentTask;
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+        this.perQueryMemoryLimit = perQueryMemoryLimit;
     }
 
     public QueryDAG dag() {
@@ -73,7 +94,9 @@ public class QueryContext {
 
     /**
      * Returns the per-query Arrow buffer allocator, creating it lazily on first access.
-     * The allocator is a child of a root allocator and should be closed when the query completes.
+     * The allocator is a child of the shared root with a per-query memory limit.
+     * When the limit is exceeded, Arrow throws {@code OutOfMemoryException} which
+     * the stage catches and transitions to FAILED.
      */
     public BufferAllocator bufferAllocator() {
         BufferAllocator alloc = bufferAllocator;
@@ -81,7 +104,8 @@ public class QueryContext {
             synchronized (this) {
                 alloc = bufferAllocator;
                 if (alloc == null) {
-                    alloc = new RootAllocator(Long.MAX_VALUE);
+                    alloc = SHARED_ROOT.newChildAllocator(
+                        "query-" + dag.queryId(), 0, perQueryMemoryLimit);
                     bufferAllocator = alloc;
                 }
             }
@@ -104,11 +128,11 @@ public class QueryContext {
 
     /** Creates a test context with a synchronous executor. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask) {
-        return new QueryContext(dag, Runnable::run, parentTask);
+        return new QueryContext(dag, Runnable::run, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, Long.MAX_VALUE);
     }
 
     /** Creates a test context with a stub DAG. */
     public static QueryContext forTest(String queryId, AnalyticsQueryTask parentTask) {
-        return new QueryContext(new QueryDAG(queryId, null), Runnable::run, parentTask);
+        return new QueryContext(new QueryDAG(queryId, null), Runnable::run, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, Long.MAX_VALUE);
     }
 }
