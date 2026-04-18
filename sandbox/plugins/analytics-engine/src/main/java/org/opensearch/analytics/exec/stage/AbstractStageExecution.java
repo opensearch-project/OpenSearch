@@ -10,6 +10,7 @@ package org.opensearch.analytics.exec.stage;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.common.Nullable;
 
@@ -36,10 +37,18 @@ abstract class AbstractStageExecution implements StageExecution {
     private final AtomicReference<State> state = new AtomicReference<>(State.CREATED);
     private final AtomicReference<Exception> failure = new AtomicReference<>();
     private final List<StageStateListener> stateListeners = new ArrayList<>();
+    private final List<AnalyticsOperationListener> operationListeners;
+    private final String queryId;
     private static final Logger logger = LogManager.getLogger(AbstractStageExecution.class);
 
     protected AbstractStageExecution(Stage stage) {
+        this(stage, null, List.of());
+    }
+
+    protected AbstractStageExecution(Stage stage, String queryId, List<AnalyticsOperationListener> operationListeners) {
         this.stage = stage;
+        this.queryId = queryId;
+        this.operationListeners = operationListeners;
         this.metrics = new StageMetrics(stage.getStageId());
     }
 
@@ -116,7 +125,7 @@ abstract class AbstractStageExecution implements StageExecution {
             metrics.recordEnd();
         }
 
-        // Transition succeeded. Fire listeners.
+        // Transition succeeded. Fire state listeners.
         for (StageStateListener l : stateListeners) {
             try {
                 l.onStateChange(previous, target);
@@ -130,7 +139,33 @@ abstract class AbstractStageExecution implements StageExecution {
                 );
             }
         }
+
+        // Fire operation listeners for observability.
+        fireOperationListeners(previous, target);
+
         return true;
+    }
+
+    private void fireOperationListeners(State previous, State target) {
+        if (operationListeners.isEmpty() || queryId == null) return;
+        String stageType = getClass().getSimpleName();
+        int sid = getStageId();
+        for (AnalyticsOperationListener l : operationListeners) {
+            try {
+                switch (target) {
+                    case RUNNING -> l.onStageStart(queryId, sid, stageType);
+                    case SUCCEEDED -> l.onStageSuccess(queryId, sid,
+                        metrics.getEndTimeMs() > 0 && metrics.getStartTimeMs() > 0
+                            ? (metrics.getEndTimeMs() - metrics.getStartTimeMs()) * 1_000_000L : 0,
+                        metrics.getRowsProcessed());
+                    case FAILED -> l.onStageFailure(queryId, sid, getFailure());
+                    case CANCELLED -> l.onStageCancelled(queryId, sid, "stage cancelled");
+                    default -> { }
+                }
+            } catch (Exception e) {
+                logger.warn("[StageExecution] operation listener threw for stage {} -> {}", sid, target, e);
+            }
+        }
     }
 
     private static boolean isTerminal(State s) {

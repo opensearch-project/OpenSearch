@@ -10,10 +10,12 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.tasks.Task;
 
+import java.util.List;
 import java.util.concurrent.Executor;
 
 /**
@@ -46,14 +48,15 @@ public class QueryContext {
     private final AnalyticsQueryTask parentTask;
     private final int maxConcurrentShardRequests;
     private final long perQueryMemoryLimit;
+    private final List<AnalyticsOperationListener> operationListeners;
     private volatile BufferAllocator bufferAllocator;
 
     public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask) {
-        this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT);
+        this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
     }
 
     public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask, int maxConcurrentShardRequests) {
-        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, DEFAULT_PER_QUERY_MEMORY_LIMIT);
+        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
     }
 
     public QueryContext(
@@ -63,11 +66,23 @@ public class QueryContext {
         int maxConcurrentShardRequests,
         long perQueryMemoryLimit
     ) {
+        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, perQueryMemoryLimit, List.of());
+    }
+
+    public QueryContext(
+        QueryDAG dag,
+        Executor searchExecutor,
+        AnalyticsQueryTask parentTask,
+        int maxConcurrentShardRequests,
+        long perQueryMemoryLimit,
+        List<AnalyticsOperationListener> operationListeners
+    ) {
         this.dag = dag;
         this.searchExecutor = searchExecutor;
         this.parentTask = parentTask;
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
         this.perQueryMemoryLimit = perQueryMemoryLimit;
+        this.operationListeners = operationListeners;
     }
 
     public QueryDAG dag() {
@@ -88,6 +103,11 @@ public class QueryContext {
 
     public int maxConcurrentShardRequests() {
         return maxConcurrentShardRequests;
+    }
+
+    /** Returns the operation listeners for this query. */
+    public List<AnalyticsOperationListener> operationListeners() {
+        return operationListeners;
     }
 
     // ─── Buffer allocator ──────────────────────────────────────────────

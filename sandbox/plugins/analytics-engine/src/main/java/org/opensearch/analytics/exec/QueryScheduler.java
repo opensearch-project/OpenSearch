@@ -10,6 +10,7 @@ package org.opensearch.analytics.exec;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.common.inject.Inject;
@@ -61,7 +62,11 @@ public class QueryScheduler implements Scheduler {
     @Override
     public void execute(QueryContext config, ActionListener<Iterable<Object[]>> listener) {
         final String queryId = config.queryId();
-        PlanWalker walker = createWalker(config, listener, queryId);
+        final long queryStartNanos = System.nanoTime();
+        final AnalyticsOperationListener.CompositeListener opListener =
+            new AnalyticsOperationListener.CompositeListener(config.operationListeners());
+
+        PlanWalker walker = createWalker(config, listener, queryId, queryStartNanos, opListener);
         walkerPool.put(queryId, walker);
 
         final AnalyticsQueryTask queryTask = config.parentTask();
@@ -74,18 +79,29 @@ public class QueryScheduler implements Scheduler {
 
         // Two-phase: build graph, then start execution
         ExecutionGraph graph = walker.build();
+
+        opListener.onQueryStart(queryId, graph.stageCount());
+
         logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
         walker.start(graph);
     }
 
-    private PlanWalker createWalker(QueryContext config, ActionListener<Iterable<Object[]>> listener, String queryId) {
+    private PlanWalker createWalker(
+        QueryContext config,
+        ActionListener<Iterable<Object[]>> listener,
+        String queryId,
+        long queryStartNanos,
+        AnalyticsOperationListener opListener
+    ) {
         ActionListener<Iterable<Object[]>> wrapped = ActionListener.wrap(
             result -> {
                 walkerPool.remove(queryId);
+                opListener.onQuerySuccess(queryId, System.nanoTime() - queryStartNanos, 0);
                 listener.onResponse(result);
             },
             e -> {
                 walkerPool.remove(queryId);
+                opListener.onQueryFailure(queryId, e);
                 listener.onFailure(e);
             }
         );
