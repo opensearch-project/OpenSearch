@@ -51,6 +51,7 @@ once_cell = "1.21.3"
 crc32fast = "1.4"
 parking_lot = "0.12.5"
 lazy_static = "1.4.0"
+rayon = "1.10"
 criterion = { version = "0.5", features = ["async_tokio"] }
 
 # Internal
