@@ -16,6 +16,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
@@ -129,7 +130,7 @@ public class VSRRotationBenchmark {
     @Benchmark
     public void benchmarkDocumentIngestion() throws IOException {
         for (int i = 0; i < totalDocuments; i++) {
-            ParquetDocumentInput doc = new ParquetDocumentInput();
+            ParquetDocumentInput doc = new ParquetDocumentInput(new ParquetDataFormat());
             for (int f = 0; f < fieldTypes.size(); f++) {
                 MappedFieldType ft = fieldTypes.get(f);
                 switch (f % 3) {
