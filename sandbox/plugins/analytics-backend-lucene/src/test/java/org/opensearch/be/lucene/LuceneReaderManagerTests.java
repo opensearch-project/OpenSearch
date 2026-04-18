@@ -326,6 +326,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
             null
         );
     }
