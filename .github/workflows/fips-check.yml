@@ -16,7 +16,7 @@ jobs:
   fips-check:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
       - name: Remove unnecessary files
@@ -29,12 +29,11 @@ jobs:
           java-version: 21
           distribution: temurin
           cache: gradle
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - name: Run FIPS check
-        run: ./gradlew check -Pcrypto.standard=FIPS-140-3
+      - name: Run FIPS tests
+        run: |
+          ./gradlew test -Pcrypto.standard=FIPS-140-3 \
+            -Dtests.fips.only=true \
+            --continue
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

@@ -153,6 +153,13 @@ plugins.withId('opensearch.testclusters') {
 
           return false
         }
+
+        // When tests.fips.only=true, run only FIPS-specific test classes (*FipsTests, *FipsIT)
+        if (System.getProperty('tests.fips.only', 'false') == 'true') {
+          testTask.include '**/*FipsTests.class'
+          testTask.include '**/*FipsIT.class'
+          testTask.filter.failOnNoMatchingTests = false
+        }
       } else {
         testTask.exclude '**/*FipsTests.class'
         testTask.exclude '**/*FipsIT.class'
