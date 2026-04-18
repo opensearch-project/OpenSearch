@@ -88,6 +88,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (request.hasParam("scroll")) {
             internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
         }
+        if (request.hasParam("use_pit")) {
+            internal.setUsePit(request.paramAsBoolean("use_pit", false));
+        }
         if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
             internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
         }
