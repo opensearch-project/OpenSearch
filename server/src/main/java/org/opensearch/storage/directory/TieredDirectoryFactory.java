@@ -5,7 +5,6 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
 package org.opensearch.storage.directory;
 
 import org.apache.logging.log4j.LogManager;
@@ -20,26 +19,25 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 
 /**
- * Factory to create TieredDirectory.
- * TieredStoragePrefetchSettings dependency will be added in the implementation PR.
- * The newDirectory implementation will be added in the implementation PR.
+ * Factory for creating {@link TieredDirectory} instances that combine local and remote storage.
  */
 public class TieredDirectoryFactory implements IndexStorePlugin.CompositeDirectoryFactory {
 
     private static final Logger logger = LogManager.getLogger(TieredDirectoryFactory.class);
 
-    /** Constructs a new TieredDirectoryFactory. */
     public TieredDirectoryFactory() {}
 
     @Override
     public Directory newDirectory(
         IndexSettings indexSettings,
         ShardPath shardPath,
-        IndexStorePlugin.DirectoryFactory directoryFactory,
-        Directory directory,
+        IndexStorePlugin.DirectoryFactory localDirectoryFactory,
+        Directory remoteDirectory,
         FileCache fileCache,
         ThreadPool threadPool
     ) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        logger.trace("Creating composite directory from TieredDirectoryFactory");
+        Directory localDirectory = localDirectoryFactory.newDirectory(indexSettings, shardPath);
+        return new TieredDirectory(localDirectory, remoteDirectory, fileCache, threadPool);
     }
 }
