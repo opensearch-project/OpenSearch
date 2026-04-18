@@ -11,11 +11,15 @@ package org.opensearch.dsl.converter;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.logical.LogicalCorrelate;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rex.RexLiteral;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -99,5 +103,87 @@ public class SortConverterTests extends OpenSearchTestCase {
         ConversionContext ctx = TestUtils.createContext(source);
 
         expectThrows(ConversionException.class, () -> converter.convert(scan, ctx));
+    }
+
+    public void testSortModeMin() throws ConversionException {
+        FieldSortBuilder fieldSort = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.MIN);
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(fieldSort);
+        ConversionContext ctx = TestUtils.createContextWithArrayField(source);
+        RelNode result = converter.convert(TestUtils.createTestRelNodeWithArrayField(), ctx);
+
+        assertTrue(result instanceof LogicalSort);
+        LogicalSort sort = (LogicalSort) result;
+        assertTrue(sort.getInput() instanceof LogicalProject);
+        LogicalProject project = (LogicalProject) sort.getInput();
+        assertTrue(project.getInput() instanceof LogicalCorrelate);
+        
+        assertEquals(1, sort.getCollation().getFieldCollations().size());
+        RelFieldCollation fieldCollation = sort.getCollation().getFieldCollations().get(0);
+        assertEquals("tags_mode", project.getRowType().getFieldList().get(fieldCollation.getFieldIndex()).getName());
+    }
+
+    public void testSortModeMax() throws ConversionException {
+        FieldSortBuilder fieldSort = new FieldSortBuilder("tags").order(SortOrder.DESC).sortMode(SortMode.MAX);
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(fieldSort);
+        ConversionContext ctx = TestUtils.createContextWithArrayField(source);
+        RelNode result = converter.convert(TestUtils.createTestRelNodeWithArrayField(), ctx);
+
+        assertTrue(result instanceof LogicalSort);
+        LogicalSort sort = (LogicalSort) result;
+        assertTrue(sort.getInput() instanceof LogicalProject);
+    }
+
+    public void testSortModeAvg() throws ConversionException {
+        FieldSortBuilder fieldSort = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.AVG);
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(fieldSort);
+        ConversionContext ctx = TestUtils.createContextWithArrayField(source);
+        RelNode result = converter.convert(TestUtils.createTestRelNodeWithArrayField(), ctx);
+
+        assertTrue(result instanceof LogicalSort);
+        assertTrue(((LogicalSort) result).getInput() instanceof LogicalProject);
+    }
+
+    public void testSortModeSum() throws ConversionException {
+        FieldSortBuilder fieldSort = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.SUM);
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(fieldSort);
+        ConversionContext ctx = TestUtils.createContextWithArrayField(source);
+        RelNode result = converter.convert(TestUtils.createTestRelNodeWithArrayField(), ctx);
+
+        assertTrue(result instanceof LogicalSort);
+        assertTrue(((LogicalSort) result).getInput() instanceof LogicalProject);
+    }
+
+    public void testSortModeMedian() throws ConversionException {
+        FieldSortBuilder fieldSort = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.MEDIAN);
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(fieldSort);
+        ConversionContext ctx = TestUtils.createContextWithArrayField(source);
+        RelNode result = converter.convert(TestUtils.createTestRelNodeWithArrayField(), ctx);
+
+        assertTrue(result instanceof LogicalSort);
+        assertTrue(((LogicalSort) result).getInput() instanceof LogicalProject);
+    }
+
+    public void testSortModeWithRegularSort() throws ConversionException {
+        FieldSortBuilder modeSort = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.MIN);
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .sort(modeSort)
+            .sort("name", SortOrder.DESC);
+        ConversionContext ctx = TestUtils.createContextWithArrayField(source);
+        RelNode result = converter.convert(TestUtils.createTestRelNodeWithArrayField(), ctx);
+
+        assertTrue(result instanceof LogicalSort);
+        LogicalSort sort = (LogicalSort) result;
+        assertEquals(2, sort.getCollation().getFieldCollations().size());
+    }
+
+    public void testSortModeOnNonArrayField() throws ConversionException {
+        FieldSortBuilder fieldSort = new FieldSortBuilder("price").order(SortOrder.ASC).sortMode(SortMode.MIN);
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(fieldSort);
+        ConversionContext ctx = TestUtils.createContext(source);
+
+        // Should handle non-array fields by treating them as single-element arrays
+        RelNode result = converter.convert(scan, ctx);
+        assertTrue(result instanceof LogicalSort);
+        assertTrue(((LogicalSort) result).getInput() instanceof LogicalProject);
     }
 }
