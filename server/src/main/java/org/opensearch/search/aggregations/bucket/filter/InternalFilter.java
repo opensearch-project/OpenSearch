@@ -45,7 +45,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class InternalFilter extends InternalSingleBucketAggregation implements Filter {
-    InternalFilter(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
+    public InternalFilter(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
         super(name, docCount, subAggregations, metadata);
     }
 
