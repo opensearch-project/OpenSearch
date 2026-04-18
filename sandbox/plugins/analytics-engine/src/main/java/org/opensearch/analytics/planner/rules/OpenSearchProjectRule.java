@@ -154,6 +154,11 @@ public class OpenSearchProjectRule extends RelOptRule {
         }
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
+        // TODO: scalarBackendsAnyFormat returns backends that declared this scalar on any format,
+        // but for literal expressions (e.g. 42+1, no field refs) the format is irrelevant.
+        // A backend that declared Scalar(PLUS, INTEGER, formats=[parquet]) is being used as a
+        // proxy for "I can compute PLUS on INTEGER values" — correct for DF but wrong for
+        // index-only backends. Fix: add supportsLiteralEvaluation to ProjectCapability.Scalar.
         List<String> allCapable = registry.scalarBackendsAnyFormat(scalarFunc, fieldType);
 
         // Prefer child viable backends

@@ -328,6 +328,23 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         );
     }
 
+    protected AggregateCall countStarCall() {
+        // COUNT(*) — no field arguments, always gets annotated with aggregateCapableBackends
+        return AggregateCall.create(
+            SqlStdOperatorTable.COUNT, false, List.of(), -1,
+            stubScan(mockTable("test_index", "status", "size")),
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
+    }
+
+    protected LogicalAggregate makeMultiCallAggregate(int shardCount, AggregateCall... aggCalls) {
+        return LogicalAggregate.create(
+            stubScan(mockTable("test_index", "status", "size")),
+            List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls)
+        );
+    }
+
     protected LogicalAggregate makeAggregate(int shardCount, AggregateCall aggCall) {
         return LogicalAggregate.create(
             stubScan(mockTable("test_index", "status", "size")),

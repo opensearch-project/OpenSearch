@@ -39,6 +39,16 @@ public record QueryDAG(String queryId, Stage rootStage) {
                 if (!line.isEmpty()) sb.append(indent).append("  ").append(line).append("\n");
             }
         }
+        if (!stage.getPlanAlternatives().isEmpty()) {
+            sb.append(indent).append("  Alternatives (").append(stage.getPlanAlternatives().size()).append("):\n");
+            for (int i = 0; i < stage.getPlanAlternatives().size(); i++) {
+                StagePlan plan = stage.getPlanAlternatives().get(i);
+                sb.append(indent).append("  [").append(i).append("] backend=").append(plan.backendId()).append("\n");
+                for (String line : RelOptUtil.toString(plan.resolvedFragment()).split("\n")) {
+                    if (!line.isEmpty()) sb.append(indent).append("    ").append(line).append("\n");
+                }
+            }
+        }
         for (Stage child : stage.getChildStages()) {
             appendStage(sb, child, depth + 1);
         }

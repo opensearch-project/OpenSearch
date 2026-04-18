@@ -13,6 +13,7 @@ import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.AbstractRelNode;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
@@ -74,5 +75,15 @@ public class OpenSearchStageInputScan extends AbstractRelNode implements OpenSea
     @Override
     public RelWriter explainTerms(RelWriter pw) {
         return pw.item("childStageId", childStageId).item("viableBackends", viableBackends);
+    }
+
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
+        return new OpenSearchStageInputScan(getCluster(), getTraitSet(), childStageId, rowType, List.of(backend));
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        return this; // Leaf placeholder — no annotations, no children to strip.
     }
 }

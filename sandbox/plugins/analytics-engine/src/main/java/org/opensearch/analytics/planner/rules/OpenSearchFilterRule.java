@@ -146,8 +146,13 @@ public class OpenSearchFilterRule extends RelOptRule {
         CapabilityRegistry registry = context.getCapabilityRegistry();
 
         if (fieldIndices.isEmpty()) {
-            // No field references — literal predicate (e.g. 1=1). Any backend with filter capability can handle it.
-            return new ArrayList<>(childViableBackends);
+            // TODO: add ReduceExpressionsRule to PlannerImpl's HepPlanner phase to eliminate
+            // constant predicates (e.g. 1=1) before marking rules fire. Until then, throw
+            // to surface the gap rather than silently routing to wrong backends.
+            throw new UnsupportedOperationException(
+                "Constant predicate with no field references reached the filter rule: ["
+                    + predicate + "]. Add ReduceExpressionsRule to PlannerImpl to eliminate it."
+            );
         }
 
         FilterOperator operator = null;

@@ -15,6 +15,7 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexInputRef;
@@ -87,4 +88,44 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
         return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
 
+    @Override
+    public List<OperatorAnnotation> getAnnotations() {
+        List<OperatorAnnotation> annotations = new ArrayList<>();
+        for (RexNode expr : getProjects()) {
+            if (expr instanceof AnnotatedProjectExpression annotation) {
+                annotations.add(annotation);
+            }
+        }
+        return annotations;
+    }
+
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
+        int annotationIndex = 0;
+        List<RexNode> resolvedExprs = new ArrayList<>();
+        for (RexNode expr : getProjects()) {
+            if (expr instanceof AnnotatedProjectExpression) {
+                resolvedExprs.add((RexNode) resolvedAnnotations.get(annotationIndex++));
+            } else {
+                // Plain expressions (field refs, literals, scalar calls) have no annotation — pass through.
+                resolvedExprs.add(expr);
+            }
+        }
+        return new OpenSearchProject(getCluster(), getTraitSet(), children.getFirst(),
+            resolvedExprs, getRowType(), List.of(backend));
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        List<RexNode> strippedExprs = new ArrayList<>();
+        for (RexNode expr : getProjects()) {
+            if (expr instanceof AnnotatedProjectExpression annotated) {
+                strippedExprs.add(annotated.unwrap());
+            } else {
+                // Plain expressions have no annotation to strip — pass through.
+                strippedExprs.add(expr);
+            }
+        }
+        return LogicalProject.create(strippedChildren.getFirst(), List.of(), strippedExprs, getRowType());
+    }
 }

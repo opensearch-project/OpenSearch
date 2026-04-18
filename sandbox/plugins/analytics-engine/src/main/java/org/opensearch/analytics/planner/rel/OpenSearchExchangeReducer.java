@@ -67,4 +67,14 @@ public class OpenSearchExchangeReducer extends SingleRel implements OpenSearchRe
         return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
 
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
+        return new OpenSearchExchangeReducer(getCluster(), getTraitSet(), children.getFirst(), List.of(backend));
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        // ExchangeReducer is an infrastructure node — strip children but keep the node itself.
+        return new OpenSearchExchangeReducer(getCluster(), getTraitSet(), strippedChildren.getFirst(), viableBackends);
+    }
 }
