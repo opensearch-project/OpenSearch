@@ -599,12 +599,28 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     /**
+     * Maximum number of {@code dynamic_properties} patterns allowed in a single mapping. Kept low by default
+     * because overlap detection is O(n²) in the number of patterns; raising this limit also raises that cost.
+     */
+    public static final int MAX_DYNAMIC_PROPERTIES = 50;
+
+    /**
      * Validates {@code dynamic_properties}. The bare pattern {@code *} is rejected at parse time; overlap
-     * between any two remaining patterns is not allowed (automaton intersection).
+     * between any two remaining patterns is not allowed (automaton intersection). The total number of patterns
+     * is also capped at {@link #MAX_DYNAMIC_PROPERTIES} to bound the O(n²) overlap-detection cost.
      */
     private static void validateDynamicProperties(List<DynamicProperty> dynamicProperties) {
         if (dynamicProperties.isEmpty()) {
             return;
+        }
+        if (dynamicProperties.size() > MAX_DYNAMIC_PROPERTIES) {
+            throw new MapperParsingException(
+                "The number of dynamic_properties patterns ["
+                    + dynamicProperties.size()
+                    + "] exceeds the maximum allowed ["
+                    + MAX_DYNAMIC_PROPERTIES
+                    + "]."
+            );
         }
         // Reject any pair of patterns whose glob languages overlap (same field name can match both).
         // Uses the same automaton construction as Regex.simpleMatch / Glob.globMatch (see Regex.simpleMatchToAutomaton).

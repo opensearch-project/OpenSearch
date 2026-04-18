@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -1450,6 +1451,20 @@ final class DocumentParser {
                         + "], expected ["
                         + fullPath
                         + "]"
+                );
+            }
+            // Enforce the per-shard Lucene field limit for dynamic_properties. Only new fields
+            // (absent from the last-refreshed FieldInfos snapshot) count toward the cap; fields
+            // already in the Lucene index reuse their existing slot.
+            FieldInfos fieldInfos = context.mapperService().getLuceneFieldTracker().getFieldInfos();
+            long limit = context.indexSettings().getMappingDynamicPropertiesLuceneFieldLimit();
+            if (limit > 0 && fieldInfos.size() >= limit && fieldInfos.fieldInfo(fullPath) == null) {
+                throw new MapperParsingException(
+                    "The number of Lucene fields created by dynamic_properties has reached the limit ["
+                        + limit
+                        + "]. Increase the ["
+                        + MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey()
+                        + "] index setting or reduce the number of distinct dynamic fields."
                 );
             }
             context.rememberDynamicPropertyMapper(fullPath, mapper);

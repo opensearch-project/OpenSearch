@@ -32,14 +32,25 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -876,6 +887,204 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
                 );
             }
         }
+    }
+
+    /** Registering more than {@link RootObjectMapper#MAX_DYNAMIC_PROPERTIES} patterns must be rejected. */
+    public void testDynamicPropertiesPatternCountLimit() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("dynamic_properties");
+        for (int i = 0; i <= RootObjectMapper.MAX_DYNAMIC_PROPERTIES; i++) {
+            mapping.startObject("*_field" + i).field("type", "keyword").endObject();
+        }
+        mapping.endObject().endObject().endObject();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("type", new CompressedXContent(mapping.toString()), MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("exceeds the maximum allowed [" + RootObjectMapper.MAX_DYNAMIC_PROPERTIES + "]"));
+    }
+
+    /** Registering exactly {@link RootObjectMapper#MAX_DYNAMIC_PROPERTIES} patterns must succeed. */
+    public void testDynamicPropertiesPatternCountAtLimit() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("dynamic_properties");
+        for (int i = 1; i <= RootObjectMapper.MAX_DYNAMIC_PROPERTIES; i++) {
+            mapping.startObject("*_field" + i).field("type", "keyword").endObject();
+        }
+        mapping.endObject().endObject().endObject();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping.toString()), MergeReason.MAPPING_UPDATE);
+        assertEquals(RootObjectMapper.MAX_DYNAMIC_PROPERTIES, mapper.root().dynamicProperties().length);
+    }
+
+    // -----------------------------------------------------------------------
+    // Lucene field-count limit tests
+    // -----------------------------------------------------------------------
+
+    /** Helper: build a dynamic_properties mapping for pattern {@code *_kw} → keyword. */
+    private static String dynKwMapping() throws IOException {
+        return XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("dynamic_properties")
+            .startObject("*_kw")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+    }
+
+    /** Helper: build a SourceToParse with a single keyword field matching *_kw. */
+    private static SourceToParse kwSource(String fieldName, String value) {
+        return new SourceToParse("index", "1", new BytesArray("{\"" + fieldName + "\": \"" + value + "\"}"), MediaTypeRegistry.JSON);
+    }
+
+    /** Helper: pre-populate the tracker so it looks like N fields have been refreshed from the shard. */
+    private static void populateTracker(LuceneFieldTracker tracker, int fieldCount) {
+        FieldInfo[] infos = new FieldInfo[fieldCount];
+        for (int i = 0; i < fieldCount; i++) {
+            infos[i] = makeFieldInfo("__lucene_field_" + i, i);
+        }
+        tracker.setFieldInfos(new FieldInfos(infos));
+    }
+
+    /** Helper: create a minimal {@link FieldInfo} with the given name and field number. */
+    private static FieldInfo makeFieldInfo(String name, int number) {
+        return new FieldInfo(
+            name,
+            number,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+    }
+
+    /**
+     * When the tracker is empty (no refresh yet), the field-count limit is not applied and
+     * dynamic-property fields can be created freely.
+     */
+    public void testDynamicPropertiesLuceneFieldLimitNotEnforcedWhenTrackerEmpty() throws Exception {
+        long limit = 3L;
+        MapperService mapperService = createIndex(
+            "idx_empty",
+            Settings.builder()
+                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit)
+                .build()
+        ).mapperService();
+        DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
+
+        // Tracker starts with FieldInfos.EMPTY (no engine in unit-test context) → size is 0.
+        assertEquals(0, mapperService.getLuceneFieldTracker().getFieldInfos().size());
+
+        // Should succeed: empty tracker means the limit check is skipped.
+        ParsedDocument doc = mapper.parse(kwSource("new_kw", "hello"));
+        assertNotNull(doc);
+    }
+
+    /**
+     * When the tracker snapshot is at the configured limit and the parsed field is new (not in the
+     * tracker), the parse must throw {@link MapperParsingException}.
+     */
+    public void testDynamicPropertiesLuceneFieldLimitRejectsNewField() throws Exception {
+        long limit = 3L;
+        MapperService mapperService = createIndex(
+            "idx_at_limit",
+            Settings.builder()
+                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit)
+                .build()
+        ).mapperService();
+        DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
+
+        // Simulate a refresh: tracker has exactly `limit` field names, none matching *_kw.
+        populateTracker(mapperService.getLuceneFieldTracker(), (int) limit);
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(kwSource("brand_new_kw", "value"))
+        );
+        assertThat(e.getMessage(), containsString("limit [" + limit + "]"));
+        assertThat(e.getMessage(), containsString(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey()));
+    }
+
+    /**
+     * When the tracker snapshot is below the limit, a new dynamic-property field is allowed.
+     */
+    public void testDynamicPropertiesLuceneFieldLimitAllowsFieldBelowLimit() throws Exception {
+        long limit = 5L;
+        MapperService mapperService = createIndex(
+            "idx_below_limit",
+            Settings.builder()
+                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit)
+                .build()
+        ).mapperService();
+        DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
+
+        // Tracker has limit-1 fields → one slot still available.
+        populateTracker(mapperService.getLuceneFieldTracker(), (int) limit - 1);
+
+        ParsedDocument doc = mapper.parse(kwSource("ok_kw", "value"));
+        assertNotNull(doc);
+    }
+
+    /**
+     * When the tracker snapshot is at the limit but the field being parsed is already tracked
+     * (i.e. it already exists in Lucene), it must not be rejected — existing fields reuse their slot.
+     */
+    public void testDynamicPropertiesLuceneFieldLimitAllowsExistingTrackedField() throws Exception {
+        long limit = 3L;
+        MapperService mapperService = createIndex(
+            "idx_existing",
+            Settings.builder()
+                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit)
+                .build()
+        ).mapperService();
+        DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
+
+        // Tracker has exactly `limit` fields — but the field we are about to parse is among them.
+        String existingField = "already_kw";
+        FieldInfo[] infos = new FieldInfo[(int) limit];
+        infos[0] = makeFieldInfo(existingField, 0);
+        for (int i = 1; i < limit; i++) {
+            infos[i] = makeFieldInfo("__lucene_field_" + i, i);
+        }
+        mapperService.getLuceneFieldTracker().setFieldInfos(new FieldInfos(infos));
+
+        // Parsing a field already in the tracker must succeed (no new slot needed).
+        ParsedDocument doc = mapper.parse(kwSource(existingField, "reused"));
+        assertNotNull(doc);
+    }
+
+    /**
+     * Setting the limit to 0 disables the check entirely; even a full tracker must not block parsing.
+     */
+    public void testDynamicPropertiesLuceneFieldLimitZeroDisablesCheck() throws Exception {
+        MapperService mapperService = createIndex(
+            "idx_zero_limit",
+            Settings.builder()
+                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), 0L)
+                .build()
+        ).mapperService();
+        DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
+
+        // Even with a large tracker snapshot, limit=0 means the check is disabled.
+        populateTracker(mapperService.getLuceneFieldTracker(), 50_000);
+
+        ParsedDocument doc = mapper.parse(kwSource("any_kw", "no_limit"));
+        assertNotNull(doc);
     }
 
     @Override
