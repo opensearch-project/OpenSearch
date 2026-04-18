@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner;
 
+import org.apache.calcite.plan.Contexts;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptUtil;
@@ -18,7 +19,11 @@ import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.plan.volcano.AbstractConverter;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Filter;
+import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.calcite.rel.rules.ReduceExpressionsRule;
+import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
@@ -66,16 +71,25 @@ public class PlannerImpl {
     static RelNode markAndOptimize(RelNode rawRelNode, PlannerContext context) {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
 
-        // Phase 1: RBO — convert LogicalXxx → OpenSearchXxx
-        HepProgramBuilder markingBuilder = new HepProgramBuilder();
-        markingBuilder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        // Rules as a collection so HEP tries all rules at each node in bottom-up
-        // tree order. This ensures children are marked before parents regardless
-        // of tree shape (e.g. filter above aggregate, aggregate above filter).
+        // Phase 1: RBO — pre-marking logical optimizations then marking rules, single HepPlanner
+        HepProgramBuilder hepBuilder = new HepProgramBuilder();
+
+        // Pre-marking: reduce constant expressions before marking rules fire.
+        // TODO: establish a FrontEnd API contract specifying which standard Calcite optimizations
+        // frontends apply themselves before submitting a RelNode. Rules already applied by the
+        // frontend should not be re-added here — re-applying them increases overall planning time.
+        hepBuilder.addMatchOrder(HepMatchOrder.ARBITRARY);
+        hepBuilder.addRuleCollection(List.of(
+            new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
+            new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
+        ));
+
+        // Marking: convert LogicalXxx → OpenSearchXxx bottom-up
         // TODO: migrate rules from deprecated RelOptRule to RelRule<Config> once the planner
         // moves to its own Gradle module. The OpenSearch monorepo injects -proc:none globally,
         // blocking the Immutables annotation processor required by RelRule.Config sub-interfaces.
-        markingBuilder.addRuleCollection(
+        hepBuilder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
+        hepBuilder.addRuleCollection(
             List.of(
                 new OpenSearchTableScanRule(context),
                 new OpenSearchFilterRule(context),
@@ -85,7 +99,7 @@ public class PlannerImpl {
             )
         );
 
-        HepPlanner markingPlanner = new HepPlanner(markingBuilder.build());
+        HepPlanner markingPlanner = new HepPlanner(hepBuilder.build());
         markingPlanner.setRoot(rawRelNode);
         RelNode marked = markingPlanner.findBestExp();
 

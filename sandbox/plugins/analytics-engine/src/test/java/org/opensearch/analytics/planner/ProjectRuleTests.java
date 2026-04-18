@@ -454,9 +454,7 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     private static Set<ProjectCapability> scalarCaps(Set<String> formats, Set<ScalarFunction> functions) {
         Set<ProjectCapability> caps = new HashSet<>();
         for (ScalarFunction func : functions) {
-            for (FieldType type : FieldType.values()) {
-                caps.add(new ProjectCapability.Scalar(func, type, formats));
-            }
+            caps.add(new ProjectCapability.Scalar(func, Set.of(FieldType.values()), formats, true));
         }
         return caps;
     }

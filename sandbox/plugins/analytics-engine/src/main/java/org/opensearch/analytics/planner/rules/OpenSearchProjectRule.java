@@ -13,6 +13,7 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -154,14 +155,10 @@ public class OpenSearchProjectRule extends RelOptRule {
         }
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
-        // TODO: scalarBackendsAnyFormat returns backends that declared this scalar on any format,
-        // but for literal expressions (e.g. 42+1, no field refs) the format is irrelevant.
-        // A backend that declared Scalar(PLUS, INTEGER, formats=[parquet]) is being used as a
-        // proxy for "I can compute PLUS on INTEGER values" — correct for DF but wrong for
-        // index-only backends. Fix: add supportsLiteralEvaluation to ProjectCapability.Scalar.
-        List<String> allCapable = registry.scalarBackendsAnyFormat(scalarFunc, fieldType);
+        List<String> allCapable = hasFieldRef(rexCall)
+            ? registry.scalarBackendsAnyFormat(scalarFunc, fieldType)
+            : registry.literalScalarBackends(scalarFunc, fieldType);
 
-        // Prefer child viable backends
         List<String> viable = new ArrayList<>();
         for (String candidateName : childViableBackends) {
             if (allCapable.contains(candidateName)) {
@@ -171,19 +168,26 @@ public class OpenSearchProjectRule extends RelOptRule {
         if (!viable.isEmpty()) {
             return viable;
         }
-        // Fallback: other backends if reachable via delegation
         List<String> delegationSupporters = registry.delegationSupporters(DelegationType.PROJECT);
         List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.PROJECT);
-        boolean canDelegate = childViableBackends.stream().anyMatch(delegationSupporters::contains);
-        if (!canDelegate) {
-            return viable;
-        }
-        for (String backendName : allCapable) {
-            if (delegationAcceptors.contains(backendName)) {
-                viable.add(backendName);
+        if (childViableBackends.stream().anyMatch(delegationSupporters::contains)) {
+            for (String backendName : allCapable) {
+                if (delegationAcceptors.contains(backendName)) {
+                    viable.add(backendName);
+                }
             }
         }
         return viable;
+    }
+
+    private boolean hasFieldRef(RexNode node) {
+        if (node instanceof RexInputRef) return true;
+        if (node instanceof RexCall rexCall) {
+            for (RexNode operand : rexCall.getOperands()) {
+                if (hasFieldRef(operand)) return true;
+            }
+        }
+        return false;
     }
 
     private List<String> computeProjectViableBackends(List<RexNode> annotatedExprs, List<String> childViableBackends) {

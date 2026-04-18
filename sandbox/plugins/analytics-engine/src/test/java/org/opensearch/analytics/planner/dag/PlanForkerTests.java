@@ -18,7 +18,6 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.BasePlannerRulesTests;
-import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.MockLuceneBackend;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -29,19 +28,10 @@ import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScanCapability;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.routing.GroupShardsIterator;
-import org.opensearch.cluster.routing.OperationRouting;
-import org.opensearch.cluster.routing.ShardIterator;
-import org.opensearch.cluster.service.ClusterService;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link PlanForker} — verifies plan alternatives are generated correctly
@@ -59,21 +49,6 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         FieldType.INTEGER, FieldType.LONG, FieldType.KEYWORD, FieldType.DATE, FieldType.BOOLEAN
     );
 
-    private ClusterService mockClusterService() {
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterState clusterState = mock(ClusterState.class);
-        OperationRouting routing = mock(OperationRouting.class);
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterService.operationRouting()).thenReturn(routing);
-        when(routing.searchShards(any(), any(), any(), any()))
-            .thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
-        return clusterService;
-    }
-
-    /**
-     * Builds with two backends (DF + Lucene with scan + aggregate) using duplicated doc values.
-     * Both backends are viable for scan and aggregate — forking should produce two alternatives.
-     */
     private QueryDAG buildAndFork(int shardCount, RelNode logicalPlan) {
         MockLuceneBackend luceneWithScanAndAgg = new MockLuceneBackend() {
             @Override protected Set<ScanCapability> scanCapabilities() {
@@ -87,7 +62,7 @@ public class PlanForkerTests extends BasePlannerRulesTests {
             }
         };
         var context = buildContextWithExplicitStorage(shardCount,
-            duplicatedIntFields(MockDataFusionBackend.PARQUET_DATA_FORMAT, MockLuceneBackend.LUCENE_DATA_FORMAT),
+            duplicatedIntFields(),
             List.of(DATAFUSION, luceneWithScanAndAgg));
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(logicalPlan));
         RelNode cboOutput = runPlanner(logicalPlan, context);
@@ -98,18 +73,9 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         return dag;
     }
 
-    /** Duplicated int fields — doc values in both parquet and lucene. */
-    private static Map<String, FieldStorageInfo> duplicatedIntFields(String format1, String format2) {
-        return Map.of(
-            "status", new FieldStorageInfo("status", "integer", FieldType.INTEGER,
-                List.of(format1, format2), List.of(), List.of(), false),
-            "size", new FieldStorageInfo("size", "integer", FieldType.INTEGER,
-                List.of(format1, format2), List.of(), List.of(), false)
-        );
-    }
-
     /**
      * Asserts a stage has exactly two alternatives (one per backend), each narrowed to a single backend.
+     * TODO: extend with randomized tests that pick N backends from a pool and assert exactly N alternatives.
      */
     private static void assertTwoAlternatives(Stage stage, Class<? extends OpenSearchRelNode> expectedRootType) {
         List<StagePlan> alternatives = stage.getPlanAlternatives();
@@ -127,29 +93,22 @@ public class PlanForkerTests extends BasePlannerRulesTests {
             alternatives.get(0).backendId(), alternatives.get(1).backendId());
     }
 
-    /** Single-shard scan — two alternatives (one per backend), each narrowed. */
-    public void testSingleShardScanTwoAlternatives() {
-        QueryDAG dag = buildAndFork(1, stubScan(mockTable("test_index", "status", "size")));
-        assertTwoAlternatives(dag.rootStage(), OpenSearchTableScan.class);
-    }
+    /** Single-shard scan, filter, and aggregate — two alternatives each, one per backend. */
+    public void testSingleStageQueryShapes() {
+        QueryDAG scanDag = buildAndFork(1, stubScan(mockTable("test_index", "status", "size")));
+        assertTwoAlternatives(scanDag.rootStage(), OpenSearchTableScan.class);
 
-    /** Single-shard filter — two alternatives, each narrowed to one backend. */
-    public void testSingleShardFilterTwoAlternatives() {
-        QueryDAG dag = buildAndFork(1,
-            LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")),
-                makeEquals(0, SqlTypeName.INTEGER, 200)));
-        assertTwoAlternatives(dag.rootStage(), OpenSearchFilter.class);
-    }
+        QueryDAG filterDag = buildAndFork(1, LogicalFilter.create(
+            stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)));
+        assertTwoAlternatives(filterDag.rootStage(), OpenSearchFilter.class);
 
-    /** Single-shard aggregate — two alternatives, each narrowed to one backend. */
-    public void testSingleShardAggregateTwoAlternatives() {
-        QueryDAG dag = buildAndFork(1, makeAggregate(1, sumCall()));
-        assertTwoAlternatives(dag.rootStage(), OpenSearchAggregate.class);
+        QueryDAG aggDag = buildAndFork(1, makeAggregate(sumCall()));
+        assertTwoAlternatives(aggDag.rootStage(), OpenSearchAggregate.class);
     }
 
     /** Multi-shard aggregate — child stage gets two alternatives, root gets one (only DF has ExchangeSinkProvider). */
     public void testMultiShardAggregateForksAllStages() {
-        QueryDAG dag = buildAndFork(2, makeAggregate(2, sumCall()));
+        QueryDAG dag = buildAndFork(2, makeAggregate(sumCall()));
 
         // Root coordinator stage — only DF has ExchangeSinkProvider
         assertEquals(1, dag.rootStage().getPlanAlternatives().size());
@@ -165,7 +124,7 @@ public class PlanForkerTests extends BasePlannerRulesTests {
      */
     public void testMixedAggCallsWithAndWithoutFieldArgs() {
         QueryDAG dag = buildAndFork(1,
-            makeMultiCallAggregate(1, sumCall(), countStarCall(),
+            makeMultiCallAggregate(sumCall(), countStarCall(),
                 AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), 0,
                     stubScan(mockTable("test_index", "status", "size")),
                     typeFactory.createSqlType(SqlTypeName.INTEGER), "total_status")));
@@ -187,16 +146,18 @@ public class PlanForkerTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Constant predicate (1=1) must throw — ReduceExpressionsRule should eliminate it
-     * before marking. Verifies the gap is surfaced rather than silently misrouted.
+     * Constant predicate (1=1) must be eliminated by ReduceExpressionsRule before marking.
+     * The filter disappears entirely — the root of the marked tree is the scan, not a filter.
      */
-    public void testConstantPredicateThrows() {
-        var context = buildContext("parquet", 1, Map.of(
-            "status", Map.of("type", "integer"), "size", Map.of("type", "integer")));
+    public void testConstantPredicateEliminated() {
+        var context = buildContext("parquet", 1, intFields());
         RexNode constant = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS,
             rexBuilder.makeLiteral(1, typeFactory.createSqlType(SqlTypeName.INTEGER), true),
             rexBuilder.makeLiteral(1, typeFactory.createSqlType(SqlTypeName.INTEGER), true));
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), constant);
-        expectThrows(UnsupportedOperationException.class, () -> runPlanner(filter, context));
+        RelNode result = runPlanner(filter, context);
+        // ReduceExpressionsRule folds 1=1 → TRUE, then filter on TRUE is removed
+        assertFalse("filter on constant true must be eliminated", result instanceof OpenSearchFilter);
+        assertTrue("root must be the scan after filter elimination", result instanceof OpenSearchTableScan);
     }
 }

@@ -79,9 +79,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     static {
         Set<FilterCapability> caps = new HashSet<>();
         for (FilterOperator op : STANDARD_OPS) {
-            for (FieldType type : SUPPORTED_TYPES) {
-                caps.add(new FilterCapability.Standard(op, type, DATAFUSION_FORMATS));
-            }
+            caps.add(new FilterCapability.Standard(op, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         FILTER_CAPS = caps;
     }
@@ -90,9 +88,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     static {
         Set<AggregateCapability> caps = new HashSet<>();
         for (AggregateFunction func : AGG_FUNCTIONS) {
-            for (FieldType type : SUPPORTED_TYPES) {
-                caps.add(AggregateCapability.simple(func, type, DATAFUSION_FORMATS));
-            }
+            caps.add(AggregateCapability.simple(func, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         AGG_CAPS = caps;
     }

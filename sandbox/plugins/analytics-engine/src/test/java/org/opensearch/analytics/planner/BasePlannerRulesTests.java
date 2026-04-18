@@ -35,6 +35,10 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.cluster.routing.OperationRouting;
+import org.opensearch.cluster.routing.ShardIterator;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -51,6 +55,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -214,11 +219,44 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     protected static Set<AggregateCapability> aggCaps(Set<String> formats, Map<AggregateFunction, Set<FieldType>> funcToTypes) {
         Set<AggregateCapability> caps = new HashSet<>();
         for (var entry : funcToTypes.entrySet()) {
-            for (FieldType type : entry.getValue()) {
-                caps.add(new AggregateCapability(entry.getKey(), type, formats));
-            }
+            caps.add(new AggregateCapability(entry.getKey(), entry.getValue(), formats));
         }
         return caps;
+    }
+
+    // ---- Cluster service ----
+
+    protected ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = mock(ClusterState.class);
+        OperationRouting routing = mock(OperationRouting.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.operationRouting()).thenReturn(routing);
+        when(routing.searchShards(any(), any(), any(), any()))
+            .thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
+        return clusterService;
+    }
+
+    // ---- Shared field helpers ----
+
+    protected static Map<String, Map<String, Object>> intFields() {
+        return Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer"));
+    }
+
+    /**
+     * Integer fields with doc values duplicated in both parquet and lucene formats.
+     * Models the "duplicated doc values" persona — both backends can natively scan
+     * and aggregate the same field.
+     */
+    protected Map<String, FieldStorageInfo> duplicatedIntFields() {
+        return Map.of(
+            "status", new FieldStorageInfo("status", "integer", FieldType.INTEGER,
+                List.of(MockDataFusionBackend.PARQUET_DATA_FORMAT, MockLuceneBackend.LUCENE_DATA_FORMAT),
+                List.of(), List.of(), false),
+            "size", new FieldStorageInfo("size", "integer", FieldType.INTEGER,
+                List.of(MockDataFusionBackend.PARQUET_DATA_FORMAT, MockLuceneBackend.LUCENE_DATA_FORMAT),
+                List.of(), List.of(), false)
+        );
     }
 
     // ---- Stub ----
@@ -338,14 +376,14 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         );
     }
 
-    protected LogicalAggregate makeMultiCallAggregate(int shardCount, AggregateCall... aggCalls) {
+    protected LogicalAggregate makeMultiCallAggregate(AggregateCall... aggCalls) {
         return LogicalAggregate.create(
             stubScan(mockTable("test_index", "status", "size")),
             List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls)
         );
     }
 
-    protected LogicalAggregate makeAggregate(int shardCount, AggregateCall aggCall) {
+    protected LogicalAggregate makeAggregate(AggregateCall aggCall) {
         return LogicalAggregate.create(
             stubScan(mockTable("test_index", "status", "size")),
             List.of(), ImmutableBitSet.of(0), null, List.of(aggCall)

@@ -12,10 +12,8 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.AggregateCallAnnotation;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -56,7 +54,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     // ---- Split behavior ----
 
     public void testSplitOnMultiShard() {
-        RelNode result = unwrapExchange(runPlanner(makeAggregate(5, sumCall()), defaultContext(5)));
+        RelNode result = unwrapExchange(runPlanner(makeAggregate(sumCall()), defaultContext(5)));
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
 
         assertTrue(result instanceof OpenSearchAggregate);
@@ -73,7 +71,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     }
 
     public void testSplitPreservesViableBackends() {
-        RelNode result = unwrapExchange(runPlanner(makeAggregate(5, sumCall()), defaultContext(5)));
+        RelNode result = unwrapExchange(runPlanner(makeAggregate(sumCall()), defaultContext(5)));
 
         OpenSearchAggregate finalAgg = (OpenSearchAggregate) result;
         OpenSearchAggregate partialAgg = (OpenSearchAggregate) ((OpenSearchExchangeReducer) finalAgg.getInput()).getInput();
@@ -99,7 +97,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
         PlannerContext context = buildContext("parquet", 1, intFields(), List.of(noAggFunctions));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(makeAggregate(1, sumCall()), context));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(makeAggregate(sumCall()), context));
         assertTrue(exception.getMessage().contains("No backend supports aggregate function"));
     }
 
@@ -116,7 +114,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
         PlannerContext context = buildContextWithExplicitStorage(1, duplicatedIntFields(), List.of(DATAFUSION, luceneWithAgg));
 
-        RelNode result = runPlanner(makeAggregate(1, sumCall()), context);
+        RelNode result = runPlanner(makeAggregate(sumCall()), context);
         assertTrue(result instanceof OpenSearchAggregate);
         OpenSearchAggregate agg = (OpenSearchAggregate) result;
 
@@ -173,7 +171,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     // ---- Exchange passthrough ----
 
     public void testReducerPassthroughViableBackends() {
-        RelNode result = unwrapExchange(runPlanner(makeAggregate(5, sumCall()), defaultContext(5)));
+        RelNode result = unwrapExchange(runPlanner(makeAggregate(sumCall()), defaultContext(5)));
         OpenSearchAggregate finalAgg = (OpenSearchAggregate) result;
         OpenSearchExchangeReducer reducer = (OpenSearchExchangeReducer) finalAgg.getInput();
         assertFalse(reducer.getViableBackends().isEmpty());
@@ -237,70 +235,20 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
     // ---- Helpers ----
 
-    private static Map<String, Map<String, Object>> intFields() {
-        return Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer"));
-    }
-
-    /**
-     * Integer fields with doc values duplicated in both parquet and lucene formats.
-     * Models the "duplicated doc values" Cx persona — storage cost not a concern,
-     * both backends can natively scan and aggregate the same field.
-     */
-    private Map<String, FieldStorageInfo> duplicatedIntFields() {
-        return Map.of(
-            "status",
-            new FieldStorageInfo(
-                "status",
-                "integer",
-                FieldType.INTEGER,
-                List.of(MockDataFusionBackend.PARQUET_DATA_FORMAT, MockLuceneBackend.LUCENE_DATA_FORMAT),
-                List.of(),
-                List.of(),
-                false
-            ),
-            "size",
-            new FieldStorageInfo(
-                "size",
-                "integer",
-                FieldType.INTEGER,
-                List.of(MockDataFusionBackend.PARQUET_DATA_FORMAT, MockLuceneBackend.LUCENE_DATA_FORMAT),
-                List.of(),
-                List.of(),
-                false
-            )
-        );
-    }
-
     private AggregateCall countCall() {
         return AggregateCall.create(
-            SqlStdOperatorTable.COUNT,
-            false,
-            List.of(1),
-            1,
-            defaultScan(),
-            typeFactory.createSqlType(SqlTypeName.BIGINT),
-            "cnt"
+            SqlStdOperatorTable.COUNT, false, List.of(1), 1,
+            stubScan(mockTable("test_index", "status", "size")),
+            typeFactory.createSqlType(SqlTypeName.BIGINT), "cnt"
         );
     }
 
     private AggregateCall stddevCall() {
         return AggregateCall.create(
-            SqlStdOperatorTable.STDDEV_POP,
-            false,
-            List.of(1),
-            1,
-            defaultScan(),
-            typeFactory.createSqlType(SqlTypeName.INTEGER),
-            "stddev"
+            SqlStdOperatorTable.STDDEV_POP, false, List.of(1), 1,
+            stubScan(mockTable("test_index", "status", "size")),
+            typeFactory.createSqlType(SqlTypeName.INTEGER), "stddev"
         );
-    }
-
-    private RelNode defaultScan() {
-        return stubScan(mockTable("test_index", "status", "size"));
-    }
-
-    private LogicalAggregate makeMultiCallAggregate(AggregateCall... aggCalls) {
-        return LogicalAggregate.create(defaultScan(), List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls));
     }
 
     private PlannerContext defaultContext(int shardCount) {
@@ -308,7 +256,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     }
 
     private OpenSearchAggregate runAggregate(int shardCount, AggregateCall aggCall) {
-        RelNode result = runPlanner(makeAggregate(shardCount, aggCall), defaultContext(shardCount));
+        RelNode result = runPlanner(makeAggregate(aggCall), defaultContext(shardCount));
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchAggregate", result instanceof OpenSearchAggregate);
         return (OpenSearchAggregate) result;
