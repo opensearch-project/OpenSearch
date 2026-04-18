@@ -165,7 +165,17 @@ use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
 
 use crate::cross_rt_stream::CrossRtStream;
+use crate::query_memory_pool_tracker::QueryTrackingContext;
 use crate::runtime_manager::RuntimeManager;
+
+/// Bundles a stream with its query tracking context so that dropping the
+/// handle automatically marks the query completed in the registry.
+pub struct QueryStreamHandle {
+    pub stream: RecordBatchStreamAdapter<CrossRtStream>,
+    /// Held for its `Drop` impl — marks the query completed when the
+    /// stream is closed.
+    pub query_tracking_context: QueryTrackingContext,
+}
 
 /// Build ObjectMeta for each file using the given object store.
 pub async fn create_object_metas(
@@ -291,6 +301,7 @@ pub async unsafe fn execute_query(
     plan_bytes: &[u8],
     runtime_ptr: i64,
     manager: &RuntimeManager,
+    context_id: i64,
 ) -> Result<i64, DataFusionError> {
     let shard_view = &*(shard_view_ptr as *const ShardView);
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
@@ -299,26 +310,36 @@ pub async unsafe fn execute_query(
     let object_metas = shard_view.object_metas.clone();
     let cpu_executor = manager.cpu_executor();
 
-    let result = crate::query_executor::execute_query(
+    // Create per-query context — auto-registers in the global registry
+    let global_pool = runtime.runtime_env.memory_pool.clone();
+    let query_context = QueryTrackingContext::new(context_id, global_pool);
+    let query_memory_pool = query_context.memory_pool()
+        .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
+
+    let stream_ptr = crate::query_executor::execute_query(
         table_path,
         object_metas,
         table_name.to_string(),
         plan_bytes.to_vec(),
         runtime,
         cpu_executor,
+        query_memory_pool,
     )
     .await?;
 
-    Ok(result)
+    // Reconstruct the stream from the raw pointer returned by query_executor
+    let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
+    let handle = QueryStreamHandle { stream, query_tracking_context: query_context };
+    Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
 /// Returns the Arrow schema for the given stream as a heap-allocated FFI_ArrowSchema pointer.
 ///
 /// # Safety
-/// `stream_ptr` must be a valid, non-zero pointer to a RecordBatchStreamAdapter.
+/// `stream_ptr` must be a valid, non-zero pointer to a QueryStreamHandle.
 pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError> {
-    let stream = &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
-    let schema = stream.schema();
+    let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
+    let schema = handle.stream.schema();
     let ffi_schema = FFI_ArrowSchema::try_from(schema.as_ref())
         .map_err(|e| DataFusionError::Execution(format!("Schema conversion failed: {}", e)))?;
     Ok(Box::into_raw(Box::new(ffi_schema)) as i64)
@@ -336,9 +357,9 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 pub async unsafe fn stream_next(
     stream_ptr: i64,
 ) -> Result<i64, DataFusionError> {
-    let stream = &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
+    let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
 
-    let result = stream.try_next().await?;
+    let result = handle.stream.try_next().await?;
 
     match result {
         Some(batch) => {
@@ -357,7 +378,9 @@ pub async unsafe fn stream_next(
 /// `stream_ptr` must be 0 or a valid pointer returned by `execute_query`.
 pub unsafe fn stream_close(stream_ptr: i64) {
     if stream_ptr != 0 {
-        let _ = Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
+        // Dropping the handle drops both the stream and the query context.
+        // The context's Drop impl marks the query completed in the registry.
+        let _ = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
     }
 }
 
