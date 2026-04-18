@@ -21,9 +21,16 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.IndexFilterTree;
+import org.opensearch.index.engine.exec.FilterTreeCallbackBridge;
+import org.opensearch.index.engine.exec.IndexFilterTreeContext;
+import org.opensearch.index.engine.exec.IndexFilterTreeProvider;
+import org.opensearch.index.engine.exec.SearchBackendFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -43,6 +50,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     private final Map<String, AnalyticsSearchBackendPlugin> backEnds;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
+    private final SearchBackendFactory searchBackendFactory;
 
     /**
      * Constructs a DefaultPlanExecutor.
@@ -52,12 +60,30 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
      * @param clusterService service for accessing cluster state
      */
     public DefaultPlanExecutor(List<AnalyticsSearchBackendPlugin> providers, IndicesService indicesService, ClusterService clusterService) {
+        this(providers, indicesService, clusterService, new SearchBackendFactory());
+    }
+
+    /**
+     * Constructs a DefaultPlanExecutor with an explicit SearchBackendFactory.
+     *
+     * @param providers list of search execution engine providers
+     * @param indicesService service for accessing index shards
+     * @param clusterService service for accessing cluster state
+     * @param searchBackendFactory registry for tree query providers
+     */
+    public DefaultPlanExecutor(
+        List<AnalyticsSearchBackendPlugin> providers,
+        IndicesService indicesService,
+        ClusterService clusterService,
+        SearchBackendFactory searchBackendFactory
+    ) {
         this.backEnds = new LinkedHashMap<>();
         for (AnalyticsSearchBackendPlugin provider : providers) {
             this.backEnds.put(provider.name(), provider);
         }
         this.indicesService = indicesService;
         this.clusterService = clusterService;
+        this.searchBackendFactory = searchBackendFactory;
     }
 
     @Override
@@ -134,5 +160,116 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         }
         // TODO: select based on data format available in the catalog snapshot
         return backEnds.values().iterator().next();
+    }
+
+    /**
+     * Returns the SearchBackendFactory for registering tree query providers.
+     *
+     * @return the search backend factory
+     */
+    public SearchBackendFactory getSearchBackendFactory() {
+        return searchBackendFactory;
+    }
+
+    // ── Tree Query Execution ────────────────────────────────────────────
+
+    /**
+     * Executes a query using the boolean filter tree path.
+     * <p>
+     * Orchestrates the full lifecycle: normalize tree → group CollectorLeaf by providerId →
+     * look up providers from SearchBackendFactory → create tree contexts → register with
+     * FilterTreeCallbackBridge → serialize tree → delegate to primary engine → cleanup.
+     *
+     * @param tableName      the target table name
+     * @param substraitBytes serialized substrait plan bytes
+     * @param tree           the boolean filter tree
+     * @param collectorQueries per-provider queries indexed by providerId → query array
+     * @param engine         the primary search execution engine to delegate to
+     * @param ctx            the execution context
+     * @return list of result rows
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    List<Object[]> executeViaTreeQuery(
+        String tableName,
+        byte[] substraitBytes,
+        IndexFilterTree tree,
+        Map<Integer, Object[]> collectorQueries,
+        SearchExecEngine<ExecutionContext, EngineResultStream> engine,
+        ExecutionContext ctx
+    ) {
+        long contextId = 0;
+        List<IndexFilterTreeContext<?>> createdContexts = new ArrayList<>();
+
+        try {
+            // Step 1: Normalize the tree (De Morgan's NOT push-down)
+            IndexFilterTree normalizedTree = tree.normalize();
+
+            // Step 2: Group CollectorLeaf by providerId and create tree contexts
+            // The collectorQueries map is keyed by providerId, each value is the query array for that provider
+            contextId = FilterTreeCallbackBridge.createContext();
+
+            for (Map.Entry<Integer, Object[]> entry : collectorQueries.entrySet()) {
+                int providerId = entry.getKey();
+                Object[] queries = entry.getValue();
+
+                IndexFilterTreeProvider provider = searchBackendFactory.getProvider(providerId);
+
+                // Create tree context — the provider knows its own query/reader types
+                IndexFilterTreeContext<?> treeContext = provider.createTreeContext(
+                    queries,
+                    ctx.getReader(),
+                    normalizedTree
+                );
+                createdContexts.add(treeContext);
+
+                FilterTreeCallbackBridge.registerProvider(contextId, providerId, provider, treeContext);
+            }
+
+            // Step 3: Serialize tree and delegate to primary engine
+            byte[] treeBytes = normalizedTree.serialize();
+
+            logger.info(
+                "[DefaultPlanExecutor] Tree query: contextId={}, providers={}, collectorLeaves={}, treeBytes={}",
+                contextId, collectorQueries.size(), normalizedTree.collectorLeafCount(), treeBytes.length
+            );
+
+            // Step 4: Consume the result stream
+            List<Object[]> rows = new ArrayList<>();
+            try (EngineResultStream resultStream = engine.execute(ctx)) {
+                Iterator<EngineResultBatch> batchIterator = resultStream.iterator();
+                while (batchIterator.hasNext()) {
+                    EngineResultBatch batch = batchIterator.next();
+                    List<String> fieldNames = batch.getFieldNames();
+                    for (int row = 0; row < batch.getRowCount(); row++) {
+                        Object[] rowValues = new Object[fieldNames.size()];
+                        for (int col = 0; col < fieldNames.size(); col++) {
+                            rowValues[col] = batch.getFieldValue(fieldNames.get(col), row);
+                        }
+                        rows.add(rowValues);
+                    }
+                }
+            }
+
+            logger.info("[DefaultPlanExecutor] Tree query completed, {} rows", rows.size());
+            return rows;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Tree query execution failed: " + e.getMessage(), e);
+        } finally {
+            // Cleanup: unregister + close all contexts (always runs)
+            try {
+                if (contextId > 0) {
+                    FilterTreeCallbackBridge.unregister(contextId);
+                }
+            } finally {
+                for (IndexFilterTreeContext<?> treeCtx : createdContexts) {
+                    try {
+                        treeCtx.close();
+                    } catch (IOException e) {
+                        logger.warn("Failed to close tree context", e);
+                    }
+                }
+            }
+        }
     }
 }

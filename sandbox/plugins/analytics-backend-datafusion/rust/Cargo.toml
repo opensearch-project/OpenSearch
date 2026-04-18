@@ -36,7 +36,14 @@ once_cell = { workspace = true }
 log = { workspace = true }
 num_cpus = { workspace = true }
 mimalloc = { workspace = true }
+<<<<<<< HEAD:sandbox/plugins/analytics-backend-datafusion/rust/Cargo.toml
 native-bridge-common = { workspace = true }
+=======
+roaring = "0.10"
+async-trait = "0.1"
+datafusion-datasource-parquet = { workspace = true }
+jni-macros = { path = "../jni-macros" }
+>>>>>>> bc1d487a770 (complex boolean feature):sandbox/plugins/analytics-backend-datafusion/jni/Cargo.toml
 
 [dev-dependencies]
 criterion = { workspace = true }
