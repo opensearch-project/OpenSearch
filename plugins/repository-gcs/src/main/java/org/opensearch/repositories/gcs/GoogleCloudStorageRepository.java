@@ -43,6 +43,8 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 
@@ -87,12 +89,26 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final String bucket;
     private final String clientName;
 
+    /** Native (Rust) object store — created during construction if native provider is available. */
+    private volatile NativeStoreRepository nativeStore = NativeStoreRepository.EMPTY;
+
     GoogleCloudStorageRepository(
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
+    ) {
+        this(metadata, namedXContentRegistry, storageService, clusterService, recoverySettings, null);
+    }
+
+    GoogleCloudStorageRepository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final GoogleCloudStorageService storageService,
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
+        final NativeRemoteObjectStoreProvider nativeStoreProvider
     ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.storageService = storageService;
@@ -112,6 +128,14 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, isCompress());
+
+        // Initialize native store if provider is available (sandbox warm nodes only)
+        if (nativeStoreProvider != null) {
+            final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
+            if (store != null && store.isLive()) {
+                this.nativeStore = store;
+            }
+        }
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
@@ -131,6 +155,12 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    @Override
+    protected void doClose() {
+        nativeStore.close();
+        super.doClose();
     }
 
     @Override
@@ -154,5 +184,10 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is empty for repository");
         }
         return value;
+    }
+
+    @Override
+    public NativeStoreRepository getNativeStore() {
+        return nativeStore;
     }
 }

@@ -60,6 +60,8 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.ShardGenerations;
@@ -364,6 +366,9 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private volatile int bulkDeletesSize;
 
+    /** Native (Rust) object store — created during construction if native provider is available. */
+    private volatile NativeStoreRepository nativeStore = NativeStoreRepository.EMPTY;
+
     // Used by test classes
     S3Repository(
         final RepositoryMetadata metadata,
@@ -420,6 +425,47 @@ class S3Repository extends MeteredBlobStoreRepository {
         final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
         final GenericStatsMetricPublisher genericStatsMetricPublisher
     ) {
+        this(
+            metadata,
+            namedXContentRegistry,
+            service,
+            clusterService,
+            recoverySettings,
+            asyncUploadUtils,
+            urgentExecutorBuilder,
+            priorityExecutorBuilder,
+            normalExecutorBuilder,
+            s3AsyncService,
+            multipartUploadEnabled,
+            pluginConfigPath,
+            normalPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher,
+            null
+        );
+    }
+
+    /**
+     * Constructs an s3 backed repository with optional native store provider.
+     */
+    S3Repository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final S3Service service,
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
+        final AsyncTransferManager asyncUploadUtils,
+        final AsyncExecutorContainer urgentExecutorBuilder,
+        final AsyncExecutorContainer priorityExecutorBuilder,
+        final AsyncExecutorContainer normalExecutorBuilder,
+        final S3AsyncService s3AsyncService,
+        final boolean multipartUploadEnabled,
+        Path pluginConfigPath,
+        final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
+        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
+        final GenericStatsMetricPublisher genericStatsMetricPublisher,
+        final NativeRemoteObjectStoreProvider nativeStoreProvider
+    ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.service = service;
         this.s3AsyncService = s3AsyncService;
@@ -435,6 +481,14 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         validateRepositoryMetadata(metadata);
         readRepositoryMetadata();
+
+        // Initialize native store if provider is available (sandbox warm nodes only)
+        if (nativeStoreProvider != null) {
+            final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
+            if (store != null && store.isLive()) {
+                this.nativeStore = store;
+            }
+        }
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
@@ -676,12 +730,18 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected void doClose() {
+        nativeStore.close();
         final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
         if (cancellable != null) {
             logger.debug("Repository [{}] closed during cool-down period", metadata.name());
             cancellable.cancel();
         }
         super.doClose();
+    }
+
+    @Override
+    public NativeStoreRepository getNativeStore() {
+        return nativeStore;
     }
 
     @Override

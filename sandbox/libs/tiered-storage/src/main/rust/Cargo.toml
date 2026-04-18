@@ -1,0 +1,24 @@
+[package]
+name = "opensearch-tiered-storage"
+version = "0.1.0"
+edition = "2021"
+description = "Shared tiered storage infrastructure for OpenSearch sandbox — FileRegistry, TieredObjectStore, FFM bridge"
+license = "Apache-2.0"
+workspace = "../../../../dataformat-native/rust"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+chrono = { workspace = true }
+dashmap = { workspace = true }
+object_store = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+native-bridge-common = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true }
