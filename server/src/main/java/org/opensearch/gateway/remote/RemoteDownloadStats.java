@@ -22,11 +22,14 @@ public class RemoteDownloadStats extends PersistedStateStats {
     private AtomicLong checksumValidationFailedCount = new AtomicLong(0);
     public static final String INCOMING_PUBLICATION_FAILED_COUNT = "incoming_publication_failed_count";
     private AtomicLong incomingPublicationFailedCount = new AtomicLong(0);
+    static final String CURRENT_APPLICATION_DURATION_MS = "current_application_duration_ms";
+    private AtomicLong currentApplicationDurationMs = new AtomicLong(0);
 
     public RemoteDownloadStats(String statsName) {
         super(statsName);
         addToExtendedFields(CHECKSUM_VALIDATION_FAILED_COUNT, checksumValidationFailedCount);
         addToExtendedFields(INCOMING_PUBLICATION_FAILED_COUNT, incomingPublicationFailedCount);
+        addToExtendedFields(CURRENT_APPLICATION_DURATION_MS, currentApplicationDurationMs);
     }
 
     public void checksumValidationFailedCount() {
@@ -43,5 +46,13 @@ public class RemoteDownloadStats extends PersistedStateStats {
 
     public long getIncomingPublicationFailedCount() {
         return incomingPublicationFailedCount.get();
+    }
+
+    public void setCurrentApplicationDurationMs(long durationMs) {
+        currentApplicationDurationMs.set(durationMs);
+    }
+
+    public long getCurrentApplicationDurationMs() {
+        return currentApplicationDurationMs.get();
     }
 }

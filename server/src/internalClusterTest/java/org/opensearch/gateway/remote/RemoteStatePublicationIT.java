@@ -277,6 +277,44 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         assertDataNodeDownloadStats(nodesStatsResponseDataNode.getNodes().get(0));
     }
 
+    public void testCurrentApplicationDurationInDownloadStats() throws Exception {
+        int shardCount = 1;
+        int replicaCount = 1;
+        int dataNodeCount = shardCount * (replicaCount + 1);
+        prepareCluster(1, dataNodeCount, INDEX_NAME, replicaCount, shardCount);
+        ensureStableCluster(1 + dataNodeCount);
+        ensureGreen(INDEX_NAME);
+
+        String dataNode = internalCluster().getDataNodeNames().stream().collect(Collectors.toList()).get(0);
+
+        // Use assertBusy to handle the case where a background cluster state application
+        // may still be in progress at the moment stats are fetched
+        assertBusy(() -> {
+            NodesStatsResponse nodesStatsResponse = client().admin()
+                .cluster()
+                .prepareNodesStats(dataNode)
+                .addMetric(DISCOVERY.metricName())
+                .get();
+
+            NodeStats nodeStats = nodesStatsResponse.getNodes().get(0);
+            List<PersistedStateStats> persistenceStats = nodeStats.getDiscoveryStats().getClusterStateStats().getPersistenceStats();
+
+            boolean foundMatchingStats = false;
+            for (PersistedStateStats stats : persistenceStats) {
+                if (FULL_DOWNLOAD_STATS.equals(stats.getStatsName()) || DIFF_DOWNLOAD_STATS.equals(stats.getStatsName())) {
+                    foundMatchingStats = true;
+                    assertTrue(
+                        "Expected extended field current_application_duration_ms in " + stats.getStatsName(),
+                        stats.getExtendedFields().containsKey("current_application_duration_ms")
+                    );
+                    // Application is complete, so duration should be 0
+                    assertEquals(0, stats.getExtendedFields().get("current_application_duration_ms").get());
+                }
+            }
+            assertTrue("Expected at least one FULL_DOWNLOAD_STATS or DIFF_DOWNLOAD_STATS entry in persistence stats", foundMatchingStats);
+        });
+    }
+
     public void testRemotePublicationDisabledByRollingRestart() throws Exception {
         prepareCluster(3, 2, INDEX_NAME, 1, 2);
         ensureStableCluster(5);

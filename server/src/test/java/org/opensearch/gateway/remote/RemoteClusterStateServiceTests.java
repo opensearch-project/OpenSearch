@@ -263,7 +263,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     DefaultRemoteStoreSettings.INSTANCE
                 )
             ),
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            () -> 0L
         );
     }
 
@@ -305,7 +306,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                         DefaultRemoteStoreSettings.INSTANCE
                     )
                 ),
-                writableRegistry()
+                writableRegistry(),
+                () -> 0L
             )
         );
     }
@@ -383,7 +385,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     DefaultRemoteStoreSettings.INSTANCE
                 )
             ),
-            writableRegistry()
+            writableRegistry(),
+            () -> 0L
         );
         assertTrue(remoteClusterStateService.isRemotePublicationEnabled());
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager())
@@ -757,7 +760,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     DefaultRemoteStoreSettings.INSTANCE
                 )
             ),
-            writableRegistry()
+            writableRegistry(),
+            () -> 0L
         );
         assertTrue(remoteClusterStateService.isRemotePublicationEnabled());
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
@@ -2798,7 +2802,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     DefaultRemoteStoreSettings.INSTANCE
                 )
             ),
-            writableRegistry()
+            writableRegistry(),
+            () -> 0L
         );
         assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
     }
@@ -3070,7 +3075,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     DefaultRemoteStoreSettings.INSTANCE
                 )
             ),
-            writableRegistry()
+            writableRegistry(),
+            () -> 0L
         );
     }
 
@@ -3100,7 +3106,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     DefaultRemoteStoreSettings.INSTANCE
                 )
             ),
-            writableRegistry()
+            writableRegistry(),
+            () -> 0L
         );
     }
 
