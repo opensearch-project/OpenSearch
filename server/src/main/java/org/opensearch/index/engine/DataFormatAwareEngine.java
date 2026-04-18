@@ -60,6 +60,7 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.store.ShardNativeStore;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.InternalTranslogManager;
@@ -142,6 +143,9 @@ public class DataFormatAwareEngine implements Indexer {
     private final IndexingThrottler throttle;
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
 
+    // Native object store handle for this shard (owned, closed in closeNoLock)
+    private final ShardNativeStore shardNativeStore;
+
     // Timestamps and seq-no markers
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
@@ -211,15 +215,21 @@ public class DataFormatAwareEngine implements Indexer {
 
             // 5. Create IndexingExecutionEngine and ReaderManagers
             DataFormatRegistry registry = engineConfig.getDataFormatRegistry();
+            DataFormat format = registry.format(config().getIndexSettings().pluggableDataFormat());
+
+            // Plugin creates shard-scoped native store from the Store's repository reference
+            this.shardNativeStore = store.getNativeStoreFactory().create(store.shardPath());
+
             this.indexingExecutionEngine = registry.getIndexingEngine(
                 new IndexingEngineConfig(
                     committer,
                     config().getMapperService(),
                     config().getIndexSettings(),
                     config().getStore(),
-                    registry
+                    registry,
+                    shardNativeStore
                 ),
-                registry.format(config().getIndexSettings().pluggableDataFormat())
+                format
             );
             this.writerGenerationCounter = new AtomicLong(1L);
             this.writerPool = new LockablePool<>(
@@ -231,7 +241,8 @@ public class DataFormatAwareEngine implements Indexer {
                 Optional.ofNullable(indexingExecutionEngine.getProvider()),
                 engineConfig.getMapperService(),
                 engineConfig.getIndexSettings(),
-                store.shardPath()
+                store.shardPath(),
+                shardNativeStore
             );
 
             // 6. Create CombinedCatalogSnapshotDeletionPolicy
@@ -1062,6 +1073,7 @@ public class DataFormatAwareEngine implements Indexer {
             } catch (Exception e) {
                 logger.warn("failed to close engine resources", e);
             } finally {
+                shardNativeStore.close();
                 try {
                     store.decRef();
                     logger.debug("engine closed [{}]", reason);

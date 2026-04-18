@@ -18,7 +18,7 @@ arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 arrow-buffer = { workspace = true }
 log = { workspace = true }
-parquet = { workspace = true }
+parquet = { workspace = true, features = ["object_store"] }
 lazy_static = { workspace = true }
 dashmap = { workspace = true }
 chrono = { workspace = true }
@@ -26,6 +26,10 @@ mimalloc = { workspace = true }
 tempfile = { workspace = true }
 native-bridge-common = { workspace = true }
 crc32fast = { workspace = true }
+tokio = { workspace = true }
+object_store = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }

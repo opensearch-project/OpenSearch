@@ -44,6 +44,7 @@ import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.IndexStoreListener;
+import org.opensearch.index.store.NativeStoreFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -179,14 +180,16 @@ public interface IndexStorePlugin {
          * @param shardPath the shard path
          * @return a new Store instance
          */
-        Store newStore(
+        default Store newStore(
             ShardId shardId,
             IndexSettings indexSettings,
             Directory directory,
             ShardLock shardLock,
             Store.OnClose onClose,
             ShardPath shardPath
-        ) throws IOException;
+        ) throws IOException {
+            return newStore(shardId, indexSettings, directory, shardLock, onClose, shardPath, null, NativeStoreFactory.EMPTY);
+        }
 
         /**
          * Creates a new Store per shard. This method is called once per shard on shard creation.
@@ -196,7 +199,31 @@ public interface IndexStorePlugin {
          * @param shardLock the shard lock to associate with the store
          * @param onClose listener invoked on store close
          * @param shardPath the shard path
-         * @param directoryFactory the directory path.
+         * @param directoryFactory the directory factory
+         * @return a new Store instance
+         */
+        default Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath,
+            DirectoryFactory directoryFactory
+        ) throws IOException {
+            return newStore(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory, NativeStoreFactory.EMPTY);
+        }
+
+        /**
+         * Creates a new Store per shard with a native object store factory for the storage backend.
+         * @param shardId the shard id
+         * @param indexSettings the shard's index settings
+         * @param directory the Lucene directory selected for this shard
+         * @param shardLock the shard lock to associate with the store
+         * @param onClose listener invoked on store close
+         * @param shardPath the shard path
+         * @param directoryFactory the directory factory
+         * @param nativeStoreFactory factory for creating shard-scoped native object store handles
          * @return a new Store instance
          */
         Store newStore(
@@ -206,7 +233,8 @@ public interface IndexStorePlugin {
             ShardLock shardLock,
             Store.OnClose onClose,
             ShardPath shardPath,
-            DirectoryFactory directoryFactory
+            DirectoryFactory directoryFactory,
+            NativeStoreFactory nativeStoreFactory
         ) throws IOException;
     }
 

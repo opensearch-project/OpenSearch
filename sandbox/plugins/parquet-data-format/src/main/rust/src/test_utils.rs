@@ -11,10 +11,13 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow::record_batch::RecordBatch;
 use arrow_array::Array;
+use object_store::local::LocalFileSystem;
+use object_store::ObjectStore;
 use std::sync::Arc;
 use tempfile::tempdir;
 
-use crate::writer::NativeParquetWriter;
+use crate::object_store_handle;
+use crate::writer;
 
 pub fn create_test_ffi_schema() -> (Arc<Schema>, i64) {
     let schema = Arc::new(Schema::new(vec![
@@ -56,29 +59,27 @@ pub fn cleanup_ffi_data(array_ptr: i64, schema_ptr: i64) {
     }
 }
 
-pub fn get_temp_file_path(name: &str) -> (tempfile::TempDir, String) {
+/// Create a local FS ObjectStore rooted at a temp dir and return (temp_dir, store_handle).
+pub fn create_temp_store() -> (tempfile::TempDir, i64) {
     let temp_dir = tempdir().unwrap();
-    let file_path = temp_dir.path().join(name);
-    let filename = file_path.to_string_lossy().to_string();
-    (temp_dir, filename)
+    let store: Arc<dyn ObjectStore> =
+        Arc::new(LocalFileSystem::new_with_prefix(temp_dir.path()).unwrap());
+    let handle = object_store_handle::arc_into_raw(store);
+    (temp_dir, handle)
 }
 
-pub fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
-    let (schema, schema_ptr) = create_test_ffi_schema();
-    let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr);
-    assert!(result.is_ok());
-    (schema, schema_ptr)
+/// Create a writer on the given store and return the writer handle.
+pub fn create_writer_on_store(store_handle: i64, object_path: &str) -> i64 {
+    let (_schema, schema_ptr) = create_test_ffi_schema();
+    let writer_handle = writer::create_writer(store_handle, object_path, schema_ptr)
+        .expect("Failed to create writer");
+    writer_handle
 }
 
-pub fn close_writer_and_cleanup_schema(filename: &str, schema_ptr: i64) {
-    let _ = NativeParquetWriter::finalize_writer(filename.to_string());
-    cleanup_ffi_schema(schema_ptr);
-}
-
-pub fn write_ffi_data_to_writer(filename: &str) -> (i64, i64) {
+/// Write test FFI data to a writer handle.
+pub fn write_ffi_data_to_handle(writer_handle: i64) -> (i64, i64) {
     let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-    let result = NativeParquetWriter::write_data(filename.to_string(), array_ptr, data_schema_ptr);
-    assert!(result.is_ok());
+    writer::write_data(writer_handle, array_ptr, data_schema_ptr).expect("Failed to write data");
     (array_ptr, data_schema_ptr)
 }
 
@@ -98,10 +99,4 @@ pub fn create_mismatched_ffi_data() -> Result<(i64, i64), Box<dyn std::error::Er
     let array_ptr = Box::into_raw(Box::new(ffi_array)) as i64;
     let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
     Ok((array_ptr, schema_ptr))
-}
-
-pub fn close_writer_and_get_metadata(filename: &str, schema_ptr: i64) -> crate::writer::FinalizeResult {
-    let result = NativeParquetWriter::finalize_writer(filename.to_string());
-    cleanup_ffi_schema(schema_ptr);
-    result.unwrap().unwrap()
 }

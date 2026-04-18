@@ -24,6 +24,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.NativeStoreFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -100,6 +101,40 @@ public class SubdirectoryAwareStore extends Store {
             onClose,
             shardPath,
             directoryFactory
+        );
+    }
+
+    /**
+     * Constructor for SubdirectoryAwareStore with native store support.
+     *
+     * @param shardId the shard ID
+     * @param indexSettings the index settings
+     * @param directory the directory to use for the store
+     * @param shardLock the shard lock
+     * @param onClose the on close callback
+     * @param shardPath the shard path
+     * @param directoryFactory the directory factory
+     * @param nativeStoreFactory factory for creating shard-scoped native object store handles
+     */
+    public SubdirectoryAwareStore(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        ShardPath shardPath,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        NativeStoreFactory nativeStoreFactory
+    ) {
+        super(
+            shardId,
+            indexSettings,
+            new SubdirectoryAwareDirectory(directory, shardPath),
+            shardLock,
+            onClose,
+            shardPath,
+            directoryFactory,
+            nativeStoreFactory
         );
     }
 

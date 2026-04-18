@@ -8,188 +8,194 @@
 
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow::record_batch::RecordBatch;
-use dashmap::DashMap;
-use lazy_static::lazy_static;
-use parquet::arrow::ArrowWriter;
+use bytes::Bytes;
+use futures::future::BoxFuture;
+use object_store::path::Path as ObjectPath;
+use parquet::arrow::async_writer::{AsyncFileWriter, ParquetObjectWriter};
+use parquet::arrow::AsyncArrowWriter;
 use parquet::basic::Compression;
+use parquet::errors::Result as ParquetResult;
 use parquet::file::properties::WriterProperties;
 use parquet::file::reader::{FileReader, SerializedFileReader};
-use std::fs::File;
-use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use crate::{log_error, log_debug};
+use crate::log_debug;
+use crate::object_store_handle;
+use crate::runtime::RUNTIME;
 
-/// A write wrapper that computes CRC32 as bytes flow through.
-/// Wraps a File and tracks the running checksum without buffering.
-pub struct Crc32Writer {
-    inner: File,
-    hasher: crc32fast::Hasher,
-}
+/// Shared CRC32 state that survives AsyncArrowWriter::close().
+#[derive(Clone)]
+struct SharedCrc32(Arc<Mutex<crc32fast::Hasher>>);
 
-impl Crc32Writer {
-    fn new(file: File) -> Self {
-        Self {
-            inner: file,
-            hasher: crc32fast::Hasher::new(),
-        }
+impl SharedCrc32 {
+    fn new() -> Self {
+        Self(Arc::new(Mutex::new(crc32fast::Hasher::new())))
     }
-
-    /// Finalizes and returns the CRC32 checksum of all bytes written.
-    fn checksum(&self) -> u32 {
-        self.hasher.clone().finalize()
+    fn update(&self, data: &[u8]) {
+        self.0.lock().unwrap().update(data);
+    }
+    fn finalize(&self) -> u32 {
+        self.0.lock().unwrap().clone().finalize()
     }
 }
 
-impl Write for Crc32Writer {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let n = self.inner.write(buf)?;
-        self.hasher.update(&buf[..n]);
-        Ok(n)
-    }
+/// Async file writer wrapper that computes CRC32 as bytes flow through.
+pub struct Crc32AsyncFileWriter {
+    inner: ParquetObjectWriter,
+    crc: SharedCrc32,
+}
 
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.inner.flush()
+impl Crc32AsyncFileWriter {
+    fn new(inner: ParquetObjectWriter, crc: SharedCrc32) -> Self {
+        Self { inner, crc }
     }
 }
 
-/// Result from finalizing a writer: Parquet metadata + whole-file CRC32.
+impl AsyncFileWriter for Crc32AsyncFileWriter {
+    fn write(&mut self, bs: Bytes) -> BoxFuture<'_, ParquetResult<()>> {
+        self.crc.update(&bs);
+        self.inner.write(bs)
+    }
+
+    fn complete(&mut self) -> BoxFuture<'_, ParquetResult<()>> {
+        self.inner.complete()
+    }
+}
+
+/// Result from finalizing a writer.
+#[derive(Debug)]
 pub struct FinalizeResult {
-    pub metadata: parquet::file::metadata::ParquetMetaData,
+    pub num_rows: i64,
     pub crc32: u32,
 }
 
-lazy_static! {
-    pub static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<Crc32Writer>>>> = DashMap::new();
-    pub static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
+/// Opaque writer state held behind a handle pointer.
+struct WriterState {
+    writer: AsyncArrowWriter<Crc32AsyncFileWriter>,
+    crc: SharedCrc32,
 }
 
-pub struct NativeParquetWriter;
+/// Create a new ObjectStore-backed writer.
+/// Returns a handle (leaked Box pointer) to the WriterState.
+pub fn create_writer(
+    store_handle: i64,
+    object_path: &str,
+    schema_address: i64,
+) -> Result<i64, Box<dyn std::error::Error>> {
+    log_debug!(
+        "create_writer: store_handle={}, path={}",
+        store_handle,
+        object_path
+    );
 
-impl NativeParquetWriter {
-    pub fn create_writer(filename: String, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
-        log_debug!("create_writer called for file: {}, schema_address: {}", filename, schema_address);
-
-        if (schema_address as *mut u8).is_null() {
-            log_error!("ERROR: Invalid schema address (null pointer) for file: {}", filename);
-            return Err("Invalid schema address".into());
-        }
-        if WRITER_MANAGER.contains_key(&filename) {
-            log_error!("ERROR: Writer already exists for file: {}", filename);
-            return Err("Writer already exists for this file".into());
-        }
-
-        let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
-        let schema = Arc::new(arrow::datatypes::Schema::try_from(&arrow_schema)?);
-        log_debug!("Schema created with {} fields", schema.fields().len());
-
-        let file = File::create(&filename)?;
-        let file_clone = file.try_clone()?;
-        FILE_MANAGER.insert(filename.clone(), file_clone);
-
-        let props = WriterProperties::builder()
-            .set_compression(Compression::LZ4_RAW)
-            .set_bloom_filter_enabled(true)
-            .set_bloom_filter_fpp(0.1)
-            .set_bloom_filter_ndv(100000)
-            .build();
-        let crc_writer = Crc32Writer::new(file);
-        let writer = ArrowWriter::try_new(crc_writer, schema, Some(props))?;
-        WRITER_MANAGER.insert(filename, Arc::new(Mutex::new(writer)));
-        Ok(())
+    if (schema_address as *mut u8).is_null() {
+        return Err("Invalid schema address".into());
+    }
+    if store_handle <= 0 {
+        return Err("Invalid store handle".into());
     }
 
-    pub fn write_data(filename: String, array_address: i64, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
-        log_debug!("write_data called for file: {}", filename);
+    let store = unsafe { object_store_handle::arc_clone_from_raw(store_handle) };
+    let path = ObjectPath::from(object_path);
 
-        if (array_address as *mut u8).is_null() || (schema_address as *mut u8).is_null() {
-            log_error!("ERROR: Invalid FFI addresses for file: {}", filename);
-            return Err("Invalid FFI addresses (null pointers)".into());
-        }
+    let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
+    let schema = Arc::new(arrow::datatypes::Schema::try_from(&arrow_schema)?);
+    log_debug!("Schema created with {} fields", schema.fields().len());
 
+    let props = WriterProperties::builder()
+        .set_compression(Compression::LZ4_RAW)
+        .set_bloom_filter_enabled(true)
+        .set_bloom_filter_fpp(0.1)
+        .set_bloom_filter_ndv(100000)
+        .build();
+
+    let obj_writer = ParquetObjectWriter::new(store, path);
+    let crc = SharedCrc32::new();
+    let crc_writer = Crc32AsyncFileWriter::new(obj_writer, crc.clone());
+    let async_writer = AsyncArrowWriter::try_new(crc_writer, schema, Some(props))?;
+
+    let state = Box::new(WriterState {
+        writer: async_writer,
+        crc,
+    });
+    let handle = Box::into_raw(state) as i64;
+    log_debug!("Writer created, handle={}", handle);
+    Ok(handle)
+}
+
+/// Write an Arrow record batch to the writer.
+pub fn write_data(
+    writer_handle: i64,
+    array_address: i64,
+    schema_address: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if writer_handle <= 0 {
+        return Err("Invalid writer handle".into());
+    }
+    if (array_address as *mut u8).is_null() || (schema_address as *mut u8).is_null() {
+        return Err("Invalid FFI addresses (null pointers)".into());
+    }
+
+    let state = unsafe { &mut *(writer_handle as *mut WriterState) };
+
+    let batch = unsafe {
+        let arrow_schema = FFI_ArrowSchema::from_raw(schema_address as *mut _);
+        let arrow_array = FFI_ArrowArray::from_raw(array_address as *mut _);
+        let array_data = arrow::ffi::from_ffi(arrow_array, &arrow_schema)?;
+        let array: Arc<dyn arrow::array::Array> = arrow::array::make_array(array_data);
+
+        let struct_array = array
+            .as_any()
+            .downcast_ref::<arrow::array::StructArray>()
+            .ok_or("Expected struct array from VectorSchemaRoot")?;
+        let schema = Arc::new(arrow::datatypes::Schema::new(struct_array.fields().clone()));
+        RecordBatch::try_new(schema, struct_array.columns().to_vec())?
+    };
+
+    log_debug!(
+        "Writing batch: {} rows, {} cols",
+        batch.num_rows(),
+        batch.num_columns()
+    );
+    RUNTIME.block_on(state.writer.write(&batch))?;
+    Ok(())
+}
+
+/// Finalize the writer: flush footer, upload to ObjectStore, return metadata.
+/// Consumes the writer handle (invalid after this call).
+pub fn finalize_writer(writer_handle: i64) -> Result<FinalizeResult, Box<dyn std::error::Error>> {
+    if writer_handle <= 0 {
+        return Err("Invalid writer handle".into());
+    }
+
+    let state = unsafe { Box::from_raw(writer_handle as *mut WriterState) };
+    let crc = state.crc.clone();
+    let metadata = RUNTIME.block_on(state.writer.close())?;
+
+    let num_rows = metadata.file_metadata().num_rows();
+    let crc32 = crc.finalize();
+    log_debug!(
+        "Writer finalized: num_rows={}, crc32={:#010x}",
+        num_rows,
+        crc32
+    );
+    Ok(FinalizeResult { num_rows, crc32 })
+}
+
+/// Destroy a writer without finalizing (error cleanup path).
+pub fn destroy_writer(writer_handle: i64) {
+    if writer_handle > 0 {
         unsafe {
-            let arrow_schema = FFI_ArrowSchema::from_raw(schema_address as *mut _);
-            let arrow_array = FFI_ArrowArray::from_raw(array_address as *mut _);
-            let array_data = arrow::ffi::from_ffi(arrow_array, &arrow_schema)?;
-            let array: Arc<dyn arrow::array::Array> = arrow::array::make_array(array_data);
-
-            if let Some(struct_array) = array.as_any().downcast_ref::<arrow::array::StructArray>() {
-                let schema = Arc::new(arrow::datatypes::Schema::new(struct_array.fields().clone()));
-                let record_batch = RecordBatch::try_new(schema, struct_array.columns().to_vec())?;
-                log_debug!("Created RecordBatch with {} rows and {} columns", record_batch.num_rows(), record_batch.num_columns());
-
-                if let Some(writer_arc) = WRITER_MANAGER.get(&filename) {
-                    let mut writer = writer_arc.lock().unwrap();
-                    writer.write(&record_batch)?;
-                    Ok(())
-                } else {
-                    log_error!("ERROR: No writer found for file: {}", filename);
-                    Err("Writer not found".into())
-                }
-            } else {
-                log_error!("ERROR: Array is not a StructArray, type: {:?}", array.data_type());
-                Err("Expected struct array from VectorSchemaRoot".into())
-            }
+            let _ = Box::from_raw(writer_handle as *mut WriterState);
         }
     }
+}
 
-    pub fn finalize_writer(filename: String) -> Result<Option<FinalizeResult>, Box<dyn std::error::Error>> {
-        log_debug!("finalize_writer called for file: {}", filename);
-
-        if let Some((_, writer_arc)) = WRITER_MANAGER.remove(&filename) {
-            match Arc::try_unwrap(writer_arc) {
-                Ok(mutex) => {
-                    let mut writer = mutex.into_inner().unwrap();
-                    let parquet_metadata = writer.finish()?;
-                    let file_metadata = parquet_metadata.file_metadata();
-                    log_debug!("Successfully finalized writer for file: {}, num_rows={}", filename, file_metadata.num_rows());
-                    let crc32 = writer.inner().checksum();
-                    log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
-                    Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32 }))
-                }
-                Err(_) => {
-                    log_error!("ERROR: Writer still in use for file: {}", filename);
-                    Err("Writer still in use".into())
-                }
-            }
-        } else {
-            log_error!("ERROR: Writer not found for file: {}", filename);
-            Err("Writer not found".into())
-        }
-    }
-
-    pub fn sync_to_disk(filename: String) -> Result<(), Box<dyn std::error::Error>> {
-        log_debug!("sync_to_disk called for file: {}", filename);
-
-        if let Some(file) = FILE_MANAGER.get_mut(&filename) {
-            file.sync_all()?;
-            log_debug!("Successfully fsynced file: {}", filename);
-            drop(file);
-            FILE_MANAGER.remove(&filename);
-            Ok(())
-        } else {
-            log_error!("ERROR: File not found for fsync: {}", filename);
-            Err("File not found".into())
-        }
-    }
-
-    pub fn get_filtered_writer_memory_usage(path_prefix: String) -> Result<usize, Box<dyn std::error::Error>> {
-        let mut total_memory = 0;
-        for entry in WRITER_MANAGER.iter() {
-            if entry.key().starts_with(&path_prefix) {
-                if let Ok(writer) = entry.value().lock() {
-                    total_memory += writer.memory_size();
-                }
-            }
-        }
-        Ok(total_memory)
-    }
-
-    pub fn get_file_metadata(filename: String) -> Result<parquet::file::metadata::FileMetaData, Box<dyn std::error::Error>> {
-        let file = File::open(&filename)?;
-        let reader = SerializedFileReader::new(file)?;
-        let file_metadata = reader.metadata().file_metadata().clone();
-        log_debug!("Metadata for {}: version={}, num_rows={}", filename, file_metadata.version(), file_metadata.num_rows());
-        Ok(file_metadata)
-    }
+/// Read Parquet file metadata from a local file path.
+pub fn get_file_metadata(
+    filename: String,
+) -> Result<parquet::file::metadata::FileMetaData, Box<dyn std::error::Error>> {
+    let file = std::fs::File::open(&filename)?;
+    let reader = SerializedFileReader::new(file)?;
+    Ok(reader.metadata().file_metadata().clone())
 }

@@ -25,11 +25,16 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.store.NativeStoreFactory;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
+import org.opensearch.index.store.ShardNativeStore;
+import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
@@ -99,6 +104,27 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
+    public NativeStoreFactory getNativeStoreFactory(NativeStoreRepository repoStore) {
+        return (shardPath) -> {
+            if (!repoStore.isLive()) {
+                return ShardNativeStore.EMPTY;
+            }
+            try {
+                String shardPrefix = "indices/"
+                    + shardPath.getShardId().getIndex().getUUID()
+                    + "/"
+                    + shardPath.getShardId().id()
+                    + "/parquet/";
+                long scopedPtr = RustBridge.createScopedStore(repoStore.getPointer(), shardPrefix);
+                NativeStoreHandle handle = new NativeStoreHandle(scopedPtr, RustBridge::destroyStore);
+                return new ShardNativeStore(handle);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create shard-scoped native store", e);
+            }
+        };
+    }
+
+    @Override
     public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig, FormatChecksumStrategy checksumStrategy) {
         return new ParquetIndexingEngine(
             settings,
@@ -107,7 +133,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
             () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService()),
             engineConfig.indexSettings(),
             threadPool,
-            checksumStrategy
+            checksumStrategy,
+            engineConfig.shardNativeStore().getPointer()
         );
     }
 

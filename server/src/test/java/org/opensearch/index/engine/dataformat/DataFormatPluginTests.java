@@ -28,6 +28,7 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.store.ShardNativeStore;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -87,7 +88,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
                     mock(MapperService.class),
                     new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings),
                     null,
-                    null
+                    null,
+                    ShardNativeStore.EMPTY
                 ),
                 null
             );

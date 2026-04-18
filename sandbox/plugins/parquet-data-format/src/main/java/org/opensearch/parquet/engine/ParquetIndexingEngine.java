@@ -22,7 +22,6 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
-import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
@@ -30,7 +29,6 @@ import org.opensearch.parquet.writer.ParquetWriter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -70,6 +68,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final Settings settings;
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
+    private final long storePointer;
+    private final boolean ownsStore;
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -80,32 +80,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
      * @param schemaSupplier    supplier for the Arrow schema
      * @param indexSettings     the index-level settings
      * @param threadPool        the thread pool for background native writes
-     */
-    public ParquetIndexingEngine(
-        Settings settings,
-        ParquetDataFormat dataFormat,
-        ShardPath shardPath,
-        Supplier<Schema> schemaSupplier,
-        IndexSettings indexSettings,
-        ThreadPool threadPool
-    ) {
-        this(settings, dataFormat, shardPath, schemaSupplier, indexSettings, threadPool, new PrecomputedChecksumStrategy());
-    }
-
-    /**
-     * Creates a new ParquetIndexingEngine with an externally provided checksum strategy.
-     *
-     * <p>Use this constructor when the checksum strategy is shared with the
-     * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory} so that
-     * pre-computed CRC32 values registered during write are visible to the upload path.
-     *
-     * @param settings          the node-level settings
-     * @param dataFormat        the Parquet data format descriptor
-     * @param shardPath         the shard path for file storage
-     * @param schemaSupplier    supplier for the Arrow schema
-     * @param indexSettings     the index-level settings
-     * @param threadPool        the thread pool for background native writes
-     * @param checksumStrategy  the checksum strategy to use (shared with the directory)
+     * @param checksumStrategy  the checksum strategy to use
+     * @param storePointer      native ObjectStore pointer (shard-scoped), or 0 for local fallback
      */
     public ParquetIndexingEngine(
         Settings settings,
@@ -114,7 +90,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Supplier<Schema> schemaSupplier,
         IndexSettings indexSettings,
         ThreadPool threadPool,
-        FormatChecksumStrategy checksumStrategy
+        FormatChecksumStrategy checksumStrategy,
+        long storePointer
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
@@ -123,12 +100,19 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.settings = settings;
         this.threadPool = threadPool;
         this.checksumStrategy = checksumStrategy;
-        try {
-            Files.createDirectory(shardPath.resolve("parquet"));
-        } catch (FileAlreadyExistsException ex) {
-            logger.warn("Directory already exists: {}", shardPath.resolve("parquet"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (storePointer > 0) {
+            this.storePointer = storePointer;
+            this.ownsStore = false;
+        } else {
+            // Fallback: create a local FS ObjectStore rooted at the shard's parquet directory
+            try {
+                Path parquetDir = shardPath.getDataPath().resolve(dataFormat.name());
+                Files.createDirectories(parquetDir);
+                this.storePointer = RustBridge.createLocalStore(parquetDir.toString());
+                this.ownsStore = true;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create local ObjectStore fallback", e);
+            }
         }
     }
 
@@ -143,13 +127,10 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
-        Path filePath = Path.of(
-            shardPath.getDataPath().toString(),
-            dataFormat.name(),
-            FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT
-        );
+        String objectPath = FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT;
         return new ParquetWriter(
-            filePath.toString(),
+            storePointer,
+            objectPath,
             writerGeneration,
             dataFormat,
             schemaSupplier.get(),
@@ -162,7 +143,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public long getNativeBytesUsed() {
-        return bufferPool.getTotalAllocatedBytes() + RustBridge.getFilteredNativeBytesUsed(shardPath.getDataPath().toString());
+        return bufferPool.getTotalAllocatedBytes();
     }
 
     @Override
@@ -222,5 +203,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     @Override
     public void close() throws IOException {
         bufferPool.close();
+        if (ownsStore && storePointer > 0) {
+            RustBridge.destroyStore(storePointer);
+        }
     }
 }
