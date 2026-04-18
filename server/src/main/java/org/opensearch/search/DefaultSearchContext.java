@@ -105,6 +105,7 @@ import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QueryPhaseExecutionException;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
@@ -237,6 +238,7 @@ final class DefaultSearchContext extends SearchContext {
 
     private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
+    private StreamingSearchMode streamingMode;
     private final SetOnce<FlushMode> cachedFlushMode = new SetOnce<>();
 
     DefaultSearchContext(
@@ -305,6 +307,9 @@ final class DefaultSearchContext extends SearchContext {
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
+        if (request.getStreamingSearchMode() != null) {
+            this.streamingMode = StreamingSearchMode.fromString(request.getStreamingSearchMode());
+        }
     }
 
     DefaultSearchContext(
@@ -1322,17 +1327,32 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     public void setStreamChannelListener(StreamSearchChannelListener listener) {
-        assert isStreamSearch() : "Stream search not enabled";
+        this.isStreamSearch = true;
         this.listener = listener;
     }
 
     public StreamSearchChannelListener getStreamChannelListener() {
-        assert isStreamSearch() : "Stream search not enabled";
         return listener;
     }
 
     public boolean isStreamSearch() {
         return isStreamSearch;
+    }
+
+    public StreamingSearchMode getStreamingMode() {
+        return streamingMode;
+    }
+
+    public void setStreamingMode(StreamingSearchMode mode) {
+        this.streamingMode = mode;
+    }
+
+    @Override
+    public int getStreamingBatchSize() {
+        if (clusterService == null) {
+            return SearchService.STREAMING_SEARCH_BATCH_SIZE.getDefault(Settings.EMPTY);
+        }
+        return clusterService.getClusterSettings().get(SearchService.STREAMING_SEARCH_BATCH_SIZE);
     }
 
     /**
@@ -1347,6 +1367,16 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public boolean setFlushModeIfAbsent(FlushMode flushMode) {
         return cachedFlushMode.trySet(flushMode);
+    }
+
+    @Override
+    public void setFlushMode(FlushMode flushMode) {
+        cachedFlushMode.set(flushMode);
+    }
+
+    @Override
+    public boolean hasCachedFlushMode() {
+        return cachedFlushMode.get() != null;
     }
 
     @Override

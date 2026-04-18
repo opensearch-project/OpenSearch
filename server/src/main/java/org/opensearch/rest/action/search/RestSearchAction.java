@@ -47,6 +47,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.http.HttpChannel;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -150,24 +151,39 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
-            if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
-                if (canUseStreamSearch(searchRequest)) {
-                    return channel -> {
-                        RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-                        cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
-                    };
-                } else {
-                    logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
-                }
-            } else {
+        final boolean streamModeRequested = searchRequest.getStreamingSearchMode() != null || request.hasParam("stream_scoring_mode");
+        final boolean streamTransportEnabled = FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
+        final boolean streamSearchEnabled = streamTransportEnabled && clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED);
+        if (streamModeRequested || streamSearchEnabled) {
+            if (streamTransportEnabled == false) {
                 throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");
             }
+            if (streamModeRequested && streamSearchEnabled == false) {
+                throw new IllegalArgumentException("Stream search is disabled. Enable [stream.search.enabled] to use stream search.");
+            }
+            if (canUseStreamSearch(searchRequest)) {
+                String scoringMode = request.param("stream_scoring_mode");
+                if (scoringMode != null) {
+                    searchRequest.setStreamingSearchMode(scoringMode);
+                }
+                if (streamModeRequested && searchRequest.getStreamingSearchMode() == null) {
+                    searchRequest.setStreamingSearchMode("no_scoring");
+                }
+                return channel -> {
+                    RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
+                    cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                };
+            }
+            logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
         }
         return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
         };
+    }
+
+    protected RestCancellableNodeClient createRestCancellableNodeClient(NodeClient client, HttpChannel httpChannel) {
+        return new RestCancellableNodeClient(client, httpChannel);
     }
 
     /**
@@ -241,6 +257,10 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         searchRequest.pipeline(request.param("search_pipeline", searchRequest.source().pipeline()));
+
+        if (request.hasParam("streaming_mode")) {
+            searchRequest.setStreamingSearchMode(request.param("streaming_mode"));
+        }
 
         checkRestTotalHits(request, searchRequest);
         request.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);

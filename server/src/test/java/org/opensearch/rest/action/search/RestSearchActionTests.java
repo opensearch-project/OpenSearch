@@ -16,6 +16,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
@@ -30,6 +31,10 @@ import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.client.node.NodeClient;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.action.search.StreamSearchTransportService.STREAM_SEARCH_ENABLED;
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
@@ -59,7 +64,9 @@ public class RestSearchActionTests extends OpenSearchTestCase {
 
     private ClusterSettings createClusterSettingsWithStreamSearchEnabled() {
         Settings settings = Settings.builder().put(STREAM_SEARCH_ENABLED.getKey(), true).build();
-        return new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.add(STREAM_SEARCH_ENABLED);
+        return new ClusterSettings(settings, settingSet);
     }
 
     private SearchRequest createSearchRequestWithTermsAggregation() {
@@ -82,15 +89,15 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         }
     }
 
-    // When stream search is enabled but STREAM_TRANSPORT is disabled, should throw exception
-    public void testWithStreamSearchEnabledButStreamTransportDisabled() {
+    public void testWithStreamScoringModeParamRequiresFeatureFlag() {
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
-            RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
-            FakeRestChannel channel = new FakeRestChannel(restRequest, false, 0);
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("stream_scoring_mode", "no_scoring"))
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
 
             Exception e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new RestSearchAction(createClusterSettingsWithStreamSearchEnabled()).handleRequest(restRequest, channel, nodeClient)
+                () -> new RestSearchAction().handleRequest(request, channel, nodeClient)
             );
             assertThat(e.getMessage(), equalTo("You need to enable stream transport first to use stream search."));
         }

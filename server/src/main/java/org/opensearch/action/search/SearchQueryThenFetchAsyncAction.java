@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
@@ -149,17 +150,19 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         if (queryResult.isNull() == false
             // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
             && getRequest().scroll() == null
-            && queryResult.topDocs() != null
-            && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
-            TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
-            if (bottomSortCollector == null) {
-                synchronized (this) {
-                    if (bottomSortCollector == null) {
-                        bottomSortCollector = new BottomSortValuesCollector(topDocsSize, topDocs.fields);
+            && queryResult.hasTopDocs()) {
+            TopDocsAndMaxScore topDocsAndMaxScore = queryResult.topDocs();
+            if (topDocsAndMaxScore != null && topDocsAndMaxScore.topDocs.getClass() == TopFieldDocs.class) {
+                TopFieldDocs topDocs = (TopFieldDocs) topDocsAndMaxScore.topDocs;
+                if (bottomSortCollector == null) {
+                    synchronized (this) {
+                        if (bottomSortCollector == null) {
+                            bottomSortCollector = new BottomSortValuesCollector(topDocsSize, topDocs.fields);
+                        }
                     }
                 }
+                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
             }
-            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
         super.onShardResult(result, shardIt);
     }

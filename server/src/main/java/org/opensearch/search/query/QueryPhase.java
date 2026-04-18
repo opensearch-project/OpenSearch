@@ -161,6 +161,18 @@ public class QueryPhase {
         suggestProcessor.process(searchContext);
         aggregationProcessor.postProcess(searchContext);
 
+        // Ensure TopDocs for size=0 aggregations.
+        if (searchContext.queryResult().hasTopDocs() == false && searchContext.size() == 0) {
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("Setting default empty TopDocs for size=0 aggregation query");
+            }
+            searchContext.queryResult()
+                .topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
+        }
+
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(
                 searchContext.getProfilers(),
@@ -411,6 +423,7 @@ public class QueryPhase {
      * @opensearch.internal
      */
     public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
+        private static final Logger logger = LogManager.getLogger(DefaultQueryPhaseSearcher.class);
         private final AggregationProcessor aggregationProcessor;
 
         /**
@@ -476,7 +489,17 @@ public class QueryPhase {
             if (queryCollectorContextOpt.isPresent()) {
                 return queryCollectorContextOpt.get();
             } else {
-                return createTopDocsCollectorContext(searchContext, hasFilterCollector);
+                // Check if this is a streaming search request FIRST
+                if (searchContext.isStreamingSearch()) {
+                    // Use streaming collectors for streaming search
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Using streaming collector for mode: {}", searchContext.getStreamingMode());
+                    }
+                    return TopDocsCollectorContext.createStreamingTopDocsCollectorContext(searchContext, hasFilterCollector);
+                } else {
+                    // Fall back to regular top docs collector
+                    return createTopDocsCollectorContext(searchContext, hasFilterCollector);
+                }
             }
         }
 

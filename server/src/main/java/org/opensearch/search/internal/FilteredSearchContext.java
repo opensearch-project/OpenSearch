@@ -67,6 +67,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
@@ -601,5 +602,25 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean shouldUseIntraSegmentSearch() {
         return in.shouldUseIntraSegmentSearch();
+    }
+
+    @Override
+    public FlushMode getFlushMode() {
+        return in.getFlushMode();
+    }
+
+    @Override
+    public boolean setFlushModeIfAbsent(FlushMode flushMode) {
+        return in.setFlushModeIfAbsent(flushMode);
+    }
+
+    @Override
+    public void setFlushMode(FlushMode flushMode) {
+        in.setFlushMode(flushMode);
+    }
+
+    @Override
+    public boolean hasCachedFlushMode() {
+        return in.hasCachedFlushMode();
     }
 }
