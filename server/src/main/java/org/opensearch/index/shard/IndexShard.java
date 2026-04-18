@@ -4451,10 +4451,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // go through IndexShard.wrapSearcher / nonClosingReaderWrapperSupplier.
                     // Going through the shard-level wrapper would create entries in the
                     // nonClosingReaderWrapperCache that callers do not expect.
-                    try (Engine.Searcher searcher = applyOnEngine(
-                        getIndexer(),
-                        engine -> engine.acquireSearcher("lucene_field_count", Engine.SearcherScope.INTERNAL)
-                    )) {
+                    try (
+                        Engine.Searcher searcher = applyOnEngine(
+                            getIndexer(),
+                            engine -> engine.acquireSearcher("lucene_field_count", Engine.SearcherScope.INTERNAL)
+                        )
+                    ) {
                         FieldInfos fieldInfos = FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
                         mapperService.getLuceneFieldTracker().setFieldInfos(fieldInfos);
                     } catch (AlreadyClosedException | IllegalIndexShardStateException e) {
