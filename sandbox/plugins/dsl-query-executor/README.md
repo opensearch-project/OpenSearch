@@ -18,6 +18,14 @@ _search request
 - `analytics-engine` — provides `QueryPlanExecutor` and `EngineContext` via Guice (declared as `extendedPlugins`)
 - `analytics-framework` — provides Calcite and shared SPI interfaces
 
+## Supported Queries
+
+| DSL Query | Calcite Representation |
+|-----------|------------------------|
+| `term` | `=($field, value)` — equality filter |
+| `match_all` | Skipped (boolean literal `TRUE`) |
+| `exists` | `IS NOT NULL($field)` — field existence check (boost not supported) |
+
 ## Running locally
 
 ```bash
