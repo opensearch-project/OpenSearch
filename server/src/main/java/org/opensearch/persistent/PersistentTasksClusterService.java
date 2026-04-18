@@ -39,6 +39,9 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.cluster.ClusterStateTaskConfig;
+import org.opensearch.cluster.ClusterStateTaskExecutor;
+import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
@@ -46,6 +49,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -58,11 +62,10 @@ import org.opensearch.persistent.decider.EnableAssignmentDecider;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Objects;
 
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_PERSISTENT_TASK;
-import static org.opensearch.cluster.service.ClusterManagerTask.FINISH_PERSISTENT_TASK;
-import static org.opensearch.cluster.service.ClusterManagerTask.REMOVE_PERSISTENT_TASK;
 import static org.opensearch.cluster.service.ClusterManagerTask.UPDATE_TASK_STATE;
 
 /**
@@ -88,9 +91,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     private final ThreadPool threadPool;
     private final PeriodicRechecker periodicRechecker;
     private final ClusterManagerTaskThrottler.ThrottlingKey createPersistentTaskKey;
-    private final ClusterManagerTaskThrottler.ThrottlingKey finishPersistentTaskKey;
-    private final ClusterManagerTaskThrottler.ThrottlingKey removePersistentTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey updatePersistentTaskKey;
+    private final PersistentTaskUpdateExecutor updateTaskStateExecutor;
 
     public PersistentTasksClusterService(
         Settings settings,
@@ -111,9 +113,122 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createPersistentTaskKey = clusterService.registerClusterManagerTask(CREATE_PERSISTENT_TASK, true);
-        finishPersistentTaskKey = clusterService.registerClusterManagerTask(FINISH_PERSISTENT_TASK, true);
-        removePersistentTaskKey = clusterService.registerClusterManagerTask(REMOVE_PERSISTENT_TASK, true);
         updatePersistentTaskKey = clusterService.registerClusterManagerTask(UPDATE_TASK_STATE, true);
+        this.updateTaskStateExecutor = new PersistentTaskUpdateExecutor();
+    }
+
+    // Represents a persistent task update operation that can be batched.
+    static class PersistentTaskUpdateEntry {
+
+        enum OperationType {
+            UPDATE_STATE,
+            COMPLETE,
+            REMOVE
+        }
+
+        final OperationType operationType;
+        final String taskId;
+        final long allocationId;
+        final PersistentTaskState taskState;
+        final ActionListener<PersistentTask<?>> listener;
+
+        PersistentTaskUpdateEntry(
+            OperationType operationType,
+            String taskId,
+            long allocationId,
+            PersistentTaskState taskState,
+            ActionListener<PersistentTask<?>> listener
+        ) {
+            this.operationType = operationType;
+            this.taskId = taskId;
+            this.allocationId = allocationId;
+            this.taskState = taskState;
+            this.listener = listener;
+        }
+
+        @Override
+        public String toString() {
+            return operationType + "[" + taskId + "]";
+        }
+    }
+
+    /**
+     * Singleton executor that batches persistent task update/complete/remove operations.
+     * Shares a single batching key so TaskBatcher accumulates concurrent submissions
+     * into one cluster state publish cycle.
+     */
+    class PersistentTaskUpdateExecutor implements ClusterStateTaskExecutor<PersistentTaskUpdateEntry> {
+
+        @Override
+        public ClusterTasksResult<PersistentTaskUpdateEntry> execute(ClusterState currentState, List<PersistentTaskUpdateEntry> tasks) {
+            ClusterTasksResult.Builder<PersistentTaskUpdateEntry> resultBuilder = ClusterTasksResult.builder();
+            ClusterState state = currentState;
+
+            for (PersistentTaskUpdateEntry entry : tasks) {
+                try {
+                    PersistentTasksCustomMetadata.Builder tasksBuilder = builder(state);
+                    switch (entry.operationType) {
+                        case UPDATE_STATE:
+                            if (tasksBuilder.hasTask(entry.taskId, entry.allocationId)) {
+                                state = update(state, tasksBuilder.updateTaskState(entry.taskId, entry.taskState));
+                            } else {
+                                if (tasksBuilder.hasTask(entry.taskId)) {
+                                    logger.warn(
+                                        "trying to update state on task {} with unexpected allocation id {}",
+                                        entry.taskId,
+                                        entry.allocationId
+                                    );
+                                } else {
+                                    logger.warn("trying to update state on non-existing task {}", entry.taskId);
+                                }
+                                throw new ResourceNotFoundException(
+                                    "the task with id {} and allocation id {} doesn't exist",
+                                    entry.taskId,
+                                    entry.allocationId
+                                );
+                            }
+                            break;
+                        case COMPLETE:
+                            if (tasksBuilder.hasTask(entry.taskId, entry.allocationId)) {
+                                tasksBuilder.removeTask(entry.taskId);
+                                state = update(state, tasksBuilder);
+                            } else {
+                                if (tasksBuilder.hasTask(entry.taskId)) {
+                                    logger.warn(
+                                        "The task [{}] with id [{}] has a different allocation id [{}], status is not updated",
+                                        PersistentTasksCustomMetadata.getTaskWithId(state, entry.taskId).getTaskName(),
+                                        entry.taskId,
+                                        entry.allocationId
+                                    );
+                                } else {
+                                    logger.warn("The task [{}] wasn't found, status is not updated", entry.taskId);
+                                }
+                                throw new ResourceNotFoundException(
+                                    "the task with id [" + entry.taskId + "] and allocation id [" + entry.allocationId + "] not found"
+                                );
+                            }
+                            break;
+                        case REMOVE:
+                            if (tasksBuilder.hasTask(entry.taskId)) {
+                                state = update(state, tasksBuilder.removeTask(entry.taskId));
+                            } else {
+                                throw new ResourceNotFoundException("the task with id {} doesn't exist", entry.taskId);
+                            }
+                            break;
+                    }
+                    resultBuilder.success(entry);
+                } catch (Exception e) {
+                    resultBuilder.failure(entry, e);
+                }
+            }
+
+            return resultBuilder.build(state);
+        }
+
+        @Override
+        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+            return updatePersistentTaskKey;
+        }
     }
 
     // visible for testing only
@@ -195,51 +310,19 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * @param listener     the listener that will be called when task is removed
      */
     public void completePersistentTask(String id, long allocationId, Exception failure, ActionListener<PersistentTask<?>> listener) {
-        final String source;
         if (failure != null) {
             logger.warn("persistent task " + id + " failed", failure);
-            source = "finish persistent task (failed)";
-        } else {
-            source = "finish persistent task (success)";
         }
-        clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
-                if (tasksInProgress.hasTask(id, allocationId)) {
-                    tasksInProgress.removeTask(id);
-                    return update(currentState, tasksInProgress);
-                } else {
-                    if (tasksInProgress.hasTask(id)) {
-                        logger.warn(
-                            "The task [{}] with id [{}] was found but it has a different allocation id [{}], status is not updated",
-                            PersistentTasksCustomMetadata.getTaskWithId(currentState, id).getTaskName(),
-                            id,
-                            allocationId
-                        );
-                    } else {
-                        logger.warn("The task [{}] wasn't found, status is not updated", id);
-                    }
-                    throw new ResourceNotFoundException("the task with id [" + id + "] and allocation id [" + allocationId + "] not found");
-                }
-            }
-
-            @Override
-            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                return finishPersistentTaskKey;
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                // Using old state since in the new state the task is already gone
-                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
-            }
-        });
+        submitPersistentTaskUpdate(
+            failure != null ? "finish persistent task (failed)" : "finish persistent task (success)",
+            new PersistentTaskUpdateEntry(
+                PersistentTaskUpdateEntry.OperationType.COMPLETE,
+                id,
+                allocationId,
+                null,
+                ActionListener.wrap(task -> listener.onResponse(task), listener::onFailure)
+            )
+        );
     }
 
     /**
@@ -249,33 +332,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * @param listener the listener that will be called when task is removed
      */
     public void removePersistentTask(String id, ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("remove persistent task", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
-                if (tasksInProgress.hasTask(id)) {
-                    return update(currentState, tasksInProgress.removeTask(id));
-                } else {
-                    throw new ResourceNotFoundException("the task with id {} doesn't exist", id);
-                }
-            }
-
-            @Override
-            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                return removePersistentTaskKey;
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                // Using old state since in the new state the task is already gone
-                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
-            }
-        });
+        submitPersistentTaskUpdate(
+            "remove persistent task",
+            new PersistentTaskUpdateEntry(PersistentTaskUpdateEntry.OperationType.REMOVE, id, 0, null, listener)
+        );
     }
 
     /**
@@ -292,37 +352,40 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         final PersistentTaskState taskState,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        clusterService.submitStateUpdateTask("update task state [" + taskId + "]", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
-                if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
-                    return update(currentState, tasksInProgress.updateTaskState(taskId, taskState));
-                } else {
-                    if (tasksInProgress.hasTask(taskId)) {
-                        logger.warn("trying to update state on task {} with unexpected allocation id {}", taskId, taskAllocationId);
-                    } else {
-                        logger.warn("trying to update state on non-existing task {}", taskId);
-                    }
-                    throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
+        submitPersistentTaskUpdate(
+            "update task state [" + taskId + "]",
+            new PersistentTaskUpdateEntry(
+                PersistentTaskUpdateEntry.OperationType.UPDATE_STATE,
+                taskId,
+                taskAllocationId,
+                taskState,
+                listener
+            )
+        );
+    }
+
+    private void submitPersistentTaskUpdate(String source, PersistentTaskUpdateEntry entry) {
+        clusterService.submitStateUpdateTask(
+            source,
+            entry,
+            ClusterStateTaskConfig.build(Priority.NORMAL),
+            updateTaskStateExecutor,
+            new ClusterStateTaskListener() {
+                @Override
+                public void onFailure(String source, Exception e) {
+                    entry.listener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    // For COMPLETE/REMOVE use oldState since the task is gone in newState
+                    ClusterState stateForLookup = entry.operationType == PersistentTaskUpdateEntry.OperationType.UPDATE_STATE
+                        ? newState
+                        : oldState;
+                    entry.listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(stateForLookup, entry.taskId));
                 }
             }
-
-            @Override
-            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-                return updatePersistentTaskKey;
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
-            }
-        });
+        );
     }
 
     /**
