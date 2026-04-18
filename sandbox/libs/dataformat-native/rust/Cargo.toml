@@ -6,6 +6,7 @@ members = [
     "lib",
     "../../../plugins/analytics-backend-datafusion/rust",
     "../../../plugins/parquet-data-format/src/main/rust",
+    "../../page-cache/src/main/rust",
 ]
 
 [workspace.dependencies]
@@ -39,6 +40,9 @@ log = "0.4"
 
 # Allocator
 mimalloc = { version = "0.1.48", default-features = false }
+
+bytes = "1.5"
+foyer = "0.22"
 
 # Misc
 dashmap = "5.5"

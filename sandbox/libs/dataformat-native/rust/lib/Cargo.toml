@@ -10,7 +10,8 @@ name = "opensearch_native"
 crate-type = ["cdylib"]
 
 [dependencies]
-opensearch-datafusion = { path = "../../../../plugins/analytics-backend-datafusion/rust" }
+opensearch-datafusion    = { path = "../../../../plugins/analytics-backend-datafusion/rust" }
 opensearch-parquet-format = { path = "../../../../plugins/parquet-data-format/src/main/rust" }
+opensearch-page-cache    = { path = "../../../../libs/page-cache/src/main/rust" }
 native-bridge-common = { workspace = true }
 mimalloc = { workspace = true }
