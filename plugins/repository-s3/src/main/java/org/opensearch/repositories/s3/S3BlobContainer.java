@@ -52,7 +52,9 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectAttributes;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.StorageClass;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
@@ -586,10 +588,17 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .bucket(blobStore.bucket())
             .key(blobName)
             .contentLength(blobSize)
-            .storageClass(blobStore.getStorageClass())
-            .acl(blobStore.getCannedACL())
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher))
             .expectedBucketOwner(blobStore.expectedBucketOwner());
+
+        StorageClass storageClass = blobStore.getStorageClass();
+        if (storageClass != null) {
+            putObjectRequestBuilder.storageClass(storageClass);
+        }
+        ObjectCannedACL cannedACL = blobStore.getCannedACL();
+        if (cannedACL != null) {
+            putObjectRequestBuilder.acl(cannedACL);
+        }
 
         if (CollectionUtils.isNotEmpty(metadata)) {
             putObjectRequestBuilder = putObjectRequestBuilder.metadata(metadata);
@@ -644,10 +653,17 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         CreateMultipartUploadRequest.Builder createMultipartUploadRequestBuilder = CreateMultipartUploadRequest.builder()
             .bucket(bucketName)
             .key(blobName)
-            .storageClass(blobStore.getStorageClass())
-            .acl(blobStore.getCannedACL())
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
             .expectedBucketOwner(blobStore.expectedBucketOwner());
+
+        StorageClass storageClass = blobStore.getStorageClass();
+        if (storageClass != null) {
+            createMultipartUploadRequestBuilder.storageClass(storageClass);
+        }
+        ObjectCannedACL cannedACL = blobStore.getCannedACL();
+        if (cannedACL != null) {
+            createMultipartUploadRequestBuilder.acl(cannedACL);
+        }
 
         if (CollectionUtils.isNotEmpty(metadata)) {
             createMultipartUploadRequestBuilder.metadata(metadata);
