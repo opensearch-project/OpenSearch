@@ -4447,7 +4447,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 @Override
                 public void afterRefresh(boolean didRefresh) {
                     if (!didRefresh) return;
-                    try (Engine.Searcher searcher = acquireSearcher("lucene_field_count", Engine.SearcherScope.INTERNAL)) {
+                    // Use the engine directly (not IndexShard.acquireSearcher) so that we do NOT
+                    // go through IndexShard.wrapSearcher / nonClosingReaderWrapperSupplier.
+                    // Going through the shard-level wrapper would create entries in the
+                    // nonClosingReaderWrapperCache that callers do not expect.
+                    try (Engine.Searcher searcher = applyOnEngine(
+                        getIndexer(),
+                        engine -> engine.acquireSearcher("lucene_field_count", Engine.SearcherScope.INTERNAL)
+                    )) {
                         FieldInfos fieldInfos = FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
                         mapperService.getLuceneFieldTracker().setFieldInfos(fieldInfos);
                     } catch (AlreadyClosedException | IllegalIndexShardStateException e) {
