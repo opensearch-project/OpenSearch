@@ -1402,78 +1402,7 @@ final class DocumentParser {
         String fullPath = context.path().pathAsText(currentFieldName);
         DynamicProperty dynamicProperty = context.root().findDynamicProperty(fullPath);
         if (dynamicProperty != null) {
-            Mapper cached = context.lookupDynamicPropertyMapper(fullPath);
-            if (cached != null) {
-                context.path().add(currentFieldName);
-                try {
-                    parseObjectOrField(context, cached);
-                } finally {
-                    context.path().remove();
-                }
-                return;
-            }
-            Map<String, Object> config = new HashMap<>(dynamicProperty.mappingForName(currentFieldName));
-            Object typeNode = config.get("type");
-            if (typeNode == null) {
-                throw new MapperParsingException(
-                    "dynamic_property pattern ["
-                        + dynamicProperty.getPattern()
-                        + "] matched field ["
-                        + fullPath
-                        + "] but its mapping has no [type]"
-                );
-            }
-            String type = typeNode.toString();
-            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
-            Mapper.TypeParser typeParser = parserContext.typeParser(type);
-            if (typeParser == null) {
-                throw new MapperParsingException(
-                    "No handler for type ["
-                        + type
-                        + "] in dynamic_property pattern ["
-                        + dynamicProperty.getPattern()
-                        + "] for field ["
-                        + fullPath
-                        + "]"
-                );
-            }
-            Mapper.Builder<?> builder = typeParser.parse(currentFieldName, config, parserContext);
-            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-            Mapper mapper = builder.build(builderContext);
-            if (fullPath.equals(mapper.name()) == false) {
-                throw new MapperParsingException(
-                    "dynamic_property pattern ["
-                        + dynamicProperty.getPattern()
-                        + "] for field ["
-                        + fullPath
-                        + "] produced mapper with name ["
-                        + mapper.name()
-                        + "], expected ["
-                        + fullPath
-                        + "]"
-                );
-            }
-            // Enforce the per-shard Lucene field limit for dynamic_properties. Only new fields
-            // (absent from the last-refreshed FieldInfos snapshot) count toward the cap; fields
-            // already in the Lucene index reuse their existing slot.
-            FieldInfos fieldInfos = context.mapperService().getLuceneFieldTracker().getFieldInfos();
-            long limit = context.indexSettings().getMappingDynamicPropertiesLuceneFieldLimit();
-            if (limit > 0 && fieldInfos.size() >= limit && fieldInfos.fieldInfo(fullPath) == null) {
-                throw new MapperParsingException(
-                    "The number of Lucene fields created by dynamic_properties has reached the limit ["
-                        + limit
-                        + "]. Increase the ["
-                        + MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey()
-                        + "] index setting or reduce the number of distinct dynamic fields."
-                );
-            }
-            context.rememberDynamicPropertyMapper(fullPath, mapper);
-            context.path().add(currentFieldName);
-            try {
-                parseObjectOrField(context, mapper);
-            } finally {
-                context.path().remove();
-            }
+            parseDynamicPropertyValue(context, currentFieldName, fullPath, dynamicProperty);
             return;
         }
 
@@ -1491,6 +1420,99 @@ final class DocumentParser {
         context.addDynamicMapper(mapper);
 
         parseObjectOrField(context, mapper);
+    }
+
+    /**
+     * Handles a field that matches a {@link DynamicProperty} pattern: reuses a cached mapper if
+     * available, otherwise builds one from the pattern config, enforces the Lucene field-count
+     * limit, caches the mapper, and parses the field value.
+     */
+    private static void parseDynamicPropertyValue(
+        ParseContext context,
+        String currentFieldName,
+        String fullPath,
+        DynamicProperty dynamicProperty
+    ) throws IOException {
+        Mapper cached = context.lookupDynamicPropertyMapper(fullPath);
+        if (cached != null) {
+            context.path().add(currentFieldName);
+            try {
+                parseObjectOrField(context, cached);
+            } finally {
+                context.path().remove();
+            }
+            return;
+        }
+
+        Map<String, Object> config = new HashMap<>(dynamicProperty.mappingForName(currentFieldName));
+        Object typeNode = config.get("type");
+        if (typeNode == null) {
+            throw new MapperParsingException(
+                "dynamic_property pattern ["
+                    + dynamicProperty.getPattern()
+                    + "] matched field ["
+                    + fullPath
+                    + "] but its mapping has no [type]"
+            );
+        }
+        String type = typeNode.toString();
+        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
+        Mapper.TypeParser typeParser = parserContext.typeParser(type);
+        if (typeParser == null) {
+            throw new MapperParsingException(
+                "No handler for type ["
+                    + type
+                    + "] in dynamic_property pattern ["
+                    + dynamicProperty.getPattern()
+                    + "] for field ["
+                    + fullPath
+                    + "]"
+            );
+        }
+        Mapper.Builder<?> builder = typeParser.parse(currentFieldName, config, parserContext);
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
+        Mapper mapper = builder.build(builderContext);
+        if (fullPath.equals(mapper.name()) == false) {
+            throw new MapperParsingException(
+                "dynamic_property pattern ["
+                    + dynamicProperty.getPattern()
+                    + "] for field ["
+                    + fullPath
+                    + "] produced mapper with name ["
+                    + mapper.name()
+                    + "], expected ["
+                    + fullPath
+                    + "]"
+            );
+        }
+        checkDynamicPropertiesLuceneFieldLimit(context, fullPath);
+        context.rememberDynamicPropertyMapper(fullPath, mapper);
+        context.path().add(currentFieldName);
+        try {
+            parseObjectOrField(context, mapper);
+        } finally {
+            context.path().remove();
+        }
+    }
+
+    /**
+     * Enforces the per-shard Lucene field-count limit for {@code dynamic_properties}. A field is
+     * "new" when it is absent from the last-refreshed {@link FieldInfos} snapshot; existing fields
+     * reuse their Lucene slot and are not counted again. Throws {@link MapperParsingException} if
+     * the limit is exceeded by a genuinely new field.
+     */
+    private static void checkDynamicPropertiesLuceneFieldLimit(ParseContext context, String fullPath) {
+        FieldInfos fieldInfos = context.mapperService().getLuceneFieldTracker().getFieldInfos();
+        long limit = context.indexSettings().getMappingDynamicPropertiesLuceneFieldLimit();
+        if (limit > 0 && fieldInfos.size() >= limit && fieldInfos.fieldInfo(fullPath) == null) {
+            throw new MapperParsingException(
+                "The number of Lucene fields created by dynamic_properties has reached the limit ["
+                    + limit
+                    + "]. Increase the ["
+                    + MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey()
+                    + "] index setting or reduce the number of distinct dynamic fields."
+            );
+        }
     }
 
     /** Creates instances of the fields that the current field should be copied to */

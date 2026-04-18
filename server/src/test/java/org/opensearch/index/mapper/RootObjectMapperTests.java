@@ -981,9 +981,7 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         long limit = 3L;
         MapperService mapperService = createIndex(
             "idx_empty",
-            Settings.builder()
-                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit)
-                .build()
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit).build()
         ).mapperService();
         DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
 
@@ -1003,19 +1001,14 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         long limit = 3L;
         MapperService mapperService = createIndex(
             "idx_at_limit",
-            Settings.builder()
-                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit)
-                .build()
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit).build()
         ).mapperService();
         DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
 
         // Simulate a refresh: tracker has exactly `limit` field names, none matching *_kw.
         populateTracker(mapperService.getLuceneFieldTracker(), (int) limit);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(kwSource("brand_new_kw", "value"))
-        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(kwSource("brand_new_kw", "value")));
         assertThat(e.getMessage(), containsString("limit [" + limit + "]"));
         assertThat(e.getMessage(), containsString(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey()));
     }
@@ -1027,9 +1020,7 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         long limit = 5L;
         MapperService mapperService = createIndex(
             "idx_below_limit",
-            Settings.builder()
-                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit)
-                .build()
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit).build()
         ).mapperService();
         DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
 
@@ -1048,9 +1039,7 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         long limit = 3L;
         MapperService mapperService = createIndex(
             "idx_existing",
-            Settings.builder()
-                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit)
-                .build()
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), limit).build()
         ).mapperService();
         DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
 
@@ -1074,9 +1063,7 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
     public void testDynamicPropertiesLuceneFieldLimitZeroDisablesCheck() throws Exception {
         MapperService mapperService = createIndex(
             "idx_zero_limit",
-            Settings.builder()
-                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), 0L)
-                .build()
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), 0L).build()
         ).mapperService();
         DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(dynKwMapping()), MergeReason.MAPPING_UPDATE);
 

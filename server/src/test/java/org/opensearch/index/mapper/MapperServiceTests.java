@@ -692,9 +692,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         long customLimit = 5_000L;
         MapperService mapperService = createIndex(
             "test",
-            Settings.builder()
-                .put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), customLimit)
-                .build()
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), customLimit).build()
         ).mapperService();
         assertEquals(customLimit, mapperService.getIndexSettings().getMappingDynamicPropertiesLuceneFieldLimit());
     }
