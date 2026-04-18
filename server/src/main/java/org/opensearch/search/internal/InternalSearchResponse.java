@@ -74,12 +74,26 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         Boolean terminatedEarly,
         int numReducePhases
     ) {
+        this(hits, aggregations, suggest, profileResults, timedOut, 0, terminatedEarly, numReducePhases);
+    }
+
+    public InternalSearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        SearchProfileShardResults profileResults,
+        boolean timedOut,
+        int timedOutShards,
+        Boolean terminatedEarly,
+        int numReducePhases
+    ) {
         this(
             hits,
             aggregations,
             suggest,
             profileResults,
             timedOut,
+            timedOutShards,
             terminatedEarly,
             numReducePhases,
             Collections.emptyList(),
@@ -98,11 +112,38 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         List<SearchExtBuilder> searchExtBuilderList,
         List<ProcessorExecutionDetail> processorResult
     ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            profileResults,
+            timedOut,
+            0,
+            terminatedEarly,
+            numReducePhases,
+            searchExtBuilderList,
+            processorResult
+        );
+    }
+
+    public InternalSearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        SearchProfileShardResults profileResults,
+        boolean timedOut,
+        int timedOutShards,
+        Boolean terminatedEarly,
+        int numReducePhases,
+        List<SearchExtBuilder> searchExtBuilderList,
+        List<ProcessorExecutionDetail> processorResult
+    ) {
         super(
             hits,
             aggregations,
             suggest,
             timedOut,
+            timedOutShards,
             terminatedEarly,
             profileResults,
             numReducePhases,
@@ -122,13 +163,14 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         List<SearchExtBuilder> searchExtBuilderList
 
     ) {
-        super(
+        this(
             hits,
             aggregations,
             suggest,
-            timedOut,
-            terminatedEarly,
             profileResults,
+            timedOut,
+            0,
+            terminatedEarly,
             numReducePhases,
             searchExtBuilderList,
             Collections.emptyList()
@@ -141,6 +183,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             in.readBoolean() ? InternalAggregations.readFrom(in) : null,
             in.readBoolean() ? new Suggest(in) : null,
             in.readBoolean(),
+            in.getVersion().onOrAfter(Version.V_3_7_0) ? in.readVInt() : 0,
             in.readOptionalBoolean(),
             in.readOptionalWriteable(SearchProfileShardResults::new),
             in.readVInt(),
@@ -155,6 +198,9 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         out.writeOptionalWriteable((InternalAggregations) aggregations);
         out.writeOptionalWriteable(suggest);
         out.writeBoolean(timedOut);
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeVInt(timedOutShards);
+        }
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);
         out.writeVInt(numReducePhases);
