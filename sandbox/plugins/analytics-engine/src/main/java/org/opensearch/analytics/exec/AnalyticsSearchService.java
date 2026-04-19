@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
@@ -43,9 +44,18 @@ import java.util.Map;
 public class AnalyticsSearchService {
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
+    private final AnalyticsOperationListener listener;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
+        this(backends, List.of());
+    }
+
+    public AnalyticsSearchService(
+        Map<String, AnalyticsSearchBackendPlugin> backends,
+        List<AnalyticsOperationListener> listeners
+    ) {
         this.backends = backends;
+        this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
     }
 
     /**
@@ -92,6 +102,13 @@ public class AnalyticsSearchService {
             );
         }
 
+        String shardIdStr = shard.shardId().toString();
+        String queryId = request.getQueryId();
+        int stageId = request.getStageId();
+
+        listener.onPreFragmentExecution(queryId, stageId, shardIdStr);
+
+        long startNanos = System.nanoTime();
         try (GatedCloseable<Reader> gatedReader = compositeEngine.acquireReader()) {
             SearchShardTask searchShardTask = null; // TODO: real task for cancellation
             ExecutionContext ctx = new ExecutionContext(request.getShardId().getIndexName(), searchShardTask, gatedReader.get());
@@ -102,14 +119,20 @@ public class AnalyticsSearchService {
             // createSearchExecEngine calls prepare() internally — do NOT call prepare() again
             try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx)) {
                 try (EngineResultStream stream = engine.execute(ctx)) {
-                    return collectResponse(stream, task);
+                    FragmentExecutionResponse response = collectResponse(stream, task);
+                    long tookNanos = System.nanoTime() - startNanos;
+                    listener.onFragmentSuccess(queryId, stageId, shardIdStr, tookNanos, response.getRows().size());
+                    return response;
                 }
             }
         } catch (TaskCancelledException e) {
+            listener.onFragmentFailure(queryId, stageId, shardIdStr, e);
             throw e; // do NOT wrap — preserve type
         } catch (IllegalStateException | IllegalArgumentException e) {
+            listener.onFragmentFailure(queryId, stageId, shardIdStr, e);
             throw e;
         } catch (Exception e) {
+            listener.onFragmentFailure(queryId, stageId, shardIdStr, e);
             throw new RuntimeException("Failed to execute fragment on " + shard.shardId(), e);
         }
     }

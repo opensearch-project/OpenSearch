@@ -21,6 +21,7 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -66,18 +67,13 @@ public class StageExecutionBuilder {
 
     private static final Logger logger = LogManager.getLogger(StageExecutionBuilder.class);
 
-    private final LocalStageScheduler localScheduler;
-    private final ShardFragmentStageScheduler shardFanOutScheduler;
+    private final Map<StageExecutionType, StageScheduler> schedulers;
 
     /**
-     * Guice-injected constructor. {@code backends} maps backend name →
-     * {@link AnalyticsSearchBackendPlugin} instance. It may be empty in test
-     * environments that don't register any backend plugins (e.g.
-     * {@code MockTransportService}-based ITs). An empty map propagates to
-     * {@link LocalStageScheduler}, which fast-fails with a clear
-     * {@link IllegalStateException} if a compute LOCAL stage is dispatched.
-     * Production clusters always have at least one backend, so the empty-map
-     * path only fires in tests.
+     * Guice-injected constructor. Registers the default schedulers for
+     * {@link StageExecutionType#LOCAL} and {@link StageExecutionType#DATA_NODE}.
+     * Additional stage types (shuffle, broadcast) can be registered via
+     * {@link #registerScheduler}.
      */
     @Inject
     public StageExecutionBuilder(
@@ -85,8 +81,18 @@ public class StageExecutionBuilder {
         AnalyticsSearchTransportService dispatcher,
         Map<String, AnalyticsSearchBackendPlugin> backends
     ) {
-        this.localScheduler = new LocalStageScheduler(backends);
-        this.shardFanOutScheduler = new ShardFragmentStageScheduler(clusterService, dispatcher);
+        this.schedulers = new HashMap<>();
+        schedulers.put(StageExecutionType.LOCAL, new LocalStageScheduler(backends));
+        schedulers.put(StageExecutionType.DATA_NODE, new ShardFragmentStageScheduler(clusterService, dispatcher));
+    }
+
+    /**
+     * Registers a scheduler for a stage execution type. Enables extending
+     * the builder with new stage types (shuffle-write, broadcast-write)
+     * without modifying this class.
+     */
+    public void registerScheduler(StageExecutionType type, StageScheduler scheduler) {
+        schedulers.put(type, scheduler);
     }
 
     /**
@@ -139,10 +145,14 @@ public class StageExecutionBuilder {
     // ── Internal dispatch ───────────────────────────────────────────────
 
     private StageExecution dispatchRowStage(Stage stage, ExchangeSink sink, QueryContext config) {
-        if (stage.getExecutionType() == StageExecutionType.LOCAL) {
-            return localScheduler.createExecution(stage, sink, config);
+        StageScheduler scheduler = schedulers.get(stage.getExecutionType());
+        if (scheduler == null) {
+            throw new IllegalStateException(
+                "No scheduler registered for execution type " + stage.getExecutionType()
+                    + " — stage " + stage.getStageId()
+            );
         }
-        return shardFanOutScheduler.createExecution(stage, sink, config);
+        return scheduler.createExecution(stage, sink, config);
     }
 
     /**
