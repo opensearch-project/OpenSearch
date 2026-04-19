@@ -132,6 +132,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private int slices = DEFAULT_SLICES;
 
+    /**
+     * Whether to use Point in Time (PIT) + search_after instead of scroll for reading source documents.
+     * PIT is lighter weight (doesn't block segment merges) and supports resumability.
+     * Only applicable for local reindex (not remote). Defaults to false.
+     * This field is transient — not serialized over the wire — to avoid breaking wire compatibility.
+     */
+    private transient boolean usePit = false;
+
     public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
         super(in);
         searchRequest = new SearchRequest(in);
@@ -192,6 +200,12 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
         if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
             e = addValidationError("can't specify both manual and automatic slicing at the same time", e);
+        }
+        if (usePit && slices > 1) {
+            e = addValidationError("[use_pit] is not supported with [slices] > 1", e);
+        }
+        if (usePit && slices == AUTO_SLICES) {
+            e = addValidationError("[use_pit] is not supported with [slices=auto]", e);
         }
         return e;
     }
@@ -440,6 +454,22 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     public int getSlices() {
         return slices;
+    }
+
+    /**
+     * Whether to use PIT + search_after instead of scroll.
+     */
+    public boolean getUsePit() {
+        return usePit;
+    }
+
+    /**
+     * Set whether to use PIT + search_after instead of scroll for reading source documents.
+     */
+    @SuppressWarnings("unchecked")
+    public Self setUsePit(boolean usePit) {
+        this.usePit = usePit;
+        return (Self) this;
     }
 
     /**

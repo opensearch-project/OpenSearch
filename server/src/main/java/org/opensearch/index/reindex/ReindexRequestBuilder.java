@@ -90,4 +90,12 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
         request().setRemoteInfo(remoteInfo);
         return this;
     }
+
+    /**
+     * Use PIT + search_after instead of scroll for reading source documents.
+     */
+    public ReindexRequestBuilder setUsePit(boolean usePit) {
+        request().setUsePit(usePit);
+        return this;
+    }
 }

@@ -194,10 +194,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
          * Default to sorting by doc. We can't do this in the request itself because it is normal to *add* to the sorts rather than replace
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
          * another sort.
+         * When using PIT, we skip _doc sort here — ClientPitHitSource will add _shard_doc on each search request copy.
          */
         final SearchSourceBuilder sourceBuilder = mainRequest.getSearchRequest().source();
         List<SortBuilder<?>> sorts = sourceBuilder.sorts();
-        if (sorts == null || sorts.isEmpty()) {
+        if (!mainRequest.getUsePit() && (sorts == null || sorts.isEmpty())) {
             sourceBuilder.sort(fieldSort("_doc"));
         }
         sourceBuilder.version(needsSourceDocumentVersions);
@@ -275,6 +276,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
+        if (mainRequest.getUsePit()) {
+            return new ClientPitHitSource(
+                logger,
+                backoffPolicy,
+                threadPool,
+                worker::countSearchRetry,
+                this::onScrollResponse,
+                this::finishHim,
+                client,
+                mainRequest.getSearchRequest()
+            );
+        }
         return new ClientScrollableHitSource(
             logger,
             backoffPolicy,
