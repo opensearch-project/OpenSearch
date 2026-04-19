@@ -26,6 +26,7 @@ import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
@@ -278,7 +279,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     /** Returns {@code null} — merge scheduling is not yet implemented for the Lucene format. */
     @Override
     public Merger getMerger() {
-        return null;
+        // TODO: Implement merge support as ParquetMerger
+        return mergeInput -> new MergeResult(Map.of());
     }
 
     /**

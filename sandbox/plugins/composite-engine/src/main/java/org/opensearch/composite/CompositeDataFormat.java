@@ -41,6 +41,14 @@ public class CompositeDataFormat extends DataFormat {
     }
 
     /**
+     * Constructs an empty CompositeDataFormat with no constituent formats.
+     */
+    public CompositeDataFormat() {
+        this.primaryDataFormat = null;
+        this.dataFormats = List.of();
+    }
+
+    /**
      * Returns the list of constituent data formats.
      *
      * @return the data formats

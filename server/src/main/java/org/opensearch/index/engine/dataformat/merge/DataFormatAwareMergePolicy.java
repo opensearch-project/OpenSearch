@@ -11,7 +11,6 @@ package org.opensearch.index.engine.dataformat.merge;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -36,7 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Adapts a Lucene {@link MergePolicy} to work with the data-format-aware segment model.
+ * Adapts a Lucene {@link org.apache.lucene.index.MergePolicy} to work with the data-format-aware segment model.
  * <p>
  * Converts {@link Segment} instances into Lucene {@link SegmentCommitInfo}
  * wrappers so the underlying merge policy can select merge candidates.
@@ -44,8 +43,8 @@ import java.util.Set;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DataFormatAwareMergePolicy implements MergePolicyProvider {
-    private final MergePolicy luceneMergePolicy;
+public class DataFormatAwareMergePolicy implements MergeHandler.MergePolicy, MergeHandler.MergeListener {
+    private final org.apache.lucene.index.MergePolicy luceneMergePolicy;
     private final Logger logger;
     private final Directory sharedDirectory;
     private final DataFormatMergeContext mergeContext;
@@ -56,7 +55,7 @@ public class DataFormatAwareMergePolicy implements MergePolicyProvider {
      * @param mergePolicy the Lucene merge policy to delegate candidate selection to
      * @param shardId     the shard ID for logging context
      */
-    public DataFormatAwareMergePolicy(MergePolicy mergePolicy, ShardId shardId) {
+    public DataFormatAwareMergePolicy(org.apache.lucene.index.MergePolicy mergePolicy, ShardId shardId) {
         this.luceneMergePolicy = mergePolicy;
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.sharedDirectory = new ByteBuffersDirectory();
@@ -71,6 +70,7 @@ public class DataFormatAwareMergePolicy implements MergePolicyProvider {
      * @return a list of segment groups, each group representing one merge operation
      * @throws IOException if an I/O error occurs during candidate selection
      */
+    @Override
     public List<List<Segment>> findForceMergeCandidates(List<Segment> segments, int maxSegmentCount) throws IOException {
         Map<SegmentCommitInfo, Segment> segmentMap = new HashMap<>();
         SegmentInfos segmentInfos = convertToSegmentInfos(segments, segmentMap);
@@ -79,7 +79,7 @@ public class DataFormatAwareMergePolicy implements MergePolicyProvider {
         segmentInfos.forEach(seg -> segmentsToMerge.put(seg, true));
 
         try {
-            MergePolicy.MergeSpecification mergeSpec = luceneMergePolicy.findForcedMerges(
+            org.apache.lucene.index.MergePolicy.MergeSpecification mergeSpec = luceneMergePolicy.findForcedMerges(
                 segmentInfos,
                 maxSegmentCount,
                 segmentsToMerge,
@@ -99,12 +99,17 @@ public class DataFormatAwareMergePolicy implements MergePolicyProvider {
      * @return a list of segment groups, each group representing one merge operation
      * @throws IOException if an I/O error occurs during candidate selection
      */
+    @Override
     public List<List<Segment>> findMergeCandidates(List<Segment> segments) throws IOException {
         Map<SegmentCommitInfo, Segment> segmentMap = new HashMap<>();
         SegmentInfos segmentInfos = convertToSegmentInfos(segments, segmentMap);
 
         try {
-            MergePolicy.MergeSpecification mergeSpec = luceneMergePolicy.findMerges(MergeTrigger.COMMIT, segmentInfos, mergeContext);
+            org.apache.lucene.index.MergePolicy.MergeSpecification mergeSpec = luceneMergePolicy.findMerges(
+                MergeTrigger.COMMIT,
+                segmentInfos,
+                mergeContext
+            );
             return convertMergeSpecification(mergeSpec, segmentMap);
         } catch (Exception e) {
             logger.error("Error finding merge candidates", e);
@@ -117,6 +122,7 @@ public class DataFormatAwareMergePolicy implements MergePolicyProvider {
      *
      * @param segments the segments being merged
      */
+    @Override
     public void addMergingSegment(Collection<Segment> segments) {
         for (Segment segment : segments) {
             mergeContext.addMergingSegment(createWrapper(segment));
@@ -128,6 +134,7 @@ public class DataFormatAwareMergePolicy implements MergePolicyProvider {
      *
      * @param segments the segments to remove
      */
+    @Override
     public void removeMergingSegment(Collection<Segment> segments) {
         for (Segment segment : segments) {
             mergeContext.removeMergingSegment(createWrapper(segment));
@@ -165,7 +172,7 @@ public class DataFormatAwareMergePolicy implements MergePolicyProvider {
     }
 
     /**
-     * Converts a Lucene {@link MergePolicy.MergeSpecification} back into groups of
+     * Converts a Lucene {@link org.apache.lucene.index.MergePolicy.MergeSpecification} back into groups of
      * {@link Segment} instances using the reverse mapping.
      *
      * @param mergeSpecification the Lucene merge specification (may be {@code null})
@@ -173,13 +180,13 @@ public class DataFormatAwareMergePolicy implements MergePolicyProvider {
      * @return a list of segment groups, each representing one merge operation
      */
     private List<List<Segment>> convertMergeSpecification(
-        MergePolicy.MergeSpecification mergeSpecification,
+        org.apache.lucene.index.MergePolicy.MergeSpecification mergeSpecification,
         Map<SegmentCommitInfo, Segment> segmentMap
     ) {
         List<List<Segment>> merges = new ArrayList<>();
 
         if (mergeSpecification != null) {
-            for (MergePolicy.OneMerge merge : mergeSpecification.merges) {
+            for (org.apache.lucene.index.MergePolicy.OneMerge merge : mergeSpecification.merges) {
                 List<Segment> segmentMerge = new ArrayList<>();
                 for (SegmentCommitInfo segment : merge.segments) {
                     segmentMerge.add(segmentMap.get(segment));
@@ -200,13 +207,13 @@ public class DataFormatAwareMergePolicy implements MergePolicyProvider {
     }
 
     /**
-     * A {@link MergePolicy.MergeContext} implementation that tracks merging segments
+     * A {@link org.apache.lucene.index.MergePolicy.MergeContext} implementation that tracks merging segments
      * and provides info-stream logging for the Lucene merge policy.
      *
      * @opensearch.experimental
      */
     @ExperimentalApi
-    public static class DataFormatMergeContext implements MergePolicy.MergeContext {
+    public static class DataFormatMergeContext implements org.apache.lucene.index.MergePolicy.MergeContext {
 
         private final HashSet<SegmentCommitInfo> mergingSegments = new HashSet<>();
         private final InfoStream infoStream;

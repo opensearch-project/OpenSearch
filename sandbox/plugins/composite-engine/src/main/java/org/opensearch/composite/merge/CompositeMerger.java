@@ -16,12 +16,17 @@ import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
+import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A {@link Merger} that orchestrates composite merges across primary and secondary
@@ -44,13 +49,28 @@ public class CompositeMerger implements Merger {
 
     @Override
     public MergeResult merge(MergeInput mergeInput) throws IOException {
-        MergePlan plan = new MergePlan(
-            mergeInput.newWriterGeneration(),
-            primaryFormat,
-            secondaryFormats,
-            Map.of(primaryFormat, mergeInput.writerFiles())
-        );
+        Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(mergeInput.segments());
+        MergePlan plan = new MergePlan(mergeInput.newWriterGeneration(), primaryFormat, secondaryFormats, filesByFormat);
         return executor.execute(plan);
+    }
+
+    private Map<DataFormat, List<WriterFileSet>> extractFilesByFormat(List<Segment> segments) {
+        Set<DataFormat> allFormats = new LinkedHashSet<>();
+        allFormats.add(primaryFormat);
+        allFormats.addAll(secondaryFormats);
+
+        Map<DataFormat, List<WriterFileSet>> filesByFormat = new LinkedHashMap<>();
+        for (DataFormat format : allFormats) {
+            List<WriterFileSet> files = new ArrayList<>();
+            for (Segment segment : segments) {
+                WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(format.name());
+                if (wfs != null) {
+                    files.add(wfs);
+                }
+            }
+            filesByFormat.put(format, List.copyOf(files));
+        }
+        return filesByFormat;
     }
 
     private static List<DataFormat> resolveSecondaryFormats(CompositeDataFormat compositeDataFormat, DataFormat primaryFormat) {
@@ -77,9 +97,7 @@ public class CompositeMerger implements Merger {
         for (IndexingExecutionEngine<?, ?> secondary : engine.getSecondaryDelegates()) {
             Merger merger = secondary.getMerger();
             if (merger == null) {
-                throw new IllegalStateException(
-                    "Secondary format [" + secondary.getDataFormat().name() + "] does not provide a Merger"
-                );
+                throw new IllegalStateException("Secondary format [" + secondary.getDataFormat().name() + "] does not provide a Merger");
             }
             map.put(secondary.getDataFormat(), merger);
         }

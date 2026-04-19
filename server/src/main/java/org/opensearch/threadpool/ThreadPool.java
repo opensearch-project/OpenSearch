@@ -302,7 +302,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.FORCE_MERGE,
             new FixedExecutorBuilder(settings, Names.FORCE_MERGE, oneEighthAllocatedProcessors(allocatedProcessors), -1)
         );
-        builders.put(Names.MERGE, new ScalingExecutorBuilder(Names.MERGE, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.MERGE, new ScalingExecutorBuilder(Names.MERGE, 1, allocatedProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(
             Names.FETCH_SHARD_STORE,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))

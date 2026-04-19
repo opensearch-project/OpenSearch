@@ -14,39 +14,27 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
-import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
-import org.opensearch.index.engine.dataformat.DocumentInput;
-import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
-import org.opensearch.index.engine.dataformat.FileInfos;
-import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
-import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.engine.dataformat.MergeResult;
-import org.opensearch.index.engine.dataformat.Merger;
-import org.opensearch.index.engine.dataformat.RefreshInput;
-import org.opensearch.index.engine.dataformat.RefreshResult;
-import org.opensearch.index.engine.dataformat.WriteResult;
-import org.opensearch.index.engine.dataformat.Writer;
-import org.opensearch.index.engine.exec.Segment;
-import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockReaderManager;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.merge.MergeStats;
-import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -66,173 +54,45 @@ import java.util.function.Function;
 public class CompositeMergeIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX_NAME = "test-composite-merge";
+    private static final String MERGE_ENABLED_PROPERTY = "opensearch.pluggable.dataformat.merge.enabled";
 
-    // ── Stub DataFormat for "parquet" ──
+    // ── Mock DataFormatPlugin using test framework stubs ──
 
-    private static final DataFormat STUB_PARQUET_FORMAT = new DataFormat() {
-        @Override
-        public String name() {
-            return "parquet";
-        }
+    public static class MockParquetDataFormatPlugin extends MockDataFormatPlugin implements SearchBackEndPlugin<Object> {
+        private static final MockDataFormat PARQUET_FORMAT = new MockDataFormat("parquet", 0L, Set.of());
 
-        @Override
-        public long priority() {
-            return 0;
-        }
-
-        @Override
-        public Set<FieldTypeCapabilities> supportedFields() {
-            return Set.of();
-        }
-    };
-
-    // ── Stub DocumentInput ──
-
-    private static class StubDocumentInput implements DocumentInput<Object> {
-        @Override
-        public void addField(MappedFieldType fieldType, Object value) {}
-
-        @Override
-        public void setRowId(String rowIdFieldName, long rowId) {}
-
-        @Override
-        public Object getFinalInput() {
-            return null;
-        }
-
-        @Override
-        public void close() {}
-    }
-
-    // ── Stub Writer ──
-
-    private static class StubWriter implements Writer<StubDocumentInput> {
-        private final long generation;
-        private int docCount = 0;
-
-        StubWriter(long generation) {
-            this.generation = generation;
-        }
-
-        @Override
-        public WriteResult addDoc(StubDocumentInput documentInput) {
-            docCount++;
-            return new WriteResult.Success(1L, 1L, docCount);
-        }
-
-        @Override
-        public FileInfos flush() {
-            if (docCount == 0) {
-                return FileInfos.empty();
-            }
-            WriterFileSet wfs = new WriterFileSet("/tmp/stub", generation, Set.of("stub_" + generation + ".parquet"), docCount);
-            return new FileInfos(Map.of(STUB_PARQUET_FORMAT, wfs));
-        }
-
-        @Override
-        public void sync() {}
-
-        @Override
-        public long generation() {
-            return generation;
-        }
-
-        @Override
-        public void lock() {}
-
-        @Override
-        public boolean tryLock() {
-            return true;
-        }
-
-        @Override
-        public void unlock() {}
-
-        @Override
-        public void close() throws IOException {}
-    }
-
-    // ── Stub IndexingExecutionEngine ──
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private static class StubParquetEngine implements IndexingExecutionEngine<DataFormat, StubDocumentInput> {
-
-        @Override
-        public Writer<StubDocumentInput> createWriter(long writerGeneration) {
-            return new StubWriter(writerGeneration);
-        }
-
-        @Override
-        public Merger getMerger() {
-            return mergeInput -> {
-                long totalRows = mergeInput.writerFiles().stream().mapToLong(WriterFileSet::numRows).sum();
-                WriterFileSet merged = new WriterFileSet("/tmp/stub", mergeInput.newWriterGeneration(),
-                    Set.of("merged_" + mergeInput.newWriterGeneration() + ".parquet"), totalRows);
-                return new MergeResult(Map.of(STUB_PARQUET_FORMAT, merged));
-            };
-        }
-
-        @Override
-        public RefreshResult refresh(RefreshInput refreshInput) {
-            if (refreshInput == null) return new RefreshResult(List.of());
-            List<Segment> segments = new ArrayList<>();
-            segments.addAll(refreshInput.existingSegments());
-            segments.addAll(refreshInput.writerFiles());
-            return new RefreshResult(List.copyOf(segments));
-        }
-
-        @Override
-        public long getNextWriterGeneration() {
-            return 0;
-        }
-
-        @Override
-        public DataFormat getDataFormat() {
-            return STUB_PARQUET_FORMAT;
-        }
-
-        @Override
-        public long getNativeBytesUsed() {
-            return 0;
-        }
-
-        @Override
-        public void deleteFiles(Map<String, Collection<String>> filesToDelete) {}
-
-        @Override
-        public StubDocumentInput newDocumentInput() {
-            return new StubDocumentInput();
-        }
-
-        @Override
-        public IndexStoreProvider getProvider() {
-            return null;
-        }
-
-        @Override
-        public void close() {}
-    }
-
-    // ── Stub DataFormatPlugin ──
-
-    public static class MockParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
-        @Override
-        public DataFormat getDataFormat() {
-            return STUB_PARQUET_FORMAT;
-        }
-
-        @Override
-        public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
-            return new StubParquetEngine();
+        public MockParquetDataFormatPlugin() {
+            super(PARQUET_FORMAT);
         }
 
         @Override
         public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
             return Map.of("parquet", new DataFormatDescriptor("parquet", new PrecomputedChecksumStrategy()));
         }
+
+        @Override
+        public String name() {
+            return "mock-parquet-backend";
+        }
+
+        @Override
+        public List<String> getSupportedFormats() {
+            return List.of("parquet");
+        }
+
+        @Override
+        public EngineReaderManager<?> createReaderManager(ReaderManagerConfig settings) {
+            return new MockReaderManager("parquet");
+        }
     }
 
     // ── Test setup ──
+
+    @Override
+    public void setUp() throws Exception {
+        enableMerge();
+        super.setUp();
+    }
 
     @Override
     public void tearDown() throws Exception {
@@ -242,6 +102,17 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
             // index may not exist if test failed before creation
         }
         super.tearDown();
+        disableMerge();
+    }
+
+    @SuppressForbidden(reason = "enable pluggable dataformat merge for integration testing")
+    private static void enableMerge() {
+        System.setProperty(MERGE_ENABLED_PROPERTY, "true");
+    }
+
+    @SuppressForbidden(reason = "restore pluggable dataformat merge property after test")
+    private static void disableMerge() {
+        System.clearProperty(MERGE_ENABLED_PROPERTY);
     }
 
     @Override
@@ -279,8 +150,7 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
             flush(INDEX_NAME);
             DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
             assertTrue(
-                "Expected merges to reduce segment count below " + totalSegmentsCreated
-                    + ", but got: " + snapshot.getSegments().size(),
+                "Expected merges to reduce segment count below " + totalSegmentsCreated + ", but got: " + snapshot.getSegments().size(),
                 snapshot.getSegments().size() < totalSegmentsCreated
             );
         });
@@ -305,9 +175,7 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
             .build();
     }
 
-
     private int indexDocsAcrossMultipleRefreshes(int refreshCycles, int docsPerCycle) {
-        int totalDocs = 0;
         for (int cycle = 0; cycle < refreshCycles; cycle++) {
             for (int i = 0; i < docsPerCycle; i++) {
                 IndexResponse response = client().prepareIndex()
@@ -315,12 +183,11 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
                     .setSource("field_text", randomAlphaOfLength(10), "field_number", randomIntBetween(1, 1000))
                     .get();
                 assertEquals(RestStatus.CREATED, response.status());
-                totalDocs++;
             }
             RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(INDEX_NAME).get();
             assertEquals(RestStatus.OK, refreshResponse.getStatus());
         }
-        return totalDocs;
+        return refreshCycles;
     }
 
     private DataformatAwareCatalogSnapshot getCatalogSnapshot() throws IOException {

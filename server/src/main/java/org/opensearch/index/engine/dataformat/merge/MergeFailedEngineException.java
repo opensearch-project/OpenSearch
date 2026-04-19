@@ -8,15 +8,18 @@
 
 package org.opensearch.index.engine.dataformat.merge;
 
+import org.opensearch.OpenSearchException;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.engine.EngineException;
+
+import java.io.IOException;
 
 /**
  * Exception thrown when a segment merge operation fails within the engine.
  *
  * @opensearch.experimental
  */
-public class MergeFailedEngineException extends EngineException {
+public class MergeFailedEngineException extends OpenSearchException {
 
     /**
      * Constructs a new MergeFailedEngineException.
@@ -25,6 +28,17 @@ public class MergeFailedEngineException extends EngineException {
      * @param t       the underlying cause of the failure
      */
     public MergeFailedEngineException(ShardId shardId, Throwable t) {
-        super(shardId, "Merge failed", t);
+        super("Merge failed", t);
+        setShard(shardId);
+    }
+
+    /**
+     * Constructs a new MergeFailedEngineException from a {@link StreamInput}.
+     *
+     * @param in the stream input to deserialize from
+     * @throws IOException if an I/O error occurs
+     */
+    public MergeFailedEngineException(StreamInput in) throws IOException {
+        super(in);
     }
 }

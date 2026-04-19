@@ -9,11 +9,11 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
-import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.FileDeleter;
@@ -285,7 +285,15 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
         Segment seg3 = new Segment(3L, Map.of(format.name(), wfs3));
 
-        CatalogSnapshotManager manager = new CatalogSnapshotManager(0, 0, 1, List.of(seg1, seg2, seg3), 0, Map.of());
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(new DataformatAwareCatalogSnapshot(0, 0, 1, List.of(seg1, seg2, seg3), 0, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            null
+        );
         try {
             MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
             OneMerge oneMerge = new OneMerge(List.of(seg1, seg2));
@@ -317,7 +325,15 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         Segment unrelatedSeg = new Segment(99L, Map.of(format.name(), wfs1));
 
         // Manager has only unrelatedSeg — the segments being merged are not present
-        CatalogSnapshotManager manager = new CatalogSnapshotManager(0, 0, 1, List.of(unrelatedSeg), 0, Map.of());
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(new DataformatAwareCatalogSnapshot(0, 0, 1, List.of(unrelatedSeg), 0, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            null
+        );
         try {
             MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
             OneMerge oneMerge = new OneMerge(List.of(seg1, seg2));
@@ -341,7 +357,15 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
 
-        CatalogSnapshotManager manager = new CatalogSnapshotManager(0, 0, 1, List.of(seg1), 0, Map.of());
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(new DataformatAwareCatalogSnapshot(0, 0, 1, List.of(seg1), 0, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            null
+        );
         try {
             MergeResult mergeResult = new MergeResult(Map.of());
             OneMerge oneMerge = new OneMerge(List.of(seg1));

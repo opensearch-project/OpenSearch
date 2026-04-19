@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -39,6 +40,7 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
 import org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException;
 import org.opensearch.index.engine.dataformat.merge.MergeHandler;
 import org.opensearch.index.engine.dataformat.merge.MergeScheduler;
@@ -172,6 +174,16 @@ public class DataFormatAwareEngine implements Indexer {
     // Merge
     private final MergeScheduler mergeScheduler;
 
+    /**
+     * System property to enable or disable pluggable dataformat merge operations.
+     * Set to "true" to enable merges (e.g., {@code -Dopensearch.pluggable.dataformat.merge.enabled=true}).
+     * Defaults to "false" (merges disabled) as the merge implementations are not yet complete
+     * for all data formats.
+     * <p>
+     * TODO: Remove this flag once merge implementations are complete for all data formats.
+     */
+    static final String MERGE_ENABLED_PROPERTY = "opensearch.pluggable.dataformat.merge.enabled";
+
     @Nullable
     private final String historyUUID;
 
@@ -300,12 +312,18 @@ public class DataFormatAwareEngine implements Indexer {
             assert committer != null : "committer must be initialized";
             assert writerPool != null : "writer pool must be initialized";
 
+            DataFormatAwareMergePolicy dataFormatAwareMergePolicy = new DataFormatAwareMergePolicy(
+                engineConfig.getIndexSettings().getMergePolicy(true),
+                shardId
+            );
+
             // Merge
             MergeHandler mergeHandler = new MergeHandler(
                 this::acquireSnapshot,
                 indexingExecutionEngine.getMerger(),
-                engineConfig.getIndexSettings(),
-                shardId
+                shardId,
+                dataFormatAwareMergePolicy,
+                dataFormatAwareMergePolicy
             );
             this.mergeScheduler = new MergeScheduler(
                 mergeHandler,
@@ -1274,7 +1292,8 @@ public class DataFormatAwareEngine implements Indexer {
         awaitPendingClose();
     }
 
-    private synchronized void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
+    private void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
+        refreshLock.lock();
         try {
             catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
             try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
@@ -1288,6 +1307,8 @@ public class DataFormatAwareEngine implements Indexer {
                 ex.addSuppressed(inner);
             }
             throw new MergeFailedEngineException(shardId, ex);
+        } finally {
+            refreshLock.unlock();
         }
     }
 
@@ -1300,6 +1321,10 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private void triggerPossibleMerges() {
+        if (Booleans.parseBoolean(System.getProperty(MERGE_ENABLED_PROPERTY, Boolean.FALSE.toString())) == false) {
+            logger.debug("Pluggable dataformat merge is disabled via system property [{}], skipping merge", MERGE_ENABLED_PROPERTY);
+            return;
+        }
         mergeScheduler.triggerMerges();
     }
 
