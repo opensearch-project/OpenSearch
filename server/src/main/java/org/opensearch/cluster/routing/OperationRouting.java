@@ -538,8 +538,7 @@ public class OperationRouting {
 
         int numVirtualShards = indexMetadata.getNumberOfVirtualShards();
         if (numVirtualShards != -1) {
-            final int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
-            int vShardId = Math.floorMod(hash, numVirtualShards);
+            int vShardId = VirtualShardRoutingHelper.computeVirtualShardId(indexMetadata, id, routing);
             return VirtualShardRoutingHelper.resolvePhysicalShardId(indexMetadata, vShardId);
         }
 
