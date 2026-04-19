@@ -206,6 +206,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
+                MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING,
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_COMPOSITE_STORE_TYPE_SETTING,
