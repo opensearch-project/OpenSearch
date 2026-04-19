@@ -50,6 +50,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.search.SearchPhaseResult;
@@ -127,6 +128,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private boolean currentPhaseHasLifecycle;
 
     private final List<Releasable> releasables = new ArrayList<>();
+
+    private BytesReference memoizedSerializedSource;
+    private Version memoizedSerializedSourceVersion;
 
     AbstractSearchAsyncAction(
         String name,
@@ -232,6 +236,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             onRequestEnd(searchRequestContext);
             return;
         }
+
+        try {
+            memoizedSerializedSourceVersion = clusterState.nodes().getMinNodeVersion();
+            memoizedSerializedSource = request.getOrCreateSerializedSource(memoizedSerializedSourceVersion);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
         executePhase(this);
     }
 
@@ -263,6 +276,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
                 }
             }
+
             for (int index = 0; index < shardsIts.size(); index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
                 assert shardRoutings.skip() == false;
@@ -899,6 +913,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // than creating an empty response in the search thread pool.
         // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
         shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
+
+        if (memoizedSerializedSource != null) {
+            shardRequest.setMemoizedSerializedSource(memoizedSerializedSource, memoizedSerializedSourceVersion);
+        }
+
         return shardRequest;
     }
 

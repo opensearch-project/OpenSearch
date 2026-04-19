@@ -113,6 +113,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
+    private BytesReference memoizedSerializedSource;
+    private Version memoizedSerializedSourceVersion;
+
     public ShardSearchRequest(
         OriginalIndices originalIndices,
         SearchRequest searchRequest,
@@ -290,6 +293,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.memoizedSerializedSource = clone.memoizedSerializedSource;
+        this.memoizedSerializedSourceVersion = clone.memoizedSerializedSourceVersion;
     }
 
     @Override
@@ -306,7 +311,21 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeVInt(numberOfShards);
         }
         out.writeOptionalWriteable(scroll);
-        out.writeOptionalWriteable(source);
+        // Only use memoized bytes when:
+        // - we are not writing as a cache key (asKey == false)
+        // - we have memoized bytes
+        // - a source exists
+        // - the memoized version matches the current StreamOutput version
+        if (!asKey
+            && memoizedSerializedSource != null
+            && source != null
+            && memoizedSerializedSourceVersion != null
+            && out.getVersion().equals(memoizedSerializedSourceVersion)) {
+            out.writeBoolean(true);
+            memoizedSerializedSource.writeTo(out);
+        } else {
+            out.writeOptionalWriteable(source);
+        }
         if (out.getVersion().before(Version.V_2_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
@@ -367,10 +386,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public void setAliasFilter(AliasFilter aliasFilter) {
         this.aliasFilter = aliasFilter;
+        this.memoizedSerializedSource = null;
     }
 
     public void source(SearchSourceBuilder source) {
         this.source = source;
+        this.memoizedSerializedSource = null;
     }
 
     public int numberOfShards() {
@@ -506,6 +527,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             sb.append("source[]");
         }
         return sb.toString();
+    }
+
+    /**
+     * Sets the memoized serialized source to optimize serialization when fanning out to many shards.
+     *
+     * @opensearch.internal
+     */
+    public void setMemoizedSerializedSource(BytesReference memoizedSerializedSource, Version version) {
+        this.memoizedSerializedSource = memoizedSerializedSource;
+        this.memoizedSerializedSourceVersion = version;
     }
 
     public Rewriteable<Rewriteable> getRewriteable() {
