@@ -84,6 +84,9 @@ ${error.file}
 23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.setAsTypeCache
 23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.asTypeUncached
 
+# ScopedValue is preview in JDK 21-24, final in JDK 25+
+21-24:--enable-preview
+
 21-:-javaagent:agent/opensearch-agent.jar
 21-:--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED
 

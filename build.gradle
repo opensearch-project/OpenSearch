@@ -308,6 +308,17 @@ allprojects {
     compile.options.compilerArgs << '-Xdoclint:html'
     compile.options.compilerArgs << '-Xdoclint:reference'
     compile.options.compilerArgs << '-Xdoclint:syntax'
+
+    // ScopedValue is preview in JDK 21-24; modules targeting release 21+ need --enable-preview to load :server classes
+    if (JavaVersion.current().majorVersion.toInteger() < 25) {
+      compile.doFirst {
+        def rel = compile.options.release.getOrNull()
+        if (rel == null || rel >= 21) {
+          compile.options.compilerArgs << '--enable-preview'
+          compile.options.compilerArgs << '-Xlint:-preview'
+        }
+      }
+    }
   }
 
   // ignore missing javadocs
@@ -325,6 +336,9 @@ allprojects {
     }
     javadoc.options.tags = ["opensearch.internal", "opensearch.api", "opensearch.experimental"]
     javadoc.options.addStringOption("-release", java.targetCompatibility.majorVersion)
+    if (JavaVersion.current().majorVersion.toInteger() < 25) {
+      javadoc.options.addBooleanOption('-enable-preview', true)
+    }
   }
 
   // support for reproducible builds

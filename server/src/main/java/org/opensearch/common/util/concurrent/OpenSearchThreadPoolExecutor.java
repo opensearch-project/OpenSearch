@@ -126,7 +126,19 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        command = wrapRunnable(command);
+        // Bind IndexInputScope per task. Wrap innermost so TimedRunnable/preserveContext
+        // layering is preserved for afterExecute unwrap.
+        final Runnable inner = command;
+        command = wrapRunnable(() -> {
+            final IndexInputScope scope = new IndexInputScope();
+            ScopedValue.where(IndexInputScope.SCOPE, scope).run(() -> {
+                try {
+                    inner.run();
+                } finally {
+                    scope.closeAll();
+                }
+            });
+        });
         try {
             super.execute(command);
         } catch (OpenSearchRejectedExecutionException ex) {
