@@ -23,10 +23,17 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalSort;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -224,6 +231,31 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         return caps;
     }
 
+    /**
+     * Walks the single-input chain asserting each node matches the expected type
+     * and has viableBackends containing all expectedBackends.
+     * TODO: extend to per-node expected backends when delegation is implemented.
+     */
+    protected static void assertPipelineViableBackends(
+        RelNode root,
+        List<Class<? extends OpenSearchRelNode>> expectedTypes,
+        Set<String> expectedBackends
+    ) {
+        RelNode current = root;
+        for (int i = 0; i < expectedTypes.size(); i++) {
+            Class<? extends OpenSearchRelNode> expectedType = expectedTypes.get(i);
+            assertTrue("Node at depth " + i + " must be " + expectedType.getSimpleName()
+                + " but was " + current.getClass().getSimpleName(), expectedType.isInstance(current));
+            OpenSearchRelNode osNode = (OpenSearchRelNode) current;
+            assertTrue("Node " + expectedType.getSimpleName() + " viableBackends must contain "
+                + expectedBackends + " but was " + osNode.getViableBackends(),
+                osNode.getViableBackends().containsAll(expectedBackends));
+            if (i < expectedTypes.size() - 1) {
+                current = RelNodeUtils.unwrapHep(current.getInputs().get(0));
+            }
+        }
+    }
+
     // ---- Cluster service ----
 
     protected ClusterService mockClusterService() {
@@ -359,7 +391,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
 
     protected AggregateCall sumCall() {
         return AggregateCall.create(
-            SqlStdOperatorTable.SUM, false, List.of(1), 1,
+            SqlStdOperatorTable.SUM, false, List.of(1), -1,
             stubScan(mockTable("test_index", "status", "size")),
             typeFactory.createSqlType(SqlTypeName.INTEGER),
             "total_size"
@@ -376,17 +408,38 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         );
     }
 
-    protected LogicalAggregate makeMultiCallAggregate(AggregateCall... aggCalls) {
-        return LogicalAggregate.create(
-            stubScan(mockTable("test_index", "status", "size")),
-            List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls)
-        );
+    protected LogicalFilter makeFilter(RelNode input, RexNode condition) {
+        return LogicalFilter.create(input, condition);
+    }
+
+    /** Sort with fetch (LIMIT) only — no ORDER BY collation, just top-N. */
+    protected LogicalSort makeLimit(RelNode input, int fetch) {
+        return LogicalSort.create(input, RelCollations.EMPTY, null,
+            rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true));
+    }
+
+    /** Sort with collation on field 0 ascending. Pass fetch of 0 or less for no limit. */
+    protected LogicalSort makeSort(RelNode input, int fetch) {
+        RelCollation collation = RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING));
+        RexNode fetchRex = fetch > 0
+            ? rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+            : null;
+        return LogicalSort.create(input, collation, null, fetchRex);
     }
 
     protected LogicalAggregate makeAggregate(AggregateCall aggCall) {
-        return LogicalAggregate.create(
-            stubScan(mockTable("test_index", "status", "size")),
-            List.of(), ImmutableBitSet.of(0), null, List.of(aggCall)
-        );
+        return makeAggregate(stubScan(mockTable("test_index", "status", "size")), aggCall);
+    }
+
+    protected LogicalAggregate makeMultiCallAggregate(AggregateCall... aggCalls) {
+        return makeMultiCallAggregate(stubScan(mockTable("test_index", "status", "size")), aggCalls);
+    }
+
+    protected LogicalAggregate makeAggregate(RelNode input, AggregateCall... aggCalls) {
+        return LogicalAggregate.create(input, List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls));
+    }
+
+    protected LogicalAggregate makeMultiCallAggregate(RelNode input, AggregateCall... aggCalls) {
+        return LogicalAggregate.create(input, List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls));
     }
 }

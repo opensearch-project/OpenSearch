@@ -23,9 +23,11 @@ import org.opensearch.analytics.planner.MockLuceneBackend;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
+import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScanCapability;
 
@@ -60,6 +62,9 @@ public class PlanForkerTests extends BasePlannerRulesTests {
                     Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER),
                            AggregateFunction.COUNT, Set.of(FieldType.INTEGER)));
             }
+            @Override protected Set<EngineCapability> supportedEngineCapabilities() {
+                return Set.of(EngineCapability.SORT);
+            }
         };
         var context = buildContextWithExplicitStorage(shardCount,
             duplicatedIntFields(),
@@ -76,6 +81,9 @@ public class PlanForkerTests extends BasePlannerRulesTests {
     /**
      * Asserts a stage has exactly two alternatives (one per backend), each narrowed to a single backend.
      * TODO: extend with randomized tests that pick N backends from a pool and assert exactly N alternatives.
+     * TODO: add delegation-aware forking tests once delegation is implemented — verify that when
+     * annotation viable backends differ from operator backend, one plan per annotation target is generated
+     * (e.g. DF operator with Lucene annotation for filter delegation produces a separate alternative).
      */
     private static void assertTwoAlternatives(Stage stage, Class<? extends OpenSearchRelNode> expectedRootType) {
         List<StagePlan> alternatives = stage.getPlanAlternatives();
@@ -106,9 +114,62 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         assertTwoAlternatives(aggDag.rootStage(), OpenSearchAggregate.class);
     }
 
+    /**
+     * Sort(Filter(Scan)) and Sort(Agg(Filter(Scan))) with limit — verifies forking
+     * produces two alternatives with correct pipeline shape at each level.
+     */
+    public void testSortQueryShapes() {
+        // Sort(Filter(Scan)) with limit
+        QueryDAG sortFilterDag = buildAndFork(1, makeSort(
+            makeFilter(stubScan(mockTable("test_index", "status", "size")),
+                makeEquals(0, SqlTypeName.INTEGER, 200)), 10));
+        assertTwoAlternatives(sortFilterDag.rootStage(), OpenSearchSort.class);
+        for (StagePlan plan : sortFilterDag.rootStage().getPlanAlternatives()) {
+            assertPipelineViableBackends(plan.resolvedFragment(),
+                List.of(OpenSearchSort.class, OpenSearchFilter.class, OpenSearchTableScan.class),
+                Set.of(plan.backendId()));
+        }
+
+        // Sort(Agg(Filter(Scan))) with limit
+        QueryDAG sortAggDag = buildAndFork(1, makeSort(
+            makeAggregate(makeFilter(stubScan(mockTable("test_index", "status", "size")),
+                makeEquals(0, SqlTypeName.INTEGER, 200)), sumCall()), 10));
+        assertTwoAlternatives(sortAggDag.rootStage(), OpenSearchSort.class);
+        for (StagePlan plan : sortAggDag.rootStage().getPlanAlternatives()) {
+            assertPipelineViableBackends(plan.resolvedFragment(),
+                List.of(OpenSearchSort.class, OpenSearchAggregate.class, OpenSearchFilter.class, OpenSearchTableScan.class),
+                Set.of(plan.backendId()));
+        }
+    }
+
+    /**
+     * Aggregate(Filter(Scan)) — most common OLAP shape. Verifies that forking narrows
+     * annotations consistently through the entire tree: both the aggregate root and the
+     * filter child in each alternative must be narrowed to the same single backend.
+     *
+     * TODO: with delegation, a DF aggregate over a Lucene-delegated filter would produce
+     * alternatives where operator backend ≠ annotation backend — this assertion will need
+     * to be relaxed or split per delegation strategy.
+     */
+    public void testComposedPipelineForking() {
+        RelNode pipeline = makeAggregate(
+            makeFilter(stubScan(mockTable("test_index", "status", "size")),
+                makeEquals(0, SqlTypeName.INTEGER, 200)),
+            sumCall()
+        );
+        QueryDAG dag = buildAndFork(1, pipeline);
+        assertTwoAlternatives(dag.rootStage(), OpenSearchAggregate.class);
+
+        // Each alternative's full pipeline must be narrowed to the same single backend
+        for (StagePlan plan : dag.rootStage().getPlanAlternatives()) {
+            assertPipelineViableBackends(plan.resolvedFragment(),
+                List.of(OpenSearchAggregate.class, OpenSearchFilter.class, OpenSearchTableScan.class),
+                Set.of(plan.backendId()));
+        }
+    }
+
     /** Multi-shard aggregate — child stage gets two alternatives, root gets one (only DF has ExchangeSinkProvider). */
-    public void testMultiShardAggregateForksAllStages() {
-        QueryDAG dag = buildAndFork(2, makeAggregate(sumCall()));
+    public void testMultiShardAggregateForksAllStages() {        QueryDAG dag = buildAndFork(2, makeAggregate(sumCall()));
 
         // Root coordinator stage — only DF has ExchangeSinkProvider
         assertEquals(1, dag.rootStage().getPlanAlternatives().size());

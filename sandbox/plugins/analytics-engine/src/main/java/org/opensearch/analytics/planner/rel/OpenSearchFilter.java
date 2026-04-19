@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 
+import org.opensearch.analytics.planner.RelNodeUtils;
+
 /**
  * OpenSearch custom Filter carrying viable backend list and per-predicate annotations.
  *
@@ -48,7 +50,8 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     /** Filter doesn't change schema — pass through child's field storage. */
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
-        if (getInput() instanceof OpenSearchRelNode openSearchInput) {
+        RelNode input = RelNodeUtils.unwrapHep(getInput());
+        if (input instanceof OpenSearchRelNode openSearchInput) {
             return openSearchInput.getOutputFieldStorage();
         }
         return List.of();

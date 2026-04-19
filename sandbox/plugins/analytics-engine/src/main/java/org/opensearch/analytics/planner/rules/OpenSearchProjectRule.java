@@ -88,6 +88,10 @@ public class OpenSearchProjectRule extends RelOptRule {
 
     private RexNode annotateExpr(RexNode expr, List<String> childViableBackends) {
         if (!(expr instanceof RexCall rexCall)) {
+            // TODO: RexInputRef and RexLiteral are left unannotated — they are implicitly handled
+            // by whichever backend executes the operator (pass-through for refs, constant for literals).
+            // Revisit if delegation requires knowing which backend evaluates each expression
+            // independently, or if a backend cannot handle pass-through refs natively.
             return expr;
         }
 

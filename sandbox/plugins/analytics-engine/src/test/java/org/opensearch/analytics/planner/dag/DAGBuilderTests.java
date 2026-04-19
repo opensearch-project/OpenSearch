@@ -11,10 +11,12 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.BasePlannerRulesTests;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 
@@ -57,6 +59,15 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
         assertEquals(0, aggDag.rootStage().getChildStages().size());
         assertNotNull(aggDag.rootStage().getTargetResolver());
         assertNull(aggDag.rootStage().getExchangeSinkProvider());
+
+        // Sort(Filter(Scan)) with limit — single stage, sort-capable backend
+        QueryDAG sortDag = buildDAG(1, makeSort(
+            makeFilter(stubScan(mockTable("test_index", "status", "size")),
+                makeEquals(0, SqlTypeName.INTEGER, 200)), 10));
+        assertEquals(0, sortDag.rootStage().getChildStages().size());
+        assertNotNull(sortDag.rootStage().getTargetResolver());
+        assertNull(sortDag.rootStage().getExchangeSinkProvider());
+        assertTrue(sortDag.rootStage().getFragment() instanceof OpenSearchSort);
     }
 
     /**

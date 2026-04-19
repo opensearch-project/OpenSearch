@@ -17,9 +17,9 @@ import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.planner.RelNodeUtils;
 
 import java.util.List;
-
 /**
  * OpenSearch custom Sort carrying viable backend list.
  *
@@ -50,7 +50,8 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
     /** Sort doesn't change schema — pass through child's field storage. */
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
-        if (getInput() instanceof OpenSearchRelNode openSearchInput) {
+        RelNode input = RelNodeUtils.unwrapHep(getInput());
+        if (input instanceof OpenSearchRelNode openSearchInput) {
             return openSearchInput.getOutputFieldStorage();
         }
         return List.of();
