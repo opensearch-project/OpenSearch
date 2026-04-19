@@ -121,7 +121,7 @@ public class MergeScheduler {
             return;
         }
 
-        mergeHandler.updatePendingMerges();
+        mergeHandler.findAndRegisterMerges();
 
         executeMerge();
     }
@@ -140,8 +140,16 @@ public class MergeScheduler {
         Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
 
         for (OneMerge oneMerge : oneMerges) {
-            MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
-            this.applyMergeChanges.accept(mergeResult, oneMerge);
+            threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(() -> {
+                try {
+                    MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
+                    applyMergeChanges.accept(mergeResult, oneMerge);
+                    mergeHandler.onMergeFinished(oneMerge);
+                } catch (Exception e) {
+                    logger.error(new ParameterizedMessage("Force merge failed for: {}", oneMerge), e);
+                    mergeHandler.onMergeFailure(oneMerge);
+                }
+            });
         }
     }
 
@@ -235,6 +243,7 @@ public class MergeScheduler {
                 mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
 
                 activeMerges.decrementAndGet();
+                // A completed merge may free up capacity for new merges, so check again.
                 executeMerge();
             }
         });

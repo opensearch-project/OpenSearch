@@ -37,6 +37,7 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
 import org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException;
 import org.opensearch.index.engine.dataformat.merge.MergeHandler;
 import org.opensearch.index.engine.dataformat.merge.MergeScheduler;
@@ -259,12 +260,18 @@ public class DataFormatAwareEngine implements Indexer {
                 (a, b) -> null
             );
 
+            DataFormatAwareMergePolicy dataFormatAwareMergePolicy = new DataFormatAwareMergePolicy(
+                engineConfig.getIndexSettings().getMergePolicy(true),
+                shardId
+            );
+
             // Merge
             MergeHandler mergeHandler = new MergeHandler(
                 this::acquireSnapshot,
                 indexingExecutionEngine.getMerger(),
-                engineConfig.getIndexSettings(),
-                shardId
+                shardId,
+                dataFormatAwareMergePolicy,
+                dataFormatAwareMergePolicy
             );
             this.mergeScheduler = new MergeScheduler(
                 mergeHandler,
@@ -1027,7 +1034,8 @@ public class DataFormatAwareEngine implements Indexer {
         awaitPendingClose();
     }
 
-    private synchronized void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
+    private void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
+        refreshLock.lock();
         try {
             catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
             try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
@@ -1041,6 +1049,8 @@ public class DataFormatAwareEngine implements Indexer {
                 ex.addSuppressed(inner);
             }
             throw new MergeFailedEngineException(shardId, ex);
+        } finally {
+            refreshLock.unlock();
         }
     }
 

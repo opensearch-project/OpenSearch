@@ -14,7 +14,7 @@ import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
-import org.opensearch.index.engine.dataformat.merge.OneMerge;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
@@ -49,14 +49,12 @@ public class CompositeMergeExecutor {
     public MergeResult execute(MergePlan plan) {
         List<FormatMergeResult> completed = new ArrayList<>();
         try {
-            FormatMergeResult primaryResult = mergeFormat(
-                plan, plan.primaryFormat(), null
-            );
+            FormatMergeResult primaryResult = mergeFormat(plan, plan.primaryFormat(), null);
             completed.add(primaryResult);
 
             RowIdMapping mapping = plan.hasSecondaries()
-                ? primaryResult.rowIdMappingOpt().orElseThrow(() -> new IllegalStateException(
-                    "Primary merge did not produce row-ID mapping required by secondaries"))
+                ? primaryResult.rowIdMappingOpt()
+                    .orElseThrow(() -> new IllegalStateException("Primary merge did not produce row-ID mapping required by secondaries"))
                 : null;
 
             for (DataFormat secondary : plan.secondaryFormats()) {
@@ -71,24 +69,18 @@ public class CompositeMergeExecutor {
         }
     }
 
-    private FormatMergeResult mergeFormat(
-        MergePlan plan, DataFormat format, RowIdMapping mapping
-    ) throws IOException {
+    private FormatMergeResult mergeFormat(MergePlan plan, DataFormat format, RowIdMapping mapping) throws IOException {
         Merger merger = mergers.get(format);
         List<WriterFileSet> files = plan.filesFor(format);
-        MergeResult result = merger.merge(
-            new MergeInput(files, mapping, plan.mergedWriterGeneration())
-        );
-        return new FormatMergeResult(
-            format,
-            result.getMergedWriterFileSetForDataformat(format),
-            result.rowIdMapping().orElse(null)
-        );
+        List<Segment> segments = new ArrayList<>();
+        for (WriterFileSet wfs : files) {
+            segments.add(Segment.builder(wfs.writerGeneration()).addSearchableFiles(format, wfs).build());
+        }
+        MergeResult result = merger.merge(new MergeInput(segments, mapping, plan.mergedWriterGeneration()));
+        return new FormatMergeResult(format, result.getMergedWriterFileSetForDataformat(format), result.rowIdMapping().orElse(null));
     }
 
-    private static MergeResult toMergeResult(
-        List<FormatMergeResult> results, RowIdMapping mapping
-    ) {
+    private static MergeResult toMergeResult(List<FormatMergeResult> results, RowIdMapping mapping) {
         Map<DataFormat, WriterFileSet> merged = new HashMap<>();
         for (FormatMergeResult r : results) {
             merged.put(r.format(), r.mergedFiles());

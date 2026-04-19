@@ -8,15 +8,11 @@
 
 package org.opensearch.composite.merge;
 
-import org.opensearch.Version;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.composite.CompositeDataFormat;
 import org.opensearch.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -135,8 +131,9 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         MergeHandler handler = new MergeHandler(
             snapshotSupplier,
             new CompositeMerger(engineNoSecondary, primaryOnlyFormat),
-            createIndexSettings(),
-            SHARD_ID
+            SHARD_ID,
+            mock(MergeHandler.MergePolicy.class),
+            mock(MergeHandler.MergeListener.class)
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -218,8 +215,9 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         MergeHandler handler = new MergeHandler(
             snapshotSupplier,
             new CompositeMerger(multiEngine, multiFormat),
-            createIndexSettings(),
-            SHARD_ID
+            SHARD_ID,
+            mock(MergeHandler.MergePolicy.class),
+            mock(MergeHandler.MergeListener.class)
         );
 
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
@@ -370,8 +368,9 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         MergeHandler handler = new MergeHandler(
             snapshotSupplier,
             new CompositeMerger(dupEngine, dupFormat),
-            createIndexSettings(),
-            SHARD_ID
+            SHARD_ID,
+            mock(MergeHandler.MergePolicy.class),
+            mock(MergeHandler.MergeListener.class)
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -560,17 +559,13 @@ public class CompositeMergerTests extends OpenSearchTestCase {
     // ========== Helper methods ==========
 
     private MergeHandler createHandler() {
-        return new MergeHandler(snapshotSupplier, new CompositeMerger(compositeEngine, compositeDataFormat), createIndexSettings(), SHARD_ID);
-    }
-
-    private static IndexSettings createIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
-        return new IndexSettings(indexMetadata, Settings.EMPTY);
+        return new MergeHandler(
+            snapshotSupplier,
+            new CompositeMerger(compositeEngine, compositeDataFormat),
+            SHARD_ID,
+            mock(MergeHandler.MergePolicy.class),
+            mock(MergeHandler.MergeListener.class)
+        );
     }
 
     private static DataFormat stubFormat(String name) {

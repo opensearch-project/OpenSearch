@@ -14,12 +14,10 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.exec.Segment;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
@@ -34,7 +32,7 @@ import java.util.function.Supplier;
 
 /**
  * Manages the segment merge queue, lifecycle callbacks, and merge candidate
- * selection via {@link MergePolicyProvider}.
+ * selection via {@link MergePolicy}.
  * <p>
  * Merge execution is delegated to a {@link Merger} provided at construction.
  * Per-format plugins (Parquet, Lucene) implement {@link Merger}
@@ -48,7 +46,8 @@ public class MergeHandler {
     private final Deque<OneMerge> pendingMerges = new ArrayDeque<>();
     private final Set<Segment> currentlyMergingSegments = new HashSet<>();
     private final Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier;
-    private final MergePolicyProvider mergePolicy;
+    private final MergePolicy mergePolicy;
+    private final MergeListener mergeListener;
     private final Merger merger;
     private final Logger logger;
 
@@ -57,18 +56,19 @@ public class MergeHandler {
      *
      * @param snapshotSupplier supplier for acquiring catalog snapshots for segment validation
      * @param merger           the merger that performs the actual merge operation
-     * @param indexSettings    the index settings used to configure the merge policy
      * @param shardId          the shard this handler is associated with (used for logging)
      */
     public MergeHandler(
         Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier,
         Merger merger,
-        IndexSettings indexSettings,
-        ShardId shardId
+        ShardId shardId,
+        MergePolicy mergePolicy,
+        MergeListener mergeListener
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.snapshotSupplier = snapshotSupplier;
-        this.mergePolicy = new DataFormatAwareMergePolicy(indexSettings.getMergePolicy(true), shardId);
+        this.mergePolicy = mergePolicy;
+        this.mergeListener = mergeListener;
         this.merger = merger;
     }
 
@@ -117,7 +117,7 @@ public class MergeHandler {
      * Updates the set of pending merges. Called to refresh the merge queue
      * when the segment state changes.
      */
-    public synchronized void updatePendingMerges() {
+    public synchronized void findAndRegisterMerges() {
         Collection<OneMerge> oneMerges = findMerges();
         for (OneMerge oneMerge : oneMerges) {
             boolean isValidMerge = true;
@@ -152,7 +152,7 @@ public class MergeHandler {
         }
         pendingMerges.add(merge);
         currentlyMergingSegments.addAll(merge.getSegmentsToMerge());
-        mergePolicy.addMergingSegment(merge.getSegmentsToMerge());
+        mergeListener.addMergingSegment(merge.getSegmentsToMerge());
         logger.debug(() -> new ParameterizedMessage("Registered merge [{}], pendingMerges: [{}]", merge, pendingMerges));
     }
 
@@ -182,7 +182,7 @@ public class MergeHandler {
      * <p>
      * <b>IMPORTANT:</b> The caller MUST apply the merge result to the catalog
      * (replacing source segments with the merged segment) BEFORE calling this method.
-     * This method calls {@link #updatePendingMerges()} which reads the catalog to find
+     * This method calls {@link #findAndRegisterMerges()} which reads the catalog to find
      * new merge candidates. If the catalog still contains the old source segments,
      * they may be incorrectly selected for another merge.
      *
@@ -192,7 +192,7 @@ public class MergeHandler {
      */
     public synchronized void onMergeFinished(OneMerge oneMerge) {
         removeMergingSegments(oneMerge);
-        updatePendingMerges();
+        findAndRegisterMerges();
     }
 
     /**
@@ -213,17 +213,77 @@ public class MergeHandler {
      * @throws IOException if the merge operation fails
      */
     public MergeResult doMerge(OneMerge oneMerge) throws IOException {
-        List<WriterFileSet> writerFiles = oneMerge.getSegmentsToMerge()
-            .stream()
-            .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
-            .toList();
-        MergeInput mergeInput = MergeInput.builder().fileMetadataList(writerFiles).build();
+        MergeInput mergeInput = MergeInput.builder().segments(oneMerge.getSegmentsToMerge()).build();
         return merger.merge(mergeInput);
     }
 
     private synchronized void removeMergingSegments(OneMerge oneMerge) {
         pendingMerges.remove(oneMerge);
         oneMerge.getSegmentsToMerge().forEach(currentlyMergingSegments::remove);
-        mergePolicy.removeMergingSegment(oneMerge.getSegmentsToMerge());
+        mergeListener.removeMergingSegment(oneMerge.getSegmentsToMerge());
+    }
+
+    /**
+     * A policy that determines how segments should be merged together.
+     * <p>
+     * Implementations define the strategy for selecting which segments to merge
+     * during both regular background merges and forced merge operations.
+     *
+     * @opensearch.experimental
+     */
+    public interface MergePolicy {
+
+        /**
+         * Finds groups of segments that are candidates for merging.
+         * <p>
+         * Each inner list represents a set of segments that should be merged together
+         * into a single new segment. The outer list contains all such merge groups.
+         *
+         * @param segments the current list of segments to evaluate for merging
+         * @return a list of segment groups, where each group is a list of segments to be merged together;
+         *         returns an empty list if no merges are needed
+         * @throws IOException if an I/O error occurs while evaluating segments
+         */
+        List<List<Segment>> findMergeCandidates(List<Segment> segments) throws IOException;
+
+        /**
+         * Finds groups of segments that are candidates for a forced merge operation.
+         * <p>
+         * A forced merge reduces the total number of segments to at most {@code maxSegmentCount}.
+         * Each inner list represents a set of segments that should be merged together
+         * into a single new segment.
+         *
+         * @param segments        the current list of segments to evaluate for merging
+         * @param maxSegmentCount the maximum number of segments that should remain after all merges complete
+         * @return a list of segment groups, where each group is a list of segments to be merged together;
+         *         returns an empty list if the segment count is already within the limit
+         * @throws IOException if an I/O error occurs while evaluating segments
+         */
+        List<List<Segment>> findForceMergeCandidates(List<Segment> segments, int maxSegmentCount) throws IOException;
+    }
+
+    /**
+     * A listener that is notified when segments begin or finish participating in a merge.
+     * <p>
+     * Implementations can use these callbacks to track which segments are currently
+     * being merged, for example to exclude them from future merge candidate selection.
+     *
+     * @opensearch.experimental
+     */
+    public interface MergeListener {
+
+        /**
+         * Called when the given segments begin participating in a merge.
+         *
+         * @param mergingSegments the segments that are now being merged
+         */
+        void addMergingSegment(Collection<Segment> mergingSegments);
+
+        /**
+         * Called when the given segments have finished participating in a merge.
+         *
+         * @param mergingSegments the segments that are no longer being merged
+         */
+        void removeMergingSegment(Collection<Segment> mergingSegments);
     }
 }
