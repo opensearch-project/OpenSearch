@@ -55,6 +55,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.plugins.ActionPlugin;
@@ -252,6 +253,33 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testClusterInfoServiceCollectsProcessStatsInformation() {
+        internalCluster().startNodes(2);
+
+        InternalTestCluster internalTestCluster = internalCluster();
+        // Get the cluster info service on the cluster-manager node
+        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
+            ClusterInfoService.class,
+            internalTestCluster.getClusterManagerName()
+        );
+        infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
+        ClusterInfo info = infoService.refresh();
+        assertNotNull("info should not be null", info);
+        final Map<String, ProcessStats> nodeProcessStats = info.getNodeProcessStats();
+        assertNotNull(nodeProcessStats);
+        assertThat("process stats collected from both nodes", nodeProcessStats.size(), Matchers.equalTo(2));
+
+        for (ProcessStats processStats : nodeProcessStats.values()) {
+            logger.info("--> process stats: {}", processStats);
+            assertThat("open file descriptors should be non-negative", processStats.getOpenFileDescriptors(), greaterThanOrEqualTo(0L));
+            assertThat("max file descriptors should be positive", processStats.getMaxFileDescriptors(), greaterThan(0L));
+            assertThat("process stats timestamp should be positive", processStats.getTimestamp(), greaterThan(0L));
+            assertNotNull("process stats should have CPU info", processStats.getCpu());
+            assertNotNull("process stats should have memory info", processStats.getMem());
+            logger.info("--> process stats populated successfully");
+        }
+    }
+
     @SuppressForbidden(reason = "Fixed sleeps are prone to flakiness but no documented failures here")
     public void testClusterInfoServiceCollectsNodeResourceStatsInformation() throws InterruptedException {
 
@@ -370,6 +398,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(0));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(0));
         assertThat(info.getNodeResourceUsageStats().size(), equalTo(0));
+        assertThat(info.getNodeProcessStats().size(), equalTo(0));
         assertThat(info.shardSizes.size(), equalTo(0));
         assertThat(info.reservedSpace.size(), equalTo(0));
 
@@ -381,6 +410,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(2));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(2));
         assertThat(info.getNodeResourceUsageStats().size(), equalTo(2));
+        assertThat(info.getNodeProcessStats().size(), equalTo(2));
         assertThat(info.shardSizes.size(), greaterThan(0));
 
         RoutingTable routingTable = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState().routingTable();
