@@ -40,7 +40,7 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public abstract class AbstractDocumentsFileManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(AbstractDocumentsFileManager.class);
     protected final StarTreeField starTreeField;

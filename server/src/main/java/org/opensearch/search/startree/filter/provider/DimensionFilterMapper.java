@@ -54,7 +54,7 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
 /**
  * Generates the @{@link DimensionFilter} raw values and the @{@link MappedFieldType} of the dimension.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface DimensionFilterMapper {
     /**
      * Generates @{@link ExactMatchDimFilter} from Term/Terms query input.

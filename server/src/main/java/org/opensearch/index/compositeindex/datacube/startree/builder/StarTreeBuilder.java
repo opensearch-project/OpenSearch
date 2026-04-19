@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface StarTreeBuilder extends Closeable {
     /**
      * Builds the star tree from the original segment documents

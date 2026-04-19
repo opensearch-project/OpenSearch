@@ -18,7 +18,7 @@ import java.util.Set;
 /**
  * Container for intermediate/consolidated dimension filters that will be applied for a query in star tree traversal.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeFilter {
 
     private final Map<String, List<DimensionFilter>> dimensionFilterMap;

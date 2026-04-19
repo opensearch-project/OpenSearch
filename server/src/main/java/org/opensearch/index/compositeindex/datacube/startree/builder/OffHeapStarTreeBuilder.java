@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     private static final Logger logger = LogManager.getLogger(OffHeapStarTreeBuilder.class);
     private final StarTreeDocsFileManager starTreeDocumentFileManager;
