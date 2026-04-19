@@ -92,6 +92,15 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         assertEquals("Query utils cannot be null", exception.getMessage());
     }
 
+    public void testConstructorWithNullAggregationRegistry() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(client, queryUtils, null, aggregateRegistry, circuitBreakerService)
+        );
+
+        assertEquals("Aggregation registry cannot be null", exception.getMessage());
+    }
+
     public void testConstructorWithNullAggregateRegistry() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
