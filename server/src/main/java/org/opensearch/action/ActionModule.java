@@ -34,6 +34,7 @@ package org.opensearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -343,6 +344,7 @@ import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.action.RestFieldCapabilitiesAction;
 import org.opensearch.rest.action.RestMainAction;
@@ -502,6 +504,7 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.wlm.WorkloadGroupTask;
@@ -624,6 +627,21 @@ public class ActionModule extends AbstractModule {
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
+    }
+
+    /**
+     * Returns the set of action name prefixes (the segment before the first {@code :}) contributed
+     * by plugins that are not already covered by {@link org.opensearch.transport.TransportService#VALID_ACTION_PREFIXES}.
+     * Used to extend the valid action prefix set for plugin-defined {@link org.opensearch.action.DocRequest} types.
+     */
+    public Set<String> getPluginActionPrefixes() {
+        return actionPlugins.stream()
+            .flatMap(p -> p.getActions().stream())
+            .map(h -> h.getAction().name())
+            .filter(name -> name.contains(":"))
+            .map(name -> name.substring(0, name.indexOf(':')))
+            .filter(prefix -> TransportService.VALID_ACTION_PREFIXES.stream().noneMatch(v -> v.startsWith(prefix)))
+            .collect(Collectors.toSet());
     }
 
     static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
@@ -859,6 +877,20 @@ public class ActionModule extends AbstractModule {
                     listActions.add(abstractListAction);
                 } else {
                     catActions.add(abstractCatAction);
+                }
+            }
+            for (Route route : handler.routes()) {
+                if (route instanceof NamedRoute namedRoute) {
+                    for (String actionName : namedRoute.actionNames()) {
+                        if (!TransportService.isValidActionName(actionName)) {
+                            throw new OpenSearchException(
+                                "Invalid action name ["
+                                    + actionName
+                                    + "]. It must start with one of: "
+                                    + TransportService.VALID_ACTION_PREFIXES
+                            );
+                        }
+                    }
                 }
             }
             restController.registerHandler(handler);
