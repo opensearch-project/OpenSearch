@@ -8,10 +8,11 @@
 
 package org.opensearch.javaagent.bootstrap;
 
+import org.opensearch.secure_sm.policy.Policy;
+
 import java.lang.StackWalker.Option;
 import java.lang.StackWalker.StackFrame;
 import java.security.Permission;
-import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
 import java.util.Collections;
