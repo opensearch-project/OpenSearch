@@ -9,6 +9,10 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.merge.OneMerge;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.test.OpenSearchTestCase;
@@ -244,6 +248,84 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         assertTrue("snapshot should be closed after the last ref is released", ((DataformatAwareCatalogSnapshot) heldSnapshot).isClosed());
 
         manager.close();
+    }
+
+    public void testApplyMergeResultsReplacesSegments() throws Exception {
+        DataFormat format = new MockDataFormat();
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200);
+        WriterFileSet wfs3 = new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300);
+        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 500);
+
+        Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
+        Segment seg3 = new Segment(3L, Map.of(format.name(), wfs3));
+
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(0, 0, 1, List.of(seg1, seg2, seg3), 0, Map.of());
+        try {
+            MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+            OneMerge oneMerge = new OneMerge(List.of(seg1, seg2));
+
+            manager.applyMergeResults(mergeResult, oneMerge);
+
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                List<Segment> segments = ref.get().getSegments();
+                assertEquals(2, segments.size());
+                // merged segment replaces at position of first merged segment
+                assertEquals(4L, segments.get(0).generation());
+                assertEquals(Set.of("merged.cfs"), segments.get(0).dfGroupedSearchableFiles().get(format.name()).files());
+                // unmerged segment preserved
+                assertEquals(seg3, segments.get(1));
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testApplyMergeResultsWhenAllMergedSegmentsRemoved() throws Exception {
+        DataFormat format = new MockDataFormat();
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200);
+        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 300);
+
+        Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
+        Segment unrelatedSeg = new Segment(99L, Map.of(format.name(), wfs1));
+
+        // Manager has only unrelatedSeg — the segments being merged are not present
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(0, 0, 1, List.of(unrelatedSeg), 0, Map.of());
+        try {
+            MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+            OneMerge oneMerge = new OneMerge(List.of(seg1, seg2));
+
+            manager.applyMergeResults(mergeResult, oneMerge);
+
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                List<Segment> segments = ref.get().getSegments();
+                assertEquals(2, segments.size());
+                // merged segment inserted at position 0
+                assertEquals(3L, segments.get(0).generation());
+                assertEquals(unrelatedSeg, segments.get(1));
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testApplyMergeResultsWithEmptyWriterFileSetMapThrows() throws Exception {
+        DataFormat format = new MockDataFormat();
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
+        Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
+
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(0, 0, 1, List.of(seg1), 0, Map.of());
+        try {
+            MergeResult mergeResult = new MergeResult(Map.of());
+            OneMerge oneMerge = new OneMerge(List.of(seg1));
+
+            expectThrows(IllegalArgumentException.class, () -> manager.applyMergeResults(mergeResult, oneMerge));
+        } finally {
+            manager.close();
+        }
     }
 
     // --- helpers ---
