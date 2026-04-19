@@ -12,7 +12,6 @@ import org.opensearch.protobufs.UnsignedLongTermsAggregate;
 import org.opensearch.protobufs.UnsignedLongTermsBucket;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.UnsignedLongTerms;
@@ -185,14 +184,7 @@ public class UnsignedLongTermsAggregateConverterTests extends OpenSearchTestCase
         InternalMax subMax = new InternalMax("sub_max", 42.0, DocValueFormat.RAW, Collections.emptyMap());
         InternalAggregations subAggs = InternalAggregations.from(List.of(subMax));
 
-        UnsignedLongTerms.Bucket bucket = new UnsignedLongTerms.Bucket(
-            BigInteger.valueOf(5),
-            20,
-            subAggs,
-            false,
-            0,
-            DocValueFormat.RAW
-        );
+        UnsignedLongTerms.Bucket bucket = new UnsignedLongTerms.Bucket(BigInteger.valueOf(5), 20, subAggs, false, 0, DocValueFormat.RAW);
         UnsignedLongTerms terms = createUnsignedLongTerms("test", List.of(bucket), 0, 0, null);
 
         UnsignedLongTermsBucket protoBucket = converter.toProto(terms).build().getUlterms().getBuckets(0);
