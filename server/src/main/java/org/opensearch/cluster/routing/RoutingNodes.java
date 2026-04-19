@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.ClusterState;
@@ -85,6 +86,8 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeService.isMigrating
  */
 @PublicApi(since = "1.0.0")
 public class RoutingNodes implements Iterable<RoutingNode> {
+    private static final Logger logger = LogManager.getLogger(RoutingNodes.class);
+
     private final Metadata metadata;
 
     private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
@@ -812,6 +815,21 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // if the activeReplica was relocating before this call to failShard, its relocation was cancelled earlier when we
         // failed initializing replica shards (and moved replica relocation source back to started)
         assert activeReplica.started() : "replica relocation should have been cancelled: " + activeReplica;
+
+        // CRITICAL: Never promote replicas on replica-only nodes
+        RoutingNode routingNode = node(activeReplica.currentNodeId());
+        if (routingNode != null && routingNode.node().isReplicaOnlyNode()) {
+            logger.warn(
+                "Cannot promote replica shard [{}] to primary on replica-only node [{}]. "
+                    + "Shard will remain as replica. Primary must be allocated to a regular data node.",
+                activeReplica.shardId(),
+                routingNode.nodeId()
+            );
+            // Do NOT call promoteActiveReplicaShardToPrimary - just return
+            // The primary will remain unassigned, triggering allocation to a data node
+            return;
+        }
+
         promoteActiveReplicaShardToPrimary(activeReplica);
         routingChangesObserver.replicaPromoted(activeReplica);
     }
