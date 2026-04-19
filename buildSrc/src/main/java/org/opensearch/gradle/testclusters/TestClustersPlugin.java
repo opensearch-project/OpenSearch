@@ -35,6 +35,7 @@ import org.opensearch.gradle.DistributionDownloadPlugin;
 import org.opensearch.gradle.JdkDownloadPlugin;
 import org.opensearch.gradle.ReaperPlugin;
 import org.opensearch.gradle.ReaperService;
+import org.opensearch.gradle.VersionProperties;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
 import org.opensearch.gradle.internal.InternalDistributionDownloadPlugin;
@@ -52,10 +53,16 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskState;
+import org.gradle.api.tasks.testing.Test;
 
 import javax.inject.Inject;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.opensearch.gradle.util.GradleUtils.noop;
 
@@ -111,6 +118,137 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         // register cluster hooks
         project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
+
+        // configure installed plugins from -PinstalledPlugins property
+        configureInstalledPlugins(project, container);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void configureInstalledPlugins(Project project, NamedDomainObjectContainer<OpenSearchCluster> container) {
+        String installedPluginsProp = System.getProperty("installedPlugins");
+        boolean securityEnabled = "true".equals(System.getProperty("security.enabled"));
+
+        if (installedPluginsProp == null && !securityEnabled) {
+            return;
+        }
+
+        project.afterEvaluate(p -> {
+            container.configureEach(cluster -> {
+                List<String> plugins = new java.util.ArrayList<>();
+
+                // Parse explicit plugin list if provided
+                if (installedPluginsProp != null) {
+                    try {
+                        plugins.addAll((List<String>) groovy.util.Eval.me(installedPluginsProp));
+                    } catch (Exception e) {
+                        throw new IllegalArgumentException("Invalid installedPlugins format. Expected list like: ['plugin1','plugin2']", e);
+                    }
+                }
+
+                // Auto-add security plugin if security is enabled and not already in list
+                if (securityEnabled && plugins.stream().noneMatch(p2 -> p2.contains("opensearch-security"))) {
+                    plugins.add("opensearch-security");
+                }
+
+                for (String pluginName : plugins) {
+                    // Check if it's a local project plugin
+                    if (project.findProject(":plugins:" + pluginName) != null) {
+                        cluster.plugin("plugins:" + pluginName);
+                    } else {
+                        // Resolve from Maven
+                        project.getRepositories().mavenLocal();
+                        project.getRepositories().maven(repo -> {
+                            repo.setName("OpenSearch Snapshots");
+                            repo.setUrl("https://ci.opensearch.org/ci/dbc/snapshots/maven/");
+                        });
+
+                        String version = VersionProperties.getOpenSearch().replace("-SNAPSHOT", ".0-SNAPSHOT");
+                        String coords = pluginName.contains(":") ? pluginName : (pluginName + ":" + version);
+                        if (!coords.contains("@")) {
+                            coords += "@zip";
+                        }
+                        String fullCoords = coords.split(":").length < 3 ? "org.opensearch.plugin:" + coords : coords;
+
+                        org.gradle.api.artifacts.Configuration config = project.getConfigurations()
+                            .detachedConfiguration(project.getDependencies().create(fullCoords));
+                        config.getResolutionStrategy().cacheChangingModulesFor(0, "seconds");
+                        cluster.plugin(project.getLayout().file(project.provider(() -> config.getSingleFile())));
+
+                        // Configure security if opensearch-security plugin is installed
+                        if (pluginName.contains("opensearch-security")) {
+                            configureSecurityPlugin(project, cluster);
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+    private static final String[] SECURITY_CERT_FILES = {
+        "esnode.pem",
+        "esnode-key.pem",
+        "kirk.pem",
+        "kirk-key.pem",
+        "root-ca.pem",
+        "sample.pem",
+        "test-kirk.jks" };
+    private static final String SECURITY_CERTS_URL =
+        "https://raw.githubusercontent.com/opensearch-project/security/refs/heads/main/bwc-test/src/test/resources/security/";
+
+    private void configureSecurityPlugin(Project project, OpenSearchCluster cluster) {
+        File buildDir = project.getBuildDir();
+        File securityResourcesDir = new File(buildDir, "security-resources");
+
+        // Download certificates
+        for (String certFile : SECURITY_CERT_FILES) {
+            File localFile = new File(securityResourcesDir, certFile);
+            if (!localFile.exists()) {
+                try {
+                    localFile.getParentFile().mkdirs();
+                    try (
+                        InputStream in = URI.create(SECURITY_CERTS_URL + certFile).toURL().openStream();
+                        FileOutputStream out = new FileOutputStream(localFile)
+                    ) {
+                        byte[] buffer = new byte[8192];
+                        int bytesRead;
+                        while ((bytesRead = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, bytesRead);
+                        }
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to download security certificate: " + certFile, e);
+                }
+            }
+        }
+
+        // Add security-resources directory to test classpath
+        project.getTasks().withType(Test.class).configureEach(testTask -> {
+            testTask.setClasspath(testTask.getClasspath().plus(project.files(securityResourcesDir)));
+        });
+
+        // Configure each node with certificates and security settings
+        cluster.getNodes().forEach(node -> {
+            // Add certificate files
+            Arrays.stream(SECURITY_CERT_FILES).forEach(cert -> node.extraConfigFile(cert, new File(securityResourcesDir, cert)));
+
+            // Security settings
+            node.setting("plugins.security.ssl.transport.pemcert_filepath", "esnode.pem");
+            node.setting("plugins.security.ssl.transport.pemkey_filepath", "esnode-key.pem");
+            node.setting("plugins.security.ssl.transport.pemtrustedcas_filepath", "root-ca.pem");
+            node.setting("plugins.security.ssl.transport.enforce_hostname_verification", "false");
+            node.setting("plugins.security.ssl.http.enabled", "true");
+            node.setting("plugins.security.ssl.http.pemcert_filepath", "esnode.pem");
+            node.setting("plugins.security.ssl.http.pemkey_filepath", "esnode-key.pem");
+            node.setting("plugins.security.ssl.http.pemtrustedcas_filepath", "root-ca.pem");
+            node.setting("plugins.security.allow_unsafe_democertificates", "true");
+            node.setting("plugins.security.allow_default_init_securityindex", "true");
+            node.setting("plugins.security.authcz.admin_dn", "\n - CN=kirk,OU=client,O=client,L=test,C=de");
+            node.setting("plugins.security.audit.type", "internal_opensearch");
+            node.setting("plugins.security.enable_snapshot_restore_privilege", "true");
+            node.setting("plugins.security.check_snapshot_restore_write_privileges", "true");
+            node.setting("plugins.security.restapi.roles_enabled", "[\"all_access\", \"security_rest_api_access\"]");
+            node.setting("plugins.security.system_indices.enabled", "true");
+        });
     }
 
     private NamedDomainObjectContainer<OpenSearchCluster> createTestClustersContainerExtension(Project project, ReaperService reaper) {
