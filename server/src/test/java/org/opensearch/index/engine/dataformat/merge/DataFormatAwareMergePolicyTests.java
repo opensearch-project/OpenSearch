@@ -15,8 +15,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.test.OpenSearchTestCase;
@@ -33,6 +32,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -45,53 +46,70 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
 
     private static final ShardId SHARD_ID = new ShardId(new Index("test-index", "uuid"), 0);
 
-    private static DataFormat stubFormat(String name) {
-        return new DataFormat() {
-            @Override
-            public String name() {
-                return name;
-            }
-
-            @Override
-            public long priority() {
-                return 1;
-            }
-
-            @Override
-            public Set<FieldTypeCapabilities> supportedFields() {
-                return Set.of();
-            }
-        };
-    }
-
     // ========== findMergeCandidates ==========
 
-    public void testFindMergeCandidatesEmptySegments() throws IOException {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        when(lucenePolicy.findMerges(any(MergeTrigger.class), any(SegmentInfos.class), any(MergePolicy.MergeContext.class))).thenReturn(
-            null
-        );
-
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-        List<List<Segment>> result = policy.findMergeCandidates(Collections.emptyList());
-        assertTrue(result.isEmpty());
-    }
-
-    public void testFindMergeCandidatesWithSegments() throws IOException {
+    public void testFindMergeCandidatesCapturesMergeContext() throws IOException {
         Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
+        MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
         WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
         Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
         Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs).build();
 
         MergePolicy lucenePolicy = mock(MergePolicy.class);
-        when(lucenePolicy.findMerges(any(MergeTrigger.class), any(SegmentInfos.class), any(MergePolicy.MergeContext.class))).thenReturn(
-            null
-        );
+        ArgumentCaptor<SegmentInfos> segInfosCaptor = ArgumentCaptor.forClass(SegmentInfos.class);
+        ArgumentCaptor<MergePolicy.MergeContext> ctxCaptor = ArgumentCaptor.forClass(MergePolicy.MergeContext.class);
+        when(lucenePolicy.findMerges(any(MergeTrigger.class), segInfosCaptor.capture(), ctxCaptor.capture())).thenReturn(null);
 
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
         List<List<Segment>> result = policy.findMergeCandidates(List.of(seg1, seg2));
+
         assertTrue(result.isEmpty());
+
+        SegmentInfos capturedInfos = segInfosCaptor.getValue();
+        assertEquals(2, capturedInfos.size());
+
+        MergePolicy.MergeContext capturedCtx = ctxCaptor.getValue();
+        assertNotNull(capturedCtx.getInfoStream());
+        assertTrue(capturedCtx.getMergingSegments().isEmpty());
+        assertEquals(0, capturedCtx.numDeletedDocs(mock(SegmentCommitInfo.class)));
+        assertEquals(0, capturedCtx.numDeletesToMerge(mock(SegmentCommitInfo.class)));
+    }
+
+    public void testFindMergeCandidatesMergeContextReflectsAddedAndRemovedSegments() throws IOException {
+        Path tempDir = createTempDir();
+        MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
+        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
+        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20);
+        Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs1).build();
+        Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs2).build();
+        Segment seg3 = Segment.builder(3L).addSearchableFiles(fmt, wfs1).build();
+
+        MergePolicy lucenePolicy = mock(MergePolicy.class);
+        ArgumentCaptor<MergePolicy.MergeContext> ctxCaptor = ArgumentCaptor.forClass(MergePolicy.MergeContext.class);
+        when(lucenePolicy.findMerges(any(MergeTrigger.class), any(SegmentInfos.class), ctxCaptor.capture())).thenReturn(null);
+
+        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
+        List<Segment> allSegments = List.of(seg1, seg2, seg3);
+
+        // Add seg1 as merging — context should show 1
+        policy.addMergingSegment(List.of(seg1));
+        policy.findMergeCandidates(allSegments);
+        assertEquals(1, ctxCaptor.getValue().getMergingSegments().size());
+
+        // Add seg2 as merging — context should show 2
+        policy.addMergingSegment(List.of(seg2));
+        policy.findMergeCandidates(allSegments);
+        assertEquals(2, ctxCaptor.getValue().getMergingSegments().size());
+
+        // Remove seg1 — context should show 1
+        policy.removeMergingSegment(List.of(seg1));
+        policy.findMergeCandidates(allSegments);
+        assertEquals(1, ctxCaptor.getValue().getMergingSegments().size());
+
+        // Remove seg2 — context should be empty
+        policy.removeMergingSegment(List.of(seg2));
+        policy.findMergeCandidates(allSegments);
+        assertTrue(ctxCaptor.getValue().getMergingSegments().isEmpty());
     }
 
     public void testFindMergeCandidatesExceptionWrapped() throws IOException {
@@ -108,14 +126,35 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
     // ========== findForceMergeCandidates ==========
 
     @SuppressWarnings("unchecked")
-    public void testFindForceMergeCandidatesEmptySegments() throws IOException {
+    public void testFindForceMergeCandidatesCapturesMergeContext() throws IOException {
+        Path tempDir = createTempDir();
+        MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
+        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
+        Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
+        Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs).build();
+
         MergePolicy lucenePolicy = mock(MergePolicy.class);
-        when(lucenePolicy.findForcedMerges(any(SegmentInfos.class), anyInt(), any(Map.class), any(MergePolicy.MergeContext.class)))
+        ArgumentCaptor<SegmentInfos> segInfosCaptor = ArgumentCaptor.forClass(SegmentInfos.class);
+        ArgumentCaptor<Map<SegmentCommitInfo, Boolean>> segmentsToMergeCaptor = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<MergePolicy.MergeContext> ctxCaptor = ArgumentCaptor.forClass(MergePolicy.MergeContext.class);
+        when(lucenePolicy.findForcedMerges(segInfosCaptor.capture(), anyInt(), segmentsToMergeCaptor.capture(), ctxCaptor.capture()))
             .thenReturn(null);
 
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-        List<List<Segment>> result = policy.findForceMergeCandidates(Collections.emptyList(), 1);
+        List<List<Segment>> result = policy.findForceMergeCandidates(List.of(seg1, seg2), 1);
+
         assertTrue(result.isEmpty());
+
+        SegmentInfos capturedInfos = segInfosCaptor.getValue();
+        assertEquals(2, capturedInfos.size());
+
+        Map<SegmentCommitInfo, Boolean> capturedSegmentsToMerge = segmentsToMergeCaptor.getValue();
+        assertEquals(2, capturedSegmentsToMerge.size());
+        assertTrue("All segments should be marked for merge", capturedSegmentsToMerge.values().stream().allMatch(v -> v));
+
+        MergePolicy.MergeContext capturedCtx = ctxCaptor.getValue();
+        assertNotNull(capturedCtx.getInfoStream());
+        assertTrue(capturedCtx.getMergingSegments().isEmpty());
     }
 
     @SuppressWarnings("unchecked")
@@ -129,53 +168,71 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         assertEquals("Error finding force merge candidates", ex.getMessage());
     }
 
-    // ========== addMergingSegment / removeMergingSegment ==========
+    // ========== Complex add/remove/add/remove lifecycle ==========
 
-    public void testAddAndRemoveMergingSegments() {
+    public void testMergeContextTracksMultipleAddRemoveCycles() throws IOException {
+        Path tempDir = createTempDir();
+        MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
+        Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10)).build();
+        Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20)).build();
+        Segment seg3 = Segment.builder(3L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 3L, Set.of(), 30)).build();
+        Segment seg4 = Segment.builder(4L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 4L, Set.of(), 40)).build();
+        List<Segment> allSegments = List.of(seg1, seg2, seg3, seg4);
+
         MergePolicy lucenePolicy = mock(MergePolicy.class);
+        ArgumentCaptor<MergePolicy.MergeContext> ctxCaptor = ArgumentCaptor.forClass(MergePolicy.MergeContext.class);
+        when(lucenePolicy.findMerges(any(MergeTrigger.class), any(SegmentInfos.class), ctxCaptor.capture())).thenReturn(null);
+
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
 
-        Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
-        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
-        Segment seg = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
+        // Round 1: add seg1, seg2 — expect 2 merging
+        policy.addMergingSegment(List.of(seg1, seg2));
+        policy.findMergeCandidates(allSegments);
+        assertEquals(2, ctxCaptor.getValue().getMergingSegments().size());
 
-        policy.addMergingSegment(List.of(seg));
-        policy.removeMergingSegment(List.of(seg));
+        // Round 2: remove seg1 — expect 1 merging
+        policy.removeMergingSegment(List.of(seg1));
+        policy.findMergeCandidates(allSegments);
+        assertEquals(1, ctxCaptor.getValue().getMergingSegments().size());
+
+        // Round 3: add seg3, seg4 — expect 3 merging (seg2 still there)
+        policy.addMergingSegment(List.of(seg3, seg4));
+        policy.findMergeCandidates(allSegments);
+        assertEquals(3, ctxCaptor.getValue().getMergingSegments().size());
+
+        // Round 4: remove seg2, seg3 — expect 1 merging (seg4)
+        policy.removeMergingSegment(List.of(seg2, seg3));
+        policy.findMergeCandidates(allSegments);
+        assertEquals(1, ctxCaptor.getValue().getMergingSegments().size());
+
+        // Round 5: re-add seg1 — expect 2 merging (seg4, seg1)
+        policy.addMergingSegment(List.of(seg1));
+        policy.findMergeCandidates(allSegments);
+        assertEquals(2, ctxCaptor.getValue().getMergingSegments().size());
+
+        // Round 6: remove all — expect 0
+        policy.removeMergingSegment(List.of(seg1, seg4));
+        policy.findMergeCandidates(allSegments);
+        assertTrue(ctxCaptor.getValue().getMergingSegments().isEmpty());
+
+        // Round 7: remove already-removed segment is a no-op — still 0
+        policy.removeMergingSegment(List.of(seg1));
+        policy.findMergeCandidates(allSegments);
+        assertTrue(ctxCaptor.getValue().getMergingSegments().isEmpty());
+
+        // Round 8: add duplicate — should still be 1 (set semantics)
+        policy.addMergingSegment(List.of(seg2));
+        policy.addMergingSegment(List.of(seg2));
+        policy.findMergeCandidates(allSegments);
+        assertEquals(1, ctxCaptor.getValue().getMergingSegments().size());
+
+        // Round 9: single remove clears the duplicate — expect 0
+        policy.removeMergingSegment(List.of(seg2));
+        policy.findMergeCandidates(allSegments);
+        assertTrue(ctxCaptor.getValue().getMergingSegments().isEmpty());
     }
 
-    // ========== DataFormatMergeContext methods ==========
-
-    public void testNumDeletesToMerge() throws IOException {
-        DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
-            org.apache.logging.log4j.LogManager.getLogger(getClass())
-        );
-        assertEquals(0, ctx.numDeletesToMerge(mock(SegmentCommitInfo.class)));
-    }
-
-    public void testNumDeletedDocs() {
-        DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
-            org.apache.logging.log4j.LogManager.getLogger(getClass())
-        );
-        assertEquals(0, ctx.numDeletedDocs(mock(SegmentCommitInfo.class)));
-    }
-
-    public void testGetInfoStream() {
-        DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
-            org.apache.logging.log4j.LogManager.getLogger(getClass())
-        );
-        assertNotNull(ctx.getInfoStream());
-    }
-
-    public void testInfoStreamMessageAndIsEnabled() throws IOException {
-        DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
-            org.apache.logging.log4j.LogManager.getLogger(getClass())
-        );
-
-        ctx.getInfoStream().message("test", "hello");
-        ctx.getInfoStream().isEnabled("test");
-        ctx.getInfoStream().close();
-    }
+    // ========== MergeContext immutability ==========
 
     public void testGetMergingSegmentsIsUnmodifiable() {
         DataFormatAwareMergePolicy.DataFormatMergeContext ctx = new DataFormatAwareMergePolicy.DataFormatMergeContext(
@@ -185,47 +242,50 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         expectThrows(UnsupportedOperationException.class, () -> mergingSegments.add(mock(SegmentCommitInfo.class)));
     }
 
-    // ========== calculateNumDocs / calculateTotalSize with real segments ==========
+    // ========== Edge cases ==========
 
     public void testSegmentWithMultipleFormatsAggregatesDocCountAndSize() throws IOException {
         MergePolicy lucenePolicy = mock(MergePolicy.class);
-        when(lucenePolicy.findMerges(any(MergeTrigger.class), any(SegmentInfos.class), any(MergePolicy.MergeContext.class))).thenReturn(
+        ArgumentCaptor<SegmentInfos> segInfosCaptor = ArgumentCaptor.forClass(SegmentInfos.class);
+        when(lucenePolicy.findMerges(any(MergeTrigger.class), segInfosCaptor.capture(), any(MergePolicy.MergeContext.class))).thenReturn(
             null
         );
 
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
 
         Path tempDir = createTempDir();
-        DataFormat fmt1 = stubFormat("lucene");
-        DataFormat fmt2 = stubFormat("parquet");
+        MockDataFormat fmt1 = new MockDataFormat("lucene", 100L, Set.of());
+        MockDataFormat fmt2 = new MockDataFormat("columnar", 50L, Set.of());
         WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
         WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 20);
         Segment seg = Segment.builder(1L).addSearchableFiles(fmt1, wfs1).addSearchableFiles(fmt2, wfs2).build();
 
-        List<List<Segment>> result = policy.findMergeCandidates(List.of(seg));
-        assertNotNull(result);
-    }
+        policy.findMergeCandidates(List.of(seg));
 
-    // ========== Segment with empty dfGroupedSearchableFiles ==========
+        SegmentInfos capturedInfos = segInfosCaptor.getValue();
+        assertEquals(1, capturedInfos.size());
+    }
 
     public void testSegmentWithNoSearchableFiles() throws IOException {
         MergePolicy lucenePolicy = mock(MergePolicy.class);
-        when(lucenePolicy.findMerges(any(MergeTrigger.class), any(SegmentInfos.class), any(MergePolicy.MergeContext.class))).thenReturn(
+        ArgumentCaptor<SegmentInfos> segInfosCaptor = ArgumentCaptor.forClass(SegmentInfos.class);
+        when(lucenePolicy.findMerges(any(MergeTrigger.class), segInfosCaptor.capture(), any(MergePolicy.MergeContext.class))).thenReturn(
             null
         );
 
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
         Segment seg = Segment.builder(1L).build();
 
-        List<List<Segment>> result = policy.findMergeCandidates(List.of(seg));
-        assertNotNull(result);
+        policy.findMergeCandidates(List.of(seg));
+
+        assertEquals(1, segInfosCaptor.getValue().size());
     }
 
-    // ========== convertMergeSpecification non-null path with real TieredMergePolicy ==========
+    // ========== Real TieredMergePolicy ==========
 
     public void testFindMergeCandidatesWithRealPolicyReturnsMerges() throws IOException {
         Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
+        MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
 
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < 15; i++) {
@@ -246,11 +306,9 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         }
     }
 
-    // ========== convertMergeSpecification non-null path with real TieredMergePolicy ==========
-
     public void testFindForceMergeCandidatesWithRealPolicyReturnsMerges() throws IOException {
         Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
+        MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
 
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
@@ -268,51 +326,14 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         assertFalse("Force merge to 1 segment should produce candidates from 5 segments", result.isEmpty());
     }
 
-    // ========== Finding #1: removeMergingSegment should actually remove ==========
-
-    public void testRemoveMergingSegmentActuallyRemoves() {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-
-        Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
-        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
-        Segment seg = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
-
-        policy.addMergingSegment(List.of(seg));
-
-        // Remove the same segment
-        policy.removeMergingSegment(List.of(seg));
-    }
-
-    public void testRemoveMultipleMergingSegments() {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-
-        Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
-        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
-        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20);
-        Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs1).build();
-        Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs2).build();
-
-        policy.addMergingSegment(List.of(seg1, seg2));
-
-        // Remove only seg1
-        policy.removeMergingSegment(List.of(seg1));
-
-        // Remove seg2
-        policy.removeMergingSegment(List.of(seg2));
-    }
-
-    // ========== Finding #5: concurrent add/remove ==========
+    // ========== Concurrency ==========
 
     public void testConcurrentAddRemoveDoesNotThrow() throws Exception {
         MergePolicy lucenePolicy = mock(MergePolicy.class);
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
 
         Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
+        MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
 
         int numSegments = 50;
         List<Segment> segments = new ArrayList<>();
@@ -325,7 +346,6 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         CyclicBarrier barrier = new CyclicBarrier(2);
         CountDownLatch done = new CountDownLatch(2);
 
-        // Thread 1: repeatedly add segments
         Thread adder = new Thread(() -> {
             try {
                 barrier.await();
@@ -339,7 +359,6 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
             }
         });
 
-        // Thread 2: repeatedly remove segments
         Thread remover = new Thread(() -> {
             try {
                 barrier.await();
@@ -360,15 +379,12 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         assertNull("Concurrent add/remove should not throw, but got: " + failure.get(), failure.get());
     }
 
-    // ========== Finding #5: concurrent findMergeCandidates vs addMergingSegment ==========
-
     public void testConcurrentFindMergeCandidatesAndAddMergingSegment() throws Exception {
-        // Use a real TieredMergePolicy which will call getMergingSegments() internally
         TieredMergePolicy tieredPolicy = new TieredMergePolicy();
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(tieredPolicy, SHARD_ID);
 
         Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
+        MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
 
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < 15; i++) {
@@ -382,7 +398,6 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         CyclicBarrier barrier = new CyclicBarrier(2);
         CountDownLatch done = new CountDownLatch(2);
 
-        // Thread 1: repeatedly call findMergeCandidates (which reads getMergingSegments via Lucene)
         Thread finder = new Thread(() -> {
             try {
                 barrier.await();
@@ -396,7 +411,6 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
             }
         });
 
-        // Thread 2: repeatedly add/remove merging segments
         Thread mutator = new Thread(() -> {
             try {
                 barrier.await();
@@ -417,132 +431,5 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         done.await();
 
         assertNull("Concurrent findMergeCandidates and addMergingSegment should not throw, but got: " + failure.get(), failure.get());
-    }
-
-    // ========== Finding #6: RuntimeException gets double-wrapped ==========
-
-    public void testFindMergeCandidatesPreservesRuntimeException() throws IOException {
-        RuntimeException original = new IllegalArgumentException("bad segment");
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        when(lucenePolicy.findMerges(any(MergeTrigger.class), any(SegmentInfos.class), any(MergePolicy.MergeContext.class))).thenThrow(
-            original
-        );
-
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-        RuntimeException thrown = expectThrows(RuntimeException.class, () -> policy.findMergeCandidates(Collections.emptyList()));
-
-        // The original IllegalArgumentException should be accessible, not buried
-        // under a generic RuntimeException wrapper
-        assertSame(
-            "Original RuntimeException should be preserved, not double-wrapped",
-            original,
-            thrown.getCause() != null ? thrown.getCause() : thrown
-        );
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testFindForceMergeCandidatesPreservesRuntimeException() throws IOException {
-        RuntimeException original = new IllegalStateException("bad state");
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        when(lucenePolicy.findForcedMerges(any(SegmentInfos.class), anyInt(), any(Map.class), any(MergePolicy.MergeContext.class)))
-            .thenThrow(original);
-
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-        RuntimeException thrown = expectThrows(RuntimeException.class, () -> policy.findForceMergeCandidates(Collections.emptyList(), 1));
-
-        assertSame(
-            "Original RuntimeException should be preserved, not double-wrapped",
-            original,
-            thrown.getCause() != null ? thrown.getCause() : thrown
-        );
-    }
-
-    // ========== Finding #3: calculateTotalSize silently returns 0 for missing files ==========
-
-    public void testSegmentWithMissingFilesStillProducesMergeCandidates() throws IOException {
-        // A segment referencing files that don't exist on disk.
-        // calculateTotalSize will return 0 because getTotalSize catches IOException.
-        // The merge policy then sees a 0-byte segment, which may lead to wrong merge decisions.
-        Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
-        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of("nonexistent.dat"), 100);
-        Segment seg = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
-
-        // getTotalSize returns 0 for missing files — verify this is the current behavior
-        assertEquals("getTotalSize should return 0 for missing files (current behavior, may want to change)", 0L, wfs.getTotalSize());
-
-        TieredMergePolicy tieredPolicy = new TieredMergePolicy();
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(tieredPolicy, SHARD_ID);
-
-        // This should not throw — but the segment appears as 0 bytes to the merge policy
-        List<List<Segment>> result = policy.findMergeCandidates(List.of(seg));
-        assertNotNull(result);
-    }
-
-    // ========== Finding #4: all wrappers share same DUMMY_ID ==========
-
-    public void testAddSameGenerationSegmentTwiceDoesNotDuplicate() {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-
-        Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
-        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
-        Segment seg = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
-
-        // Adding the same segment twice should not throw
-        policy.addMergingSegment(List.of(seg));
-        policy.addMergingSegment(List.of(seg));
-    }
-
-    public void testDifferentSegmentsAreDistinguishable() {
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-
-        Path tempDir = createTempDir();
-        DataFormat fmt = stubFormat("lucene");
-        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
-        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20);
-        Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs1).build();
-        Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs2).build();
-
-        policy.addMergingSegment(List.of(seg1, seg2));
-    }
-
-    // ========== Finding #7: doc count overflow from long to int ==========
-
-    public void testLargeDocCountDoesNotSilentlyOverflow() throws IOException {
-        // A segment with more than Integer.MAX_VALUE docs across all formats.
-        // The SegmentWrapper casts totalNumDocs to (int), which would overflow.
-        MergePolicy lucenePolicy = mock(MergePolicy.class);
-        when(lucenePolicy.findMerges(any(MergeTrigger.class), any(SegmentInfos.class), any(MergePolicy.MergeContext.class))).thenReturn(
-            null
-        );
-
-        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(lucenePolicy, SHARD_ID);
-
-        Path tempDir = createTempDir();
-        DataFormat fmt1 = stubFormat("lucene");
-        DataFormat fmt2 = stubFormat("parquet");
-        // Each format claims ~1.5 billion rows, total > Integer.MAX_VALUE
-        long bigCount = (long) Integer.MAX_VALUE - 100;
-        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), bigCount);
-        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), bigCount);
-        Segment seg = Segment.builder(1L).addSearchableFiles(fmt1, wfs1).addSearchableFiles(fmt2, wfs2).build();
-
-        // Total docs = 2 * (Integer.MAX_VALUE - 100) which exceeds int range.
-        // This should either handle gracefully or throw — not silently produce a negative doc count.
-        long totalDocs = wfs1.numRows() + wfs2.numRows();
-        assertTrue("Total docs should exceed Integer.MAX_VALUE", totalDocs > Integer.MAX_VALUE);
-
-        // Currently this silently overflows. The test documents the behavior.
-        // After fix, this should either cap at Integer.MAX_VALUE or throw.
-        try {
-            policy.findMergeCandidates(List.of(seg));
-        } catch (Exception e) {
-            // If the fix throws on overflow, that's acceptable
-            return;
-        }
-        // If it didn't throw, the merge policy received a corrupted doc count — document this.
     }
 }

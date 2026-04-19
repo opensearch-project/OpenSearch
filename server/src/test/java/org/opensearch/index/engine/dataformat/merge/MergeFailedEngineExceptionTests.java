@@ -8,9 +8,9 @@
 
 package org.opensearch.index.engine.dataformat.merge;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.engine.EngineException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -29,6 +29,6 @@ public class MergeFailedEngineExceptionTests extends OpenSearchTestCase {
         assertSame(cause, exception.getCause());
         assertTrue(exception.getMessage().contains("Merge failed"));
         assertEquals(shardId, exception.getShardId());
-        assertTrue(exception instanceof EngineException);
+        assertTrue(exception instanceof OpenSearchException);
     }
 }

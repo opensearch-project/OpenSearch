@@ -18,7 +18,6 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
-import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.store.FormatChecksumStrategy;
@@ -29,7 +28,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Sandbox plugin that provides a {@link CompositeIndexingExecutionEngine} for
@@ -90,22 +88,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
     @Override
     public DataFormat getDataFormat() {
         // TODO: Dataformat for Composite is per index, while this one talks about cluster level. Switching it off for now
-        return new CompositeDataFormat(new DataFormat() {
-            @Override
-            public String name() {
-                return "composite";
-            }
-
-            @Override
-            public long priority() {
-                return Long.MIN_VALUE;
-            }
-
-            @Override
-            public Set<FieldTypeCapabilities> supportedFields() {
-                return Set.of();
-            }
-        }, List.of());
+        return new CompositeDataFormat();
     }
 
     @Override

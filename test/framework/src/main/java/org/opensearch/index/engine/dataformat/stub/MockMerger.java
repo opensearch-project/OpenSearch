@@ -13,9 +13,11 @@ import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +36,10 @@ public class MockMerger implements Merger {
 
     @Override
     public MergeResult merge(MergeInput mergeInput) {
-        List<WriterFileSet> fileMetadataList = mergeInput.writerFiles();
+        List<WriterFileSet> fileMetadataList = new ArrayList<>();
+        for (Segment segment : mergeInput.segments()) {
+            fileMetadataList.addAll(segment.dfGroupedSearchableFiles().values());
+        }
         long newWriterGeneration = mergeInput.newWriterGeneration();
         RowIdMapping existingMapping = mergeInput.rowIdMapping();
 

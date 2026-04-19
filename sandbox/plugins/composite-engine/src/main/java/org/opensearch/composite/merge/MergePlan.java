@@ -28,12 +28,9 @@ import java.util.Set;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergePlan(
-    long mergedWriterGeneration,
-    DataFormat primaryFormat,
-    List<DataFormat> secondaryFormats,
-    Map<DataFormat, List<WriterFileSet>> filesByFormat
-) {
+public record MergePlan(long mergedWriterGeneration, DataFormat primaryFormat, List<DataFormat> secondaryFormats, Map<
+    DataFormat,
+    List<WriterFileSet>> filesByFormat) {
 
     public MergePlan {
         secondaryFormats = List.copyOf(secondaryFormats);
@@ -53,12 +50,7 @@ public record MergePlan(
     /**
      * Builds a plan from a merge operation, a primary format, secondary formats, and a generation.
      */
-    public static MergePlan from(
-        OneMerge oneMerge,
-        DataFormat primaryFormat,
-        List<DataFormat> secondaryFormats,
-        long generation
-    ) {
+    public static MergePlan from(OneMerge oneMerge, DataFormat primaryFormat, List<DataFormat> secondaryFormats, long generation) {
         Set<DataFormat> allFormats = new LinkedHashSet<>();
         allFormats.add(primaryFormat);
         allFormats.addAll(secondaryFormats);

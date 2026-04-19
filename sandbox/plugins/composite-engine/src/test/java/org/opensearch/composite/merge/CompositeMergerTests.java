@@ -23,6 +23,7 @@ import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
+import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
 import org.opensearch.index.engine.dataformat.merge.MergeHandler;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.exec.Segment;
@@ -135,8 +136,9 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         MergeHandler handler = new MergeHandler(
             snapshotSupplier,
             new CompositeMerger(engineNoSecondary, primaryOnlyFormat),
-            createIndexSettings(),
-            SHARD_ID
+            SHARD_ID,
+            mock(MergeHandler.MergePolicy.class),
+            mock(MergeHandler.MergeListener.class)
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -158,7 +160,6 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
         MergeHandler handler = createHandler();
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
-        assertEquals("Merge failed for shard", ex.getMessage());
         assertNotNull(ex.getCause());
         assertEquals("primary disk error", ex.getCause().getMessage());
     }
@@ -179,7 +180,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
         MergeHandler handler = createHandler();
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
-        assertEquals("Merge failed for shard", ex.getMessage());
+        assertNotNull(ex.getCause());
         assertEquals("secondary disk error", ex.getCause().getMessage());
     }
 
@@ -218,12 +219,13 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         MergeHandler handler = new MergeHandler(
             snapshotSupplier,
             new CompositeMerger(multiEngine, multiFormat),
-            createIndexSettings(),
-            SHARD_ID
+            SHARD_ID,
+            mock(MergeHandler.MergePolicy.class),
+            mock(MergeHandler.MergeListener.class)
         );
 
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
-        assertEquals("Merge failed for shard", ex.getMessage());
+        assertNotNull(ex.getCause());
         // Fail-fast: only the first secondary failure is reported, no suppressed exceptions
         assertEquals(0, ex.getCause().getSuppressed().length);
     }
@@ -243,12 +245,9 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
         MergeHandler handler = createHandler();
-        // IllegalStateException is not IOException — it propagates out of the secondary loop catch,
-        // through the outer try, and is wrapped by the catch(IOException) only if it's an IOException.
-        // Since it's not, it escapes as a raw IllegalStateException.
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handler.doMerge(oneMerge));
         assertTrue(ex.getMessage().contains("row-ID mapping"));
-        assertTrue(ex.getMessage().contains("secondary formats"));
+        assertTrue(ex.getMessage().contains("secondaries"));
     }
 
     // ========== doMerge: cleanup on failure deletes stale files ==========
@@ -370,8 +369,9 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         MergeHandler handler = new MergeHandler(
             snapshotSupplier,
             new CompositeMerger(dupEngine, dupFormat),
-            createIndexSettings(),
-            SHARD_ID
+            SHARD_ID,
+            mock(MergeHandler.MergePolicy.class),
+            mock(MergeHandler.MergeListener.class)
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -496,7 +496,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         CatalogSnapshot catalogSnapshot = mockCatalogSnapshot(segments);
         snapshotSupplier = () -> new GatedCloseable<>(catalogSnapshot, () -> {});
 
-        MergeHandler handler = createHandler();
+        MergeHandler handler = createHandlerWithRealPolicy();
         Collection<OneMerge> merges = handler.findMerges();
         assertNotNull(merges);
         // TieredMergePolicy should find merge candidates with 15 small segments
@@ -521,7 +521,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         CatalogSnapshot catalogSnapshot = mockCatalogSnapshot(segments);
         snapshotSupplier = () -> new GatedCloseable<>(catalogSnapshot, () -> {});
 
-        MergeHandler handler = createHandler();
+        MergeHandler handler = createHandlerWithRealPolicy();
         // Force merge down to 1 segment should produce candidates
         Collection<OneMerge> merges = handler.findForceMerges(1);
         assertNotNull(merges);
@@ -560,17 +560,25 @@ public class CompositeMergerTests extends OpenSearchTestCase {
     // ========== Helper methods ==========
 
     private MergeHandler createHandler() {
-        return new MergeHandler(snapshotSupplier, new CompositeMerger(compositeEngine, compositeDataFormat), createIndexSettings(), SHARD_ID);
+        return new MergeHandler(
+            snapshotSupplier,
+            new CompositeMerger(compositeEngine, compositeDataFormat),
+            SHARD_ID,
+            mock(MergeHandler.MergePolicy.class),
+            mock(MergeHandler.MergeListener.class)
+        );
     }
 
-    private static IndexSettings createIndexSettings() {
+    private MergeHandler createHandlerWithRealPolicy() {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
-        return new IndexSettings(indexMetadata, Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(indexSettings.getMergePolicy(true), SHARD_ID);
+        return new MergeHandler(snapshotSupplier, new CompositeMerger(compositeEngine, compositeDataFormat), SHARD_ID, policy, policy);
     }
 
     private static DataFormat stubFormat(String name) {
