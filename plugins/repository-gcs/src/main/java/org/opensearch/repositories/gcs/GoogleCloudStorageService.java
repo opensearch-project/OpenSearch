@@ -304,22 +304,25 @@ public class GoogleCloudStorageService {
 
     private KeyStore createFipsCompliantGoogleTrustStore() throws GeneralSecurityException, IOException {
         // Use BCFKS KeyStore type which is required for FIPS mode
-        KeyStore trustStore = KeyStore.getInstance("BCFIPS", "BCFIPS");
-        // Initialize empty BCFKS trust store
+        KeyStore trustStore = KeyStore.getInstance("BCFKS", "BCFIPS");
         trustStore.load(null, null);
 
-        // Load Google's built-in default trust store
-        KeyStore googleDefaultStore = GoogleUtils.getCertificateTrustStore();
-        Enumeration<String> aliases = googleDefaultStore.aliases();
+        // Load Google's built-in default trust store and copy its certificates into BCFKS.
+        KeyStore googleDefaultStore = KeyStore.getInstance("JKS", "SUN");
+        try (var trustStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
+            if (trustStoreStream == null) {
+                throw new IOException("Google truststore resource [google.jks] not found");
+            }
+            SecurityUtils.loadKeyStore(googleDefaultStore, trustStoreStream, "notasecret");
+        }
 
-        // Copy all certificate entries into the FIPS-compliant BCFKS trust store
+        Enumeration<String> aliases = googleDefaultStore.aliases();
         while (aliases.hasMoreElements()) {
             String alias = aliases.nextElement();
             if (googleDefaultStore.isCertificateEntry(alias)) {
                 trustStore.setCertificateEntry(alias, googleDefaultStore.getCertificate(alias));
             }
         }
-
         return trustStore;
     }
 }
