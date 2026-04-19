@@ -94,6 +94,7 @@ import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactor
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -824,6 +825,7 @@ public final class IndexModule {
             indicesQueryCache,
             mapperRegistry,
             indicesFieldDataCache,
+            null,
             namedWriteableRegistry,
             idFieldDataEnabled,
             valuesSourceRegistry,
@@ -843,7 +845,7 @@ public final class IndexModule {
     }
 
     /**
-     * @deprecated Use the overload that accepts a {@code dataFormatRegistry} parameter.
+     * @deprecated Use the overload that accepts {@code indicesBitsetFilterCache} and {@code dataFormatRegistry} parameters.
      */
     @Deprecated(forRemoval = true)
     public IndexService newIndexService(
@@ -881,6 +883,79 @@ public final class IndexModule {
             DataFormatAwareEngineFactory,
             IOException> dataFormatAwareEngineFactorySupplier
     ) throws IOException {
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            null,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            replicator,
+            segmentReplicationStatsProvider,
+            clusterDefaultMaxMergeAtOnceSupplier,
+            clusterMergeSchedulerConfig,
+            (DataFormatRegistry) null
+        );
+    }
+
+    /**
+     * @deprecated Use the overload that accepts a {@code dataFormatRegistry} parameter.
+     */
+    @Deprecated(forRemoval = true)
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        CheckedTriFunction<
+            ShardPath,
+            MapperService,
+            IndexSettings,
+            DataFormatAwareEngineFactory,
+            IOException> dataFormatAwareEngineFactorySupplier
+    ) throws IOException {
 
         return newIndexService(
             indexCreationContext,
@@ -896,6 +971,7 @@ public final class IndexModule {
             indicesQueryCache,
             mapperRegistry,
             indicesFieldDataCache,
+            indicesBitsetFilterCache,
             namedWriteableRegistry,
             idFieldDataEnabled,
             valuesSourceRegistry,
@@ -928,6 +1004,7 @@ public final class IndexModule {
         IndicesQueryCache indicesQueryCache,
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
@@ -1000,6 +1077,7 @@ public final class IndexModule {
                 readerWrapperFactory,
                 mapperRegistry,
                 indicesFieldDataCache,
+                indicesBitsetFilterCache,
                 searchOperationListeners,
                 indexOperationListeners,
                 namedWriteableRegistry,
