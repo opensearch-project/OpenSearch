@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
+import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -97,6 +98,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             .memoryPoolLimit(memoryPoolLimit)
             .spillMemoryLimit(spillMemoryLimit)
             .spillDirectory(spillDir)
+            .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
@@ -164,5 +166,19 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         if (dataFusionService != null) {
             dataFusionService.close();
         }
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(
+            DATAFUSION_MEMORY_POOL_LIMIT,
+            DATAFUSION_SPILL_MEMORY_LIMIT,
+            CacheSettings.METADATA_CACHE_SIZE_LIMIT,
+            CacheSettings.STATISTICS_CACHE_SIZE_LIMIT,
+            CacheSettings.METADATA_CACHE_EVICTION_TYPE,
+            CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
+            CacheSettings.METADATA_CACHE_ENABLED,
+            CacheSettings.STATISTICS_CACHE_ENABLED
+        );
     }
 }
