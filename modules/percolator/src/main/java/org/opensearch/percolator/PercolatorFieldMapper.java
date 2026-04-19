@@ -125,7 +125,10 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), queryShardContext).init(this);
+        Builder builder = new Builder(simpleName(), queryShardContext);
+        builder.init(this);
+        builder.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
+        return builder;
     }
 
     static class Builder extends ParametrizedFieldMapper.Builder {
@@ -133,6 +136,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Supplier<QueryShardContext> queryShardContext;
+        private boolean mapUnmappedFieldsAsText;
 
         Builder(String fieldName, Supplier<QueryShardContext> queryShardContext) {
             super(fieldName);
@@ -178,7 +182,10 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        private static boolean getMapUnmappedFieldAsText(Settings indexSettings) {
+        private boolean getMapUnmappedFieldAsText(Settings indexSettings) {
+            if (indexSettings.isEmpty()) {
+                return mapUnmappedFieldsAsText;
+            }
             return INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.get(indexSettings);
         }
 
