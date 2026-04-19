@@ -32,10 +32,6 @@
 
 package org.opensearch.bootstrap;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import joptsimple.OptionSpecBuilder;
-import joptsimple.util.PathConverter;
 import org.opensearch.Build;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
@@ -49,38 +45,46 @@ import org.opensearch.node.NodeValidationException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.Security;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
 /**
- * This class starts opensearch.
+ * Starts OpenSearch.
  *
  * @opensearch.internal
  */
+@Command(name = "opensearch", description = "Starts OpenSearch", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 class OpenSearch extends EnvironmentAwareCommand {
 
-    private final OptionSpecBuilder versionOption;
-    private final OptionSpecBuilder daemonizeOption;
-    private final OptionSpec<Path> pidfileOption;
-    private final OptionSpecBuilder quietOption;
+    @Option(names = { "-V", "--version" }, description = "Prints OpenSearch version information and exits")
+    boolean printVersion;
+
+    @Option(names = { "-d", "--daemonize" }, description = "Starts OpenSearch in the background")
+    boolean daemonize;
+
+    @Option(names = { "-p", "--pidfile" }, paramLabel = "PATH", description = "Creates a pid file in the specified path on start")
+    Path pidFile;
+
+    @Option(names = { "-q", "--quiet" }, description = "Turns off standard output/error streams logging in console")
+    boolean quiet;
+
+    // collect any unexpected positionals so we can reproduce the original error message
+    @Parameters(arity = "0..*", hidden = true)
+    List<String> positionals = new ArrayList<>();
 
     // visible for testing
     OpenSearch() {
-        super("Starts OpenSearch", () -> {}); // we configure logging later so we override the base class from configuring logging
-        versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints OpenSearch version information and exits");
-        daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts OpenSearch in the background")
-            .availableUnless(versionOption);
-        pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"), "Creates a pid file in the specified path on start")
-            .availableUnless(versionOption)
-            .withRequiredArg()
-            .withValuesConvertedBy(new PathConverter());
-        quietOption = parser.acceptsAll(Arrays.asList("q", "quiet"), "Turns off standard output/error streams logging in console")
-            .availableUnless(versionOption)
-            .availableUnless(daemonizeOption);
+        // We configure logging later, so disable the default logging setup by passing a no-op beforeMain.
+        super("Starts OpenSearch", () -> {});
     }
 
     /**
-     * Main entry point for starting opensearch
+     * Main entry point for starting OpenSearch.
      */
     @SuppressWarnings("removal")
     public static void main(final String[] args) throws Exception {
@@ -126,11 +130,12 @@ class OpenSearch extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws UserException {
-        if (options.nonOptionArguments().isEmpty() == false) {
-            throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
+    protected void execute(final Terminal terminal, final Environment env) throws UserException {
+        if (positionals.isEmpty() == false) {
+            throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + positionals);
         }
-        if (options.has(versionOption)) {
+
+        if (printVersion) {
             final String versionOutput = String.format(
                 Locale.ROOT,
                 "Version: %s, Build: %s/%s/%s, JVM: %s",
@@ -143,10 +148,6 @@ class OpenSearch extends EnvironmentAwareCommand {
             terminal.println(versionOutput);
             return;
         }
-
-        final boolean daemonize = options.has(daemonizeOption);
-        final Path pidFile = pidfileOption.value(options);
-        final boolean quiet = options.has(quietOption);
 
         // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
         try {
@@ -162,8 +163,8 @@ class OpenSearch extends EnvironmentAwareCommand {
         }
     }
 
-    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) throws NodeValidationException,
-        UserException {
+    void init(final boolean daemonize, final Path pidFile, final boolean quiet, final Environment initialEnv)
+        throws NodeValidationException, UserException {
         try {
             Bootstrap.init(!daemonize, pidFile, quiet, initialEnv);
         } catch (BootstrapException | RuntimeException e) {
@@ -185,5 +186,4 @@ class OpenSearch extends EnvironmentAwareCommand {
     static void close(String[] args) throws IOException {
         Bootstrap.stop();
     }
-
 }
