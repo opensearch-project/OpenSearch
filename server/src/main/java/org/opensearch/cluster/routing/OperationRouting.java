@@ -33,6 +33,7 @@
 package org.opensearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.VirtualShardRoutingHelper;
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -279,6 +281,29 @@ public class OperationRouting {
                 if (indexMetadataForShard.getNumberOfSearchOnlyReplicas() > 0 && isStrictSearchOnlyShardRouting) {
                     preference = Preference.SEARCH_REPLICA.type();
                 }
+            }
+
+            if (indexMetadataForShard.getNumberOfSearchOnlyReplicas() == 0 && (Preference.SEARCH_REPLICA.type().equals(preference))) {
+                throw new NoShardAvailableActionException(
+                    null,
+                    String.format(
+                        Locale.ROOT,
+                        "Strictly require querying search only shards, but the number of search only replicas for index %s is 0",
+                        indexMetadataForShard.getIndex().getName()
+                    )
+                );
+            }
+
+            if (indexMetadataForShard.getNumberOfSearchOnlyReplicas() == 0
+                && indexMetadataForShard.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
+                throw new NoShardAvailableActionException(
+                    null,
+                    String.format(
+                        Locale.ROOT,
+                        "The index %s is in the scale down state, and the number of search only shards is 0",
+                        indexMetadataForShard.getIndex().getName()
+                    )
+                );
             }
 
             ShardIterator iterator = preferenceActiveShardIterator(
