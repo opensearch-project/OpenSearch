@@ -9,18 +9,21 @@ package org.opensearch.transport.grpc.proto.request.search;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.Rescore;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.protobufs.TrackHits;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
+import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistry;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
@@ -32,7 +35,6 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
 
 /**
  * Utility class for converting SearchSourceBuilder Protocol Buffers to objects
- *
  */
 public class SearchSourceBuilderProtoUtils {
 
@@ -41,21 +43,23 @@ public class SearchSourceBuilderProtoUtils {
     }
 
     /**
-     * Parses a protobuf SearchRequestBody into a SearchSourceBuilder using an instance-based query utils.
+     * Parses a protobuf SearchRequestBody into a SearchSourceBuilder using instance-based utilities.
      * This method is equivalent to {@link SearchSourceBuilder#parseXContent(XContentParser, boolean)}
      *
      * @param searchSourceBuilder The SearchSourceBuilder to populate
      * @param protoRequest The Protocol Buffer SearchRequest to parse
      * @param queryUtils The query utils instance to use for parsing queries
+     * @param aggregationRegistry The aggregation registry to use for parsing aggregations
      * @throws IOException if there's an error during parsing
      */
     public static void parseProto(
         SearchSourceBuilder searchSourceBuilder,
         SearchRequestBody protoRequest,
-        AbstractQueryBuilderProtoUtils queryUtils
+        AbstractQueryBuilderProtoUtils queryUtils,
+        AggregationBuilderProtoConverterRegistry aggregationRegistry
     ) throws IOException {
         // Parse all non-query fields
-        parseNonQueryFields(searchSourceBuilder, protoRequest, queryUtils.getRegistry());
+        parseNonQueryFields(searchSourceBuilder, protoRequest, queryUtils.getRegistry(), aggregationRegistry);
 
         // Handle queries using the instance-based approach
         if (protoRequest.hasQuery()) {
@@ -72,7 +76,8 @@ public class SearchSourceBuilderProtoUtils {
     private static void parseNonQueryFields(
         SearchSourceBuilder searchSourceBuilder,
         SearchRequestBody protoRequest,
-        QueryBuilderProtoConverterRegistry registry
+        QueryBuilderProtoConverterRegistry queryRegistry,
+        AggregationBuilderProtoConverterRegistry aggregationRegistry
     ) throws IOException {
         // TODO what to do about parser.getDeprecationHandler() for protos?
 
@@ -122,7 +127,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.storedFields(StoredFieldsContextProtoUtils.fromProto(protoRequest.getStoredFieldsList()));
         }
         if (protoRequest.getSortCount() > 0) {
-            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList(), registry)) {
+            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList(), queryRegistry)) {
                 searchSourceBuilder.sort(sortBuilder);
             }
         }
@@ -152,15 +157,15 @@ public class SearchSourceBuilderProtoUtils {
             }
         }
 
-        // Aggregations field was removed in protobufs 1.0.0
-        // TODO: Support aggregations when they are re-added to the proto
-        /*
-        if (protoRequest.getAggregationsCount() > 0) {
-            throw new UnsupportedOperationException("aggregations param is not supported yet");
+        // Parse aggregations from protobuf
+        for (Map.Entry<String, AggregationContainer> entry : protoRequest.getAggregationsMap().entrySet()) {
+            String aggName = entry.getKey();
+            AggregationBuilder aggBuilder = aggregationRegistry.fromProto(aggName, entry.getValue());
+            searchSourceBuilder.aggregation(aggBuilder);
         }
-        */
+
         if (protoRequest.hasHighlight()) {
-            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), registry));
+            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), queryRegistry));
         }
 
         // TODO support suggest once added back to the protos
@@ -184,7 +189,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.slice(SliceBuilderProtoUtils.fromProto(protoRequest.getSlice()));
         }
         if (protoRequest.hasCollapse()) {
-            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse(), registry));
+            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse(), queryRegistry));
         }
         if (protoRequest.hasPit()) {
             searchSourceBuilder.pointInTimeBuilder(PointInTimeBuilderProtoUtils.fromProto(protoRequest.getPit()));
@@ -195,7 +200,8 @@ public class SearchSourceBuilderProtoUtils {
                 DerivedField derivedFieldProto = entry.getValue();
 
                 // Convert protobuf DerivedField to OpenSearch DerivedField using the REST side pattern
-                // This uses simple constructor + conditional setters (matches DerivedFieldMapper.Builder.build())
+                // This uses simple constructor + conditional setters (matches {@link
+                // org.opensearch.index.mapper.DerivedFieldMapper.Builder#build()})
                 org.opensearch.index.mapper.DerivedField derivedField = DerivedFieldProtoUtils.fromProto(name, derivedFieldProto);
 
                 // Add to SearchSourceBuilder - check if any optional fields are set to choose the right method
