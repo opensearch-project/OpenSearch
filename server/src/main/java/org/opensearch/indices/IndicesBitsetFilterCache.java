@@ -64,7 +64,7 @@ import java.util.function.ToLongBiFunction;
 /**
  * Node-level cache for {@link BitSet} based filters. Manages a single flat cache shared across
  * all indices on the node, with a configurable size limit and async stale entry cleanup.
- * Stale entries from closed readers are purged periodically by a background cleaner task.
+ * Stale entries from closed readers are purged periodically by a background cleanup task.
  *
  * @opensearch.api
  */
