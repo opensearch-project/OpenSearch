@@ -40,6 +40,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
+import org.opensearch.action.support.indexmetadatacoordinator.TransportIndexMetadataCoordinatorAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -80,7 +81,7 @@ import static java.util.Collections.unmodifiableList;
  *
  * @opensearch.internal
  */
-public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAction<IndicesAliasesRequest, AcknowledgedResponse>
+public class TransportIndicesAliasesAction extends TransportIndexMetadataCoordinatorAction<IndicesAliasesRequest, AcknowledgedResponse>
     implements
         TransportIndicesResolvingAction<IndicesAliasesRequest> {
 
@@ -124,21 +125,7 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
     }
 
     @Override
-    protected ClusterBlockException checkBlock(IndicesAliasesRequest request, ClusterState state) {
-        Set<String> indices = new HashSet<>();
-        for (IndicesAliasesRequest.AliasActions aliasAction : request.aliasActions()) {
-            Collections.addAll(indices, aliasAction.indices());
-        }
-        return ClusterBlocks.indicesWithRemoteSnapshotBlockedException(indices, state);
-    }
-
-    @Override
-    protected void clusterManagerOperation(
-        final IndicesAliasesRequest request,
-        final ClusterState state,
-        final ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
-
+    protected void indexMetadataCoordinatorOperation(IndicesAliasesRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) throws Exception {
         // Expand the indices names
         List<IndicesAliasesRequest.AliasActions> actions = request.aliasActions();
         List<AliasAction> finalActions = resolvedAliasActions(request, state, true);
@@ -164,6 +151,15 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
                 listener.onFailure(t);
             }
         });
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(IndicesAliasesRequest request, ClusterState state) {
+        Set<String> indices = new HashSet<>();
+        for (IndicesAliasesRequest.AliasActions aliasAction : request.aliasActions()) {
+            Collections.addAll(indices, aliasAction.indices());
+        }
+        return ClusterBlocks.indicesWithRemoteSnapshotBlockedException(indices, state);
     }
 
     @Override

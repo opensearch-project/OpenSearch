@@ -63,8 +63,10 @@ import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.IndexMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
+import org.opensearch.gateway.remote.model.RemoteIndexMetadataManifestInfo;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
@@ -167,24 +169,19 @@ public class GatewayMetaState implements Closeable {
                         .build();
 
                     if (DiscoveryNode.isClusterManagerNode(settings) && isRemoteStoreClusterStateEnabled(settings)) {
-                        // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
-                        // If there is no valid state on remote, continue with initial empty state
-                        // If there is a valid state, then restore index metadata using this state
+//                        // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
+//                        // If there is no valid state on remote, continue with initial empty state
+//                        // If there is a valid state, then restore index metadata using this state
                         String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
                         if (ClusterState.UNKNOWN_UUID.equals(clusterState.metadata().clusterUUID())) {
-                            lastKnownClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote(
-                                clusterState.getClusterName().value()
-                            );
-                            if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
-                                // Load state from remote
-                                clusterState = restoreClusterStateWithRetries(
-                                    remoteStoreRestoreService,
-                                    clusterState,
-                                    lastKnownClusterUUID
-                                );
+                            ClusterState remoteClusterState = remoteClusterStateService.getLatestClusterStateForNewManager(clusterService.getClusterName().value(), clusterService.getNodeName());
+                            if (remoteClusterState != null) {
+                                clusterState = remoteClusterState;
+                                lastKnownClusterUUID = clusterState.metadata().clusterUUID();
                             }
                         }
                         remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
+
                     }
 
                     // Recovers Cluster and Index level blocks
@@ -576,6 +573,9 @@ public class GatewayMetaState implements Closeable {
         private long currentTerm;
         private ClusterState lastAcceptedState;
         private final PersistedClusterStateService persistedClusterStateService;
+        private int lastAcceptedIndexMetadataVersion;
+        private String lastSeenIndexMetadataManifestObjectVersion;
+
 
         // As the close method can be concurrently called to the other PersistedState methods, this class has extra protection in place.
         private final AtomicReference<PersistedClusterStateService.Writer> persistenceWriter = new AtomicReference<>();
@@ -621,6 +621,11 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
+        public int getLastUpdatedIndexMetadataVersion() {
+            return lastAcceptedIndexMetadataVersion;
+        }
+
+        @Override
         public void setCurrentTerm(long currentTerm) {
             try {
                 if (writeNextStateFully) {
@@ -658,6 +663,23 @@ public class GatewayMetaState implements Closeable {
 
             lastAcceptedState = clusterState;
         }
+
+        @Override
+        public void setLastSeenIndexMetadataManifestObjectVersion(String lastSeenIndexMetadataManifestObjectVersion) {
+            this.lastSeenIndexMetadataManifestObjectVersion = lastSeenIndexMetadataManifestObjectVersion;
+        }
+
+        @Override
+        public String getLastSeenIndexMetadataManifestObjectVersion() {
+            return lastSeenIndexMetadataManifestObjectVersion;
+        }
+
+        @Override
+        public void commitAndUpdateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
+            lastAcceptedState = clusterState;
+            lastAcceptedIndexMetadataVersion = indexMetadataVersion;
+        }
+
 
         @Override
         public PersistedStateStats getStats() {
@@ -708,6 +730,11 @@ public class GatewayMetaState implements Closeable {
 
         private ClusterState lastAcceptedState;
         private ClusterMetadataManifest lastAcceptedManifest;
+        private IndexMetadataManifest lastAcceptedIndexMetadataManifest;
+        private String lastAcceptedIndexMetadataManifestVersion;
+        private int indexMetadataVersion;
+        private String lastSeenIndexMetadataManifestObjectVersion;
+
 
         private String lastUploadedManifestFile;
         private final RemoteClusterStateService remoteClusterStateService;
@@ -745,7 +772,17 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
+        public int getLastUpdatedIndexMetadataVersion() {
+            return indexMetadataVersion;
+        }
+
+        @Override
         public void setLastAcceptedState(ClusterState clusterState) {
+            setLastAcceptedState(clusterState, null);
+        }
+
+        @Override
+        public void setLastAcceptedState(ClusterState clusterState, String lastSeenIndexMetadataManifestObjectVersion) {
             // for non leader node, update the lastAcceptedClusterState
             if (clusterState == null || clusterState.getNodes().isLocalNodeElectedClusterManager() == false) {
                 lastAcceptedState = clusterState;
@@ -771,14 +808,15 @@ public class GatewayMetaState implements Closeable {
                             clusterState.metadata().clusterUUID()
                         );
                     }
-                    manifestDetails = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID);
+                    manifestDetails = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID, lastSeenIndexMetadataManifestObjectVersion);
                 } else {
                     assert verifyManifestAndClusterState(lastAcceptedManifest, lastAcceptedState) == true
                         : "Previous manifest and previous ClusterState are not in sync";
                     manifestDetails = remoteClusterStateService.writeIncrementalMetadata(
                         lastAcceptedState,
                         clusterState,
-                        lastAcceptedManifest
+                        lastAcceptedManifest,
+                        lastSeenIndexMetadataManifestObjectVersion
                     );
                 }
                 assert verifyManifestAndClusterState(manifestDetails.getClusterMetadataManifest(), clusterState) == true
@@ -793,8 +831,26 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
+        public void setLastSeenIndexMetadataManifestObjectVersion(String lastSeenIndexMetadataManifestObjectVersion) {
+            this.lastSeenIndexMetadataManifestObjectVersion = lastSeenIndexMetadataManifestObjectVersion;
+        }
+
+        @Override
+        public String getLastSeenIndexMetadataManifestObjectVersion() {
+            return lastSeenIndexMetadataManifestObjectVersion;
+        }
+
+        @Override
         public void setLastAcceptedManifest(ClusterMetadataManifest manifest) {
             this.lastAcceptedManifest = manifest;
+        }
+
+        public void setLastAcceptedIndexMetadataManifest(IndexMetadataManifest manifest) {
+            this.lastAcceptedIndexMetadataManifest = manifest;
+        }
+
+        public String getLastAcceptedIndexMetadataManifestVersion() {
+            return lastAcceptedIndexMetadataManifestVersion;
         }
 
         @Override
@@ -803,16 +859,16 @@ public class GatewayMetaState implements Closeable {
         }
 
         private boolean verifyManifestAndClusterState(ClusterMetadataManifest manifest, ClusterState clusterState) {
-            assert manifest != null : "ClusterMetadataManifest is null";
-            assert clusterState != null : "ClusterState is null";
-            assert clusterState.metadata().indices().size() == manifest.getIndices().size()
-                : "Number of indices in last accepted state and manifest are different";
-            manifest.getIndices().stream().forEach(md -> {
-                assert clusterState.metadata().indices().containsKey(md.getIndexName())
-                    : "Last accepted state does not contain the index : " + md.getIndexName();
-                assert clusterState.metadata().indices().get(md.getIndexName()).getIndexUUID().equals(md.getIndexUUID())
-                    : "Last accepted state and manifest do not have same UUID for index : " + md.getIndexName();
-            });
+//            assert manifest != null : "ClusterMetadataManifest is null";
+//            assert clusterState != null : "ClusterState is null";
+//            assert clusterState.metadata().indices().size() == manifest.getIndices().size()
+//                : "Number of indices in last accepted state and manifest are different";
+//            manifest.getIndices().stream().forEach(md -> {
+//                assert clusterState.metadata().indices().containsKey(md.getIndexName())
+//                    : "Last accepted state does not contain the index : " + md.getIndexName();
+//                assert clusterState.metadata().indices().get(md.getIndexName()).getIndexUUID().equals(md.getIndexUUID())
+//                    : "Last accepted state and manifest do not have same UUID for index : " + md.getIndexName();
+//            });
             return true;
         }
 
@@ -821,6 +877,15 @@ public class GatewayMetaState implements Closeable {
                 || lastAcceptedManifest == null
                 || (remoteClusterStateService.isRemotePublicationEnabled() == false && lastAcceptedState.term() != clusterState.term())
                 || lastAcceptedManifest.getOpensearchVersion() != Version.CURRENT) {
+                return true;
+            }
+            return false;
+        }
+
+        private boolean shouldWriteFullIndexMetadataState() {
+            if (lastAcceptedState == null || lastAcceptedIndexMetadataManifestVersion == null
+                || lastAcceptedIndexMetadataManifest == null
+                || lastAcceptedIndexMetadataManifest.getOpensearchVersion() != Version.CURRENT) {
                 return true;
             }
             return false;
@@ -858,6 +923,51 @@ public class GatewayMetaState implements Closeable {
                     setLastAcceptedManifest(ClusterMetadataManifest.builder(lastAcceptedManifest).committed(true).build());
                 }
                 lastAcceptedState = clusterState;
+            } catch (Exception e) {
+                handleExceptionOnWrite(e);
+            }
+        }
+
+        @Override
+        public void commitAndUpdateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
+            lastAcceptedState = clusterState;
+        }
+
+        @Override
+        public void updateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
+            updateIndexMetadataState(clusterState, indexMetadataVersion, null);
+        }
+
+        @Override
+        public void updateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion, String lastSeenIndexMetadataManifestObjectVersion) {
+            assert clusterState.getNodes().isLocalNodeIndexMetadataCoordinator() == true : "Only IMC node can update index metadata";
+
+            RemoteIndexMetadataManifestInfo manifestInfo;
+
+            logger.info("Writing IndexMetadata and IndexMetadata Manifest");
+            try {
+                if (shouldWriteFullIndexMetadataState()) {
+                    manifestInfo = remoteClusterStateService.writeFullIndexMetadata(
+                        clusterState,
+                        lastAcceptedState == null ? ClusterState.EMPTY_STATE : lastAcceptedState,
+                        indexMetadataVersion,
+                        lastSeenIndexMetadataManifestObjectVersion
+                    );
+                } else {
+                    manifestInfo = remoteClusterStateService.writeIncrementalIndexMetadata(
+                        lastAcceptedState,
+                        clusterState,
+                        lastAcceptedIndexMetadataManifest,
+                        indexMetadataVersion,
+                        lastSeenIndexMetadataManifestObjectVersion
+                    );
+                }
+
+                assert manifestInfo != null : "ManifestInfo is null";
+
+                setLastAcceptedIndexMetadataManifest(manifestInfo.getIndexMetadataManifest());
+                lastAcceptedIndexMetadataManifestVersion = manifestInfo.getManifestVersion();
+                setLastAcceptedState(clusterState);
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
             }

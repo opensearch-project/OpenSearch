@@ -14,6 +14,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.versioned.VersionedInputStream;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
@@ -169,6 +170,48 @@ public interface TransferService {
      */
     @ExperimentalApi
     InputStreamWithMetadata downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException;
+
+    /**
+     *
+     * @param path  the remote path from where download should be made
+     * @param fileName the name of the file
+     * @return {@link VersionedInputStream} of the remote file
+     * @throws IOException the exception while reading the data
+     */
+    @ExperimentalApi
+    VersionedInputStream downloadVersionedBlob(Iterable<String> path, String fileName) throws IOException;
+
+    /**
+     * Reads the input stream and updates a blob conditionally such that the version matches as the previous version
+     * @param inputStream the stream to read from
+     * @param remotePath the remote path where upload should be made
+     * @param blobName the name of blob file
+     * @param Version the version of the blob to conditionally check before uploading
+     * @return String the version of the blob after the upload is complete
+     * @throws IOException the exception thrown while uploading
+     */
+    @ExperimentalApi
+    String conditionallyUpdateBlobWithVersion(
+        InputStream inputStream,
+        Iterable<String> remotePath,
+        String blobName,
+        String Version
+    ) throws IOException;
+
+    /**
+     * Reads the input stream and updates a blob conditionally such that the version matches as the previous version
+     * @param inputStream the stream to read from
+     * @param remotePath the remote path where upload should be made
+     * @param blobName the name of blob file
+     * @return String the version of the blob after the upload is complete
+     * @throws IOException the exception thrown while uploading
+     */
+    @ExperimentalApi
+    String writeVersionedBlob(
+        InputStream inputStream,
+        Iterable<String> remotePath,
+        String blobName
+    ) throws IOException;
 
     void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener);
 
