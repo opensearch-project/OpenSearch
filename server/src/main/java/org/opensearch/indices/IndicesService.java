@@ -378,6 +378,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesFieldDataCache indicesFieldDataCache;
+    private final IndicesBitsetFilterCache indicesBitsetFilterCache;
     private final CacheCleaner cacheCleaner;
     private final ThreadPool threadPool;
     private final CircuitBreakerService circuitBreakerService;
@@ -522,6 +523,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }, clusterService, threadPool);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
+        this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings, threadPool);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
 
@@ -1010,6 +1012,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexMetadata,
             indicesQueryCache,
             indicesFieldDataCache,
+            indicesBitsetFilterCache,
             finalListeners,
             indexingMemoryController
         );
@@ -1065,6 +1068,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexMetadata,
             indicesQueryCache,
             indicesFieldDataCache,
+            indicesBitsetFilterCache,
             finalListeners,
             indexingMemoryController
         );
@@ -1081,6 +1085,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexMetadata indexMetadata,
         IndicesQueryCache indicesQueryCache,
         IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
         List<IndexEventListener> builtInListeners,
         IndexingOperationListener... indexingOperationListeners
     ) throws IOException {
@@ -1137,6 +1142,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indicesQueryCache,
             mapperRegistry,
             indicesFieldDataCache,
+            indicesBitsetFilterCache,
             namedWriteableRegistry,
             this::isIdFieldDataEnabled,
             valuesSourceRegistry,
@@ -1267,6 +1273,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 metadata,
                 indicesQueryCache,
                 indicesFieldDataCache,
+                indicesBitsetFilterCache,
                 emptyList()
             );
             closeables.add(() -> service.close("metadata verification", false));
