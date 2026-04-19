@@ -12,12 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
@@ -31,21 +33,32 @@ public class TransportStreamDataAction extends TransportAction<StreamDataRequest
     private static final Logger logger = LogManager.getLogger(TransportStreamDataAction.class);
 
     /**
-     * Constructor - registers streaming handler
-     * @param streamTransportService the stream transport service
+     * Constructor
+     * @param streamTransportService stream transport service
+     * @param transportService transport service
      * @param actionFilters action filters
      */
     @Inject
-    public TransportStreamDataAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
-        super(StreamDataAction.NAME, actionFilters, streamTransportService.getTaskManager());
-
-        // Register handler for streaming requests
-        streamTransportService.registerRequestHandler(
+    public TransportStreamDataAction(
+        @Nullable StreamTransportService streamTransportService,
+        TransportService transportService,
+        ActionFilters actionFilters
+    ) {
+        super(
             StreamDataAction.NAME,
-            ThreadPool.Names.GENERIC,
-            StreamDataRequest::new,
-            this::handleStreamRequest
+            actionFilters,
+            streamTransportService != null ? streamTransportService.getTaskManager() : transportService.getTaskManager()
         );
+
+        // Register handler for streaming requests only if stream transport is available
+        if (streamTransportService != null) {
+            streamTransportService.registerRequestHandler(
+                StreamDataAction.NAME,
+                ThreadPool.Names.GENERIC,
+                StreamDataRequest::new,
+                this::handleStreamRequest
+            );
+        }
     }
 
     @Override
