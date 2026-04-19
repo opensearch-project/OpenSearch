@@ -961,6 +961,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Defines the strategy for mapping source stream partitions to OpenSearch shards.
+     * "fixed" (default): 1:1 mapping where shard N consumes partition N.
+     * "auto": each shard consumes all partitions where partition % numShards == shardId.
+     */
+    public static final String SETTING_INGESTION_SOURCE_PARTITION_STRATEGY = "index.ingestion_source.partition_strategy";
+    public static final Setting<IngestionSource.PartitionStrategy> INGESTION_SOURCE_PARTITION_STRATEGY_SETTING = new Setting<>(
+        SETTING_INGESTION_SOURCE_PARTITION_STRATEGY,
+        IngestionSource.PartitionStrategy.FIXED.getName(),
+        IngestionSource.PartitionStrategy::fromString,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Defines if all-active pull-based ingestion is enabled. In this mode, replicas will directly consume from the
      * streaming source and process the updates. In the default document replication mode, this setting must be enabled.
      * This mode is currently not supported with segment replication.
@@ -1327,6 +1341,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
             final IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
             final Map<String, Object> mapperSettings = INGESTION_SOURCE_MAPPER_SETTINGS.getAsMap(settings);
+            final IngestionSource.PartitionStrategy partitionStrategy = INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.get(settings);
 
             // Warmup settings
             final IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(
@@ -1345,6 +1360,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .setMapperType(mapperType)
                 .setMapperSettings(mapperSettings)
+                .setPartitionStrategy(partitionStrategy)
                 .setWarmupConfig(warmupConfig)
                 .build();
         }

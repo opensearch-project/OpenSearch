@@ -1300,6 +1300,32 @@ public class MetadataCreateIndexService {
 
         // Settings validation to the mapper
         IngestionMessageMapper.validateSettings(mapperType, mapperSettings);
+
+        // Partition strategy validation
+        if (IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
+            IngestionSource.PartitionStrategy partitionStrategy = IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.get(settings);
+            if (partitionStrategy == IngestionSource.PartitionStrategy.AUTO) {
+                Version minNodeVersion = state.nodes().getMinNodeVersion();
+                if (minNodeVersion.before(Version.V_3_7_0)) {
+                    throw new IllegalArgumentException(
+                        "partition_strategy [auto] requires all nodes in the cluster to be on version ["
+                            + Version.V_3_7_0
+                            + "] or later, but the minimum node version is ["
+                            + minNodeVersion
+                            + "]"
+                    );
+                }
+                int numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
+                if (numShards > 1) {
+                    logger.warn(
+                        "partition_strategy [auto] with [{}] shards requires the source topic to be key-partitioned "
+                            + "by the document ID field for correctness. If the source is not key-partitioned, "
+                            + "the same document may be indexed into multiple shards.",
+                        numShards
+                    );
+                }
+            }
+        }
     }
 
     /**
