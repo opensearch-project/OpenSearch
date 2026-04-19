@@ -67,6 +67,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BitSetFilterCacheTests extends OpenSearchTestCase {
 
@@ -222,6 +224,82 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals("listener must not be null", ex.getMessage());
         }
+    }
+
+    public void testDeprecatedConstructorAndCreateListener() throws IOException {
+        // The deprecated 2-arg constructor sets indicesCache to null.
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
+
+        // createListener returns null when indicesCache is null
+        assertThat(cache.createListener(threadPool), nullValue());
+
+        // getBitSetProducer throws when indicesCache is null
+        expectThrows(IllegalStateException.class, () -> cache.getBitSetProducer(new MatchAllDocsQuery()));
+
+        cache.close();
+    }
+
+    public void testCreateListenerWithIndicesCache() throws IOException {
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
+
+        // createListener returns non-null when indicesCache is present
+        assertThat(cache.createListener(threadPool), notNullValue());
+
+        cache.close();
+        indicesCache.close();
+    }
+
+    public void testBitsetFromQuery() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        Document doc = new Document();
+        doc.add(new StringField("field", "value", Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+        DirectoryReader reader = DirectoryReader.open(writer);
+
+        // Matching query returns non-null bitset
+        BitSet bitSet = BitsetFilterCache.bitsetFromQuery(new TermQuery(new Term("field", "value")), reader.leaves().get(0));
+        assertNotNull(bitSet);
+        assertEquals(1, bitSet.cardinality());
+
+        // Non-matching query returns null bitset
+        BitSet emptyBitSet = BitsetFilterCache.bitsetFromQuery(new TermQuery(new Term("field", "missing")), reader.leaves().get(0));
+        assertNull(emptyBitSet);
+
+        IOUtils.close(reader, writer, dir);
+    }
+
+    public void testNoOpDelegationMethods() throws IOException {
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
+
+        // These are all no-ops delegated to the node-level cache; just verify they don't throw.
+        cache.onClose(null);
+        cache.clear("test");
+        cache.onRemoval(null);
+        cache.close();
+
+        indicesCache.close();
     }
 
     public void testRejectOtherIndex() throws IOException {
