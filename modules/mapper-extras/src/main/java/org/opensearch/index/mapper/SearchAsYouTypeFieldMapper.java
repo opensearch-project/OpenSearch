@@ -490,6 +490,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -522,6 +527,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -650,7 +660,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        final String value = context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
+        final String value = extractValue(context);
         if (value == null) {
             return;
         }
@@ -663,6 +673,19 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         if (fieldType().fieldType.omitNorms()) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        final String value = extractValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private String extractValue(ParseContext context) throws IOException {
+        return context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
     }
 
     @Override

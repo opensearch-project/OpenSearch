@@ -124,6 +124,9 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.DataFormatAwareIndexerFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -427,6 +430,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final StatusCounterStats statusCounterStats;
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
     private final DataFormatRegistry dataFormatRegistry;
+    private final Map<String, org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories;
 
     @Override
     protected void doStart() {
@@ -455,6 +459,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories,
+        Map<String, org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         Map<String, IndexStorePlugin.StoreFactory> storeFactories,
@@ -470,7 +475,8 @@ public class IndicesService extends AbstractLifecycleComponent
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        DataFormatRegistry dataFormatRegistry
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -523,6 +529,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.compositeDirectoryFactories = compositeDirectoryFactories;
+        this.dataFormatAwareStoreDirectoryFactories = dataFormatAwareStoreDirectoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
         this.storeFactories = storeFactories;
         this.ingestionConsumerFactories = ingestionConsumerFactories;
@@ -613,7 +620,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
-        this.dataFormatRegistry = new DataFormatRegistry(pluginsService);
+        this.dataFormatRegistry = dataFormatRegistry;
     }
 
     @InternalApi
@@ -667,6 +674,7 @@ public class IndicesService extends AbstractLifecycleComponent
             engineFactoryProviders,
             directoryFactories,
             Collections.emptyMap(),
+            Collections.emptyMap(),
             valuesSourceRegistry,
             recoveryStateFactories,
             Collections.emptyMap(),
@@ -679,6 +687,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoverySettings,
             cacheService,
             remoteStoreSettings,
+            null,
             null,
             null,
             null,
@@ -1099,7 +1108,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexModule indexModule = new IndexModule(
             idxSettings,
             analysisRegistry,
-            getEngineFactory(idxSettings),
+            getIndexerFactory(idxSettings),
             getEngineConfigFactory(idxSettings),
             directoryFactories,
             compositeDirectoryFactories,
@@ -1108,7 +1117,8 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryStateFactories,
             storeFactories,
             fileCache,
-            compositeIndexSettings
+            compositeIndexSettings,
+            dataFormatAwareStoreDirectoryFactories
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -1170,6 +1180,14 @@ public class IndicesService extends AbstractLifecycleComponent
         return null;
     }
 
+    private IndexerFactory getIndexerFactory(final IndexSettings idxSettings) {
+        if (idxSettings.isPluggableDataFormatEnabled()) {
+            return new DataFormatAwareIndexerFactory();
+        } else {
+            return new EngineBackedIndexerFactory(getEngineFactory(idxSettings));
+        }
+    }
+
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
         final IndexMetadata indexMetadata = idxSettings.getIndexMetadata();
         if (indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE) {
@@ -1223,7 +1241,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexModule indexModule = new IndexModule(
             idxSettings,
             analysisRegistry,
-            getEngineFactory(idxSettings),
+            getIndexerFactory(idxSettings),
             getEngineConfigFactory(idxSettings),
             directoryFactories,
             compositeDirectoryFactories,
@@ -1232,7 +1250,8 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryStateFactories,
             storeFactories,
             fileCache,
-            compositeIndexSettings
+            compositeIndexSettings,
+            dataFormatAwareStoreDirectoryFactories
         );
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);

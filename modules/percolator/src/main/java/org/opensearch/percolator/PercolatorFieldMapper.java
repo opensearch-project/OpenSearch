@@ -514,6 +514,11 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) {
+        throw new UnsupportedOperationException("should not be invoked");
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

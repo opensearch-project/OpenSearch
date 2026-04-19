@@ -11,8 +11,8 @@ jts                     = "1.15.0"
 jackson_annotations     = "2.21"
 jackson                 = "2.21.2"
 jackson_databind        = "2.21.2"
-jackson3                = "3.1.1"
-jackson3_databind       = "3.1.1"
+jackson3                = "3.1.2"
+jackson3_databind       = "3.1.2"
 snakeyaml               = "2.6"
 snakeyaml_engine        = "3.0.1"
 icu4j                   = "77.1"
@@ -45,8 +45,8 @@ joda              = "2.12.7"
 roaringbitmap     = "1.3.0"
 
 # project reactor
-reactor_netty     = "1.3.4"
-reactor           = "3.8.4"
+reactor_netty     = "1.3.5"
+reactor           = "3.8.5"
 
 # client dependencies
 httpclient5       = "5.6"
@@ -97,7 +97,7 @@ jzlib             = "1.1.3"
 resteasy          = "6.2.4.Final"
 
 # opentelemetry dependencies
-opentelemetry         = "1.60.1"
+opentelemetry         = "1.61.0"
 opentelemetrysemconv  = "1.40.0"
 
 # arrow dependencies

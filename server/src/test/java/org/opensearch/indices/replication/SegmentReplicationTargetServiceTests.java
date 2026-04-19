@@ -33,6 +33,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -114,7 +115,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .build();
         primaryShard = newStartedShard(true, settings);
         String primaryCodec = primaryShard.getLatestReplicationCheckpoint().getCodec();
-        replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
+        replicaShard = newShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         recoverReplica(replicaShard, primaryShard, true, getReplicationFunc(replicaShard));
         checkpoint = new ReplicationCheckpoint(
             replicaShard.shardId(),

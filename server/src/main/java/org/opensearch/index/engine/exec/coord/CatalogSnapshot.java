@@ -13,7 +13,6 @@ import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
@@ -192,8 +191,9 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      * Sets user-defined metadata for this catalog snapshot.
      *
      * @param userData map of user data key-value pairs
+     * @param commitData whether this is commit-level user data
      */
-    public abstract void setUserData(Map<String, String> userData);
+    public abstract void setUserData(Map<String, String> userData, boolean commitData);
 
     /**
      * Creates a deep copy of this catalog snapshot. The cloned snapshot starts with a fresh reference count of 1.
@@ -203,5 +203,41 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      */
     public abstract CatalogSnapshot clone();
 
-    public abstract Object getReader(DataFormat dataFormat);
+    /**
+     * Returns the major version of the format that wrote the given file.
+     * For Lucene files, this is the Lucene major version from SegmentInfo.
+     * For non-Lucene files (e.g., parquet), this is the format-specific version.
+     *
+     * @param file the file name
+     * @return the format major version
+     */
+    public abstract int getFormatVersionForFile(String file);
+
+    /**
+     * Serializes this CatalogSnapshot into SegmentInfos bytes for the remote metadata file.
+     * Each subclass knows its own serialization format:
+     *
+     * TODO: When CompositeEngineCatalogSnapshot is added, implement this method
+     *       creating synthetic SegmentInfos with CatalogSnapshot serialized into userData.
+     *
+     * @return serialized bytes
+     * @throws IOException in case of I/O error
+     */
+    public abstract byte[] serialize() throws IOException;
+
+    /**
+     * Returns the canonical file names for upload to remote store.
+     * Each subclass formats names appropriately for its data format:
+     * <ul>
+     *   <li>{@link SegmentInfosCatalogSnapshot}: plain Lucene file names (e.g., {@code "_0.cfe"})</li>
+     *   <li>{@link DataformatAwareCatalogSnapshot}: serialized format-aware names
+     *       (e.g., {@code "parquet/data.parquet"}) for non-lucene files</li>
+     * </ul>
+     *
+     * @param includeSegmentsFile whether to include the segments file in the returned collection
+     * @return collection of file name strings ready for upload
+     * @throws IOException in case of I/O error
+     */
+    public abstract Collection<String> getFiles(boolean includeSegmentsFile) throws IOException;
+
 }

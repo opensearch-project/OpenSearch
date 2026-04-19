@@ -14,7 +14,17 @@
 
 def calciteVersion = '1.41.0'
 
+configurations {
+  calciteCompile
+  compileClasspath { exclude group: 'com.google.guava' }
+}
+sourceSets.main.compileClasspath += configurations.calciteCompile
+
 dependencies {
+  // Guava — required at compile time because Calcite base classes expose guava types.
+  // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
+  calciteCompile "com.google.guava:guava:${versions.guava}"
+
   compileOnly project(':server')
   api "org.apache.calcite:calcite-core:${calciteVersion}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
@@ -38,6 +48,11 @@ dependencies {
   runtimeOnly 'org.codehaus.janino:janino:3.1.9'
   runtimeOnly 'org.codehaus.janino:commons-compiler:3.1.9'
   runtimeOnly 'org.jooq:joou-java-6:0.9.4'
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.opensearch', module: 'opensearch-core'
+    exclude group: 'org.opensearch', module: 'opensearch-common'
+  }
   runtimeOnly 'com.jayway.jsonpath:json-path:2.9.0'
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
