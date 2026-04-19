@@ -24,6 +24,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -142,11 +143,13 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         }
         // TODO: Optimize passing too many value source config derived objects to aggregator
         bucketCountThresholds.ensureValidity();
+        List<ValuesSource> rawValuesSources = configs.stream().map(config -> config.v1().getValuesSource()).toList();
+        MultiTermsBucketOrds ordinalBucketOrds = selectOrdinalStrategy(rawValuesSources, searchContext, cardinality);
         return new MultiTermsAggregator(
             name,
             factories,
             showTermDocCountError,
-            configs.stream().map(config -> config.v1().getValuesSource()).toList(),
+            rawValuesSources,
             configs.stream()
                 .map(config -> queryShardContext.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config.v1()).build(config))
                 .collect(Collectors.toList()),
@@ -158,12 +161,45 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             searchContext,
             parent,
             cardinality,
-            metadata
+            metadata,
+            ordinalBucketOrds
         );
     }
 
     public List<String> getRequestFields() {
         return requestFields;
+    }
+
+    /**
+     * Selects the optimal {@link MultiTermsBucketOrds} strategy based on field types.
+     * Returns {@code null} when the ordinal optimization cannot be applied (mixed types or overflow).
+     */
+    private static MultiTermsBucketOrds selectOrdinalStrategy(
+        List<ValuesSource> rawValuesSources,
+        SearchContext searchContext,
+        CardinalityUpperBound cardinality
+    ) throws IOException {
+        // Star-tree precomputation writes to the bytes-based bucketOrds, so the ordinal
+        // optimization must be disabled when a star-tree index is available to avoid
+        // splitting buckets across two different storage structures.
+        if (StarTreeQueryHelper.getSupportedStarTree(searchContext.getQueryShardContext()) != null) {
+            return null;
+        }
+        for (ValuesSource vs : rawValuesSources) {
+            if ((vs instanceof ValuesSource.Bytes.WithOrdinals) == false) {
+                return null;
+            }
+        }
+        int numFields = rawValuesSources.size();
+        long[] maxOrds = new long[numFields];
+        for (int i = 0; i < numFields; i++) {
+            maxOrds[i] = ((ValuesSource.Bytes.WithOrdinals) rawValuesSources.get(i)).globalMaxOrd(searchContext.searcher());
+        }
+        if (PackedOrdinalBucketOrds.fitsInTwoLongs(maxOrds)) {
+            return new PackedOrdinalBucketOrds(searchContext.bigArrays(), cardinality, maxOrds);
+        }
+        // Ordinals don't fit in 126 bits — fall back to existing bytes-based path
+        return null;
     }
 
     @Override
