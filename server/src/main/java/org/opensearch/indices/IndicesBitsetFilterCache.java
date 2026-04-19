@@ -186,14 +186,15 @@ public class IndicesBitsetFilterCache
             return;
         }
         Set<IndexReader.CacheKey> staleSnapshot = new HashSet<>(staleCacheKeys);
-        staleCacheKeys.removeAll(staleSnapshot);
-        registeredKeys.removeAll(staleSnapshot);
 
         for (BitsetCacheKey key : cache.keys()) {
             if (staleSnapshot.contains(key.readerCacheKey)) {
                 cache.invalidate(key);
             }
         }
+
+        staleCacheKeys.removeAll(staleSnapshot);
+        registeredKeys.removeAll(staleSnapshot);
     }
 
     public Cache<BitsetCacheKey, Value> getCache() {

@@ -71,6 +71,10 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         RemovalListener<IndexReader.CacheKey, Cache<Query, BitsetFilterCache.Value>>,
         Closeable {
 
+    /**
+     * @deprecated Use {@link IndicesBitsetFilterCache#INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING} instead.
+     */
+    @Deprecated
     public static final Setting<Boolean> INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING =
         IndicesBitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING;
 
@@ -123,7 +127,8 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
     @Override
     public void close() {
-        // Per-index close is a no-op; the node-level cache manages the lifecycle.
+        // Per-index close is a no-op; entries are cleaned up by the node-level
+        // periodic stale-key purge after the index's readers close.
     }
 
     public void clear(String reason) {

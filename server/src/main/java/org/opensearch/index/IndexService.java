@@ -306,9 +306,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.bitsetFilterCache = indicesBitsetFilterCache != null
-                ? new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this))
-                : null;
+            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this));
             this.warmer = new IndexWarmer(
                 threadPool,
                 indexFieldData,

@@ -240,6 +240,54 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
     }
 
     /**
+     * Verifies that when one index's readers are closed (simulating index close),
+     * only that index's entries are purged while other indices' entries remain.
+     */
+    public void testIndexCloseOnlyPurgesItsOwnEntries() throws Exception {
+        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool)) {
+            // Create two separate "indices" with their own writers.
+            IndexWriter writer1 = new IndexWriter(
+                new ByteBuffersDirectory(),
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            );
+            Document doc1 = new Document();
+            doc1.add(new StringField("field", "val1", Field.Store.NO));
+            writer1.addDocument(doc1);
+            writer1.commit();
+
+            IndexWriter writer2 = new IndexWriter(
+                new ByteBuffersDirectory(),
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            );
+            Document doc2 = new Document();
+            doc2.add(new StringField("field", "val2", Field.Store.NO));
+            writer2.addDocument(doc2);
+            writer2.commit();
+
+            DirectoryReader reader1 = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer1), new ShardId("index1", "_na_", 0));
+            DirectoryReader reader2 = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer2), new ShardId("index2", "_na_", 0));
+
+            // Cache one entry from each index.
+            cache.getBitSetProducer(new TermQuery(new Term("field", "val1")), NO_OP_LISTENER).getBitSet(reader1.leaves().get(0));
+            cache.getBitSetProducer(new TermQuery(new Term("field", "val2")), NO_OP_LISTENER).getBitSet(reader2.leaves().get(0));
+            assertThat(cache.getCache().count(), equalTo(2));
+
+            // Simulate index1 close: close its reader.
+            reader1.close();
+            writer1.close();
+            cache.purgeStaleEntries();
+
+            // Only index1's entry should be purged; index2's entry remains.
+            assertThat(cache.getCache().count(), equalTo(1));
+
+            reader2.close();
+            writer2.close();
+            cache.purgeStaleEntries();
+            assertThat(cache.getCache().count(), equalTo(0));
+        }
+    }
+
+    /**
      * Verifies that entries from multiple indices share the same cache and the size limit applies globally.
      */
     public void testMultipleIndicesShareCacheWithGlobalSizeLimit() throws Exception {
