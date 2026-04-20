@@ -8,6 +8,8 @@
 
 package org.opensearch.storage.action.tiering.status.model;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -26,6 +28,7 @@ import java.util.Locale;
  */
 public class ListTieringStatusRequest extends ClusterManagerNodeReadRequest<ListTieringStatusRequest> {
 
+    private static final Logger log = LogManager.getLogger(ListTieringStatusRequest.class);
     private String targetTier;
 
     /** Returns the target tier. */
@@ -57,7 +60,7 @@ public class ListTieringStatusRequest extends ClusterManagerNodeReadRequest<List
      */
     public ListTieringStatusRequest(StreamInput in) throws IOException {
         super(in);
-        throw new UnsupportedOperationException("Not yet implemented");
+        targetTier = in.readOptionalString();
     }
 
     @Override
@@ -67,7 +70,8 @@ public class ListTieringStatusRequest extends ClusterManagerNodeReadRequest<List
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        super.writeTo(out);
+        out.writeOptionalString(targetTier != null ? targetTier.toString() : null);
     }
 
 }

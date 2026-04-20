@@ -10,10 +10,24 @@ package org.opensearch.storage.common.tiering;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexModule;
 
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+
+import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
+import static org.opensearch.index.IndexModule.TieringState.HOT;
+import static org.opensearch.index.IndexModule.TieringState.HOT_TO_WARM;
+import static org.opensearch.index.IndexModule.TieringState.WARM;
+import static org.opensearch.index.IndexModule.TieringState.WARM_TO_HOT;
 
 /**
  * Utility class for handling tiering operations in OpenSearch Warm.
@@ -94,6 +108,119 @@ public class TieringUtils {
     private static final Set<String> ALLOWLISTED_INDEX_PREFIXES = Set.of(".ds-");
     private static final Set<String> BLOCKLISTED_INDEX_PREFIXES = Set.of(".");
     private static final String CCR_LEADER_INDEX_SETTING_KEY = "index.plugins.replication.follower.leader_index";
+
+    /**
+     * Resolves the concrete index from a request index name.
+     *
+     * @param indexNameExpressionResolver resolver for index names
+     * @param requestIndex                the requested index name
+     * @param currentState                current cluster state
+     * @return resolved Index object
+     */
+    public static Index resolveRequestIndex(
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        String requestIndex,
+        ClusterState currentState
+    ) {
+        try {
+            final Index[] requestIndices = indexNameExpressionResolver.concreteIndices(
+                currentState,
+                IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED,
+                requestIndex
+            );
+            if (requestIndices.length != 1) {
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Expected single index but got %d indices", requestIndices.length)
+                );
+            }
+            logger.info(() -> String.format(Locale.ROOT, "Resolved index [%s] to [%s]", requestIndex, requestIndices[0].getName()));
+            return requestIndices[0];
+        } catch (Exception e) {
+            logger.error(() -> String.format(Locale.ROOT, "Failed to resolve index: [%s]", requestIndex), e);
+            throw new IllegalArgumentException("Failed to resolve index: " + requestIndex, e);
+        }
+    }
+
+    /**
+     * Returns the TieringState based on the index settings.
+     * @param indexSettings the index settings
+     * @return the TieringState
+     */
+    public static IndexModule.TieringState getTieringStatefromIndexSettings(Settings indexSettings) {
+        final IndexModule.TieringState tieringState = IndexModule.TieringState.valueOf(
+            indexSettings.get(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name())
+        );
+        switch (tieringState) {
+            case HOT_TO_WARM:
+            case WARM:
+                return HOT_TO_WARM;
+            case HOT:
+            case WARM_TO_HOT:
+                return WARM_TO_HOT;
+            default:
+                throw new IllegalArgumentException("Unsupported index migration state: " + tieringState);
+        }
+    }
+
+    /**
+     * Returns an array of tier names representing the source and target tiers for a given tiering state.
+     *
+     * @param tieringState The target tiering state of the index
+     * @return String array containing source and target tier names in order [source, target]
+     * @throws IllegalArgumentException if the tiering state is not recognized
+     */
+    public static String[] getTierPairForTargetTier(IndexModule.TieringState tieringState) {
+        return switch (tieringState) {
+            case WARM -> new String[] { HOT.toString(), WARM.toString() };
+            case HOT -> new String[] { WARM.toString(), HOT.toString() };
+            default -> throw new IllegalArgumentException("Unknown state: " + tieringState);
+        };
+    }
+
+    /**
+     * Determines the tiering state based on the target tier.
+     *
+     * @param tieringState String representation of the target tier state
+     * @return The corresponding TieringState enum value
+     * @throws IllegalArgumentException if the tiering state is not recognized
+     */
+    public static IndexModule.TieringState getTieringStatefromTargetTier(String tieringState) {
+        return switch (IndexModule.TieringState.valueOf(tieringState)) {
+            case HOT -> WARM_TO_HOT;
+            case WARM -> HOT_TO_WARM;
+            default -> throw new IllegalArgumentException("Unknown state: " + tieringState);
+        };
+    }
+
+    /**
+     * Checks if the given tier is a terminal tier (HOT or WARM).
+     *
+     * @param targetTier The tier to check
+     * @return true if the tier is terminal (HOT or WARM), false otherwise
+     */
+    public static boolean isTerminalTier(String targetTier) {
+        return Arrays.asList(IndexModule.TieringState.HOT.toString(), IndexModule.TieringState.WARM.toString())
+            .contains(targetTier.toUpperCase(Locale.ROOT));
+    }
+
+    /**
+     * Retrieves the start time of a tiering operation for a specific index.
+     * The time is stored as a custom metadata field in the cluster state.
+     *
+     * @param clusterState The current state of the cluster
+     * @param index The index for which to retrieve the tiering start time
+     * @param tieringStartTimeKey The key used to store the tiering start time in custom metadata
+     * @return The timestamp when the tiering operation started (in milliseconds since epoch)
+     * @throws NullPointerException if the tiering metadata or start time is not found
+     * @throws NumberFormatException if the stored start time value cannot be parsed as a long
+     */
+    public static long getTieringStartTime(ClusterState clusterState, Index index, String tieringStartTimeKey) {
+        Map<String, String> customData = clusterState.getMetadata().getIndexSafe(index).getCustomData(TIERING_CUSTOM_KEY);
+        if (customData == null || customData.get(tieringStartTimeKey) == null) {
+            throw new IllegalStateException("Tiering metadata not found for index [" + index.getName() + "]");
+        }
+        return Long.parseLong(customData.get(tieringStartTimeKey));
+    }
 
     /** Represents the storage tiers available in tiered storage. */
     public enum Tier {
