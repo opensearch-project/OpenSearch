@@ -12,6 +12,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
+import org.opensearch.protobufs.FloatMap;
 import org.opensearch.protobufs.Rescore;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
@@ -151,7 +152,15 @@ public class SearchSourceBuilderProtoUtils {
                 searchSourceBuilder.scriptField(name, scriptField.script(), scriptField.ignoreFailure());
             }
         }
-        if (protoRequest.getIndicesBoostCount() > 0) {
+        // indices_boost_2 (array format) preserves ordering and matches the current REST API behavior.
+        // indices_boost (flat map) is kept for backward compatibility but ignored when indices_boost_2 is present.
+        if (protoRequest.getIndicesBoost2Count() > 0) {
+            for (FloatMap floatMap : protoRequest.getIndicesBoost2List()) {
+                for (Map.Entry<String, Float> entry : floatMap.getFloatMapMap().entrySet()) {
+                    searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
+                }
+            }
+        } else if (protoRequest.getIndicesBoostCount() > 0) {
             for (Map.Entry<String, Float> entry : protoRequest.getIndicesBoostMap().entrySet()) {
                 searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
             }
