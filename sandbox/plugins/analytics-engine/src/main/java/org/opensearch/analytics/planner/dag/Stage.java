@@ -58,23 +58,33 @@ public class Stage {
         this.planAlternatives = List.of();
     }
 
-    public int getStageId() { return stageId; }
+    public int getStageId() {
+        return stageId;
+    }
 
     /** Marked plan fragment with annotations intact. */
-    public RelNode getFragment() { return fragment; }
+    public RelNode getFragment() {
+        return fragment;
+    }
 
-    public List<Stage> getChildStages() { return childStages; }
+    public List<Stage> getChildStages() {
+        return childStages;
+    }
 
     /** How this stage connects to its parent. Null for the root stage. */
     @Nullable
-    public ExchangeInfo getExchangeInfo() { return exchangeInfo; }
+    public ExchangeInfo getExchangeInfo() {
+        return exchangeInfo;
+    }
 
     /**
      * Non-null for coordinator stages with backend computation (final aggregate, sort).
      * Null for simple gather stages — Scheduler uses a {@code RowProducingSink} instead.
      */
     @Nullable
-    public ExchangeSinkProvider getExchangeSinkProvider() { return exchangeSinkProvider; }
+    public ExchangeSinkProvider getExchangeSinkProvider() {
+        return exchangeSinkProvider;
+    }
 
     /**
      * Non-null for DATA_NODE stages. Null for coordinator/gather stages.
@@ -82,9 +92,13 @@ public class Stage {
      * just before dispatch.
      */
     @Nullable
-    public TargetResolver getTargetResolver() { return targetResolver; }
+    public TargetResolver getTargetResolver() {
+        return targetResolver;
+    }
 
-    public List<StagePlan> getPlanAlternatives() { return planAlternatives; }
+    public List<StagePlan> getPlanAlternatives() {
+        return planAlternatives;
+    }
 
     public void setPlanAlternatives(List<StagePlan> planAlternatives) {
         this.planAlternatives = planAlternatives;

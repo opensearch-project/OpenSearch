@@ -12,10 +12,10 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
-import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.RelNodeUtils;
@@ -149,28 +149,55 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
                     newRexList.add(rex);
                 }
             }
-            resolvedCalls.add(AggregateCall.create(
-                aggCall.getAggregation(), aggCall.isDistinct(), aggCall.isApproximate(),
-                aggCall.ignoreNulls(), newRexList, aggCall.getArgList(), aggCall.filterArg,
-                aggCall.distinctKeys, aggCall.collation, aggCall.type, aggCall.name));
+            resolvedCalls.add(
+                AggregateCall.create(
+                    aggCall.getAggregation(),
+                    aggCall.isDistinct(),
+                    aggCall.isApproximate(),
+                    aggCall.ignoreNulls(),
+                    newRexList,
+                    aggCall.getArgList(),
+                    aggCall.filterArg,
+                    aggCall.distinctKeys,
+                    aggCall.collation,
+                    aggCall.type,
+                    aggCall.name
+                )
+            );
         }
-        return new OpenSearchAggregate(getCluster(), getTraitSet(), children.getFirst(),
-            getGroupSet(), getGroupSets(), resolvedCalls, mode, List.of(backend));
+        return new OpenSearchAggregate(
+            getCluster(),
+            getTraitSet(),
+            children.getFirst(),
+            getGroupSet(),
+            getGroupSets(),
+            resolvedCalls,
+            mode,
+            List.of(backend)
+        );
     }
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
         List<AggregateCall> strippedCalls = new ArrayList<>();
         for (AggregateCall aggCall : getAggCallList()) {
-            List<RexNode> cleanRexList = aggCall.rexList.stream()
-                .filter(rex -> !(rex instanceof AggregateCallAnnotation))
-                .toList();
-            strippedCalls.add(AggregateCall.create(
-                aggCall.getAggregation(), aggCall.isDistinct(), aggCall.isApproximate(),
-                aggCall.ignoreNulls(), cleanRexList, aggCall.getArgList(), aggCall.filterArg,
-                aggCall.distinctKeys, aggCall.collation, aggCall.type, aggCall.name));
+            List<RexNode> cleanRexList = aggCall.rexList.stream().filter(rex -> !(rex instanceof AggregateCallAnnotation)).toList();
+            strippedCalls.add(
+                AggregateCall.create(
+                    aggCall.getAggregation(),
+                    aggCall.isDistinct(),
+                    aggCall.isApproximate(),
+                    aggCall.ignoreNulls(),
+                    cleanRexList,
+                    aggCall.getArgList(),
+                    aggCall.filterArg,
+                    aggCall.distinctKeys,
+                    aggCall.collation,
+                    aggCall.type,
+                    aggCall.name
+                )
+            );
         }
-        return LogicalAggregate.create(strippedChildren.getFirst(), List.of(),
-            getGroupSet(), getGroupSets(), strippedCalls);
+        return LogicalAggregate.create(strippedChildren.getFirst(), List.of(), getGroupSet(), getGroupSets(), strippedCalls);
     }
 }

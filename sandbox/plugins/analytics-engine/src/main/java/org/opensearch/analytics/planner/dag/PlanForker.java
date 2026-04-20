@@ -14,9 +14,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Generates plan alternatives for each {@link Stage} in a {@link QueryDAG}.
@@ -50,15 +48,12 @@ public class PlanForker {
             return;
         }
         List<Resolved> alternatives = resolve(stage.getFragment(), registry);
-        stage.setPlanAlternatives(
-            alternatives.stream()
-                .map(resolved -> new StagePlan(resolved.node, resolved.chosenBackend))
-                .toList()
-        );
+        stage.setPlanAlternatives(alternatives.stream().map(resolved -> new StagePlan(resolved.node, resolved.chosenBackend)).toList());
     }
 
     /** Resolved node paired with the backend chosen at this operator level. */
-    private record Resolved(String chosenBackend, RelNode node) {}
+    private record Resolved(String chosenBackend, RelNode node) {
+    }
 
     private static List<Resolved> resolve(RelNode node, CapabilityRegistry registry) {
         List<List<Resolved>> childAlternativeSets = new ArrayList<>();
@@ -80,9 +75,7 @@ public class PlanForker {
 
         // TODO: multi-input operators (joins) — each side is typically a separate stage
         // connected via StageInputScan, so this path may not be needed in practice.
-        throw new UnsupportedOperationException(
-            "Multi-input plan forking not yet supported for: " + node.getClass().getSimpleName()
-        );
+        throw new UnsupportedOperationException("Multi-input plan forking not yet supported for: " + node.getClass().getSimpleName());
     }
 
     private static List<Resolved> resolveOperator(RelNode node, List<RelNode> children, String childBackend) {

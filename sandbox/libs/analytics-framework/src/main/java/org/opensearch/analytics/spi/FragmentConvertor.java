@@ -40,16 +40,15 @@ public interface FragmentConvertor {
     // ---- Source-aware fragment conversion (Bottom + Middle) ----
 
     /**
-     * Converts a fragment whose leaf is a physical shard scan.
-     * The backend registers the table as a shard source and converts the
-     * fragment to its serializable form.
+     * Converts a fragment whose leaf is a native physical shard scan.
+     * The backend handles all operators natively — no delegation, no shuffle.
      *
-     * @param tableName  named table the fragment's scan references
-     * @param fragment   resolved RelNode fragment (annotations narrowed to single backends)
+     * @param tableName named table the fragment's scan references
+     * @param fragment  resolved RelNode fragment (annotations stripped)
      * @return backend-specific serialized plan bytes
      */
-    default byte[] convertScanFragment(String tableName, RelNode fragment) {
-        throw new UnsupportedOperationException("convertScanFragment not implemented for this backend");
+    default byte[] convertShardScanFragment(String tableName, RelNode fragment) {
+        throw new UnsupportedOperationException("convertShardScanFragment not implemented for this backend");
     }
 
     /**

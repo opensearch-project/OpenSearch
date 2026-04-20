@@ -244,25 +244,41 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     // ---- Helpers ----
 
     private OpenSearchFilter runFilter(
-        String format, Map<String, Map<String, Object>> fields,
-        String[] fieldNames, SqlTypeName[] fieldTypes, RexNode condition
+        String format,
+        Map<String, Map<String, Object>> fields,
+        String[] fieldNames,
+        SqlTypeName[] fieldTypes,
+        RexNode condition
     ) {
-        return runFilter(format, fields, fieldNames, fieldTypes, condition,
-            List.of(DATAFUSION, LUCENE), Set.of(MockDataFusionBackend.NAME));
+        return runFilter(
+            format,
+            fields,
+            fieldNames,
+            fieldTypes,
+            condition,
+            List.of(DATAFUSION, LUCENE),
+            Set.of(MockDataFusionBackend.NAME)
+        );
     }
 
     private OpenSearchFilter runFilterWithDelegation(
-        String format, Map<String, Map<String, Object>> fields,
-        String[] fieldNames, SqlTypeName[] fieldTypes, RexNode condition
+        String format,
+        Map<String, Map<String, Object>> fields,
+        String[] fieldNames,
+        SqlTypeName[] fieldTypes,
+        RexNode condition
     ) {
-        return runFilter(format, fields, fieldNames, fieldTypes, condition,
-            delegationBackends(), Set.of(MockDataFusionBackend.NAME));
+        return runFilter(format, fields, fieldNames, fieldTypes, condition, delegationBackends(), Set.of(MockDataFusionBackend.NAME));
     }
 
     private OpenSearchFilter runFilter(
-        String format, Map<String, Map<String, Object>> fields,
-        String[] fieldNames, SqlTypeName[] fieldTypes, RexNode condition,
-        List<AnalyticsSearchBackendPlugin> backends, Set<String> expectedViable
+        String format,
+        Map<String, Map<String, Object>> fields,
+        String[] fieldNames,
+        SqlTypeName[] fieldTypes,
+        RexNode condition,
+        List<AnalyticsSearchBackendPlugin> backends,
+        Set<String> expectedViable
     ) {
         PlannerContext context = buildContext(format, fields, backends);
         RelOptTable table = mockTable("test_index", fieldNames, fieldTypes);
@@ -276,8 +292,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
 
     private void assertPredicateAnnotation(AnnotatedPredicate predicate, String... expectedBackends) {
         for (String backend : expectedBackends)
-            assertTrue("Predicate annotation must contain " + backend,
-                predicate.getViableBackends().contains(backend));
+            assertTrue("Predicate annotation must contain " + backend, predicate.getViableBackends().contains(backend));
     }
 
     private List<AnalyticsSearchBackendPlugin> delegationBackends() {

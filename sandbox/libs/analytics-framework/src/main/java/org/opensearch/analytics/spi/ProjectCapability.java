@@ -24,8 +24,11 @@ public sealed interface ProjectCapability {
      * on literal values with no field access (e.g. {@code 42+1}).
      */
     record Scalar(ScalarFunction function, Set<FieldType> fieldTypes, Set<String> formats, boolean supportsLiteralEvaluation)
-        implements ProjectCapability {}
+        implements
+            ProjectCapability {
+    }
 
     /** Opaque backend-specific operation (painless, highlight, suggest, etc.) in given formats. */
-    record Opaque(String name, Set<String> formats) implements ProjectCapability {}
+    record Opaque(String name, Set<String> formats) implements ProjectCapability {
+    }
 }

@@ -16,17 +16,15 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.planner.RelNodeUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
-
-import org.opensearch.analytics.planner.RelNodeUtils;
 
 /**
  * OpenSearch custom Filter carrying viable backend list and per-predicate annotations.

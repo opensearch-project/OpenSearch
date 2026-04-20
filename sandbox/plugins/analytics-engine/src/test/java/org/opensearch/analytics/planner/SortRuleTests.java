@@ -29,7 +29,11 @@ public class SortRuleTests extends BasePlannerRulesTests {
         return buildContext("parquet", 1, intFields());
     }
 
-    private void assertSortPipeline(RelNode result, List<Class<? extends org.opensearch.analytics.planner.rel.OpenSearchRelNode>> types, int fetch) {
+    private void assertSortPipeline(
+        RelNode result,
+        List<Class<? extends org.opensearch.analytics.planner.rel.OpenSearchRelNode>> types,
+        int fetch
+    ) {
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertPipelineViableBackends(result, types, Set.of(MockDataFusionBackend.NAME));
         if (fetch < 0) {
@@ -41,28 +45,61 @@ public class SortRuleTests extends BasePlannerRulesTests {
 
     /** Sort(Filter(Scan)) with and without fetch. */
     public void testSortOnFilteredScan() {
-        RelNode filter = makeFilter(stubScan(mockTable("test_index", "status", "size")),
-            makeEquals(0, SqlTypeName.INTEGER, 200));
-        List<Class<? extends org.opensearch.analytics.planner.rel.OpenSearchRelNode>> types =
-            List.of(OpenSearchSort.class, OpenSearchFilter.class, OpenSearchTableScan.class);
+        RelNode filter = makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200));
+        List<Class<? extends org.opensearch.analytics.planner.rel.OpenSearchRelNode>> types = List.of(
+            OpenSearchSort.class,
+            OpenSearchFilter.class,
+            OpenSearchTableScan.class
+        );
 
         assertSortPipeline(runPlanner(makeSort(filter, -1), defaultContext()), types, -1);
-        assertSortPipeline(runPlanner(makeSort(
-            makeFilter(stubScan(mockTable("test_index", "status", "size")),
-                makeEquals(0, SqlTypeName.INTEGER, 200)), 10), defaultContext()), types, 10);
+        assertSortPipeline(
+            runPlanner(
+                makeSort(makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)), 10),
+                defaultContext()
+            ),
+            types,
+            10
+        );
     }
 
     /** Sort(Agg(Filter(Scan))) with and without fetch — full OLAP pipeline. */
     public void testSortOnAggregateOnFilteredScan() {
-        List<Class<? extends org.opensearch.analytics.planner.rel.OpenSearchRelNode>> types =
-            List.of(OpenSearchSort.class, OpenSearchAggregate.class, OpenSearchFilter.class, OpenSearchTableScan.class);
+        List<Class<? extends org.opensearch.analytics.planner.rel.OpenSearchRelNode>> types = List.of(
+            OpenSearchSort.class,
+            OpenSearchAggregate.class,
+            OpenSearchFilter.class,
+            OpenSearchTableScan.class
+        );
 
-        assertSortPipeline(runPlanner(makeSort(makeAggregate(
-            makeFilter(stubScan(mockTable("test_index", "status", "size")),
-                makeEquals(0, SqlTypeName.INTEGER, 200)), sumCall()), -1), defaultContext()), types, -1);
+        assertSortPipeline(
+            runPlanner(
+                makeSort(
+                    makeAggregate(
+                        makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
+                        sumCall()
+                    ),
+                    -1
+                ),
+                defaultContext()
+            ),
+            types,
+            -1
+        );
 
-        assertSortPipeline(runPlanner(makeSort(makeAggregate(
-            makeFilter(stubScan(mockTable("test_index", "status", "size")),
-                makeEquals(0, SqlTypeName.INTEGER, 200)), sumCall()), 10), defaultContext()), types, 10);
+        assertSortPipeline(
+            runPlanner(
+                makeSort(
+                    makeAggregate(
+                        makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
+                        sumCall()
+                    ),
+                    10
+                ),
+                defaultContext()
+            ),
+            types,
+            10
+        );
     }
 }

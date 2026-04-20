@@ -14,26 +14,25 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
-import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.rel.logical.LogicalAggregate;
-import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rel.logical.LogicalSort;
-import org.apache.calcite.rel.RelCollation;
-import org.apache.calcite.rel.RelCollations;
-import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
-import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
-import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -244,12 +243,20 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         RelNode current = root;
         for (int i = 0; i < expectedTypes.size(); i++) {
             Class<? extends OpenSearchRelNode> expectedType = expectedTypes.get(i);
-            assertTrue("Node at depth " + i + " must be " + expectedType.getSimpleName()
-                + " but was " + current.getClass().getSimpleName(), expectedType.isInstance(current));
+            assertTrue(
+                "Node at depth " + i + " must be " + expectedType.getSimpleName() + " but was " + current.getClass().getSimpleName(),
+                expectedType.isInstance(current)
+            );
             OpenSearchRelNode osNode = (OpenSearchRelNode) current;
-            assertTrue("Node " + expectedType.getSimpleName() + " viableBackends must contain "
-                + expectedBackends + " but was " + osNode.getViableBackends(),
-                osNode.getViableBackends().containsAll(expectedBackends));
+            assertTrue(
+                "Node "
+                    + expectedType.getSimpleName()
+                    + " viableBackends must contain "
+                    + expectedBackends
+                    + " but was "
+                    + osNode.getViableBackends(),
+                osNode.getViableBackends().containsAll(expectedBackends)
+            );
             if (i < expectedTypes.size() - 1) {
                 current = RelNodeUtils.unwrapHep(current.getInputs().get(0));
             }
@@ -264,8 +271,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         OperationRouting routing = mock(OperationRouting.class);
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(routing);
-        when(routing.searchShards(any(), any(), any(), any()))
-            .thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
+        when(routing.searchShards(any(), any(), any(), any())).thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
         return clusterService;
     }
 
@@ -282,12 +288,26 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
      */
     protected Map<String, FieldStorageInfo> duplicatedIntFields() {
         return Map.of(
-            "status", new FieldStorageInfo("status", "integer", FieldType.INTEGER,
+            "status",
+            new FieldStorageInfo(
+                "status",
+                "integer",
+                FieldType.INTEGER,
                 List.of(MockDataFusionBackend.PARQUET_DATA_FORMAT, MockLuceneBackend.LUCENE_DATA_FORMAT),
-                List.of(), List.of(), false),
-            "size", new FieldStorageInfo("size", "integer", FieldType.INTEGER,
+                List.of(),
+                List.of(),
+                false
+            ),
+            "size",
+            new FieldStorageInfo(
+                "size",
+                "integer",
+                FieldType.INTEGER,
                 List.of(MockDataFusionBackend.PARQUET_DATA_FORMAT, MockLuceneBackend.LUCENE_DATA_FORMAT),
-                List.of(), List.of(), false)
+                List.of(),
+                List.of(),
+                false
+            )
         );
     }
 
@@ -391,7 +411,10 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
 
     protected AggregateCall sumCall() {
         return AggregateCall.create(
-            SqlStdOperatorTable.SUM, false, List.of(1), -1,
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
             typeFactory.createSqlType(SqlTypeName.INTEGER),
             "total_size"
@@ -401,7 +424,10 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     protected AggregateCall countStarCall() {
         // COUNT(*) — no field arguments, always gets annotated with aggregateCapableBackends
         return AggregateCall.create(
-            SqlStdOperatorTable.COUNT, false, List.of(), -1,
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
             typeFactory.createSqlType(SqlTypeName.BIGINT),
             "cnt"
@@ -414,16 +440,18 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
 
     /** Sort with fetch (LIMIT) only — no ORDER BY collation, just top-N. */
     protected LogicalSort makeLimit(RelNode input, int fetch) {
-        return LogicalSort.create(input, RelCollations.EMPTY, null,
-            rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true));
+        return LogicalSort.create(
+            input,
+            RelCollations.EMPTY,
+            null,
+            rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
     }
 
     /** Sort with collation on field 0 ascending. Pass fetch of 0 or less for no limit. */
     protected LogicalSort makeSort(RelNode input, int fetch) {
         RelCollation collation = RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING));
-        RexNode fetchRex = fetch > 0
-            ? rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
-            : null;
+        RexNode fetchRex = fetch > 0 ? rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true) : null;
         return LogicalSort.create(input, collation, null, fetchRex);
     }
 

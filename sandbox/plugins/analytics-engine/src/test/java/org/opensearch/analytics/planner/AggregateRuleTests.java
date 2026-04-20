@@ -50,8 +50,11 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
     public void testViableBackendsPopulated() {
         OpenSearchAggregate agg = runAggregate(1, sumCall());
-        assertPipelineViableBackends(agg, List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
-            Set.of(MockDataFusionBackend.NAME));
+        assertPipelineViableBackends(
+            agg,
+            List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME)
+        );
     }
 
     // ---- Split behavior ----
@@ -60,9 +63,11 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         RelNode result = unwrapExchange(runPlanner(makeAggregate(sumCall()), defaultContext(5)));
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
         // Full pipeline: FinalAgg → ExchangeReducer → PartialAgg → Scan
-        assertPipelineViableBackends(result,
+        assertPipelineViableBackends(
+            result,
             List.of(OpenSearchAggregate.class, OpenSearchExchangeReducer.class, OpenSearchAggregate.class, OpenSearchTableScan.class),
-            Set.of(MockDataFusionBackend.NAME));
+            Set.of(MockDataFusionBackend.NAME)
+        );
         OpenSearchAggregate finalAgg = (OpenSearchAggregate) result;
         assertEquals(AggregateMode.FINAL, finalAgg.getMode());
         OpenSearchAggregate partialAgg = (OpenSearchAggregate) finalAgg.getInputs().get(0).getInputs().get(0);
@@ -72,8 +77,11 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     public void testNoSplitOnSingleShard() {
         OpenSearchAggregate agg = runAggregate(1, sumCall());
         assertEquals(AggregateMode.SINGLE, agg.getMode());
-        assertPipelineViableBackends(agg, List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
-            Set.of(MockDataFusionBackend.NAME));
+        assertPipelineViableBackends(
+            agg,
+            List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME)
+        );
     }
 
     // ---- Error cases ----
@@ -86,8 +94,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             }
         };
         PlannerContext context = buildContext("parquet", 1, intFields(), List.of(noAggFunctions));
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> runPlanner(makeAggregate(sumCall()), context));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(makeAggregate(sumCall()), context));
         assertTrue(exception.getMessage().contains("No backend supports aggregate function"));
     }
 
@@ -95,15 +102,20 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         MockLuceneBackend luceneWithAgg = new MockLuceneBackend() {
             @Override
             protected Set<AggregateCapability> aggregateCapabilities() {
-                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
-                    Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER), AggregateFunction.COUNT, Set.of(FieldType.INTEGER)));
+                return aggCaps(
+                    Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
+                    Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER), AggregateFunction.COUNT, Set.of(FieldType.INTEGER))
+                );
             }
         };
         PlannerContext context = buildContextWithExplicitStorage(1, duplicatedIntFields(), List.of(DATAFUSION, luceneWithAgg));
         RelNode result = runPlanner(makeAggregate(sumCall()), context);
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
-        assertPipelineViableBackends(result, List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
-            Set.of(MockDataFusionBackend.NAME));
+        assertPipelineViableBackends(
+            result,
+            List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME)
+        );
         OpenSearchAggregate agg = (OpenSearchAggregate) result;
         assertFalse(agg.getViableBackends().contains(MockLuceneBackend.NAME));
         // Per-call annotation includes both — Lucene is viable for SUM on this field
@@ -118,20 +130,22 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         MockLuceneBackend luceneWithScanAndAgg = new MockLuceneBackend() {
             @Override
             protected Set<ScanCapability> scanCapabilities() {
-                return Set.of(new ScanCapability.DocValues(
-                    Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), Set.of(FieldType.INTEGER)));
+                return Set.of(new ScanCapability.DocValues(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), Set.of(FieldType.INTEGER)));
             }
+
             @Override
             protected Set<AggregateCapability> aggregateCapabilities() {
-                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
-                    Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER)));
+                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER)));
             }
         };
         PlannerContext context = buildContextWithExplicitStorage(1, duplicatedIntFields(), List.of(DATAFUSION, luceneWithScanAndAgg));
         RelNode result = runPlanner(makeAggregate(sumCall()), context);
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
-        assertPipelineViableBackends(result, List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
-            Set.of(MockDataFusionBackend.NAME, MockLuceneBackend.NAME));
+        assertPipelineViableBackends(
+            result,
+            List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME, MockLuceneBackend.NAME)
+        );
         OpenSearchAggregate agg = (OpenSearchAggregate) result;
         assertTrue(agg.getViableBackends().contains(MockLuceneBackend.NAME));
         assertCallAnnotation(agg.getAggCallList().get(0), MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
@@ -144,13 +158,19 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
      * through filter→aggregate at every level.
      */
     public void testAggregateOnFilteredScan() {
-        RelNode result = runPlanner(makeAggregate(
-            makeFilter(stubScan(mockTable("test_index", "status", "size")),
-                makeEquals(0, SqlTypeName.INTEGER, 200)), sumCall()), defaultContext(1));
+        RelNode result = runPlanner(
+            makeAggregate(
+                makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
+                sumCall()
+            ),
+            defaultContext(1)
+        );
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
-        assertPipelineViableBackends(result,
+        assertPipelineViableBackends(
+            result,
             List.of(OpenSearchAggregate.class, OpenSearchFilter.class, OpenSearchTableScan.class),
-            Set.of(MockDataFusionBackend.NAME));
+            Set.of(MockDataFusionBackend.NAME)
+        );
     }
 
     // ---- Mixed per-call viable backends ----
@@ -159,24 +179,34 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         MockLuceneBackend lucenePartialAgg = new MockLuceneBackend() {
             @Override
             protected Set<AggregateCapability> aggregateCapabilities() {
-                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
-                    Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER)));
+                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER)));
             }
         };
         PlannerContext context = buildContextWithExplicitStorage(1, duplicatedIntFields(), List.of(DATAFUSION, lucenePartialAgg));
         RelNode result = runPlanner(makeMultiCallAggregate(sumCall(), countCall()), context);
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
-        assertPipelineViableBackends(result, List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
-            Set.of(MockDataFusionBackend.NAME));
+        assertPipelineViableBackends(
+            result,
+            List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME)
+        );
         OpenSearchAggregate agg = (OpenSearchAggregate) result;
-        assertFalse("Lucene not viable at operator level — can handle SUM but not COUNT",
-            agg.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertFalse(
+            "Lucene not viable at operator level — can handle SUM but not COUNT",
+            agg.getViableBackends().contains(MockLuceneBackend.NAME)
+        );
         assertCallAnnotation(agg.getAggCallList().get(0), MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
         assertCallAnnotation(agg.getAggCallList().get(1), MockDataFusionBackend.NAME);
-        assertEquals("SUM viable for both backends", 2,
-            AggregateCallAnnotation.find(agg.getAggCallList().get(0)).getViableBackends().size());
-        assertEquals("COUNT viable for DF only (Lucene not declared)", 1,
-            AggregateCallAnnotation.find(agg.getAggCallList().get(1)).getViableBackends().size());
+        assertEquals(
+            "SUM viable for both backends",
+            2,
+            AggregateCallAnnotation.find(agg.getAggCallList().get(0)).getViableBackends().size()
+        );
+        assertEquals(
+            "COUNT viable for DF only (Lucene not declared)",
+            1,
+            AggregateCallAnnotation.find(agg.getAggCallList().get(1)).getViableBackends().size()
+        );
     }
 
     // ---- Delegation ----
@@ -185,9 +215,9 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         MockDataFusionBackend dfWithDelegation = new MockDataFusionBackend() {
             @Override
             protected Set<AggregateCapability> aggregateCapabilities() {
-                return aggCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT),
-                    Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER)));
+                return aggCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), Map.of(AggregateFunction.SUM, Set.of(FieldType.INTEGER)));
             }
+
             @Override
             protected Set<DelegationType> supportedDelegations() {
                 return Set.of(DelegationType.AGGREGATE);
@@ -196,9 +226,12 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         MockLuceneBackend luceneAccepting = new MockLuceneBackend() {
             @Override
             protected Set<AggregateCapability> aggregateCapabilities() {
-                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
-                    Map.of(AggregateFunction.STDDEV_POP, Set.of(FieldType.INTEGER)));
+                return aggCaps(
+                    Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
+                    Map.of(AggregateFunction.STDDEV_POP, Set.of(FieldType.INTEGER))
+                );
             }
+
             @Override
             protected Set<DelegationType> acceptedDelegations() {
                 return Set.of(DelegationType.AGGREGATE);
@@ -207,36 +240,55 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         PlannerContext context = buildContext("parquet", 1, intFields(), List.of(dfWithDelegation, luceneAccepting));
         RelNode result = runPlanner(makeMultiCallAggregate(sumCall(), stddevCall()), context);
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
-        assertPipelineViableBackends(result, List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
-            Set.of(MockDataFusionBackend.NAME));
+        assertPipelineViableBackends(
+            result,
+            List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME)
+        );
     }
 
     public void testAggregateErrorsWithoutDelegation() {
         MockLuceneBackend luceneWithStddev = new MockLuceneBackend() {
             @Override
             protected Set<AggregateCapability> aggregateCapabilities() {
-                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
-                    Map.of(AggregateFunction.STDDEV_POP, Set.of(FieldType.INTEGER)));
+                return aggCaps(
+                    Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT),
+                    Map.of(AggregateFunction.STDDEV_POP, Set.of(FieldType.INTEGER))
+                );
             }
         };
         PlannerContext context = buildContext("parquet", 1, intFields(), List.of(DATAFUSION, luceneWithStddev));
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> runPlanner(makeMultiCallAggregate(sumCall(), stddevCall()), context));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> runPlanner(makeMultiCallAggregate(sumCall(), stddevCall()), context)
+        );
         assertTrue(exception.getMessage().contains("No backend supports aggregate function"));
     }
 
     // ---- Helpers ----
 
     private AggregateCall countCall() {
-        return AggregateCall.create(SqlStdOperatorTable.COUNT, false, List.of(1), 1,
+        return AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(1),
+            1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.BIGINT), "cnt");
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
     }
 
     private AggregateCall stddevCall() {
-        return AggregateCall.create(SqlStdOperatorTable.STDDEV_POP, false, List.of(1), 1,
+        return AggregateCall.create(
+            SqlStdOperatorTable.STDDEV_POP,
+            false,
+            List.of(1),
+            1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.INTEGER), "stddev");
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "stddev"
+        );
     }
 
     private PlannerContext defaultContext(int shardCount) {

@@ -17,5 +17,4 @@ package org.opensearch.analytics.spi;
  *
  * @opensearch.internal
  */
-public interface ExchangeSink {
-}
+public interface ExchangeSink {}

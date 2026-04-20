@@ -60,14 +60,13 @@ public class DAGBuilder {
         ExchangeSinkProvider sinkProvider = null;
         if (!childStages.isEmpty()) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
-                registry, ((OpenSearchRelNode) cboOutput).getViableBackends()
+                registry,
+                ((OpenSearchRelNode) cboOutput).getViableBackends()
             );
             sinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
         }
 
-        TargetResolver rootTargetResolver = childStages.isEmpty()
-            ? new ShardTargetResolver(rootFragment, clusterService)
-            : null;
+        TargetResolver rootTargetResolver = childStages.isEmpty() ? new ShardTargetResolver(rootFragment, clusterService) : null;
 
         Stage rootStage = new Stage(counter[0]++, rootFragment, childStages, null, sinkProvider, rootTargetResolver);
         return new QueryDAG(UUID.randomUUID().toString(), rootStage);
@@ -91,7 +90,10 @@ public class DAGBuilder {
         if (node.getInputs().isEmpty()) return node;
         boolean changed = false;
         for (int i = 0; i < newInputs.size(); i++) {
-            if (newInputs.get(i) != node.getInputs().get(i)) { changed = true; break; }
+            if (newInputs.get(i) != node.getInputs().get(i)) {
+                changed = true;
+                break;
+            }
         }
         return changed ? node.copy(node.getTraitSet(), newInputs) : node;
     }
@@ -110,16 +112,25 @@ public class DAGBuilder {
 
         int childStageId = counter[0]++;
         parentChildStages.add(
-            new Stage(childStageId, childFragment, grandchildren, ExchangeInfo.singleton(), null,
-                new ShardTargetResolver(childFragment, clusterService))
+            new Stage(
+                childStageId,
+                childFragment,
+                grandchildren,
+                ExchangeInfo.singleton(),
+                null,
+                new ShardTargetResolver(childFragment, clusterService)
+            )
         );
 
         // Replace the reducer's input with a StageInputScan placeholder.
         // The root fragment ends at the reducer; the child stage fragment starts below it.
         // StageInputScan signals where the Scheduler feeds Arrow batches from the child stage.
         OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(
-            reducer.getCluster(), reducer.getTraitSet(), childStageId,
-            reducer.getInput().getRowType(), reducer.getViableBackends()
+            reducer.getCluster(),
+            reducer.getTraitSet(),
+            childStageId,
+            reducer.getInput().getRowType(),
+            reducer.getViableBackends()
         );
         return new OpenSearchExchangeReducer(reducer.getCluster(), reducer.getTraitSet(), stageInput, reducer.getViableBackends());
     }

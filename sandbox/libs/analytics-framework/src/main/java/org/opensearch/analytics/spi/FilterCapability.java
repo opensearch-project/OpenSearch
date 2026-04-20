@@ -24,9 +24,12 @@ import java.util.Set;
 public sealed interface FilterCapability {
 
     /** Standard comparison filter (EQUALS, GT, IN, LIKE, etc.) on field types in given formats. */
-    record Standard(FilterOperator operator, Set<FieldType> fieldTypes, Set<String> formats) implements FilterCapability {}
+    record Standard(FilterOperator operator, Set<FieldType> fieldTypes, Set<String> formats) implements FilterCapability {
+    }
 
     /** Full-text filter (MATCH, MATCH_PHRASE, FUZZY, etc.) with supported query parameters. */
     record FullText(FilterOperator operator, FieldType fieldType, Set<String> formats, Set<String> supportedParams)
-        implements FilterCapability {}
+        implements
+            FilterCapability {
+    }
 }

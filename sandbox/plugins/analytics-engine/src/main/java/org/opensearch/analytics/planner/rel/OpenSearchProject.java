@@ -111,8 +111,7 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
                 resolvedExprs.add(expr);
             }
         }
-        return new OpenSearchProject(getCluster(), getTraitSet(), children.getFirst(),
-            resolvedExprs, getRowType(), List.of(backend));
+        return new OpenSearchProject(getCluster(), getTraitSet(), children.getFirst(), resolvedExprs, getRowType(), List.of(backend));
     }
 
     @Override

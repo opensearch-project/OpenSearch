@@ -61,9 +61,10 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
         assertNull(aggDag.rootStage().getExchangeSinkProvider());
 
         // Sort(Filter(Scan)) with limit — single stage, sort-capable backend
-        QueryDAG sortDag = buildDAG(1, makeSort(
-            makeFilter(stubScan(mockTable("test_index", "status", "size")),
-                makeEquals(0, SqlTypeName.INTEGER, 200)), 10));
+        QueryDAG sortDag = buildDAG(
+            1,
+            makeSort(makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)), 10)
+        );
         assertEquals(0, sortDag.rootStage().getChildStages().size());
         assertNotNull(sortDag.rootStage().getTargetResolver());
         assertNull(sortDag.rootStage().getExchangeSinkProvider());

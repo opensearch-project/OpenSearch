@@ -25,11 +25,11 @@ dependencies {
   compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // Apache Arrow dependencies
-  implementation "org.apache.arrow:arrow-memory-core:18.3.0"
-  implementation "org.apache.arrow:arrow-memory-unsafe:18.3.0"
-  implementation "org.apache.arrow:arrow-vector:18.3.0"
-  implementation "org.apache.arrow:arrow-c-data:18.3.0"
-  implementation "org.apache.arrow:arrow-format:18.3.0"
+  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-format:${versions.arrow}"
   implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
   implementation "org.checkerframework:checker-qual:3.43.0"

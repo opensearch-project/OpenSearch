@@ -79,10 +79,12 @@ public class PlannerImpl {
         // frontends apply themselves before submitting a RelNode. Rules already applied by the
         // frontend should not be re-added here — re-applying them increases overall planning time.
         hepBuilder.addMatchOrder(HepMatchOrder.ARBITRARY);
-        hepBuilder.addRuleCollection(List.of(
-            new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
-            new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
-        ));
+        hepBuilder.addRuleCollection(
+            List.of(
+                new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
+                new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
+            )
+        );
 
         // Marking: convert LogicalXxx → OpenSearchXxx bottom-up
         // TODO: migrate rules from deprecated RelOptRule to RelRule<Config> once the planner

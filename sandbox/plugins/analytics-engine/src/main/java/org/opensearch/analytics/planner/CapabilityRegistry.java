@@ -125,7 +125,8 @@ public class CapabilityRegistry {
                         for (FieldType fieldType : scalar.fieldTypes()) {
                             addToFormatMap(scalarIndex, new ScalarKey(scalar.function(), fieldType), scalar.formats(), name);
                             if (scalar.supportsLiteralEvaluation()) {
-                                literalScalarIndex.computeIfAbsent(new ScalarKey(scalar.function(), fieldType), k -> new ArrayList<>()).add(name);
+                                literalScalarIndex.computeIfAbsent(new ScalarKey(scalar.function(), fieldType), k -> new ArrayList<>())
+                                    .add(name);
                             }
                         }
                     }

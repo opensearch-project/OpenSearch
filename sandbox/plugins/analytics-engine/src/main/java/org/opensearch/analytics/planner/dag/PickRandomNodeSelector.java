@@ -12,7 +12,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**

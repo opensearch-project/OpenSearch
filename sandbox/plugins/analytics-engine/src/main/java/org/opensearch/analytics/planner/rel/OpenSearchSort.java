@@ -20,6 +20,7 @@ import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.RelNodeUtils;
 
 import java.util.List;
+
 /**
  * OpenSearch custom Sort carrying viable backend list.
  *
@@ -77,8 +78,7 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
 
     @Override
     public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        return new OpenSearchSort(getCluster(), getTraitSet(), children.getFirst(),
-            getCollation(), offset, fetch, List.of(backend));
+        return new OpenSearchSort(getCluster(), getTraitSet(), children.getFirst(), getCollation(), offset, fetch, List.of(backend));
     }
 
     @Override
