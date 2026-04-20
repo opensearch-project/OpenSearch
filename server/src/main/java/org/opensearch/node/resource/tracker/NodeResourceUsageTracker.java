@@ -82,7 +82,9 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
      */
     public boolean isReady() {
         if (Constants.LINUX) {
-            return memoryUsageTracker.isReady() && cpuUsageTracker.isReady() && ioUsageTracker.isReady()
+            return memoryUsageTracker.isReady()
+                && cpuUsageTracker.isReady()
+                && ioUsageTracker.isReady()
                 && nativeMemoryUsageTracker.isReady();
         }
         return memoryUsageTracker.isReady() && cpuUsageTracker.isReady();
@@ -125,10 +127,12 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
             resourceTrackerSettings.getNativeMemoryPollingInterval(),
             resourceTrackerSettings.getNativeMemoryWindowDuration()
         );
-        clusterSettings.addSettingsUpdateConsumer(
-            ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING,
-            this::setNativeMemoryWindowDuration
-        );
+        if (Constants.LINUX) {
+            clusterSettings.addSettingsUpdateConsumer(
+                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING,
+                this::setNativeMemoryWindowDuration
+            );
+        }
     }
 
     private void setMemoryWindowDuration(TimeValue windowDuration) {
@@ -162,23 +166,29 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     protected void doStart() {
         cpuUsageTracker.doStart();
         memoryUsageTracker.doStart();
-        ioUsageTracker.doStart();
-        nativeMemoryUsageTracker.doStart();
+        if (Constants.LINUX) {
+            ioUsageTracker.doStart();
+            nativeMemoryUsageTracker.doStart();
+        }
     }
 
     @Override
     protected void doStop() {
         cpuUsageTracker.doStop();
         memoryUsageTracker.doStop();
-        ioUsageTracker.doStop();
-        nativeMemoryUsageTracker.doStop();
+        if (Constants.LINUX) {
+            ioUsageTracker.doStop();
+            nativeMemoryUsageTracker.doStop();
+        }
     }
 
     @Override
     protected void doClose() {
         cpuUsageTracker.doClose();
         memoryUsageTracker.doClose();
-        ioUsageTracker.doClose();
-        nativeMemoryUsageTracker.doClose();
+        if (Constants.LINUX) {
+            ioUsageTracker.doClose();
+            nativeMemoryUsageTracker.doClose();
+        }
     }
 }

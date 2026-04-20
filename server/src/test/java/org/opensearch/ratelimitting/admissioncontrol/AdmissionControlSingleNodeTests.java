@@ -427,6 +427,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testNativeMemoryAdmissionControllerRegistered() throws Exception {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
         AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
         Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
@@ -439,6 +440,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testNativeMemoryAdmissionControllerDisabledByDefault() throws Exception {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
         AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
         NativeMemoryBasedAdmissionController nativeMemoryController = (NativeMemoryBasedAdmissionController) admissionControlService
@@ -446,9 +448,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         assertNotNull(nativeMemoryController);
         // Default mode is disabled (inherits from global setting)
         assertFalse(
-            nativeMemoryController.isEnabledForTransportLayer(
-                nativeMemoryController.settings.getTransportLayerAdmissionControllerMode()
-            )
+            nativeMemoryController.isEnabledForTransportLayer(nativeMemoryController.settings.getTransportLayerAdmissionControllerMode())
         );
 
         // Enable it via settings update
@@ -459,13 +459,12 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         assertTrue(
-            nativeMemoryController.isEnabledForTransportLayer(
-                nativeMemoryController.settings.getTransportLayerAdmissionControllerMode()
-            )
+            nativeMemoryController.isEnabledForTransportLayer(nativeMemoryController.settings.getTransportLayerAdmissionControllerMode())
         );
     }
 
     public void testNativeMemoryAdmissionControlRejectionEnforcedMode() throws Exception {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
         client().admin().indices().prepareCreate(INDEX_NAME).execute().actionGet();
 
@@ -517,6 +516,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testNativeMemoryAdmissionControlRejectionMonitorMode() throws Exception {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
 
         // Disable CPU controller, enable native memory controller in monitor mode with limit 0
@@ -564,6 +564,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testNativeMemoryAdmissionControlDisabledMode() throws Exception {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
 
         // Disable CPU and IO controllers, disable native memory controller explicitly
@@ -607,6 +608,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testNativeMemoryAdmissionControlWithinLimits() throws Exception {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
 
         // Enable native memory controller in enforced mode but with high limits so nothing gets rejected

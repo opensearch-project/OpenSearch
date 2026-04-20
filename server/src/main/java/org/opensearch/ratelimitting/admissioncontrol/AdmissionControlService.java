@@ -74,8 +74,8 @@ public class AdmissionControlService {
         registerAdmissionController(CPU_BASED_ADMISSION_CONTROLLER);
         if (Constants.LINUX) {
             registerAdmissionController(IO_BASED_ADMISSION_CONTROLLER);
+            registerAdmissionController(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
         }
-        registerAdmissionController(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
     }
 
     /**

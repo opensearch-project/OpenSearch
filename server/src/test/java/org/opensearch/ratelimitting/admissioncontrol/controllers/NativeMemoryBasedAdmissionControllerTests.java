@@ -9,7 +9,6 @@
 package org.opensearch.ratelimitting.admissioncontrol.controllers;
 
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
@@ -37,16 +36,13 @@ public class NativeMemoryBasedAdmissionControllerTests extends OpenSearchTestCas
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("admission_controller_settings_test");
-        clusterService = ClusterServiceUtils.createClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
-        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        clusterService.close();
         threadPool.shutdownNow();
     }
 

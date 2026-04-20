@@ -41,7 +41,7 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
         OsProbe osProbe = OsProbe.getInstance();
         long totalMemory = osProbe.getTotalPhysicalMemorySize();
         if (totalMemory <= 0) {
-            LOGGER.debug("Unable to retrieve total physical memory size");
+            LOGGER.warn("Unable to retrieve total physical memory size");
             return 0;
         }
         long availableMemory = osProbe.getAvailableMemorySize();
@@ -50,7 +50,7 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
             // Use available memory (includes reclaimable cache) for a more accurate picture
             unusedMemory = availableMemory;
         } else {
-            LOGGER.debug("for non linux systems we will not measure this native memory");
+            LOGGER.warn("unable to retrieve available memory");
             return 0;
         }
         long usedMemory = totalMemory - unusedMemory;

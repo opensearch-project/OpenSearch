@@ -39,6 +39,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.monitor.Probes;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
@@ -265,7 +266,7 @@ public class OsProbe {
         try {
             return readAvailableMemoryFromProcMeminfo();
         } catch (Exception e) {
-            logger.debug("error reading available memory from /proc/meminfo", e);
+            logger.warn("error reading available memory from /proc/meminfo", e);
             return -1;
         }
     }
@@ -278,13 +279,17 @@ public class OsProbe {
      */
     @SuppressForbidden(reason = "access /proc/meminfo")
     long readAvailableMemoryFromProcMeminfo() throws IOException {
-        final List<String> lines = Files.readAllLines(PathUtils.get("/proc/meminfo"));
-        for (final String line : lines) {
-            if (line.startsWith("MemAvailable:")) {
-                final String[] parts = line.split("\\s+");
-                if (parts.length >= 2) {
-                    // Value in /proc/meminfo is in kB
-                    return Long.parseLong(parts[1]) * 1024;
+        try (BufferedReader reader = Files.newBufferedReader(PathUtils.get("/proc/meminfo"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("MemAvailable:")) {
+                    final String[] parts = line.split("\\s+");
+                    if (parts.length >= 2) {
+                        // Value in /proc/meminfo is in kB
+                        return Long.parseLong(parts[1]) * 1024;
+                    } else {
+                        return -1;
+                    }
                 }
             }
         }
