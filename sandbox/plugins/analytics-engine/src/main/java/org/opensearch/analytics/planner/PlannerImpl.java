@@ -90,6 +90,9 @@ public class PlannerImpl {
         // TODO: migrate rules from deprecated RelOptRule to RelRule<Config> once the planner
         // moves to its own Gradle module. The OpenSearch monorepo injects -proc:none globally,
         // blocking the Immutables annotation processor required by RelRule.Config sub-interfaces.
+        // TODO: add SortPushdown rule here — pushes Sort below Exchange to data nodes for top-K
+        // optimization. When Sort is pushed to data nodes above a partial aggregate, FragmentConversionDriver
+        // must call convertShardScanFragment → attachPartialAggOnTop → attachFragmentOnTop(Sort) in sequence.
         hepBuilder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
         hepBuilder.addRuleCollection(
             List.of(

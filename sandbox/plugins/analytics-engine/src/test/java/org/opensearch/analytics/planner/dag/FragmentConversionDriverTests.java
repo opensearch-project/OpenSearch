@@ -86,22 +86,19 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
     private void assertShardScanConverted(RecordingConvertor convertor, Stage stage) {
         assertEquals("expected exactly one alternative", 1, stage.getPlanAlternatives().size());
-        StagePlan plan = stage.getPlanAlternatives().getFirst();
-        assertNotNull("convertedBytes must be set", plan.convertedBytes());
+        assertNotNull("convertedBytes must be set", stage.getPlanAlternatives().getFirst().convertedBytes());
         assertTrue("convertShardScanFragment must be called", convertor.shardScanCalled);
-        assertEquals("test_index", convertor.tableName);
-        assertDoesntContainOperators(convertor.fragment, OPENSEARCH_OPERATORS);
-        assertDoesntContainOperators(convertor.fragment, ANNOTATION_MARKERS);
+        assertEquals("test_index", convertor.shardScanTableName);
+        assertDoesntContainOperators(convertor.shardScanFragment, OPENSEARCH_OPERATORS);
+        assertDoesntContainOperators(convertor.shardScanFragment, ANNOTATION_MARKERS);
     }
 
-    private void assertCoordinatorConverted(RecordingConvertor convertor, Stage stage) {
+    private void assertReduceStageConverted(RecordingConvertor convertor, Stage stage) {
         assertEquals("expected exactly one alternative", 1, stage.getPlanAlternatives().size());
-        StagePlan plan = stage.getPlanAlternatives().getFirst();
-        assertNotNull("convertedBytes must be set", plan.convertedBytes());
-        assertTrue("convertCoordinatorFragment must be called", convertor.coordinatorCalled);
-        // Coordinator fragment may contain ExchangeReducer/StageInputScan (infrastructure) but no operator wrappers or annotations
-        assertDoesntContainOperators(convertor.coordinatorFragment, OPENSEARCH_OPERATORS);
-        assertDoesntContainOperators(convertor.coordinatorFragment, ANNOTATION_MARKERS);
+        assertNotNull("convertedBytes must be set", stage.getPlanAlternatives().getFirst().convertedBytes());
+        assertTrue("convertFinalAggFragment must be called", convertor.finalAggCalled);
+        assertDoesntContainOperators(convertor.reduceFragment, OPENSEARCH_OPERATORS);
+        assertDoesntContainOperators(convertor.reduceFragment, ANNOTATION_MARKERS);
     }
 
     // ---- Single-stage query shapes ----
@@ -177,14 +174,14 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
     /**
      * Multi-shard Aggregate(Scan) — child calls convertShardScanFragment,
-     * root calls convertCoordinatorFragment.
+     * root calls convertFinalAggFragment.
      */
     public void testTwoStageAggregateConversion() {
         RecordingConvertor convertor = new RecordingConvertor();
         QueryDAG dag = buildAndConvert(2, makeAggregate(sumCall()), convertor);
 
         assertEquals(1, dag.rootStage().getChildStages().size());
-        assertCoordinatorConverted(convertor, dag.rootStage());
+        assertReduceStageConverted(convertor, dag.rootStage());
         assertShardScanConverted(convertor, dag.rootStage().getChildStages().getFirst());
     }
 
@@ -206,7 +203,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         );
 
         assertEquals(1, dag.rootStage().getChildStages().size());
-        assertCoordinatorConverted(convertor, dag.rootStage());
+        assertReduceStageConverted(convertor, dag.rootStage());
         assertShardScanConverted(convertor, dag.rootStage().getChildStages().getFirst());
     }
 
@@ -215,24 +212,34 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     /** Records which convertor method was called and what was passed. */
     private static class RecordingConvertor implements FragmentConvertor {
         boolean shardScanCalled;
-        boolean coordinatorCalled;
-        String tableName;
-        RelNode fragment;
-        RelNode coordinatorFragment;
+        boolean finalAggCalled;
+        String shardScanTableName;
+        RelNode shardScanFragment;
+        RelNode reduceFragment;
 
         @Override
         public byte[] convertShardScanFragment(String tableName, RelNode fragment) {
             this.shardScanCalled = true;
-            this.tableName = tableName;
-            this.fragment = fragment;
+            this.shardScanTableName = tableName;
+            this.shardScanFragment = fragment;
             return ("shard:" + tableName).getBytes(StandardCharsets.UTF_8);
         }
 
         @Override
-        public byte[] convertCoordinatorFragment(RelNode fragment) {
-            this.coordinatorCalled = true;
-            this.coordinatorFragment = fragment;
-            return "coordinator".getBytes(StandardCharsets.UTF_8);
+        public byte[] convertFinalAggFragment(RelNode fragment) {
+            this.finalAggCalled = true;
+            this.reduceFragment = fragment;
+            return "reduce".getBytes(StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
+            return ("attach:" + new String(innerBytes, StandardCharsets.UTF_8)).getBytes(StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public byte[] attachPartialAggOnTop(RelNode partialAggFragment, byte[] innerBytes) {
+            return ("partialAgg:" + new String(innerBytes, StandardCharsets.UTF_8)).getBytes(StandardCharsets.UTF_8);
         }
     }
 }
