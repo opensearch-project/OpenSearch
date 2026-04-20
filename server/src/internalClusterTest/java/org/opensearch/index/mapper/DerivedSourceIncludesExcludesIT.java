@@ -13,6 +13,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -46,7 +47,7 @@ public class DerivedSourceIncludesExcludesIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(settings)
-                .setMapping(String.format(MAPPING_TEMPLATE, sourceFilter))
+                .setMapping(String.format(Locale.ROOT, MAPPING_TEMPLATE, sourceFilter))
         );
         ensureGreen(indexName);
     }
