@@ -63,17 +63,14 @@ impl TieredObjectStore {
         &self.registry
     }
 
-    /// Register a file in the registry. For Remote/Both locations, the caller
-    /// must provide the resolved `store` directly.
-    pub fn register_file(
-        &self,
+    /// Validate that Remote/Both locations have required remote metadata.
+    fn validate_remote_fields(
         path: &str,
         location: FileLocation,
-        remote_path: Option<String>,
-        repo_key: Option<String>,
-        store: Option<Arc<dyn ObjectStore>>,
+        remote_path: &Option<String>,
+        repo_key: &Option<String>,
+        store: &Option<Arc<dyn ObjectStore>>,
     ) -> Result<(), crate::types::FileRegistryError> {
-        // Validate: Remote/Both requires remote_path + repo_key + store.
         if matches!(location, FileLocation::Remote | FileLocation::Both) {
             if remote_path.is_none() {
                 return Err(crate::types::FileRegistryError::InvalidRegistration {
@@ -94,6 +91,20 @@ impl TieredObjectStore {
                 });
             }
         }
+        Ok(())
+    }
+
+    /// Register a file in the registry. For Remote/Both locations, the caller
+    /// must provide the resolved `store` directly.
+    pub fn register_file(
+        &self,
+        path: &str,
+        location: FileLocation,
+        remote_path: Option<String>,
+        repo_key: Option<String>,
+        store: Option<Arc<dyn ObjectStore>>,
+    ) -> Result<(), crate::types::FileRegistryError> {
+        Self::validate_remote_fields(path, location, &remote_path, &repo_key, &store)?;
 
         let remote_arc: Option<Arc<str>> = remote_path.map(Arc::from);
 
@@ -116,7 +127,9 @@ impl TieredObjectStore {
         remote_path: Option<String>,
         repo_key: Option<String>,
         store: Option<Arc<dyn ObjectStore>>,
-    ) {
+    ) -> Result<(), crate::types::FileRegistryError> {
+        Self::validate_remote_fields(path, location, &remote_path, &repo_key, &store)?;
+
         let remote_arc: Option<Arc<str>> = remote_path.map(Arc::from);
         let repo_arc: Option<Arc<str>> = repo_key.map(Arc::from);
 
@@ -132,6 +145,7 @@ impl TieredObjectStore {
             path,
             location
         );
+        Ok(())
     }
 
     // TODO: Add pin(path)/unpin(path) methods for write-path eviction protection.

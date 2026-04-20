@@ -152,15 +152,15 @@ impl TieredFileEntry {
 
     /// Atomically decrement the active reader count, clamped at zero.
     pub fn release(&self) {
-        let result = self
-            .active_reads
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
-                if current <= 0 {
-                    None
-                } else {
-                    Some(current - 1)
-                }
-            });
+        let result =
+            self.active_reads
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+                    if current <= 0 {
+                        None
+                    } else {
+                        Some(current - 1)
+                    }
+                });
         debug_assert!(
             result.is_ok(),
             "release() called with active_reads <= 0, mismatched acquire/release"
