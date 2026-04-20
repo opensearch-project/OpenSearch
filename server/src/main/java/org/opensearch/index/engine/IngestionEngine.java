@@ -526,7 +526,13 @@ public class IngestionEngine extends InternalEngine {
 
     @Override
     public PollingIngestStats pollingIngestStats() {
-        return streamPoller.getStats();
+        PollingIngestStats pollerStats = streamPoller.getStats();
+        // Enrich with pipeline execution metrics from the shared executor
+        return new PollingIngestStats(
+            pollerStats.getMessageProcessorStats(),
+            pollerStats.getConsumerStats(),
+            pipelineExecutor.getMetrics()
+        );
     }
 
     private void registerDynamicIndexSettingsHandlers() {
