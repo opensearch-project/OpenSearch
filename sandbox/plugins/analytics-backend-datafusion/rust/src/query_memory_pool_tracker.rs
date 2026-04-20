@@ -123,7 +123,7 @@ impl QueryTracker {
     /// Wall-clock duration. Returns the frozen snapshot if completed,
     /// otherwise returns live elapsed time.
     pub fn wall_secs(&self) -> f64 {
-        let nanos = self.wall_nanos.load(Ordering::Relaxed);
+        let nanos = self.wall_nanos.load(Ordering::Acquire);
         if nanos > 0 {
             nanos as f64 / 1_000_000_000.0
         } else {
@@ -132,13 +132,13 @@ impl QueryTracker {
     }
 
     pub fn is_completed(&self) -> bool {
-        self.completed.load(Ordering::Relaxed)
+        self.completed.load(Ordering::Acquire)
     }
 
     /// Snapshot wall time and mark completed.
     fn mark_completed(&self) {
         let elapsed_nanos = self.start_time.elapsed().as_nanos() as u64;
-        self.wall_nanos.store(elapsed_nanos, Ordering::Relaxed);
+        self.wall_nanos.store(elapsed_nanos, Ordering::Release);
         self.completed.store(true, Ordering::Release);
     }
 }

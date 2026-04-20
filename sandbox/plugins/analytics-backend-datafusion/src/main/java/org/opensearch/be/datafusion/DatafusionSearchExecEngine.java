@@ -45,11 +45,8 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
     public void prepare(ExecutionContext requestContext) {
         // TODO: wire Substrait conversion (RelNode → Substrait bytes)
         byte[] substraitBytes = null;
-        DatafusionQuery query = new DatafusionQuery(requestContext.getTableName(), substraitBytes);
-        if (datafusionContext.task() != null) {
-            query.setContextId(datafusionContext.task().getId());
-        }
-        datafusionContext.setDatafusionQuery(query);
+        long contextId = datafusionContext.task() != null ? datafusionContext.task().getId() : 0L;
+        datafusionContext.setDatafusionQuery(new DatafusionQuery(requestContext.getTableName(), substraitBytes, contextId));
     }
 
     @Override

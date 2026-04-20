@@ -171,10 +171,16 @@ use crate::runtime_manager::RuntimeManager;
 /// Bundles a stream with its query tracking context so that dropping the
 /// handle automatically marks the query completed in the registry.
 pub struct QueryStreamHandle {
-    pub stream: RecordBatchStreamAdapter<CrossRtStream>,
+    stream: RecordBatchStreamAdapter<CrossRtStream>,
     /// Held for its `Drop` impl — marks the query completed when the
     /// stream is closed.
-    pub query_tracking_context: QueryTrackingContext,
+    _query_tracking_context: QueryTrackingContext,
+}
+
+impl QueryStreamHandle {
+    pub fn new(stream: RecordBatchStreamAdapter<CrossRtStream>, query_context: QueryTrackingContext) -> Self {
+        Self { stream, _query_tracking_context: query_context }
+    }
 }
 
 /// Build ObjectMeta for each file using the given object store.
@@ -329,7 +335,7 @@ pub async unsafe fn execute_query(
 
     // Reconstruct the stream from the raw pointer returned by query_executor
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
-    let handle = QueryStreamHandle { stream, query_tracking_context: query_context };
+    let handle = QueryStreamHandle::new(stream, query_context);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 

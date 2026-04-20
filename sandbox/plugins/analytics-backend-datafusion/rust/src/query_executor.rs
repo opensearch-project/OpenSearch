@@ -39,6 +39,10 @@ pub async fn execute_query(
     plan_bytes: Vec<u8>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
+    // Per-query memory pool, or None when context_id is 0 (tracking disabled).
+    // Not all query flows pass a context_id yet; this fallback allows queries
+    // to execute using the global pool. Can be made required once all flows
+    // wire up context_id correctly.
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
 ) -> Result<i64, DataFusionError> {
     // Pre-populate the list-files cache so DataFusion doesn't re-list the directory

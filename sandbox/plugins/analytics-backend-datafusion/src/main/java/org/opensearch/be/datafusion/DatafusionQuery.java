@@ -22,10 +22,12 @@ public class DatafusionQuery {
      * Creates a query with the given index name and serialized substrait plan.
      * @param indexName the target index name
      * @param substraitBytes the serialized substrait plan bytes
+     * @param contextId the query context ID for per-query memory tracking (0 if unavailable)
      */
-    public DatafusionQuery(String indexName, byte[] substraitBytes) {
+    public DatafusionQuery(String indexName, byte[] substraitBytes, long contextId) {
         this.indexName = indexName;
         this.substraitBytes = substraitBytes;
+        this.contextId = contextId;
     }
 
     /** Returns the target index name. */
@@ -54,13 +56,5 @@ public class DatafusionQuery {
     /** Returns the query context ID for per-query memory tracking. */
     public long getContextId() {
         return contextId;
-    }
-
-    /**
-     * Sets the query context ID for per-query memory tracking.
-     * @param contextId the context ID (typically the SearchShardTask ID)
-     */
-    public void setContextId(long contextId) {
-        this.contextId = contextId;
     }
 }
