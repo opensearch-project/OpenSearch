@@ -245,6 +245,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+            if (starTreeBucketCollector == null) {
+                return false; // segment doesn't have star tree data
+            }
             StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
             return true;
         }
@@ -377,6 +380,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         StarTreeBucketCollector parent
     ) throws IOException {
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        if (starTreeValues == null) {
+            return null; // segment doesn't have star tree data
+        }
         SortedSetStarTreeValuesIterator valuesIterator = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
             fieldName
         );

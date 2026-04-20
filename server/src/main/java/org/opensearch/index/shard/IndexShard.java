@@ -296,7 +296,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final String checkIndexOnStartup;
     private final CodecService codecService;
     // Volatile override for the codec service, used during star tree upgrade to switch to composite codec
-    // without modifying the final codecService field. Reset to null after the engine restart.
+    // without modifying the final codecService field. Kept set after upgrade so that engine-only restarts
+    // (e.g., resetEngineToGlobalCheckpoint) use the composite codec. Nulled after the first post-upgrade
+    // engine reset confirms the persistent index.composite_index=true setting took effect.
     private volatile CodecService codecServiceOverride;
     private final Engine.Warmer warmer;
     private final SimilarityService similarityService;
@@ -2335,42 +2337,92 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             flush(new FlushRequest().force(true));
 
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                // blockOperations accepts CheckedRunnable<Exception> — IOException,
+                // InterruptedException, TimeoutException propagate unwrapped to caller.
                 // Second flush: ensure all data committed before engine close
                 // (catches any writes between first flush and block)
                 flush(new FlushRequest().waitIfOngoing(true));
 
-                // Close the engine to release all file handles and the IndexWriter's write lock.
-                // We close entirely (rather than swapping to a read-only engine) because the
-                // upgrade writes new files and rewrites SegmentInfos directly on disk. No engine
-                // should be holding the directory open during this process.
-                // Tradeoff: reads are unavailable during the upgrade window.
+                // --- Swap 1: InternalEngine → ReadOnlyEngine ---
+                // Pattern: create ROE first, then swap reference, then close old engine.
+                // If ROE constructor throws, old engine is still current — no damage.
                 synchronized (engineMutex) {
-                    IOUtils.close(currentEngineReference.getAndSet(null));
-                }
-                try {
-                    // Phase 1: build star tree files per segment + Phase 2: rewrite SegmentInfos
-                    int count = StarTreeUpgradeService.upgradeSegments(store().directory(), starTreeField, mapperService);
-                    upgradedCount.set(count);
-                } finally {
-                    // Create a fresh engine from the upgraded segments_N+1 commit.
-                    // Set codecServiceOverride so the new engine uses Composite912Codec for
-                    // new segments written after the upgrade (flushes and merges). The original
-                    // codecService was created before the mapping update and doesn't include
-                    // the composite codec.
+                    Engine oldEngine = currentEngineReference.get();
+                    ReadOnlyEngine roEngine = new ReadOnlyEngine(
+                        newEngineConfig(replicationTracker), // uses stale codec — fine, ROE only reads
+                        null,  // seqNoStats — ROE will build from commit
+                        null,  // translogStats — ROE will build from commit
+                        false, // obtainLock=false so Phase 2 can acquire write lock
+                        Function.identity(), // no reader wrapping needed
+                        false  // requireCompleteHistory=false
+                    );
+                    currentEngineReference.set(roEngine);
+                    IOUtils.close(oldEngine);
+                    // Set codecServiceOverride INSIDE mutex, AFTER old engine is closed.
+                    // This prevents a race where concurrent newEngineConfig() calls see the
+                    // override while the old InternalEngine is still active.
                     codecServiceOverride = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
+                }
+
+                // Track ALL candidate segments (not just successful) for cleanup on failure.
+                Set<String> allCandidateSegments = StarTreeUpgradeService.getCandidateSegmentNames(store().directory());
+                Set<String> upgradedSegments = Collections.emptySet();
+                try {
+                    // Phase 1: build star tree files
+                    upgradedSegments = StarTreeUpgradeService.buildStarTreeDataForSegments(
+                        store().directory(),
+                        starTreeField,
+                        mapperService
+                    );
+                    // Phase 2: rewrite SegmentInfos (if any segments upgraded)
+                    if (upgradedSegments.isEmpty() == false) {
+                        StarTreeUpgradeService.rewriteSegmentInfos(store().directory(), upgradedSegments);
+                    }
+                    upgradedCount.set(upgradedSegments.size());
+                } catch (Exception e) {
+                    // Cleanup ALL candidate segments' star tree files, not just successful ones.
+                    StarTreeUpgradeService.cleanupStarTreeFiles(store().directory(), allCandidateSegments);
+                    throw e;
+                }
+
+                // --- Swap 2: ReadOnlyEngine → InternalEngine (with recovery) ---
+                Engine newEngine;
+                try {
                     synchronized (engineMutex) {
-                        Engine newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
+                        Engine roEngine = currentEngineReference.get();
+                        newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
                         onNewEngine(newEngine);
                         currentEngineReference.set(newEngine);
-                        // Warm up the searcher so scheduled refreshes don't hit assertion errors
-                        newEngine.refresh("star-tree-upgrade");
-                        active.set(true);
+                        IOUtils.close(roEngine);
                     }
-                    // Clear the override — the codecService for subsequent engine configs
-                    // will be created fresh by the engine config factory which will see the
-                    // updated mapping with star tree fields
-                    codecServiceOverride = null;
+                } catch (Exception e) {
+                    logger.error("Failed to open new InternalEngine after upgrade, attempting recovery", e);
+                    try {
+                        // Recovery: try with original codec (clear override)
+                        codecServiceOverride = null;
+                        synchronized (engineMutex) {
+                            Engine roEngine = currentEngineReference.get();
+                            newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
+                            onNewEngine(newEngine);
+                            currentEngineReference.set(newEngine);
+                            IOUtils.close(roEngine);
+                        }
+                    } catch (Exception fatal) {
+                        logger.error("Recovery engine also failed — shard is unusable", fatal);
+                        failShard("star tree upgrade engine recovery failed", fatal);
+                        throw fatal;
+                    }
                 }
+                // Refresh outside engineMutex — non-fatal if it fails.
+                try {
+                    newEngine.refresh("star-tree-upgrade");
+                } catch (Exception e) {
+                    logger.warn("Post-upgrade refresh failed, will retry on next cycle", e);
+                }
+                active.set(true);
+                // NOTE: codecServiceOverride is NOT cleared here — kept for resetEngineToGlobalCheckpoint().
+                // It will be nulled after the first post-upgrade engine reset confirms the persistent
+                // index.composite_index=true setting took effect.
             });
 
             logger.info("{} per-segment star tree upgrade completed — {} segments upgraded", shardId, upgradedCount.get());
@@ -5381,6 +5433,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
+            // After the first post-upgrade engine reset, the fresh codecService already includes
+            // Composite912Codec via the persistent index.composite_index=true setting. Clear the
+            // override to avoid permanent volatile read overhead on every newEngineConfig() call.
+            if (codecServiceOverride != null && mapperService != null && mapperService.isCompositeIndexPresent()) {
+                codecServiceOverride = null;
+            }
         }
         final TranslogRecoveryRunner translogRunner = (snapshot) -> {
             long startTime = System.currentTimeMillis();

@@ -71,7 +71,7 @@ public class StarTreeQueryHelper {
      * Get the star-tree leaf collector
      * This collector computes the aggregation prematurely and invokes an early termination collector
      */
-    public static void precomputeLeafUsingStarTree(
+    public static boolean precomputeLeafUsingStarTree(
         SearchContext context,
         ValuesSource.Numeric valuesSource,
         LeafReaderContext ctx,
@@ -81,7 +81,9 @@ public class StarTreeQueryHelper {
         Runnable finalConsumer
     ) throws IOException {
         StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
-        assert starTreeValues != null;
+        if (starTreeValues == null) {
+            return false; // segment doesn't have star tree data, caller should fall back
+        }
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
         String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
 
@@ -112,6 +114,7 @@ public class StarTreeQueryHelper {
 
         // Call the final consumer after processing all entries
         finalConsumer.run();
+        return true;
     }
 
     /**

@@ -246,15 +246,18 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
-            preComputeWithStarTree(ctx, supportedStarTree);
-            return true;
+            return preComputeWithStarTree(ctx, supportedStarTree);
         }
         return false;
     }
 
-    private void preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+    private boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
+        if (starTreeBucketCollector == null) {
+            return false; // segment doesn't have star tree data
+        }
         StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+        return true;
     }
 
     /**
@@ -268,7 +271,9 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
         StarTreeBucketCollector parent
     ) throws IOException {
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
-        assert starTreeValues != null;
+        if (starTreeValues == null) {
+            return null; // segment doesn't have star tree data
+        }
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
 
         // Get an iterator for each field (dimension) in the multi-terms aggregation.

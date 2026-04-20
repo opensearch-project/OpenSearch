@@ -19,6 +19,7 @@ import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -30,6 +31,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.Lock;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
@@ -76,6 +78,13 @@ public class StarTreeUpgradeService {
 
     private static final Logger logger = LogManager.getLogger(StarTreeUpgradeService.class);
 
+    /** Star tree file extensions created during Phase 1 */
+    private static final String[] STAR_TREE_FILE_EXTENSIONS = new String[] {
+        Composite912DocValuesFormat.DATA_EXTENSION,
+        Composite912DocValuesFormat.META_EXTENSION,
+        Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+        Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION };
+
     private StarTreeUpgradeService() {
         // utility class, no instances
     }
@@ -97,14 +106,51 @@ public class StarTreeUpgradeService {
      * @throws IOException   if an I/O error occurs during the upgrade process
      */
     public static int upgradeSegments(Directory directory, StarTreeField starTreeField, MapperService mapperService) throws IOException {
+        logger.info("Starting star tree upgrade");
+        Set<String> allCandidateSegments = getCandidateSegmentNames(directory);
+        Set<String> upgradedSegmentNames;
+        try {
+            upgradedSegmentNames = buildStarTreeDataForSegments(directory, starTreeField, mapperService);
+            if (upgradedSegmentNames.isEmpty() == false) {
+                logger.info("Starting Phase 2 — SegmentInfos rewrite for {} upgraded segments", upgradedSegmentNames.size());
+                rewriteSegmentInfos(directory, upgradedSegmentNames);
+                logger.info("Phase 2 complete — SegmentInfos rewrite finished successfully");
+            } else {
+                logger.info("No segments were upgraded in Phase 1, skipping Phase 2");
+            }
+        } catch (Exception e) {
+            cleanupStarTreeFiles(directory, allCandidateSegments);
+            throw e;
+        }
+        return upgradedSegmentNames.size();
+    }
+
+    /**
+     * Returns segment names that are candidates for star tree upgrade (not already using Composite912Codec).
+     */
+    public static Set<String> getCandidateSegmentNames(Directory directory) throws IOException {
+        SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(directory);
+        Set<String> candidates = new HashSet<>();
+        for (SegmentCommitInfo commitInfo : segmentInfos) {
+            if (Composite912Codec.COMPOSITE_INDEX_CODEC_NAME.equals(commitInfo.info.getCodec().getName()) == false) {
+                candidates.add(commitInfo.info.name);
+            }
+        }
+        return candidates;
+    }
+
+    /**
+     * Phase 1: Builds star tree data for all eligible segments. Returns set of successfully upgraded segment names.
+     */
+    public static Set<String> buildStarTreeDataForSegments(Directory directory, StarTreeField starTreeField, MapperService mapperService)
+        throws IOException {
         SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(directory);
         Set<String> upgradedSegmentNames = new HashSet<>();
         int skippedCount = 0;
         int failedCount = 0;
 
-        logger.info("Starting star tree upgrade for {} segments", segmentInfos.size());
+        logger.info("Starting star tree Phase 1 for {} segments", segmentInfos.size());
 
-        // Phase 1: Build star tree data for each eligible segment
         for (SegmentCommitInfo commitInfo : segmentInfos) {
             String codecName = commitInfo.info.getCodec().getName();
             if (Composite912Codec.COMPOSITE_INDEX_CODEC_NAME.equals(codecName)) {
@@ -112,7 +158,6 @@ public class StarTreeUpgradeService {
                 skippedCount++;
                 continue;
             }
-
             try {
                 logger.debug("Building star tree data for segment [{}] with codec [{}]", commitInfo.info.name, codecName);
                 buildStarTreeData(directory, commitInfo, starTreeField, mapperService);
@@ -130,17 +175,25 @@ public class StarTreeUpgradeService {
             failedCount,
             segmentInfos.size()
         );
+        return upgradedSegmentNames;
+    }
 
-        // Phase 2: Rewrite SegmentInfos to switch upgraded segments to Composite912Codec
-        if (upgradedSegmentNames.isEmpty() == false) {
-            logger.info("Starting Phase 2 — SegmentInfos rewrite for {} upgraded segments", upgradedSegmentNames.size());
-            rewriteSegmentInfos(directory, upgradedSegmentNames);
-            logger.info("Phase 2 complete — SegmentInfos rewrite finished successfully");
-        } else {
-            logger.info("No segments were upgraded in Phase 1, skipping Phase 2 SegmentInfos rewrite");
+    /**
+     * Deletes orphaned star tree files for the given segment names. Best-effort, logs warnings on failure.
+     */
+    public static void cleanupStarTreeFiles(Directory directory, Set<String> segmentNames) {
+        for (String segmentName : segmentNames) {
+            for (String ext : STAR_TREE_FILE_EXTENSIONS) {
+                String fileName = IndexFileNames.segmentFileName(segmentName, "", ext);
+                try {
+                    directory.deleteFile(fileName);
+                } catch (IOException e) {
+                    logger.warn("Failed to delete orphaned star tree file [{}]: {}", fileName, e.getMessage());
+                } catch (Exception e) {
+                    logger.warn("Unexpected error deleting star tree file [{}]: {}", fileName, e.getMessage());
+                }
+            }
         }
-
-        return upgradedSegmentNames.size();
     }
 
     /**
@@ -360,8 +413,10 @@ public class StarTreeUpgradeService {
      * @param upgradedSegmentNames  the set of segment names that were successfully upgraded in Phase 1
      * @throws IOException          if an I/O error occurs during the SegmentInfos rewrite
      */
-    static void rewriteSegmentInfos(Directory directory, Set<String> upgradedSegmentNames) throws IOException {
-        SegmentInfos originalInfos = SegmentInfos.readLatestCommit(directory);
+    public static void rewriteSegmentInfos(Directory directory, Set<String> upgradedSegmentNames) throws IOException {
+        Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
+        try {
+            SegmentInfos originalInfos = SegmentInfos.readLatestCommit(directory);
         SegmentInfos newSegmentInfos = originalInfos.clone();
         newSegmentInfos.clear();
 
@@ -447,5 +502,8 @@ public class StarTreeUpgradeService {
             newSegmentInfos.files(true),
             java.util.Arrays.toString(directory.listAll())
         );
+        } finally {
+            writeLock.close();
+        }
     }
 }

@@ -206,6 +206,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+            if (starTreeBucketCollector == null) {
+                return false; // segment doesn't have star tree data
+            }
             StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
             return true;
         }
@@ -342,6 +345,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         StarTreeBucketCollector parentCollector
     ) throws IOException {
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        if (starTreeValues == null) {
+            return null; // segment doesn't have star tree data
+        }
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getDimensionValuesIterator(starTreeDateDimension);
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);

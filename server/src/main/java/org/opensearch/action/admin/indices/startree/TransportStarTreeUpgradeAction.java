@@ -45,6 +45,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -520,14 +521,23 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
                 }
 
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-                // Force-enable append_only — star tree does not support updates or deletes.
+                // Force-enable append_only and composite_index — star tree does not support updates or deletes.
                 // After upgrade, the index becomes append-only to protect star tree correctness.
-                if (IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.get(indexMetadata.getSettings()) == false) {
-                    Settings updatedSettings = Settings.builder()
-                        .put(indexMetadata.getSettings())
-                        .put(IndexMetadata.SETTING_INDEX_APPEND_ONLY_ENABLED, true)
-                        .build();
-                    indexMetadataBuilder.settings(updatedSettings);
+                // Also set composite_index=true so that subsequent CodecService instances include
+                // Composite912Codec without needing the volatile codecServiceOverride.
+                boolean needAppendOnly = IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.get(indexMetadata.getSettings()) == false;
+                boolean needCompositeIndex = StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.get(
+                    indexMetadata.getSettings()
+                ) == false;
+                if (needAppendOnly || needCompositeIndex) {
+                    Settings.Builder settingsBuilder = Settings.builder().put(indexMetadata.getSettings());
+                    if (needAppendOnly) {
+                        settingsBuilder.put(IndexMetadata.SETTING_INDEX_APPEND_ONLY_ENABLED, true);
+                    }
+                    if (needCompositeIndex) {
+                        settingsBuilder.put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true);
+                    }
+                    indexMetadataBuilder.settings(settingsBuilder.build());
                     indexMetadataBuilder.settingsVersion(1 + indexMetadata.getSettingsVersion());
                 }
                 DocumentMapper mapper = mapperService.documentMapper();
