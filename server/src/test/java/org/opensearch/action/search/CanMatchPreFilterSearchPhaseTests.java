@@ -77,6 +77,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -159,7 +160,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             null,
             shardsIter,
             timeProvider,
-            ClusterState.EMPTY_STATE,
+            () -> ClusterState.EMPTY_STATE,
             null,
             (iter) -> new SearchPhase("test") {
                 @Override
@@ -257,7 +258,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             null,
             shardsIter,
             timeProvider,
-            ClusterState.EMPTY_STATE,
+            () -> ClusterState.EMPTY_STATE,
             null,
             (iter) -> new SearchPhase("test") {
                 @Override
@@ -345,7 +346,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             null,
             shardsIter,
             timeProvider,
-            ClusterState.EMPTY_STATE,
+            () -> ClusterState.EMPTY_STATE,
             null,
             (iter) -> {
                 return new WrappingSearchAsyncActionPhase(
@@ -361,7 +362,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                         responseListener,
                         iter,
                         new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                        ClusterState.EMPTY_STATE,
+                        () -> ClusterState.EMPTY_STATE,
                         null,
                         new ArraySearchPhaseResults<>(iter.size()),
                         randomIntBetween(1, 32),
@@ -477,7 +478,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 null,
                 shardsIter,
                 timeProvider,
-                ClusterState.EMPTY_STATE,
+                () -> ClusterState.EMPTY_STATE,
                 null,
                 (iter) -> new SearchPhase("test") {
                     @Override
@@ -584,7 +585,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 null,
                 shardsIter,
                 timeProvider,
-                ClusterState.EMPTY_STATE,
+                () -> ClusterState.EMPTY_STATE,
                 null,
                 (iter) -> new SearchPhase("test") {
                     @Override
@@ -690,7 +691,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             null,
             shardsIter,
             timeProvider,
-            ClusterState.EMPTY_STATE,
+            () -> ClusterState.EMPTY_STATE,
             null,
             (iter) -> {
                 AbstractSearchAsyncAction<? extends SearchPhaseResult> action = new SearchDfsQueryAsyncAction(
@@ -707,7 +708,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     null,
                     shardsIter,
                     timeProvider,
-                    ClusterState.EMPTY_STATE,
+                    () -> ClusterState.EMPTY_STATE,
                     task,
                     SearchResponse.Clusters.EMPTY,
                     searchRequestContext
@@ -748,7 +749,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             final ActionListener<SearchResponse> listener,
             final GroupShardsIterator<SearchShardIterator> shardsIts,
             final TransportSearchAction.SearchTimeProvider timeProvider,
-            final ClusterState clusterState,
+            final Supplier<ClusterState> clusterStateSupplier,
             final SearchTask task,
             SearchResponse.Clusters clusters,
             SearchRequestContext searchRequestContext
@@ -766,7 +767,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 listener,
                 shardsIts,
                 timeProvider,
-                clusterState,
+                clusterStateSupplier,
                 task,
                 new ArraySearchPhaseResults<>(shardsIts.size()),
                 request.getMaxConcurrentShardRequests(),
