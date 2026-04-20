@@ -156,9 +156,14 @@ public class SearchSourceBuilderProtoUtils {
         // indices_boost (flat map) is kept for backward compatibility but ignored when indices_boost_2 is present.
         if (protoRequest.getIndicesBoost2Count() > 0) {
             for (FloatMap floatMap : protoRequest.getIndicesBoost2List()) {
-                for (Map.Entry<String, Float> entry : floatMap.getFloatMapMap().entrySet()) {
-                    searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
+                if (floatMap.getFloatMapCount() != 1) {
+                    throw new IllegalArgumentException(
+                        "Each indices_boost_2 entry must contain exactly one index-to-boost mapping, but found "
+                            + floatMap.getFloatMapCount()
+                    );
                 }
+                Map.Entry<String, Float> entry = floatMap.getFloatMapMap().entrySet().iterator().next();
+                searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
             }
         } else if (protoRequest.getIndicesBoostCount() > 0) {
             for (Map.Entry<String, Float> entry : protoRequest.getIndicesBoostMap().entrySet()) {

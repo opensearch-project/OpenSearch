@@ -408,6 +408,32 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals(2.0f, searchSourceBuilder.indexBoosts().get(0).getBoost(), 0.001f);
     }
 
+    public void testParseProtoWithIndicesBoost2MultipleKeysThrows() {
+        FloatMap invalidMap = FloatMap.newBuilder().putFloatMap("index1", 1.0f).putFloatMap("index2", 2.0f).build();
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().addIndicesBoost2(invalidMap).build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils, aggregationRegistry)
+        );
+        assertTrue(e.getMessage().contains("exactly one index-to-boost mapping"));
+    }
+
+    public void testParseProtoWithIndicesBoost2EmptyMapThrows() {
+        FloatMap emptyMap = FloatMap.newBuilder().build();
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().addIndicesBoost2(emptyMap).build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils, aggregationRegistry)
+        );
+        assertTrue(e.getMessage().contains("exactly one index-to-boost mapping"));
+    }
+
     public void testParseProtoWithPostFilter() throws IOException {
         // Create a protobuf SearchRequestBody with postFilter
         SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
