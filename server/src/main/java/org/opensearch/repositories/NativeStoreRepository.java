@@ -54,15 +54,6 @@ public record NativeStoreRepository(NativeStoreHandle handle) implements AutoClo
     }
 
     /**
-     * Returns the underlying handle. Prefer using facade methods over
-     * accessing the handle directly.
-     */
-    @Override
-    public NativeStoreHandle handle() {
-        return handle;
-    }
-
-    /**
      * Destroys the native resource. Safe to call multiple times.
      */
     @Override

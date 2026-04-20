@@ -137,8 +137,10 @@ impl TieredObjectStore {
     // TODO: Add pin(path)/unpin(path) methods for write-path eviction protection.
     // TODO: Add schedule_eviction(path) and sweep() for deferred eviction lifecycle.
 
-    /// Resolve remote store and path for a file, if it's registered as Remote.
-    /// Returns (remote_path, store_arc) with the guard already dropped (safe for I/O).
+    // NOTE: The guard is intentionally dropped before I/O. The Arc<dyn ObjectStore>
+    // keeps the store alive independently. If eviction lifecycle is added in the future,
+    // this method should return the guard alongside the resolved path/store to pin the
+    // entry for the duration of the I/O operation.
     fn resolve_remote(&self, path: &str) -> Option<(Path, Arc<dyn ObjectStore>)> {
         let guard = self.registry.get(path)?;
         if guard.location() != FileLocation::Remote {
@@ -147,7 +149,7 @@ impl TieredObjectStore {
         let remote_path = guard.remote_path()?;
         let store = Arc::clone(guard.remote_store()?);
         let rp = Path::from(remote_path);
-        drop(guard); // release before I/O
+        drop(guard); // release before I/O — Arc keeps store alive
         Some((rp, store))
     }
 }

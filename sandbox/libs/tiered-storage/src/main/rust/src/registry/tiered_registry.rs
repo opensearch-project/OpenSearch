@@ -143,11 +143,19 @@ impl FileRegistry for TieredStorageRegistry {
 
     fn remove_by_prefix(&self, prefix: &str, force: bool) -> usize {
         if force {
-            let before = self.files.len();
-            self.files.retain(|key, _| !key.starts_with(prefix));
-            let removed = before.saturating_sub(self.files.len());
-            self.remove_count
-                .fetch_add(removed as u64, Ordering::Relaxed);
+            let mut removed = 0usize;
+            self.files.retain(|key, _| {
+                if key.starts_with(prefix) {
+                    removed += 1;
+                    false
+                } else {
+                    true
+                }
+            });
+            if removed > 0 {
+                self.remove_count
+                    .fetch_add(removed as u64, Ordering::Relaxed);
+            }
             removed
         } else {
             let matching: Vec<String> = self

@@ -84,16 +84,26 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         List<NativeRemoteObjectStoreProvider> providers = loader.loadExtensions(NativeRemoteObjectStoreProvider.class);
+        int matchCount = 0;
         for (NativeRemoteObjectStoreProvider provider : providers) {
             if (AzureRepository.TYPE.equals(provider.repositoryType())) {
-                this.nativeStoreProvider = provider;
-                logger.info(
-                    "Loaded native object store provider [{}] for repository type [{}]",
-                    provider.getClass().getName(),
-                    AzureRepository.TYPE
-                );
-                break;
+                matchCount++;
+                if (this.nativeStoreProvider == null) {
+                    this.nativeStoreProvider = provider;
+                    logger.info(
+                        "Loaded native object store provider [{}] for repository type [{}]",
+                        provider.getClass().getName(),
+                        AzureRepository.TYPE
+                    );
+                }
             }
+        }
+        if (matchCount > 1) {
+            logger.warn(
+                "Multiple native object store providers found for repository type [{}], using [{}]",
+                AzureRepository.TYPE,
+                this.nativeStoreProvider.getClass().getName()
+            );
         }
         if (this.nativeStoreProvider == null) {
             logger.info("No native object store provider found for repository type [{}]", AzureRepository.TYPE);

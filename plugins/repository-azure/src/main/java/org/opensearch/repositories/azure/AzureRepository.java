@@ -162,6 +162,8 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
             if (store != null && store.isLive()) {
                 this.nativeStore = store;
+            } else if (store != null && store != NativeStoreRepository.EMPTY) {
+                store.close();
             }
         }
     }
