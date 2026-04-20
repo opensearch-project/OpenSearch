@@ -23,6 +23,9 @@ import org.opensearch.indices.ShardLimitValidator;
 
 import java.util.Set;
 
+import static org.opensearch.index.IndexModule.TieringState.WARM;
+import static org.opensearch.storage.common.tiering.TieringUtils.H2W_TIERING_START_TIME_KEY;
+
 /**
  * Service responsible for tiering indices from hot to warm.
  * validateTieringRequest, getTieringStartSettingsToAdd, getIndexTierSettingsToRestoreAfterCancellation,
@@ -95,12 +98,12 @@ public class HotToWarmTieringService extends TieringService {
 
     @Override
     protected String getTieringStartTimeKey() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return H2W_TIERING_START_TIME_KEY;
     }
 
     @Override
     protected IndexModule.TieringState getTargetTieringState() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return WARM;
     }
 
     @Override
