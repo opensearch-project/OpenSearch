@@ -70,6 +70,32 @@ pub unsafe extern "C" fn df_close_global_runtime(ptr: i64) {
     api::close_global_runtime(ptr);
 }
 
+// ---- Memory pool observability and dynamic limit ----
+
+/// Returns current memory pool usage in bytes.
+/// Java: MethodHandle(JAVA_LONG → JAVA_LONG)
+#[no_mangle]
+pub unsafe extern "C" fn df_get_memory_pool_usage(runtime_ptr: i64) -> i64 {
+    if runtime_ptr == 0 { return 0; }
+    api::get_memory_pool_usage(runtime_ptr)
+}
+
+/// Returns current memory pool limit in bytes.
+/// Java: MethodHandle(JAVA_LONG → JAVA_LONG)
+#[no_mangle]
+pub unsafe extern "C" fn df_get_memory_pool_limit(runtime_ptr: i64) -> i64 {
+    if runtime_ptr == 0 { return 0; }
+    api::get_memory_pool_limit(runtime_ptr)
+}
+
+/// Sets the memory pool limit at runtime. Takes effect for new allocations only.
+/// Java: MethodHandle(JAVA_LONG, JAVA_LONG → void)
+#[no_mangle]
+pub unsafe extern "C" fn df_set_memory_pool_limit(runtime_ptr: i64, new_limit: i64) {
+    if runtime_ptr == 0 { return; }
+    api::set_memory_pool_limit(runtime_ptr, new_limit);
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_create_reader(
