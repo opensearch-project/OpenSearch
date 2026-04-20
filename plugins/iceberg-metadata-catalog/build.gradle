@@ -14,6 +14,10 @@ opensearchplugin {
 }
 
 dependencies {
+  // S3 blob container / blob store classes pre-packaged from repository-s3. 
+  // TODO: move to a shared common-utils library
+  api files('lib/s3-blob-container.jar')
+
   // Iceberg dependencies
   api "org.apache.iceberg:iceberg-api:1.6.1"
   api "org.apache.iceberg:iceberg-core:1.6.1"
@@ -127,5 +131,6 @@ if (tasks.findByName("yamlRestTest") != null) {
   tasks.named("yamlRestTest").configure { enabled = false }
 }
 
-// Disable loggerUsageCheck since copied S3 code may use patterns that trigger it
+// Disable loggerUsageCheck since the pre-packaged s3-blob-container.jar may
+// use logging patterns that this check doesn't recognize from compiled classes.
 tasks.named("loggerUsageCheck").configure { enabled = false }
