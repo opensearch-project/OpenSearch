@@ -41,13 +41,13 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -149,7 +149,9 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 .indices()
                 .prepareCreate("test")
                 // to avoid normal document from being cached by BitsetFilterCache
-                .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false))
+                .setSettings(
+                    Settings.builder().put(IndicesBitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false)
+                )
                 .setMapping(mapping)
         );
         client().prepareIndex("test")
