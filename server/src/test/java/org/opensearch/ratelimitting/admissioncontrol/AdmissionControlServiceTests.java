@@ -55,7 +55,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         if (Constants.LINUX) {
             assertEquals(admissionControlService.getAdmissionControllers().size(), 3);
         } else {
-            assertEquals(admissionControlService.getAdmissionControllers().size(), 2);
+            assertEquals(admissionControlService.getAdmissionControllers().size(), 1);
         }
     }
 
@@ -65,7 +65,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         if (Constants.LINUX) {
             assertEquals(admissionControlService.getAdmissionControllers().size(), 3);
         } else {
-            assertEquals(admissionControlService.getAdmissionControllers().size(), 2);
+            assertEquals(admissionControlService.getAdmissionControllers().size(), 1);
         }
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -81,7 +81,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         if (Constants.LINUX) {
             assertEquals(admissionControllerList.size(), 3);
         } else {
-            assertEquals(admissionControllerList.size(), 2);
+            assertEquals(admissionControllerList.size(), 1);
         }
         CpuBasedAdmissionController cpuBasedAdmissionController = (CpuBasedAdmissionController) admissionControlService
             .getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
@@ -151,7 +151,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         if (Constants.LINUX) {
             assertEquals(admissionControllerList.size(), 3);
         } else {
-            assertEquals(admissionControllerList.size(), 2);
+            assertEquals(admissionControllerList.size(), 1);
         }
     }
 
@@ -176,11 +176,12 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         if (Constants.LINUX) {
             assertEquals(admissionControllerList2.size(), 3);
         } else {
-            assertEquals(admissionControllerList2.size(), 2);
+            assertEquals(admissionControllerList2.size(), 1);
         }
     }
 
     public void testNativeMemoryBasedAdmissionControllerRegistered() {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         AdmissionController nativeMemoryController = admissionControlService.getAdmissionController(
             NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER
@@ -190,6 +191,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
     }
 
     public void testNativeMemoryAdmissionControllerSettings() {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         NativeMemoryBasedAdmissionController nativeMemoryController = (NativeMemoryBasedAdmissionController) admissionControlService
             .getAdmissionController(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
@@ -205,13 +207,12 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         clusterService.getClusterSettings().applySettings(settings);
         assertEquals(nativeMemoryController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
         assertTrue(
-            nativeMemoryController.isEnabledForTransportLayer(
-                nativeMemoryController.settings.getTransportLayerAdmissionControllerMode()
-            )
+            nativeMemoryController.isEnabledForTransportLayer(nativeMemoryController.settings.getTransportLayerAdmissionControllerMode())
         );
     }
 
     public void testApplyNativeMemoryAdmissionControllerDisabled() {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         this.action = "indices:data/write/bulk[s][p]";
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);

@@ -24,8 +24,8 @@ public class NativeMemoryBasedAdmissionControllerSettings {
      * Default parameters for the NativeMemoryBasedAdmissionControllerSettings
      */
     public static class Defaults {
-        public static final long NATIVE_MEMORY_USAGE_LIMIT = 50;
-        public static final long CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT = 100;
+        public static final long NATIVE_MEMORY_USAGE_LIMIT = 80;
+        public static final long CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT = 95;
     }
 
     private AdmissionControlMode transportLayerMode;
@@ -74,18 +74,22 @@ public class NativeMemoryBasedAdmissionControllerSettings {
     public static final Setting<Long> CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT = Setting.longSetting(
         "admission_control.cluster_admin.native_memory_usage.limit",
         Defaults.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT,
-        Setting.Property.Final,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public NativeMemoryBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayerMode = NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE, this::setTransportLayerMode);
+        clusterSettings.addSettingsUpdateConsumer(
+            NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
+            this::setTransportLayerMode
+        );
         this.searchNativeMemoryUsageLimit = SEARCH_NATIVE_MEMORY_USAGE_LIMIT.get(settings);
         this.indexingNativeMemoryUsageLimit = INDEXING_NATIVE_MEMORY_USAGE_LIMIT.get(settings);
         this.clusterAdminNativeMemoryUsageLimit = CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_NATIVE_MEMORY_USAGE_LIMIT, this::setSearchNativeMemoryUsageLimit);
         clusterSettings.addSettingsUpdateConsumer(INDEXING_NATIVE_MEMORY_USAGE_LIMIT, this::setIndexingNativeMemoryUsageLimit);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT, this::setClusterAdminNativeMemoryUsageLimit);
     }
 
     public void setTransportLayerMode(AdmissionControlMode transportLayerMode) {
@@ -114,5 +118,9 @@ public class NativeMemoryBasedAdmissionControllerSettings {
 
     public Long getClusterAdminNativeMemoryUsageLimit() {
         return clusterAdminNativeMemoryUsageLimit;
+    }
+
+    public void setClusterAdminNativeMemoryUsageLimit(Long clusterAdminNativeMemoryUsageLimit) {
+        this.clusterAdminNativeMemoryUsageLimit = clusterAdminNativeMemoryUsageLimit;
     }
 }

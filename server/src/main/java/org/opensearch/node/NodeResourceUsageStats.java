@@ -64,7 +64,11 @@ public class NodeResourceUsageStats implements Writeable, ToXContentFragment {
         } else {
             this.ioUsageStats = null;
         }
-        this.nativeMemoryUtilizationPercent = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            this.nativeMemoryUtilizationPercent = in.readDouble();
+        } else {
+            this.nativeMemoryUtilizationPercent = 0.0;
+        }
     }
 
     @Override
@@ -76,7 +80,7 @@ public class NodeResourceUsageStats implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             out.writeOptionalWriteable(this.ioUsageStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
             out.writeDouble(this.nativeMemoryUtilizationPercent);
         }
     }
@@ -88,7 +92,8 @@ public class NodeResourceUsageStats implements Writeable, ToXContentFragment {
         sb.append("Timestamp: ").append(timestamp);
         sb.append(", CPU utilization percent: ").append(String.format(Locale.ROOT, "%.1f", this.getCpuUtilizationPercent()));
         sb.append(", Memory utilization percent: ").append(String.format(Locale.ROOT, "%.1f", this.getMemoryUtilizationPercent()));
-        sb.append(", Native memory utilization percent: ").append(String.format(Locale.ROOT, "%.1f", this.getNativeMemoryUtilizationPercent()));
+        sb.append(", Native memory utilization percent: ")
+            .append(String.format(Locale.ROOT, "%.1f", this.getNativeMemoryUtilizationPercent()));
         if (this.ioUsageStats != null) {
             sb.append(", ").append(this.getIoUsageStats());
         }
