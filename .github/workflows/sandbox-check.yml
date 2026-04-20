@@ -36,7 +36,7 @@ jobs:
         run: ./gradlew check -p sandbox -Dsandbox.enabled=true
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sandbox-test-results
           path: sandbox/**/build/reports/tests/
