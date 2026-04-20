@@ -31,6 +31,7 @@ import org.opensearch.index.store.Store;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -163,8 +164,28 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
     }
 
     @Override
-    public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
-        // Stub: file deletion to be implemented in a future iteration
+    public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
+        Collection<String> luceneFiles = filesToDelete.get(LUCENE_FORMAT_NAME);
+        if (luceneFiles == null || luceneFiles.isEmpty()) {
+            return Map.of();
+        }
+        Directory directory = store.directory();
+        Collection<String> failed = new ArrayList<>();
+        for (String fileName : luceneFiles) {
+            try {
+                directory.deleteFile(fileName);
+            } catch (NoSuchFileException e) {
+                // Lucene may have already deleted this file during an internal merge. Pre-merge
+                // segment files are cleaned up by Lucene's IndexWriter before they are ever
+                // committed, so by the time our IndexFileDeleter tries to delete them they may
+                // already be gone. This is expected and safe to ignore.
+                logger.debug("File already deleted (likely by Lucene merge): {}", fileName);
+            } catch (IOException e) {
+                logger.warn(() -> new ParameterizedMessage("Failed to delete file: {}", fileName), e);
+                failed.add(fileName);
+            }
+        }
+        return failed.isEmpty() ? Map.of() : Map.of(LUCENE_FORMAT_NAME, failed);
     }
 
     @Override

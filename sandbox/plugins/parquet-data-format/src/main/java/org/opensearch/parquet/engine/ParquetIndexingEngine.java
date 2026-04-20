@@ -192,19 +192,21 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     }
 
     @Override
-    public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
+    public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
         Collection<String> parquetFiles = filesToDelete.get(dataFormat.name());
         if (parquetFiles == null) {
-            return;
+            return Map.of();
         }
+        Collection<String> failed = new ArrayList<>();
         for (String fileName : parquetFiles) {
             Path filePath = Path.of(fileName);
             logger.debug("Deleting parquet file: {}", filePath);
-            boolean deleted = Files.deleteIfExists(filePath);
-            if (deleted == false) {
+            if (Files.deleteIfExists(filePath) == false) {
                 logger.warn("Failed to delete parquet file: {}", filePath);
+                failed.add(fileName);
             }
         }
+        return failed.isEmpty() ? Map.of() : Map.of(dataFormat.name(), failed);
     }
 
     @Override

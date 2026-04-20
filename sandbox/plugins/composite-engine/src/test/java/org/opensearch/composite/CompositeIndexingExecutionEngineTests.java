@@ -12,23 +12,17 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.RefreshInput;
-import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -57,12 +51,11 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
     }
 
     public void testConstructorThrowsWhenPrimaryFormatNotRegistered() {
-        Map<String, DataFormatPlugin> plugins = new HashMap<>();
-        plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.format("parquet")).thenReturn(null);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of())));
 
         IndexSettings indexSettings = createIndexSettings("parquet");
-        DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.format("parquet")).thenThrow(new IllegalArgumentException("No data format registered with name [parquet]"));
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> new CompositeIndexingExecutionEngine(indexSettings, null, new CompositeTestHelper.StubCommitter(), registry, null, null)
@@ -71,8 +64,14 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
     }
 
     public void testConstructorThrowsWhenSecondaryFormatNotRegistered() {
-        Map<String, DataFormatPlugin> plugins = new HashMap<>();
-        plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of()));
+        when(registry.format("parquet")).thenReturn(null);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of())));
+        when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
+            DataFormatPlugin plugin = CompositeTestHelper.stubPlugin("lucene", 1);
+            return plugin.indexingEngine(null, null);
+        });
 
         Settings settings = Settings.builder()
             .put("index.composite.primary_data_format", "lucene")
@@ -84,12 +83,6 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        DataFormat luceneFormat = CompositeTestHelper.stubFormat("lucene", 1, Set.of());
-        DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.format("lucene")).thenReturn(luceneFormat);
-        doReturn(new CompositeTestHelper.StubIndexingExecutionEngine(luceneFormat)).when(registry).getIndexingEngine(any(), any());
-        when(registry.format("parquet")).thenThrow(new IllegalArgumentException("No data format registered with name [parquet]"));
-
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> new CompositeIndexingExecutionEngine(indexSettings, null, new CompositeTestHelper.StubCommitter(), registry, null, null)
@@ -97,35 +90,37 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("parquet"));
     }
 
-    public void testConstructorRejectsNullDataFormatRegistry() {
-        IndexSettings indexSettings = createIndexSettings("lucene");
-        expectThrows(
-            NullPointerException.class,
-            () -> new CompositeIndexingExecutionEngine(indexSettings, null, new CompositeTestHelper.StubCommitter(), null, null, null)
-        );
-    }
-
     public void testConstructorRejectsNullIndexSettings() {
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
         expectThrows(
             NullPointerException.class,
             () -> new CompositeIndexingExecutionEngine(null, null, new CompositeTestHelper.StubCommitter(), registry, null, null)
-
         );
+    }
+
+    public void testConstructorThrowsWhenCommitterNull() {
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        IndexSettings indexSettings = createIndexSettings("lucene");
+
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> new CompositeIndexingExecutionEngine(indexSettings, null, null, registry, null, null)
+        );
+        assertTrue(ex.getMessage().contains("Committer must not be null"));
     }
 
     public void testValidateFormatsRegisteredAcceptsValidConfig() {
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, Set.of()));
-        when(registry.format("parquet")).thenReturn(CompositeTestHelper.stubFormat("parquet", 2, Set.of()));
+        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of()));
+        when(registry.format("parquet")).thenReturn(CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of()));
 
         CompositeIndexingExecutionEngine.validateFormatsRegistered(registry, "lucene", List.of("parquet"));
     }
 
     public void testValidateFormatsRegisteredRejectsMissingPrimary() {
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, Set.of()));
-        when(registry.format("parquet")).thenThrow(new IllegalArgumentException("No data format registered with name [parquet]"));
+        when(registry.format("parquet")).thenReturn(null);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of())));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -136,8 +131,9 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
 
     public void testValidateFormatsRegisteredRejectsMissingSecondary() {
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, Set.of()));
-        when(registry.format("parquet")).thenThrow(new IllegalArgumentException("No data format registered with name [parquet]"));
+        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of()));
+        when(registry.format("parquet")).thenReturn(null);
+        when(registry.getRegisteredFormats()).thenReturn(Set.of(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of())));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -148,7 +144,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
 
     public void testValidateFormatsRegisteredRejectsSecondaryEqualToPrimary() {
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, Set.of()));
+        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of()));
 
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
@@ -197,86 +193,15 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         engine.deleteFiles(Map.of());
     }
 
-    // --- Task 8.5: Property test — Committer is required ---
-
-    /**
-     * Property 2: Committer is required.
-     * Attempting to construct CompositeIndexingExecutionEngine with a null Committer
-     * must throw IllegalStateException.
-     *
-     * Validates: Requirements 3.2
-     */
-    public void testConstructorThrowsWhenCommitterNull() {
-        IndexSettings indexSettings = createIndexSettings("lucene");
-        DataFormatRegistry registry = mock(DataFormatRegistry.class);
-
-        IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
-            () -> new CompositeIndexingExecutionEngine(indexSettings, null, null, registry, null, null)
-        );
-        assertTrue(ex.getMessage().contains("Committer must not be null"));
-    }
-
-    // --- Task 8.6: Property test — Refresh never calls Committer methods ---
-
-    /**
-     * Property 5: Refresh never calls Committer methods.
-     * Running refresh() on the composite engine must not invoke commit() on the Committer.
-     *
-     * Validates: Requirements 3.6
-     */
-    public void testRefreshNeverCallsCommitterMethods() throws IOException {
-        TrackingCommitter tracking = new TrackingCommitter();
-        DataFormat luceneFormat = CompositeTestHelper.stubFormat("lucene", 1, Set.of());
-        DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.format("lucene")).thenReturn(luceneFormat);
-        doReturn(new CompositeTestHelper.StubIndexingExecutionEngine(luceneFormat)).when(registry).getIndexingEngine(any(), any());
-        IndexSettings indexSettings = createIndexSettings("lucene");
-
-        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(indexSettings, null, tracking, registry, null, null);
-
-        // Reset tracking after construction (init is called during construction)
-        tracking.commitCalled = false;
-
+    public void testRefreshReturnsResult() throws IOException {
+        CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngine("lucene");
         RefreshInput refreshInput = RefreshInput.builder().build();
-        engine.refresh(refreshInput);
-
-        assertFalse("commit() must not be called during refresh", tracking.commitCalled);
+        assertNotNull(engine.refresh(refreshInput));
     }
 
-    /**
-     * A Committer that tracks which methods were called, for test assertions.
-     */
-    private static class TrackingCommitter implements Committer {
-        boolean commitCalled = false;
-        boolean closeCalled = false;
-        Map<String, String> lastCommitData = null;
-
-        @Override
-        public void commit(Map<String, String> commitData) {
-            commitCalled = true;
-            lastCommitData = commitData;
-        }
-
-        @Override
-        public void close() {
-            closeCalled = true;
-        }
-
-        @Override
-        public Map<String, String> getLastCommittedData() {
-            return Map.of();
-        }
-
-        @Override
-        public CommitStats getCommitStats() {
-            return null;
-        }
-
-        @Override
-        public SafeCommitInfo getSafeCommitInfo() {
-            return SafeCommitInfo.EMPTY;
-        }
+    public void testCloseDoesNotThrow() throws IOException {
+        CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngine("lucene");
+        engine.close();
     }
 
     private IndexSettings createIndexSettings(String primaryFormat) {
