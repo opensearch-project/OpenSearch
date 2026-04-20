@@ -34,14 +34,12 @@ public class DerivedSourceIncludesExcludesIT extends OpenSearchIntegTestCase {
         + "  }\n"
         + "}";
 
-    private void createIndex(String indexName, boolean derivedSourceEnabled, String sourceFilter) {
+    private void createIndex(String indexName, String sourceFilter) {
         Settings.Builder settings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
-            .put("index.refresh_interval", -1); // Disable background refresh to ensure translog reads
-        if (derivedSourceEnabled) {
-            settings.put("index.derived_source.enabled", true);
-        }
+            .put("index.refresh_interval", -1) // Disable background refresh to ensure translog reads
+            .put("index.derived_source.enabled", true);
         assertAcked(
             client().admin()
                 .indices()
@@ -67,40 +65,43 @@ public class DerivedSourceIncludesExcludesIT extends OpenSearchIntegTestCase {
         return getResponse.getSourceAsMap();
     }
 
-    public void testExcludesWithDerivedSource() {
-        boolean derivedSourceEnabled = randomBoolean();
-        boolean refresh = randomBoolean();
+    private void assertExcludesAge(boolean refresh) {
+        String indexName = "test-excludes-" + refresh;
+        createIndex(indexName, "\"excludes\": [\"age\"]");
+        indexDocument(indexName, "1", refresh);
 
-        createIndex("test-excludes", derivedSourceEnabled, "\"excludes\": [\"age\"]");
-        indexDocument("test-excludes", "1", refresh);
+        Map<String, Object> source = getSourceAsMap(indexName, "1");
 
-        Map<String, Object> source = getSourceAsMap("test-excludes", "1");
-
-        assertFalse(
-            "age should be excluded (derived_source=" + derivedSourceEnabled + ", refresh=" + refresh + ")",
-            source.containsKey("age")
-        );
-        assertTrue("name should exist (derived_source=" + derivedSourceEnabled + ", refresh=" + refresh + ")", source.containsKey("name"));
-        assertTrue("city should exist (derived_source=" + derivedSourceEnabled + ", refresh=" + refresh + ")", source.containsKey("city"));
+        assertFalse("age should be excluded (derived_source=true, refresh=" + refresh + ")", source.containsKey("age"));
+        assertTrue("name should exist (derived_source=true, refresh=" + refresh + ")", source.containsKey("name"));
+        assertTrue("city should exist (derived_source=true, refresh=" + refresh + ")", source.containsKey("city"));
     }
 
-    public void testIncludesWithDerivedSource() {
-        boolean derivedSourceEnabled = randomBoolean();
-        boolean refresh = randomBoolean();
+    private void assertIncludesOnlyName(boolean refresh) {
+        String indexName = "test-includes-" + refresh;
+        createIndex(indexName, "\"includes\": [\"name\"]");
+        indexDocument(indexName, "1", refresh);
 
-        createIndex("test-includes", derivedSourceEnabled, "\"includes\": [\"name\"]");
-        indexDocument("test-includes", "1", refresh);
+        Map<String, Object> source = getSourceAsMap(indexName, "1");
 
-        Map<String, Object> source = getSourceAsMap("test-includes", "1");
+        assertTrue("name should exist (derived_source=true, refresh=" + refresh + ")", source.containsKey("name"));
+        assertFalse("age should not appear (derived_source=true, refresh=" + refresh + ")", source.containsKey("age"));
+        assertFalse("city should not appear (derived_source=true, refresh=" + refresh + ")", source.containsKey("city"));
+    }
 
-        assertTrue("name should exist (derived_source=" + derivedSourceEnabled + ", refresh=" + refresh + ")", source.containsKey("name"));
-        assertFalse(
-            "age should not appear (derived_source=" + derivedSourceEnabled + ", refresh=" + refresh + ")",
-            source.containsKey("age")
-        );
-        assertFalse(
-            "city should not appear (derived_source=" + derivedSourceEnabled + ", refresh=" + refresh + ")",
-            source.containsKey("city")
-        );
+    public void testExcludesAge_Translog() {
+        assertExcludesAge(false);
+    }
+
+    public void testExcludesAge_Segments() {
+        assertExcludesAge(true);
+    }
+
+    public void testIncludesOnlyName_Translog() {
+        assertIncludesOnlyName(false);
+    }
+
+    public void testIncludesOnlyName_Segments() {
+        assertIncludesOnlyName(true);
     }
 }
