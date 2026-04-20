@@ -44,6 +44,9 @@ public final class NativeBridge {
     private static final MethodHandle SHUTDOWN_RUNTIME_MANAGER;
     private static final MethodHandle CREATE_GLOBAL_RUNTIME;
     private static final MethodHandle CLOSE_GLOBAL_RUNTIME;
+    private static final MethodHandle GET_MEMORY_POOL_USAGE;
+    private static final MethodHandle GET_MEMORY_POOL_LIMIT;
+    private static final MethodHandle SET_MEMORY_POOL_LIMIT;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
     private static final MethodHandle EXECUTE_QUERY;
@@ -80,6 +83,21 @@ public final class NativeBridge {
         CLOSE_GLOBAL_RUNTIME = linker.downcallHandle(
             lib.find("df_close_global_runtime").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        GET_MEMORY_POOL_USAGE = linker.downcallHandle(
+            lib.find("df_get_memory_pool_usage").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        GET_MEMORY_POOL_LIMIT = linker.downcallHandle(
+            lib.find("df_get_memory_pool_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        SET_MEMORY_POOL_LIMIT = linker.downcallHandle(
+            lib.find("df_set_memory_pool_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         CREATE_READER = linker.downcallHandle(
@@ -168,6 +186,29 @@ public final class NativeBridge {
     /** Frees the native runtime. Safe to call once. */
     public static void closeGlobalRuntime(long ptr) {
         NativeCall.invokeVoid(CLOSE_GLOBAL_RUNTIME, ptr);
+    }
+
+    // ---- Memory pool observability and dynamic limit ----
+
+    /** Returns current memory pool usage in bytes. */
+    public static long getMemoryPoolUsage(long runtimePtr) {
+        try (var call = new NativeCall()) {
+            return call.invoke(GET_MEMORY_POOL_USAGE, runtimePtr);
+        }
+    }
+
+    /** Returns current memory pool limit in bytes. */
+    public static long getMemoryPoolLimit(long runtimePtr) {
+        try (var call = new NativeCall()) {
+            return call.invoke(GET_MEMORY_POOL_LIMIT, runtimePtr);
+        }
+    }
+
+    /** Sets the memory pool limit at runtime. Takes effect for new allocations only. */
+    public static void setMemoryPoolLimit(long runtimePtr, long newLimitBytes) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_MEMORY_POOL_LIMIT, runtimePtr, newLimitBytes);
+        }
     }
 
     // ---- Reader management (confined Arena for path + file strings) ----

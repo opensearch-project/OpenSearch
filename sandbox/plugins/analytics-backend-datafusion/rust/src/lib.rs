@@ -16,5 +16,6 @@ pub mod cross_rt_stream;
 pub mod executor;
 pub mod ffm;
 pub mod io;
+pub mod memory;
 pub mod query_executor;
 pub mod runtime_manager;
