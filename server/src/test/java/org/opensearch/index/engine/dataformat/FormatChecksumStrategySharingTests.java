@@ -135,11 +135,11 @@ public class FormatChecksumStrategySharingTests extends OpenSearchTestCase {
         Map<String, FormatChecksumStrategy> strategies = registry.createChecksumStrategies(indexSettings);
         FormatChecksumStrategy sharedStrategy = strategies.get(FORMAT_NAME);
 
+        long expectedChecksum = 3847291056L;
         // Simulate engine registering a checksum during write
-        sharedStrategy.registerChecksum("_0_1.parquet", 3847291056L, 1L);
+        sharedStrategy.registerChecksum("_0_1.parquet", expectedChecksum, 1L);
 
         // Simulate directory reading the checksum during upload
-        // Create a real directory for the computeChecksum call (it needs a Directory arg)
         Path tempDir = createTempDir();
         Path shardDataPath = tempDir.resolve("uuid").resolve("0");
         Files.createDirectories(shardDataPath.resolve(ShardPath.INDEX_FOLDER_NAME));
@@ -148,9 +148,13 @@ public class FormatChecksumStrategySharingTests extends OpenSearchTestCase {
 
         DataFormatAwareStoreDirectory directory = new DataFormatAwareStoreDirectory(fsDir, shardPath, strategies);
 
-        // The directory's strategy IS the same instance — checksum should be found
+        // The directory's strategy IS the same instance
         FormatChecksumStrategy directoryStrategy = directory.getChecksumStrategy(FORMAT_NAME);
         assertSame("Directory and engine must share the same strategy instance", sharedStrategy, directoryStrategy);
+
+        // Verify the checksum registered by the engine is readable from the directory's strategy (O(1) lookup)
+        long actualChecksum = directoryStrategy.computeChecksum(fsDir, "_0_1.parquet");
+        assertEquals("Checksum registered by engine must be visible via directory strategy", expectedChecksum, actualChecksum);
 
         directory.close();
     }
