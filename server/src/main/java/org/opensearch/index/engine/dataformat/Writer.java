@@ -36,10 +36,11 @@ public interface Writer<P extends DocumentInput<?>> extends Closeable, Lockable 
     /**
      * Flushes the writer and returns file information.
      *
+     * @param flushInput optional context for the flush operation
      * @return the file information after flush
      * @throws IOException if an I/O error occurs
      */
-    FileInfos flush() throws IOException;
+    FileInfos flush(FlushInput flushInput) throws IOException;
 
     /**
      * Synchronizes the writer to ensure data is persisted.

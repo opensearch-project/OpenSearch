@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
@@ -23,13 +24,18 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
+import org.opensearch.parquet.ParquetSettings;
+import org.opensearch.parquet.bridge.NativeSettings;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.merge.ParquetMergeExecutor;
+import org.opensearch.parquet.merge.StreamingParquetMergeStrategy;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -67,9 +73,10 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ShardPath shardPath;
     private final Supplier<Schema> schemaSupplier;
     private final ArrowBufferPool bufferPool;
-    private final Settings settings;
+    private final IndexSettings indexSettings;
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
+    private final Merger parquetMerger;
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -120,7 +127,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.bufferPool = new ArrowBufferPool(settings);
-        this.settings = settings;
+        this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.checksumStrategy = checksumStrategy;
         try {
@@ -130,6 +137,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        this.parquetMerger = new ParquetMergeExecutor(new StreamingParquetMergeStrategy());
+        pushSettingsToRust();
     }
 
     /**
@@ -139,6 +148,23 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     @Override
     public FormatChecksumStrategy getChecksumStrategy() {
         return checksumStrategy;
+    }
+
+    private void pushSettingsToRust() {
+        NativeSettings config = NativeSettings.builder()
+            .indexName(indexSettings.getIndex().getName())
+            .compressionType(indexSettings.getValue(ParquetSettings.COMPRESSION_TYPE))
+            .compressionLevel(indexSettings.getValue(ParquetSettings.COMPRESSION_LEVEL))
+            .pageSizeBytes(indexSettings.getValue(ParquetSettings.PAGE_SIZE_BYTES).getBytes())
+            .pageRowLimit(indexSettings.getValue(ParquetSettings.PAGE_ROW_LIMIT))
+            .dictSizeBytes(indexSettings.getValue(ParquetSettings.DICT_SIZE_BYTES).getBytes())
+            .rowGroupSizeBytes(indexSettings.getValue(ParquetSettings.ROW_GROUP_SIZE_BYTES).getBytes())
+            .build();
+        try {
+            RustBridge.onSettingsUpdate(config);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to push Parquet settings to Rust store", e);
+        }
     }
 
     @Override
@@ -154,7 +180,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             dataFormat,
             schemaSupplier.get(),
             bufferPool,
-            settings,
+            indexSettings,
             threadPool,
             checksumStrategy
         );
@@ -167,7 +193,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public Merger getMerger() {
-        return null;
+        return parquetMerger;
     }
 
     @Override
@@ -219,6 +245,11 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public void close() throws IOException {
+        try {
+            RustBridge.removeSettings(indexSettings.getIndex().getName());
+        } catch (Exception e) {
+            logger.warn("Failed to remove Parquet settings from Rust store for index [{}]", indexSettings.getIndex().getName(), e);
+        }
         bufferPool.close();
     }
 }

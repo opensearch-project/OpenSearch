@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.lucene;
+package org.opensearch.be.lucene.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,10 +28,21 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Lucene-specific {@link Committer} that owns the {@link IndexWriter} lifecycle.
+ * Lucene-specific {@link Committer} that owns the shared {@link IndexWriter} lifecycle
+ * for a single shard.
  * <p>
- * The constructor takes {@link CommitterConfig} and opens the IndexWriter immediately.
- * No separate {@code init()} call is needed.
+ * The shared writer is opened during construction using configuration from
+ * {@link CommitterConfig} (analyzer, codec, similarity, RAM buffer, index sort, etc.).
+ * All per-generation {@link LuceneWriter} instances produce segments in isolated temp
+ * directories; those segments are later incorporated into this shared writer via
+ * {@code IndexWriter.addIndexes} during refresh in {@link LuceneIndexingExecutionEngine}.
+ * <p>
+ * Commit data (catalog snapshot, translog UUID, sequence numbers) is persisted atomically
+ * via {@link #commit(Map)}, which sets the live commit data on the writer and calls
+ * {@link IndexWriter#commit()}.
+ * <p>
+ * The store reference is incremented on construction and decremented on {@link #close()}.
+ * Closing the committer also closes the underlying IndexWriter.
  *
  * @opensearch.experimental
  */
@@ -82,6 +93,14 @@ public class LuceneCommitter implements Committer {
         return iwc;
     }
 
+    /**
+     * Atomically persists the given commit data (catalog snapshot, translog UUID,
+     * sequence numbers) and commits the IndexWriter.
+     *
+     * @param commitData the key-value pairs to store as live commit data
+     * @throws IOException if the commit fails
+     * @throws IllegalStateException if this committer is closed
+     */
     @Override
     public synchronized void commit(Map<String, String> commitData) throws IOException {
         ensureOpen();
@@ -89,6 +108,12 @@ public class LuceneCommitter implements Committer {
         indexWriter.commit();
     }
 
+    /**
+     * Closes the IndexWriter and releases the store reference.
+     * Subsequent calls are no-ops.
+     *
+     * @throws IOException if closing the IndexWriter fails
+     */
     @Override
     public void close() throws IOException {
         if (isClosed.compareAndSet(false, true)) {
@@ -97,6 +122,14 @@ public class LuceneCommitter implements Committer {
         }
     }
 
+    /**
+     * Returns the last committed data as an unmodifiable map.
+     * If no commit data has been set, returns an empty map.
+     *
+     * @return the last committed key-value pairs
+     * @throws IOException if reading commit data fails
+     * @throws IllegalStateException if this committer is closed
+     */
     @Override
     public Map<String, String> getLastCommittedData() throws IOException {
         ensureOpen();
@@ -111,6 +144,11 @@ public class LuceneCommitter implements Committer {
         return Map.copyOf(result);
     }
 
+    /**
+     * Returns commit statistics derived from the latest committed segment infos.
+     *
+     * @return the commit stats, or {@code null} if segment infos cannot be read
+     */
     @Override
     public CommitStats getCommitStats() {
         ensureOpen();
@@ -123,6 +161,12 @@ public class LuceneCommitter implements Committer {
         }
     }
 
+    /**
+     * Not yet implemented. Will return safe commit info once the index deleter is wired in.
+     *
+     * @return never returns normally
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
         throw new UnsupportedOperationException("TODO:: with index deleter");

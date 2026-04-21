@@ -21,10 +21,17 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record FileInfos(Map<DataFormat, WriterFileSet> writerFilesMap) {
+public record FileInfos(Map<DataFormat, WriterFileSet> writerFilesMap, long[][] sortPermutation) {
 
     public FileInfos {
         writerFilesMap = Map.copyOf(new HashMap<>(writerFilesMap));
+    }
+
+    /**
+     * Constructs FileInfos without a sort permutation.
+     */
+    public FileInfos(Map<DataFormat, WriterFileSet> writerFilesMap) {
+        this(writerFilesMap, null);
     }
 
     /**
@@ -63,6 +70,7 @@ public record FileInfos(Map<DataFormat, WriterFileSet> writerFilesMap) {
     @ExperimentalApi
     public static final class Builder {
         private final Map<DataFormat, WriterFileSet> writerFilesMap = new HashMap<>();
+        private long[][] sortPermutation;
 
         /**
          * Adds a writer file set for a specific data format.
@@ -88,12 +96,23 @@ public record FileInfos(Map<DataFormat, WriterFileSet> writerFilesMap) {
         }
 
         /**
+         * Sets the sort permutation produced during sort-on-close.
+         *
+         * @param sortPermutation [0] = old_row_ids, [1] = new_row_ids, or null
+         * @return this builder
+         */
+        public Builder sortPermutation(long[][] sortPermutation) {
+            this.sortPermutation = sortPermutation;
+            return this;
+        }
+
+        /**
          * Builds the FileInfos instance.
          *
          * @return a new FileInfos instance
          */
         public FileInfos build() {
-            return new FileInfos(writerFilesMap);
+            return new FileInfos(writerFilesMap, sortPermutation);
         }
     }
 }

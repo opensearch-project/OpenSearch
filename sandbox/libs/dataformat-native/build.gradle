@@ -78,6 +78,11 @@ task buildRustLibrary(type: Exec) {
     if (buildType == 'release') { cargoArgs.add('--release') }
     commandLine cargoArgs
 
+    // Ensure rustup-managed rustc is found before any Homebrew-installed version
+    def cargoBinDir = System.getenv('HOME') + '/.cargo/bin'
+    def currentPath = System.getenv('PATH') ?: ''
+    environment 'PATH', "${cargoBinDir}:${currentPath}"
+
     inputs.files fileTree("${rustWorkspaceDir}/common/src")
     inputs.files fileTree("${rustWorkspaceDir}/lib/src")
     inputs.file "${rustWorkspaceDir}/Cargo.toml"

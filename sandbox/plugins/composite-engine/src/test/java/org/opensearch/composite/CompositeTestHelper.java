@@ -20,8 +20,10 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
@@ -104,6 +106,62 @@ final class CompositeTestHelper {
         };
     }
 
+    /**
+     * Creates a CompositeIndexingExecutionEngine with custom writers for testing sort propagation.
+     * The primary engine returns primaryWriter, the secondary engine returns secondaryWriter.
+     */
+    static CompositeIndexingExecutionEngine createStubEngineWithWriters(
+        DataFormat primaryFormat,
+        Writer<DocumentInput<?>> primaryWriter,
+        DataFormat secondaryFormat,
+        Writer<DocumentInput<?>> secondaryWriter
+    ) {
+        Map<String, DataFormat> formats = new HashMap<>();
+        formats.put(primaryFormat.name(), primaryFormat);
+        formats.put(secondaryFormat.name(), secondaryFormat);
+
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        when(registry.format(primaryFormat.name())).thenReturn(primaryFormat);
+        when(registry.format(secondaryFormat.name())).thenReturn(secondaryFormat);
+        when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
+            DataFormat format = invocation.getArgument(1);
+            if (format.name().equals(primaryFormat.name())) {
+                return new FixedWriterEngine(primaryFormat, primaryWriter);
+            } else {
+                return new FixedWriterEngine(secondaryFormat, secondaryWriter);
+            }
+        });
+
+        Settings settings = Settings.builder()
+            .put("index.composite.primary_data_format", primaryFormat.name())
+            .putList("index.composite.secondary_data_formats", secondaryFormat.name())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        return new CompositeIndexingExecutionEngine(indexSettings, null, new StubCommitter(), registry, null, null);
+    }
+
+    /**
+     * An IndexingExecutionEngine that always returns the same pre-built writer.
+     */
+    static class FixedWriterEngine extends StubIndexingExecutionEngine {
+        private final Writer<DocumentInput<?>> fixedWriter;
+
+        FixedWriterEngine(DataFormat dataFormat, Writer<DocumentInput<?>> fixedWriter) {
+            super(dataFormat);
+            this.fixedWriter = fixedWriter;
+        }
+
+        @Override
+        public Writer<DocumentInput<?>> createWriter(long writerGeneration) {
+            return fixedWriter;
+        }
+    }
+
     static DataFormatPlugin stubPlugin(String formatName, long priority, Set<FieldTypeCapabilities> fields) {
         DataFormat format = stubFormat(formatName, priority, fields);
         return new DataFormatPlugin() {
@@ -162,7 +220,7 @@ final class CompositeTestHelper {
 
         @Override
         public Merger getMerger() {
-            return null;
+            return mergeInput -> new MergeResult(Map.of());
         }
 
         @Override
@@ -219,7 +277,7 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public FileInfos flush() {
+        public FileInfos flush(FlushInput flushInput) {
             return FileInfos.empty();
         }
 

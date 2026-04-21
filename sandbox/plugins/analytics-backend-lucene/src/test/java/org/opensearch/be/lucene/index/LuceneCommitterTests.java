@@ -6,12 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.lucene;
+package org.opensearch.be.lucene.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;

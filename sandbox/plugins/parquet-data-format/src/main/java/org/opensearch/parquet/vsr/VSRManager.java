@@ -13,6 +13,8 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
@@ -23,9 +25,11 @@ import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.FieldValuePair;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -57,6 +61,7 @@ public class VSRManager implements AutoCloseable {
 
     private final AtomicReference<ManagedVSR> managedVSR = new AtomicReference<>();
     private final String fileName;
+    private final IndexSettings indexSettings;
     private final VSRPool vsrPool;
     private final ThreadPool threadPool;
     private final String vsrRotationThread;
@@ -66,21 +71,17 @@ public class VSRManager implements AutoCloseable {
 
     /**
      * Creates a new VSRManager with asynchronous background writes (production default).
-     *
-     * @param fileName output Parquet file path
-     * @param schema Arrow schema for vector creation
-     * @param bufferPool shared Arrow buffer pool
-     * @param maxRowsPerVSR row threshold triggering VSR rotation
-     * @param threadPool the thread pool for background native writes
      */
-    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR, ThreadPool threadPool) {
-        this(fileName, schema, bufferPool, maxRowsPerVSR, threadPool, true);
+    public VSRManager(String fileName, IndexSettings indexSettings, Schema schema, ArrowBufferPool bufferPool,
+                      int maxRowsPerVSR, ThreadPool threadPool) {
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true);
     }
 
     /**
      * Creates a new VSRManager.
      *
      * @param fileName output Parquet file path
+     * @param indexSettings the index settings (sort config is read from here)
      * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
      * @param maxRowsPerVSR row threshold triggering VSR rotation
@@ -90,6 +91,7 @@ public class VSRManager implements AutoCloseable {
      */
     public VSRManager(
         String fileName,
+        IndexSettings indexSettings,
         Schema schema,
         ArrowBufferPool bufferPool,
         int maxRowsPerVSR,
@@ -97,6 +99,7 @@ public class VSRManager implements AutoCloseable {
         boolean runAsync
     ) {
         this.fileName = fileName;
+        this.indexSettings = indexSettings;
         this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
         this.threadPool = threadPool;
         this.vsrRotationThread = runAsync ? ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME : ThreadPool.Names.SAME;
@@ -123,7 +126,7 @@ public class VSRManager implements AutoCloseable {
             parquetField.createField(fieldType, activeVSR, pair.getValue());
         }
         int rowIndex = activeVSR.getRowCount();
-        BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector("_row_id");
+        BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector("___row_id");
         if (rowIdVector != null) {
             rowIdVector.setSafe(rowIndex, doc.getRowId());
         }
@@ -210,9 +213,19 @@ public class VSRManager implements AutoCloseable {
     }
 
     private void initializeWriter() {
+        // Read sort config from index settings
+        List<String> sortColumns = IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexSettings.getSettings());
+        List<SortOrder> sortOrders = IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(indexSettings.getSettings());
+        List<Boolean> reverseSorts = sortOrders.stream().map(o -> o == SortOrder.DESC).toList();
+
+        List<String> missingValues = IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(indexSettings.getSettings());
+        List<Boolean> nullsFirst = missingValues.stream().map("_first"::equals).collect(java.util.stream.Collectors.toList());
+
+        String indexName = indexSettings.getIndex().getName();
+
         ArrowSchema arrowSchema = managedVSR.get().exportSchema();
         try {
-            writer = new NativeParquetWriter(fileName, arrowSchema.memoryAddress());
+            writer = new NativeParquetWriter(fileName, indexName, arrowSchema.memoryAddress(), sortColumns, reverseSorts, nullsFirst);
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
         } finally {
@@ -253,5 +266,14 @@ public class VSRManager implements AutoCloseable {
     // Visible for testing only
     ManagedVSR getActiveManagedVSR() {
         return managedVSR.get();
+    }
+
+    /**
+     * Returns the sort permutation produced during the last flush's sort-on-close,
+     * or null if no sorting was configured or the file was empty.
+     * The returned array is [0] = old_row_ids, [1] = new_row_ids.
+     */
+    public long[][] getSortPermutation() {
+        return writer.getSortPermutation();
     }
 }
