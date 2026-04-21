@@ -67,6 +67,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
 
     private static final Settings DISABLE_ADMISSION_CONTROL = Settings.builder()
         .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+        .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
         .build();
 
     private static final Settings ENFORCE_ADMISSION_CONTROL = Settings.builder()
