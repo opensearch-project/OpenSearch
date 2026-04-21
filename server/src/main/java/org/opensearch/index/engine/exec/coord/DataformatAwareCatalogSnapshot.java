@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -77,14 +79,11 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      * @param directoryResolver function that maps a data format name to its directory path
      * @throws IOException if an I/O error occurs
      */
-    DataformatAwareCatalogSnapshot(StreamInput in, Function<String, String> directoryResolver) throws IOException {
+    public DataformatAwareCatalogSnapshot(StreamInput in, Function<String, String> directoryResolver) throws IOException {
         super(in);
-
         this.userData = in.readMap(StreamInput::readString, StreamInput::readString);
-
         this.id = in.readLong();
         this.lastWriterGeneration = in.readLong();
-
         int segmentCount = in.readVInt();
         if (segmentCount < 0 || segmentCount > in.available()) {
             throw new IOException("Invalid segment count: " + segmentCount);
@@ -195,17 +194,66 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public int getFormatVersionForFile(String file) {
-        // TODO: Return the actual format-specific version the file was written with.
-        // For lucene files, this should come from a per-segment version map populated
-        // by the composite engine (which has access to SegmentInfos). For non-lucene
-        // files, each DataFormat should provide its own version.
-        return org.opensearch.Version.CURRENT.major;
+    public Version getFormatVersionForFile(String file) {
+        // TODO: return the per-file format version once per-segment tracking is available.
+        return Version.LATEST;
     }
 
     @Override
+    public Version getMinSegmentFormatVersion() {
+        return null;
+    }
+
+    @Override
+    public Version getCommitDataFormatVersion() {
+        // Todo: update this api once proper versioning is implemented.
+        return Version.LATEST;
+    }
+
+    /**
+     * Returns 0 pending a proper doc-count model for DFA shards. Summing
+     * {@code WriterFileSet.numRows()} would double-count in mixed-format shards (parquet +
+     * lucene secondary) since both formats index the same logical documents.
+     *
+     * <p>No current consumer uses this value on DFA shards: {@code RecoverySourceHandler
+     * .canSkipPhase1} short-circuits when {@code sync_id} is absent from commit userData, which
+     * is always the case for DFA.
+     *
+     * <p>TODO: revisit when DFA formats track per-snapshot doc counts (e.g., after deletes land).
+     */
+    @Override
+    public long getNumDocs() {
+        return 0L;
+    }
+
+    /**
+     * Returns {@code null}: DFA snapshots have no single on-disk segments-file whose generation
+     * matches {@link #getGeneration()} — DFA's counter advances on refresh, Lucene's {@code
+     * segments_N} advances on flush, so they drift. {@code loadMetadata} skips the hash-full-file
+     * step for DFA snapshots.
+     */
+    @Override
+    public String getSegmentsFileName() {
+        return null;
+    }
+
+    /**
+     * Builds a synthetic (zero-segment) Lucene {@code SegmentInfos} whose {@code userData} carries
+     * this snapshot's userData plus the serialized catalog snapshot, then serializes it to bytes.
+     * Invoked by {@code RemoteSegmentStoreDirectory.uploadMetadata} at upload time — no engine
+     * state is touched here; the upload listener has already refreshed checkpoints on this snapshot
+     * before calling.
+     */
+    @Override
     public byte[] serialize() throws IOException {
-        throw new UnsupportedOperationException("DataformatAwareCatalogSnapshot does not support serialize()");
+        return SyntheticSegmentInfos.serialize(this);
+    }
+
+    @Override
+    public SegmentInfos getSegmentInfos() {
+        throw new UnsupportedOperationException(
+            "DataformatAwareCatalogSnapshot does not wrap SegmentInfos. Use CatalogSnapshot API instead."
+        );
     }
 
     @Override

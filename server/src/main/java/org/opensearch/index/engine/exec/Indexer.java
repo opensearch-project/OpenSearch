@@ -150,7 +150,22 @@ public interface Indexer
      *
      * @return a gated closeable wrapping the index commit
      * @throws EngineException if acquiring the commit fails
+     * @deprecated Use {@link #acquireSafeCatalogSnapshot()} which avoids the extra
+     *             {@code segments_N} disk read required to materialize an {@link IndexCommit}.
      */
+    @Deprecated
     GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException;
+
+    /**
+     * Acquires a safe {@link CatalogSnapshot} for the latest commit. Preferred over
+     * {@link #acquireSafeIndexCommit()} because it avoids re-reading {@code segments_N}
+     * to materialize a {@link IndexCommit}. Implementations with a native catalog
+     * (DFA engines) return the committed snapshot directly; legacy engines wrap
+     * their in-memory {@link org.apache.lucene.index.SegmentInfos} as a
+     * {@link org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot}.
+     * <p>
+     * The caller owns the returned handle and MUST close it to release the underlying refcount.
+     */
+    GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException;
 
 }

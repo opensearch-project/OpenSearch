@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.recovery;
 
-import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -18,6 +17,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.RecoveryEngineException;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -94,9 +94,9 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                 sendFileStep.onResponse(SendFileResult.EMPTY);
             }
         } else {
-            final GatedCloseable<IndexCommit> wrappedSafeCommit;
+            final GatedCloseable<CatalogSnapshot> wrappedSafeCommit;
             try {
-                wrappedSafeCommit = acquireSafeCommit(shard);
+                wrappedSafeCommit = acquireSafeCatalogSnapshot(shard);
                 resources.add(wrappedSafeCommit);
             } catch (final Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
@@ -119,7 +119,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                 final int estimateNumOps = countNumberOfHistoryOperations(startingSeqNo);
                 final Releasable releaseStore = acquireStore(shard.store());
                 resources.add(releaseStore);
-                onSendFileStepComplete(sendFileStep, wrappedSafeCommit, releaseStore);
+                onSendFileStepCompleteCatalogSnapshot(sendFileStep, wrappedSafeCommit, releaseStore);
 
                 final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
                 RunUnderPrimaryPermit.run(() -> {

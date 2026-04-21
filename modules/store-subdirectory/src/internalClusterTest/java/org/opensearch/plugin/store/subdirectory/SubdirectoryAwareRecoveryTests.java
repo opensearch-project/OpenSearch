@@ -30,6 +30,8 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.EnginePlugin;
@@ -304,6 +306,42 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
                 return new GatedCloseable<>(testCommit, () -> {});
             } catch (Exception e) {
                 throw new EngineException(shardId, "Failed to acquire safe index commit", e);
+            }
+        }
+
+        @Override
+        public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+            final GatedCloseable<CatalogSnapshot> base = super.acquireSafeCatalogSnapshot();
+            try {
+                // Collect subdirectory file paths (prefixed with subdirectory name).
+                final SegmentInfos subInfos = SegmentInfos.readLatestCommit(subdirectoryDirectory);
+                final Set<String> extra = new HashSet<>();
+                for (String f : subInfos.files(true)) {
+                    extra.add(Path.of(SUBDIRECTORY_NAME, f).toString());
+                }
+                for (String f : subdirectoryDirectory.listAll()) {
+                    if (f.startsWith(NON_SEGMENT_FILE_PREFIX)) {
+                        extra.add(Path.of(SUBDIRECTORY_NAME, f).toString());
+                    }
+                }
+                // Reuse the SegmentInfos from the base snapshot — no redundant disk read.
+                SegmentInfos mainInfos = base.get().getSegmentInfos();
+                CatalogSnapshot wrapped = new SegmentInfosCatalogSnapshot(mainInfos) {
+                    @Override
+                    public Collection<String> getFiles(boolean includeSegmentsFile) throws IOException {
+                        Set<String> files = new HashSet<>(super.getFiles(includeSegmentsFile));
+                        files.addAll(extra);
+                        return files;
+                    }
+                };
+                return new GatedCloseable<>(wrapped, base::close);
+            } catch (Exception e) {
+                try {
+                    base.close();
+                } catch (IOException ex) {
+                    e.addSuppressed(ex);
+                }
+                throw new EngineException(shardId, "Failed to acquire safe catalog snapshot", e);
             }
         }
     }

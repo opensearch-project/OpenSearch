@@ -18,6 +18,7 @@ import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -97,11 +98,13 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
             store = store();
             store.incRef();
             multiFileWriter.renameAllTempFiles();
+            // Unified path: bytes are always Lucene SegmentInfos. DFA snapshots travel in userData.
             final SegmentInfos infos = store.buildSegmentInfos(
                 checkpointInfoResponse.getInfosBytes(),
                 checkpointInfoResponse.getCheckpoint().getSegmentsGen()
             );
-            indexShard.finalizeReplication(infos);
+            final Store capturedStore = store;
+            indexShard.finalizeReplication(CatalogSnapshot.fromSegmentInfos(infos, capturedStore.shardFormatDirectoryResolver()));
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are

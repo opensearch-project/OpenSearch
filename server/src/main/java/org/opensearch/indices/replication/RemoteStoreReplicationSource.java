@@ -11,13 +11,13 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
@@ -69,8 +69,11 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
     ) {
         Map<String, StoreFileMetadata> metadataMap;
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
-        try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = indexShard.getSegmentInfosSnapshot()) {
-            final Version version = segmentInfosSnapshot.get().getCommitLuceneVersion();
+        try {
+            final Version version;
+            try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+                version = catalogSnapshotRef.get().getCommitDataFormatVersion();
+            }
             final RemoteSegmentMetadata mdFile = getRemoteSegmentMetadata();
 
             // Handle null metadata file case

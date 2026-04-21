@@ -290,6 +290,21 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      */
     public FormatChecksumStrategy getChecksumStrategy(String format) {
         return checksumStrategies.get(format);
+     * Registers a {@link FormatChecksumStrategy} for a data format.
+     * Overrides any existing strategy
+     *
+     * <p>Use this to register strategies that support pre-computed checksums (e.g.,
+     * {@link PrecomputedChecksumStrategy} for Parquet files whose CRC32 is computed
+     * during write by the Rust writer).
+     *
+     * @param format the data format name (e.g., "parquet")
+     * @param strategy the checksum strategy to use for this format
+     */
+    public void registerChecksumStrategy(String format, FormatChecksumStrategy strategy) {
+        if (format != null && strategy != null) {
+            checksumStrategies.put(format, strategy);
+            logger.debug("Registered FormatChecksumStrategy for format [{}]", format);
+        }
     }
 
     public IndexOutput createOutput(FileMetadata fm, IOContext context) throws IOException {
@@ -308,7 +323,13 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
     // Private Helpers
     // ═══════════════════════════════════════════════════════════════
 
-    private static boolean isDefaultFormat(String format) {
+    /**
+     * Returns true if files of this format live directly under the shard's {@code index/}
+     * directory rather than under a format-named subdirectory. {@code "lucene"} and
+     * {@code "metadata"} files (plus {@code null}/empty as defensive defaults) are laid out
+     * flat; every other format (e.g. {@code "parquet"}) gets its own subdirectory.
+     */
+    public static boolean isDefaultFormat(String format) {
         return format == null || format.isEmpty() || INDEX_DIRECTORY_FORMATS.contains(format.toLowerCase(Locale.ROOT));
     }
 }
