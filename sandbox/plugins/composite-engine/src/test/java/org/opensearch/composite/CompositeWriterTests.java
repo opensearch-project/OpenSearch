@@ -10,6 +10,7 @@ package org.opensearch.composite;
 
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriterConfig;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -84,7 +85,7 @@ public class CompositeWriterTests extends OpenSearchTestCase {
 
     public void testFlushReturnsFileInfos() throws IOException {
         CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
-        FileInfos fileInfos = writer.flush();
+        FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
         assertNotNull(fileInfos);
         writer.close();
     }

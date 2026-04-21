@@ -69,8 +69,8 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
 
     /** {@inheritDoc} Delegates to the underlying writer. */
     @Override
-    public FileInfos flush() throws IOException {
-        return delegate.flush();
+    public FileInfos flush(FlushInput flushInput) throws IOException {
+        return delegate.flush(flushInput);
     }
 
     /** {@inheritDoc} Delegates to the underlying writer. */
