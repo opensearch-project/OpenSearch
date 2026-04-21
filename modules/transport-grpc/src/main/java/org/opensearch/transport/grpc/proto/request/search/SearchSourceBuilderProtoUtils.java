@@ -152,8 +152,9 @@ public class SearchSourceBuilderProtoUtils {
                 searchSourceBuilder.scriptField(name, scriptField.script(), scriptField.ignoreFailure());
             }
         }
-        // indices_boost_2 (array format) preserves ordering and matches the current REST API behavior.
-        // indices_boost (flat map) is kept for backward compatibility but ignored when indices_boost_2 is present.
+
+        // TODO: indices_boost_2 uses FloatMap which allows multiple entries per element. A future
+        // indices_boost_3 with a dedicated proto message should enforce single entry per mapping.
         if (protoRequest.getIndicesBoost2Count() > 0) {
             for (FloatMap floatMap : protoRequest.getIndicesBoost2List()) {
                 if (floatMap.getFloatMapCount() != 1) {
