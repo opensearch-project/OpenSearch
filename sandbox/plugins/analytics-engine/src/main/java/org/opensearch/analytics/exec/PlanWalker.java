@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.stage.DataProducer;
@@ -53,10 +54,10 @@ public class PlanWalker {
     private final QueryContext config;
     private final StageExecutionBuilder stageExecutionBuilder;
     private final AtomicBoolean terminalFired = new AtomicBoolean(false);
-    private final ActionListener<Iterable<Object[]>> completionListener;
+    private final ActionListener<Iterable<VectorSchemaRoot>> completionListener;
     private volatile ExecutionGraph graph;
 
-    public PlanWalker(QueryContext config, StageExecutionBuilder stageExecutionBuilder, ActionListener<Iterable<Object[]>> listener) {
+    public PlanWalker(QueryContext config, StageExecutionBuilder stageExecutionBuilder, ActionListener<Iterable<VectorSchemaRoot>> listener) {
         this.config = config;
         this.stageExecutionBuilder = stageExecutionBuilder;
         this.completionListener = listener;

@@ -8,6 +8,9 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,6 +42,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -113,10 +119,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // Per-query cleanup on terminal. Stage-execution cancellation on external
         // task-cancel/timeout is wired inside the Scheduler — on this path the
         // walker has already cascaded cancellations by the time we see the failure.
-        ActionListener<Iterable<Object[]>> listener = ActionListener.wrap(result -> {
+        // Scheduler yields batches; we materialize rows at the API edge for callers
+        // that still consume Iterable<Object[]>.
+        ActionListener<Iterable<VectorSchemaRoot>> listener = ActionListener.wrap(batches -> {
+            Iterable<Object[]> rows = batchesToRows(batches);
             config.closeBufferAllocator();
             taskManager.unregister(queryTask);
-            future.onResponse(result);
+            future.onResponse(rows);
         }, e -> {
             config.closeBufferAllocator();
             taskManager.unregister(queryTask);
@@ -169,5 +178,34 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new AnalyticsQueryTask(id, type, action, queryId, parentTaskId, headers, cancelAfterTimeInterval);
         }
+    }
+
+    /**
+     * Materializes Arrow batches into row-oriented {@code Object[]}s for the
+     * external query API. The scheduler yields batches (the native wire format);
+     * the row materialization happens here, once, at the API edge.
+     */
+    private static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches) {
+        List<Object[]> rows = new ArrayList<>();
+        for (VectorSchemaRoot batch : batches) {
+            int colCount = batch.getFieldVectors().size();
+            int rowCount = batch.getRowCount();
+            for (int r = 0; r < rowCount; r++) {
+                Object[] row = new Object[colCount];
+                for (int c = 0; c < colCount; c++) {
+                    row[c] = toJavaValue(batch.getVector(c), r);
+                }
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    private static Object toJavaValue(FieldVector vector, int index) {
+        if (vector.isNull(index)) return null;
+        if (vector instanceof VarCharVector v) {
+            return new String(v.get(index), StandardCharsets.UTF_8);
+        }
+        return vector.getObject(index);
     }
 }

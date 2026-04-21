@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.backend;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.spi.ExchangeSink;
 
 /**
@@ -15,15 +16,20 @@ import org.opensearch.analytics.spi.ExchangeSink;
  * Consumers (parent stages, the walker's completion listener) read from this;
  * they never write to it.
  *
+ * <p>Results are yielded as Arrow batches — the native columnar wire format.
+ * Conversion to a row-oriented representation (if needed for presentation at
+ * the edge) is the caller's responsibility.
+ *
  * @see ExchangeSink for the write-side counterpart
  */
 public interface ExchangeSource {
 
     /**
-     * Return all accumulated rows in insertion order.
-     * Converts columnar Arrow batches to row-oriented {@code Object[]} arrays.
+     * Return all accumulated batches in insertion order. For streaming/compute
+     * backends, the returned iterable may block on {@code next()} while the
+     * backend produces each batch; iteration terminates when the backend is done.
      */
-    Iterable<Object[]> readResult();
+    Iterable<VectorSchemaRoot> readResult();
 
     /**
      * Return the total number of accumulated rows across all batches.

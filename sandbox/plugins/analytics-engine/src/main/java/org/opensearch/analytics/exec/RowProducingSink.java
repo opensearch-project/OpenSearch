@@ -20,7 +20,7 @@ import java.util.List;
 /**
  * Default exchange implementation that collects Arrow
  * {@link VectorSchemaRoot} batches via {@link ExchangeSink#feed} and
- * converts to {@code Object[]} rows on {@link ExchangeSource#readResult}.
+ * yields them back via {@link ExchangeSource#readResult}.
  *
  * <p>Implements both {@link ExchangeSink} (write side for producers) and
  * {@link ExchangeSource} (read side for consumers). The builder passes
@@ -51,19 +51,8 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
     }
 
     @Override
-    public Iterable<Object[]> readResult() {
-        List<Object[]> rows = new ArrayList<>();
-        for (VectorSchemaRoot batch : batches) {
-            int colCount = batch.getFieldVectors().size();
-            for (int r = 0; r < batch.getRowCount(); r++) {
-                Object[] row = new Object[colCount];
-                for (int c = 0; c < colCount; c++) {
-                    row[c] = toJavaValue(batch.getVector(c), r);
-                }
-                rows.add(row);
-            }
-        }
-        return rows;
+    public Iterable<VectorSchemaRoot> readResult() {
+        return batches;
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
@@ -60,7 +61,7 @@ public class QueryScheduler implements Scheduler {
     }
 
     @Override
-    public void execute(QueryContext config, ActionListener<Iterable<Object[]>> listener) {
+    public void execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
         final String queryId = config.queryId();
         final long queryStartNanos = System.nanoTime();
         final AnalyticsOperationListener.CompositeListener opListener =
@@ -88,12 +89,12 @@ public class QueryScheduler implements Scheduler {
 
     private PlanWalker createWalker(
         QueryContext config,
-        ActionListener<Iterable<Object[]>> listener,
+        ActionListener<Iterable<VectorSchemaRoot>> listener,
         String queryId,
         long queryStartNanos,
         AnalyticsOperationListener opListener
     ) {
-        ActionListener<Iterable<Object[]>> wrapped = ActionListener.wrap(
+        ActionListener<Iterable<VectorSchemaRoot>> wrapped = ActionListener.wrap(
             result -> {
                 walkerPool.remove(queryId);
                 opListener.onQuerySuccess(queryId, System.nanoTime() - queryStartNanos, 0);
