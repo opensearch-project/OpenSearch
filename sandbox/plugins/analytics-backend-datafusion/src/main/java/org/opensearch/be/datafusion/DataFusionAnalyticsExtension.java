@@ -8,9 +8,16 @@
 
 package org.opensearch.be.datafusion;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.analytics.spi.*;
+import org.opensearch.analytics.spi.AggregateCapability;
+import org.opensearch.analytics.spi.AggregateFunction;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.FieldType;
+import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.FilterOperator;
+import org.opensearch.analytics.spi.ScanCapability;
+import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
 import java.util.HashSet;
@@ -28,12 +35,7 @@ import java.util.Set;
  */
 public class DataFusionAnalyticsExtension implements AnalyticsSearchBackendPlugin {
 
-    private static final Logger logger = LogManager.getLogger(DataFusionAnalyticsExtension.class);
-
-    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(
-        EngineCapability.SORT,
-        EngineCapability.COORDINATOR_REDUCE
-    );
+    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.COORDINATOR_REDUCE);
 
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = new HashSet<>();
     static {

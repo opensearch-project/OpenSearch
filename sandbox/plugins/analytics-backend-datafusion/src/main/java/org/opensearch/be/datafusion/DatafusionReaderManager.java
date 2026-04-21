@@ -66,7 +66,10 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
             catalogSnapshot.getClass().getSimpleName(),
             catalogSnapshot.getGeneration(),
             readers.size(),
-            readers.keySet().stream().map(k -> k.getClass().getSimpleName() + "@" + System.identityHashCode(k) + "(gen=" + k.getGeneration() + ")").collect(Collectors.joining(", "))
+            readers.keySet()
+                .stream()
+                .map(k -> k.getClass().getSimpleName() + "@" + System.identityHashCode(k) + "(gen=" + k.getGeneration() + ")")
+                .collect(Collectors.joining(", "))
         );
         DatafusionReader reader = readers.get(catalogSnapshot);
         if (reader != null) return reader;
