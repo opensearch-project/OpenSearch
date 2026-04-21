@@ -20,6 +20,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
@@ -33,6 +34,7 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.test.DummyShardLock;
@@ -63,10 +65,13 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         Files.createDirectories(dataPath);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
+        store.createEmpty(org.apache.lucene.util.Version.LATEST);
 
         PluginsService mockPluginsService = mock(PluginsService.class);
         when(mockPluginsService.filterPlugins(EnginePlugin.class)).thenReturn(List.of(new LucenePlugin()));
 
+        Path translogPath = dataPath.resolve("translog");
+        java.nio.file.Files.createDirectories(translogPath);
         EngineConfig engineConfig = new EngineConfigFactory(mockPluginsService, indexSettings).newEngineConfig(
             shardId,
             null,
@@ -80,7 +85,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            null,
+            new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false),
             TimeValue.timeValueMinutes(5),
             null,
             null,
@@ -210,5 +215,37 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         RefreshResult result = engine.refresh(null);
         assertNotNull(result);
         assertTrue(result.refreshedSegments().isEmpty());
+    }
+
+    /**
+     * deleteFiles removes lucene-format files from the store directory.
+     */
+    /**
+     * deleteFiles is a no-op for Lucene format — Lucene's internal IndexFileDeleter
+     * handles segment file cleanup via IndexCommit.delete() + deleteUnusedFiles().
+     */
+    /**
+     * deleteFiles is a no-op — Lucene's internal IndexFileDeleter handles segment file cleanup.
+     */
+    public void testDeleteFilesIsNoOpForLuceneFormat() throws IOException {
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
+        org.apache.lucene.store.Directory directory = store.directory();
+
+        directory.createOutput("_0.cfs", org.apache.lucene.store.IOContext.DEFAULT).close();
+        directory.createOutput("_0.cfe", org.apache.lucene.store.IOContext.DEFAULT).close();
+
+        engine.deleteFiles(java.util.Map.of("lucene", java.util.List.of("_0.cfs", "_0.cfe")));
+
+        // Files still exist — Lucene manages their lifecycle
+        assertTrue(java.util.Set.of(directory.listAll()).contains("_0.cfs"));
+        assertTrue(java.util.Set.of(directory.listAll()).contains("_0.cfe"));
+    }
+
+    /**
+     * deleteFiles ignores non-lucene format keys.
+     */
+    public void testDeleteFilesIgnoresNonLuceneFormat() throws IOException {
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
+        engine.deleteFiles(java.util.Map.of("parquet", java.util.List.of("_0.parquet")));
     }
 }
