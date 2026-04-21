@@ -240,7 +240,7 @@ public class SecureReactorNetty4HttpServerTransportStreamingTests extends Abstra
         return createBuilderWithPort().build();
     }
 
-    private Settings.Builder createBuilderWithPort() {
+    protected Settings.Builder createBuilderWithPort() {
         return Settings.builder()
             .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
             .put(HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.getKey(), randomBoolean());

@@ -154,15 +154,19 @@ plugins.withId('opensearch.testclusters') {
           return false
         }
 
-        // When tests.fips.only=true, run only FIPS-specific test classes (*FipsTests, *FipsIT)
-        if (System.getProperty('tests.fips.only', 'false') == 'true') {
-          testTask.include '**/*FipsTests.class'
-          testTask.include '**/*FipsIT.class'
-          testTask.filter.failOnNoMatchingTests = false
-        }
       } else {
         testTask.exclude '**/*FipsTests.class'
         testTask.exclude '**/*FipsIT.class'
+      }
+    }
+
+    if (BuildParams.isInFipsJvm() && project.findProperty('tests.fips.only') == 'true') {
+      project.afterEvaluate {
+        project.tasks.withType(Test).configureEach { testTask ->
+          testTask.setIncludes(['**/*FipsTests.class', '**/*FipsIT.class'])
+          testTask.filter.failOnNoMatchingTests = false
+        }
+        project.tasks.matching { it.name == 'testingConventions' }.configureEach { it.enabled = false }
       }
     }
   }

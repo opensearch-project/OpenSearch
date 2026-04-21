@@ -32,7 +32,7 @@ jobs:
       - name: Run FIPS tests
         run: |
           ./gradlew test -Pcrypto.standard=FIPS-140-3 \
-            -Dtests.fips.only=true \
+            -Ptests.fips.only=true \
             --continue
       - name: Upload test results
         if: always()
