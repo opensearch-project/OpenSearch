@@ -24,7 +24,7 @@ public interface ExchangeSinkProvider {
 
     /**
      * Creates a sink for coordinator-side execution using the serialized coordinator
-     * fragment produced by {@link FragmentConvertor#convertCoordinatorFragment}.
+     * fragment produced by {@link FragmentConvertor#convertFinalAggFragment}.
      *
      * @param coordinatorFragmentBytes backend-specific serialized coordinator fragment
      */
