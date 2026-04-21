@@ -86,10 +86,15 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        if (didRefresh == false) return;
         if (readers.containsKey(catalogSnapshot)) return;
-        DatafusionReader reader = new DatafusionReader(directoryPath, catalogSnapshot.getSearchableFiles(dataFormat.name()));
-        readers.put(catalogSnapshot, reader);
+        if (didRefresh) {
+            var files = catalogSnapshot.getSearchableFiles(dataFormat.name());
+            DatafusionReader reader = new DatafusionReader(directoryPath, files);
+            readers.put(catalogSnapshot, reader);
+        } else if (!readers.isEmpty()) {
+            DatafusionReader latest = readers.values().iterator().next();
+            readers.put(catalogSnapshot, latest);
+        }
     }
 
     private Collection<String> toAbsolutePaths(Collection<String> fileNames) {

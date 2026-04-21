@@ -71,8 +71,11 @@ public class DataFormatRegistry {
         }
 
         for (SearchBackEndPlugin<?> plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
-            for (DataFormat format : plugin.getSupportedFormats()) {
-                readerManagerBuilders.put(format, settings -> plugin.createReaderManager(settings));
+            for (String formatName : plugin.getSupportedFormats()) {
+                DataFormat format = dataFormats.get(formatName);
+                if (format != null) {
+                    readerManagerBuilders.put(format, settings -> plugin.createReaderManager(settings));
+                }
             }
         }
 

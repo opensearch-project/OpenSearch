@@ -8,11 +8,13 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -34,8 +36,8 @@ public interface SearchBackEndPlugin<R> {
     /** Unique backend name (e.g., "datafusion", "lucene"). */
     String name();
 
-    /** Returns the data formats this backend can read and query. */
-    List<DataFormat> getSupportedFormats();
+    /** Returns the names of data formats this backend can read and query. */
+    List<String> getSupportedFormats();
 
     /**
      * Creates a reader manager for the given settings.
@@ -45,4 +47,15 @@ public interface SearchBackEndPlugin<R> {
      * @throws IOException if reader creation fails
      */
     EngineReaderManager<?> createReaderManager(ReaderManagerConfig settings) throws IOException;
+
+    /**
+     * Called after the {@link DataFormatRegistry} is available. Plugins can use this
+     * to receive the registry and resolve data format names to {@link org.opensearch.index.engine.dataformat.DataFormat} objects.
+     *
+     * @param dataFormatRegistry the data format registry
+     * @return additional components to bind in Guice, or empty
+     */
+    default Collection<Object> createComponents(DataFormatRegistry dataFormatRegistry) {
+        return Collections.emptyList();
+    }
 }

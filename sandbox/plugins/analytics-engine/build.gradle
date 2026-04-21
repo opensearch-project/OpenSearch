@@ -98,6 +98,11 @@ dependencies {
   // Arrow Flight streaming transport for ITs
   internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
 
+  // jackson-annotations — required at runtime by jackson-databind (transitive via Calcite).
+  // Without this, child plugins that use Arrow's Schema (which triggers ObjectMapper init)
+  // fail with NoClassDefFoundError for JsonSerializeAs.
+  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+
   // Calcite bytecode references @Immutable from immutables — resolve at test compile time
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
 }

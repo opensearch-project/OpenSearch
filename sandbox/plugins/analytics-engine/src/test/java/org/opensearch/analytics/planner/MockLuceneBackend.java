@@ -102,30 +102,8 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     // ---- SearchBackEndPlugin (storage) ----
 
     @Override
-    public List<DataFormat> getSupportedFormats() {
-        return List.of(new DataFormat() {
-            @Override
-            public String name() {
-                return LUCENE_DATA_FORMAT;
-            }
-
-            @Override
-            public long priority() {
-                return 0;
-            }
-
-            @Override
-            public Set<FieldTypeCapabilities> supportedFields() {
-                return Set.of(
-                    new FieldTypeCapabilities("integer", Set.of(POINT_RANGE, STORED_FIELDS)),
-                    new FieldTypeCapabilities("long", Set.of(POINT_RANGE, STORED_FIELDS)),
-                    new FieldTypeCapabilities("keyword", Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
-                    new FieldTypeCapabilities("text", Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
-                    new FieldTypeCapabilities("boolean", Set.of(STORED_FIELDS)),
-                    new FieldTypeCapabilities("date", Set.of(POINT_RANGE, STORED_FIELDS))
-                );
-            }
-        });
+    public List<String> getSupportedFormats() {
+        return List.of(LUCENE_DATA_FORMAT);
     }
 
     @Override

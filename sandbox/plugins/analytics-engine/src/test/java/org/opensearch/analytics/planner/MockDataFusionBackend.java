@@ -136,30 +136,8 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     // ---- SearchBackEndPlugin (storage) ----
 
     @Override
-    public List<DataFormat> getSupportedFormats() {
-        return List.of(new DataFormat() {
-            @Override
-            public String name() {
-                return PARQUET_DATA_FORMAT;
-            }
-
-            @Override
-            public long priority() {
-                return 0;
-            }
-
-            @Override
-            public Set<FieldTypeCapabilities> supportedFields() {
-                return Set.of(
-                    new FieldTypeCapabilities("integer", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("long", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("keyword", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("text", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("boolean", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("date", Set.of(COLUMNAR_STORAGE))
-                );
-            }
-        });
+    public List<String> getSupportedFormats() {
+        return List.of(PARQUET_DATA_FORMAT);
     }
 
     @Override

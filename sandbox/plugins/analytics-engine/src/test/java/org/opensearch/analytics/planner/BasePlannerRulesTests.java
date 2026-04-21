@@ -381,23 +381,8 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         }
 
         @Override
-        public List<DataFormat> getSupportedFormats() {
-            return List.of(new DataFormat() {
-                @Override
-                public String name() {
-                    return formatName;
-                }
-
-                @Override
-                public long priority() {
-                    return 0;
-                }
-
-                @Override
-                public Set<FieldTypeCapabilities> supportedFields() {
-                    return fieldCaps;
-                }
-            });
+        public List<String> getSupportedFormats() {
+            return List.of(formatName);
         }
 
         @Override
