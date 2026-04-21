@@ -1,0 +1,234 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+//! [`FoyerCache`] — a [`PageCache`] implementation backed by Foyer.
+
+use std::path::PathBuf;
+use std::sync::Arc;
+use bytes::Bytes;
+use dashmap::DashMap;
+use foyer::{BlockEngineConfig, DeviceBuilder, Event, EventListener, FsDeviceBuilder,
+            HybridCache, HybridCacheBuilder, IoEngineConfig, PsyncIoEngineConfig};
+#[cfg(target_os = "linux")]
+use foyer::UringIoEngineConfig;
+
+use crate::range_cache::{CacheKey, SEPARATOR};
+use crate::traits::PageCache;
+
+// ── I/O engine selection ──────────────────────────────────────────────────────
+
+/// Return `true` if the running Linux kernel is >= `(major, minor)`.
+///
+/// Reads `/proc/sys/kernel/osrelease` (e.g. `"5.15.0-91-generic"`) and
+/// compares the major/minor version numbers. Returns `false` on any parse
+/// error so the caller can fall back safely.
+#[cfg(target_os = "linux")]
+fn kernel_version_at_least(required_major: u32, required_minor: u32) -> bool {
+    let release = match std::fs::read_to_string("/proc/sys/kernel/osrelease") {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let mut parts = release.trim().split('.');
+    let major: u32 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let minor: u32 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    major > required_major || (major == required_major && minor >= required_minor)
+}
+
+/// Select the best available I/O engine.
+///
+/// On Linux with kernel ≥ 5.1, uses `io_uring` for non-blocking, batched disk
+/// I/O — significantly better throughput under concurrent reads than
+/// `pread`/`pwrite`. Falls back to POSIX synchronous I/O when:
+/// - The target platform is not Linux (e.g. macOS developer builds), or
+/// - The running Linux kernel is < 5.1 (io_uring was introduced in 5.1).
+/// - https://kernelnewbies.org/Linux_5.1
+fn build_io_engine_config() -> Box<dyn IoEngineConfig> {
+    #[cfg(target_os = "linux")]
+    {
+        let release = std::fs::read_to_string("/proc/sys/kernel/osrelease")
+            .unwrap_or_else(|_| "unknown".to_string());
+        let release = release.trim();
+        if kernel_version_at_least(5, 1) {
+            log::info!(
+                "[page-cache] kernel {} — io_uring available, using UringIoEngineConfig",
+                release
+            );
+            UringIoEngineConfig::new().boxed()
+        } else {
+            log::warn!(
+                "[page-cache] kernel {} — io_uring unavailable (requires >= 5.1), \
+                 falling back to PsyncIoEngineConfig",
+                release
+            );
+            PsyncIoEngineConfig::new().boxed()
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        PsyncIoEngineConfig::new().boxed()
+    }
+}
+
+// ── Key index eviction listener ───────────────────────────────────────────────
+
+/// Foyer event listener that removes evicted keys from the key index.
+///
+/// Shared between [`FoyerCache`] and Foyer via `Arc`. When Foyer evicts,
+/// replaces, or removes an entry, `on_leave` is called, which removes the key
+/// from the prefix-to-keys index. This prevents `key_index` from growing
+/// unbounded as Foyer's LRU evicts entries from disk.
+///
+/// # Key index prefix extraction
+///
+/// The index key is derived by splitting each cache key on [`SEPARATOR`].
+/// Keys that contain `SEPARATOR` (range entries) use everything before it as
+/// the index key.
+struct KeyIndexListener {
+    key_index: Arc<DashMap<String, Vec<String>>>,
+}
+
+impl EventListener for KeyIndexListener {
+    type Key   = String;
+    type Value = Vec<u8>;
+
+    fn on_leave(&self, reason: Event, key: &String, _value: &Vec<u8>) {
+        match reason {
+            Event::Evict | Event::Replace | Event::Remove => {
+                let index_key = if let Some(sep_pos) = key.find(SEPARATOR) {
+                    &key[..sep_pos]
+                } else {
+                    key.as_str()
+                };
+                if let Some(mut keys) = self.key_index.get_mut(index_key) {
+                    keys.retain(|k| k != key);
+                    if keys.is_empty() {
+                        drop(keys);
+                        self.key_index.remove(index_key);
+                    }
+                }
+            }
+            Event::Clear => {}
+        }
+    }
+}
+
+// ── FoyerCache ────────────────────────────────────────────────────────────────
+
+/// Disk page cache with prefix-based eviction support backed by Foyer.
+///
+/// Wraps a Foyer [`HybridCache`] configured as a disk-only store, together
+/// with a concurrent key index that maps each index prefix to its cached entry
+/// keys. The key index allows removing all cached entries sharing a common
+/// prefix in O(n) without requiring Foyer to support prefix-scan semantics.
+///
+/// Keys are opaque strings supplied by the caller. The index key is derived as
+/// everything before the first [`SEPARATOR`]. See [`PageCache`] for key format
+/// conventions.
+///
+/// The key index is kept in sync with Foyer's internal state via an
+/// [`EventListener`] — stale keys are removed automatically when Foyer evicts
+/// entries via LRU.
+///
+/// Thread-safe: both [`HybridCache`] and [`DashMap`] are `Send + Sync`.
+pub struct FoyerCache {
+    inner: HybridCache<String, Vec<u8>>,
+    /// Maps each index prefix to the list of Foyer keys stored under that prefix.
+    /// Shared with [`KeyIndexListener`] for automatic stale-key removal.
+    pub(crate) key_index: Arc<DashMap<String, Vec<String>>>,
+    /// Keeps the Tokio runtime alive for the lifetime of the cache.
+    _runtime: Arc<tokio::runtime::Runtime>,
+}
+
+impl FoyerCache {
+    /// Initialise the cache synchronously.
+    ///
+    /// Blocks the calling thread until Foyer has completed asynchronous setup.
+    ///
+    /// # Panics
+    /// Panics if the Tokio runtime cannot be created or if Foyer fails to
+    /// build the cache (e.g. insufficient disk space or invalid path).
+    pub fn new(disk_bytes: usize, disk_dir: impl Into<PathBuf>) -> Self {
+        let disk_dir = disk_dir.into();
+        let key_index: Arc<DashMap<String, Vec<String>>> = Arc::new(DashMap::new());
+        let listener = Arc::new(KeyIndexListener { key_index: Arc::clone(&key_index) });
+
+        let rt = tokio::runtime::Runtime::new()
+            .expect("[page-cache] failed to create Tokio runtime");
+        let dir_clone = disk_dir.clone();
+        let inner = rt.block_on(async move {
+            HybridCacheBuilder::<String, Vec<u8>>::new()
+                .with_name("page-cache")
+                .with_event_listener(listener)
+                .memory(1)
+                .storage()
+                .with_io_engine_config(build_io_engine_config())
+                .with_engine_config(
+                    // block_size must be >= the largest entry ever put into the cache.
+                    // DataFusion reads Parquet row groups of up to 64 MB; Lucene blocks are
+                    // also 64 MB. A block_size smaller than the entry causes a silent drop
+                    // (put succeeds but entry is not stored, resulting in a cache miss).
+                    BlockEngineConfig::new(
+                        FsDeviceBuilder::new(dir_clone)
+                            .with_capacity(disk_bytes)
+                            .build()
+                            .expect("[page-cache] FsDevice build failed")
+                    )
+                    .with_block_size(64 * 1024 * 1024) // 64 MB — matches Parquet row-group and Lucene block sizes
+                )
+                .build()
+                .await
+                .expect("[page-cache] HybridCache build failed")
+        });
+        log::info!("[page-cache] ready: disk={}B, dir={}", disk_bytes, disk_dir.display());
+        Self { inner, key_index, _runtime: Arc::new(rt) }
+    }
+
+    /// Derive the index key from a cache key: everything before the first [`SEPARATOR`].
+    /// For keys without [`SEPARATOR`] (e.g. Lucene block paths), the full key is its
+    /// own index entry.
+    fn index_key(key: &str) -> &str {
+        if let Some(pos) = key.find(SEPARATOR) { &key[..pos] } else { key }
+    }
+}
+
+impl PageCache for FoyerCache {
+    async fn get(&self, key: &CacheKey) -> Option<Bytes> {
+        match self.inner.get(&key.as_str().to_string()).await {
+            Ok(Some(e)) => Some(Bytes::copy_from_slice(e.value())),
+            _           => None,
+        }
+    }
+
+    fn put(&self, key: &CacheKey, data: Bytes) {
+        let raw = key.as_str();
+        let k = raw.to_string();
+        self.inner.insert(k.clone(), data.to_vec());
+        let idx = Self::index_key(raw).to_string();
+        self.key_index.entry(idx).or_default().push(k);
+    }
+
+    fn evict_prefix(&self, prefix: &str) {
+        // Collect all index entries whose key starts with `prefix`
+        let matching: Vec<String> = self.key_index
+            .iter()
+            .filter(|e| e.key().starts_with(prefix))
+            .map(|e| e.key().clone())
+            .collect();
+
+        for idx_key in matching {
+            if let Some((_, keys)) = self.key_index.remove(&idx_key) {
+                for k in keys { self.inner.remove(&k); }
+            }
+        }
+    }
+
+    async fn clear(&self) {
+        self.key_index.clear();
+        let _ = self.inner.clear().await;
+    }
+}

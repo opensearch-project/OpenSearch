@@ -7,15 +7,14 @@
  */
 
 /*
- * foyer-page-cache module (sandbox)
+ * page-cache lib (sandbox)
  *
  * Java lifecycle library for the Foyer disk page cache.
  *
  * Provides FoyerBridge, which wraps the two native lifecycle operations
  * (create and destroy) via the Java Foreign Function & Memory (FFM) API.
- * The underlying Rust implementation lives in the dataformat-native workspace
- * and is compiled into the shared native library — no separate .so is produced
- * by this module.
+ * The underlying Rust implementation lives in sandbox/libs/page-cache/src/main/rust
+ * and is compiled into the shared native library — no separate .so is produced.
  */
 
 apply plugin: 'java'
@@ -31,6 +30,9 @@ dependencies {
     implementation project(':sandbox:libs:dataformat-native')
 
     compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+
+    testImplementation "junit:junit:${versions.junit}"
+    testImplementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
 }
 
 validateNebulaPom.enabled = false
