@@ -35,7 +35,7 @@ import java.util.Set;
  */
 public class DataFusionAnalyticsExtension implements AnalyticsSearchBackendPlugin {
 
-    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.COORDINATOR_REDUCE);
+    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT);
 
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = new HashSet<>();
     static {
@@ -98,7 +98,7 @@ public class DataFusionAnalyticsExtension implements AnalyticsSearchBackendPlugi
                 Set<FilterCapability> caps = new HashSet<>();
                 for (FilterOperator op : STANDARD_FILTER_OPS) {
                     for (FieldType type : SUPPORTED_FIELD_TYPES) {
-                        caps.add(new FilterCapability.Standard(op, type, formats));
+                        caps.add(new FilterCapability.Standard(op, Set.of(type), formats));
                     }
                 }
                 return Set.copyOf(caps);
@@ -110,7 +110,7 @@ public class DataFusionAnalyticsExtension implements AnalyticsSearchBackendPlugi
                 Set<AggregateCapability> caps = new HashSet<>();
                 for (AggregateFunction func : AGG_FUNCTIONS) {
                     for (FieldType type : SUPPORTED_FIELD_TYPES) {
-                        caps.add(AggregateCapability.simple(func, type, formats));
+                        caps.add(AggregateCapability.simple(func, Set.of(type), formats));
                     }
                 }
                 return Set.copyOf(caps);

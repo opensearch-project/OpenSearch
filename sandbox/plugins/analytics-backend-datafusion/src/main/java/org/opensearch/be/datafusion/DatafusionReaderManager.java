@@ -37,11 +37,6 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private static final Logger logger = LogManager.getLogger(DatafusionReaderManager.class);
 
     private final Map<CatalogSnapshot, DatafusionReader> readers = new HashMap<>();
-    // TODO [BUG]: CatalogSnapshotManager creates a new snapshot instance with an incremented generation
-    // on every refresh cycle, but a reader is only created when data actually changes (didRefresh=true).
-    // During search, acquireSnapshot() returns the latest snapshot which may not have a reader.
-    // This field tracks the most recent reader so getReader() can fall back to it.
-    private volatile DatafusionReader latestReader;
     private final DataFormat dataFormat;
     private final String directoryPath;
     private final DataFusionService dataFusionService;
@@ -60,22 +55,9 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     @Override
     public DatafusionReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
-        logger.info(
-            "[getReader] looking up snapshot@{} (class={}, gen={}), readers map size={}, keys={}",
-            System.identityHashCode(catalogSnapshot),
-            catalogSnapshot.getClass().getSimpleName(),
-            catalogSnapshot.getGeneration(),
-            readers.size(),
-            readers.keySet()
-                .stream()
-                .map(k -> k.getClass().getSimpleName() + "@" + System.identityHashCode(k) + "(gen=" + k.getGeneration() + ")")
-                .collect(Collectors.joining(", "))
-        );
-        DatafusionReader reader = readers.get(catalogSnapshot);
-        if (reader != null) return reader;
-        // TODO [BUG]: Search acquires the latest catalog snapshot whose generation may not have a reader,
-        // since readers are only created when data changes. Fall back to the latest valid reader.
-        if (latestReader != null) return latestReader;
+        if (readers.containsKey(catalogSnapshot)) {
+            return readers.get(catalogSnapshot);
+        }
         throw new IOException("No DataFusion reader available");
     }
 
@@ -104,22 +86,10 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        logger.info(
-            "[afterRefresh] didRefresh={}, snapshot@{} (class={}, gen={}), readers map size={}",
-            didRefresh,
-            System.identityHashCode(catalogSnapshot),
-            catalogSnapshot.getClass().getSimpleName(),
-            catalogSnapshot.getGeneration(),
-            readers.size()
-        );
         if (didRefresh == false) return;
         if (readers.containsKey(catalogSnapshot)) return;
-        var files = catalogSnapshot.getSearchableFiles(dataFormat.name());
-        logger.info("[afterRefresh] searchable files for format [{}]: {}", dataFormat.name(), files != null ? files.size() : "null");
-        DatafusionReader reader = new DatafusionReader(directoryPath, files);
+        DatafusionReader reader = new DatafusionReader(directoryPath, catalogSnapshot.getSearchableFiles(dataFormat.name()));
         readers.put(catalogSnapshot, reader);
-        latestReader = reader;
-        logger.info("[afterRefresh] added reader, map size now={}", readers.size());
     }
 
     private Collection<String> toAbsolutePaths(Collection<String> fileNames) {
