@@ -71,6 +71,8 @@ public class DslQueryIT extends DslIntegTestBase {
         );
     }
 
+    // TODO: Enable once BooleanQueryTranslatorExists is supported
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/TODO")
     public void testExistsQueryWithBool() {
         createTestIndex();
         assertOk(search(new SearchSourceBuilder().query(
