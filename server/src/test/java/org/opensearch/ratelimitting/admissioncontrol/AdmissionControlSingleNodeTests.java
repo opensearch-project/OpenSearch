@@ -448,7 +448,9 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         assertNotNull(nativeMemoryController);
         // Default mode is disabled (inherits from global setting)
         assertFalse(
-            nativeMemoryController.isEnabledForTransportLayer(nativeMemoryController.settings.getTransportLayerAdmissionControllerMode())
+            nativeMemoryController.isEnabledForTransportLayer(
+                nativeMemoryController.getSettings().getTransportLayerAdmissionControllerMode()
+            )
         );
 
         // Enable it via settings update
@@ -459,7 +461,9 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         assertTrue(
-            nativeMemoryController.isEnabledForTransportLayer(nativeMemoryController.settings.getTransportLayerAdmissionControllerMode())
+            nativeMemoryController.isEnabledForTransportLayer(
+                nativeMemoryController.getSettings().getTransportLayerAdmissionControllerMode()
+            )
         );
     }
 

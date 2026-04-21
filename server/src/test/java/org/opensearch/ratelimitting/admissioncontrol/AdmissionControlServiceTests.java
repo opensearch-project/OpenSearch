@@ -196,7 +196,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         NativeMemoryBasedAdmissionController nativeMemoryController = (NativeMemoryBasedAdmissionController) admissionControlService
             .getAdmissionController(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
         assertNotNull(nativeMemoryController);
-        assertEquals(nativeMemoryController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
+        assertEquals(nativeMemoryController.getSettings().getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
 
         Settings settings = Settings.builder()
             .put(
@@ -205,9 +205,11 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
             )
             .build();
         clusterService.getClusterSettings().applySettings(settings);
-        assertEquals(nativeMemoryController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
+        assertEquals(nativeMemoryController.getSettings().getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
         assertTrue(
-            nativeMemoryController.isEnabledForTransportLayer(nativeMemoryController.settings.getTransportLayerAdmissionControllerMode())
+            nativeMemoryController.isEnabledForTransportLayer(
+                nativeMemoryController.getSettings().getTransportLayerAdmissionControllerMode()
+            )
         );
     }
 

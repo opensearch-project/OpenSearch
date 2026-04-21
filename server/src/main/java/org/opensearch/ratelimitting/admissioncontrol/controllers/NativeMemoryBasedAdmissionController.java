@@ -29,7 +29,7 @@ import java.util.Optional;
 public class NativeMemoryBasedAdmissionController extends AdmissionController {
     public static final String NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER = "global_native_memory_usage";
     private static final Logger LOGGER = LogManager.getLogger(NativeMemoryBasedAdmissionController.class);
-    public NativeMemoryBasedAdmissionControllerSettings settings;
+    private NativeMemoryBasedAdmissionControllerSettings settings;
 
     /**
      * @param admissionControllerName       Name of the admission controller
@@ -57,6 +57,10 @@ public class NativeMemoryBasedAdmissionController extends AdmissionController {
         if (this.isEnabledForTransportLayer(this.settings.getTransportLayerAdmissionControllerMode())) {
             this.applyForTransportLayer(action, admissionControlActionType);
         }
+    }
+
+    public NativeMemoryBasedAdmissionControllerSettings getSettings() {
+        return this.settings;
     }
 
     /**

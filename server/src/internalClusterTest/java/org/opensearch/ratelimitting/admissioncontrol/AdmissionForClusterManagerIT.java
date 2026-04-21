@@ -10,6 +10,7 @@ package org.opensearch.ratelimitting.admissioncontrol;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
@@ -25,6 +26,7 @@ import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.NativeMemoryBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
@@ -47,6 +49,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -206,6 +210,96 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
         GetAliasesResponse getAliasesResponse = dataNodeClient().admin().indices().getAliases(aliasesRequest).actionGet();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
 
+    }
+
+    public void testAdmissionControlEnforcedNativeMemory() throws Exception {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
+        Settings enforceNativeMemory = Settings.builder()
+            .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
+            .put(CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 50)
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(enforceNativeMemory).execute().actionGet();
+
+        cMResourceCollector.collectNodeResourceUsageStats(
+            clusterManagerNodeId,
+            System.currentTimeMillis(),
+            97,
+            35,
+            new IoUsageStats(98),
+            90
+        );
+
+        // Write API on ClusterManager
+        assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("{\"alias1\" : {}}"));
+
+        // Read API on ClusterManager
+        GetAliasesRequest aliasesRequest = new GetAliasesRequest();
+        aliasesRequest.aliases("alias1");
+        try {
+            dataNodeClient().admin().indices().getAliases(aliasesRequest).actionGet();
+            fail("expected failure");
+        } catch (Exception e) {
+            assertTrue(e instanceof OpenSearchRejectedExecutionException);
+            assertTrue(e.getMessage().contains("Memory usage admission controller rejected the request"));
+            assertTrue(e.getMessage().contains("[indices:admin/aliases/get]"));
+            assertTrue(e.getMessage().contains("action-type [CLUSTER_ADMIN]"));
+        }
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(DISABLE_ADMISSION_CONTROL).execute().actionGet();
+        GetAliasesResponse getAliasesResponse = dataNodeClient().admin().indices().getAliases(aliasesRequest).actionGet();
+        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
+
+        AdmissionControlService admissionControlServiceCM = internalCluster().getClusterManagerNodeInstance(AdmissionControlService.class);
+
+        AdmissionControllerStats admissionStats = getAdmissionControlStats(admissionControlServiceCM).get(
+            NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER
+        );
+
+        assertEquals(admissionStats.rejectionCount.get(AdmissionControlActionType.CLUSTER_ADMIN.getType()).longValue(), 1);
+        assertNull(admissionStats.rejectionCount.get(AdmissionControlActionType.SEARCH.getType()));
+        assertNull(admissionStats.rejectionCount.get(AdmissionControlActionType.INDEXING.getType()));
+    }
+
+    public void testAdmissionControlMonitorOnBreachNativeMemory() throws InterruptedException {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
+        admissionControlDisabledOnBreachNativeMemory(
+            Settings.builder()
+                .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
+                .put(CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 50)
+                .build()
+        );
+    }
+
+    public void testAdmissionControlDisabledOnBreachNativeMemory() throws InterruptedException {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
+        admissionControlDisabledOnBreachNativeMemory(
+            Settings.builder()
+                .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 30)
+                .build()
+        );
+    }
+
+    public void admissionControlDisabledOnBreachNativeMemory(Settings admission) throws InterruptedException {
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(admission).execute().actionGet();
+
+        cMResourceCollector.collectNodeResourceUsageStats(
+            clusterManagerNodeId,
+            System.currentTimeMillis(),
+            97,
+            35,
+            new IoUsageStats(98),
+            90
+        );
+
+        // Write API on ClusterManager
+        assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("{\"alias1\" : {}}").execute().actionGet());
+
+        // Read API on ClusterManager
+        GetAliasesRequest aliasesRequest = new GetAliasesRequest();
+        aliasesRequest.aliases("alias1");
+        GetAliasesResponse getAliasesResponse = dataNodeClient().admin().indices().getAliases(aliasesRequest).actionGet();
+        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
     }
 
     public void testAdmissionControlResponseStatus() throws Exception {

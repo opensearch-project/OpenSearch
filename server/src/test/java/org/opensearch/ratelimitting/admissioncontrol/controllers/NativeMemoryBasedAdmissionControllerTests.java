@@ -55,9 +55,9 @@ public class NativeMemoryBasedAdmissionControllerTests extends OpenSearchTestCas
         );
         assertEquals(admissionController.getName(), NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
-        assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
+        assertEquals(admissionController.getSettings().getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
         assertFalse(
-            admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
+            admissionController.isEnabledForTransportLayer(admissionController.getSettings().getTransportLayerAdmissionControllerMode())
         );
     }
 
@@ -69,15 +69,15 @@ public class NativeMemoryBasedAdmissionControllerTests extends OpenSearchTestCas
             Settings.EMPTY
         );
         assertEquals(
-            admissionController.settings.getSearchNativeMemoryUsageLimit().longValue(),
+            admissionController.getSettings().getSearchNativeMemoryUsageLimit().longValue(),
             NativeMemoryBasedAdmissionControllerSettings.Defaults.NATIVE_MEMORY_USAGE_LIMIT
         );
         assertEquals(
-            admissionController.settings.getIndexingNativeMemoryUsageLimit().longValue(),
+            admissionController.getSettings().getIndexingNativeMemoryUsageLimit().longValue(),
             NativeMemoryBasedAdmissionControllerSettings.Defaults.NATIVE_MEMORY_USAGE_LIMIT
         );
         assertEquals(
-            admissionController.settings.getClusterAdminNativeMemoryUsageLimit().longValue(),
+            admissionController.getSettings().getClusterAdminNativeMemoryUsageLimit().longValue(),
             NativeMemoryBasedAdmissionControllerSettings.Defaults.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT
         );
     }
@@ -98,8 +98,10 @@ public class NativeMemoryBasedAdmissionControllerTests extends OpenSearchTestCas
         clusterService.getClusterSettings().applySettings(settings);
         assertEquals(admissionController.getName(), NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
-        assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
-        assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
+        assertEquals(admissionController.getSettings().getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
+        assertTrue(
+            admissionController.isEnabledForTransportLayer(admissionController.getSettings().getTransportLayerAdmissionControllerMode())
+        );
     }
 
     public void testCheckUpdateLimitSettings() {
@@ -114,8 +116,8 @@ public class NativeMemoryBasedAdmissionControllerTests extends OpenSearchTestCas
             .put(NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 70)
             .build();
         clusterService.getClusterSettings().applySettings(settings);
-        assertEquals(admissionController.settings.getSearchNativeMemoryUsageLimit().longValue(), 80);
-        assertEquals(admissionController.settings.getIndexingNativeMemoryUsageLimit().longValue(), 70);
+        assertEquals(admissionController.getSettings().getSearchNativeMemoryUsageLimit().longValue(), 80);
+        assertEquals(admissionController.getSettings().getIndexingNativeMemoryUsageLimit().longValue(), 70);
     }
 
     public void testApplyControllerWithDefaultSettings() {
@@ -127,7 +129,7 @@ public class NativeMemoryBasedAdmissionControllerTests extends OpenSearchTestCas
             Settings.EMPTY
         );
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
-        assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
+        assertEquals(admissionController.getSettings().getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
         action = "indices:data/write/bulk[s][p]";
         admissionController.apply(action, AdmissionControlActionType.INDEXING);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
@@ -147,9 +149,11 @@ public class NativeMemoryBasedAdmissionControllerTests extends OpenSearchTestCas
             clusterService,
             settings
         );
-        assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
         assertTrue(
-            admissionController.isAdmissionControllerEnforced(admissionController.settings.getTransportLayerAdmissionControllerMode())
+            admissionController.isEnabledForTransportLayer(admissionController.getSettings().getTransportLayerAdmissionControllerMode())
+        );
+        assertTrue(
+            admissionController.isAdmissionControllerEnforced(admissionController.getSettings().getTransportLayerAdmissionControllerMode())
         );
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
     }
