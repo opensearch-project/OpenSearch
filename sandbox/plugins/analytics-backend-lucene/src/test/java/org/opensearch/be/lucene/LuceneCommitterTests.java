@@ -12,8 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
@@ -24,6 +26,7 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.test.DummyShardLock;
@@ -50,8 +53,11 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId("test", "_na_", 0);
         Path dataPath = baseDir.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
         Files.createDirectories(dataPath);
+        Path translogPath = dataPath.resolve("translog");
+        Files.createDirectories(translogPath);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         Store store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST);
         PluginsService mockPluginsService = mock(PluginsService.class);
         when(mockPluginsService.filterPlugins(EnginePlugin.class)).thenReturn(List.of(new LucenePlugin()));
 
@@ -68,7 +74,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            null,
+            new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false),
             TimeValue.timeValueMinutes(5),
             null,
             null,
@@ -129,7 +135,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             assertEquals("serialized-data", readBack.get("_snapshot_"));
 
             CommitStats stats = committer.getCommitStats();
-            assertEquals(1L, stats.getGeneration());
+            assertEquals(2L, stats.getGeneration());
             assertEquals(readBack, stats.getUserData());
         } finally {
             committer.close();

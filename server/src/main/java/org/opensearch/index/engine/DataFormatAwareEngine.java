@@ -17,6 +17,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.queue.LockablePool;
@@ -36,7 +37,11 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
+import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.FileDeleter;
+import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.Segment;
@@ -183,33 +188,29 @@ public class DataFormatAwareEngine implements Indexer {
         try {
             store.incRef();
 
+            // 1. Create Committer (uses translogPath for safe bootstrap trimming)
             this.committer = engineConfig.getCommitterFactory().getCommitter(new CommitterConfig(engineConfig));
-            this.catalogSnapshotManager = new CatalogSnapshotManager(0, 0, 0, List.of(), -1, Map.of());
 
-            // Read history UUID and translog UUID from last commit
+            // 2. Read translogUUID and history UUID from last committed data
             final Map<String, String> userData = committer.getLastCommittedData();
             String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
+            this.historyUUID = userData.get(Engine.HISTORY_UUID_KEY);
+            updateAutoIdTimestamp(Long.parseLong(userData.get(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)), true);
 
-            // Initialize translog
-            // TODO: Once file deleter is merged, we will add relevant listeners
+            // 3. Create TranslogManager
+            final TranslogDeletionPolicy translogDeletionPolicy = getTranslogDeletionPolicy();
             final TranslogEventListener translogEventListener = createInternalTranslogEventListener();
-            translogManagerRef = createTranslogManager(translogUUID, translogEventListener);
+            translogManagerRef = createTranslogManager(translogUUID, translogDeletionPolicy, translogEventListener);
             this.translogManager = translogManagerRef;
 
-            // Initialize local checkpoint tracker from last committed segment infos
+            // 4. Initialize local checkpoint tracker
             this.localCheckpointTracker = createLocalCheckpointTracker(LocalCheckpointTracker::new);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(
                 SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo())
             );
 
-            // Initialize from commit data
-            this.historyUUID = userData.get(Engine.HISTORY_UUID_KEY);
-            updateAutoIdTimestamp(Long.parseLong(userData.get(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)), true);
-
-            // Move to data format aware writers and readers.
+            // 5. Create IndexingExecutionEngine and ReaderManagers
             DataFormatRegistry registry = engineConfig.getDataFormatRegistry();
-            // Create indexing engine
-            // Pass committer here as well.
             this.indexingExecutionEngine = registry.getIndexingEngine(
                 new IndexingEngineConfig(
                     committer,
@@ -220,20 +221,47 @@ public class DataFormatAwareEngine implements Indexer {
                 ),
                 registry.format(config().getIndexSettings().pluggableDataFormat())
             );
-            this.writerGenerationCounter = new AtomicLong(1L);// committer.getCommitStats().getGeneration());
+            this.writerGenerationCounter = new AtomicLong(1L);
             this.writerPool = new LockablePool<>(
                 () -> indexingExecutionEngine.createWriter(writerGenerationCounter.getAndIncrement()),
                 LinkedList::new,
                 Runtime.getRuntime().availableProcessors()
             );
-            // Create Reader managers
-            // We will pass IndexViewProvider to this, which would contain store
-            // and any index specific attributes useful for reads.
             this.readerManagers = registry.getReaderManagers(
                 Optional.ofNullable(indexingExecutionEngine.getProvider()),
                 engineConfig.getMapperService(),
                 engineConfig.getIndexSettings(),
                 store.shardPath()
+            );
+
+            // 6. Create CombinedCatalogSnapshotDeletionPolicy
+            CombinedCatalogSnapshotDeletionPolicy combinedPolicy = new CombinedCatalogSnapshotDeletionPolicy(
+                logger,
+                translogDeletionPolicy,
+                translogManager::getLastSyncedGlobalCheckpoint
+            );
+
+            // 7. Create CatalogSnapshotManager (fully wired)
+            String formatName = config().getIndexSettings().pluggableDataFormat();
+            Map<String, FileDeleter> fileDeleters = Map.of(formatName, indexingExecutionEngine::deleteFiles);
+            Map<String, FilesListener> filesListeners = new HashMap<>();
+            List<CatalogSnapshotLifecycleListener> snapshotListeners = new ArrayList<>();
+            for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagers.entrySet()) {
+                filesListeners.put(entry.getKey().name(), entry.getValue());
+                snapshotListeners.add(entry.getValue());
+            }
+            List<CatalogSnapshot> committedSnapshots = committer.listCommittedSnapshots();
+            if (committedSnapshots.isEmpty()) {
+                committedSnapshots = List.of(CatalogSnapshotManager.createInitialSnapshot(0L, 0L, 0L, List.of(), -1L, userData));
+            }
+            this.catalogSnapshotManager = new CatalogSnapshotManager(
+                committedSnapshots,
+                combinedPolicy,
+                fileDeleters,
+                filesListeners,
+                snapshotListeners,
+                store.shardPath(),
+                committer
             );
 
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker);
@@ -302,8 +330,11 @@ public class DataFormatAwareEngine implements Indexer {
         };
     }
 
-    private TranslogManager createTranslogManager(String translogUUID, TranslogEventListener translogEventListener) throws IOException {
-        TranslogDeletionPolicy deletionPolicy = getTranslogDeletionPolicy();
+    private TranslogManager createTranslogManager(
+        String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        TranslogEventListener translogEventListener
+    ) throws IOException {
         return new InternalTranslogManager(
             engineConfig.getTranslogConfig(),
             engineConfig.getPrimaryTermSupplier(),
@@ -609,8 +640,12 @@ public class DataFormatAwareEngine implements Indexer {
             try {
                 // Refresh first to flush buffered data to segments
                 refresh("flush");
+                // Sync translog before commit so the global checkpoint is persisted
+                // and available to the deletion policy when onCommit is triggered.
+                translogManager.ensureCanFlush();
+                translogManager.syncTranslog();
                 // Persist the latest catalog snapshot so it survives restart
-                try (GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+                try (GatedConditionalCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshotForCommit()) {
                     CatalogSnapshot snapshot = snapshotRef.get();
                     Map<String, String> commitData = new HashMap<>();
                     commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
@@ -619,10 +654,13 @@ public class DataFormatAwareEngine implements Indexer {
                     commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
                     commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpointTracker.getProcessedCheckpoint()));
                     commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                    commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                    commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
+                    // Update snapshot userData so deletion policy can read max_seq_no
+                    snapshot.setUserData(commitData, true);
                     committer.commit(commitData);
+                    snapshotRef.markSuccess();
                 }
-                translogManager.ensureCanFlush();
-                translogManager.syncTranslog();
                 translogManager.rollTranslogGeneration();
                 translogManager.trimUnreferencedReaders();
                 logger.trace("flush completed");
