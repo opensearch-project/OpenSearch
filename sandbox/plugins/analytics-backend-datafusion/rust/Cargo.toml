@@ -45,8 +45,7 @@ thiserror = { workspace = true }
 
 # convert_tz UDF
 chrono-tz = "0.10"
-
-[dev-dependencies]
+tokio-metrics = { workspace = true }[dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
 rand = "0.8"

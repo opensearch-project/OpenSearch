@@ -17,7 +17,7 @@ import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
-
+import org.opensearch.nativebridge.spi.stats.DataFusionStats;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLong;
@@ -149,6 +149,14 @@ public class DataFusionService extends AbstractLifecycleComponent {
     public void setMemoryPoolLimit(long newLimitBytes) {
         NativeBridge.setMemoryPoolLimit(getNativeRuntime().get(), newLimitBytes);
     }
+
+    /**
+     * Returns the latest native executor stats, collected fresh from JNI on every call.
+     *
+     * @return the current {@link DataFusionStats}
+     */
+    public DataFusionStats getStats() {
+        return NativeBridge.stats();    }
 
     // Cache management (node-level, delegates to native runtime)
 

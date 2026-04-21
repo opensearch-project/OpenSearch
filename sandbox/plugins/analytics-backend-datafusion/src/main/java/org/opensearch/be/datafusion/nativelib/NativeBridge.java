@@ -12,12 +12,15 @@ import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.nativebridge.spi.stats.DataFusionStats;
+import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.LinkedHashMap;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -76,6 +79,7 @@ public final class NativeBridge {
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
+    private static final MethodHandle STATS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -361,6 +365,12 @@ public final class NativeBridge {
             lib.find("df_execute_with_context").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
+
+        // i64 df_stats(out_ptr, out_cap)
+        STATS = linker.downcallHandle(
+            lib.find("df_stats").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
     }
 
     private NativeBridge() {}
@@ -593,6 +603,64 @@ public final class NativeBridge {
     /** Fires the cancellation token for the given context. No-op if already completed. */
     public static void cancelQuery(long contextId) {
         NativeCall.invokeVoid(CANCEL_QUERY, contextId);
+    // ---- Stats collection ----
+
+    /**
+     * Collects all native executor metrics in a single FFM call.
+     * Decodes directly from the MemorySegment — no intermediate long[].
+     *
+     * @return a fully constructed {@link DataFusionStats}
+     * @throws IllegalStateException if the runtime manager is not initialized
+     */
+    public static DataFusionStats stats() {
+        try (var call = new NativeCall()) {
+            var buf = call.buf(28 * Long.BYTES);
+            call.invoke(STATS, buf, 28L);
+
+            // IO runtime: indices 0–7 (always present)
+            var ioRuntime = new NativeExecutorsStats.RuntimeMetrics(
+                buf.getAtIndex(ValueLayout.JAVA_LONG, 0),   // workersCount
+                buf.getAtIndex(ValueLayout.JAVA_LONG, 1),   // totalPollsCount
+                buf.getAtIndex(ValueLayout.JAVA_LONG, 2),   // totalBusyDurationMs
+                buf.getAtIndex(ValueLayout.JAVA_LONG, 3),   // totalOverflowCount
+                buf.getAtIndex(ValueLayout.JAVA_LONG, 4),   // globalQueueDepth
+                buf.getAtIndex(ValueLayout.JAVA_LONG, 5),   // blockingQueueDepth
+                buf.getAtIndex(ValueLayout.JAVA_LONG, 6),   // numAliveTasks
+                buf.getAtIndex(ValueLayout.JAVA_LONG, 7)    // spawnedTasksCount
+            );
+
+            // CPU runtime: indices 8–15 (null when workersCount == 0)
+            NativeExecutorsStats.RuntimeMetrics cpuRuntime = null;
+            if (buf.getAtIndex(ValueLayout.JAVA_LONG, 8) > 0) {
+                cpuRuntime = new NativeExecutorsStats.RuntimeMetrics(
+                    buf.getAtIndex(ValueLayout.JAVA_LONG, 8),
+                    buf.getAtIndex(ValueLayout.JAVA_LONG, 9),
+                    buf.getAtIndex(ValueLayout.JAVA_LONG, 10),
+                    buf.getAtIndex(ValueLayout.JAVA_LONG, 11),
+                    buf.getAtIndex(ValueLayout.JAVA_LONG, 12),
+                    buf.getAtIndex(ValueLayout.JAVA_LONG, 13),
+                    buf.getAtIndex(ValueLayout.JAVA_LONG, 14),
+                    buf.getAtIndex(ValueLayout.JAVA_LONG, 15)
+                );
+            }
+
+            // Task monitors: indices 16–27 (4 ops × 3 fields)
+            String[] opTypes = { "query_execution", "stream_next", "fetch_phase", "segment_stats" };
+            var taskMonitors = new LinkedHashMap<String, NativeExecutorsStats.TaskMonitorStats>();
+            for (int op = 0; op < 4; op++) {
+                int base = 16 + op * 3;
+                taskMonitors.put(
+                    opTypes[op],
+                    new NativeExecutorsStats.TaskMonitorStats(
+                        buf.getAtIndex(ValueLayout.JAVA_LONG, base),
+                        buf.getAtIndex(ValueLayout.JAVA_LONG, base + 1),
+                        buf.getAtIndex(ValueLayout.JAVA_LONG, base + 2)
+                    )
+                );
+            }
+
+            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors));
+        }
     }
 
     // ---- Stubs ----
