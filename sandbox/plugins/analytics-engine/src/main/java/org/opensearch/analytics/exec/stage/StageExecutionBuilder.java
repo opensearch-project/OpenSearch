@@ -8,13 +8,12 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.apache.calcite.rel.RelDistribution;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.exec.RowProducingSink;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
-import org.opensearch.analytics.planner.dag.ExchangeInfo;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -70,10 +69,11 @@ public class StageExecutionBuilder {
     private final Map<StageExecutionType, StageScheduler> schedulers;
 
     /**
-     * Guice-injected constructor. Registers the default schedulers for
-     * {@link StageExecutionType#LOCAL} and {@link StageExecutionType#DATA_NODE}.
-     * Additional stage types (shuffle, broadcast) can be registered via
-     * {@link #registerScheduler}.
+     * Guice-injected constructor. Registers default schedulers for every value of
+     * {@link StageExecutionType}. Shuffle-write and broadcast-write are registered
+     * as NYI throw-lambdas until their real schedulers land — keeping the
+     * unsupported-type contract inside the registry rather than scattered as
+     * inline checks in {@link #buildExecution}.
      */
     @Inject
     public StageExecutionBuilder(
@@ -82,8 +82,18 @@ public class StageExecutionBuilder {
         Map<String, AnalyticsSearchBackendPlugin> backends
     ) {
         this.schedulers = new HashMap<>();
-        schedulers.put(StageExecutionType.LOCAL, new LocalStageScheduler(backends));
-        schedulers.put(StageExecutionType.DATA_NODE, new ShardFragmentStageScheduler(clusterService, dispatcher));
+        registerScheduler(StageExecutionType.SHARD_SCAN, new ShardFragmentStageScheduler(clusterService, dispatcher));
+        registerScheduler(StageExecutionType.COORDINATOR_REDUCE, new LocalStageScheduler(backends));
+        // Pass-through is trivial enough that StageScheduler's @FunctionalInterface
+        // lets us register it inline — no backend selection, no fragment conversion,
+        // just wrap the sink in a PassThroughStageExecution.
+        registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, sink));
+        registerScheduler(StageExecutionType.SHUFFLE_WRITE, (stage, sink, config) -> {
+            throw new UnsupportedOperationException("SHUFFLE_WRITE scheduler not yet implemented — stage " + stage.getStageId());
+        });
+        registerScheduler(StageExecutionType.BROADCAST_WRITE, (stage, sink, config) -> {
+            throw new UnsupportedOperationException("BROADCAST_WRITE scheduler not yet implemented — stage " + stage.getStageId());
+        });
     }
 
     /**
@@ -103,48 +113,33 @@ public class StageExecutionBuilder {
      * {@code outputSink().readResult()}.
      */
     public StageExecution buildRootExecution(Stage rootStage, QueryContext config) {
-        org.opensearch.analytics.exec.RowProducingSink rootSink = new org.opensearch.analytics.exec.RowProducingSink();
-        return dispatchRowStage(rootStage, rootSink, config);
+        return dispatch(rootStage, new RowProducingSink(), config);
     }
 
     /**
-     * Builds a child stage's execution. Resolves the child's output target
-     * from {@code parentExec}.
+     * Builds a child stage's execution by dispatching to the scheduler registered
+     * for the stage's {@link StageExecutionType}. For row-producing stages
+     * (SHARD_SCAN, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH) the sink is resolved
+     * from {@code parentExec}'s {@link DataConsumer} contract. Manifest-producing
+     * stages (SHUFFLE_WRITE, BROADCAST_WRITE) get a null sink — they wire to
+     * their parent through a separate contract that the scheduler owns.
      *
-     * <p>Classifies {@code stage} by its {@link ExchangeInfo} to decide the
-     * output shape (row vs. manifest), resolves the appropriate output target
-     * from {@code parentExec}, then delegates to the scheduler for that
-     * (output-shape, execution-type) combination.
-     *
-     * @throws IllegalStateException if a row-producing stage's
-     *     {@code parentExec} does not implement
-     *     {@link DataConsumer} — this is a planner bug.
-     * @throws UnsupportedOperationException if {@code stage} produces a
-     *     manifest (shuffle-write or broadcast-write) — not yet implemented.
+     * @throws IllegalStateException if a row-producing stage's {@code parentExec}
+     *     does not implement {@link DataConsumer} — this is a planner bug.
+     * @throws UnsupportedOperationException if the registered scheduler is a
+     *     NYI placeholder (shuffle-write, broadcast-write at present).
      */
     public StageExecution buildExecution(Stage stage, StageExecution parentExec, QueryContext config) {
-        ExchangeInfo exchange = stage.getExchangeInfo();
-
-        // ── Manifest-producing branches (structural placeholders) ──────
-        if (exchange != null && exchange.distributionType() == RelDistribution.Type.HASH_DISTRIBUTED) {
-            throw new UnsupportedOperationException(
-                "shuffle-write (HASH_DISTRIBUTED) scheduler not yet implemented — stage " + stage.getStageId()
-            );
-        }
-        if (exchange != null && exchange.distributionType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
-            throw new UnsupportedOperationException(
-                "broadcast-write (BROADCAST_DISTRIBUTED) scheduler not yet implemented — stage " + stage.getStageId()
-            );
-        }
-
-        // ── Row-producing branch ───────────────────────────────────────
-        ExchangeSink sink = resolveRowSink(stage, parentExec);
-        return dispatchRowStage(stage, sink, config);
+        ExchangeSink sink = switch (stage.getExecutionType()) {
+            case SHARD_SCAN, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH -> resolveRowSink(stage, parentExec);
+            case SHUFFLE_WRITE, BROADCAST_WRITE -> null;
+        };
+        return dispatch(stage, sink, config);
     }
 
     // ── Internal dispatch ───────────────────────────────────────────────
 
-    private StageExecution dispatchRowStage(Stage stage, ExchangeSink sink, QueryContext config) {
+    private StageExecution dispatch(Stage stage, ExchangeSink sink, QueryContext config) {
         StageScheduler scheduler = schedulers.get(stage.getExecutionType());
         if (scheduler == null) {
             throw new IllegalStateException(

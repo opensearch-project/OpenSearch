@@ -18,28 +18,27 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.planner.dag.StagePlan;
-import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Builds executions for LOCAL stages. Handles both pass-through (root gather)
- * stages and compute LOCAL stages backed by an
- * {@link AnalyticsSearchBackendPlugin}. Takes a pre-resolved
- * {@link ExchangeSink} and doesn't care whether it is a root sink or a
- * parent-provided child sink — {@link StageExecutionBuilder} resolves that
- * distinction before calling.
+ * Builds executions for {@link StageExecutionType#COORDINATOR_REDUCE} stages —
+ * those that run at the coordinator with a backend-provided {@code ExchangeSink}.
+ * Takes a pre-resolved {@link ExchangeSink} and doesn't care whether it is a
+ * root sink or a parent-provided child sink — {@link StageExecutionBuilder}
+ * resolves that distinction before calling.
  *
- * <p>For compute LOCAL stages, the scheduler selects the backend by matching
- * the stage's plan alternatives against the map of registered backends.
- * The first plan alternative whose {@code backendId} matches a registered
- * backend wins — the same "first-match" strategy used by
+ * <p>Selects the backend by matching the stage's plan alternatives against the
+ * map of registered backends. The first plan alternative whose {@code backendId}
+ * matches a registered backend wins — the same "first-match" strategy used by
  * {@code AnalyticsSearchService} on data nodes.
  *
- * <p>Pass-through stages return a {@link PassThroughStageExecution};
- * compute LOCAL stages return a {@link LocalStageExecution}.
+ * <p>Pass-through stages ({@link StageExecutionType#LOCAL_PASSTHROUGH}) are
+ * handled by a separate inline lambda registered in {@link StageExecutionBuilder}
+ * that returns {@link PassThroughStageExecution} directly — they don't need the
+ * backend-selection logic this scheduler owns.
  *
  * @opensearch.internal
  */
@@ -55,13 +54,6 @@ final class LocalStageScheduler implements StageScheduler {
 
     @Override
     public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
-        if (isPassThrough(stage)) {
-            return new PassThroughStageExecution(stage, sink);
-        }
-        return buildComputeLocal(stage, sink, config);
-    }
-
-    private StageExecution buildComputeLocal(Stage stage, ExchangeSink sink, QueryContext config) {
         if (backends.isEmpty()) {
             throw new IllegalStateException(
                 "No analytics backends registered — cannot dispatch compute LOCAL stage "
@@ -128,15 +120,4 @@ final class LocalStageScheduler implements StageScheduler {
         return childSchemas;
     }
 
-    /**
-     * Returns true if the stage is a LOCAL pass-through (root gather) stage.
-     * A pass-through stage has no real fragment — it just gathers children's
-     * output into the parent's output chain.
-     */
-    static boolean isPassThrough(Stage stage) {
-        if (stage.getExecutionType() != StageExecutionType.LOCAL) {
-            return false;
-        }
-        return stage.getFragment() == null || stage.getFragment() instanceof OpenSearchStageInputScan;
-    }
 }

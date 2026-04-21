@@ -22,6 +22,7 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
+import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -91,7 +92,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
-        QueryDAG dag = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
+        RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
+        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         logger.info("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
