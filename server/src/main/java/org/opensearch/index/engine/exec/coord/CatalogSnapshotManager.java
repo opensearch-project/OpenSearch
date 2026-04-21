@@ -322,6 +322,26 @@ public class CatalogSnapshotManager implements Closeable {
         decRefAndMaybeDelete(oldSnapshot);
     }
 
+    /**
+     * Replaces the current snapshot with one received from the primary via segment replication.
+     * The incoming snapshot is registered with the file deleter (ref counts for its files), then
+     * the manager's prior reference is released. Replica-only: does not go through a commit.
+     */
+    public synchronized void applyReplicationSnapshot(CatalogSnapshot incoming) {
+        if (closed.get()) {
+            throw new IllegalStateException("CatalogSnapshotManager is closed");
+        }
+        try {
+            indexFileDeleter.addFileReferences(incoming);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to add file references for replicated snapshot [gen=" + incoming.getGeneration() + "]", e);
+        }
+        catalogSnapshotMap.put(incoming.getGeneration(), incoming);
+        CatalogSnapshot previous = latestCatalogSnapshot;
+        latestCatalogSnapshot = incoming;
+        decRefAndMaybeDelete(previous);
+    }
+
     // ---- Acquire path ----
 
     /**

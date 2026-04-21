@@ -79,6 +79,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Mapping;
@@ -1252,8 +1254,41 @@ public abstract class Engine implements LifecycleAware, Closeable {
 
     /**
      * Snapshots the most recent safe index commit from the engine.
+     *
+     * @deprecated Use {@link #acquireSafeCatalogSnapshot()} which avoids the extra
+     *             {@code segments_N} disk read required to materialize an {@link IndexCommit}.
      */
+    @Deprecated
     public abstract GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException;
+
+    /**
+     * Acquires a safe {@link CatalogSnapshot} for the latest commit. Default implementation
+     * wraps {@link #acquireSafeIndexCommit()} and parses its {@link SegmentInfos} into a
+     * {@link SegmentInfosCatalogSnapshot}; engines with a native catalog should override
+     * to avoid the extra disk read.
+     */
+    public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+        final GatedCloseable<IndexCommit> commitRef = acquireSafeIndexCommit();
+        try {
+            final SegmentInfos infos = Lucene.readSegmentInfos(commitRef.get());
+            final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+            return new GatedCloseable<>(snapshot, commitRef::close);
+        } catch (IOException e) {
+            try {
+                commitRef.close();
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw new EngineException(shardId, "Failed to materialize CatalogSnapshot from safe IndexCommit", e);
+        } catch (RuntimeException e) {
+            try {
+                commitRef.close();
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw e;
+        }
+    }
 
     /**
      * @return a summary of the contents of the current safe commit

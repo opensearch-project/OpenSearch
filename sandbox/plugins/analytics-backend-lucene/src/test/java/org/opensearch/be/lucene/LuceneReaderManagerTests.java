@@ -167,13 +167,38 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public int getFormatVersionForFile(String file) {
-                return 0;
+            public org.apache.lucene.util.Version getFormatVersionForFile(String file) {
+                return org.apache.lucene.util.Version.LATEST;
+            }
+
+            @Override
+            public org.apache.lucene.util.Version getMinSegmentFormatVersion() {
+                return null;
+            }
+
+            @Override
+            public org.apache.lucene.util.Version getCommitDataFormatVersion() {
+                return org.apache.lucene.util.Version.LATEST;
+            }
+
+            @Override
+            public long getNumDocs() {
+                return 0L;
+            }
+
+            @Override
+            public String getSegmentsFileName() {
+                return null;
             }
 
             @Override
             public byte[] serialize() throws IOException {
                 return new byte[0];
+            }
+
+            @Override
+            public org.apache.lucene.index.SegmentInfos getSegmentInfos() {
+                throw new UnsupportedOperationException("stub");
             }
 
             @Override

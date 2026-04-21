@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.recovery;
 
-import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -16,6 +15,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.RecoveryEngineException;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
@@ -59,9 +59,9 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         // It is always file based recovery while recovering replicas which are not relocating primary where the
         // underlying indices are backed by remote store for storing segments and translog
 
-        final GatedCloseable<IndexCommit> wrappedSafeCommit;
+        final GatedCloseable<CatalogSnapshot> wrappedSafeCommit;
         try {
-            wrappedSafeCommit = acquireSafeCommit(shard);
+            wrappedSafeCommit = acquireSafeCatalogSnapshot(shard);
             resources.add(wrappedSafeCommit);
         } catch (final Exception e) {
             throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
@@ -73,7 +73,7 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         try {
             final Releasable releaseStore = acquireStore(shard.store());
             resources.add(releaseStore);
-            onSendFileStepComplete(sendFileStep, wrappedSafeCommit, releaseStore);
+            onSendFileStepCompleteCatalogSnapshot(sendFileStep, wrappedSafeCommit, releaseStore);
 
             assert Transports.assertNotTransportThread(this + "[phase1]");
             phase1(wrappedSafeCommit.get(), startingSeqNo, () -> 0, sendFileStep, true);

@@ -10,21 +10,27 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,6 +44,26 @@ import java.util.concurrent.atomic.AtomicLong;
  * Tests for {@link CatalogSnapshotManager}.
  */
 public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
+
+    private static CatalogSnapshotManager replicaManager(
+        ShardPath shardPath,
+        List<CatalogSnapshot> initialCommittedSnapshots,
+        Map<String, FileDeleter> fileDeleters,
+        CommitFileManager commitFileManager
+    ) throws IOException {
+        List<CatalogSnapshot> committed = initialCommittedSnapshots.isEmpty()
+            ? List.of(CatalogSnapshotManager.createInitialSnapshot(0L, 0L, 0L, List.of(), -1L, Map.of()))
+            : initialCommittedSnapshots;
+        return new CatalogSnapshotManager(
+            committed,
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            fileDeleters,
+            Map.of(),
+            List.of(),
+            shardPath,
+            commitFileManager
+        );
+    }
 
     public void testCommitProducesCorrectNewSnapshot() throws Exception {
         for (int iter = 0; iter < 100; iter++) {
@@ -725,6 +751,131 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             userData.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         }
         return userData;
+    }
+
+    public void testCreateForReplicaProducesEmptySnapshot() throws Exception {
+        try (CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), null)) {
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                CatalogSnapshot snapshot = ref.get();
+                assertEquals(0L, snapshot.getId());
+                assertEquals(0L, snapshot.getGeneration());
+                assertTrue(snapshot.getSegments().isEmpty());
+                assertTrue(snapshot.getUserData().isEmpty());
+            }
+        }
+    }
+
+    public void testApplyReplicationSnapshotReplacesAndReleasesPrevious() throws Exception {
+        CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), null);
+        CatalogSnapshot previous;
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            previous = ref.get();
+        }
+
+        DataformatAwareCatalogSnapshot incoming = new DataformatAwareCatalogSnapshot(
+            randomNonNegativeLong(),
+            previous.getGeneration() + 1,
+            randomNonNegativeLong(),
+            randomSegments(),
+            randomNonNegativeLong(),
+            randomUserData(randomIntBetween(0, 4))
+        );
+        manager.applyReplicationSnapshot(incoming);
+
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            assertSame("latest should be the incoming snapshot", incoming, ref.get());
+        }
+
+        manager.close();
+    }
+
+    public void testApplyReplicationSnapshotOnClosedManagerThrows() throws Exception {
+        CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), null);
+        manager.close();
+        DataformatAwareCatalogSnapshot incoming = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, randomSegments(), 1L, Map.of());
+        expectThrows(IllegalStateException.class, () -> manager.applyReplicationSnapshot(incoming));
+    }
+
+    /**
+     * Replica manager with a {@link CommitFileManager} must protect commit-owned files
+     * (e.g. {@code segments_N}, {@code write.lock}) from the startup orphan sweep, even when
+     * they are present on disk but not referenced by the initial committed snapshot.
+     */
+    public void testCreateForReplicaWithCommitFileManagerProtectsCommitFiles() throws Exception {
+        ShardId shardId = new ShardId(new Index("test", "_na_"), 0);
+        Path shardRoot = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        Path indexDir = shardRoot.resolve("index");
+        Files.createDirectories(indexDir);
+        ShardPath shardPath = new ShardPath(false, shardRoot, shardRoot, shardId);
+
+        // Plant files: 1 known (in catalog), 1 orphan, 2 commit-owned.
+        Path known = indexDir.resolve("known.si");
+        Path orphan = indexDir.resolve("orphan.si");
+        Path segmentsCommit = indexDir.resolve("segments_7");
+        Path writeLock = indexDir.resolve("write.lock");
+        for (Path p : List.of(known, orphan, segmentsCommit, writeLock)) {
+            Files.write(p, new byte[] { 0 });
+        }
+
+        // Build a snapshot that references only `known.si` under the lucene format.
+        WriterFileSet wfs = new WriterFileSet(indexDir.toString(), 1L, Set.of("known.si"), 0);
+        Segment seg = new Segment(1L, Map.of("lucene", wfs));
+        DataformatAwareCatalogSnapshot initial = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(seg), 1L, Map.of());
+
+        // FileDeleter deletes from the Lucene index directory.
+        FileDeleter luceneDeleter = filesByFormat -> {
+            for (String f : filesByFormat.getOrDefault("lucene", List.of())) {
+                Files.deleteIfExists(indexDir.resolve(f));
+            }
+            return Map.of();
+        };
+
+        CommitFileManager cfm = new CommitFileManager() {
+            @Override
+            public void deleteCommit(CatalogSnapshot snapshot) {}
+
+            @Override
+            public boolean isCommitManagedFile(String fileName) {
+                return fileName.startsWith("segments") || "write.lock".equals(fileName);
+            }
+        };
+
+        try (CatalogSnapshotManager manager = replicaManager(shardPath, List.of(initial), Map.of("lucene", luceneDeleter), cfm)) {
+            assertTrue("known.si must survive — referenced by catalog", Files.exists(known));
+            assertFalse("orphan.si must be swept — not in catalog and not commit-managed", Files.exists(orphan));
+            assertTrue("segments_7 must survive — protected by CommitFileManager", Files.exists(segmentsCommit));
+            assertTrue("write.lock must survive — protected by CommitFileManager", Files.exists(writeLock));
+        }
+    }
+
+    /**
+     * Replica manager with an empty {@code initialCommittedSnapshots} must still produce
+     * a usable manager seeded with an empty snapshot. On-disk files are left alone because the
+     * startup orphan sweep scans only format directories referenced by the seed snapshot.
+     */
+    public void testCreateForReplicaWithEmptyInitialDoesNotTouchDisk() throws Exception {
+        ShardId shardId = new ShardId(new Index("test", "_na_"), 0);
+        Path shardRoot = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        Path indexDir = shardRoot.resolve("index");
+        Files.createDirectories(indexDir);
+        ShardPath shardPath = new ShardPath(false, shardRoot, shardRoot, shardId);
+
+        // Plant a file in <shard>/index/ — there is no snapshot referencing it and no prior
+        // knownFilesByFormat entry, so the scanner won't enumerate <shard>/index/ at all.
+        Path leftover = indexDir.resolve("leftover.si");
+        Files.write(leftover, new byte[] { 0 });
+
+        FileDeleter unused = filesByFormat -> Map.of();
+
+        try (CatalogSnapshotManager manager = replicaManager(shardPath, List.of(), Map.of("lucene", unused), null)) {
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                CatalogSnapshot seed = ref.get();
+                assertEquals("seed must be the empty synthetic snapshot", 0L, seed.getId());
+                assertEquals(0L, seed.getGeneration());
+                assertTrue(seed.getSegments().isEmpty());
+            }
+            assertTrue("pre-existing files must not be touched by empty-initial bootstrap", Files.exists(leftover));
+        }
     }
 
     private CatalogSnapshotManager createRandomManager() {

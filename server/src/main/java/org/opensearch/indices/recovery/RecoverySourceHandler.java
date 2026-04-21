@@ -63,6 +63,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.engine.RecoveryEngineException;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
@@ -300,6 +301,27 @@ public abstract class RecoverySourceHandler {
         });
     }
 
+    /**
+     * Overload of {@link #onSendFileStepComplete(StepListener, GatedCloseable, Releasable)} for
+     * {@link CatalogSnapshot}-backed handles; delegates to shared close semantics.
+     */
+    protected void onSendFileStepCompleteCatalogSnapshot(
+        StepListener<SendFileResult> sendFileStep,
+        GatedCloseable<CatalogSnapshot> wrappedSafeSnapshot,
+        Releasable releaseStore
+    ) {
+        sendFileStep.whenComplete(r -> {
+            logger.debug("sendFileStep completed");
+            IOUtils.close(wrappedSafeSnapshot, releaseStore);
+        }, e -> {
+            try {
+                IOUtils.close(wrappedSafeSnapshot, releaseStore);
+            } catch (final IOException ex) {
+                logger.warn("releasing snapshot caused exception", ex);
+            }
+        });
+    }
+
     protected boolean isTargetSameHistory() {
         final String targetHistoryUUID = request.metadataSnapshot().getHistoryUUID();
         assert targetHistoryUUID != null : "incoming target history missing";
@@ -336,6 +358,20 @@ public abstract class RecoverySourceHandler {
         return new GatedCloseable<>(wrappedSafeCommit.get(), () -> {
             if (closed.compareAndSet(false, true)) {
                 runWithGenericThreadPool(wrappedSafeCommit::close);
+            }
+        });
+    }
+
+    /**
+     * Same thread-pool-close semantics as {@link #acquireSafeCommit(IndexShard)}, but returns a
+     * {@link CatalogSnapshot}. Callers must close the returned handle to release refs.
+     */
+    protected GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot(IndexShard shard) {
+        final GatedCloseable<CatalogSnapshot> wrappedSafeSnapshot = shard.acquireSafeCatalogSnapshot();
+        final AtomicBoolean closed = new AtomicBoolean(false);
+        return new GatedCloseable<>(wrappedSafeSnapshot.get(), () -> {
+            if (closed.compareAndSet(false, true)) {
+                runWithGenericThreadPool(wrappedSafeSnapshot::close);
             }
         });
     }
@@ -396,16 +432,16 @@ public abstract class RecoverySourceHandler {
     }
 
     /**
-     * Perform phase1 of the recovery operations. Once this {@link IndexCommit}
-     * snapshot has been performed no commit operations (files being fsync'd)
-     * are effectively allowed on this index until all recovery phases are done
+     * Perform phase1 of the recovery operations. Once this {@link CatalogSnapshot}
+     * has been acquired no commit operations (files being fsync'd) are effectively
+     * allowed on this index until all recovery phases are done.
      * <p>
      * Phase1 examines the segment files on the target node and copies over the
      * segments that are missing. Only segments that have the same size and
-     * checksum can be reused
+     * checksum can be reused.
      */
     void phase1(
-        IndexCommit snapshot,
+        CatalogSnapshot snapshot,
         long startingSeqNo,
         IntSupplier translogOps,
         ActionListener<SendFileResult> listener,
@@ -422,7 +458,7 @@ public abstract class RecoverySourceHandler {
                 shard.failShard("recovery", ex);
                 throw ex;
             }
-            for (String name : snapshot.getFileNames()) {
+            for (String name : snapshot.getFiles(true)) {
                 final StoreFileMetadata md = recoverySourceMetadata.get(name);
                 if (md == null) {
                     logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());

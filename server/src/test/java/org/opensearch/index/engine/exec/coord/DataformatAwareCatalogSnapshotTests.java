@@ -383,14 +383,42 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
         assertTrue(uploadNames.contains("parquet/_1.pqt"));
     }
 
-    public void testSerializeThrowsUnsupportedOperation() {
-        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(), 0L, Map.of());
-        expectThrows(UnsupportedOperationException.class, snapshot::serialize);
+    public void testGetSegmentInfosBytesProducesDeserializableSyntheticWithCatalogKey() throws IOException {
+        // The synthetic SegmentInfos built at upload time must (a) be parseable by Lucene's
+        // SegmentInfos.readCommit and (b) carry the serialized catalog snapshot under
+        // CATALOG_SNAPSHOT_KEY so the replica can reconstruct the DFA state.
+        Map<String, String> seedUserData = Map.of("carry_through", "value");
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(7L, 3L, 4L, List.of(), 2L, seedUserData);
+        byte[] bytes = snapshot.serialize();
+        assertNotNull(bytes);
+        assertTrue(bytes.length > 0);
+
+        // Parse back through the same path Store.buildSegmentInfos uses, passing the snapshot's
+        // own generation as the consistency cookie (matching what the primary sets via
+        // setNextWriteGeneration).
+        org.apache.lucene.index.SegmentInfos parsed;
+        try (
+            org.apache.lucene.store.ByteBuffersDirectory dir = new org.apache.lucene.store.ByteBuffersDirectory();
+            org.apache.lucene.store.IndexOutput out = dir.createOutput("segments_3", org.apache.lucene.store.IOContext.DEFAULT)
+        ) {
+            out.writeBytes(bytes, bytes.length);
+            out.close();
+            parsed = org.apache.lucene.index.SegmentInfos.readCommit(dir, "segments_3");
+        }
+        assertEquals("value", parsed.getUserData().get("carry_through"));
+        String catalogSerialized = parsed.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+        assertNotNull(catalogSerialized);
+        DataformatAwareCatalogSnapshot restored = DataformatAwareCatalogSnapshot.deserializeFromString(catalogSerialized, f -> f);
+        assertEquals(snapshot.getId(), restored.getId());
+        assertEquals(snapshot.getGeneration(), restored.getGeneration());
+        assertEquals(snapshot.getLastWriterGeneration(), restored.getLastWriterGeneration());
     }
 
-    public void testGetFormatVersionForFileReturnsOpenSearchMajor() {
+    public void testGetFormatVersionForFileReturnsLuceneMajor() {
         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(), 0L, Map.of());
-        assertEquals(org.opensearch.Version.CURRENT.major, snapshot.getFormatVersionForFile("any_file.pqt"));
+        // Must be in Lucene's valid range; returning OpenSearch major (3) would fail the check
+        // in RemoteSegmentStoreDirectory.UploadedSegmentMetadata.setWrittenByMajor.
+        assertEquals(org.apache.lucene.util.Version.LATEST, snapshot.getFormatVersionForFile("any_file.pqt"));
     }
 
     public void testSetUserDataUpdatesAndReturns() {
@@ -573,5 +601,11 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
             default:
                 return randomAlphaOfLength(10);
         }
+    }
+
+    public void testGetSegmentInfosThrowsUnsupportedOperation() {
+        DataformatAwareCatalogSnapshot snapshot = randomSnapshot();
+        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, snapshot::getSegmentInfos);
+        assertTrue("message should explain callers must use CatalogSnapshot API", ex.getMessage().contains("CatalogSnapshot API"));
     }
 }

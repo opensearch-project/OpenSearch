@@ -13,7 +13,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
@@ -129,10 +128,9 @@ public interface IndexerLifecycleOperations {
      * Used in segment replication to apply received segment information.
      *
      * @param catalogSnapshot the catalog snapshot containing segment metadata
-     * @param shardPath the shard path where segments are located
      * @throws IOException if finalization fails
      */
-    default void finalizeReplication(CatalogSnapshot catalogSnapshot, ShardPath shardPath) throws IOException {
+    default void finalizeReplication(CatalogSnapshot catalogSnapshot) throws IOException {
         // No-op by default
     }
 
