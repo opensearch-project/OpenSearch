@@ -31,6 +31,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -130,6 +131,7 @@ public class DataFormatAwareEngine implements Indexer {
     private final Store store;
 
     private final IndexingExecutionEngine indexingExecutionEngine;
+    private final DeleteExecutionEngine deleteExecutionEngine;
     private final IndexingStrategyPlanner indexingStrategyPlanner;
     private final LockablePool<Writer<?>> writerPool;
     private final AtomicLong writerGenerationCounter;
@@ -243,9 +245,16 @@ public class DataFormatAwareEngine implements Indexer {
                 ),
                 registry.format(config().getIndexSettings().pluggableDataFormat())
             );
-            this.writerGenerationCounter = new AtomicLong(1L);
+
+            this.deleteExecutionEngine = registry.getDeleteEngine();
+            this.writerGenerationCounter = new AtomicLong(1L);// committer.getCommitStats().getGeneration());
             this.writerPool = new LockablePool<>(
-                () -> indexingExecutionEngine.createWriter(writerGenerationCounter.getAndIncrement()),
+                () -> {
+                    long gen = writerGenerationCounter.getAndIncrement();
+                    Writer<?> writer = indexingExecutionEngine.createWriter(gen);
+                    deleteExecutionEngine.createDeleter(writer, gen);
+                    return writer;
+                },
                 LinkedList::new,
                 Runtime.getRuntime().availableProcessors()
             );
