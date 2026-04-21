@@ -161,7 +161,11 @@ public class DocumentMapper implements ToXContentFragment {
         this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
 
         final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
-        this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
+        this.fieldMappers = MappingLookup.fromMapping(
+            this.mapping,
+            indexAnalyzers.getDefaultIndexAnalyzer(),
+            mapperService.documentMapperParser()
+        );
 
         try {
             mappingSource = new CompressedXContent(this, ToXContent.EMPTY_PARAMS);

@@ -147,6 +147,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+    /**
+     * Per-shard limit on the total number of Lucene fields (across all segments) that may be created by
+     * {@code dynamic_properties} matching. Unlike OpenSearch mapping fields, Lucene fields are cheaper, but
+     * they are still not free—especially when doc values are enabled. This setting caps growth at the Lucene
+     * layer, independently of {@code index.mapping.total_fields.limit} which governs mapping-state fields.
+     * Defaults to 10 000 (10× the OpenSearch mapping default), reflecting the lower per-field cost in Lucene.
+     * Can be raised dynamically if heap headroom is available.
+     */
+    public static final Setting<Long> INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.dynamic_properties.lucene_field.limit",
+        10000L,
+        0,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
         20L,
@@ -225,6 +240,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     final MapperRegistry mapperRegistry;
 
+    /**
+     * Tracks Lucene field names for the shard, updated on each NRT refresh.
+     * Used by {@link DocumentParser} to enforce the dynamic-properties field-count limit.
+     */
+    private final LuceneFieldTracker luceneFieldTracker = new LuceneFieldTracker();
+
     private final BooleanSupplier idFieldDataEnabled;
 
     private volatile Set<CompositeMappedFieldType> compositeMappedFieldTypes;
@@ -290,6 +311,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
+    }
+
+    /**
+     * Returns the {@link LuceneFieldTracker} for this shard's mapper service.
+     * The tracker is updated on each NRT refresh by {@code InternalEngine}.
+     */
+    public LuceneFieldTracker getLuceneFieldTracker() {
+        return luceneFieldTracker;
     }
 
     /**

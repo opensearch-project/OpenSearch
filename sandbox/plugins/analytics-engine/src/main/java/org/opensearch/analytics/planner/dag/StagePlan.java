@@ -9,12 +9,13 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.opensearch.analytics.spi.FragmentConvertor;
 
 /**
  * A single plan alternative for a {@link Stage}. Contains a resolved fragment
  * where every operator's viableBackends and every annotation's viableBackends
  * are narrowed to exactly one backend, plus the converted bytes produced by
- * the backend's FragmentConvertor.
+ * the backend's {@link FragmentConvertor}.
  *
  * @param resolvedFragment fragment with all viableBackends narrowed to single choices
  * @param backendId        the primary backend for this plan
