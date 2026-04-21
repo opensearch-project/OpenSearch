@@ -109,6 +109,12 @@ public class FragmentConversionDriver {
      * The node immediately above ExchangeReducer is the final agg — it goes to
      * convertFinalAggFragment together with StageInputScan. Only operators strictly
      * above the final agg use attachFragmentOnTop.
+     *
+     * TODO: for joins, the coordinator fragment has a join node directly above two
+     * StageInputScan leaves (no ExchangeReducer between them). convertReduceNode
+     * currently only recognizes the ExchangeReducer boundary — add join handling
+     * when shuffle joins are implemented (check if all inputs are StageInputScan
+     * and dispatch to a dedicated convertJoinFragment method).
      */
     private static byte[] convertReduceFragment(RelNode node, FragmentConvertor convertor) {
         // Find the ExchangeReducer and collect operators above it

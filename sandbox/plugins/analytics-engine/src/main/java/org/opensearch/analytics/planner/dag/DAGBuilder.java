@@ -107,6 +107,9 @@ public class DAGBuilder {
         // Recurse into child fragment to handle nested exchanges.
         // TODO: recurse with full sever() (passing registry) when shuffle/broadcast
         // exchanges are added — not needed for PR2 (pure DF, max 2 stages).
+        // TODO: for joins, each side has its own ExchangeReducer cut producing a
+        // StageInputScan per join input. cutSingleton handles one side; sever() handles
+        // both sides via its input iteration loop.
         List<Stage> grandchildren = new ArrayList<>();
         RelNode childFragment = reducer.getInput();
 
