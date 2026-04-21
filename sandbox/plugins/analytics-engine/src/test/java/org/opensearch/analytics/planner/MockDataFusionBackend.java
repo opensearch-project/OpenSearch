@@ -11,6 +11,8 @@ package org.opensearch.analytics.planner;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
@@ -41,7 +43,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     public static final String PARQUET_DATA_FORMAT = "parquet";
     private static final Set<String> DATAFUSION_FORMATS = Set.of(PARQUET_DATA_FORMAT);
 
-    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(EngineCapability.SORT, EngineCapability.COORDINATOR_REDUCE);
+    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(EngineCapability.SORT);
 
     private static final Set<FieldType> SUPPORTED_TYPES = new HashSet<>();
     static {
@@ -77,9 +79,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     static {
         Set<FilterCapability> caps = new HashSet<>();
         for (FilterOperator op : STANDARD_OPS) {
-            for (FieldType type : SUPPORTED_TYPES) {
-                caps.add(new FilterCapability.Standard(op, type, DATAFUSION_FORMATS));
-            }
+            caps.add(new FilterCapability.Standard(op, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         FILTER_CAPS = caps;
     }
@@ -88,9 +88,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     static {
         Set<AggregateCapability> caps = new HashSet<>();
         for (AggregateFunction func : AGG_FUNCTIONS) {
-            for (FieldType type : SUPPORTED_TYPES) {
-                caps.add(AggregateCapability.simple(func, type, DATAFUSION_FORMATS));
-            }
+            caps.add(AggregateCapability.simple(func, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         AGG_CAPS = caps;
     }
@@ -100,6 +98,13 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public ExchangeSinkProvider getExchangeSinkProvider() {
+        // Stub — real implementation provided by DataFusion backend
+        return coordinatorFragmentBytes -> new ExchangeSink() {
+        };
     }
 
     @Override
