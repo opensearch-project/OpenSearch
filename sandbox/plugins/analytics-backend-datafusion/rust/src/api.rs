@@ -153,7 +153,6 @@ use std::sync::Arc;
 use arrow_array::{Array, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_schema::ffi::FFI_ArrowSchema;
-use dashmap::DashMap;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
@@ -164,15 +163,11 @@ use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::execution::RecordBatchStream;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
-use once_cell::sync::Lazy;
 
-use crate::cancellation::{self, QueryCancellationContext};
+use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
-use crate::query_memory_pool_tracker::QueryTrackingContext;
+use crate::query_tracker::{self, QueryTrackingContext};
 use crate::runtime_manager::RuntimeManager;
-
-/// Registry of in-flight queries, keyed by context_id.
-static ACTIVE_QUERIES: Lazy<DashMap<i64, QueryCancellationContext>> = Lazy::new(DashMap::new);
 
 /// Bundles a stream with its query tracking context so that dropping the
 /// handle automatically marks the query completed in the registry.
@@ -181,25 +176,11 @@ pub struct QueryStreamHandle {
     /// Held for its `Drop` impl — marks the query completed when the
     /// stream is closed.
     _query_tracking_context: QueryTrackingContext,
-    /// Context id to look up query cancellation context.
-    /// Unlike tracking context, this is not held within the handle since
-    /// cancellation request can be initiated via just context_id.
-    context_id: i64,
 }
 
 impl QueryStreamHandle {
-    pub fn new(
-        stream: RecordBatchStreamAdapter<CrossRtStream>,
-        query_context: QueryTrackingContext,
-        context_id: i64
-    ) -> Self {
-        Self { stream, _query_tracking_context: query_context, context_id }
-    }
-}
-
-impl Drop for QueryStreamHandle {
-    fn drop(&mut self) {
-        ACTIVE_QUERIES.remove(&self.context_id);
+    pub fn new(stream: RecordBatchStreamAdapter<CrossRtStream>, query_context: QueryTrackingContext) -> Self {
+        Self { stream, _query_tracking_context: query_context }
     }
 }
 
@@ -313,12 +294,11 @@ pub unsafe fn close_reader(ptr: i64) {
     }
 }
 
-/// Executes a query with cancellation support.
+/// Executes a query. Returns a heap-allocated pointer (as i64) to the result stream.
+/// Caller must call `stream_close` exactly once to free it.
 ///
-/// If `context_id != 0`, registers a cancellation token in ACTIVE_QUERIES before
-/// execution so `cancel_query()` can interrupt it even during planning.
-/// Returns a heap-allocated `QueryStreamHandle` pointer (as i64).
-/// Caller must call `stream_close_handle` exactly once to free it.
+/// This is an async function — the bridge layer decides how to run it
+/// (`block_on` for synchronous JNI, `spawn` for async delivery).
 ///
 /// # Safety
 /// `shard_view_ptr` and `runtime_ptr` must be valid, non-zero pointers.
@@ -343,13 +323,8 @@ pub async unsafe fn execute_query(
     let query_memory_pool = query_context.memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
 
-    // Register cancellation token before execution.
-    let token = if context_id != 0 {
-        ACTIVE_QUERIES.insert(context_id, QueryCancellationContext::new());
-        ACTIVE_QUERIES.get(&context_id).map(|ctx| ctx.cancellation_token.clone())
-    } else {
-        None
-    };
+    // Register cancellation token — already in QUERY_REGISTRY via QueryTrackingContext.
+    let token = query_tracker::get_cancellation_token(context_id);
 
     let stream_ptr = cancellation::cancellable(
         token.as_ref(),
@@ -368,7 +343,7 @@ pub async unsafe fn execute_query(
 
     // Reconstruct the stream from the raw pointer returned by query_executor
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
-    let handle = QueryStreamHandle::new(stream, query_context, context_id);
+    let handle = QueryStreamHandle::new(stream, query_context);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -384,10 +359,12 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
     Ok(Box::into_raw(Box::new(ffi_schema)) as i64)
 }
 
-/// Loads the next record batch with cancellation support.
+/// Loads the next record batch from the stream.
 ///
 /// Returns a heap-allocated FFI_ArrowArray pointer (as i64), or 0 if end-of-stream
 /// or cancelled.
+///
+/// This is an async function — the bridge layer decides how to run it.
 ///
 /// # Safety
 /// `stream_ptr` must be a valid, non-zero pointer. Must not be called concurrently
@@ -396,8 +373,7 @@ pub async unsafe fn stream_next(
     stream_ptr: i64,
 ) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
-    let token = ACTIVE_QUERIES.get(&handle.context_id)
-        .map(|ctx| ctx.cancellation_token.clone());
+    let token = query_tracker::get_cancellation_token(handle._query_tracking_context.context_id());
 
     let result = cancellation::cancellable_or(
         token.as_ref(),
@@ -417,7 +393,7 @@ pub async unsafe fn stream_next(
     }
 }
 
-/// Closes a result stream and deregisters from ACTIVE_QUERIES. Safe to call with 0 (no-op).
+/// Closes a result stream. Safe to call with 0 (no-op).
 ///
 /// # Safety
 /// `stream_ptr` must be 0 or a valid pointer returned by `execute_query`.
@@ -432,9 +408,7 @@ pub unsafe fn stream_close(stream_ptr: i64) {
 /// Fires the cancellation token for the given context_id.
 /// No-op for unknown or already-completed queries.
 pub fn cancel_query(context_id: i64) {
-    if let Some(ctx) = ACTIVE_QUERIES.get(&context_id) {
-        ctx.cancellation_token.cancel();
-    }
+    query_tracker::cancel_query(context_id);
 }
 
 /// Converts SQL to Substrait plan bytes (test only).

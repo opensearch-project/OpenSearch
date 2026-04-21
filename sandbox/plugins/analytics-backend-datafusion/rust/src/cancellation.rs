@@ -6,21 +6,13 @@
  * compatible open source license.
  */
 
-//! Central cancellation utilities for DataFusion query tasks.
+//! Cancellation helpers for DataFusion query tasks.
+//!
+//! The cancellation token itself lives in [`crate::query_tracker::QueryTracker`].
+//! This module provides `select!`-based helpers that race a future against a token.
 
 use std::future::Future;
 use tokio_util::sync::CancellationToken;
-
-/// Per-query cancellation state stored in the ACTIVE_QUERIES registry.
-pub struct QueryCancellationContext {
-    pub cancellation_token: CancellationToken,
-}
-
-impl QueryCancellationContext {
-    pub fn new() -> Self {
-        Self { cancellation_token: CancellationToken::new() }
-    }
-}
 
 /// Race a future against a cancellation token. Returns a cancellation error string
 /// if the token fires first. Pass `None` for non-cancellable queries.

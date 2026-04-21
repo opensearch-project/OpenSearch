@@ -18,5 +18,5 @@ pub mod executor;
 pub mod ffm;
 pub mod io;
 pub mod query_executor;
-pub mod query_memory_pool_tracker;
+pub mod query_tracker;
 pub mod runtime_manager;

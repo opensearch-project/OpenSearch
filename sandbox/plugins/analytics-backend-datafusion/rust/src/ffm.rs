@@ -7,9 +7,6 @@
  */
 
 //! FFM bridge for DataFusion.
-//!
-//! Thin `extern "C"` adapter that marshals FFM types and delegates to [`crate::api`].
-//! All query lifecycle and cancellation logic lives in `api.rs`.
 
 use std::slice;
 use std::str;
@@ -119,22 +116,22 @@ pub unsafe extern "C" fn df_execute_query(
 
 #[ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn df_stream_get_schema(handle_ptr: i64) -> i64 {
-    api::stream_get_schema(handle_ptr).map_err(|e| e.to_string())
+pub unsafe extern "C" fn df_stream_get_schema(stream_ptr: i64) -> i64 {
+    api::stream_get_schema(stream_ptr).map_err(|e| e.to_string())
 }
 
 #[ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn df_stream_next(handle_ptr: i64) -> i64 {
+pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
     let mgr = get_rt_manager()?;
     mgr.io_runtime
-        .block_on(api::stream_next(handle_ptr))
+        .block_on(api::stream_next(stream_ptr))
         .map_err(|e| e.to_string())
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn df_stream_close(handle_ptr: i64) {
-    api::stream_close(handle_ptr);
+pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
+    api::stream_close(stream_ptr);
 }
 
 #[no_mangle]
