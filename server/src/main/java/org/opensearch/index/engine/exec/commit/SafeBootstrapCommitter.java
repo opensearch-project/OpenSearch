@@ -23,7 +23,9 @@ import java.nio.file.Path;
  * {@link #discoverAndTrimUnsafeCommits} which discovers existing commits, reads the
  * persisted global checkpoint from the translog checkpoint file, finds the safe commit,
  * and rewrites at that point if the last commit is unsafe. This guarantees the backing
- * store is in a safe state before the subclass opens it.
+ * store is in a safe state before the subclass opens it. Currently, it is coupled with the Store
+ *
+ * TODO - Decouple the store impl from here and rely on Committer provided static methods
  * <p>
  * Subclass constructors must call {@code super(config)} as their first statement.
  *
