@@ -8,7 +8,7 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.opensearch.analytics.backend.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.action.ShardTarget;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;

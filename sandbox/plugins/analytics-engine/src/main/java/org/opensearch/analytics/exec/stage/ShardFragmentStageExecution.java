@@ -9,7 +9,7 @@
 package org.opensearch.analytics.exec.stage;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.opensearch.analytics.backend.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.PendingExecutions;

@@ -13,7 +13,7 @@ package org.opensearch.analytics.backend;
  * Consumers (parent stages, the walker's completion listener) read from this;
  * they never write to it.
  *
- * @see ExchangeSink for the write-side counterpart
+ * @see org.opensearch.analytics.spi.ExchangeSink for the write-side counterpart
  */
 public interface ExchangeSource {
 

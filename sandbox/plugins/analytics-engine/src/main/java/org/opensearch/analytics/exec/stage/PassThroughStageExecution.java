@@ -8,7 +8,7 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.opensearch.analytics.backend.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.RowProducingSink;
 import org.opensearch.analytics.planner.dag.Stage;

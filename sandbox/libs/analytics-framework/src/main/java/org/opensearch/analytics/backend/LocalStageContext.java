@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.backend;
 
+import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.core.action.ActionListener;
 
 import java.io.Closeable;

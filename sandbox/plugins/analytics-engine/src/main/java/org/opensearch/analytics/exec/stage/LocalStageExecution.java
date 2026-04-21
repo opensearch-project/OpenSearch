@@ -10,7 +10,7 @@ package org.opensearch.analytics.exec.stage;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.analytics.backend.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.backend.LocalStageContext;
 import org.opensearch.analytics.planner.dag.Stage;

@@ -10,6 +10,7 @@ package org.opensearch.analytics.backend;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.analytics.spi.ExchangeSink;
 
 import java.util.Arrays;
 import java.util.Collections;

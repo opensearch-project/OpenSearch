@@ -50,6 +50,13 @@ dependencies {
   // Also provides calcite-core transitively via api.
   api project(':sandbox:libs:analytics-framework')
 
+  // Arrow — framework's public interfaces (ExchangeSink, LocalStageContext, etc.) expose
+  // Arrow types. analytics-engine's own code (RowBatchToArrowConverter, ShardFragmentStageExecution)
+  // uses arrow directly. Bundle runtime here; backend plugins that extend analytics-engine
+  // declare arrow as compileOnly to avoid jar hell.
+  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+
   // Guava — required at compile time because Calcite base classes expose guava types.
   // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
   calciteCompile "com.google.guava:guava:${versions.guava}"

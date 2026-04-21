@@ -11,7 +11,7 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.opensearch.analytics.backend.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.backend.ExchangeSource;
 
 import java.util.ArrayList;
