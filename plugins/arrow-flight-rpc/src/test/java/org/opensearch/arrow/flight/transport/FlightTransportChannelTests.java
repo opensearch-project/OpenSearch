@@ -7,6 +7,7 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.Version;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.common.lease.Releasable;
@@ -31,6 +32,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class FlightTransportChannelTests extends OpenSearchTestCase {
 
@@ -207,5 +209,25 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         StreamException exception2 = assertThrows(StreamException.class, () -> channel.sendResponseBatch(response));
         assertEquals(StreamErrorCode.UNAVAILABLE, exception1.getErrorCode());
         assertEquals(StreamErrorCode.UNAVAILABLE, exception2.getErrorCode());
+    }
+
+    public void testGetAllocator() {
+        BufferAllocator mockAllocator = mock(BufferAllocator.class);
+        FlightServerChannel mockServerChannel = mock(FlightServerChannel.class);
+        when(mockServerChannel.getAllocator()).thenReturn(mockAllocator);
+
+        FlightTransportChannel ch = new FlightTransportChannel(
+            mockOutboundHandler,
+            mockServerChannel,
+            "test-action",
+            1L,
+            Version.CURRENT,
+            Collections.emptySet(),
+            false,
+            false,
+            mockReleasable
+        );
+
+        assertSame(mockAllocator, ch.getAllocator());
     }
 }
