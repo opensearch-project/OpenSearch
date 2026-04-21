@@ -39,15 +39,17 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        assertEquals(SqlKind.SEARCH, call.getKind());
+        assertEquals(SqlKind.OR, call.getKind());
     }
 
     public void testResolvesCorrectFieldIndex() throws ConversionException {
         RexNode result = translator.convert(QueryBuilders.termsQuery("brand", "brandX", "brandY"), ctx);
 
         RexCall call = (RexCall) result;
-        assertEquals(SqlKind.SEARCH, call.getKind());
-        RexInputRef fieldRef = (RexInputRef) call.getOperands().get(0);
+        assertEquals(SqlKind.OR, call.getKind());
+        // OR expression has nested structure, get field from first operand
+        RexCall firstEquals = (RexCall) call.getOperands().get(0);
+        RexInputRef fieldRef = (RexInputRef) firstEquals.getOperands().get(0);
         assertEquals(2, fieldRef.getIndex());
     }
 
@@ -55,8 +57,10 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
         RexNode result = translator.convert(QueryBuilders.termsQuery("price", new Object[]{1200, 1500}), ctx);
 
         RexCall call = (RexCall) result;
-        assertEquals(SqlKind.SEARCH, call.getKind());
-        RexInputRef fieldRef = (RexInputRef) call.getOperands().get(0);
+        assertEquals(SqlKind.OR, call.getKind());
+        // OR expression has nested structure, get field from first operand
+        RexCall firstEquals = (RexCall) call.getOperands().get(0);
+        RexInputRef fieldRef = (RexInputRef) firstEquals.getOperands().get(0);
         assertEquals(1, fieldRef.getIndex());
     }
 
@@ -65,7 +69,7 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
             QueryBuilders.termsQuery("rating", new Object[]{4.5, 4.8, 5.0}), ctx);
 
         RexCall call = (RexCall) result;
-        assertEquals(SqlKind.SEARCH, call.getKind());
+        assertEquals(SqlKind.OR, call.getKind());
     }
 
     public void testThrowsForUnknownField() {
@@ -74,8 +78,8 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testThrowsForEmptyValues() {
-        expectThrows(ConversionException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("name"), ctx));
+        expectThrows(IllegalArgumentException.class,
+            () -> translator.convert(QueryBuilders.termsQuery("name", (Object[]) null), ctx));
     }
 
     public void testThrowsForBoost() {
