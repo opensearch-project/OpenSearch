@@ -10,6 +10,7 @@ package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.opensearch.be.lucene.LuceneFieldFactory;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -99,7 +100,7 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
      */
     @Override
     public void setRowId(String rowIdFieldName, long rowId) {
-        document.add(new NumericDocValuesField(rowIdFieldName, rowId));
+        document.add(new SortedNumericDocValuesField(rowIdFieldName, rowId));
     }
 
     /** No-op — this document input holds no closeable resources. */

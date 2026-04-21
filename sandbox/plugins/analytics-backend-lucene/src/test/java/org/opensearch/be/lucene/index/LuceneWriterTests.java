@@ -13,7 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -110,11 +110,11 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     LeafReader leafReader = ctx.reader();
-                    NumericDocValues rowIdValues = leafReader.getNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                    SortedNumericDocValues rowIdValues = leafReader.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
                     assertNotNull("row_id doc values should exist", rowIdValues);
                     for (int docId = 0; docId < leafReader.maxDoc(); docId++) {
                         assertTrue(rowIdValues.advanceExact(docId));
-                        assertThat("row ID should equal Lucene doc ID", rowIdValues.longValue(), equalTo((long) docId));
+                        assertThat("row ID should equal Lucene doc ID", rowIdValues.nextValue(), equalTo((long) docId));
                     }
                 }
             }
@@ -243,11 +243,11 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
                 // Verify row IDs match doc IDs
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                NumericDocValues rowIdValues = leafReader.getNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                SortedNumericDocValues rowIdValues = leafReader.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
                 assertNotNull(rowIdValues);
                 for (int docId = 0; docId < numDocs; docId++) {
                     assertTrue(rowIdValues.advanceExact(docId));
-                    assertThat(rowIdValues.longValue(), equalTo((long) docId));
+                    assertThat(rowIdValues.nextValue(), equalTo((long) docId));
                 }
 
                 // Verify text field is searchable via TermQuery

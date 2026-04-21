@@ -87,7 +87,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     /** Large RAM buffer to avoid intermediate segment flushes within a single writer. */
     private static final double RAM_BUFFER_SIZE_MB = 256.0;
 
-    private static final String ROW_ID = "___row_id";
+    private static final String ROW_ID = LuceneDocumentInput.ROW_ID_FIELD;
 
     private final long writerGeneration;
     private final LuceneDataFormat dataFormat;
@@ -124,6 +124,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         IndexWriterConfig iwc = analyzer != null ? new IndexWriterConfig(analyzer) : new IndexWriterConfig();
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setRAMBufferSizeMB(RAM_BUFFER_SIZE_MB);
+        iwc.setIndexSort(new Sort(new SortedNumericSortField(ROW_ID, SortField.Type.LONG)));
 
         iwc.setCodec(new LuceneWriterCodec(codec, writerGeneration));
         this.indexWriter = new IndexWriter(directory, iwc);
