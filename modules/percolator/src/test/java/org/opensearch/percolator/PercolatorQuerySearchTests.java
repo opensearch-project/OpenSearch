@@ -303,7 +303,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
 
     public void testMapUnmappedFieldAsTextAfterDynamicMappingUpdate() throws IOException {
         Settings.Builder settings = Settings.builder().put("index.percolator.map_unmapped_fields_as_text", true);
-        createIndexWithSimpleMappings("test", settings.build(), "query", "type=percolator", "title", "type=text");
+        createIndex("test", settings.build(), "query", "query", "type=percolator", "title", "type=text");
 
         // Index a document that triggers a dynamic mapping update
         client().prepareIndex("test")
