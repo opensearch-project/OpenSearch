@@ -261,10 +261,23 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         java.nio.file.Files.createDirectories(dataPath);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
+        store.createEmpty(org.apache.lucene.util.Version.LATEST);
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
+        Path translogPath = dataPath.resolve("translog");
+        java.nio.file.Files.createDirectories(translogPath);
         EngineConfig engineConfig = new EngineConfig.Builder().indexSettings(idxSettings)
             .store(store)
             .codecService(new CodecService(null, idxSettings, LogManager.getLogger(getClass()), java.util.List.of()))
+            .translogConfig(
+                new org.opensearch.index.translog.TranslogConfig(
+                    shardId,
+                    translogPath,
+                    idxSettings,
+                    org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE,
+                    "",
+                    false
+                )
+            )
             .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, java.util.Collections.emptyList()))
             .build();
         CommitterConfig cs = new CommitterConfig(engineConfig);

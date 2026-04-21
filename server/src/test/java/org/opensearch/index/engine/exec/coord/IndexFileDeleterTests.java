@@ -482,7 +482,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         assertFalse("No more pending deletes", deleter.hasPendingDeletes());
     }
 
-    public void testPendingDeletesClearedWhenFileReReferencedByNewSnapshot() throws IOException {
+    public void testReReferencingPendingDeleteFileThrowsAssertionError() throws IOException {
         AlwaysFailingDeleter failingDeleter = new AlwaysFailingDeleter();
         CatalogSnapshot cs1 = snapshot(1, List.of(segment(0, "parquet", "shared.parquet")), commitUserData(100, 100, "uuid"));
 
@@ -504,14 +504,11 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         assertTrue(deleter.hasPendingDeletes());
         assertTrue(deleter.getPendingDeletes().get("parquet").contains("shared.parquet"));
 
-        // cs3 re-introduces shared.parquet — it's live again
+        // Re-introducing a dead file should trigger an assertion error — this should never
+        // happen in production because once a segment file's ref count reaches 0, no new
+        // snapshot should reference it.
         CatalogSnapshot cs3 = snapshot(3, List.of(segment(2, "parquet", "shared.parquet")), commitUserData(300, 300, "uuid"));
-        deleter.addFileReferences(cs3);
-
-        // shared.parquet should be removed from pending deletes since it's referenced again
-        Map<String, Set<String>> pending = deleter.getPendingDeletes();
-        boolean sharedStillPending = pending.containsKey("parquet") && pending.get("parquet").contains("shared.parquet");
-        assertFalse("Re-referenced file should be removed from pending deletes", sharedStillPending);
+        expectThrows(AssertionError.class, () -> deleter.addFileReferences(cs3));
     }
 
     public void testRetryPendingDeletesExplicitCall() throws IOException {

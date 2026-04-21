@@ -18,7 +18,6 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.shard.ShardPath;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,7 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class IndexFileDeleter implements Closeable {
+public class IndexFileDeleter {
 
     private static final Logger logger = LogManager.getLogger(IndexFileDeleter.class);
 
@@ -125,14 +124,12 @@ public class IndexFileDeleter implements Closeable {
                 AtomicInteger refCount = formatRefs.computeIfAbsent(file, k -> new AtomicInteger(0));
                 if (refCount.incrementAndGet() == 1) {
                     added.add(file);
-                    // File is live again — remove from pending deletes if present
-                    Set<String> pending = pendingDeletes.get(formatName);
-                    if (pending != null) {
-                        pending.remove(file);
-                        if (pending.isEmpty()) {
-                            pendingDeletes.remove(formatName);
-                        }
-                    }
+                    assert pendingDeletes.getOrDefault(formatName, Set.of()).contains(file) == false : "File ["
+                        + file
+                        + "] in format ["
+                        + formatName
+                        + "] was pending deletion but is being re-referenced."
+                        + " This should never happen — once a segment file's ref count reaches 0, no new snapshot should reference it.";
                 }
             }
             if (added.isEmpty() == false) {
@@ -244,23 +241,15 @@ public class IndexFileDeleter implements Closeable {
             }
             Set<String> stillFailed = new HashSet<>();
             for (String file : files) {
-                // Re-check: skip if file was re-referenced since we snapshotted pendingDeletes
-                boolean isLive;
+                // Assert: a file in pendingDeletes must not be re-referenced
                 synchronized (this) {
                     Map<String, AtomicInteger> formatRefs = fileRefCounts.get(formatName);
-                    isLive = formatRefs != null && formatRefs.containsKey(file);
-                    if (isLive) {
-                        Set<String> pending = pendingDeletes.get(formatName);
-                        if (pending != null) {
-                            pending.remove(file);
-                            if (pending.isEmpty()) {
-                                pendingDeletes.remove(formatName);
-                            }
-                        }
-                    }
-                }
-                if (isLive) {
-                    continue;
+                    assert (formatRefs == null || formatRefs.containsKey(file) == false) : "File ["
+                        + file
+                        + "] in format ["
+                        + formatName
+                        + "] is pending deletion but has a live ref count."
+                        + " This should never happen — once a segment file's ref count reaches 0, no new snapshot should reference it.";
                 }
                 try {
                     Map<String, Collection<String>> failed = deleter.deleteFiles(Map.of(formatName, List.of(file)));
@@ -435,22 +424,8 @@ public class IndexFileDeleter implements Closeable {
     }
 
     /**
-     * Releases all committed snapshot refs held by this deleter and drains pending deletes.
-     * Should be called during engine shutdown to prevent ref leaks.
+     * Returns a string representation of this IndexFileDeleter.
      */
-    @Override
-    public void close() throws IOException {
-        List<CatalogSnapshot> snapshotsToRelease;
-        synchronized (this) {
-            snapshotsToRelease = new ArrayList<>(committedSnapshots);
-            committedSnapshots.clear();
-            pendingDeletes.clear();
-        }
-        for (CatalogSnapshot cs : snapshotsToRelease) {
-            cs.decRef();
-        }
-    }
-
     @Override
     public String toString() {
         return "IndexFileDeleter{fileRefCounts=" + fileRefCounts + ", committedSnapshots=" + committedSnapshots.size() + "}";

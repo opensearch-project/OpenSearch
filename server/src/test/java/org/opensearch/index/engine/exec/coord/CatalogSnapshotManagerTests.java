@@ -123,7 +123,8 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             }
             assertEquals(1, finalSnapshot.refCount());
             manager.close();
-            assertEquals(0, finalSnapshot.refCount());
+            // close() only sets the closed flag — does not decRef (files must survive for recovery)
+            assertEquals(1, finalSnapshot.refCount());
         }
     }
 
@@ -233,7 +234,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         manager.close();
     }
 
-    public void testCloseInternalInvokedOnManagerClose() throws Exception {
+    public void testCloseOnlySetsFlagDoesNotDecRef() throws Exception {
         CatalogSnapshotManager manager = createRandomManager();
 
         // Do a refresh so we get a snapshot without a commit ref
@@ -246,7 +247,8 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         assertFalse(((DataformatAwareCatalogSnapshot) snapshot).isClosed());
 
         manager.close();
-        assertTrue("snapshot should be closed when manager releases the last ref", ((DataformatAwareCatalogSnapshot) snapshot).isClosed());
+        // close() only sets the closed flag — snapshot stays alive (files must survive for recovery)
+        assertFalse(((DataformatAwareCatalogSnapshot) snapshot).isClosed());
     }
 
     public void testCloseInternalNotInvokedWhileRefsHeld() throws Exception {

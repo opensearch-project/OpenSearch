@@ -118,17 +118,15 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(null)));
     }
 
-    public void testSkipsTrimWhenNullTranslogConfig() throws IOException {
+    public void testThrowsWhenNullTranslogConfig() throws IOException {
         reset();
         Store store = createStore();
         try {
-            // No translogConfig set → trimming skipped
             EngineConfig ec = new EngineConfig.Builder().indexSettings(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY))
                 .store(store)
                 .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, Collections.emptyList()))
                 .build();
-            new TestCommitter(new CommitterConfig(ec));
-            assertFalse("discoverAndTrim should not be called when translogConfig is null", discoverAndTrimCalled);
+            expectThrows(IllegalArgumentException.class, () -> new TestCommitter(new CommitterConfig(ec)));
         } finally {
             store.close();
         }

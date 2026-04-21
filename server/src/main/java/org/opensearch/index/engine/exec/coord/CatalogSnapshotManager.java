@@ -246,8 +246,6 @@ public class CatalogSnapshotManager implements Closeable {
      */
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true)) {
-            decRefAndMaybeDelete(latestCatalogSnapshot);
-        }
+        closed.compareAndSet(false, true);
     }
 }

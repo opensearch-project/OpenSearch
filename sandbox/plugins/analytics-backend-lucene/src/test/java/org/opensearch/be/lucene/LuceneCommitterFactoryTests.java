@@ -10,7 +10,9 @@ package org.opensearch.be.lucene;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
@@ -19,6 +21,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -38,14 +41,18 @@ public class LuceneCommitterFactoryTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId("test", "_na_", 0);
         Path dataPath = baseDir.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
         Files.createDirectories(dataPath);
+        Path translogPath = dataPath.resolve("translog");
+        Files.createDirectories(translogPath);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         Store store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST);
 
         Committer committer = null;
         try {
             EngineConfig engineConfig = new EngineConfig.Builder().indexSettings(indexSettings)
                 .store(store)
                 .codecService(new CodecService(null, indexSettings, LogManager.getLogger(getClass()), java.util.List.of()))
+                .translogConfig(new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false))
                 .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, Collections.emptyList()))
                 .build();
             LuceneCommitterFactory committerFactory = new LuceneCommitterFactory();

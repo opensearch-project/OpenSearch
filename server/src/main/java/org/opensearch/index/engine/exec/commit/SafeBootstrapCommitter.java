@@ -44,13 +44,10 @@ public abstract class SafeBootstrapCommitter implements Committer {
         if (engineConfig == null || engineConfig.getStore() == null) {
             throw new IllegalArgumentException("SafeBootstrapCommitter requires a non-null EngineConfig with a valid Store");
         }
-        Store store = engineConfig.getStore();
-        if (engineConfig.getTranslogConfig() != null) {
-            Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
-            if (translogPath != null) {
-                discoverAndTrimUnsafeCommits(store, translogPath);
-            }
+        if (engineConfig.getTranslogConfig() == null || engineConfig.getTranslogConfig().getTranslogPath() == null) {
+            throw new IllegalArgumentException("SafeBootstrapCommitter requires a non-null TranslogConfig with a valid translog path");
         }
+        discoverAndTrimUnsafeCommits(engineConfig.getStore(), engineConfig.getTranslogConfig().getTranslogPath());
     }
 
     /**

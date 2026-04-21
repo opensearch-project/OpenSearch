@@ -120,6 +120,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Store.OnClose.EMPTY,
             shardPath
         );
+        store.createEmpty(org.apache.lucene.util.Version.LATEST);
         LuceneCommitter committer = new LuceneCommitter(new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir)));
         Path parquetDir = dataPath.resolve(PARQUET_FORMAT);
         Files.createDirectories(parquetDir);
@@ -206,6 +207,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             snapshot.setUserData(commitUserData(maxSeqNo, localCP), true);
             Map<String, String> cd = new HashMap<>(snapshot.getUserData());
             cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
+            cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(snapshot.getId()));
             committer.commit(cd);
             handle.markSuccess();
         }
@@ -221,6 +223,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
         CatalogSnapshot initial = CatalogSnapshotManager.createInitialSnapshot(1L, 1L, 0L, segments, 1L, commitUserData(maxSeqNo, localCP));
         Map<String, String> cd = new HashMap<>(initial.getUserData());
         cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, initial.serializeToString());
+        cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(initial.getId()));
         env.committer.commit(cd);
         return new CatalogSnapshotManager(
             env.committer.listCommittedSnapshots(),
@@ -243,24 +246,22 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             // --- CS1: ingest, bootstrap, flush (lcp=100, globalCP=100) ---
             Set<String> lucene0 = ingestLuceneDocs(env.committer, env.store);
             Set<String> parquet0 = ingestParquetFiles(env.parquetDir, "_0.parquet");
-            CatalogSnapshotManager manager = bootstrap(
-                env,
-                List.of(buildSegment(0, lucene0, env.indexDir, parquet0, env.parquetDir)),
-                100,
-                100,
-                policy
-            );
+            Segment seg0 = buildSegment(0, lucene0, env.indexDir, parquet0, env.parquetDir);
+            CatalogSnapshotManager manager = bootstrap(env, List.of(seg0), 100, 100, policy);
 
-            // --- CS2: ingest, merge, refresh, flush (lcp=200, globalCP=100) ---
+            // --- CS2: ingest, refresh, flush (lcp=200, globalCP=100) ---
+            // Each snapshot includes ALL accumulated segments (matching production behavior)
             Set<String> lucene1 = ingestLuceneDocs(env.committer, env.store);
             Set<String> parquet1 = ingestParquetFiles(env.parquetDir, "_1.parquet");
-            manager.commitNewSnapshot(List.of(buildSegment(1, lucene1, env.indexDir, parquet1, env.parquetDir)));
+            Segment seg1 = buildSegment(1, lucene1, env.indexDir, parquet1, env.parquetDir);
+            manager.commitNewSnapshot(List.of(seg0, seg1));
             doFlush(manager, env.committer, 200, 200);
 
-            // --- CS3: ingest, merge, refresh, flush (lcp=300, globalCP=100) ---
+            // --- CS3: ingest, refresh, flush (lcp=300, globalCP=100) ---
             Set<String> lucene2 = ingestLuceneDocs(env.committer, env.store);
             Set<String> parquet2 = ingestParquetFiles(env.parquetDir, "_2.parquet");
-            manager.commitNewSnapshot(List.of(buildSegment(2, lucene2, env.indexDir, parquet2, env.parquetDir)));
+            Segment seg2 = buildSegment(2, lucene2, env.indexDir, parquet2, env.parquetDir);
+            manager.commitNewSnapshot(List.of(seg0, seg1, seg2));
             doFlush(manager, env.committer, 300, 300);
 
             // All 3 commits: CS1=safe, CS2 in between, CS3=last
@@ -282,11 +283,11 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             globalCP.set(200);
             doFlush(manager, env.committer, 300, 300);
 
-            // CS1 deleted (lcp=100 < safe). CS2=safe(200<=200).
+            // CS1 deleted. lucene0/parquet0 still alive (referenced by CS2=safe and CS3)
             for (String f : parquet0)
-                assertFalse("parquet0 deleted: " + f, fileExists(env.parquetDir, f));
+                assertTrue("parquet0 alive (ref'd by CS2): " + f, fileExists(env.parquetDir, f));
             for (String f : lucene0)
-                assertFalse("lucene0 deleted: " + f, fileExists(env.indexDir, f));
+                assertTrue("lucene0 alive (ref'd by CS2): " + f, fileExists(env.indexDir, f));
             for (String f : parquet1)
                 assertTrue("parquet1 alive (safe): " + f, fileExists(env.parquetDir, f));
             for (String f : lucene1)
@@ -296,14 +297,16 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             for (String f : lucene2)
                 assertTrue("lucene2 alive: " + f, fileExists(env.indexDir, f));
 
-            // --- Advance globalCP to 300, re-flush: CS2 deleted, only CS3 remains ---
+            // --- Advance globalCP to 300, re-flush: CS2 deleted, only CS3+CS4 remain ---
             globalCP.set(300);
             doFlush(manager, env.committer, 300, 300);
 
-            for (String f : parquet1)
-                assertFalse("parquet1 deleted: " + f, fileExists(env.parquetDir, f));
-            for (String f : lucene1)
-                assertFalse("lucene1 deleted: " + f, fileExists(env.indexDir, f));
+            // CS2 deleted. seg0 files only referenced by CS3+ now, seg1 files too.
+            // All files still alive because CS3 (and CS4=latest) reference all segments.
+            for (String f : parquet0)
+                assertTrue("parquet0 alive (ref'd by CS3): " + f, fileExists(env.parquetDir, f));
+            for (String f : lucene0)
+                assertTrue("lucene0 alive (ref'd by CS3): " + f, fileExists(env.indexDir, f));
             for (String f : parquet2)
                 assertTrue("parquet2 alive: " + f, fileExists(env.parquetDir, f));
             for (String f : lucene2)
@@ -352,7 +355,13 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             globalCP.set(200);
             Set<String> lucene2 = ingestLuceneDocs(env.committer, env.store);
             Set<String> parquet2 = ingestParquetFiles(env.parquetDir, "_2.parquet");
-            manager.commitNewSnapshot(List.of(buildSegment(2, lucene2, env.indexDir, parquet2, env.parquetDir)));
+            manager.commitNewSnapshot(
+                List.of(
+                    buildSegment(0, lucene0, env.indexDir, parquet0, env.parquetDir),
+                    buildSegment(1, lucene1, env.indexDir, parquet1, env.parquetDir),
+                    buildSegment(2, lucene2, env.indexDir, parquet2, env.parquetDir)
+                )
+            );
             doFlush(manager, env.committer, 300, 300);
 
             assertEquals("CS2 (safe) + CS3 (last)", 2, countLuceneCommits(env.store));
@@ -379,39 +388,37 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
 
             Set<String> lucene0 = ingestLuceneDocs(env.committer, env.store);
             Set<String> parquet0 = ingestParquetFiles(env.parquetDir, "_0.parquet");
-            CatalogSnapshotManager manager = bootstrap(
-                env,
-                List.of(buildSegment(0, lucene0, env.indexDir, parquet0, env.parquetDir)),
-                100,
-                100,
-                policy
-            );
+            Segment seg0 = buildSegment(0, lucene0, env.indexDir, parquet0, env.parquetDir);
+            CatalogSnapshotManager manager = bootstrap(env, List.of(seg0), 100, 100, policy);
 
             // Hold CS1
             GatedCloseable<CatalogSnapshot> held = manager.acquireCommittedSnapshot(false);
 
-            // Refresh: CS2
+            // Refresh: CS2 includes all accumulated segments
             Set<String> lucene1 = ingestLuceneDocs(env.committer, env.store);
             Set<String> parquet1 = ingestParquetFiles(env.parquetDir, "_1.parquet");
-            manager.commitNewSnapshot(List.of(buildSegment(1, lucene1, env.indexDir, parquet1, env.parquetDir)));
+            Segment seg1 = buildSegment(1, lucene1, env.indexDir, parquet1, env.parquetDir);
+            manager.commitNewSnapshot(List.of(seg0, seg1));
 
             globalCP.set(200);
             doFlush(manager, env.committer, 200, 200);
 
-            // CS1 protected
+            // CS1 protected by held snapshot — all files alive
             for (String f : lucene0)
                 assertTrue("protected: " + f, fileExists(env.indexDir, f));
             for (String f : parquet0)
                 assertTrue("protected: " + f, fileExists(env.parquetDir, f));
             assertTrue("CS1's commit still exists", countLuceneCommits(env.store) >= 2);
 
-            // Release
+            // Release — CS1 deleted, but seg0 files still alive via CS2
             held.close();
 
+            // seg0 lucene files still alive (CS2 references them), but CS1's commit is gone
             for (String f : lucene0)
-                assertFalse("deleted: " + f, fileExists(env.indexDir, f));
+                assertTrue("alive via CS2: " + f, fileExists(env.indexDir, f));
+            // seg0 parquet files still alive (CS2 references them)
             for (String f : parquet0)
-                assertFalse("deleted: " + f, fileExists(env.parquetDir, f));
+                assertTrue("alive via CS2: " + f, fileExists(env.parquetDir, f));
             assertEquals("Only CS2's commit remains", 1, countLuceneCommits(env.store));
             for (String f : lucene1)
                 assertTrue(fileExists(env.indexDir, f));
@@ -442,6 +449,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
 
         // Phase 1: Pre-crash — 3 commits
         {
+            Translog.createEmptyTranslog(translogDir, shardId, SequenceNumbers.NO_OPS_PERFORMED, 1L, TRANSLOG_UUID, null);
             Store store = new Store(
                 shardId,
                 indexSettings,
@@ -450,7 +458,10 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
                 Store.OnClose.EMPTY,
                 shardPath
             );
-            LuceneCommitter committer = new LuceneCommitter(new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, null)));
+            store.createEmpty(org.apache.lucene.util.Version.LATEST);
+            LuceneCommitter committer = new LuceneCommitter(
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+            );
 
             lucene0 = ingestLuceneDocs(committer, store);
             Set<String> parquet0 = ingestParquetFiles(parquetDir, "_0.parquet");
@@ -464,6 +475,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             );
             Map<String, String> cd1 = new HashMap<>(cs1.getUserData());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs1.serializeToString());
+            cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs1.getId()));
             committer.commit(cd1);
 
             lucene1 = ingestLuceneDocs(committer, store);
@@ -472,12 +484,13 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
                 2L,
                 2L,
                 0L,
-                List.of(buildSegment(1, lucene1, indexDir, parquet1, parquetDir)),
+                List.of(buildSegment(0, lucene0, indexDir, parquet0, parquetDir), buildSegment(1, lucene1, indexDir, parquet1, parquetDir)),
                 2L,
                 commitUserData(200, 200)
             );
             Map<String, String> cd2 = new HashMap<>(cs2.getUserData());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs2.serializeToString());
+            cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs2.getId()));
             committer.commit(cd2);
 
             lucene2 = ingestLuceneDocs(committer, store);
@@ -486,12 +499,17 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
                 3L,
                 3L,
                 0L,
-                List.of(buildSegment(2, lucene2, indexDir, parquet2, parquetDir)),
+                List.of(
+                    buildSegment(0, lucene0, indexDir, parquet0, parquetDir),
+                    buildSegment(1, lucene1, indexDir, parquet1, parquetDir),
+                    buildSegment(2, lucene2, indexDir, parquet2, parquetDir)
+                ),
                 3L,
                 commitUserData(300, 300)
             );
             Map<String, String> cd3 = new HashMap<>(cs3.getUserData());
             cd3.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs3.serializeToString());
+            cd3.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs3.getId()));
             committer.commit(cd3);
 
             assertEquals(3, DirectoryReader.listCommits(store.directory()).size());
@@ -566,6 +584,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
 
         // Phase 1: Pre-crash — 2 commits
         {
+            Translog.createEmptyTranslog(translogDir, shardId, SequenceNumbers.NO_OPS_PERFORMED, 1L, TRANSLOG_UUID, null);
             Store store = new Store(
                 shardId,
                 indexSettings,
@@ -574,7 +593,10 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
                 Store.OnClose.EMPTY,
                 shardPath
             );
-            LuceneCommitter committer = new LuceneCommitter(new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, null)));
+            store.createEmpty(org.apache.lucene.util.Version.LATEST);
+            LuceneCommitter committer = new LuceneCommitter(
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+            );
 
             lucene0 = ingestLuceneDocs(committer, store);
             Set<String> parquet0 = ingestParquetFiles(parquetDir, "_0.parquet");
@@ -588,6 +610,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             );
             Map<String, String> cd1 = new HashMap<>(cs1.getUserData());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs1.serializeToString());
+            cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs1.getId()));
             committer.commit(cd1);
 
             Set<String> lucene1 = ingestLuceneDocs(committer, store);
@@ -596,12 +619,13 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
                 2L,
                 2L,
                 0L,
-                List.of(buildSegment(1, lucene1, indexDir, parquet1, parquetDir)),
+                List.of(buildSegment(0, lucene0, indexDir, parquet0, parquetDir), buildSegment(1, lucene1, indexDir, parquet1, parquetDir)),
                 2L,
                 commitUserData(200, 200)
             );
             Map<String, String> cd2 = new HashMap<>(cs2.getUserData());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs2.serializeToString());
+            cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs2.getId()));
             committer.commit(cd2);
 
             committer.close();
@@ -649,15 +673,21 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             // Normal operation: ingest + refresh + flush
             Set<String> lucene3 = ingestLuceneDocs(committer, store);
             Set<String> parquet3 = ingestParquetFiles(parquetDir, "_3.parquet");
-            manager.commitNewSnapshot(List.of(buildSegment(3, lucene3, indexDir, parquet3, parquetDir)));
+            manager.commitNewSnapshot(
+                List.of(
+                    buildSegment(0, lucene0, indexDir, Set.of("_0.parquet"), parquetDir),
+                    buildSegment(3, lucene3, indexDir, parquet3, parquetDir)
+                )
+            );
 
             globalCP.set(300);
             doFlush(manager, committer, 300, 300);
 
             assertEquals("Only CS3's commit remains", 1, DirectoryReader.listCommits(store.directory()).size());
+            // lucene0 files still alive — CS3 references seg0
             for (String f : lucene0)
-                assertFalse("lucene0 deleted: " + f, fileExists(indexDir, f));
-            assertFalse("_0.parquet deleted", fileExists(parquetDir, "_0.parquet"));
+                assertTrue("lucene0 alive via CS3: " + f, fileExists(indexDir, f));
+            assertTrue("_0.parquet alive via CS3", fileExists(parquetDir, "_0.parquet"));
             for (String f : lucene3)
                 assertTrue(fileExists(indexDir, f));
             assertTrue(fileExists(parquetDir, "_3.parquet"));

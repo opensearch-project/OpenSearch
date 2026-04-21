@@ -13,10 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoDeletionPolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
@@ -34,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,6 +53,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
 
     private final Store store;
     private final IndexWriter indexWriter;
+    private final LuceneCommitDeletionPolicy deletionPolicy;
     private final AtomicBoolean isClosed = new AtomicBoolean();
 
     /**
@@ -67,6 +68,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         this.store = Objects.requireNonNull(committerConfig.engineConfig().getStore());
         this.store.incRef();
         try {
+            this.deletionPolicy = new LuceneCommitDeletionPolicy();
             IndexWriterConfig iwc = createIndexWriterConfig(committerConfig.engineConfig());
             this.indexWriter = new IndexWriter(store.directory(), iwc);
         } catch (Exception e) {
@@ -87,7 +89,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public List<CatalogSnapshot> listCommittedSnapshots() throws IOException {
         ensureOpen();
-        return deserializeCatalogSnapshots(store);
+        return new ArrayList<>(loadCommittedSnapshots(store).values());
     }
 
     @Override
@@ -132,25 +134,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public void deleteCommit(CatalogSnapshot snapshot) throws IOException {
         ensureOpen();
-        Map<String, String> snapshotUserData = snapshot.getUserData();
-        // Iterate segments_N files directly instead of DirectoryReader.listCommits(),
-        // which would try to load full SegmentInfos and fail if referenced segment files are missing.
-        for (String fileName : store.directory().listAll()) {
-            if (fileName.startsWith(IndexFileNames.SEGMENTS) == false) {
-                continue;
-            }
-            try {
-                SegmentInfos sis = SegmentInfos.readCommit(store.directory(), fileName);
-                Map<String, String> commitUserData = sis.getUserData();
-                boolean match = snapshotUserData.entrySet().stream().allMatch(e -> e.getValue().equals(commitUserData.get(e.getKey())));
-                if (match) {
-                    store.directory().deleteFile(fileName);
-                    return;
-                }
-            } catch (IOException e) {
-                // Segment file may be corrupt or reference missing files — skip it
-            }
-        }
+        deletionPolicy.purgeCommit(snapshot.getId());
+        indexWriter.deleteUnusedFiles();
     }
 
     @Override
@@ -174,7 +159,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private IndexWriterConfig createIndexWriterConfig(EngineConfig engineConfig) {
         if (engineConfig == null) {
             IndexWriterConfig iwc = new IndexWriterConfig();
-            iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+            iwc.setIndexDeletionPolicy(deletionPolicy);
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             return iwc;
         }
         // TODO:: Merge Config needs to be wired in
@@ -190,9 +176,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         }
         iwc.setCommitOnClose(false);
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
-        // Prevent Lucene from deleting old segments_N files on commit. Our CatalogSnapshotManager
-        // manages commit lifecycle and decides when to delete commits via IndexFileDeleter.
-        iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        iwc.setIndexDeletionPolicy(deletionPolicy);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         return iwc;
     }
 
@@ -206,60 +191,51 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
 
     @Override
     protected void discoverAndTrimUnsafeCommits(Store store, Path translogPath) throws IOException {
-        List<CatalogSnapshot> commits = deserializeCatalogSnapshots(store);
-        if (commits.isEmpty() || commits.size() <= 1) {
+        Map<IndexCommit, CatalogSnapshot> committed = loadCommittedSnapshots(store);
+        // Can be the case for empty store recovery - since the initial empty commit during recovery will not have catalog snapshot
+        // awareness
+        if (committed.size() <= 1) {
             return;
         }
-        // Read persisted global checkpoint from translog checkpoint file
-        String translogUUID = commits.getLast().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        List<CatalogSnapshot> snapshots = new ArrayList<>(committed.values());
+        String translogUUID = snapshots.getLast().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-        CatalogSnapshot safeCommit = CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
-        // Rewrite at the safe commit point
-        Function<String, String> resolver = fn -> store.shardPath().getDataPath().resolve(fn).toString();
-        List<IndexCommit> indexCommits = DirectoryReader.listCommits(store.directory());
-        IndexCommit safeIndexCommit = null;
-        for (IndexCommit ic : indexCommits) {
-            String serialized = ic.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
-            if (serialized != null && serialized.isEmpty() == false) {
-                CatalogSnapshot cs = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver);
-                if (cs.getGeneration() == safeCommit.getGeneration()) {
-                    safeIndexCommit = ic;
-                    break;
-                }
+        CatalogSnapshot safeCommit = CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(snapshots, globalCheckpoint);
+        IndexCommit targetCommit = null;
+        for (Map.Entry<IndexCommit, CatalogSnapshot> entry : committed.entrySet()) {
+            if (entry.getValue().getGeneration() == safeCommit.getGeneration()) {
+                targetCommit = entry.getKey();
+                break;
             }
         }
-        if (safeIndexCommit == null) {
-            return;
+        if (targetCommit == null) {
+            throw new IllegalStateException("Safe commit [gen=" + safeCommit.getGeneration() + "] not found among Lucene IndexCommits");
         }
-        // Open a temp IndexWriter at the safe commit point and re-commit. This causes Lucene's
-        // internal IndexFileDeleter to discard all segments_N files beyond the safe commit,
-        // effectively trimming unsafe commits while preserving the safe commit's segment data.
+        // Open a temp IndexWriter at the target commit and re-commit. The default deletion policy
+        // (KeepOnlyLastCommitDeletionPolicy) discards all other segments_N files, cleaning up
+        // both unsafe commits and orphan non-CatalogSnapshot commits as well, if any
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND)
             .setCommitOnClose(false)
-            .setIndexCommit(safeIndexCommit);
+            .setIndexCommit(targetCommit);
         try (IndexWriter tempWriter = new IndexWriter(store.directory(), iwc)) {
-            tempWriter.setLiveCommitData(safeIndexCommit.getUserData().entrySet());
+            tempWriter.setLiveCommitData(targetCommit.getUserData().entrySet());
             tempWriter.commit();
         }
     }
 
     /**
-     * Deserializes CatalogSnapshots from Lucene IndexCommits in the given store.
-     * Static-friendly — does not depend on instance fields.
+     * Loads committed CatalogSnapshots from Lucene IndexCommits in the given store.
+     * Returns a {@link Map} preserving commit order (oldest → newest).
+     * Only commits containing a serialized CatalogSnapshot are included.
      */
-    static List<CatalogSnapshot> deserializeCatalogSnapshots(Store store) throws IOException {
+    static Map<IndexCommit, CatalogSnapshot> loadCommittedSnapshots(Store store) throws IOException {
         Function<String, String> resolver = fn -> store.shardPath().getDataPath().resolve(fn).toString();
-        List<IndexCommit> commits;
-        try {
-            commits = DirectoryReader.listCommits(store.directory());
-        } catch (IndexNotFoundException e) {
-            return List.of();
-        }
-        List<CatalogSnapshot> result = new ArrayList<>();
+        List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+        LinkedHashMap<IndexCommit, CatalogSnapshot> result = new LinkedHashMap<>();
         for (IndexCommit ic : commits) {
             String serialized = ic.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
             if (serialized != null && serialized.isEmpty() == false) {
-                result.add(DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver));
+                result.put(ic, DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver));
             }
         }
         return result;
