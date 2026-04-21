@@ -86,6 +86,11 @@ dependencies {
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
 }
 
+tasks.withType(JavaCompile).configureEach {
+  // Arrow's Schema.class references Jackson annotations we don't pull in — harmless warnings
+  options.compilerArgs -= '-Werror'
+}
+
 configurations.all {
   // okhttp-aws-signer is a transitive dep of unified-query-common (via unified-query-core),
   // only published on JitPack, not needed for PPL parsing/planning

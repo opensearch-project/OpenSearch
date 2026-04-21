@@ -81,8 +81,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        // DefaultPlanExecutor is Guice-wired via createGuiceModules() below — don't construct here.
         return List.of(
-            new DefaultPlanExecutor(backEnds, null/* TODO: pass indices service */, clusterService),
             new DefaultEngineContext(clusterService, operatorTable)
         );
     }

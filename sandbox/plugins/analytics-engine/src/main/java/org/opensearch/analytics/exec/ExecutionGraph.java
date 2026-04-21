@@ -18,7 +18,7 @@ import java.util.Map;
 
 /**
  * Inspectable snapshot of a fully-wired execution graph. Built by
- * {@link PlanWalker#build()}, consumed by {@link PlanWalker#start()}
+ * {@link PlanWalker#build()}, consumed by {@link PlanWalker#start(ExecutionGraph)}
  * or by EXPLAIN without executing.
  *
  * <p>The graph holds all {@link StageExecution} instances with their
