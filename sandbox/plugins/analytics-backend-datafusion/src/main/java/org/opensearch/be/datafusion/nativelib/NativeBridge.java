@@ -105,6 +105,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -195,6 +196,7 @@ public final class NativeBridge {
         String tableName,
         byte[] substraitPlan,
         long runtimePtr,
+        long contextId,
         ActionListener<Long> listener
     ) {
         try {
@@ -213,7 +215,8 @@ public final class NativeBridge {
                 table.len(),
                 call.bytes(substraitPlan),
                 (long) substraitPlan.length,
-                runtimePtr
+                runtimePtr,
+                contextId
             );
             listener.onResponse(result);
         } catch (Throwable t) {

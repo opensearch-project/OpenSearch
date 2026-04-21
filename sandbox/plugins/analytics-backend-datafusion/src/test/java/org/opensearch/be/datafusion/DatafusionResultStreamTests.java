@@ -143,6 +143,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             "test_table",
             new byte[] { 0, 1, 2 },
             runtimeHandle.get(),
+            0L,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long ptr) {
@@ -179,7 +180,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             runtimeHandle.get()
         );
         CompletableFuture<Long> future = new CompletableFuture<>();
-        NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, tempRuntime.get(), new ActionListener<>() {
+        NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, tempRuntime.get(), 0L, new ActionListener<>() {
             @Override
             public void onResponse(Long p) {
                 future.complete(p);
@@ -222,7 +223,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private DatafusionResultStream createStream(String sql) {
         byte[] substrait = NativeBridge.sqlToSubstrait(readerHandle.getPointer(), "test_table", sql, runtimeHandle.get());
         CompletableFuture<Long> future = new CompletableFuture<>();
-        NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, runtimeHandle.get(), new ActionListener<>() {
+        NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, runtimeHandle.get(), 0L, new ActionListener<>() {
             @Override
             public void onResponse(Long ptr) {
                 future.complete(ptr);
