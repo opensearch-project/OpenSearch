@@ -441,7 +441,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
                 ActionListener.wrap(callbackCount::incrementAndGet)
             );
         MatcherAssert.assertThat(transport.getCapturedRequestsAndClear(), emptyArray());
-        MatcherAssert.assertThat(callbackCount.get(), equalTo(0));
+        MatcherAssert.assertThat(callbackCount.get(), equalTo(1));
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
