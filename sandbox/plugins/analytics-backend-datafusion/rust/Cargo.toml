@@ -33,6 +33,7 @@ futures = { workspace = true }
 tokio-stream = { workspace = true }
 parking_lot = { workspace = true }
 once_cell = { workspace = true }
+dashmap = { workspace = true }
 log = { workspace = true }
 num_cpus = { workspace = true }
 mimalloc = { workspace = true }

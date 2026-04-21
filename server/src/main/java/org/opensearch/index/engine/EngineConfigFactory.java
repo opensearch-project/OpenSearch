@@ -28,6 +28,8 @@ import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.merge.MergedSegmentTransferTracker;
@@ -59,6 +61,7 @@ public class EngineConfigFactory {
     private final CodecServiceFactory codecServiceFactory;
     private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
     private final List<AdditionalCodecs> additionalCodecs;
+    private final CommitterFactory committerFactory;
 
     /** default ctor primarily used for tests without plugins */
     public EngineConfigFactory(IndexSettings idxSettings) {
@@ -81,6 +84,8 @@ public class EngineConfigFactory {
         String codecServiceFactoryOverridingPlugin = null;
         Optional<TranslogDeletionPolicyFactory> translogDeletionPolicyFactory = Optional.empty();
         String translogDeletionPolicyOverridingPlugin = null;
+        List<CommitterFactory> committerFactories = new ArrayList<>();
+
         for (EnginePlugin enginePlugin : enginePlugins) {
             // get overriding codec service from EnginePlugin
             if (codecService.isPresent() == false) {
@@ -120,6 +125,8 @@ public class EngineConfigFactory {
 
             // collect all available CodecRegistry instances
             enginePlugin.getAdditionalCodecs(idxSettings).ifPresent(codecRegistries::add);
+
+            enginePlugin.getCommitterFactory(idxSettings).ifPresent(committerFactories::add);
         }
 
         if (codecService.isPresent() && codecServiceFactory.isPresent()) {
@@ -131,10 +138,15 @@ public class EngineConfigFactory {
             );
         }
 
+        if (committerFactories.size() > 1 || (committerFactories.isEmpty() && idxSettings.isPluggableDataFormatEnabled())) {
+            throw new IllegalStateException("multiple committer factories found: " + committerFactories);
+        }
+
         final CodecService instance = codecService.orElse(null);
         this.codecServiceFactory = (instance != null) ? (config) -> instance : codecServiceFactory.orElse(null);
         this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
         this.additionalCodecs = Collections.unmodifiableList(codecRegistries);
+        this.committerFactory = committerFactories.isEmpty() ? null : committerFactories.getFirst();
     }
 
     /**
@@ -170,7 +182,9 @@ public class EngineConfigFactory {
         Supplier<DocumentMapperForType> documentMapperForTypeSupplier,
         IndexWriter.IndexReaderWarmer indexReaderWarmer,
         ClusterApplierService clusterApplierService,
-        MergedSegmentTransferTracker mergedSegmentTransferTracker
+        MergedSegmentTransferTracker mergedSegmentTransferTracker,
+        DataFormatRegistry dataFormatRegistry,
+        MapperService mapperService
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -208,6 +222,9 @@ public class EngineConfigFactory {
             .indexReaderWarmer(indexReaderWarmer)
             .clusterApplierService(clusterApplierService)
             .mergedSegmentTransferTracker(mergedSegmentTransferTracker)
+            .dataFormatRegistry(dataFormatRegistry)
+            .mapperService(mapperService)
+            .committerFactory(committerFactory)
             .build();
     }
 

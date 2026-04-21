@@ -56,6 +56,9 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private SqlOperatorTable operatorTable;
+    // TODO: build CapabilityRegistry once here from backEnds after loadExtensions() completes.
+    // CapabilityRegistry is per-JVM (singleton), not per-query. Per-query planning creates
+    // PlannerContext(registry, clusterState) and passes it into PlannerImpl.
 
     @SuppressWarnings("rawtypes")
     @Override

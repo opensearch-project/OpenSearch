@@ -25,9 +25,15 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.ShardLimitValidator;
+import org.opensearch.storage.action.tiering.status.model.TieringStatus;
+import org.opensearch.storage.common.tiering.TieringUtils;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+import static org.opensearch.storage.common.tiering.TieringUtils.resolveRequestIndex;
 
 /**
  * Abstract base class for managing tiering operations in OpenSearch.
@@ -135,4 +141,70 @@ public abstract class TieringService implements ClusterStateListener {
 
     /** Returns the tiering type. @return the tiering type */
     protected abstract IndexModule.TieringState getTieringType();
+
+    /**
+     * Retrieves the tiering status for a specific index.
+     * This method provides detailed information about an ongoing tiering operation
+     * including source and target tiers, start time, and shard-level status.
+     *
+     * @param requestIndex The name of the index to check
+     * @param isDetailedFlagEnabled If true, includes detailed shard-level status information
+     * @return TieringStatus object containing detailed status information
+     * @throws IllegalArgumentException if the specified index has no active migrations
+     */
+    public TieringStatus getTieringStatus(String requestIndex, Boolean isDetailedFlagEnabled) {
+        final Index index = resolveRequestIndex(indexNameExpressionResolver, requestIndex, clusterService.state());
+
+        if (tieringIndices.contains(index)) {
+            try {
+                return constructTieringStatus(index, true, isDetailedFlagEnabled);
+            } catch (IllegalStateException e) {
+                throw new IllegalArgumentException("Index [" + requestIndex + "] has no active migrations");
+            }
+
+        }
+        throw new IllegalArgumentException("Index [" + requestIndex + "] has no active migrations");
+    }
+
+    /**
+     * Retrieves a list of tiering status for all indices currently undergoing tiering operations.
+     * This method provides a summary view of all active tiering operations in the cluster.
+     *
+     * @return List of TieringStatus objects, each representing the status of an ongoing tiering operation
+     * Returns an empty list if no tiering operations are active
+     */
+    public List<TieringStatus> listTieringStatus() {
+        final List<TieringStatus> tieringStatusList = new ArrayList<>();
+
+        for (Index tieringIndex : tieringIndices) {
+            try {
+                tieringStatusList.add(constructTieringStatus(tieringIndex, false, false));
+            } catch (IllegalStateException e) {
+                continue;
+            }
+        }
+        return tieringStatusList;
+    }
+
+    private TieringStatus constructTieringStatus(Index index, boolean shardLevelStatus, boolean isDetailedFlagEnabled) {
+        TieringStatus tieringStatus;
+        long tieringStartTime = TieringUtils.getTieringStartTime(clusterService.state(), index, getTieringStartTimeKey());
+
+        String[] tiers = TieringUtils.getTierPairForTargetTier(getTargetTieringState());
+        String sourceTier = tiers[0];
+        String destinationTier = tiers[1];
+        tieringStatus = new TieringStatus(index.getName(), TIERING_IN_PROGRESS_STATUS, sourceTier, destinationTier, tieringStartTime);
+
+        if (shardLevelStatus) {
+            tieringStatus.setShardLevelStatus(
+                TieringStatus.ShardLevelStatus.fromRoutingTable(
+                    clusterService.state(),
+                    index.getName(),
+                    isDetailedFlagEnabled,
+                    destinationTier
+                )
+            );
+        }
+        return tieringStatus;
+    }
 }

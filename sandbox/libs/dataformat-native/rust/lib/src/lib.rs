@@ -27,3 +27,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 extern crate native_bridge_common;
 extern crate opensearch_datafusion;
 extern crate opensearch_parquet_format;
+extern crate opensearch_repository_s3;
+extern crate opensearch_repository_gcs;
+extern crate opensearch_repository_azure;
+extern crate opensearch_repository_fs;
+extern crate opensearch_tiered_storage;

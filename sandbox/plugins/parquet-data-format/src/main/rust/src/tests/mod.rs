@@ -9,6 +9,10 @@
 use crate::test_utils::*;
 use crate::writer::{NativeParquetWriter, WRITER_MANAGER, FILE_MANAGER};
 
+use parquet::file::reader::FileReader;
+use std::fs::File;
+use std::io::Read;
+
 #[test]
 fn test_create_writer_success() {
     let (_temp_dir, filename) = get_temp_file_path("test.parquet");
@@ -96,11 +100,11 @@ fn test_finalize_writer_success() {
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     let result = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result.is_ok());
-    let metadata = result.unwrap();
-    assert!(metadata.is_some());
-    let metadata = metadata.unwrap();
-    assert_eq!(metadata.num_rows, 0);
-    assert!(metadata.version > 0);
+    let finalize_result = result.unwrap();
+    assert!(finalize_result.is_some());
+    let finalize_result = finalize_result.unwrap();
+    assert_eq!(finalize_result.metadata.file_metadata().num_rows(), 0);
+    assert!(finalize_result.metadata.file_metadata().version() > 0);
     assert!(!WRITER_MANAGER.contains_key(&filename));
     assert!(FILE_MANAGER.contains_key(&filename));
     FILE_MANAGER.remove(&filename);
@@ -119,9 +123,10 @@ fn test_finalize_writer_with_data_returns_correct_metadata() {
     let result = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result.is_ok());
     let metadata = result.unwrap().unwrap();
-    assert_eq!(metadata.num_rows, 6);
-    assert!(metadata.version > 0);
-    assert_eq!(metadata.schema.len(), 3); // root + 2 fields (id, name)
+    assert_eq!(metadata.metadata.file_metadata().num_rows(), 6);
+    assert!(metadata.metadata.file_metadata().version() > 0);
+    assert_eq!(metadata.metadata.file_metadata().schema_descr().num_columns(), 3); // root + 2 fields (id, name)
+    assert_ne!(metadata.crc32, 0, "CRC32 should be non-zero for a file with data");
     FILE_MANAGER.remove(&filename);
     cleanup_ffi_schema(schema_ptr);
 }
@@ -141,7 +146,7 @@ fn test_close_multiple_times_same_file() {
     assert!(result1.is_ok());
     let metadata = result1.unwrap();
     assert!(metadata.is_some());
-    assert_eq!(metadata.unwrap().num_rows, 0);
+    assert_eq!(metadata.unwrap().metadata.num_rows, 0);
     assert!(!WRITER_MANAGER.contains_key(&filename));
     assert!(FILE_MANAGER.contains_key(&filename));
     let result2 = NativeParquetWriter::finalize_writer(filename.clone());
@@ -182,4 +187,123 @@ fn test_get_filtered_writer_memory_usage_with_writers() {
     assert!(_memory_usage >= 0);
     close_writer_and_cleanup_schema(&filename1, schema_ptr1);
     close_writer_and_cleanup_schema(&filename2, schema_ptr2);
+}
+
+
+/// Computes CRC32 of a file by reading it from disk in chunks.
+/// This is the "re-read" baseline that the streaming checksum must match.
+fn compute_file_crc32(path: &str) -> u32 {
+    let mut file = File::open(path).unwrap();
+    let mut hasher = crc32fast::Hasher::new();
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf).unwrap();
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    hasher.finalize()
+}
+
+/// Verifies that the streaming CRC32 computed during write (via Crc32Writer)
+/// exactly matches a CRC32 computed by re-reading the finalized file from disk.
+///
+/// This proves the streaming approach is correct and eliminates the need for
+/// a second I/O pass over the file.
+#[test]
+fn test_streaming_crc32_matches_reread_crc32_empty_file() {
+    let (_temp_dir, filename) = get_temp_file_path("crc32_empty.parquet");
+    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+
+    // Finalize with zero rows — still writes the Parquet magic bytes + footer
+    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    assert!(result.is_ok());
+    let finalize_result = result.unwrap().unwrap();
+    let streaming_crc32 = finalize_result.crc32;
+
+    // Re-read the file and compute CRC32 independently
+    let reread_crc32 = compute_file_crc32(&filename);
+
+    assert_eq!(
+        streaming_crc32, reread_crc32,
+        "Streaming CRC32 ({:#010x}) must match re-read CRC32 ({:#010x}) for empty Parquet file",
+        streaming_crc32, reread_crc32
+    );
+    assert_ne!(streaming_crc32, 0, "CRC32 should be non-zero even for an empty Parquet file (magic bytes + footer)");
+
+    FILE_MANAGER.remove(&filename);
+    cleanup_ffi_schema(schema_ptr);
+}
+
+/// Verifies streaming CRC32 matches re-read CRC32 for a file with actual data.
+/// Writes multiple batches to exercise the full write path (row groups, column
+/// chunks, compression, bloom filters, footer).
+#[test]
+fn test_streaming_crc32_matches_reread_crc32_with_data() {
+    let (_temp_dir, filename) = get_temp_file_path("crc32_with_data.parquet");
+    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+
+    // Write 3 batches (9 rows total) to exercise multiple write() calls
+    for _ in 0..3 {
+        let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
+        NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr).unwrap();
+        cleanup_ffi_data(array_ptr, data_schema_ptr);
+    }
+
+    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    assert!(result.is_ok());
+    let finalize_result = result.unwrap().unwrap();
+    let streaming_crc32 = finalize_result.crc32;
+
+    // Verify metadata is correct
+    assert_eq!(finalize_result.metadata.file_metadata().num_rows(), 9);
+
+    // Re-read the file and compute CRC32 independently
+    let reread_crc32 = compute_file_crc32(&filename);
+
+    assert_eq!(
+        streaming_crc32, reread_crc32,
+        "Streaming CRC32 ({:#010x}) must match re-read CRC32 ({:#010x}) for Parquet file with {} rows",
+        streaming_crc32, reread_crc32, finalize_result.metadata.file_metadata().num_rows()
+    );
+    assert_ne!(streaming_crc32, 0, "CRC32 should be non-zero for a file with data");
+
+    // Verify the file is a valid Parquet file by reading it back
+    let file = File::open(&filename).unwrap();
+    let reader = parquet::file::reader::SerializedFileReader::new(file).unwrap();
+    assert_eq!(reader.metadata().file_metadata().num_rows(), 9);
+
+    FILE_MANAGER.remove(&filename);
+    cleanup_ffi_schema(schema_ptr);
+}
+
+/// Verifies that two different files produce different CRC32 values,
+/// confirming the checksum is content-dependent and not a constant.
+#[test]
+fn test_streaming_crc32_differs_for_different_content() {
+    // File 1: empty
+    let (_temp_dir1, filename1) = get_temp_file_path("crc32_diff_a.parquet");
+    let (_schema1, schema_ptr1) = create_writer_and_assert_success(&filename1);
+    let result1 = NativeParquetWriter::finalize_writer(filename1.clone());
+    let crc32_empty = result1.unwrap().unwrap().crc32;
+    FILE_MANAGER.remove(&filename1);
+    cleanup_ffi_schema(schema_ptr1);
+
+    // File 2: with data
+    let (_temp_dir2, filename2) = get_temp_file_path("crc32_diff_b.parquet");
+    let (_schema2, schema_ptr2) = create_writer_and_assert_success(&filename2);
+    let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
+    NativeParquetWriter::write_data(filename2.clone(), array_ptr, data_schema_ptr).unwrap();
+    cleanup_ffi_data(array_ptr, data_schema_ptr);
+    let result2 = NativeParquetWriter::finalize_writer(filename2.clone());
+    let crc32_with_data = result2.unwrap().unwrap().crc32;
+    FILE_MANAGER.remove(&filename2);
+    cleanup_ffi_schema(schema_ptr2);
+
+    assert_ne!(
+        crc32_empty, crc32_with_data,
+        "Empty file CRC32 ({:#010x}) should differ from file-with-data CRC32 ({:#010x})",
+        crc32_empty, crc32_with_data
+    );
 }

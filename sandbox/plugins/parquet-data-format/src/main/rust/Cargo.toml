@@ -25,6 +25,7 @@ chrono = { workspace = true }
 mimalloc = { workspace = true }
 tempfile = { workspace = true }
 native-bridge-common = { workspace = true }
+crc32fast = { workspace = true }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }
