@@ -126,6 +126,8 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     created_by_buf_len: i64,
     created_by_len_out: *mut i64,
     crc32_out: *mut i64,
+    sort_perm_ptr_out: *mut i64,
+    sort_perm_len_out: *mut i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_finalize_writer: {}", e))?.to_string();
     match NativeParquetWriter::finalize_writer(filename) {
@@ -144,6 +146,19 @@ pub unsafe extern "C" fn parquet_finalize_writer(
                 *created_by_len_out = -1;
             }
             if !crc32_out.is_null() { *crc32_out = result.crc32 as i64; }
+
+            // Return sort permutation if present
+            if !sort_perm_ptr_out.is_null() && !sort_perm_len_out.is_null() {
+                if let Some(perm) = result.row_id_mapping {
+                    let len = perm.len();
+                    let boxed = perm.into_boxed_slice();
+                    *sort_perm_len_out = len as i64;
+                    *sort_perm_ptr_out = Box::into_raw(boxed) as *mut i64 as i64;
+                } else {
+                    *sort_perm_len_out = 0;
+                    *sort_perm_ptr_out = 0;
+                }
+            }
             Ok(0)
         }
         Ok(None) => Ok(1),
@@ -482,4 +497,19 @@ pub unsafe extern "C" fn parquet_read_as_json(
     std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, bytes.len());
     *out_len = bytes.len() as i64;
     Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// Sort permutation memory management
+// ---------------------------------------------------------------------------
+
+/// Frees the heap-allocated row ID mapping array returned as part of `parquet_finalize_writer`.
+#[no_mangle]
+pub unsafe extern "C" fn parquet_free_row_id_mapping(
+    mapping_ptr: i64,
+    mapping_len: i64,
+) {
+    if mapping_ptr != 0 && mapping_len > 0 {
+        let _ = Box::from_raw(slice::from_raw_parts_mut(mapping_ptr as *mut i64, mapping_len as usize));
+    }
 }

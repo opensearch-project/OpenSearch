@@ -11,6 +11,7 @@ package org.opensearch.parquet.writer;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -35,7 +36,7 @@ import java.nio.file.Path;
  * <p>Writer-level settings (e.g., {@code parquet.max_rows_per_vsr}) are extracted from
  * the {@link IndexSettings} passed at construction time and propagated to the VSR layer.
  *
- * <p>The returned {@link FileInfos} from {@link #flush()} contains the file path, writer
+ * <p>The returned {@link FileInfos} from {@link #flush(FlushInput)} contains the file path, writer
  * generation, and row count for downstream commit tracking.
  */
 public class ParquetWriter implements Writer<ParquetDocumentInput> {
@@ -94,7 +95,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
-    public FileInfos flush() throws IOException {
+    public FileInfos flush(FlushInput flushInput) throws IOException {
         ParquetFileMetadata metadata = vsrManager.flush();
         if (file == null || metadata == null || metadata.numRows() == 0) {
             return FileInfos.empty();
@@ -115,7 +116,10 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             .addFile(fileName)
             .addNumRows(metadata.numRows())
             .build();
-        return FileInfos.builder().putWriterFileSet(dataFormat, writerFileSet).build();
+        return FileInfos.builder()
+            .putWriterFileSet(dataFormat, writerFileSet)
+            .rowIdMapping(vsrManager.getRowIdMapping())
+            .build();
     }
 
     @Override

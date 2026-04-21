@@ -66,6 +66,7 @@ public final class PackedRowIdMapping implements RowIdMapping {
             builder.add(value);
         }
         this.mapping = builder.build();
+
         this.generationOffsets = Collections.unmodifiableMap(new HashMap<>(generationOffsets));
         this.generationSizes = Collections.unmodifiableMap(new HashMap<>(generationSizes));
     }
@@ -107,6 +108,7 @@ public final class PackedRowIdMapping implements RowIdMapping {
      *
      * @return the total mapping size
      */
+    @Override
     public int size() {
         return (int) mapping.size();
     }

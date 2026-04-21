@@ -780,3 +780,112 @@ fn test_bloom_filter_default_when_no_settings() {
     close_writer_and_cleanup_schema(&filename, schema_ptr);
     SETTINGS_STORE.remove(index_name);
 }
+
+#[test]
+fn test_sort_large_file_permutation_maps_original_row_ids() {
+    run_sort_permutation_test(true, "large_file");
+}
+
+#[test]
+fn test_sort_small_file_permutation_maps_original_row_ids() {
+    run_sort_permutation_test(false, "small_file");
+}
+
+/// Runs the full sort permutation test for either sort_small_file or sort_large_file.
+/// Both paths must produce identical mapping[original_row_id] = new_position.
+fn run_sort_permutation_test(use_large_file: bool, label: &str) {
+    use arrow::array::Int64Array;
+    use crate::native_settings::NativeSettings;
+    use crate::writer::{NativeParquetWriter, SETTINGS_STORE};
+
+    let temp_dir = tempdir().unwrap();
+    let output_path = temp_dir.path().join(format!("{}.parquet", label)).to_string_lossy().to_string();
+    let index_name = &format!("test-sort-{}", label);
+
+    let ages: Vec<i64> = vec![30, 25, 24, 21, 40, 55, 34, 48, 42, 10, 11, 20];
+    let row_ids: Vec<i64> = (0..12).collect();
+    let ipc_path = create_test_ipc_file(temp_dir.path(), &ages, &row_ids);
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![true];
+    settings.nulls_first = vec![false];
+    if use_large_file {
+        settings.sort_batch_size = Some(4);
+    }
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let result = if use_large_file {
+        NativeParquetWriter::sort_large_file(
+            &ipc_path, &output_path, index_name,
+            &["age".to_string()], &[true], &[false], 4,
+        )
+    } else {
+        NativeParquetWriter::sort_small_file(
+            &ipc_path, &output_path, index_name,
+            &["age".to_string()], &[true], &[false], 0,
+        )
+    };
+    assert!(result.is_ok(), "{} failed: {:?}", label, result.err());
+
+    let (_crc32, row_id_mapping) = result.unwrap();
+
+    // Verify permutation: mapping[original_row_id] = new_position
+    assert!(row_id_mapping.is_some(), "row_id_mapping should be present for {}", label);
+    let mapping = row_id_mapping.unwrap();
+    assert_eq!(mapping.len(), 12);
+
+    // Sorted order (age DESC): 55, 48, 42, 40, 34, 30, 25, 24, 21, 20, 11, 10
+    // Original row_ids:          5,  7,  8,  4,  6,  0,  1,  2,  3, 11, 10,  9
+    let expected: Vec<i64> = vec![5, 6, 7, 8, 3, 0, 4, 1, 2, 11, 10, 9];
+    assert_eq!(mapping, expected,
+        "[{}] mapping mismatch.\nGot:      {:?}\nExpected: {:?}", label, mapping, expected);
+
+    // Verify output file is sorted
+    let batches = read_parquet_file(&output_path);
+    let combined = arrow::compute::concat_batches(&batches[0].schema(), &batches).unwrap();
+    let age_col = combined.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+    let sorted_ages: Vec<i64> = (0..age_col.len()).map(|i| age_col.value(i)).collect();
+    assert_eq!(sorted_ages, vec![55, 48, 42, 40, 34, 30, 25, 24, 21, 20, 11, 10],
+        "[{}] output not sorted by age DESC", label);
+
+    // Verify __row_id__ column is rewritten to sequential 0..N
+    let row_id_col_idx = combined.schema().index_of("__row_id__").expect("__row_id__ column should exist in output");
+    let row_id_col = combined.column(row_id_col_idx).as_any().downcast_ref::<Int64Array>().unwrap();
+    let row_ids_in_file: Vec<i64> = (0..row_id_col.len()).map(|i| row_id_col.value(i)).collect();
+    let expected_sequential: Vec<i64> = (0..12).collect();
+    assert_eq!(row_ids_in_file, expected_sequential,
+        "[{}] __row_id__ should be sequential 0..N after rewrite", label);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Helper: creates an IPC file with (age: Int64, __row_id__: Int64) columns.
+fn create_test_ipc_file(dir: &Path, ages: &[i64], row_ids: &[i64]) -> String {
+    use arrow::array::Int64Array;
+    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::record_batch::RecordBatch;
+    use arrow_ipc::writer::FileWriter as IpcFileWriter;
+    use crate::merge::schema::ROW_ID_COLUMN_NAME;
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("age", DataType::Int64, false),
+        Field::new(ROW_ID_COLUMN_NAME, DataType::Int64, false),
+    ]));
+
+    let ipc_path = dir.join("staging.arrow_ipc_staging").to_string_lossy().to_string();
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(ages.to_vec())),
+            Arc::new(Int64Array::from(row_ids.to_vec())),
+        ],
+    ).unwrap();
+
+    let file = File::create(&ipc_path).unwrap();
+    let mut ipc_writer = IpcFileWriter::try_new(file, &schema).unwrap();
+    ipc_writer.write(&batch).unwrap();
+    ipc_writer.finish().unwrap();
+
+    ipc_path
+}

@@ -61,7 +61,7 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
 
         CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, primaryInput, secondaries);
 
-        composite.setRowId("_row_id", 42L);
+        composite.setRowId("__row_id__", 42L);
 
         assertEquals(1, primaryInput.rowIds.size());
         assertEquals(42L, (long) primaryInput.rowIds.get(0));

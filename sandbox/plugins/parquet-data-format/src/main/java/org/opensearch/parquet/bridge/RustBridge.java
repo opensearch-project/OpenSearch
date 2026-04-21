@@ -9,6 +9,7 @@
 package org.opensearch.parquet.bridge;
 
 import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
+import org.opensearch.index.engine.dataformat.PackedSingleGenRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
@@ -43,6 +44,7 @@ public class RustBridge {
     private static final MethodHandle MERGE_FILES;
     private static final MethodHandle FREE_MERGE_RESULT;
     private static final MethodHandle READ_AS_JSON;
+    private static final MethodHandle FREE_ROW_ID_MAPPING;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -87,7 +89,9 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,                           // sort_perm_ptr_out
+                ValueLayout.ADDRESS                            // sort_perm_len_out
             )
         );
         SYNC_TO_DISK = linker.downcallHandle(
@@ -185,6 +189,13 @@ public class RustBridge {
                 ValueLayout.ADDRESS      // out_len
             )
         );
+        FREE_ROW_ID_MAPPING = linker.downcallHandle(
+            lib.find("parquet_free_row_id_mapping").orElseThrow(),
+            FunctionDescriptor.ofVoid(
+                ValueLayout.JAVA_LONG,                         // mapping_ptr
+                ValueLayout.JAVA_LONG                          // mapping_len
+            )
+        );
     }
 
     public static void initLogger() {}
@@ -223,13 +234,20 @@ public class RustBridge {
         }
     }
 
-    static ParquetFileMetadata finalizeWriter(String file) throws IOException {
+    /**
+     * Result of finalizing a writer: metadata + optional row ID mapping.
+     */
+    record WriterFinalizeResult(ParquetFileMetadata metadata, RowIdMapping rowIdMapping) {}
+
+    static WriterFinalizeResult finalizeWriter(String file) throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
             var crc32Out = call.longOut();
             var out = call.outBuffer(1024);
+            var sortPermPtrOut = call.longOut();
+            var sortPermLenOut = call.longOut();
             long rc = call.invokeIO(
                 FINALIZE_WRITER,
                 f.segment(),
@@ -239,11 +257,13 @@ public class RustBridge {
                 out.data(),
                 (long) out.capacity(),
                 out.lenOut(),
-                crc32Out
+                crc32Out,
+                sortPermPtrOut,
+                sortPermLenOut
             );
             if (rc == 1) return null;
             int createdByLen = out.actualLength();
-            return new ParquetFileMetadata(
+            ParquetFileMetadata metadata = new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
                 createdByLen >= 0
@@ -251,6 +271,23 @@ public class RustBridge {
                     : null,
                 crc32Out.get(ValueLayout.JAVA_LONG, 0)
             );
+
+            // Read sort permutation if present
+            long permAddr = sortPermPtrOut.get(ValueLayout.JAVA_LONG, 0);
+            long permLen = sortPermLenOut.get(ValueLayout.JAVA_LONG, 0);
+            RowIdMapping rowIdMapping = null;
+            if (permAddr != 0 && permLen > 0) {
+                try {
+                    long[] mappingArray = MemorySegment.ofAddress(permAddr)
+                        .reinterpret(permLen * ValueLayout.JAVA_LONG.byteSize())
+                        .toArray(ValueLayout.JAVA_LONG);
+                    rowIdMapping = new PackedSingleGenRowIdMapping(mappingArray);
+                } finally {
+                    NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, permAddr, permLen);
+                }
+            }
+
+            return new WriterFinalizeResult(metadata, rowIdMapping);
         }
     }
 

@@ -26,11 +26,14 @@ use crate::merge::{merge_sorted, schema::ROW_ID_COLUMN_NAME};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
 
-/// Result from finalizing a writer: Parquet metadata + whole-file CRC32.
+/// Result from finalizing a writer: Parquet metadata + whole-file CRC32 + optional sort permutation.
 #[derive(Debug)]
 pub struct FinalizeResult {
     pub metadata: parquet::file::metadata::ParquetMetaData,
     pub crc32: u32,
+    /// Flat row ID mapping where mapping[original_row_id] = new_row_id.
+    /// Present only when sort columns were configured.
+    pub row_id_mapping: Option<Vec<i64>>,
 }
 
 /// The underlying writer — either direct Parquet or Arrow IPC staging.
@@ -213,7 +216,7 @@ impl NativeParquetWriter {
                             log_info!("Successfully closed IPC staging writer for: {}", temp_filename);
 
                             let ipc_path = format!("{}{}", temp_filename, IPC_STAGING_SUFFIX);
-                            let crc32 = Self::sort_and_rewrite_parquet(&ipc_path, &filename, index_name, &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first, writer_generation)?;
+                            let (crc32, row_id_mapping) = Self::sort_and_rewrite_parquet(&ipc_path, &filename, index_name, &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first, writer_generation)?;
                             let _ = std::fs::remove_file(&ipc_path);
 
                             log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
@@ -225,7 +228,7 @@ impl NativeParquetWriter {
                             let reader = SerializedFileReader::new(file)?;
                             let parquet_metadata = reader.metadata().clone();
 
-                            Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32 }))
+                            Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32, row_id_mapping }))
                         }
                         Err(_) => {
                             log_error!("ERROR: IPC Writer still in use for temp file: {}", temp_filename);
@@ -254,7 +257,7 @@ impl NativeParquetWriter {
                                     let reader = SerializedFileReader::new(file)?;
                                     let parquet_metadata = reader.metadata().clone();
 
-                                    Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32 }))
+                                    Ok(Some(FinalizeResult { metadata: parquet_metadata, crc32, row_id_mapping: None }))
                                 }
                                 Err(e) => {
                                     log_error!("ERROR: Failed to close writer for temp file: {}", temp_filename);
@@ -283,7 +286,7 @@ impl NativeParquetWriter {
         reverse_sorts: &[bool],
         nulls_first: &[bool],
         writer_generation: i64,
-    ) -> Result<u32, Box<dyn std::error::Error>> {
+    ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
         log_debug!(
             "sort_and_rewrite_parquet: temp={}, output={}, sort_columns={:?}, reverse_sorts={:?}, nulls_first={:?}",
             temp_filename, output_filename, sort_columns, reverse_sorts, nulls_first
@@ -303,7 +306,9 @@ impl NativeParquetWriter {
         }
     }
 
-    fn sort_small_file(
+
+    /// In-memory sort for small files: read all batches, concat, sort, rewrite row IDs, write.
+    pub(crate) fn sort_small_file(
         temp_filename: &str,
         output_filename: &str,
         index_name: &str,
@@ -311,7 +316,7 @@ impl NativeParquetWriter {
         reverse_sorts: &[bool],
         nulls_first: &[bool],
         writer_generation: i64,
-    ) -> Result<u32, Box<dyn std::error::Error>> {
+    ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
         log_debug!("Using in-memory sort for small file: {}", temp_filename);
 
         let file = File::open(temp_filename)?;
@@ -335,24 +340,31 @@ impl NativeParquetWriter {
             let file = File::create(output_filename)?;
             let writer = ArrowWriter::try_new(file, schema, Some(props))?;
             writer.close()?;
-            return Ok(0);
+            return Ok((0, None));
         }
 
         let combined_batch = concat_batches(&schema, &all_batches)?;
         let sorted_batch = Self::sort_batch(&combined_batch, sort_columns, reverse_sorts, nulls_first)?;
-        let final_batch = Self::rewrite_row_ids(&sorted_batch, &schema)?;
+        let (final_batch, permutation) = Self::rewrite_row_ids(&sorted_batch, &schema)?;
 
         let crc32 = Self::write_final_file(output_filename, index_name, &final_batch, schema, Some(writer_generation))?;
+
+        let row_id_mapping = if !permutation.is_empty() {
+            log_info!("sort_small_file: produced {} permutation entries for {}", permutation.len(), output_filename);
+            Some(permutation)
+        } else {
+            None
+        };
 
         log_info!(
             "sort_small_file: sorted {} rows, wrote Parquet to {}",
             final_batch.num_rows(),
             output_filename
         );
-        Ok(crc32)
+        Ok((crc32, row_id_mapping))
     }
 
-    fn sort_large_file(
+    pub(crate) fn sort_large_file(
         temp_filename: &str,
         output_filename: &str,
         index_name: &str,
@@ -360,7 +372,9 @@ impl NativeParquetWriter {
         reverse_sorts: &[bool],
         nulls_first: &[bool],
         batch_size: usize,
-    ) -> Result<u32, Box<dyn std::error::Error>> {
+    ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
+        use arrow::array::Int64Array;
+
         log_debug!("Using streaming merge sort for large file: {}", temp_filename);
 
         let file = File::open(temp_filename)?;
@@ -368,8 +382,15 @@ impl NativeParquetWriter {
         let schema = reader.schema();
 
         let mut chunk_paths: Vec<String> = Vec::new();
-        let mut batch_count = 0;
+        let mut batch_count: i64 = 0;
         let chunk_dir = Path::new(output_filename).parent().unwrap_or_else(|| Path::new("."));
+
+        // Capture the ___row_id values from each sorted chunk (in sorted order).
+        // After merge, we use these to map sorted-positions back to original row IDs.
+        let mut chunk_row_ids: Vec<Vec<i64>> = Vec::new();
+
+        // Find the ___row_id column index in the schema
+        let row_id_col_idx = schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME);
 
         for batch_result in reader {
             let batch = batch_result?;
@@ -387,12 +408,25 @@ impl NativeParquetWriter {
 
                 let sorted_batch = Self::sort_batch(&slice, sort_columns, reverse_sorts, nulls_first)?;
 
+                // Capture ___row_id values from the sorted batch (these are the original row IDs
+                // in the order they appear after per-chunk sort)
+                if let Some(idx) = row_id_col_idx {
+                    let row_id_array = sorted_batch.column(idx)
+                        .as_any()
+                        .downcast_ref::<Int64Array>()
+                        .expect("___row_id column must be Int64");
+                    let ids: Vec<i64> = (0..row_id_array.len())
+                        .map(|i| row_id_array.value(i))
+                        .collect();
+                    chunk_row_ids.push(ids);
+                }
+
                 let chunk_filename = chunk_dir
                     .join(format!("temp_sort_chunk_{}_{}.parquet", batch_count, std::process::id()))
                     .to_string_lossy()
                     .to_string();
-                // CRC for temp chunks is not needed, discard it
-                Self::write_final_file(&chunk_filename, index_name, &sorted_batch, schema.clone(), None)?;
+                // Write chunk with batch_count as writer_generation so merge_sorted can track it
+                Self::write_final_file(&chunk_filename, index_name, &sorted_batch, schema.clone(), Some(batch_count))?;
 
                 chunk_paths.push(chunk_filename);
                 batch_count += 1;
@@ -401,7 +435,7 @@ impl NativeParquetWriter {
 
         if chunk_paths.is_empty() {
             log_debug!("No data to sort in file: {}", temp_filename);
-            return Ok(0);
+            return Ok((0, None));
         }
 
         log_debug!(
@@ -409,7 +443,7 @@ impl NativeParquetWriter {
             batch_count
         );
 
-        let _merge_output = merge_sorted(
+        let merge_output = merge_sorted(
             &chunk_paths,
             output_filename,
             index_name,
@@ -421,6 +455,31 @@ impl NativeParquetWriter {
             format!("Streaming merge failed: {}", e).into()
         })?;
 
+        // Build the flat permutation: result[original_row_id] = new_row_id
+        let row_id_mapping = if !merge_output.mapping.is_empty() && !chunk_row_ids.is_empty() {
+            let total_rows = merge_output.mapping.len();
+            let mut flat_mapping = vec![0i64; total_rows];
+            for i in 0..total_rows {
+                flat_mapping[i] = i as i64;
+            }
+
+            let mut pos = 0usize;
+            for chunk_ids in &chunk_row_ids {
+                for &original_row_id in chunk_ids {
+                    let orig_idx = original_row_id as usize;
+                    if orig_idx < total_rows && pos < total_rows {
+                        flat_mapping[orig_idx] = merge_output.mapping[pos];
+                    }
+                    pos += 1;
+                }
+            }
+
+            log_info!("sort_large_file: produced {} permutation entries for {}", flat_mapping.len(), output_filename);
+            Some(flat_mapping)
+        } else {
+            None
+        };
+
         // Clean up temp chunk files
         for path in &chunk_paths {
             let _ = std::fs::remove_file(path);
@@ -431,7 +490,7 @@ impl NativeParquetWriter {
             batch_count,
             output_filename
         );
-        Ok(0)
+        Ok((0, row_id_mapping))
     }
 
     /// Sort a batch using RowConverter: converts sort columns into compact
@@ -482,23 +541,56 @@ impl NativeParquetWriter {
         Ok(RecordBatch::try_new(batch.schema(), sorted_columns?)?)
     }
 
-    /// If a __row_id__ column exists, rewrite it with sequential values 0..N.
+    /// If a ___row_id column exists, rewrite it with sequential values 0..N.
+    /// Also returns the sort permutation as a flat mapping Vec<i64> where mapping[old_row_id] = new_row_id.
     fn rewrite_row_ids(
         batch: &RecordBatch,
         schema: &Arc<arrow::datatypes::Schema>,
-    ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
+    ) -> Result<(RecordBatch, Vec<i64>), Box<dyn std::error::Error>> {
         use arrow::array::Int64Array;
 
+        // Log all column names present in the schema
+        let column_names: Vec<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
+        log_info!("[RUST] rewrite_row_ids: schema has {} columns: {:?}", column_names.len(), column_names);
+        log_info!("[RUST] rewrite_row_ids: looking for ROW_ID_COLUMN_NAME = '{}'", ROW_ID_COLUMN_NAME);
+        log_info!("[RUST] rewrite_row_ids: batch num_rows = {}, num_columns = {}", batch.num_rows(), batch.num_columns());
+
         if let Some(row_id_idx) = schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME) {
-            log_debug!("Rewriting __row_id__ column with sequential values 0..{}", batch.num_rows());
+            log_info!("rewrite_row_ids: FOUND ___row_id at column index {}", row_id_idx);
+            log_debug!("rewrite_row_ids: rewriting ___row_id with sequential values 0..{}", batch.num_rows());
+
+            // Capture the sort permutation as flat mapping: mapping[old_row_id] = new_row_id
+            let old_row_ids = batch.column(row_id_idx)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .ok_or("___row_id column is not Int64")?;
+
+            let num_rows = batch.num_rows();
+            let mut mapping = vec![0i64; num_rows];
+            // Initialize with identity
+            for i in 0..num_rows {
+                mapping[i] = i as i64;
+            }
+            for new_pos in 0..num_rows {
+                let old_row_id = old_row_ids.value(new_pos) as usize;
+                if old_row_id < num_rows {
+                    mapping[old_row_id] = new_pos as i64;
+                }
+            }
+
+            log_debug!("rewrite_row_ids: captured flat mapping with {} entries", mapping.len());
+
             let sequential_ids = Int64Array::from_iter_values(
                 (0..batch.num_rows() as u64).map(|x| x as i64)
             );
             let mut new_columns = batch.columns().to_vec();
             new_columns[row_id_idx] = Arc::new(sequential_ids);
-            Ok(RecordBatch::try_new(schema.clone(), new_columns)?)
+            log_info!("[RUST] rewrite_row_ids: successfully rewrote ___row_id with sequential 0..{}", batch.num_rows());
+            Ok((RecordBatch::try_new(schema.clone(), new_columns)?, mapping))
         } else {
-            Ok(batch.clone())
+            log_info!("[RUST] rewrite_row_ids: ___row_id column NOT FOUND in schema — returning empty permutation");
+            log_info!("[RUST] rewrite_row_ids: available columns are: {:?}", column_names);
+            Ok((batch.clone(), Vec::new()))
         }
     }
 

@@ -35,6 +35,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
@@ -758,7 +759,7 @@ public class DataFormatAwareEngine implements Indexer {
 
                         for (var lockable : writers) {
                             Writer<?> writer = lockable.get();
-                            FileInfos fileInfos = writer.flush();
+                            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
                             Segment.Builder segmentBuilder = Segment.builder(writer.generation());
                             boolean hasFiles = false;
                             for (Map.Entry<DataFormat, WriterFileSet> entry : fileInfos.writerFilesMap().entrySet()) {

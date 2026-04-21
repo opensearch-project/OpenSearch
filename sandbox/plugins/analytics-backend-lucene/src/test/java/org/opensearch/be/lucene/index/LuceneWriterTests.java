@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -82,7 +83,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 assertTrue(result instanceof WriteResult.Success);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             assertTrue(fileInfos.getWriterFileSet(dataFormat).isPresent());
 
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
@@ -110,7 +111,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 writer.addDoc(input);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
             try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
@@ -130,7 +131,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testFlushWithNoDocsReturnsEmpty() throws IOException {
         Path baseDir = createTempDir();
         try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             assertTrue(fileInfos.writerFilesMap().isEmpty());
         }
     }
@@ -147,7 +148,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
             writer.addDoc(input);
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
             assertThat(wfs.writerGeneration(), equalTo(gen));
         }
@@ -162,7 +163,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
             writer.addDoc(input);
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
             try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
@@ -202,7 +203,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 writer.addDoc(input);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
             assertThat(wfs.numRows(), equalTo((long) numDocs));
 
@@ -228,7 +229,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 writer.addDoc(input);
             }
 
-            FileInfos fileInfos = writer.flush();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
             try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
@@ -279,7 +280,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
                 writer1.addDoc(input);
             }
-            fileInfos1 = writer1.flush();
+            fileInfos1 = writer1.flush(FlushInput.EMPTY);
 
             for (int i = 0; i < numDocs2; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
@@ -287,7 +288,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
                 writer2.addDoc(input);
             }
-            fileInfos2 = writer2.flush();
+            fileInfos2 = writer2.flush(FlushInput.EMPTY);
 
             // Verify each produces its own independent segment
             WriterFileSet wfs1 = fileInfos1.getWriterFileSet(dataFormat).get();
