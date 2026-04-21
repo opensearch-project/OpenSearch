@@ -10,10 +10,10 @@ package org.opensearch.analytics.exec.stage;
 
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.exec.QueryContext;
-import org.opensearch.analytics.exec.action.ShardTarget;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
+import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.cluster.service.ClusterService;
@@ -58,19 +58,27 @@ final class ShardFragmentStageScheduler implements StageScheduler {
     @Override
     public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
         List<FragmentExecutionRequest.PlanAlternative> planAlternatives = buildPlanAlternatives(stage);
-        List<ShardTarget> targets = TargetResolver.resolveTargets(stage, clusterService, config);
-        targets = stage.getShardFilterPhase().filter(targets, stage);
-
         final String queryId = config.queryId();
         final int stageId = stage.getStageId();
-        Function<ShardTarget, FragmentExecutionRequest> requestBuilder = target -> new FragmentExecutionRequest(
+        Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder = target -> new FragmentExecutionRequest(
             queryId,
             stageId,
             target.shardId(),
             planAlternatives
         );
-
-        return new ShardFragmentStageExecution(stage, config, sink, targets, requestBuilder, transport, responseCodec);
+        // Execution pulls the resolver off `stage` and calls resolve() lazily at start().
+        // This keeps target resolution out of the build phase so cancellation before
+        // dispatch doesn't pay for cluster-state routing, and leaves room for shuffle
+        // reads whose targets depend on child manifests only available at dispatch time.
+        return new ShardFragmentStageExecution(
+            stage,
+            config,
+            sink,
+            clusterService,
+            requestBuilder,
+            transport,
+            responseCodec
+        );
     }
 
     private static List<FragmentExecutionRequest.PlanAlternative> buildPlanAlternatives(Stage stage) {

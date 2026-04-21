@@ -16,9 +16,11 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
-import org.opensearch.analytics.exec.action.ShardTarget;
+import org.opensearch.analytics.planner.dag.ExecutionTarget;
+import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.cluster.service.ClusterService;
 
 import java.util.List;
 import java.util.Map;
@@ -55,8 +57,8 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     // Immutable config
     private final QueryContext config;
     private final ExchangeSink outputSink;
-    private final List<ShardTarget> targets;
-    private final Function<ShardTarget, FragmentExecutionRequest> requestBuilder;
+    private final ClusterService clusterService;
+    private final Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder;
     private final AnalyticsSearchTransportService dispatcher;
     private final ResponseCodec<FragmentExecutionResponse> responseCodec;
     private final Map<String, PendingExecutions> pendingPerNode = new ConcurrentHashMap<>();
@@ -65,15 +67,15 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         Stage stage,
         QueryContext config,
         ExchangeSink outputSink,
-        List<ShardTarget> targets,
-        Function<ShardTarget, FragmentExecutionRequest> requestBuilder,
+        ClusterService clusterService,
+        Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder,
         AnalyticsSearchTransportService dispatcher,
         ResponseCodec<FragmentExecutionResponse> responseCodec
     ) {
         super(stage);
         this.config = config;
         this.outputSink = outputSink;
-        this.targets = targets;
+        this.clusterService = clusterService;
         this.requestBuilder = requestBuilder;
         this.dispatcher = dispatcher;
         this.responseCodec = responseCodec;
@@ -81,19 +83,22 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
 
     @Override
     public void start() {
-        if (targets.isEmpty()) {
+        // Resolve targets lazily at dispatch time. For shuffle/broadcast reads this is
+        // where the child stage's manifest would be passed instead of null.
+        List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
+        if (resolved.isEmpty()) {
             // CREATED → SUCCEEDED directly. transitionTo stamps both start and end.
             transitionTo(StageExecution.State.SUCCEEDED);
             return;
         }
         if (transitionTo(StageExecution.State.RUNNING) == false) return;
-        inFlight.set(targets.size());
-        for (ShardTarget target : targets) {
-            dispatchShardTask(target);
+        inFlight.set(resolved.size());
+        for (ExecutionTarget target : resolved) {
+            dispatchShardTask((ShardExecutionTarget) target);
         }
     }
 
-    private void dispatchShardTask(ShardTarget target) {
+    private void dispatchShardTask(ShardExecutionTarget target) {
         FragmentExecutionRequest request = requestBuilder.apply(target);
         PendingExecutions pending = pendingFor(target);
         dispatcher.dispatchFragment(request, target.node(), new StreamingResponseListener<>() {
@@ -160,7 +165,7 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         return s == StageExecution.State.SUCCEEDED || s == StageExecution.State.FAILED || s == StageExecution.State.CANCELLED;
     }
 
-    private PendingExecutions pendingFor(ShardTarget target) {
+    private PendingExecutions pendingFor(ShardExecutionTarget target) {
         return pendingPerNode.computeIfAbsent(
             target.node().getId(),
             n -> new PendingExecutions(config.maxConcurrentShardRequests())

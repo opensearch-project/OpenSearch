@@ -20,7 +20,7 @@ public enum StageExecutionType {
      * Used by scans, filters, partial aggregates, and anything else that runs
      * a shard-local fragment producing rows.
      */
-    SHARD_SCAN,
+    SHARD_FRAGMENT,
     /**
      * Runs at the coordinator with a backend-provided {@code ExchangeSink}
      * (from {@code ExchangeSinkProvider}). Used for final aggregation, sort,
@@ -33,7 +33,7 @@ public enum StageExecutionType {
      * fragment dispatch. The walker attaches a {@code RowProducingSink} and
      * accumulates child output directly. Used only for root/parent gather
      * stages sitting above children that already produced the final rows.
-     * A single-stage query that scans shards is {@link #SHARD_SCAN}, not this.
+     * A single-stage query that scans shards is {@link #SHARD_FRAGMENT}, not this.
      */
     LOCAL_PASSTHROUGH,
     /**

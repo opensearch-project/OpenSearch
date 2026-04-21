@@ -82,11 +82,8 @@ public class StageExecutionBuilder {
         Map<String, AnalyticsSearchBackendPlugin> backends
     ) {
         this.schedulers = new HashMap<>();
-        registerScheduler(StageExecutionType.SHARD_SCAN, new ShardFragmentStageScheduler(clusterService, dispatcher));
+        registerScheduler(StageExecutionType.SHARD_FRAGMENT, new ShardFragmentStageScheduler(clusterService, dispatcher));
         registerScheduler(StageExecutionType.COORDINATOR_REDUCE, new LocalStageScheduler(backends));
-        // Pass-through is trivial enough that StageScheduler's @FunctionalInterface
-        // lets us register it inline — no backend selection, no fragment conversion,
-        // just wrap the sink in a PassThroughStageExecution.
         registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, sink));
         registerScheduler(StageExecutionType.SHUFFLE_WRITE, (stage, sink, config) -> {
             throw new UnsupportedOperationException("SHUFFLE_WRITE scheduler not yet implemented — stage " + stage.getStageId());
@@ -113,7 +110,7 @@ public class StageExecutionBuilder {
      * {@code outputSink().readResult()}.
      */
     public StageExecution buildRootExecution(Stage rootStage, QueryContext config) {
-        return dispatch(rootStage, new RowProducingSink(), config);
+        return buildStageExecution(rootStage, new RowProducingSink(), config);
     }
 
     /**
@@ -121,7 +118,7 @@ public class StageExecutionBuilder {
      * for the stage's {@link StageExecutionType}. For row-producing stages
      * (SHARD_SCAN, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH) the sink is resolved
      * from {@code parentExec}'s {@link DataConsumer} contract. Manifest-producing
-     * stages (SHUFFLE_WRITE, BROADCAST_WRITE) get a null sink — they wire to
+     * stages (SHUFFLE_WRITE, BROADCAST_WRITE) get a null sink — TODO: they will wire to
      * their parent through a separate contract that the scheduler owns.
      *
      * @throws IllegalStateException if a row-producing stage's {@code parentExec}
@@ -131,15 +128,15 @@ public class StageExecutionBuilder {
      */
     public StageExecution buildExecution(Stage stage, StageExecution parentExec, QueryContext config) {
         ExchangeSink sink = switch (stage.getExecutionType()) {
-            case SHARD_SCAN, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH -> resolveRowSink(stage, parentExec);
+            case SHARD_FRAGMENT, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH -> resolveRowSink(stage, parentExec);
             case SHUFFLE_WRITE, BROADCAST_WRITE -> null;
         };
-        return dispatch(stage, sink, config);
+        return buildStageExecution(stage, sink, config);
     }
 
     // ── Internal dispatch ───────────────────────────────────────────────
 
-    private StageExecution dispatch(Stage stage, ExchangeSink sink, QueryContext config) {
+    private StageExecution buildStageExecution(Stage stage, ExchangeSink sink, QueryContext config) {
         StageScheduler scheduler = schedulers.get(stage.getExecutionType());
         if (scheduler == null) {
             throw new IllegalStateException(

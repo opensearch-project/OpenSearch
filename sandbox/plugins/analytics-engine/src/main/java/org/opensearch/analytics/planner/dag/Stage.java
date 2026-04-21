@@ -27,7 +27,7 @@ import java.util.List;
  *       → {@link StageExecutionType#SHUFFLE_WRITE}.</li>
  *   <li>{@link ExchangeInfo#distributionType()} == {@code BROADCAST_DISTRIBUTED}
  *       → {@link StageExecutionType#BROADCAST_WRITE}.</li>
- *   <li>{@link #getTargetResolver()} non-null → {@link StageExecutionType#SHARD_SCAN}
+ *   <li>{@link #getTargetResolver()} non-null → {@link StageExecutionType#SHARD_FRAGMENT}
  *       — dispatch fragment per-shard to data nodes.</li>
  *   <li>{@link #getExchangeSinkProvider()} non-null → {@link StageExecutionType#COORDINATOR_REDUCE}
  *       — coordinator-side reduction via backend sink.</li>
@@ -70,7 +70,7 @@ public class Stage {
         } else if (exchangeInfo != null && exchangeInfo.distributionType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
             this.executionType = StageExecutionType.BROADCAST_WRITE;
         } else if (targetResolver != null) {
-            this.executionType = StageExecutionType.SHARD_SCAN;
+            this.executionType = StageExecutionType.SHARD_FRAGMENT;
         } else if (exchangeSinkProvider != null) {
             this.executionType = StageExecutionType.COORDINATOR_REDUCE;
         } else {

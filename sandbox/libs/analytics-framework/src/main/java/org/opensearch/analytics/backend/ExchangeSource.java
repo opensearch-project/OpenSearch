@@ -8,12 +8,14 @@
 
 package org.opensearch.analytics.backend;
 
+import org.opensearch.analytics.spi.ExchangeSink;
+
 /**
  * Read-only interface for consuming accumulated results from a stage exchange.
  * Consumers (parent stages, the walker's completion listener) read from this;
  * they never write to it.
  *
- * @see org.opensearch.analytics.spi.ExchangeSink for the write-side counterpart
+ * @see ExchangeSink for the write-side counterpart
  */
 public interface ExchangeSource {
 

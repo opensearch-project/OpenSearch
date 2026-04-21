@@ -17,7 +17,7 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.core.action.ActionListener;
 
 /**
- * {@link StageExecution} implementation for LOCAL stages. Owns the
+ * {@link StageExecution} implementation for COORDINATOR_REDUCE stages. Owns the
  * {@link LocalStageContext} lifecycle (start, finalize, fail, cancel)
  * and ensures the downstream listener is signaled exactly once.
  *
@@ -28,9 +28,6 @@ import org.opensearch.core.action.ActionListener;
  *
  * <p>Lifecycle:
  * {@code CREATED → RUNNING → (SUCCEEDED | FAILED | CANCELLED)}
- *
- * <p>Instances are one-shot: constructed, {@code start()} called once,
- * listener signaled once, discarded.
  *
  * @opensearch.internal
  */
@@ -77,14 +74,6 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
      * {@code RUNNING}, then delegates to the backend's
      * {@link LocalStageContext#asyncFinalize} which drains output and signals the
      * listener with the terminal state transition.
-     *
-     * <p>Callers must ensure that by the time {@code start()} is invoked, every
-     * child input has been fully fed and closed — there is no separate
-     * {@code finalize()} step. In the coordinator-side event-driven driver this
-     * is guaranteed by the dependency barrier; in
-     * {@code ShuffleReadTaskRunner}
-     * it is guaranteed by calling {@code start()} only after all fetches
-     * have completed and their sinks have been closed.
      */
     @Override
     public void start() {
@@ -112,7 +101,7 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
      */
     @Override
     public boolean failFromChild(Exception cause) {
-        logger.info("[LocalStage] failFromChild stageId={} cause={}", stage.getStageId(), cause.getMessage());
+        logger.error("[LocalStage] failFromChild stageId={}", stage.getStageId(), cause);
         captureFailure(cause);
         if (transitionTo(State.FAILED)) {
             try {
