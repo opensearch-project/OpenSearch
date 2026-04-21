@@ -64,6 +64,10 @@ lazy_static! {
     /// Holds both Parquet and IPC writers via the `WriterVariant` enum.
     static ref WRITERS: DashMap<String, WriterState> = DashMap::new();
     pub static ref SETTINGS_STORE: DashMap<String, NativeSettings> = DashMap::new();
+    /// Caches the sort permutation produced during sort-on-close.
+    /// Key is the final output filename. Each entry is a Vec of (old_row_id, new_row_id).
+    /// Retrieved by Java via `parquet_get_sort_permutation` FFM call (single-use: removed after retrieval).
+    pub static ref SORT_PERMUTATION: DashMap<String, Vec<(i64, i64)>> = DashMap::new();
 }
 
 pub struct NativeParquetWriter;
@@ -379,10 +383,16 @@ impl NativeParquetWriter {
         let sorted_batch = Self::sort_batch(&combined_batch, sort_columns, reverse_sorts, nulls_first)?;
 
         // Rewrite ___row_id with sequential values
-        let final_batch = Self::rewrite_row_ids(&sorted_batch, &schema)?;
+        let (final_batch, permutation) = Self::rewrite_row_ids(&sorted_batch, &schema)?;
 
         // Write the final sorted Parquet file
         Self::write_final_file(output_filename, index_name, &final_batch, schema)?;
+
+        // Cache the sort permutation for Java to retrieve
+        if !permutation.is_empty() {
+            log_info!("[RUST] sort_ipc_and_write_parquet: caching {} permutation entries for {}", permutation.len(), output_filename);
+            SORT_PERMUTATION.insert(output_filename.to_string(), permutation);
+        }
 
         log_info!("sort_ipc_and_write_parquet: sorted {} rows, wrote Parquet to {}", final_batch.num_rows(), output_filename);
         Ok(())
@@ -417,9 +427,16 @@ impl NativeParquetWriter {
         let schema = batches[0].schema();
         let combined_batch = concat_batches(&schema, &batches)?;
         let sorted_batch = Self::sort_batch(&combined_batch, sort_columns, reverse_sorts, nulls_first)?;
-        let final_batch = Self::rewrite_row_ids(&sorted_batch, &schema)?;
+        let (final_batch, permutation) = Self::rewrite_row_ids(&sorted_batch, &schema)?;
 
         Self::write_final_file(output_filename, index_name, &final_batch, schema)?;
+
+        // Cache the sort permutation for Java to retrieve
+        if !permutation.is_empty() {
+            log_info!("[RUST] sort_small_file: caching {} permutation entries for {}", permutation.len(), output_filename);
+            SORT_PERMUTATION.insert(output_filename.to_string(), permutation);
+        }
+
         Ok(())
     }
 
@@ -521,22 +538,36 @@ impl NativeParquetWriter {
     }
 
     /// If a ___row_id column exists, rewrite it with sequential values 0..N.
+    /// Also returns the sort permutation as Vec<(old_row_id, new_row_id)>.
     fn rewrite_row_ids(
         batch: &RecordBatch,
         schema: &Arc<arrow::datatypes::Schema>,
-    ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
+    ) -> Result<(RecordBatch, Vec<(i64, i64)>), Box<dyn std::error::Error>> {
         use arrow::array::Int64Array;
 
         if let Some(row_id_idx) = schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME) {
             log_info!("Rewriting ___row_id column with sequential values 0..{}", batch.num_rows());
+
+            // Capture the sort permutation: old_row_id (from sorted batch) → new_row_id (sequential position)
+            let old_row_ids = batch.column(row_id_idx)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .ok_or("___row_id column is not Int64")?;
+
+            let mut permutation = Vec::with_capacity(batch.num_rows());
+            for new_pos in 0..batch.num_rows() {
+                let old_row_id = old_row_ids.value(new_pos);
+                permutation.push((old_row_id, new_pos as i64));
+            }
+
             let sequential_ids = Int64Array::from_iter_values(
                 (0..batch.num_rows() as u64).map(|x| x as i64)
             );
             let mut new_columns = batch.columns().to_vec();
             new_columns[row_id_idx] = Arc::new(sequential_ids);
-            Ok(RecordBatch::try_new(schema.clone(), new_columns)?)
+            Ok((RecordBatch::try_new(schema.clone(), new_columns)?, permutation))
         } else {
-            Ok(batch.clone())
+            Ok((batch.clone(), Vec::new()))
         }
     }
 

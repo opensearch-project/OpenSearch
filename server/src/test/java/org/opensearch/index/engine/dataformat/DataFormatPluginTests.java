@@ -108,7 +108,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(WriteResult.Success.class, result2.getClass());
 
         // 3. Flush the writer to produce file metadata
-        FileInfos fileInfos = writer.flush();
+        FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
         Optional<WriterFileSet> writerFileSet = fileInfos.getWriterFileSet(format);
         assertTrue(writerFileSet.isPresent());
         assertFalse(writerFileSet.get().files().isEmpty());
@@ -124,7 +124,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         doc3.setRowId("_row_id", 2);
         doc3.addField(mock(MappedFieldType.class), "Bob");
         writer2.addDoc(doc3);
-        FileInfos fileInfos2 = writer2.flush();
+        FileInfos fileInfos2 = writer2.flush(FlushInput.EMPTY);
         writer2.close();
 
         WriterFileSet fileSet1 = fileInfos.getWriterFileSet(format).get();
@@ -268,7 +268,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         d1.addField(mock(MappedFieldType.class), "Alice");
         d1.setRowId("_row_id", 0);
         w1.addDoc(d1);
-        WriterFileSet fs1 = w1.flush().getWriterFileSet(format).get();
+        WriterFileSet fs1 = w1.flush(FlushInput.EMPTY).getWriterFileSet(format).get();
         w1.close();
 
         RefreshResult rr1 = indexEngine.refresh(
@@ -295,7 +295,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         d2.addField(mock(MappedFieldType.class), "Bob");
         d2.setRowId("_row_id", 1);
         w2.addDoc(d2);
-        WriterFileSet fs2 = w2.flush().getWriterFileSet(format).get();
+        WriterFileSet fs2 = w2.flush(FlushInput.EMPTY).getWriterFileSet(format).get();
         w2.close();
 
         RefreshResult rr2 = indexEngine.refresh(
@@ -403,7 +403,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         d.addField(mock(MappedFieldType.class), "x");
         d.setRowId("_row_id", 0);
         w.addDoc(d);
-        WriterFileSet fs = w.flush().getWriterFileSet(format).get();
+        WriterFileSet fs = w.flush(FlushInput.EMPTY).getWriterFileSet(format).get();
         w.close();
 
         RefreshResult rr = indexEngine.refresh(

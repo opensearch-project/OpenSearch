@@ -33,6 +33,7 @@ public class NativeParquetWriter {
     private final AtomicBoolean writerFlushed = new AtomicBoolean(false);
     private final String filePath;
     private final SetOnce<ParquetFileMetadata> metadata = new SetOnce<>();
+    private final SetOnce<long[][]> sortPermutation = new SetOnce<>();
 
     /**
      * Creates a new NativeParquetWriter.
@@ -80,6 +81,14 @@ public class NativeParquetWriter {
     public ParquetFileMetadata flush() throws IOException {
         if (writerFlushed.compareAndSet(false, true)) {
             metadata.set(RustBridge.finalizeWriter(filePath));
+            // After finalize, retrieve the sort permutation if sorting was configured
+            ParquetFileMetadata meta = metadata.get();
+            if (meta != null && meta.numRows() > 0) {
+                long[][] perm = RustBridge.getSortPermutationWithSize(filePath, meta.numRows());
+                if (perm != null) {
+                    sortPermutation.set(perm);
+                }
+            }
         }
         return metadata.get();
     }
@@ -104,6 +113,15 @@ public class NativeParquetWriter {
      */
     public ParquetFileMetadata getMetadata() {
         return metadata.get();
+    }
+
+    /**
+     * Returns the sort permutation produced during sort-on-close, or null if
+     * no sorting was configured or the file was empty.
+     * The returned array is [0] = old_row_ids, [1] = new_row_ids.
+     */
+    public long[][] getSortPermutation() {
+        return sortPermutation.get();
     }
 
 }

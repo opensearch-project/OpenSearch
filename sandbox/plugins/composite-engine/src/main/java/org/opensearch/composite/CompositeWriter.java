@@ -15,6 +15,7 @@ import org.opensearch.common.queue.Lockable;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -138,16 +139,27 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
     }
 
     @Override
-    public FileInfos flush() throws IOException {
+    public FileInfos flush(FlushInput flushInput) throws IOException {
         setFlushPending();
         FileInfos.Builder builder = FileInfos.builder();
-        // Flush primary
-        Optional<WriterFileSet> primaryWfs = primaryWriter.flush().getWriterFileSet(primaryFormat);
+
+        // Flush primary (Parquet) first to get the sort permutation
+        FileInfos primaryFileInfos = primaryWriter.flush(flushInput);
+        Optional<WriterFileSet> primaryWfs = primaryFileInfos.getWriterFileSet(primaryFormat);
         primaryWfs.ifPresent(writerFileSet -> builder.putWriterFileSet(primaryFormat, writerFileSet));
-        // Flush secondaries
-        for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
-            FileInfos fileInfos = writer.flush();
-            // Iterate all format entries in the returned FileInfos
+
+        // Capture the sort permutation from the primary flush
+        long[][] sortPermutation = primaryFileInfos.sortPermutation();
+        if (sortPermutation != null) {
+            builder.sortPermutation(sortPermutation);
+        }
+
+        // Build FlushInput for secondaries, carrying the sort permutation from the primary
+        FlushInput secondaryFlushInput = sortPermutation != null ? new FlushInput(sortPermutation) : FlushInput.EMPTY;
+
+        // Flush secondaries with the sort permutation context
+        for (Map.Entry<DataFormat, Writer<DocumentInput<?>>> entry : secondaryWritersByFormat.entrySet()) {
+            FileInfos fileInfos = entry.getValue().flush(secondaryFlushInput);
             for (Map.Entry<DataFormat, WriterFileSet> fileEntry : fileInfos.writerFilesMap().entrySet()) {
                 builder.putWriterFileSet(fileEntry.getKey(), fileEntry.getValue());
             }

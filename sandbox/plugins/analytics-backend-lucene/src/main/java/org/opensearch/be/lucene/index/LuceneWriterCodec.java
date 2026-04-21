@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.opensearch.index.engine.dataformat.FlushInput;
 
 import java.io.IOException;
 
@@ -21,7 +22,7 @@ import java.io.IOException;
  * A {@link FilterCodec} wrapper that injects the {@code writer_generation} attribute into
  * every segment written by a {@link LuceneWriter}.
  * <p>
- * During {@link LuceneWriter#flush()}, each per-generation writer creates exactly one segment.
+ * During {@link LuceneWriter#flush(FlushInput)}, each per-generation writer creates exactly one segment.
  * This codec intercepts the {@link SegmentInfoFormat#write} call to stamp the segment with
  * the writer generation number. After the segment is incorporated into the shared
  * {@link org.apache.lucene.index.IndexWriter} via {@code addIndexes}, the attribute allows

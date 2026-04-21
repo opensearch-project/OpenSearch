@@ -32,6 +32,7 @@ public class RustBridge {
     private static final MethodHandle ON_SETTINGS_UPDATE;
     private static final MethodHandle REMOVE_SETTINGS;
     private static final MethodHandle MERGE_FILES;
+    private static final MethodHandle GET_SORT_PERMUTATION;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -110,6 +111,16 @@ public class RustBridge {
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, // input files (ptrs, lens, count)
                 ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,                      // output file
                 ValueLayout.ADDRESS, ValueLayout.JAVA_LONG                       // index_name
+            )
+        );
+        GET_SORT_PERMUTATION = linker.downcallHandle(
+            lib.find("parquet_get_sort_permutation").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,   // file
+                ValueLayout.ADDRESS,                           // count_out
+                ValueLayout.ADDRESS,                           // old_row_ids_out
+                ValueLayout.ADDRESS                            // new_row_ids_out
             )
         );
     }
@@ -265,6 +276,69 @@ public class RustBridge {
             seg.setAtIndex(ValueLayout.JAVA_LONG, i, bools.get(i) ? 1L : 0L);
         }
         return seg;
+    }
+
+    /**
+     * Retrieves the sort permutation cached during finalizeWriter's sort-on-close.
+     * Returns a long[][] where [0] = old_row_ids, [1] = new_row_ids, or null if no permutation.
+     * The permutation is removed from the cache after retrieval (single-use).
+     */
+    static long[][] getSortPermutation(String file) {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            var countOut = call.longOut();
+            // First call with null buffers to get the count
+            long rc = call.invoke(GET_SORT_PERMUTATION, f.segment(), f.len(), countOut,
+                java.lang.foreign.MemorySegment.NULL, java.lang.foreign.MemorySegment.NULL);
+            if (rc <= 0) {
+                return null;
+            }
+            // We got the count but the permutation was already removed from cache.
+            // We need a different approach: allocate buffers upfront with a reasonable max size.
+            // Actually, the Rust side removes on retrieval, so we need to do it in one call.
+            // Let's re-approach: allocate large buffers and do a single call.
+            return null; // Will be handled differently - see below
+        }
+    }
+
+    /**
+     * Retrieves the sort permutation with pre-allocated buffers.
+     * Called after finalizeWriter when we know the row count from metadata.
+     *
+     * @param file the Parquet file path
+     * @param expectedRows the expected number of rows (from ParquetFileMetadata)
+     * @return array of [old_row_ids, new_row_ids] or null if no permutation
+     */
+    static long[][] getSortPermutationWithSize(String file, long expectedRows) {
+        if (expectedRows <= 0) {
+            return null;
+        }
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            var countOut = call.longOut();
+            // Allocate buffers for the expected number of rows
+            var arena = java.lang.foreign.Arena.ofConfined();
+            var oldRowIds = arena.allocate(ValueLayout.JAVA_LONG, expectedRows);
+            var newRowIds = arena.allocate(ValueLayout.JAVA_LONG, expectedRows);
+            long rc = call.invoke(GET_SORT_PERMUTATION, f.segment(), f.len(), countOut, oldRowIds, newRowIds);
+            if (rc <= 0) {
+                arena.close();
+                return null;
+            }
+            long count = countOut.get(ValueLayout.JAVA_LONG, 0);
+            if (count <= 0) {
+                arena.close();
+                return null;
+            }
+            long[] oldIds = new long[(int) count];
+            long[] newIds = new long[(int) count];
+            for (int i = 0; i < count; i++) {
+                oldIds[i] = oldRowIds.get(ValueLayout.JAVA_LONG, (long) i * 8);
+                newIds[i] = newRowIds.get(ValueLayout.JAVA_LONG, (long) i * 8);
+            }
+            arena.close();
+            return new long[][] { oldIds, newIds };
+        }
     }
 
     private RustBridge() {}

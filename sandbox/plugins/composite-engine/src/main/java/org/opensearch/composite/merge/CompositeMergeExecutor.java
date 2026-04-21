@@ -76,7 +76,7 @@ public class CompositeMergeExecutor {
         for (WriterFileSet wfs : files) {
             segments.add(Segment.builder(wfs.writerGeneration()).addSearchableFiles(format, wfs).build());
         }
-        MergeResult result = merger.merge(new MergeInput(segments, mapping, plan.mergedWriterGeneration()));
+        MergeResult result = merger.merge(new MergeInput(segments, mapping, plan.mergedWriterGeneration(), null));
         return new FormatMergeResult(format, result.getMergedWriterFileSetForDataformat(format), result.rowIdMapping().orElse(null));
     }
 

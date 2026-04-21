@@ -267,4 +267,13 @@ public class VSRManager implements AutoCloseable {
     ManagedVSR getActiveManagedVSR() {
         return managedVSR.get();
     }
+
+    /**
+     * Returns the sort permutation produced during the last flush's sort-on-close,
+     * or null if no sorting was configured or the file was empty.
+     * The returned array is [0] = old_row_ids, [1] = new_row_ids.
+     */
+    public long[][] getSortPermutation() {
+        return writer.getSortPermutation();
+    }
 }

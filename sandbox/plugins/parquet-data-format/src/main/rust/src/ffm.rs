@@ -322,3 +322,51 @@ pub unsafe extern "C" fn parquet_merge_files(
     .map(|_| 0)
     .map_err(|e| format!("{}", e))
 }
+
+// ---------------------------------------------------------------------------
+// Sort permutation retrieval
+// ---------------------------------------------------------------------------
+
+/// Retrieves the sort permutation cached during finalize_writer's sort-on-close.
+/// Returns the count of permutation entries (> 0) if a permutation was cached,
+/// or 0 if no permutation was found.
+///
+/// The permutation is removed from the cache after retrieval (single-use).
+/// `old_row_ids_out` and `new_row_ids_out` are filled with the mapping data.
+/// `count_out` receives the number of entries.
+#[no_mangle]
+pub unsafe extern "C" fn parquet_get_sort_permutation(
+    file_ptr: *const u8,
+    file_len: i64,
+    count_out: *mut i64,
+    old_row_ids_out: *mut i64,
+    new_row_ids_out: *mut i64,
+) -> i64 {
+    let filename = match str_from_raw(file_ptr, file_len) {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+
+    match crate::writer::SORT_PERMUTATION.remove(&filename) {
+        Some((_, permutation)) => {
+            if permutation.is_empty() {
+                if !count_out.is_null() { *count_out = 0; }
+                return 0;
+            }
+            let count = permutation.len();
+            if !count_out.is_null() { *count_out = count as i64; }
+
+            if !old_row_ids_out.is_null() && !new_row_ids_out.is_null() {
+                for (i, (old_id, new_id)) in permutation.iter().enumerate() {
+                    *old_row_ids_out.add(i) = *old_id;
+                    *new_row_ids_out.add(i) = *new_id;
+                }
+            }
+            count as i64
+        }
+        None => {
+            if !count_out.is_null() { *count_out = 0; }
+            0
+        }
+    }
+}

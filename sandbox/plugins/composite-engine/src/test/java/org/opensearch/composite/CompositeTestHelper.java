@@ -20,6 +20,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
@@ -220,7 +221,7 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public FileInfos flush() {
+        public FileInfos flush(FlushInput flushInput) {
             return FileInfos.empty();
         }
 
