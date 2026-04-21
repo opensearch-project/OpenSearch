@@ -12,6 +12,7 @@ members = [
     "../../../plugins/native-repository-fs/src/main/rust",
     "../../../libs/tiered-storage/src/main/rust",
     "../../../modules/foyer-page-cache/rust",
+    "../../page-cache/src/main/rust",
 ]
 
 [workspace.dependencies]

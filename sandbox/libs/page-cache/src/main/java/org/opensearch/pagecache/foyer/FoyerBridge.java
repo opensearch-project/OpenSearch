@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.cache.foyer;
+package org.opensearch.pagecache.foyer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,13 +58,15 @@ public final class FoyerBridge {
             )
         );
 
-        // void foyer_destroy_cache(i64 ptr)
+        // i64 foyer_destroy_cache(i64 ptr)  — 0=success, <0=error pointer
         FOYER_DESTROY_CACHE = linker.downcallHandle(
             lib.find("foyer_destroy_cache").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,  // return: 0=ok, <0=error
+                ValueLayout.JAVA_LONG   // ptr
+            )
         );
-
-        logger.info("[FoyerBridge] FFM handles resolved");
+        logger.info("FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache");
     }
 
     /**
@@ -79,7 +81,10 @@ public final class FoyerBridge {
         try (var call = new NativeCall()) {
             var dir = call.str(diskDir);
             long ptr = call.invoke(FOYER_CREATE_CACHE, diskBytes, dir.segment(), dir.len());
-            logger.info("[FoyerBridge] cache created: ptr={}, diskBytes={}, dir={}", ptr, diskBytes, diskDir);
+            if (ptr <= 0) {
+                throw new IllegalStateException("foyer_create_cache returned invalid pointer: " + ptr);
+            }
+            logger.info("Foyer cache created: diskBytes={}, dir={}", diskBytes, diskDir);
             return ptr;
         }
     }
@@ -90,10 +95,13 @@ public final class FoyerBridge {
      * <p>After this call the handle is invalid and must not be used again.
      *
      * @param ptr the handle returned by {@link #createCache}
+     * @throws RuntimeException if the native call returns an error (invalid ptr)
      */
     public static void destroyCache(long ptr) {
-        NativeCall.invokeVoid(FOYER_DESTROY_CACHE, ptr);
-        logger.info("[FoyerBridge] cache destroyed: ptr={}", ptr);
+        try (var call = new NativeCall()) {
+            call.invoke(FOYER_DESTROY_CACHE, ptr);
+        }
+        logger.info("Foyer cache destroyed");
     }
 
     private FoyerBridge() {}
