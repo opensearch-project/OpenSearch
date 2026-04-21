@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.iceberg.catalog;
+package org.opensearch.plugin.catalog.iceberg;
 
 import org.opensearch.plugins.Plugin;
 
@@ -17,4 +17,4 @@ import org.opensearch.plugins.Plugin;
  * OpenSearch index data to S3 Tables. It copies S3 client code from repository-s3
  * for plugin isolation (plugins cannot depend on other plugins).
  */
-public class IcebergMetadataCatalogPlugin extends Plugin {}
+public class IcebergCatalogPlugin extends Plugin {}
