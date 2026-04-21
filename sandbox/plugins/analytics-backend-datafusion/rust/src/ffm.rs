@@ -165,3 +165,50 @@ pub unsafe extern "C" fn df_sql_to_substrait(
     }
     Ok(0)
 }
+
+// ---- Stats collection ----
+
+/// Collects all native executor metrics into a caller-provided `i64` buffer.
+///
+/// The buffer must have capacity for at least 28 `i64` values.
+/// Returns 0 on success.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_stats(out_ptr: *mut i64, out_cap: i64) -> i64 {
+    use crate::stats::{layout, pack_runtime_metrics, pack_task_monitor};
+    use crate::task_monitors::{
+        query_execution_monitor, stream_next_monitor,
+        fetch_phase_monitor, segment_stats_monitor,
+    };
+
+    if out_cap < layout::TOTAL_SIZE as i64 {
+        return Err(format!(
+            "stats buffer too small: need {} but got {}",
+            layout::TOTAL_SIZE, out_cap
+        ));
+    }
+
+    let mgr = get_rt_manager()?;
+    let mut buf = [0i64; layout::TOTAL_SIZE];
+
+    // IO runtime (always present)
+    pack_runtime_metrics(&mgr.io_monitor, mgr.io_runtime.handle(), &mut buf, 0);
+
+    // CPU runtime (optional)
+    if let Some(ref cpu_mon) = mgr.cpu_monitor {
+        if let Some(cpu_handle) = mgr.cpu_executor.handle() {
+            pack_runtime_metrics(cpu_mon, &cpu_handle, &mut buf, layout::RUNTIME_SIZE);
+        }
+    }
+
+    // Task monitors
+    let tm_base = layout::RUNTIME_SIZE * 2;
+    pack_task_monitor(query_execution_monitor(), &mut buf, tm_base);
+    pack_task_monitor(stream_next_monitor(), &mut buf, tm_base + layout::TASK_MONITOR_SIZE);
+    pack_task_monitor(fetch_phase_monitor(), &mut buf, tm_base + layout::TASK_MONITOR_SIZE * 2);
+    pack_task_monitor(segment_stats_monitor(), &mut buf, tm_base + layout::TASK_MONITOR_SIZE * 3);
+
+    // Copy to caller buffer
+    std::ptr::copy_nonoverlapping(buf.as_ptr(), out_ptr, layout::TOTAL_SIZE);
+    Ok(0)
+}

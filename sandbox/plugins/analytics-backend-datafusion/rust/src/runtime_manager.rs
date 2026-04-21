@@ -10,11 +10,14 @@ use crate::io::register_io_runtime;
 use log::info;
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
+use tokio_metrics::RuntimeMonitor;
 
 // RuntimeManager — owns IO runtime + CPU DedicatedExecutor.
 pub struct RuntimeManager {
     pub io_runtime: Arc<Runtime>,
     pub cpu_executor: DedicatedExecutor,
+    pub io_monitor: RuntimeMonitor,
+    pub cpu_monitor: Option<RuntimeMonitor>,
 }
 
 impl RuntimeManager {
@@ -32,6 +35,8 @@ impl RuntimeManager {
 
         register_io_runtime(Some(io_runtime.handle().clone()));
 
+        let io_monitor = RuntimeMonitor::new(&io_runtime.handle());
+
         let io_handle = io_runtime.handle().clone();
         let mut cpu_runtime_builder = Builder::new_multi_thread();
         cpu_runtime_builder
@@ -44,9 +49,15 @@ impl RuntimeManager {
 
         let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder);
 
+        let cpu_monitor = cpu_executor
+            .handle()
+            .map(|h| RuntimeMonitor::new(&h));
+
         Self {
             io_runtime,
             cpu_executor,
+            io_monitor,
+            cpu_monitor,
         }
     }
 

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.nativebridge.spi.stats.DataFusionStats;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -104,6 +105,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
             throw new IllegalStateException("DataFusionService has not been started");
         }
         return handle;
+    }
+
+    /**
+     * Returns the latest native executor stats, collected fresh from JNI on every call.
+     *
+     * @return the current {@link DataFusionStats}
+     */
+    public DataFusionStats getStats() {
+        return NativeBridge.stats();
     }
 
     // Cache management (node-level, delegates to native runtime)

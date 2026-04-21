@@ -62,6 +62,7 @@ thiserror = "1.0"
 async-trait = "0.1"
 bytes = "1"
 criterion = { version = "0.5", features = ["async_tokio"] }
+tokio-metrics = { version = "0.4", features = ["rt"] }
 
 # Internal
 native-bridge-common = { path = "common" }
