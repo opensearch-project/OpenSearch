@@ -231,6 +231,7 @@ import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.IngestionConsumerPlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.MetadataUpgrader;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
@@ -1373,6 +1374,7 @@ public class Node implements Closeable {
             );
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
+
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class),
@@ -1380,7 +1382,8 @@ public class Node implements Closeable {
                 clusterService,
                 threadPool,
                 xContentRegistry,
-                recoverySettings
+                recoverySettings,
+                pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)
             );
             CryptoHandlerRegistry.initRegistry(
                 pluginsService.filterPlugins(CryptoPlugin.class),
@@ -1389,6 +1392,7 @@ public class Node implements Closeable {
             );
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
+
             SnapshotsService snapshotsService = new SnapshotsService(
                 settings,
                 clusterService,
