@@ -22,6 +22,7 @@ import org.apache.lucene.misc.store.HardlinkCopyDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -77,6 +78,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final Path baseDirectory;
     private final Analyzer analyzer;
     private final Codec codec;
+    private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
 
     /**
      * Creates a new LuceneIndexingExecutionEngine with a specific analyzer.
@@ -100,12 +102,13 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
         this.analyzer = sharedWriter.getAnalyzer();
         this.codec = sharedWriter.getConfig().getCodec();
+        this.fieldFactoryRegistry = new LuceneFieldFactoryRegistry();
 
         // Create the lucene subdirectory if it doesn't exist
         try {
             Files.createDirectories(baseDirectory);
         } catch (FileAlreadyExistsException ex) {
-            logger.warn("Directory already exists: {}", store.shardPath().resolve("parquet"));
+            logger.warn("Directory already exists: {}", baseDirectory);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -147,6 +150,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      */
     @Override
     public Writer<LuceneDocumentInput> createWriter(long writerGeneration) {
+        assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
             return new LuceneWriter(writerGeneration, dataFormat, baseDirectory, analyzer, codec);
         } catch (IOException e) {
@@ -161,7 +165,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      */
     @Override
     public LuceneDocumentInput newDocumentInput() {
-        return new LuceneDocumentInput();
+        return new LuceneDocumentInput(fieldFactoryRegistry);
     }
 
     /** {@inheritDoc} Returns the {@link LuceneDataFormat} descriptor. */

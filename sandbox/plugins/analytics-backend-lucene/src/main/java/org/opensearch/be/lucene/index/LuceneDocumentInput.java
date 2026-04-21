@@ -14,6 +14,7 @@ import org.opensearch.be.lucene.LuceneFieldFactory;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.MappedFieldType;
 
 /**
@@ -34,8 +35,12 @@ import org.opensearch.index.mapper.MappedFieldType;
 @ExperimentalApi
 public class LuceneDocumentInput implements DocumentInput<Document> {
 
-    /** Name of the row ID field stored in each Lucene document. */
-    public static final String ROW_ID_FIELD = "__row_id__";
+    /**
+     * Name of the row ID field stored in each Lucene document.
+     * @deprecated Use {@link DocumentInput#ROW_ID_FIELD} instead.
+     */
+    @Deprecated
+    public static final String ROW_ID_FIELD = DocumentInput.ROW_ID_FIELD;
 
     private final Document document;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;

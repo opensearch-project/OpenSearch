@@ -116,6 +116,14 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     @Override
     public WriteResult addDoc(LuceneDocumentInput input) throws IOException {
         Document doc = input.getFinalInput();
+        assert doc.getField(LuceneDocumentInput.ROW_ID_FIELD) != null : "Document missing required "
+            + LuceneDocumentInput.ROW_ID_FIELD
+            + " field at doc position "
+            + docCount;
+        assert doc.getField(LuceneDocumentInput.ROW_ID_FIELD).numericValue().longValue() == docCount : "Row ID mismatch: expected "
+            + docCount
+            + " but got "
+            + doc.getField(LuceneDocumentInput.ROW_ID_FIELD).numericValue().longValue();
         indexWriter.addDocument(doc);
         long currentDocId = docCount;
         docCount++;
@@ -220,12 +228,12 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                 indexWriter.rollback();
             }
         } catch (Exception e) {
-            // Best effort — may already be closed
+            logger.warn("Failed to rollback IndexWriter for generation {}", writerGeneration, e);
         }
         try {
             directory.close();
         } catch (Exception e) {
-            // Best effort — may already be closed
+            logger.warn("Failed to close directory for generation {}", writerGeneration, e);
         }
         IOUtils.rm(tempDirectory);
     }
