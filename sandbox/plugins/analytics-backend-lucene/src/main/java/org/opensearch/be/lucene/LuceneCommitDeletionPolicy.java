@@ -41,16 +41,28 @@ class LuceneCommitDeletionPolicy extends IndexDeletionPolicy {
     private final Map<Long, IndexCommit> trackedCommits = new ConcurrentHashMap<>();
     private final Set<Long> pendingDeletes = ConcurrentHashMap.newKeySet();
     private volatile boolean hasCSCommit;
-    private volatile boolean initialCommitDeleted;
+    private volatile IndexCommit nonCatalogSnapshotCommit;
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        onCommit(commits);
+        for (IndexCommit commit : commits) {
+            Map<String, String> userData = commit.getUserData();
+            String idStr = userData.get(CatalogSnapshot.CATALOG_SNAPSHOT_ID);
+            if (idStr != null) {
+                trackedCommits.putIfAbsent(Long.parseLong(idStr), commit);
+                hasCSCommit = true;
+            } else {
+                nonCatalogSnapshotCommit = commit;
+            }
+        }
+        if (hasCSCommit && nonCatalogSnapshotCommit != null) {
+            nonCatalogSnapshotCommit.delete();
+            nonCatalogSnapshotCommit = null;
+        }
     }
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        IndexCommit unseenInitialCommit = null;
         for (IndexCommit commit : commits) {
             Map<String, String> userData = commit.getUserData();
             String idStr = userData.get(CatalogSnapshot.CATALOG_SNAPSHOT_ID);
@@ -62,13 +74,11 @@ class LuceneCommitDeletionPolicy extends IndexDeletionPolicy {
                     commit.delete();
                     trackedCommits.remove(id);
                 }
-            } else if (userData.containsKey(CatalogSnapshot.CATALOG_SNAPSHOT_KEY) == false && initialCommitDeleted == false) {
-                unseenInitialCommit = commit;
             }
         }
-        if (hasCSCommit && unseenInitialCommit != null) {
-            unseenInitialCommit.delete();
-            initialCommitDeleted = true;
+        if (hasCSCommit && nonCatalogSnapshotCommit != null) {
+            nonCatalogSnapshotCommit.delete();
+            nonCatalogSnapshotCommit = null;
         }
     }
 

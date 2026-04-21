@@ -141,8 +141,8 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             public void setUserData(Map<String, String> userData, boolean commitData) {}
 
             @Override
-            public Collection<String> getFiles(boolean includeSegmentsFile) {
-                return List.of();
+            public CatalogSnapshot clone() {
+                return this;
             }
 
             @Override
@@ -151,13 +151,13 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public byte[] serialize() {
+            public byte[] serialize() throws IOException {
                 return new byte[0];
             }
 
             @Override
-            public CatalogSnapshot clone() {
-                return this;
+            public Collection<String> getFiles(boolean includeSegmentsFile) {
+                return List.of();
             }
         };
     }

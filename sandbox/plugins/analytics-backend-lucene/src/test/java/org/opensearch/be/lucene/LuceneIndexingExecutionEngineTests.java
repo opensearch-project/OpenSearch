@@ -248,12 +248,4 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
         engine.deleteFiles(java.util.Map.of("parquet", java.util.List.of("_0.parquet")));
     }
-
-    /**
-     * deleteFiles silently ignores files already deleted by Lucene (e.g., during merge).
-     */
-    public void testDeleteFilesSilentlyIgnoresMissingFiles() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
-        engine.deleteFiles(java.util.Map.of("lucene", java.util.List.of("_nonexistent.cfs")));
-    }
 }

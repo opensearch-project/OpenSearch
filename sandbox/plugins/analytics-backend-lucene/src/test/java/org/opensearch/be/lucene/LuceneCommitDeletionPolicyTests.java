@@ -56,6 +56,7 @@ public class LuceneCommitDeletionPolicyTests extends OpenSearchTestCase {
         IndexCommit cs1 = mockCommit(Map.of(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, "b1", CatalogSnapshot.CATALOG_SNAPSHOT_ID, "1"));
         IndexCommit cs2 = mockCommit(Map.of(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, "b2", CatalogSnapshot.CATALOG_SNAPSHOT_ID, "2"));
 
+        policy.onInit(List.of(initial));
         policy.onCommit(List.of(initial, cs1));
         policy.onCommit(List.of(initial, cs1, cs2));
 

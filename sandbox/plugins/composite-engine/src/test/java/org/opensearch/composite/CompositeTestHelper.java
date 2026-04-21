@@ -29,11 +29,13 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.store.FormatChecksumStrategy;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -297,12 +299,12 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
-            return java.util.List.of();
+        public List<CatalogSnapshot> listCommittedSnapshots() {
+            return List.of();
         }
 
         @Override
-        public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
+        public void deleteCommit(CatalogSnapshot snapshot) {}
 
         @Override
         public boolean isCommitManagedFile(String fileName) {

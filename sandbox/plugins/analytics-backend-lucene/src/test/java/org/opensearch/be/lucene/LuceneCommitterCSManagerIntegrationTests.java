@@ -279,11 +279,15 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             for (String f : lucene2)
                 assertTrue(fileExists(env.indexDir, f));
 
-            // --- Advance globalCP to 200, re-flush to trigger policy: CS1 deleted ---
+            // --- Advance globalCP to 200, refresh + flush to trigger policy ---
             globalCP.set(200);
+            manager.commitNewSnapshot(List.of(seg0, seg1, seg2));
             doFlush(manager, env.committer, 300, 300);
 
-            // CS1 deleted. lucene0/parquet0 still alive (referenced by CS2=safe and CS3)
+            // CS1 deleted by policy. CS2=safe(200<=200), CS3, CS4(flush)=last → 3 commits
+            assertEquals("CS2 + CS3 + CS4", 3, countLuceneCommits(env.store));
+
+            // All segment files still alive — CS2 and later reference all segments
             for (String f : parquet0)
                 assertTrue("parquet0 alive (ref'd by CS2): " + f, fileExists(env.parquetDir, f));
             for (String f : lucene0)
@@ -297,20 +301,27 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             for (String f : lucene2)
                 assertTrue("lucene2 alive: " + f, fileExists(env.indexDir, f));
 
-            // --- Advance globalCP to 300, re-flush: CS2 deleted, only CS3+CS4 remain ---
+            // --- Advance globalCP to 300, refresh + flush: all old commits deleted ---
             globalCP.set(300);
+            manager.commitNewSnapshot(List.of(seg0, seg1, seg2));
             doFlush(manager, env.committer, 300, 300);
 
-            // CS2 deleted. seg0 files only referenced by CS3+ now, seg1 files too.
-            // All files still alive because CS3 (and CS4=latest) reference all segments.
+            // CS2, CS3, CS4 all deleted. Only CS6(flush)=safe=last remains
+            assertEquals("Only latest commit remains", 1, countLuceneCommits(env.store));
+
+            // All segment files still alive — the latest commit references all segments
             for (String f : parquet0)
-                assertTrue("parquet0 alive (ref'd by CS3): " + f, fileExists(env.parquetDir, f));
+                assertTrue("parquet0 alive (ref'd by latest): " + f, fileExists(env.parquetDir, f));
             for (String f : lucene0)
-                assertTrue("lucene0 alive (ref'd by CS3): " + f, fileExists(env.indexDir, f));
+                assertTrue("lucene0 alive (ref'd by latest): " + f, fileExists(env.indexDir, f));
+            for (String f : parquet1)
+                assertTrue("parquet1 alive (ref'd by latest): " + f, fileExists(env.parquetDir, f));
+            for (String f : lucene1)
+                assertTrue("lucene1 alive (ref'd by latest): " + f, fileExists(env.indexDir, f));
             for (String f : parquet2)
-                assertTrue("parquet2 alive: " + f, fileExists(env.parquetDir, f));
+                assertTrue("parquet2 alive (ref'd by latest): " + f, fileExists(env.parquetDir, f));
             for (String f : lucene2)
-                assertTrue("lucene2 alive: " + f, fileExists(env.indexDir, f));
+                assertTrue("lucene2 alive (ref'd by latest): " + f, fileExists(env.indexDir, f));
 
             manager.close();
         }

@@ -192,9 +192,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     protected void discoverAndTrimUnsafeCommits(Store store, Path translogPath) throws IOException {
         Map<IndexCommit, CatalogSnapshot> committed = loadCommittedSnapshots(store);
-        // Can be the case for empty store recovery - since the initial empty commit during recovery will not have catalog snapshot
-        // awareness
-        if (committed.size() <= 1) {
+        if (committed.isEmpty()) {
             return;
         }
         List<CatalogSnapshot> snapshots = new ArrayList<>(committed.values());
@@ -234,6 +232,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         LinkedHashMap<IndexCommit, CatalogSnapshot> result = new LinkedHashMap<>();
         for (IndexCommit ic : commits) {
             String serialized = ic.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+            // serialized can be null for the initial empty commit from store.createEmpty() during
+            // empty store recovery, since that commit has no CatalogSnapshot data.
             if (serialized != null && serialized.isEmpty() == false) {
                 result.put(ic, DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver));
             }

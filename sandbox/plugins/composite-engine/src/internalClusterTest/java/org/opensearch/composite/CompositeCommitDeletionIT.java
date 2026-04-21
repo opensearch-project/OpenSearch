@@ -42,14 +42,6 @@ import java.util.stream.Stream;
 /**
  * Integration tests for commit deletion behavior in DataFormatAwareEngine
  * with composite (Lucene + Parquet) data format.
- *
- * Requires JDK 25 and sandbox enabled. Run with:
- * JAVA_HOME=~/.sdkman/candidates/java/25.0.1-amzn ./gradlew \
- *   :sandbox:plugins:composite-engine:internalClusterTest \
- *   --tests "*.CompositeCommitDeletionIT" \
- *   -Dsandbox.enabled=true \
- *   -x :sandbox:plugins:composite-engine:compileTestJava \
- *   -x :sandbox:plugins:composite-engine:test
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
@@ -271,7 +263,7 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
         assertFalse("Lucene files should still exist", luceneFilesNow.isEmpty());
 
         // Only latest commits should remain (safe + last, which may be the same)
-        assertTrue("Only latest commits remain", commitCount(shard) <= 2);
+        assertTrue("Only latest commit remains", commitCount(shard) <= 2);
     }
 
     // ---- Test 6: Translog recovery after node restart ----
