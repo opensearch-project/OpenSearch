@@ -163,8 +163,11 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
     }
 
     @Override
-    public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
-        // Stub: file deletion to be implemented in a future iteration
+    public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
+        // No-op: Lucene's internal IndexFileDeleter handles segment file cleanup when
+        // IndexCommit.delete() is called inside LuceneCommitDeletionPolicy.onCommit(),
+        // triggered by IndexWriter.deleteUnusedFiles() from LuceneCommitter.deleteCommit().
+        return Map.of();
     }
 
     @Override
