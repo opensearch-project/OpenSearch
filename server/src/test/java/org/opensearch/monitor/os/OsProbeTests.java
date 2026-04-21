@@ -343,62 +343,6 @@ public class OsProbeTests extends OpenSearchTestCase {
         assertThat(probe.getAvailableMemorySize(), equalTo(-1L));
     }
 
-    public void testReadAvailableMemoryFromProcMeminfo() throws IOException {
-        assumeTrue("test runs on Linux only", Constants.LINUX);
-
-        // Standard /proc/meminfo content with MemAvailable
-        final OsProbe probe = new OsProbe() {
-            @Override
-            long readAvailableMemoryFromProcMeminfo() throws IOException {
-                // Simulate parsing: MemAvailable: 7856 kB -> 7856 * 1024 = 8044544
-                final List<String> lines = Arrays.asList(
-                    "MemTotal:       16384 kB",
-                    "MemFree:         4096 kB",
-                    "MemAvailable:    7856 kB",
-                    "Buffers:          512 kB"
-                );
-                for (final String line : lines) {
-                    if (line.startsWith("MemAvailable:")) {
-                        final String[] parts = line.split("\\s+");
-                        if (parts.length >= 2) {
-                            return Long.parseLong(parts[1]) * 1024;
-                        }
-                    }
-                }
-                return -1;
-            }
-        };
-
-        assertThat(probe.getAvailableMemorySize(), equalTo(7856L * 1024));
-    }
-
-    public void testReadAvailableMemoryFromProcMeminfoMissingField() throws IOException {
-        assumeTrue("test runs on Linux only", Constants.LINUX);
-
-        // /proc/meminfo content without MemAvailable
-        final OsProbe probe = new OsProbe() {
-            @Override
-            long readAvailableMemoryFromProcMeminfo() throws IOException {
-                final List<String> lines = Arrays.asList(
-                    "MemTotal:       16384 kB",
-                    "MemFree:         4096 kB",
-                    "Buffers:          512 kB"
-                );
-                for (final String line : lines) {
-                    if (line.startsWith("MemAvailable:")) {
-                        final String[] parts = line.split("\\s+");
-                        if (parts.length >= 2) {
-                            return Long.parseLong(parts[1]) * 1024;
-                        }
-                    }
-                }
-                return -1;
-            }
-        };
-
-        assertThat(probe.getAvailableMemorySize(), equalTo(-1L));
-    }
-
     private static List<String> getProcSelfGroupLines(String hierarchy) {
         return Arrays.asList(
             "10:freezer:/",

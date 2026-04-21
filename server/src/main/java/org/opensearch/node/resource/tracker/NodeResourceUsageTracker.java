@@ -166,8 +166,8 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     protected void doStart() {
         cpuUsageTracker.doStart();
         memoryUsageTracker.doStart();
+        ioUsageTracker.doStart();
         if (Constants.LINUX) {
-            ioUsageTracker.doStart();
             nativeMemoryUsageTracker.doStart();
         }
     }
@@ -176,8 +176,8 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     protected void doStop() {
         cpuUsageTracker.doStop();
         memoryUsageTracker.doStop();
+        ioUsageTracker.doStop();
         if (Constants.LINUX) {
-            ioUsageTracker.doStop();
             nativeMemoryUsageTracker.doStop();
         }
     }
@@ -186,8 +186,8 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     protected void doClose() {
         cpuUsageTracker.doClose();
         memoryUsageTracker.doClose();
+        ioUsageTracker.doClose();
         if (Constants.LINUX) {
-            ioUsageTracker.doClose();
             nativeMemoryUsageTracker.doClose();
         }
     }
