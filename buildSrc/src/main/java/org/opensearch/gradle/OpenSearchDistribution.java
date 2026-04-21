@@ -216,6 +216,39 @@ public class OpenSearchDistribution implements Buildable, Iterable<File> {
         return configuration.getBuildDependencies();
     }
 
+    /**
+     * Returns the classifier and extension portion of a dependency notation, e.g. {@code ":linux-x64@tar.gz"}.
+     */
+    public String classifierAndExtension() {
+        String extension = getType().toString();
+        String classifier = ":x64";
+        if (getType() == Type.ARCHIVE) {
+            extension = getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
+            switch (getArchitecture()) {
+                case ARM64:
+                    classifier = ":" + getPlatform() + "-arm64";
+                    break;
+                case X64:
+                    classifier = ":" + getPlatform() + "-x64";
+                    break;
+                case S390X:
+                    classifier = ":" + getPlatform() + "-s390x";
+                    break;
+                case PPC64LE:
+                    classifier = ":" + getPlatform() + "-ppc64le";
+                    break;
+                case RISCV64:
+                    classifier = ":" + getPlatform() + "-riscv64";
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported architecture: " + getArchitecture());
+            }
+        } else if (getType() == Type.DEB) {
+            classifier = ":amd64";
+        }
+        return classifier + "@" + extension;
+    }
+
     @Override
     public Iterator<File> iterator() {
         return configuration.iterator();

@@ -10,7 +10,7 @@ package org.opensearch.action.admin.indices.streamingingestion.pause;
 
 import org.opensearch.action.admin.indices.streamingingestion.IngestionStateShardFailure;
 import org.opensearch.action.admin.indices.streamingingestion.IngestionUpdateStateResponse;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -18,9 +18,9 @@ import java.io.IOException;
 /**
  * Transport response for pausing ingestion.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class PauseIngestionResponse extends IngestionUpdateStateResponse {
 
     PauseIngestionResponse(StreamInput in) throws IOException {

@@ -1,21 +1,6 @@
-# CHANGELOG
-All notable changes to this project are documented in this file.
+As of the 3.6 release [the CHANGELOG is no longer used][1] to generate release notes.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See the [CONTRIBUTING guide](./CONTRIBUTING.md#Changelog) for instructions on how to add changelog entries.
+[Use this PR search][2] to browse unreleased changes.
 
-## [Unreleased 3.x]
-### Added
-- Add CompletionStage variants to ClusterAdminClient as an alternative to ActionListener ([#20509](https://github.com/opensearch-project/OpenSearch/pull/20509))
-- Support expected cluster name with validation in CCS Sniff mode ([#20532](https://github.com/opensearch-project/OpenSearch/pull/20532))
-
-### Changed
-
-### Fixed
-- Prevent criteria update for context aware indices ([#20250](https://github.com/opensearch-project/OpenSearch/pull/20250))
-
-### Dependencies
-- Bump `ch.qos.logback:logback-core` and `ch.qos.logback:logback-classic` from 1.5.24 to 1.5.27 ([#20525](https://github.com/opensearch-project/OpenSearch/pull/20525))
-
-### Removed
-
-[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.6...main
+[1]: https://github.com/opensearch-project/OpenSearch/issues/21071
+[2]: https://github.com/opensearch-project/OpenSearch/pulls?q=sort%3Amerged-desc+is%3Apr+-label%3Askip-changelog+is%3Amerged+base%3Amain+

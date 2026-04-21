@@ -44,6 +44,8 @@ import java.nio.file.Path
 plugins {
   id 'base'
 }
+
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -239,8 +241,8 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // copy all sandbox modules if the distribution is a snapshot
 if (VersionProperties.isOpenSearchSnapshot()) {
   Properties sysProps = System.getProperties();
-  // setting this property to false will exclude the sandbox modules from the distribution
-  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "true");
+  // setting this property to true will include the sandbox modules in the distribution
+  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "false");
   if(sysProps != null && enableSandbox == "true") {
     tasks.withType(NoticeTask).configureEach {
       project(':sandbox:libs').subprojects.each { Project lib ->
@@ -320,6 +322,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
     }
+    create('agent') {
+      canBeConsumed = false
+      canBeResolved = true
+      attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-dist'))
+      }
+    }
   }
 
   dependencies {
@@ -333,6 +342,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
 
     bcFips libs.bundles.bouncycastle
+
+    agent project(path: ':libs:agent-sm:agent', configuration: 'agentDist')
   }
 
   project.ext {
@@ -362,7 +373,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     agentFiles = {
       copySpec {
-        from(project(':libs:agent-sm:agent').prepareAgent) {
+        from(configurations.agent) {
           include '**/*.jar'
           exclude '**/*-javadoc.jar'
           exclude '**/*-sources.jar'

@@ -32,18 +32,10 @@
 
 package org.opensearch.common.xcontent.json;
 
-import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonFactoryBuilder;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.core.StreamReadFeature;
-import com.fasterxml.jackson.core.StreamWriteConstraints;
-import com.fasterxml.jackson.core.json.JsonWriteFeature;
-
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XObjectReadContext;
+import org.opensearch.common.xcontent.XObjectWriteContext;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -58,10 +50,20 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
 
+import tools.jackson.core.JsonEncoding;
+import tools.jackson.core.StreamReadConstraints;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.core.StreamWriteConstraints;
+import tools.jackson.core.StreamWriteFeature;
+import tools.jackson.core.json.JsonFactory;
+import tools.jackson.core.json.JsonFactoryBuilder;
+import tools.jackson.core.json.JsonReadFeature;
+import tools.jackson.core.json.JsonWriteFeature;
+
 /**
  * A JSON based content implementation using Jackson.
  */
-public class JsonXContent implements XContent, XContentContraints {
+public class JsonXContent implements XContent, XContentConstraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
@@ -73,22 +75,22 @@ public class JsonXContent implements XContent, XContentContraints {
     static {
         final JsonFactoryBuilder builder = new JsonFactoryBuilder(new JsonFactory());
         builder.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
-        builder.configure(JsonWriteFeature.QUOTE_FIELD_NAMES, true);
-
-        jsonFactory = builder.build();
-        jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
-        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
-        jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        jsonFactory.setStreamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
-        jsonFactory.setStreamReadConstraints(
+        builder.configure(JsonWriteFeature.QUOTE_PROPERTY_NAMES, true);
+        builder.streamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
+        builder.streamReadConstraints(
             StreamReadConstraints.builder()
                 .maxStringLength(DEFAULT_MAX_STRING_LEN)
                 .maxNameLength(DEFAULT_MAX_NAME_LEN)
                 .maxNestingDepth(DEFAULT_MAX_DEPTH)
                 .build()
         );
-        jsonFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
+        builder.configure(JsonReadFeature.ALLOW_JAVA_COMMENTS, true);
+        // Do not automatically close unclosed objects/arrays in tools.jackson.core.json.UTF8JsonGenerator#close() method
+        builder.configure(StreamWriteFeature.AUTO_CLOSE_CONTENT, false);
+        builder.configure(StreamReadFeature.STRICT_DUPLICATE_DETECTION, true);
+        builder.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER, true);
+
+        jsonFactory = builder.build();
         jsonXContent = new JsonXContent();
     }
 
@@ -105,26 +107,32 @@ public class JsonXContent implements XContent, XContentContraints {
     }
 
     @Override
-    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
+    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes, boolean prettyPrint)
+        throws IOException {
+        return new JsonXContentGenerator(
+            jsonFactory.createGenerator(XObjectWriteContext.create(prettyPrint), os, JsonEncoding.UTF8),
+            os,
+            includes,
+            excludes
+        );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
         throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(content));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(XObjectReadContext.create(), content));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
         throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(is));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(XObjectReadContext.create(), is));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
         throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(data));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(XObjectReadContext.create(), data));
     }
 
     @Override
@@ -135,12 +143,16 @@ public class JsonXContent implements XContent, XContentContraints {
         int offset,
         int length
     ) throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(data, offset, length));
+        return new JsonXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            jsonFactory.createParser(XObjectReadContext.create(), data, offset, length)
+        );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
         throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(reader));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(XObjectReadContext.create(), reader));
     }
 }

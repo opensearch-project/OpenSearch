@@ -166,12 +166,17 @@ configure([
   }
 }
 
-configure([
+// Core projects — always present
+def javadocProjects = [
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
   project(":libs:opensearch-compress"),
   project(":server")
-]) {
+]
+// Sandbox projects — only present when -Dsandbox.enabled=true
+rootProject.allprojects.findAll { it.path.startsWith(':sandbox:') }.each { javadocProjects.add(it) }
+
+configure(javadocProjects) {
   project.tasks.withType(MissingJavadocTask) {
     // TODO: bump to variable missing level after increasing javadoc coverage
     javadocMissingLevel = "class"

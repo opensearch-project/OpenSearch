@@ -32,8 +32,6 @@
 
 package org.opensearch.action.search;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
@@ -47,10 +45,13 @@ import org.opensearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 /**
  * The request-level search slow log implementation
@@ -187,6 +188,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             }
             messageFields.put("search_type", context.getRequest().searchType());
             messageFields.put("shards", searchRequestContext.formattedShardStats());
+            messageFields.put("indices", Arrays.toString(context.getRequest().indices()));
 
             if (context.getRequest().source() != null) {
                 String source = escapeJson(context.getRequest().source().toString(FORMAT_PARAMS));
@@ -213,6 +215,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             }
             sb.append("search_type[").append(context.getRequest().searchType()).append("], ");
             sb.append("shards[").append(searchRequestContext.formattedShardStats()).append("], ");
+            sb.append("indices").append(Arrays.toString(context.getRequest().indices())).append(", ");
             if (context.getRequest().source() != null) {
                 sb.append("source[").append(context.getRequest().source().toString(FORMAT_PARAMS)).append("], ");
             } else {

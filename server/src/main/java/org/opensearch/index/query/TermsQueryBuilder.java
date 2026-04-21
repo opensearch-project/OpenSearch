@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -608,7 +609,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                         // Get max_terms_count, max_result_window, and max_clause_count, fallback to their defaults
                         int maxTermsCount = IndexSettings.MAX_TERMS_COUNT_SETTING.get(idxSettings);
                         int maxResultWindow = IndexSettings.MAX_RESULT_WINDOW_SETTING.get(idxSettings);
-                        int maxClauseCount = idxSettings.getAsInt("indices.query.max_clause_count", 1024);
+                        // Reads the cluster-level max_clause_count, propagated via SearchService's
+                        // dynamic setting update consumer to IndexSearcher's static field.
+                        int maxClauseCount = IndexSearcher.getMaxClauseCount();
                         // The effective size must not exceed any of these
                         int fetchSize = Math.min(Math.min(maxTermsCount, maxResultWindow), maxClauseCount);
 

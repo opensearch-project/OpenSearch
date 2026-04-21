@@ -32,10 +32,6 @@
 
 package org.opensearch.common.xcontent;
 
-import com.fasterxml.jackson.core.JsonGenerationException;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -61,6 +57,8 @@ import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.jackson.core.JsonGenerationException;
+import org.opensearch.tools.jackson.core.JsonParseException;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -95,6 +93,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import tools.jackson.core.JsonGenerator;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -937,9 +937,9 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         // keeps working
         BigInteger bigInteger = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
         generator.writeStartObject();
-        generator.writeFieldName("foo");
+        generator.writeName("foo");
         generator.writeString("bar");
-        generator.writeFieldName("bigint");
+        generator.writeName("bigint");
         generator.writeNumber(bigInteger);
         generator.writeEndObject();
         generator.flush();
@@ -1102,7 +1102,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         XContentBuilder builder = builder().startObject().field("key", 1).field("key", 2).endObject();
         try (XContentParser xParser = createParser(builder)) {
             JsonParseException pex = expectThrows(JsonParseException.class, () -> xParser.map());
-            assertThat(pex.getMessage(), startsWith("Duplicate field 'key'"));
+            assertThat(pex.getMessage(), startsWith("Duplicate Object property \"key\""));
         }
     }
 
@@ -1168,7 +1168,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
 
     private static void expectFieldException(ThrowingRunnable runnable) {
         JsonGenerationException e = expectThrows(JsonGenerationException.class, runnable);
-        assertThat(e.getMessage(), containsString("expecting field name"));
+        assertThat(e.getMessage(), containsString("expecting a property name"));
     }
 
     private static void expectNonNullFieldException(ThrowingRunnable runnable) {

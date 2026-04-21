@@ -776,8 +776,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
         }
 
         // Check 2: Match-all query with the majority of docs in clean segments
-        // Traditional aggregator can use term frequency optimization for these segments
-        if (isMatchAllQuery(searchContext.query())) {
+        // and cardinality within the precompute threshold.
+        // Traditional aggregator can use term frequency optimization for these segments.
+        if (isMatchAllQuery(searchContext.query()) && maxCardinality <= searchContext.termsAggregationMaxPrecomputeCardinality()) {
             double cleanRatio = totalDocs > 0 ? (double) docsInCleanSegments / totalDocs : 0;
             return cleanRatio > 0.8;
         }

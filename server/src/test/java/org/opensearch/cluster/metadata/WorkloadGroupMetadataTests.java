@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.opensearch.cluster.metadata.WorkloadGroupTests.TEST_WLM_SEARCH_SETTINGS;
 import static org.opensearch.cluster.metadata.WorkloadGroupTests.createRandomWorkloadGroup;
 
 public class WorkloadGroupMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
@@ -36,7 +37,8 @@ public class WorkloadGroupMetadataTests extends AbstractDiffableSerializationTes
                     "ajakgakg983r92_4242",
                     new MutableWorkloadGroupFragment(
                         MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
-                        Map.of(ResourceType.MEMORY, 0.5)
+                        Map.of(ResourceType.MEMORY, 0.5),
+                        TEST_WLM_SEARCH_SETTINGS
                     ),
                     updatedAt
                 )
@@ -46,10 +48,11 @@ public class WorkloadGroupMetadataTests extends AbstractDiffableSerializationTes
         builder.startObject();
         workloadGroupMetadata.toXContent(builder, null);
         builder.endObject();
-        assertEquals(
-            "{\"ajakgakg983r92_4242\":{\"_id\":\"ajakgakg983r92_4242\",\"name\":\"test\",\"resiliency_mode\":\"enforced\",\"resource_limits\":{\"memory\":0.5},\"updated_at\":1720047207}}",
-            builder.toString()
-        );
+        String expected = "{\"ajakgakg983r92_4242\":{\"_id\":\"ajakgakg983r92_4242\",\"name\":\"test\","
+            + "\"resiliency_mode\":\"enforced\",\"resource_limits\":{\"memory\":0.5},"
+            + "\"search_settings\":{\"timeout\":\"30s\"},"
+            + "\"updated_at\":1720047207}}";
+        assertEquals(expected, builder.toString());
     }
 
     @Override

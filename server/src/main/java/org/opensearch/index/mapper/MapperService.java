@@ -46,7 +46,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.Assertions;
@@ -147,6 +147,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+    /**
+     * Per-shard limit on the total number of Lucene fields (across all segments) that may be created by
+     * {@code dynamic_properties} matching. Unlike OpenSearch mapping fields, Lucene fields are cheaper, but
+     * they are still not free—especially when doc values are enabled. This setting caps growth at the Lucene
+     * layer, independently of {@code index.mapping.total_fields.limit} which governs mapping-state fields.
+     * Defaults to 10 000 (10× the OpenSearch mapping default), reflecting the lower per-field cost in Lucene.
+     * Can be raised dynamically if heap headroom is available.
+     */
+    public static final Setting<Long> INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.dynamic_properties.lucene_field.limit",
+        10000L,
+        0,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
         20L,
@@ -154,15 +169,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Long.MAX_VALUE,
         limit -> {
             // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
-            if (limit > XContentContraints.DEFAULT_MAX_DEPTH) {
+            if (limit > XContentConstraints.DEFAULT_MAX_DEPTH) {
                 throw new IllegalArgumentException(
                     "The provided value "
                         + limit
                         + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
-                        + XContentContraints.DEFAULT_MAX_DEPTH
+                        + XContentConstraints.DEFAULT_MAX_DEPTH
                         + ". Please change the setting value or increase per-JVM limit "
                         + "using '"
-                        + XContentContraints.DEFAULT_MAX_DEPTH_PROPERTY
+                        + XContentConstraints.DEFAULT_MAX_DEPTH_PROPERTY
                         + "' system property."
                 );
             }
@@ -177,15 +192,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Long.MAX_VALUE,
         limit -> {
             // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
-            if (limit > XContentContraints.DEFAULT_MAX_NAME_LEN) {
+            if (limit > XContentConstraints.DEFAULT_MAX_NAME_LEN) {
                 throw new IllegalArgumentException(
                     "The provided value "
                         + limit
                         + " of the index setting 'index.mapping.field_name_length.limit' exceeds per-JVM configured limit of "
-                        + XContentContraints.DEFAULT_MAX_NAME_LEN
+                        + XContentConstraints.DEFAULT_MAX_NAME_LEN
                         + ". Please change the setting value or increase per-JVM limit "
                         + "using '"
-                        + XContentContraints.DEFAULT_MAX_NAME_LEN_PROPERTY
+                        + XContentConstraints.DEFAULT_MAX_NAME_LEN_PROPERTY
                         + "' system property."
                 );
             }
@@ -224,6 +239,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
 
     final MapperRegistry mapperRegistry;
+
+    /**
+     * Tracks Lucene field names for the shard, updated on each NRT refresh.
+     * Used by {@link DocumentParser} to enforce the dynamic-properties field-count limit.
+     */
+    private final LuceneFieldTracker luceneFieldTracker = new LuceneFieldTracker();
 
     private final BooleanSupplier idFieldDataEnabled;
 
@@ -290,6 +311,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
+    }
+
+    /**
+     * Returns the {@link LuceneFieldTracker} for this shard's mapper service.
+     * The tracker is updated on each NRT refresh by {@code InternalEngine}.
+     */
+    public LuceneFieldTracker getLuceneFieldTracker() {
+        return luceneFieldTracker;
     }
 
     /**
