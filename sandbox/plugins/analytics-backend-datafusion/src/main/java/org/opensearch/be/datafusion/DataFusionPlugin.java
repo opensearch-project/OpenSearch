@@ -8,20 +8,101 @@
 
 package org.opensearch.be.datafusion;
 
-import org.apache.calcite.sql.SqlOperatorTable;
-import org.opensearch.analytics.backend.EngineBridge;
-import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.SearchExecEngineProvider;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchBackEndPlugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.watcher.ResourceWatcherService;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
 
 /**
- * DataFusion native execution engine plugin.
+ * Main plugin class for the DataFusion native engine integration.
+ * <p>
+ * Initializes the {@link DataFusionService} at node startup and creates
+ * per-shard {@link DatafusionSearchExecEngine} instances via the
+ * {@link AnalyticsSearchBackendPlugin} SPI.
  */
-public class DataFusionPlugin extends Plugin implements AnalyticsBackEndPlugin {
+public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader>, AnalyticsSearchBackendPlugin {
 
-    /** Creates a new DataFusion plugin. */
+    private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
+
+    /** Memory pool limit for the DataFusion runtime. */
+    public static final Setting<Long> DATAFUSION_MEMORY_POOL_LIMIT = Setting.longSetting(
+        "datafusion.memory_pool_limit_bytes",
+        Runtime.getRuntime().maxMemory() / 4,
+        0L,
+        Setting.Property.NodeScope
+    );
+
+    /** Spill memory limit — when exceeded, DataFusion spills to disk. */
+    public static final Setting<Long> DATAFUSION_SPILL_MEMORY_LIMIT = Setting.longSetting(
+        "datafusion.spill_memory_limit_bytes",
+        Runtime.getRuntime().maxMemory() / 8,
+        0L,
+        Setting.Property.NodeScope
+    );
+
+    private volatile DataFusionService dataFusionService;
+
+    /**
+     * Creates the DataFusion plugin.
+     */
     public DataFusionPlugin() {}
 
-    private final DataFusionBridge bridge = new DataFusionBridge();
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        Settings settings = environment.settings();
+        long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
+        long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        // TODO : Get the spill directory from configuration
+        String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
+
+        dataFusionService = DataFusionService.builder()
+            .memoryPoolLimit(memoryPoolLimit)
+            .spillMemoryLimit(spillMemoryLimit)
+            .spillDirectory(spillDir)
+            .build();
+        dataFusionService.start();
+        logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
+
+        return Collections.singletonList(dataFusionService);
+    }
 
     @Override
     public String name() {
@@ -29,12 +110,59 @@ public class DataFusionPlugin extends Plugin implements AnalyticsBackEndPlugin {
     }
 
     @Override
-    public EngineBridge<?, ?, ?> bridge() {
-        return bridge;
+    public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
+        return new DatafusionReaderManager(settings.format(), settings.shardPath(), dataFusionService);
+    }
+
+    /**
+     * Data formats this plugin can handle. Used by CompositeEngine to route queries.
+     */
+    public List<DataFormat> getSupportedFormats() {
+        return List.of(new DataFormat() {
+            @Override
+            public String name() {
+                return "parquet";
+            }
+
+            @Override
+            public long priority() {
+                return 0;
+            }
+
+            @Override
+            public Set<FieldTypeCapabilities> supportedFields() {
+                return Set.of();
+            }
+        });
     }
 
     @Override
-    public SqlOperatorTable operatorTable() {
-        return null;
+    public SearchExecEngineProvider getSearchExecEngineProvider() {
+        return ctx -> {
+            DatafusionReader dfReader = null;
+            List<DataFormat> formats = getSupportedFormats();
+            if (formats != null) {
+                for (DataFormat format : formats) {
+                    dfReader = ctx.getReader().getReader(format, DatafusionReader.class);
+                    if (dfReader != null) {
+                        break;
+                    }
+                }
+            }
+            if (dfReader == null) {
+                throw new IllegalStateException("No DatafusionReader available in the acquired reader");
+            }
+            DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context, dataFusionService::newChildAllocator);
+            engine.prepare(ctx);
+            return engine;
+        };
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (dataFusionService != null) {
+            dataFusionService.close();
+        }
     }
 }

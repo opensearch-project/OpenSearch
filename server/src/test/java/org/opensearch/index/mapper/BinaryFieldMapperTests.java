@@ -32,8 +32,12 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.compress.CompressorRegistry;
@@ -133,6 +137,89 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             MappedFieldType fieldType = mapperService.fieldType("field");
             Object originalValue = fieldType.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBinaryValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "binary").field("doc_values", true).endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        byte[] testValue = new byte[] { 1, 2, 3 };
+        String base64Value = java.util.Base64.getEncoder().encodeToString(testValue);
+        mapper.parse(source(b -> b.field("field", base64Value)), docInput);
+
+        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertTrue("Expected binary field to be captured", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBinaryNullSkipped() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "binary").field("doc_values", true).endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no binary field to be captured for null value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: binary value — both paths produce a field
+        byte[] testValue = new byte[] { 1, 2, 3 };
+        String base64Value = java.util.Base64.getEncoder().encodeToString(testValue);
+        assertBinaryLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "binary").field("doc_values", true).endObject()),
+            b -> b.field("field", base64Value),
+            "field",
+            true
+        );
+
+        // Scenario 2: null value — no field produced
+        assertBinaryLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "binary").field("doc_values", true).endObject()),
+            b -> b.nullField("field"),
+            "field",
+            false
+        );
+    }
+
+    private void assertBinaryLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        boolean expectField
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+
+        if (!expectField) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertTrue("Pluggable path should capture field '" + fieldName + "'", pluggableHasField);
         }
     }
 }

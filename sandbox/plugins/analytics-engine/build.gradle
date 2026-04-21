@@ -33,16 +33,26 @@ repositories {
 // compile classpaths by OpenSearch. Main sources don't need it; test sources do
 // (Calcite API exposes ImmutableList, Predicate). Bypass via custom config.
 configurations {
+  calciteCompile
   calciteTestCompile
   compileClasspath { exclude group: 'com.google.guava' }
   testCompileClasspath { exclude group: 'com.google.guava' }
 }
+sourceSets.main.compileClasspath += configurations.calciteCompile
 sourceSets.test.compileClasspath += configurations.calciteTestCompile
+
+tasks.named('missingJavadoc').configure {
+  classpath += configurations.calciteCompile
+}
 
 dependencies {
   // Shared types and SPI interfaces (QueryPlanExecutor, EngineBridge, AnalyticsBackEndPlugin, etc.)
   // Also provides calcite-core transitively via api.
   api project(':sandbox:libs:analytics-framework')
+
+  // Guava — required at compile time because Calcite base classes expose guava types.
+  // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
+  calciteCompile "com.google.guava:guava:${versions.guava}"
 
   // Guava for test compilation — Calcite API exposes guava types
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
@@ -90,6 +100,9 @@ configurations.all {
     force "commons-codec:commons-codec:${versions.commonscodec}"
     force "joda-time:joda-time:2.12.7"
     force "org.yaml:snakeyaml:2.4"
+    force "org.codehaus.janino:janino:3.1.12"
+    force "org.codehaus.janino:commons-compiler:3.1.12"
+    force "commons-io:commons-io:${versions.commonsio}"
     force "org.apache.commons:commons-lang3:3.18.0"
     force "org.apache.commons:commons-text:1.11.0"
     force "commons-logging:commons-logging:1.3.5"

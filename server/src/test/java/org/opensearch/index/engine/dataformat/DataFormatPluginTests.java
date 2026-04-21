@@ -10,28 +10,33 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.stub.MockCatalogSnapshot;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
+import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.stub.MockReader;
+import org.opensearch.index.engine.dataformat.stub.MockReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
+import static org.opensearch.index.engine.dataformat.stub.MockDataFormat.DEFAULT_MOCK_FORMAT_NAME;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -51,7 +56,18 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
      */
     public void testFullDataFormatLifecycle() throws IOException {
         // 1. Create a mock DataFormatPlugin and obtain the engine
-        DataFormatPlugin plugin = new MockDataFormatPlugin();
+        DataFormatPlugin plugin = MockDataFormatPlugin.of(
+            new MockDataFormat(
+                DEFAULT_MOCK_FORMAT_NAME,
+                100L,
+                Set.of(
+                    new FieldTypeCapabilities(
+                        "integer",
+                        Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.STORED_FIELDS)
+                    )
+                )
+            )
+        );
         DataFormat format = plugin.getDataFormat();
         assertEquals("mock-columnar", format.name());
         assertEquals(100L, format.priority());
@@ -62,11 +78,18 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
             .build();
-        IndexingExecutionEngine<DataFormat, MockDocumentInput> engine = plugin.indexingEngine(
-            mock(MapperService.class),
-            new ShardPath(false, Path.of("/tmp/uuid/0"), Path.of("/tmp/uuid/0"), new ShardId("index", "uuid", 0)),
-            new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings)
-        );
+        @SuppressWarnings("unchecked")
+        IndexingExecutionEngine<DataFormat, MockDocumentInput> engine = (IndexingExecutionEngine<DataFormat, MockDocumentInput>) plugin
+            .indexingEngine(
+                new IndexingEngineConfig(
+                    null,
+                    mock(MapperService.class),
+                    new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings),
+                    null,
+                    null
+                ),
+                null
+            );
         assertEquals(format, engine.getDataFormat());
 
         // 2. Create a writer and write documents
@@ -132,7 +155,9 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertNotNull(secondaryMerge.getMergedWriterFileSetForDataformat(format));
 
         // 7. Refresh to produce searchable segments
-        RefreshInput refreshInput = RefreshInput.builder().addWriterFileSet(merged).build();
+        RefreshInput refreshInput = RefreshInput.builder()
+            .addSegment(Segment.builder(0L).addSearchableFiles(format, merged).build())
+            .build();
         RefreshResult refreshResult = engine.refresh(refreshInput);
         assertFalse(refreshResult.refreshedSegments().isEmpty());
         Segment segment = refreshResult.refreshedSegments().get(0);
@@ -147,7 +172,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
      * Tests DataFormat equality semantics and field capabilities.
      */
     public void testDataFormatCapabilities() {
-        MockDataFormat format = new MockDataFormat();
+        DataFormat format = new MockDataFormat();
         Set<FieldTypeCapabilities> fields = format.supportedFields();
         assertEquals(1, fields.size());
 
@@ -217,196 +242,201 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20);
         Segment seg = new Segment(0L, Map.of());
 
-        RefreshInput input = RefreshInput.builder().addWriterFileSet(fs1).addWriterFileSet(fs2).existingSegments(List.of(seg)).build();
+        RefreshInput input = RefreshInput.builder()
+            .addSegment(Segment.builder(0L).addSearchableFiles("mock", fs1).build())
+            .addSegment(Segment.builder(1L).addSearchableFiles("mock", fs2).build())
+            .existingSegments(List.of(seg))
+            .build();
         assertEquals(2, input.writerFiles().size());
         assertEquals(1, input.existingSegments().size());
     }
 
-    static class MockDataFormat implements DataFormat {
-        @Override
-        public String name() {
-            return "mock-columnar";
+    /**
+     * Search holds snapshot alive while refresh replaces it.
+     * CatalogSnapshotManager handles ref counting: acquireReader increments,
+     * commitNewSnapshot replaces the latest, and closing the reader releases the old snapshot.
+     */
+    public void testSearchHoldsSnapshotAliveWhileRefreshDeletesFiles() throws IOException {
+        MockDataFormat format = new MockDataFormat();
+        MockIndexingExecutionEngine indexEngine = new MockIndexingExecutionEngine(format);
+
+        // Batch 1
+        Writer<MockDocumentInput> w1 = indexEngine.createWriter(1L);
+        MockDocumentInput d1 = indexEngine.newDocumentInput();
+        d1.addField(mock(MappedFieldType.class), "Alice");
+        d1.setRowId("_row_id", 0);
+        w1.addDoc(d1);
+        WriterFileSet fs1 = w1.flush().getWriterFileSet(format).get();
+        w1.close();
+
+        RefreshResult rr1 = indexEngine.refresh(
+            RefreshInput.builder().addSegment(Segment.builder(0L).addSearchableFiles(format, fs1).build()).build()
+        );
+
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(1L, 1L, 0L, rr1.refreshedSegments(), 1L, Map.of());
+
+        MockReaderManager readerManager = new MockReaderManager(format.name());
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            readerManager.afterRefresh(true, ref.get());
         }
 
-        @Override
-        public long priority() {
-            return 100L;
+        // Acquire reader directly from snapshot manager and reader manager
+        GatedCloseable<CatalogSnapshot> snapshotRef1 = manager.acquireSnapshot();
+        CatalogSnapshot snapshot1 = snapshotRef1.get();
+        MockReader searchReader = readerManager.getReader(snapshot1);
+        assertEquals(1, searchReader.totalRows);
+        assertEquals(1L, snapshot1.getGeneration());
+
+        // New refresh arrives — commit replaces snapshot
+        Writer<MockDocumentInput> w2 = indexEngine.createWriter(2L);
+        MockDocumentInput d2 = indexEngine.newDocumentInput();
+        d2.addField(mock(MappedFieldType.class), "Bob");
+        d2.setRowId("_row_id", 1);
+        w2.addDoc(d2);
+        WriterFileSet fs2 = w2.flush().getWriterFileSet(format).get();
+        w2.close();
+
+        RefreshResult rr2 = indexEngine.refresh(
+            RefreshInput.builder()
+                .addSegment(Segment.builder(0L).addSearchableFiles(format, fs1).build())
+                .addSegment(Segment.builder(1L).addSearchableFiles(format, fs2).build())
+                .build()
+        );
+        manager.commitNewSnapshot(rr2.refreshedSegments());
+
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            readerManager.afterRefresh(true, ref.get());
         }
 
-        @Override
-        public Set<FieldTypeCapabilities> supportedFields() {
-            return Set.of(
-                new FieldTypeCapabilities(
-                    "integer",
-                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.STORED_FIELDS)
-                )
-            );
+        // Snapshot1 still alive — search reader still works because the ref is held
+        assertFalse("Snapshot1 should still be alive while search holds ref", ((DataformatAwareCatalogSnapshot) snapshot1).isClosed());
+        assertEquals(1, searchReader.totalRows);
+
+        // New acquireSnapshot returns snapshot2, not snapshot1
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            assertEquals(2L, ref.get().getGeneration());
+            assertNotSame(snapshot1, ref.get());
         }
+
+        // Search completes — releases the old snapshot ref
+        snapshotRef1.close();
+
+        // Snapshot1 is now dead
+        assertTrue(
+            "Snapshot1 should be closed after search releases the last ref",
+            ((DataformatAwareCatalogSnapshot) snapshot1).isClosed()
+        );
+
+        // Snapshot1 is now dead — tryIncRef would fail (verified via new acquire returning snapshot2)
+        // Snapshot 2 works
+        try (GatedCloseable<CatalogSnapshot> cr2 = manager.acquireSnapshot()) {
+            MockReader r2 = readerManager.getReader(cr2.get());
+            assertEquals(2, r2.totalRows);
+            assertEquals(2L, cr2.get().getGeneration());
+        }
+
+        manager.close();
     }
 
-    static class MockDocumentInput implements DocumentInput<Map<String, Object>> {
-        private final Map<String, Object> fields = new HashMap<>();
-
-        @Override
-        public Map<String, Object> getFinalInput() {
-            return Collections.unmodifiableMap(fields);
-        }
-
-        @Override
-        public void addField(MappedFieldType fieldType, Object value) {
-            fields.put(fieldType != null ? fieldType.name() : "field_" + fields.size(), value);
-        }
-
-        @Override
-        public void setRowId(String rowIdFieldName, long rowId) {
-            fields.put(rowIdFieldName, rowId);
-        }
-
-        @Override
-        public void close() {}
-    }
-
-    static class MockWriter implements Writer<MockDocumentInput> {
-        private final long writerGeneration;
-        private final DataFormat dataFormat;
-        private final Path directory;
-        private final List<MockDocumentInput> docs = new ArrayList<>();
-        private final AtomicLong seqNo;
-
-        MockWriter(long writerGeneration, DataFormat dataFormat, Path directory, AtomicLong seqNo) {
-            this.writerGeneration = writerGeneration;
-            this.dataFormat = dataFormat;
-            this.directory = directory;
-            this.seqNo = seqNo;
-        }
-
-        @Override
-        public WriteResult addDoc(MockDocumentInput d) {
-            docs.add(d);
-            long seq = seqNo.getAndIncrement();
-            return new WriteResult.Success(1L, 1L, seq);
-        }
-
-        @Override
-        public FileInfos flush() {
-            WriterFileSet fileSet = WriterFileSet.builder()
-                .directory(directory)
-                .writerGeneration(writerGeneration)
-                .addFile("data_gen" + writerGeneration + ".parquet")
-                .addNumRows(docs.size())
-                .build();
-            return FileInfos.builder().putWriterFileSet(dataFormat, fileSet).build();
-        }
-
-        @Override
-        public void sync() {}
-
-        @Override
-        public void close() {}
-    }
-
-    static class MockMerger implements Merger {
-        private final DataFormat dataFormat;
-        private final Path directory;
-
-        MockMerger(DataFormat dataFormat, Path directory) {
-            this.dataFormat = dataFormat;
-            this.directory = directory;
-        }
-
-        @Override
-        public MergeResult merge(MergeInput mergeInput) {
-            List<WriterFileSet> fileMetadataList = mergeInput.writerFiles();
-            long newWriterGeneration = mergeInput.newWriterGeneration();
-            RowIdMapping existingMapping = mergeInput.rowIdMapping();
-
-            String prefix = existingMapping != null ? "secondary_merged_gen" : "merged_gen";
-            WriterFileSet merged = WriterFileSet.builder()
-                .directory(directory)
-                .writerGeneration(newWriterGeneration)
-                .addFile(prefix + newWriterGeneration + ".parquet")
-                .addNumRows(fileMetadataList.stream().mapToLong(WriterFileSet::numRows).sum())
-                .build();
-
-            if (existingMapping != null) {
-                return new MergeResult(Map.of(dataFormat, merged), existingMapping);
+    /**
+     * CompositeReader provides per-format reader access from a single catalog snapshot.
+     */
+    public void testCompositeReaderMultiFormat() throws IOException {
+        MockDataFormat format1 = new MockDataFormat();
+        DataFormat format2 = new DataFormat() {
+            @Override
+            public String name() {
+                return "mock-lucene";
             }
 
-            // Build a simple sequential row ID mapping
-            Map<Long, Long> genOffsets = new HashMap<>();
-            long offset = 0;
-            for (WriterFileSet fs : fileMetadataList) {
-                genOffsets.put(fs.writerGeneration(), offset);
-                offset += fs.numRows();
+            @Override
+            public long priority() {
+                return 50L;
             }
-            RowIdMapping mapping = (oldId, oldGeneration) -> genOffsets.getOrDefault(oldGeneration, 0L) + oldId;
 
-            return new MergeResult(Map.of(dataFormat, merged), mapping);
+            @Override
+            public Set<FieldTypeCapabilities> supportedFields() {
+                return Set.of();
+            }
+        };
+
+        MockReaderManager rm1 = new MockReaderManager(format1.name());
+        MockReaderManager rm2 = new MockReaderManager(format2.name());
+
+        Path dir = createTempDir();
+        WriterFileSet wfs1 = WriterFileSet.builder().directory(dir).writerGeneration(1L).addFile("data.parquet").addNumRows(10).build();
+        WriterFileSet wfs2 = WriterFileSet.builder().directory(dir).writerGeneration(1L).addFile("data.lucene").addNumRows(10).build();
+        Segment seg = Segment.builder(0L).addSearchableFiles(format1, wfs1).addSearchableFiles(format2, wfs2).build();
+
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(1L, 1L, 0L, List.of(seg), 1L, Map.of());
+
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            rm1.afterRefresh(true, ref.get());
+            rm2.afterRefresh(true, ref.get());
         }
+
+        try (GatedCloseable<CatalogSnapshot> cr = manager.acquireSnapshot()) {
+            MockReader r1 = rm1.getReader(cr.get());
+            MockReader r2 = rm2.getReader(cr.get());
+            assertNotNull(r1);
+            assertNotNull(r2);
+            assertEquals(10, r1.totalRows);
+            assertEquals(10, r2.totalRows);
+            assertTrue(r1.fileNames.contains("data.parquet"));
+            assertTrue(r2.fileNames.contains("data.lucene"));
+        }
+
+        manager.close();
     }
 
-    static class MockIndexingExecutionEngine implements IndexingExecutionEngine<DataFormat, MockDocumentInput> {
-        private final MockDataFormat dataFormat;
-        private final Path directory;
-        private final AtomicLong seqNo = new AtomicLong(0);
+    /**
+     * afterRefresh(false) is a no-op; duplicate afterRefresh for same snapshot reuses reader.
+     */
+    public void testRefreshEdgeCases() throws IOException {
+        MockDataFormat format = new MockDataFormat();
+        MockIndexingExecutionEngine indexEngine = new MockIndexingExecutionEngine(format);
 
-        MockIndexingExecutionEngine(MockDataFormat dataFormat) {
-            this.dataFormat = dataFormat;
-            this.directory = createTempDir();
-        }
+        Writer<MockDocumentInput> w = indexEngine.createWriter(1L);
+        MockDocumentInput d = indexEngine.newDocumentInput();
+        d.addField(mock(MappedFieldType.class), "x");
+        d.setRowId("_row_id", 0);
+        w.addDoc(d);
+        WriterFileSet fs = w.flush().getWriterFileSet(format).get();
+        w.close();
 
-        @Override
-        public Writer<MockDocumentInput> createWriter(long writerGeneration) {
-            return new MockWriter(writerGeneration, dataFormat, directory, seqNo);
-        }
+        RefreshResult rr = indexEngine.refresh(
+            RefreshInput.builder().addSegment(Segment.builder(0L).addSearchableFiles(format, fs).build()).build()
+        );
+        MockCatalogSnapshot snapshot = new MockCatalogSnapshot(1L, rr.refreshedSegments(), format);
 
-        @Override
-        public Merger getMerger() {
-            return new MockMerger(dataFormat, directory);
-        }
+        MockReaderManager rm = new MockReaderManager(format.name());
 
-        @Override
-        public RefreshResult refresh(RefreshInput refreshInput) {
-            List<Segment> segments = new ArrayList<>();
-            long gen = 0;
-            for (WriterFileSet wfs : refreshInput.writerFiles()) {
-                segments.add(Segment.builder(gen++).addSearchableFiles(dataFormat, wfs).build());
-            }
-            return new RefreshResult(segments);
-        }
+        rm.afterRefresh(false, snapshot);
+        assertNull(rm.getReader(snapshot));
+        assertEquals(0, rm.readerCount());
 
-        @Override
-        public DataFormat getDataFormat() {
-            return dataFormat;
-        }
+        rm.afterRefresh(true, snapshot);
+        assertNotNull(rm.getReader(snapshot));
+        assertEquals(1, rm.readerCount());
 
-        @Override
-        public void deleteFiles(Map<String, Collection<String>> filesToDelete) {
-            // no-op for mock
-        }
-
-        @Override
-        public MockDocumentInput newDocumentInput() {
-            return new MockDocumentInput();
-        }
+        MockReader first = rm.getReader(snapshot);
+        rm.afterRefresh(true, snapshot);
+        assertSame(first, rm.getReader(snapshot));
+        assertEquals(1, rm.readerCount());
     }
 
-    static class MockDataFormatPlugin implements DataFormatPlugin {
-        private final MockDataFormat dataFormat = new MockDataFormat();
+    /**
+     * File add/delete notifications propagate through reader manager.
+     */
+    public void testFileLifecycleNotifications() throws IOException {
+        MockReaderManager rm = new MockReaderManager("mock-columnar");
 
-        @Override
-        public DataFormat getDataFormat() {
-            return dataFormat;
-        }
+        rm.onFilesAdded(List.of("a.parquet", "b.parquet"));
+        assertEquals(2, rm.addedFiles.size());
+        assertTrue(rm.addedFiles.contains("a.parquet"));
 
-        @Override
-        @SuppressWarnings("unchecked")
-        public <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
-            MapperService mapperService,
-            ShardPath shardPath,
-            IndexSettings indexSettings
-        ) {
-            return (IndexingExecutionEngine<T, P>) new MockIndexingExecutionEngine(dataFormat);
-        }
+        rm.onFilesDeleted(List.of("a.parquet"));
+        assertEquals(1, rm.deletedFiles.size());
+        assertTrue(rm.deletedFiles.contains("a.parquet"));
     }
 }
