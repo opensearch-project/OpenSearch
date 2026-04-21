@@ -8,7 +8,32 @@
 
 opensearchplugin {
   description = 'Composite indexing engine plugin that orchestrates multi-format indexing across multiple data format engines.'
-  classname = 'org.opensearch.composite.CompositeEnginePlugin'
+  classname = 'org.opensearch.composite.CompositeDataFormatPlugin'
+}
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+// Test compilation needs JDK 25 to consume parquet-data-format (which targets JDK 25)
+tasks.named('compileTestJava').configure {
+  sourceCompatibility = JavaVersion.toVersion(25)
+  targetCompatibility = JavaVersion.toVersion(25)
+}
+
+tasks.named('compileInternalClusterTestJava').configure {
+  sourceCompatibility = JavaVersion.toVersion(25)
+  targetCompatibility = JavaVersion.toVersion(25)
+}
+
+tasks.named('internalClusterTest').configure {
+  jvmArgs += [
+    '--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED',
+    '--enable-native-access=ALL-UNNAMED'
+  ]
+}
+
+internalClusterTest {
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
 dependencies {
@@ -16,4 +41,8 @@ dependencies {
   api project(':sandbox:libs:composite-common')
   compileOnly project(':server')
   testImplementation project(':test:framework')
+  testImplementation project(':sandbox:plugins:parquet-data-format')
+  testImplementation project(':sandbox:plugins:analytics-backend-lucene')
+  internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
 }

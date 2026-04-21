@@ -65,7 +65,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         // Build the plugin-level objects
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait));
+        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait, 0L));
 
         try (
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
@@ -94,7 +94,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait));
+        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait, 0L));
 
         try (
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
@@ -120,7 +120,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait));
+        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait, 0L));
 
         try (
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(

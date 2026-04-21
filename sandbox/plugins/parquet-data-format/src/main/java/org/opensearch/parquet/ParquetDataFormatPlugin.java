@@ -17,10 +17,15 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
@@ -36,6 +41,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -45,6 +51,13 @@ import java.util.function.Supplier;
  * data format framework. On node startup, captures cluster settings via
  * {@link #createComponents} and passes them to the per-shard
  * {@link ParquetIndexingEngine} instances created in {@link #indexingEngine}.
+ *
+ * <p>The descriptor provides a {@link PrecomputedChecksumStrategy} that the directory
+ * holds at construction time. The {@link ParquetIndexingEngine} receives the same
+ * strategy instance from the directory via
+ * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory#getChecksumStrategy},
+ * so pre-computed CRC32 values registered during write are directly visible to the
+ * upload path — no post-construction wiring needed.
  *
  * <p>Registers plugin settings defined in {@link ParquetSettings}.
  */
@@ -86,14 +99,23 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineSettings) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig, FormatChecksumStrategy checksumStrategy) {
         return new ParquetIndexingEngine(
             settings,
             dataFormat,
-            engineSettings.shardPath(),
-            () -> ArrowSchemaBuilder.getSchema(engineSettings.mapperService()),
-            engineSettings.indexSettings(),
-            threadPool
+            engineConfig.store().shardPath(),
+            () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService()),
+            engineConfig.indexSettings(),
+            threadPool,
+            checksumStrategy
+        );
+    }
+
+    @Override
+    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
+        return Map.of(
+            ParquetDataFormat.PARQUET_DATA_FORMAT_NAME,
+            new DataFormatDescriptor(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, new PrecomputedChecksumStrategy())
         );
     }
 
