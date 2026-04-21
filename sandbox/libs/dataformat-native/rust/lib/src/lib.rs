@@ -20,8 +20,9 @@
 //      automatically available for dlsym/SymbolLookup
 // ═══════════════════════════════════════════════════════════════════════════════
 
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+//TODO: AwaitsFix: Fix mimalloc lifecycle issue
+// #[global_allocator]
+// static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 // Pull in plugin rlibs — forces linker to include all #[no_mangle] symbols.
 extern crate native_bridge_common;

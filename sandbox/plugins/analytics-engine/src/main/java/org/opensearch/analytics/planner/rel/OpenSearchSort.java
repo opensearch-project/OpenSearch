@@ -14,8 +14,10 @@ import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Sort;
+import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.planner.RelNodeUtils;
 
 import java.util.List;
 
@@ -49,7 +51,8 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
     /** Sort doesn't change schema — pass through child's field storage. */
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
-        if (getInput() instanceof OpenSearchRelNode openSearchInput) {
+        RelNode input = RelNodeUtils.unwrapHep(getInput());
+        if (input instanceof OpenSearchRelNode openSearchInput) {
             return openSearchInput.getOutputFieldStorage();
         }
         return List.of();
@@ -73,4 +76,13 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
         return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
 
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
+        return new OpenSearchSort(getCluster(), getTraitSet(), children.getFirst(), getCollation(), offset, fetch, List.of(backend));
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        return LogicalSort.create(strippedChildren.getFirst(), getCollation(), offset, fetch);
+    }
 }
