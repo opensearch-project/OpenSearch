@@ -22,6 +22,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -29,11 +31,9 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
-import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
-import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -116,21 +116,7 @@ public class NRTReplicationEngine extends Engine {
                 readLock,
                 this::getLocalCheckpointTracker,
                 translogUUID,
-                new TranslogEventListener() {
-                    @Override
-                    public void onFailure(String reason, Exception ex) {
-                        failEngine(reason, ex);
-                    }
-
-                    @Override
-                    public void onAfterTranslogSync() {
-                        try {
-                            translogManager.trimUnreferencedReaders();
-                        } catch (IOException ex) {
-                            throw new TranslogException(shardId, "failed to trim unreferenced translog readers", ex);
-                        }
-                    }
-                },
+                NRTReplicaTranslogOps.createTranslogEventListener(this::failEngine, this::translogManager, shardId),
                 this,
                 engineConfig.getTranslogFactory(),
                 engineConfig.getStartedPrimarySupplier(),
@@ -243,37 +229,19 @@ public class NRTReplicationEngine extends Engine {
     @Override
     public IndexResult index(Index index) throws IOException {
         ensureOpen();
-        IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
-        final Translog.Location location = translogManager.add(new Translog.Index(index, indexResult));
-        indexResult.setTranslogLocation(location);
-        indexResult.setTook(System.nanoTime() - index.startTime());
-        indexResult.freeze();
-        localCheckpointTracker.advanceMaxSeqNo(index.seqNo());
-        return indexResult;
+        return NRTReplicaTranslogOps.index(translogManager, localCheckpointTracker, index);
     }
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
         ensureOpen();
-        DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
-        final Translog.Location location = translogManager.add(new Translog.Delete(delete, deleteResult));
-        deleteResult.setTranslogLocation(location);
-        deleteResult.setTook(System.nanoTime() - delete.startTime());
-        deleteResult.freeze();
-        localCheckpointTracker.advanceMaxSeqNo(delete.seqNo());
-        return deleteResult;
+        return NRTReplicaTranslogOps.delete(translogManager, localCheckpointTracker, delete);
     }
 
     @Override
     public NoOpResult noOp(NoOp noOp) throws IOException {
         ensureOpen();
-        NoOpResult noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
-        final Translog.Location location = translogManager.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
-        noOpResult.setTranslogLocation(location);
-        noOpResult.setTook(System.nanoTime() - noOp.startTime());
-        noOpResult.freeze();
-        localCheckpointTracker.advanceMaxSeqNo(noOp.seqNo());
-        return noOpResult;
+        return NRTReplicaTranslogOps.noOp(translogManager, localCheckpointTracker, noOp);
     }
 
     @Override
@@ -436,6 +404,38 @@ public class NRTReplicationEngine extends Engine {
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         return acquireLastIndexCommit(false);
+    }
+
+    @Override
+    public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+        return acquireLastCatalogSnapshot(false);
+    }
+
+    /**
+     * Parallel to {@link #acquireLastIndexCommit(boolean)}: optionally flushes, then wraps the
+     * in-memory {@code lastCommittedSegmentInfos} as a {@link SegmentInfosCatalogSnapshot} while
+     * pinning the referenced files via {@code replicaFileTracker}. Avoids re-reading {@code segments_N}.
+     */
+    private GatedCloseable<CatalogSnapshot> acquireLastCatalogSnapshot(boolean flushFirst) throws EngineException {
+        if (flushFirst) {
+            flush(false, true);
+        }
+        try {
+            synchronized (lastCommittedSegmentInfosMutex) {
+                final SegmentInfos infos = lastCommittedSegmentInfos;
+                final Collection<String> files = infos.files(true);
+                replicaFileTracker.incRef(files);
+                try {
+                    final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+                    return new GatedCloseable<>(snapshot, () -> replicaFileTracker.decRef(files));
+                } catch (RuntimeException e) {
+                    replicaFileTracker.decRef(files);
+                    throw e;
+                }
+            }
+        } catch (IOException e) {
+            throw new EngineException(shardId, "Unable to acquire last CatalogSnapshot", e);
+        }
     }
 
     @Override

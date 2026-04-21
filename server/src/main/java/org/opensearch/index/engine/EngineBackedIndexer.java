@@ -242,6 +242,11 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+        return engine.acquireSafeCatalogSnapshot();
+    }
+
+    @Override
     public long getPersistedLocalCheckpoint() {
         return engine.getPersistedLocalCheckpoint();
     }
@@ -375,6 +380,24 @@ public class EngineBackedIndexer implements Indexer {
     @Override
     public long getNativeBytesUsed() {
         return Indexer.super.getNativeBytesUsed();
+    }
+
+    /**
+     * Applies received segment state to the replica engine. This indexer only wraps Lucene-backed
+     * shards, so any other engine/snapshot combination is a wiring bug.
+     */
+    @Override
+    public void finalizeReplication(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (engine instanceof NRTReplicationEngine nrtEngine && catalogSnapshot instanceof SegmentInfosCatalogSnapshot siSnapshot) {
+            nrtEngine.updateSegments(siSnapshot.getSegmentInfos());
+        } else {
+            throw new IllegalStateException(
+                "EngineBackedIndexer.finalizeReplication expected NRTReplicationEngine + SegmentInfosCatalogSnapshot, got engine="
+                    + engine.getClass().getName()
+                    + ", snapshot="
+                    + catalogSnapshot.getClass().getName()
+            );
+        }
     }
 
     /**

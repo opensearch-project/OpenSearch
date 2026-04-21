@@ -34,6 +34,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -753,7 +754,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, replicaShard.shardId());
         when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(spyReplicaShard);
         IOException exception = new IOException("dummy failure");
-        doThrow(exception).when(spyReplicaShard).finalizeReplication(any());
+        doThrow(exception).when(spyReplicaShard).finalizeReplication(any(CatalogSnapshot.class));
 
         // prevent shard failure to avoid test setup assertion
         doNothing().when(spyReplicaShard).failShard(eq("replication failure"), any());
@@ -789,7 +790,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(spyReplicaShard);
 
         AlreadyClosedException exception = new AlreadyClosedException("shard closed");
-        doThrow(exception).when(spyReplicaShard).finalizeReplication(any());
+        doThrow(exception).when(spyReplicaShard).finalizeReplication(any(CatalogSnapshot.class));
 
         // prevent shard failure to avoid test setup assertion
         doNothing().when(spyReplicaShard).failShard(eq("replication failure"), any());

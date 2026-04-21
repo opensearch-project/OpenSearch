@@ -25,6 +25,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
@@ -226,8 +227,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
             // if following condition does not exist. The segments created as part of translog replay will not be present
             // in the remote store.
+            // Accept DataFormatAwareEngine alongside InternalEngine (DFA primaries need the retry path).
             return indexShard.state() != IndexShardState.STARTED
-                || !(indexShard.getIndexer() instanceof EngineBackedIndexer indexer && indexer.getEngine() instanceof InternalEngine);
+                || !(isInternalEngineIndexer(indexShard.getIndexer()) || indexShard.getIndexer() instanceof DataFormatAwareEngine);
         }
 
         // Extract crypto metadata once at start of sync
@@ -347,6 +349,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             return null;
         }
         return CryptoMetadata.fromIndexSettings(indexMetadata.getSettings());
+    }
+
+    private static boolean isInternalEngineIndexer(org.opensearch.index.engine.exec.Indexer indexer) {
+        return indexer instanceof EngineBackedIndexer engineBacked && engineBacked.getEngine() instanceof InternalEngine;
     }
 
     /**
