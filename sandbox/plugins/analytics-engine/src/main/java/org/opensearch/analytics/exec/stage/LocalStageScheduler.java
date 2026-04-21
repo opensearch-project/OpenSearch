@@ -30,16 +30,6 @@ import java.util.Map;
  * root sink or a parent-provided child sink — {@link StageExecutionBuilder}
  * resolves that distinction before calling.
  *
- * <p>Selects the backend by matching the stage's plan alternatives against the
- * map of registered backends. The first plan alternative whose {@code backendId}
- * matches a registered backend wins — the same "first-match" strategy used by
- * {@code AnalyticsSearchService} on data nodes.
- *
- * <p>Pass-through stages ({@link StageExecutionType#LOCAL_PASSTHROUGH}) are
- * handled by a separate inline lambda registered in {@link StageExecutionBuilder}
- * that returns {@link PassThroughStageExecution} directly — they don't need the
- * backend-selection logic this scheduler owns.
- *
  * @opensearch.internal
  */
 final class LocalStageScheduler implements StageScheduler {
@@ -64,6 +54,7 @@ final class LocalStageScheduler implements StageScheduler {
         }
 
         // Select the first plan alternative whose backendId matches a registered backend.
+        // TODO: COORDINATOR_REDUCE should only have a single alternative / fragment
         StagePlan chosenPlan = null;
         AnalyticsSearchBackendPlugin backend = null;
         for (StagePlan plan : stage.getPlanAlternatives()) {

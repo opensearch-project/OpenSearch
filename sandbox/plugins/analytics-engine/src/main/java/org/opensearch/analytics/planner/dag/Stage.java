@@ -65,17 +65,7 @@ public class Stage {
         this.exchangeInfo = exchangeInfo;
         this.exchangeSinkProvider = exchangeSinkProvider;
         this.targetResolver = targetResolver;
-        if (exchangeInfo != null && exchangeInfo.distributionType() == RelDistribution.Type.HASH_DISTRIBUTED) {
-            this.executionType = StageExecutionType.SHUFFLE_WRITE;
-        } else if (exchangeInfo != null && exchangeInfo.distributionType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
-            this.executionType = StageExecutionType.BROADCAST_WRITE;
-        } else if (targetResolver != null) {
-            this.executionType = StageExecutionType.SHARD_FRAGMENT;
-        } else if (exchangeSinkProvider != null) {
-            this.executionType = StageExecutionType.COORDINATOR_REDUCE;
-        } else {
-            this.executionType = StageExecutionType.LOCAL_PASSTHROUGH;
-        }
+        this.executionType = setStageExecutionType(exchangeInfo, exchangeSinkProvider, targetResolver);
         this.planAlternatives = List.of();
     }
 
@@ -131,5 +121,19 @@ public class Stage {
 
     public void setPlanAlternatives(List<StagePlan> planAlternatives) {
         this.planAlternatives = planAlternatives;
+    }
+
+    private StageExecutionType setStageExecutionType(ExchangeInfo exchangeInfo, ExchangeSinkProvider exchangeSinkProvider, TargetResolver targetResolver) {
+        if (exchangeInfo != null && exchangeInfo.distributionType() == RelDistribution.Type.HASH_DISTRIBUTED) {
+            return StageExecutionType.SHUFFLE_WRITE;
+        } else if (exchangeInfo != null && exchangeInfo.distributionType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
+            return StageExecutionType.BROADCAST_WRITE;
+        } else if (targetResolver != null) {
+            return StageExecutionType.SHARD_FRAGMENT;
+        } else if (exchangeSinkProvider != null) {
+            return StageExecutionType.COORDINATOR_REDUCE;
+        } else {
+            return StageExecutionType.LOCAL_PASSTHROUGH;
+        }
     }
 }

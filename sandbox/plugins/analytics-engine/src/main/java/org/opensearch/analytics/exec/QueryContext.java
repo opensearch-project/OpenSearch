@@ -110,8 +110,6 @@ public class QueryContext {
         return operationListeners;
     }
 
-    // ─── Buffer allocator ──────────────────────────────────────────────
-
     /**
      * Returns the per-query Arrow buffer allocator, creating it lazily on first access.
      * The allocator is a child of the shared root with a per-query memory limit.

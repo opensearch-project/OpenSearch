@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.opensearch.analytics.spi.DataConsumer;
+
 /**
  * Combines {@link DataConsumer} and {@link DataProducer} for stages that
  * both accept child input and produce output (root gather, local compute).

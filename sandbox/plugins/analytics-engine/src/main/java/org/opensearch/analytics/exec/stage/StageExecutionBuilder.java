@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec.stage;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.RowProducingSink;
+import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
