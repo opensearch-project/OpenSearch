@@ -37,12 +37,7 @@ public class ExistsQueryTranslator implements QueryTranslator {
             throw new ConversionException("boost is unsupported for Exists query type");
         }
 
-        RelDataTypeField field = ctx.getRowType().getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Field '" + fieldName + "' not found in schema");
-        }
-
-        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
+        RexNode fieldRef = ctx.makeFieldRef(fieldName);
         return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.IS_NOT_NULL, fieldRef);
     }
 }
