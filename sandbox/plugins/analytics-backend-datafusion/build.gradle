@@ -55,15 +55,18 @@ tasks.withType(JavaCompile).configureEach {
 // TODO: Remove once back-end is built out with test suite
 testingConventions.enabled = false
 
-tasks.named('forbiddenPatterns').configure {
-    exclude '**/*.parquet'
-}
-
 tasks.named('thirdPartyAudit').configure {
   ignoreViolations(
     'org.apache.arrow.memory.util.MemoryUtil',
     'org.apache.arrow.memory.util.MemoryUtil$1'
   )
+}
+
+tasks.named('forbiddenPatterns').configure {
+    exclude '**/*.parquet'
+    exclude '**/*.dylib'
+    exclude '**/*.so'
+    exclude '**/*.dll'
 }
 
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
