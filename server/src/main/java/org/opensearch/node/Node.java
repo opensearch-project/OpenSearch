@@ -1147,7 +1147,22 @@ public class Node implements Closeable {
             @SuppressWarnings("rawtypes")
             Collection<Object> searchBackEndPluginComponents = pluginsService.filterPlugins(SearchBackEndPlugin.class)
                 .stream()
-                .flatMap(p -> ((SearchBackEndPlugin<?>) p).createComponents(dataFormatRegistry).stream())
+                .flatMap(
+                    p -> ((SearchBackEndPlugin<?>) p).createComponents(
+                        client,
+                        clusterService,
+                        threadPool,
+                        resourceWatcherService,
+                        scriptService,
+                        xContentRegistry,
+                        environment,
+                        nodeEnvironment,
+                        namedWriteableRegistry,
+                        clusterModule.getIndexNameExpressionResolver(),
+                        repositoriesServiceReference::get,
+                        dataFormatRegistry
+                    ).stream()
+                )
                 .collect(Collectors.toList());
             pluginComponents.addAll(searchBackEndPluginComponents);
 

@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -74,16 +73,6 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     public DataFusionPlugin() {}
 
     @Override
-    public Collection<Object> createComponents(DataFormatRegistry dataFormatRegistry) {
-        this.dataFormatRegistry = dataFormatRegistry;
-        return Collections.emptyList();
-    }
-
-    DataFormatRegistry getDataFormatRegistry() {
-        return dataFormatRegistry;
-    }
-
-    @Override
     public Collection<Object> createComponents(
         Client client,
         ClusterService clusterService,
@@ -95,12 +84,13 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        DataFormatRegistry dataFormatRegistry
     ) {
+        this.dataFormatRegistry = dataFormatRegistry;
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
-        // TODO : Get the spill directory from configuration
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
 
         dataFusionService = DataFusionService.builder()
@@ -112,6 +102,10 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
 
         return Collections.singletonList(dataFusionService);
+    }
+
+    DataFormatRegistry getDataFormatRegistry() {
+        return dataFormatRegistry;
     }
 
     DataFusionService getDataFusionService() {
@@ -126,10 +120,6 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     @Override
     public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         return new DatafusionReaderManager(settings.format(), settings.shardPath(), dataFusionService);
-    }
-
-    static Set<String> getSupportedFormatNames() {
-        return Set.of(SUPPORTED_FORMAT);
     }
 
     @Override

@@ -277,16 +277,4 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      * @throws IOException in case of I/O error
      */
     public abstract Collection<String> getFiles(boolean includeSegmentsFile) throws IOException;
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o instanceof CatalogSnapshot == false) return false;
-        return generation == ((CatalogSnapshot) o).generation;
-    }
-
-    @Override
-    public int hashCode() {
-        return Long.hashCode(generation);
-    }
 }

@@ -8,14 +8,26 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Unified SPI for back-end storage and query engines.
@@ -49,13 +61,39 @@ public interface SearchBackEndPlugin<R> {
     EngineReaderManager<?> createReaderManager(ReaderManagerConfig settings) throws IOException;
 
     /**
-     * Called after the {@link DataFormatRegistry} is available. Plugins can use this
-     * to receive the registry and resolve data format names to {@link org.opensearch.index.engine.dataformat.DataFormat} objects.
+     * Returns components added by this plugin.
+     * Any components returned that implement {@link org.opensearch.common.lifecycle.LifecycleComponent}
+     * will have their lifecycle managed. Components are bound in Guice alongside those from
+     * {@link Plugin#createComponents}.
      *
-     * @param dataFormatRegistry the data format registry
-     * @return additional components to bind in Guice, or empty
+     * @param client A client to make requests to the system
+     * @param clusterService A service to allow watching and updating cluster state
+     * @param threadPool A service to allow retrieving an executor to run an async action
+     * @param resourceWatcherService A service to watch for changes to node local files
+     * @param scriptService A service to allow running scripts on the local node
+     * @param xContentRegistry the registry for extensible xContent parsing
+     * @param environment the environment for path and setting configurations
+     * @param nodeEnvironment the node environment used coordinate access to the data paths
+     * @param namedWriteableRegistry the registry for {@link org.opensearch.core.common.io.stream.NamedWriteable} object parsing
+     * @param indexNameExpressionResolver A service that resolves expression to index and alias names
+     * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories
+     * @param dataFormatRegistry the data format registry for resolving format names to DataFormat objects
+     * @return components to bind in Guice, or empty
      */
-    default Collection<Object> createComponents(DataFormatRegistry dataFormatRegistry) {
+    default Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        DataFormatRegistry dataFormatRegistry
+    ) {
         return Collections.emptyList();
     }
 }
