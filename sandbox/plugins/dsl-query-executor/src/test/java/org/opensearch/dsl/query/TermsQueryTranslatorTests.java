@@ -17,6 +17,7 @@ import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermsQueryBuilder;
+import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class TermsQueryTranslatorTests extends OpenSearchTestCase {
@@ -72,6 +73,11 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
             () -> translator.convert(QueryBuilders.termsQuery("nonexistent", "value"), ctx));
     }
 
+    public void testThrowsForEmptyValues() {
+        expectThrows(ConversionException.class,
+            () -> translator.convert(QueryBuilders.termsQuery("name"), ctx));
+    }
+
     public void testThrowsForBoost() {
         expectThrows(ConversionException.class,
             () -> translator.convert(QueryBuilders.termsQuery("name", "laptop").boost(2.0f), ctx));
@@ -80,6 +86,12 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
     public void testThrowsForQueryName() {
         expectThrows(ConversionException.class,
             () -> translator.convert(QueryBuilders.termsQuery("name", "laptop").queryName("my_query"), ctx));
+    }
+
+    public void testThrowsForTermsLookup() {
+        TermsLookup termsLookup = new TermsLookup("lookup_index", "1", "terms");
+        expectThrows(ConversionException.class,
+            () -> translator.convert(QueryBuilders.termsLookupQuery("name", termsLookup), ctx));
     }
 
     public void testThrowsForValueType() {
