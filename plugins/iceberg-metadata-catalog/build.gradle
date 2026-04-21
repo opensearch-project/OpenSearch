@@ -10,7 +10,7 @@ apply plugin: 'opensearch.opensearchplugin'
 
 opensearchplugin {
   description = 'Apache Iceberg metadata catalog plugin: publishes OpenSearch index data to S3 Tables'
-  classname = 'org.opensearch.plugin.iceberg.catalog.IcebergMetadataCatalogPlugin'
+  classname = 'org.opensearch.plugin.catalog.iceberg.IcebergCatalogPlugin'
 }
 
 dependencies {
@@ -124,7 +124,6 @@ tasks.named("licenseHeaders").configure { enabled = false }
 tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("javadoc").configure { enabled = false }
 tasks.named("missingJavadoc").configure { enabled = false }
-tasks.named("thirdPartyAudit").configure { enabled = false }
 
 // Disable YAML REST tests (none exist yet)
 if (tasks.findByName("yamlRestTest") != null) {
@@ -134,3 +133,240 @@ if (tasks.findByName("yamlRestTest") != null) {
 // Disable loggerUsageCheck since the pre-packaged s3-blob-container.jar may
 // use logging patterns that this check doesn't recognize from compiled classes.
 tasks.named("loggerUsageCheck").configure { enabled = false }
+
+// Third-party audit allow-list mirrors plugins/repository-s3/build.gradle
+// because this plugin pulls in the same AWS SDK / Netty / Jackson / Apache HTTP
+// stack. Keeping the allow-list explicit (rather than disabling the check)
+// lets reviewers verify nothing unexpected is being hidden.
+thirdPartyAudit {
+  ignoreMissingClasses(
+    // classes are missing
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+
+    // from io.netty.handler.ssl.OpenSslEngine (netty)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
+    'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
+    'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.ResultCallback',
+    'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLContext',
+    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+    'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.SessionTicketKey',
+    'io.netty.internal.tcnative.SniHostNameMatcher',
+
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
+    'com.google.protobuf.nano.CodedOutputByteBufferNano',
+    'com.google.protobuf.nano.MessageNano',
+
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+
+    'lzma.sdk.lzma.Encoder',
+    'net.jpountz.lz4.LZ4Compressor',
+    'net.jpountz.lz4.LZ4Factory',
+    'net.jpountz.lz4.LZ4FastDecompressor',
+    'net.jpountz.xxhash.XXHash32',
+    'net.jpountz.xxhash.XXHashFactory',
+
+    // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
+
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.HandshakeListener',
+
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.alpn.ALPN',
+
+    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+
+    // from io.netty.handler.codec.marshalling.* (netty)
+    'org.jboss.marshalling.ByteInput',
+    'org.jboss.marshalling.ByteOutput',
+    'org.jboss.marshalling.Marshaller',
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+
+    'org.graalvm.nativeimage.hosted.Feature',
+    'org.graalvm.nativeimage.hosted.Feature$AfterImageWriteAccess',
+
+    'software.amazon.awssdk.arns.Arn',
+    'software.amazon.awssdk.arns.ArnResource',
+    'software.amazon.eventstream.HeaderValue',
+    'software.amazon.eventstream.Message',
+    'software.amazon.eventstream.MessageDecoder',
+
+    // Iceberg + avro optional compression / filesystem integrations we don't use
+    'io.airlift.compress.Compressor',
+    'io.airlift.compress.zstd.ZstdDecompressor',
+    'org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream',
+    'org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream',
+    'org.apache.commons.compress.utils.IOUtils',
+    'org.apache.hadoop.conf.Configurable',
+    'org.apache.hadoop.conf.Configuration',
+    'org.apache.hadoop.fs.BlockLocation',
+    'org.apache.hadoop.fs.FSDataInputStream',
+    'org.apache.hadoop.fs.FSDataOutputStream',
+    'org.apache.hadoop.fs.FSInputStream',
+    'org.apache.hadoop.fs.FileStatus',
+    'org.apache.hadoop.fs.FileSystem',
+    'org.apache.hadoop.fs.FileSystem$Statistics',
+    'org.apache.hadoop.fs.LocatedFileStatus',
+    'org.apache.hadoop.fs.Path',
+    'org.apache.hadoop.fs.PathFilter',
+    'org.apache.hadoop.fs.RemoteIterator',
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+    'org.apache.log4j.Priority',
+    'org.xerial.snappy.Snappy'
+  )
+
+  ignoreViolations(
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
+
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+
+    // Caffeine uses sun.misc.Unsafe internally for its lock-free cache primitives
+    'com.github.benmanes.caffeine.SCQHeader$HeadAndTailRef',
+    'com.github.benmanes.caffeine.SingleConsumerQueue',
+    'com.github.benmanes.caffeine.SingleConsumerQueue$Node',
+    'com.github.benmanes.caffeine.base.UnsafeAccess',
+    'com.github.benmanes.caffeine.cache.BBHeader$ReadAndWriteCounterRef',
+    'com.github.benmanes.caffeine.cache.BBHeader$ReadCounterRef',
+    'com.github.benmanes.caffeine.cache.BLCHeader$DrainStatusRef',
+    'com.github.benmanes.caffeine.cache.BaseMpscLinkedArrayQueue',
+    'com.github.benmanes.caffeine.cache.FD',
+    'com.github.benmanes.caffeine.cache.FDA',
+    'com.github.benmanes.caffeine.cache.FDAR',
+    'com.github.benmanes.caffeine.cache.FDAW',
+    'com.github.benmanes.caffeine.cache.FDAWR',
+    'com.github.benmanes.caffeine.cache.FDR',
+    'com.github.benmanes.caffeine.cache.FDW',
+    'com.github.benmanes.caffeine.cache.FDWR',
+    'com.github.benmanes.caffeine.cache.FS',
+    'com.github.benmanes.caffeine.cache.FSA',
+    'com.github.benmanes.caffeine.cache.FSAR',
+    'com.github.benmanes.caffeine.cache.FSAW',
+    'com.github.benmanes.caffeine.cache.FSAWR',
+    'com.github.benmanes.caffeine.cache.FSR',
+    'com.github.benmanes.caffeine.cache.FSW',
+    'com.github.benmanes.caffeine.cache.FSWR',
+    'com.github.benmanes.caffeine.cache.FW',
+    'com.github.benmanes.caffeine.cache.FWA',
+    'com.github.benmanes.caffeine.cache.FWAR',
+    'com.github.benmanes.caffeine.cache.FWAW',
+    'com.github.benmanes.caffeine.cache.FWAWR',
+    'com.github.benmanes.caffeine.cache.FWR',
+    'com.github.benmanes.caffeine.cache.FWW',
+    'com.github.benmanes.caffeine.cache.FWWR',
+    'com.github.benmanes.caffeine.cache.PD',
+    'com.github.benmanes.caffeine.cache.PDA',
+    'com.github.benmanes.caffeine.cache.PDAR',
+    'com.github.benmanes.caffeine.cache.PDAW',
+    'com.github.benmanes.caffeine.cache.PDAWR',
+    'com.github.benmanes.caffeine.cache.PDR',
+    'com.github.benmanes.caffeine.cache.PDW',
+    'com.github.benmanes.caffeine.cache.PDWR',
+    'com.github.benmanes.caffeine.cache.PS',
+    'com.github.benmanes.caffeine.cache.PSA',
+    'com.github.benmanes.caffeine.cache.PSAR',
+    'com.github.benmanes.caffeine.cache.PSAW',
+    'com.github.benmanes.caffeine.cache.PSAWR',
+    'com.github.benmanes.caffeine.cache.PSR',
+    'com.github.benmanes.caffeine.cache.PSW',
+    'com.github.benmanes.caffeine.cache.PSWR',
+    'com.github.benmanes.caffeine.cache.PW',
+    'com.github.benmanes.caffeine.cache.PWA',
+    'com.github.benmanes.caffeine.cache.PWAR',
+    'com.github.benmanes.caffeine.cache.PWAW',
+    'com.github.benmanes.caffeine.cache.PWAWR',
+    'com.github.benmanes.caffeine.cache.PWR',
+    'com.github.benmanes.caffeine.cache.PWW',
+    'com.github.benmanes.caffeine.cache.PWWR',
+    'com.github.benmanes.caffeine.cache.StripedBuffer',
+    'com.github.benmanes.caffeine.cache.UnsafeAccess',
+    'com.github.benmanes.caffeine.cache.UnsafeRefArrayAccess',
+
+    // Avro reflection-based deserialization uses sun.misc.Unsafe for field access
+    'org.apache.avro.reflect.FieldAccessUnsafe',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
+
+    // Iceberg's shaded Guava uses sun.misc.Unsafe (same as upstream Guava)
+    'org.apache.iceberg.relocated.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.iceberg.relocated.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.iceberg.relocated.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.iceberg.relocated.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.iceberg.relocated.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+  )
+}
