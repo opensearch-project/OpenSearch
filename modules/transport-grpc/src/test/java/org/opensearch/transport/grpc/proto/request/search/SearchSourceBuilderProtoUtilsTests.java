@@ -15,6 +15,7 @@ import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.FloatMap;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.MaxAggregation;
@@ -374,6 +375,63 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("IndexBoosts should not be null", searchSourceBuilder.indexBoosts());
         assertEquals("Should have 2 indexBoosts", 2, searchSourceBuilder.indexBoosts().size());
+    }
+
+    public void testParseProtoWithIndicesBoost2() throws IOException {
+        FloatMap boost1 = FloatMap.newBuilder().putFloatMap("index1", 1.5f).build();
+        FloatMap boost2 = FloatMap.newBuilder().putFloatMap("index2", 2.5f).build();
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().addIndicesBoost2(boost1).addIndicesBoost2(boost2).build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils, aggregationRegistry);
+
+        assertNotNull("IndexBoosts should not be null", searchSourceBuilder.indexBoosts());
+        assertEquals("Should have 2 indexBoosts", 2, searchSourceBuilder.indexBoosts().size());
+    }
+
+    public void testParseProtoWithBothIndicesBoostFormatsPrefersList() throws IOException {
+        Map<String, Float> boostMap = new HashMap<>();
+        boostMap.put("index1", 1.0f);
+        boostMap.put("index2", 99.0f);
+
+        FloatMap boost2 = FloatMap.newBuilder().putFloatMap("index2", 2.0f).build();
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().putAllIndicesBoost(boostMap).addIndicesBoost2(boost2).build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils, aggregationRegistry);
+
+        assertNotNull("IndexBoosts should not be null", searchSourceBuilder.indexBoosts());
+        assertEquals("indices_boost_2 should be preferred when both are set", 1, searchSourceBuilder.indexBoosts().size());
+        assertEquals("index2", searchSourceBuilder.indexBoosts().get(0).getIndex());
+        assertEquals(2.0f, searchSourceBuilder.indexBoosts().get(0).getBoost(), 0.001f);
+    }
+
+    public void testParseProtoWithIndicesBoost2MultipleKeysThrows() {
+        FloatMap invalidMap = FloatMap.newBuilder().putFloatMap("index1", 1.0f).putFloatMap("index2", 2.0f).build();
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().addIndicesBoost2(invalidMap).build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils, aggregationRegistry)
+        );
+        assertTrue(e.getMessage().contains("exactly one index-to-boost mapping"));
+    }
+
+    public void testParseProtoWithIndicesBoost2EmptyMapThrows() {
+        FloatMap emptyMap = FloatMap.newBuilder().build();
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().addIndicesBoost2(emptyMap).build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils, aggregationRegistry)
+        );
+        assertTrue(e.getMessage().contains("exactly one index-to-boost mapping"));
     }
 
     public void testParseProtoWithPostFilter() throws IOException {
