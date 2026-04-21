@@ -54,12 +54,6 @@ spotless {
     }
 }
 
-tasks.named('forbiddenPatterns').configure {
-    exclude '**/*.dylib'
-    exclude '**/*.so'
-    exclude '**/*.dll'
-}
-
 test {
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'

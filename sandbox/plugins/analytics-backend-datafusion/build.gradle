@@ -64,9 +64,6 @@ tasks.named('thirdPartyAudit').configure {
 
 tasks.named('forbiddenPatterns').configure {
     exclude '**/*.parquet'
-    exclude '**/*.dylib'
-    exclude '**/*.so'
-    exclude '**/*.dll'
 }
 
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
