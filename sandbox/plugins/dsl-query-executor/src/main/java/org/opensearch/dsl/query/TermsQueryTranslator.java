@@ -34,6 +34,9 @@ public class TermsQueryTranslator implements QueryTranslator {
 
         TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
 
+        if (termsQuery.termsLookup() != null) {
+            throw new ConversionException("Terms query does not support terms lookup");
+        }
         if (termsQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             throw new ConversionException("Terms query does not support non-default boost");
         }
@@ -58,7 +61,7 @@ public class TermsQueryTranslator implements QueryTranslator {
 
         RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
         List<RexNode> literals = values.stream()
-            .map(value -> ctx.getRexBuilder().makeLiteral(value, field.getType(), false))
+            .map(value -> ctx.getRexBuilder().makeLiteral(value, field.getType(), true))
             .collect(Collectors.toList());
 
         return ctx.getRexBuilder().makeIn(fieldRef, literals);
