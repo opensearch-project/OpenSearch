@@ -45,20 +45,14 @@ class LuceneCommitDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
+        // Stash the non-CS commit (e.g., from store.createEmpty()) before delegating to onCommit,
+        // which will delete it once a CS commit exists.
         for (IndexCommit commit : commits) {
-            Map<String, String> userData = commit.getUserData();
-            String idStr = userData.get(CatalogSnapshot.CATALOG_SNAPSHOT_ID);
-            if (idStr != null) {
-                trackedCommits.putIfAbsent(Long.parseLong(idStr), commit);
-                hasCSCommit = true;
-            } else {
+            if (commit.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_ID) == null) {
                 nonCatalogSnapshotCommit = commit;
             }
         }
-        if (hasCSCommit && nonCatalogSnapshotCommit != null) {
-            nonCatalogSnapshotCommit.delete();
-            nonCatalogSnapshotCommit = null;
-        }
+        onCommit(commits);
     }
 
     @Override
@@ -76,6 +70,8 @@ class LuceneCommitDeletionPolicy extends IndexDeletionPolicy {
                 }
             }
         }
+        // Delete the initial non-CS commit (from store.createEmpty()) once a CS commit exists,
+        // since it is no longer needed for recovery.
         if (hasCSCommit && nonCatalogSnapshotCommit != null) {
             nonCatalogSnapshotCommit.delete();
             nonCatalogSnapshotCommit = null;

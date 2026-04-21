@@ -131,10 +131,14 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
         flush();
 
         IndexShard shard = getPrimaryShard();
-        // In single-shard 0-replica, GCP advances to local checkpoint.
-        // After multiple flushes, old commits should be deleted by the deletion policy.
-        // We may have at most 2 commits: the safe commit and the latest (which may be the same).
-        assertTrue("Old commits should be deleted", commitCount(shard) <= 2);
+
+        // GCP is advanced asynchronously via the global checkpoint sync action.
+        // Wait for it to catch up to local checkpoint, then flush once more so the
+        // deletion policy sees the updated GCP and deletes all older commits.
+        assertBusy(() -> assertEquals(shard.getLocalCheckpoint(), shard.getLastSyncedGlobalCheckpoint()));
+        flush();
+
+        assertEquals("Only latest commit should remain", 1, commitCount(shard));
 
         CommitStats commitStats = getEngine(shard).commitStats();
         assertNotNull(commitStats);
@@ -203,8 +207,11 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
         indexDocs(5, 30);
         flush();
 
-        // Now old files should be eligible for deletion — only latest commits remain
-        assertTrue("Old commits should be cleaned after release", commitCount(shard) <= 2);
+        // Wait for GCP to catch up, then flush to trigger deletion policy
+        assertBusy(() -> assertEquals(shard.getLocalCheckpoint(), shard.getLastSyncedGlobalCheckpoint()));
+        flush();
+
+        assertEquals("Old commits should be cleaned after release", 1, commitCount(shard));
     }
 
     // ---- Test 4: acquireSnapshot returns latest state ----
@@ -263,7 +270,10 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
         assertFalse("Lucene files should still exist", luceneFilesNow.isEmpty());
 
         // Only latest commits should remain (safe + last, which may be the same)
-        assertTrue("Only latest commit remains", commitCount(shard) <= 2);
+        assertBusy(() -> assertEquals(shard.getLocalCheckpoint(), shard.getLastSyncedGlobalCheckpoint()));
+        flush();
+
+        assertEquals("Only latest commit remains", 1, commitCount(shard));
     }
 
     // ---- Test 6: Translog recovery after node restart ----

@@ -31,7 +31,6 @@ import org.opensearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Lucene-specific committer that owns the {@link IndexWriter} lifecycle.
@@ -89,7 +89,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public List<CatalogSnapshot> listCommittedSnapshots() throws IOException {
         ensureOpen();
-        return new ArrayList<>(loadCommittedSnapshots(store).values());
+        return loadCommittedSnapshots(store).values().stream().filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Override
@@ -193,15 +193,19 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     protected void discoverAndTrimUnsafeCommits(Store store, Path translogPath) throws IOException {
         Map<IndexCommit, CatalogSnapshot> committed = loadCommittedSnapshots(store);
         if (committed.isEmpty()) {
+            throw new IllegalStateException("No Lucene commits found — index may be corrupt");
+        }
+        List<CatalogSnapshot> snapshots = committed.values().stream().filter(Objects::nonNull).toList();
+        // No CatalogSnapshot commits found among Lucene commits — skipping safe commit trimming
+        if (snapshots.isEmpty()) {
             return;
         }
-        List<CatalogSnapshot> snapshots = new ArrayList<>(committed.values());
         String translogUUID = snapshots.getLast().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
         CatalogSnapshot safeCommit = CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(snapshots, globalCheckpoint);
         IndexCommit targetCommit = null;
         for (Map.Entry<IndexCommit, CatalogSnapshot> entry : committed.entrySet()) {
-            if (entry.getValue().getGeneration() == safeCommit.getGeneration()) {
+            if (entry.getValue() != null && entry.getValue().getGeneration() == safeCommit.getGeneration()) {
                 targetCommit = entry.getKey();
                 break;
             }
@@ -232,10 +236,12 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         LinkedHashMap<IndexCommit, CatalogSnapshot> result = new LinkedHashMap<>();
         for (IndexCommit ic : commits) {
             String serialized = ic.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
-            // serialized can be null for the initial empty commit from store.createEmpty() during
-            // empty store recovery, since that commit has no CatalogSnapshot data.
             if (serialized != null && serialized.isEmpty() == false) {
                 result.put(ic, DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver));
+            } else {
+                // serialized can be null for the initial empty commit from store.createEmpty() during
+                // empty store recovery, since that commit has no CatalogSnapshot data.
+                result.put(ic, null);
             }
         }
         return result;
