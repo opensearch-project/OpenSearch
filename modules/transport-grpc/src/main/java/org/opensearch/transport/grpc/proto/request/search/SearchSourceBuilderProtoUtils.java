@@ -12,6 +12,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
+import org.opensearch.protobufs.FloatMap;
 import org.opensearch.protobufs.Rescore;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
@@ -151,7 +152,21 @@ public class SearchSourceBuilderProtoUtils {
                 searchSourceBuilder.scriptField(name, scriptField.script(), scriptField.ignoreFailure());
             }
         }
-        if (protoRequest.getIndicesBoostCount() > 0) {
+
+        // TODO: indices_boost_2 uses FloatMap which allows multiple entries per element. A future
+        // indices_boost_3 with a dedicated proto message should enforce single entry per mapping.
+        if (protoRequest.getIndicesBoost2Count() > 0) {
+            for (FloatMap floatMap : protoRequest.getIndicesBoost2List()) {
+                if (floatMap.getFloatMapCount() != 1) {
+                    throw new IllegalArgumentException(
+                        "Each indices_boost_2 entry must contain exactly one index-to-boost mapping, but found "
+                            + floatMap.getFloatMapCount()
+                    );
+                }
+                Map.Entry<String, Float> entry = floatMap.getFloatMapMap().entrySet().iterator().next();
+                searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
+            }
+        } else if (protoRequest.getIndicesBoostCount() > 0) {
             for (Map.Entry<String, Float> entry : protoRequest.getIndicesBoostMap().entrySet()) {
                 searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
             }
