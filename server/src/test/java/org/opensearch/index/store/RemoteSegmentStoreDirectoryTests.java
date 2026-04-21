@@ -690,7 +690,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             NoSuchFileException.class,
             () -> remoteSegmentStoreDirectory.uploadMetadata(
                 segmentFiles,
-                segmentInfos,
+                new SegmentInfosCatalogSnapshot(segmentInfos),
                 storeDirectory,
                 34L,
                 indexShard.getLatestReplicationCheckpoint(),
@@ -737,7 +737,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
 
         remoteSegmentStoreDirectory.uploadMetadata(
             segInfos.files(true),
-            segInfos,
+            new SegmentInfosCatalogSnapshot(segInfos),
             storeDirectory,
             generation,
             indexShard.getLatestReplicationCheckpoint(),
@@ -786,7 +786,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             NoSuchFileException.class,
             () -> remoteSegmentStoreDirectory.uploadMetadata(
                 segmentFiles,
-                segmentInfos,
+                new SegmentInfosCatalogSnapshot(segmentInfos),
                 storeDirectory,
                 12L,
                 indexShard.getLatestReplicationCheckpoint(),

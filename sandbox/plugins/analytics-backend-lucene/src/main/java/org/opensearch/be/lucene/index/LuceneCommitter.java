@@ -279,7 +279,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
      * Only commits containing a serialized CatalogSnapshot are included.
      */
     static Map<IndexCommit, CatalogSnapshot> loadCommittedSnapshots(Store store) throws IOException {
-        Function<String, String> resolver = fn -> store.shardPath().getDataPath().resolve(fn).toString();
+        Function<String, String> resolver = store.shardFormatDirectoryResolver();
         List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
         LinkedHashMap<IndexCommit, CatalogSnapshot> result = new LinkedHashMap<>();
         for (IndexCommit ic : commits) {

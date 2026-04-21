@@ -53,9 +53,7 @@ import java.util.function.Supplier;
  * {@link ParquetIndexingEngine} instances created in {@link #indexingEngine}.
  *
  * <p>The descriptor provides a {@link PrecomputedChecksumStrategy} that the directory
- * holds at construction time. The {@link ParquetIndexingEngine} receives the same
- * strategy instance from the directory via
- * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory#getChecksumStrategy},
+ * holds at construction time.
  * so pre-computed CRC32 values registered during write are directly visible to the
  * upload path — no post-construction wiring needed.
  *

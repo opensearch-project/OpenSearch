@@ -43,6 +43,7 @@ import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.TestReplicationSource;
@@ -517,7 +518,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 test.close();
                 n.callRealMethod();
                 return null;
-            }).when(spyShard).finalizeReplication(any());
+            }).when(spyShard).finalizeReplication(any(CatalogSnapshot.class));
             replicateSegments(primaryShard, List.of(spyShard));
             shards.assertAllEqual(numDocs);
         }
@@ -565,7 +566,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 engine.updateSegments(engine.getSegmentInfosSnapshot().get());
                 n.callRealMethod();
                 return null;
-            }).when(spyShard).finalizeReplication(any());
+            }).when(spyShard).finalizeReplication(any(CatalogSnapshot.class));
             replicateSegments(primaryShard, List.of(spyShard));
             shards.assertAllEqual(numDocs);
         }
@@ -889,7 +890,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             primary.refresh("Test");
 
-            doThrow(AlreadyClosedException.class).when(replicaSpy).finalizeReplication(any());
+            doThrow(AlreadyClosedException.class).when(replicaSpy).finalizeReplication(any(CatalogSnapshot.class));
 
             replicateSegments(primary, List.of(replicaSpy));
         }

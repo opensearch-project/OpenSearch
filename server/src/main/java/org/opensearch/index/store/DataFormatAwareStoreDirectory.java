@@ -264,18 +264,6 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
         }
     }
 
-    /**
-     * Returns the checksum strategy for the given format, or {@code null} if none is registered.
-     * Engines use this to share the directory's strategy instance so that pre-computed
-     * checksums registered during write are visible to the upload path.
-     *
-     * @param format the data format name (e.g., "parquet")
-     * @return the strategy, or null if not found
-     */
-    public FormatChecksumStrategy getChecksumStrategy(String format) {
-        return checksumStrategies.get(format);
-    }
-
     public IndexOutput createOutput(FileMetadata fm, IOContext context) throws IOException {
         return createOutput(toFileIdentifier(fm), context);
     }
@@ -292,7 +280,13 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
     // Private Helpers
     // ═══════════════════════════════════════════════════════════════
 
-    private static boolean isDefaultFormat(String format) {
+    /**
+     * Returns true if files of this format live directly under the shard's {@code index/}
+     * directory rather than under a format-named subdirectory. {@code "lucene"} and
+     * {@code "metadata"} files (plus {@code null}/empty as defensive defaults) are laid out
+     * flat; every other format (e.g. {@code "parquet"}) gets its own subdirectory.
+     */
+    public static boolean isDefaultFormat(String format) {
         return format == null || format.isEmpty() || INDEX_DIRECTORY_FORMATS.contains(format.toLowerCase(Locale.ROOT));
     }
 }

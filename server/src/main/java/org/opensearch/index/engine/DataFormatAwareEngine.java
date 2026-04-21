@@ -10,8 +10,10 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -644,6 +646,9 @@ public class DataFormatAwareEngine implements Indexer {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             refreshLock.lock();
+            // ToDo: This is temporary api for replication end to end testing. It needs to be removed ones internal refresh flow is
+            // implemented.
+            invokeInternalRefreshListenersBefore();
             try (GatedCloseable<CatalogSnapshot> catalogSnapshot = catalogSnapshotManager.acquireSnapshot()) {
                 if (store.tryIncRef()) {
                     try {
@@ -688,8 +693,7 @@ public class DataFormatAwareEngine implements Indexer {
                                     + result.refreshedSegments().size();
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
 
-                            // TODO: Add other Refresh listeners
-                            // Notify reader managers so they can create readers for the new snapshot
+                            // Notify per-format EngineReaderManagers first so they open readers on the new snapshot.
                             try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
                                 CatalogSnapshot newSnapshot = newSnapshotRef.get();
                                 for (EngineReaderManager<?> rm : readerManagers.values()) {
@@ -697,6 +701,10 @@ public class DataFormatAwareEngine implements Indexer {
                                 }
                             }
                         }
+
+                        // ToDo: This is temporary api for replication end to end testing. It needs to be removed ones internal refresh flow
+                        // is implemented.
+                        invokeInternalRefreshListenersAfter(refreshed);
                     } finally {
                         store.decRef();
                     }
@@ -980,6 +988,47 @@ public class DataFormatAwareEngine implements Indexer {
         return lastRefreshedCheckpointListener.lastRefreshedCheckpoint();
     }
 
+    /** Local checkpoint captured just before the ongoing refresh; parallels {@code InternalEngine}. */
+    @Override
+    public long currentOngoingRefreshCheckpoint() {
+        return lastRefreshedCheckpointListener.pendingCheckpoint();
+    }
+
+    /**
+     * Invokes {@code beforeRefresh()} on every internal refresh listener. Exceptions are logged
+     * and swallowed. Caller must hold {@code readLock + refreshLock}.
+     * ToDo: This is temporary api for replication end to end testing. It needs to be removed ones internal refresh flow is implemented.
+     */
+    private void invokeInternalRefreshListenersBefore() {
+        final List<ReferenceManager.RefreshListener> listeners = engineConfig.getInternalRefreshListener();
+        if (listeners == null || listeners.isEmpty()) {
+            return;
+        }
+        for (ReferenceManager.RefreshListener listener : listeners) {
+            try {
+                listener.beforeRefresh();
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("internal refresh listener [{}] beforeRefresh failed", listener), e);
+            }
+        }
+    }
+
+    /** Same as {@link #invokeInternalRefreshListenersBefore()} but fires {@code afterRefresh}. */
+    // ToDo: This is temporary api for replication end to end testing. It needs to be removed ones internal refresh flow is implemented.
+    private void invokeInternalRefreshListenersAfter(boolean didRefresh) {
+        final List<ReferenceManager.RefreshListener> listeners = engineConfig.getInternalRefreshListener();
+        if (listeners == null || listeners.isEmpty()) {
+            return;
+        }
+        for (ReferenceManager.RefreshListener listener : listeners) {
+            try {
+                listener.afterRefresh(didRefresh);
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("internal refresh listener [{}] afterRefresh failed", listener), e);
+            }
+        }
+    }
+
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return localCheckpointTracker.getStats(globalCheckpoint);
@@ -1195,10 +1244,20 @@ public class DataFormatAwareEngine implements Indexer {
         return catalogSnapshotManager.acquireSnapshot();
     }
 
+    // Todo: We need to update this api to return catalogSnapshot instead of IndexCommit to make it decoupled with lucene.
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
-        // TODO: Implement when commit coordination is added
-        throw new UnsupportedOperationException("acquireSafeIndexCommit not yet implemented for DataFormatAwareEngine");
+        GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireCommittedSnapshot(true);
+        try {
+            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            final IndexCommit latest = commits.get(commits.size() - 1);
+            return new GatedCloseable<>(latest, snapshotRef::close);
+        } catch (Exception e) {
+            try {
+                snapshotRef.close();
+            } catch (Exception ignore) {}
+            throw new EngineException(shardId, "acquireSafeIndexCommit failed", e);
+        }
     }
 
     /**

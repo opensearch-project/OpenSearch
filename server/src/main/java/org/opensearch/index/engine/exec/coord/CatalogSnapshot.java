@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -24,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Abstract base class representing a snapshot of the catalog state at a specific point in time.
@@ -90,6 +93,23 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
                 CatalogSnapshot.this.closeInternal();
             }
         };
+    }
+
+    /**
+     * Builds the appropriate {@link CatalogSnapshot} subclass from {@link SegmentInfos}: a DFA
+     * snapshot deserialized from {@link #CATALOG_SNAPSHOT_KEY} userData if present, otherwise a
+     * {@link SegmentInfosCatalogSnapshot} wrapping the input. {@code directoryResolver} maps
+     * format names to absolute on-disk directories — use
+     * {@link org.opensearch.index.store.Store#shardFormatDirectoryResolver}.
+     */
+    public static CatalogSnapshot fromSegmentInfos(SegmentInfos segmentInfos, Function<String, String> directoryResolver)
+        throws IOException {
+        Map<String, String> userData = segmentInfos.getUserData();
+        String serialized = userData.get(CATALOG_SNAPSHOT_KEY);
+        if (serialized != null && serialized.isEmpty() == false) {
+            return DataformatAwareCatalogSnapshot.deserializeFromString(serialized, directoryResolver);
+        }
+        return new SegmentInfosCatalogSnapshot(segmentInfos);
     }
 
     @Override
@@ -249,19 +269,48 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      * @param file the file name
      * @return the format major version
      */
-    public abstract int getFormatVersionForFile(String file);
+    public abstract Version getFormatVersionForFile(String file);
 
     /**
-     * Serializes this CatalogSnapshot into SegmentInfos bytes for the remote metadata file.
-     * Each subclass knows its own serialization format:
+     * Returns the version snapshot was committed under.
+     * Used to populate remote-store checkpoint metadata so downstream consumers can interpret
+     * per-file encodings consistently.
      *
-     * TODO: When CompositeEngineCatalogSnapshot is added, implement this method
-     *       creating synthetic SegmentInfos with CatalogSnapshot serialized into userData.
+     * <p>Implementations:
+     * <ul>
+     *   <li>Lucene-backed snapshots return the version read from {@code SegmentInfos}.</li>
+     *   <li>DFA snapshots return the version tracked at commit time for their underlying format.</li>
+     * </ul>
      *
-     * @return serialized bytes
-     * @throws IOException in case of I/O error
+     * @return the commit-time Lucene version
+     */
+    public abstract Version getCommitDataFormatVersion();
+
+    /** Total number of live documents in this snapshot. SI → Lucene live docs; DFA → 0 (TODO). */
+    public abstract long getNumDocs();
+
+    /**
+     * Name of the top-level segments-file for this snapshot, or {@code null} if none.
+     * SI → {@code segments_N}; DFA → {@code null} (generation counter drifts from Lucene's).
+     * {@code loadMetadata} skips the hash-full-file step when {@code null}.
+     */
+    public abstract String getSegmentsFileName();
+
+    /**
+     * Returns the Lucene {@link SegmentInfos} bytes written into the remote metadata file. Bytes
+     * must describe this snapshot's commit — implementations must not re-read {@code segments_N}
+     * from disk at call time (would race with concurrent flush).
+     *
+     * @throws IOException on serialization error
+     * @throws IllegalStateException if bytes were expected to be pre-captured but weren't
      */
     public abstract byte[] serialize() throws IOException;
+
+    /**
+     * Returns the underlying SegmentInfos for Lucene-backed snapshots.
+     * Throws UnsupportedOperationException for non-Lucene snapshots.
+     */
+    public abstract SegmentInfos getSegmentInfos();
 
     /**
      * Returns the canonical file names for upload to remote store.

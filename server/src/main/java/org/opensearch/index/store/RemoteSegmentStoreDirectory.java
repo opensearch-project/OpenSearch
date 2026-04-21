@@ -779,6 +779,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param nodeId node id
      * @throws IOException in case of I/O error while uploading the metadata file
      */
+    @Deprecated
     public void uploadMetadata(
         Collection<String> segmentFiles,
         SegmentInfos segmentInfosSnapshot,
@@ -834,9 +835,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /**
-     * Upload metadata file using CatalogSnapshot.
-     * Uses polymorphic dispatch to CatalogSnapshot subclasses for Lucene version resolution
-     * and serialization, eliminating instanceof checks.
+     * Upload metadata file for a {@link CatalogSnapshot}. The snapshot supplies per-file format
+     * versions and the serialized Lucene {@link org.apache.lucene.index.SegmentInfos} bytes
+     * polymorphically; DFA snapshots embed the catalog in SegmentInfos userData so replicas
+     * can reconstruct it.
      *
      * @param segmentFiles         segment files that are part of the shard at the time of the latest refresh
      * @param catalogSnapshot      CatalogSnapshot containing segment metadata (either SegmentInfos-backed or Composite)
@@ -872,7 +874,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     for (String file : segmentFiles) {
                         if (segmentsUploadedToRemoteStore.containsKey(file)) {
                             UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
-                            metadata.setWrittenByMajor(catalogSnapshot.getFormatVersionForFile(metadata.originalFilename));
+                            metadata.setWrittenByMajor(catalogSnapshot.getFormatVersionForFile(metadata.originalFilename).major);
                             uploadedSegments.put(file, metadata.toString());
                         } else {
                             throw new NoSuchFileException(file);
@@ -915,6 +917,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param segmentInfosSnapshot SegmentInfos instance to parse
      * @return Map of the segment file to its Lucene major version
      */
+    @Deprecated
     private Map<String, Integer> getSegmentToLuceneVersion(Collection<String> segmentFiles, SegmentInfos segmentInfosSnapshot) {
         Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
         for (SegmentCommitInfo segmentCommitInfo : segmentInfosSnapshot) {
