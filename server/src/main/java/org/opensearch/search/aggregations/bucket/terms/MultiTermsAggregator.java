@@ -8,6 +8,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -155,16 +156,18 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
         InternalMultiTerms.Bucket[][] topBucketsPerOrd = new InternalMultiTerms.Bucket[owningBucketOrds.length][];
         long[] otherDocCounts = new long[owningBucketOrds.length];
 
-        // Resolve SortedSetDocValues for ordinal lookup if using ordinal path
+        // Resolve SortedSetDocValues for ordinal lookup if using ordinal path.
+        // Because these sources are WithOrdinals, calling lookupOrd(globalOrd) on the
+        // SortedSetDocValues obtained from any leaf returns the correct BytesRef for that
+        // global ordinal (the global-ord -> term mapping is shared across the whole index).
+        // Same pattern used in GlobalOrdinalsStringTermsAggregator.
         SortedSetDocValues[] globalOrdsForLookup = null;
         if (ordinalBucketOrds != null) {
             globalOrdsForLookup = new SortedSetDocValues[ordinalSources.size()];
             List<LeafReaderContext> leaves = context.searcher().getTopReaderContext().leaves();
-            if (leaves.isEmpty() == false) {
-                LeafReaderContext leafCtx = leaves.get(0);
-                for (int i = 0; i < ordinalSources.size(); i++) {
-                    globalOrdsForLookup[i] = ordinalSources.get(i).globalOrdinalsValues(leafCtx);
-                }
+            LeafReaderContext leafCtx = leaves.isEmpty() ? null : leaves.get(0);
+            for (int i = 0; i < ordinalSources.size(); i++) {
+                globalOrdsForLookup[i] = leafCtx == null ? DocValues.emptySortedSet() : ordinalSources.get(i).globalOrdinalsValues(leafCtx);
             }
         }
 
@@ -357,33 +360,32 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
         }
         return new LeafBucketCollector() {
             private final long[] ordTuple = new long[numFields];
+            // Reusable scratch buffer: one long[] per field, grown on demand.
+            private final long[][] ordinalSets = new long[numFields][];
+            // Per-field valid-element counts for the current doc.
+            private final int[] counts = new int[numFields];
 
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                long[][] ordinalSets = new long[numFields][];
                 for (int i = 0; i < numFields; i++) {
-                    if (false == globalOrds[i].advanceExact(doc)) {
+                    if (globalOrds[i].advanceExact(doc) == false) {
                         return; // missing value in any field → skip doc
                     }
                     int count = globalOrds[i].docValueCount();
-                    ordinalSets[i] = new long[count];
+                    if (ordinalSets[i] == null || ordinalSets[i].length < count) {
+                        ordinalSets[i] = new long[count];
+                    }
                     for (int j = 0; j < count; j++) {
                         ordinalSets[i][j] = globalOrds[i].nextOrd();
                     }
+                    counts[i] = count;
                 }
-                generateOrdinalCombinations(ordinalSets, 0, ordTuple, owningBucketOrd, doc, sub);
+                generateOrdinalCombinations(0, owningBucketOrd, doc, sub);
             }
 
-            private void generateOrdinalCombinations(
-                long[][] ordinalSets,
-                int depth,
-                long[] current,
-                long owningBucketOrd,
-                int doc,
-                LeafBucketCollector sub
-            ) throws IOException {
-                if (depth == ordinalSets.length) {
-                    long bucketOrd = ordinalBucketOrds.add(owningBucketOrd, current);
+            private void generateOrdinalCombinations(int depth, long owningBucketOrd, int doc, LeafBucketCollector sub) throws IOException {
+                if (depth == numFields) {
+                    long bucketOrd = ordinalBucketOrds.add(owningBucketOrd, ordTuple);
                     if (bucketOrd < 0) {
                         collectExistingBucket(sub, doc, -1 - bucketOrd);
                     } else {
@@ -391,9 +393,11 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
                     }
                     return;
                 }
-                for (long ord : ordinalSets[depth]) {
-                    current[depth] = ord;
-                    generateOrdinalCombinations(ordinalSets, depth + 1, current, owningBucketOrd, doc, sub);
+                long[] fieldOrds = ordinalSets[depth];
+                int count = counts[depth];
+                for (int k = 0; k < count; k++) {
+                    ordTuple[depth] = fieldOrds[k];
+                    generateOrdinalCombinations(depth + 1, owningBucketOrd, doc, sub);
                 }
             }
         };
@@ -609,35 +613,42 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
             globalOrds[i] = ordinalSources.get(i).globalOrdinalsValues(ctx);
         }
         long[] ordTuple = new long[numFields];
-        for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-            long[][] ordinalSets = new long[numFields][];
+        long[][] ordinalSets = new long[numFields][];
+        int[] counts = new int[numFields];
+        int maxDoc = ctx.reader().maxDoc();
+        for (int docId = 0; docId < maxDoc; ++docId) {
             boolean skip = false;
             for (int i = 0; i < numFields; i++) {
-                if (false == globalOrds[i].advanceExact(docId)) {
+                if (globalOrds[i].advanceExact(docId) == false) {
                     skip = true;
                     break;
                 }
                 int count = globalOrds[i].docValueCount();
-                ordinalSets[i] = new long[count];
+                if (ordinalSets[i] == null || ordinalSets[i].length < count) {
+                    ordinalSets[i] = new long[count];
+                }
                 for (int j = 0; j < count; j++) {
                     ordinalSets[i][j] = globalOrds[i].nextOrd();
                 }
+                counts[i] = count;
             }
             if (skip) {
                 continue;
             }
-            addOrdinalCombinations(ordinalSets, 0, ordTuple, owningBucketOrd);
+            addOrdinalCombinations(ordinalSets, counts, 0, ordTuple, owningBucketOrd);
         }
     }
 
-    private void addOrdinalCombinations(long[][] ordinalSets, int depth, long[] current, long owningBucketOrd) {
+    private void addOrdinalCombinations(long[][] ordinalSets, int[] counts, int depth, long[] current, long owningBucketOrd) {
         if (depth == ordinalSets.length) {
             ordinalBucketOrds.add(owningBucketOrd, current);
             return;
         }
-        for (long ord : ordinalSets[depth]) {
-            current[depth] = ord;
-            addOrdinalCombinations(ordinalSets, depth + 1, current, owningBucketOrd);
+        long[] fieldOrds = ordinalSets[depth];
+        int count = counts[depth];
+        for (int k = 0; k < count; k++) {
+            current[depth] = fieldOrds[k];
+            addOrdinalCombinations(ordinalSets, counts, depth + 1, current, owningBucketOrd);
         }
     }
 

@@ -226,7 +226,7 @@ public class PackedOrdinalBucketOrds implements MultiTermsBucketOrds {
         if (singleLongDelegate != null) {
             return singleLongDelegate.add(owningBucketOrd, packSingleLong(ordinals));
         } else {
-            assert owningBucketOrd == 0 : "two-long path only supports single owning bucket";
+            checkSingleOwningBucket(owningBucketOrd);
             return twoLongDelegate.add(packLong1(ordinals), packLong2(ordinals));
         }
     }
@@ -236,8 +236,20 @@ public class PackedOrdinalBucketOrds implements MultiTermsBucketOrds {
         if (singleLongDelegate != null) {
             return singleLongDelegate.bucketsInOrd(owningBucketOrd);
         } else {
-            // For LongLongHash, we need to count all entries (single owning bucket)
+            checkSingleOwningBucket(owningBucketOrd);
             return twoLongDelegate.size();
+        }
+    }
+
+    /**
+     * The two-long path delegates to {@link LongLongHash}, which does not encode
+     * {@code owningBucketOrd} in its key space. The factory guards against this by
+     * only choosing the two-long path when {@code CardinalityUpperBound.ONE} holds,
+     * but we fail loudly here if that invariant is ever violated.
+     */
+    private static void checkSingleOwningBucket(long owningBucketOrd) {
+        if (owningBucketOrd != 0) {
+            throw new IllegalStateException("two-long path only supports a single owning bucket (owningBucketOrd=" + owningBucketOrd + ")");
         }
     }
 
@@ -271,6 +283,7 @@ public class PackedOrdinalBucketOrds implements MultiTermsBucketOrds {
                 }
             };
         } else {
+            checkSingleOwningBucket(owningBucketOrd);
             return new BucketOrdsEnum() {
                 private long ord = -1;
 
