@@ -85,18 +85,7 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
             DiscoveryNode[] dataNodes = currentState.getNodes().getDataNodes().values().toArray(new DiscoveryNode[0]);
 
             ShardRouting primaryShard = currentState.getRoutingTable().shardRoutingTable("test", 0).primaryShard();
-            if (primaryShard == null || primaryShard.currentNodeId() == null) {
-                logger.warn("--> [iteration {}] primary shard not found or not assigned, retrying", i);
-                i--; // retry this iteration
-                continue;
-            }
-
             DiscoveryNode relocationSource = currentState.getNodes().getDataNodes().get(primaryShard.currentNodeId());
-            if (relocationSource == null) {
-                logger.warn("--> [iteration {}] source node not found in cluster, retrying", i);
-                i--; // retry this iteration
-                continue;
-            }
 
             DiscoveryNode relocationTarget = randomFrom(dataNodes);
             while (relocationTarget.equals(relocationSource)) {
