@@ -49,6 +49,7 @@ public class QueryContext {
     private final long perQueryMemoryLimit;
     private final List<AnalyticsOperationListener> operationListeners;
     private volatile BufferAllocator bufferAllocator;
+    private boolean closed;  // guarded by `this`
 
     public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask) {
         this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
@@ -121,6 +122,9 @@ public class QueryContext {
             synchronized (this) {
                 alloc = bufferAllocator;
                 if (alloc == null) {
+                    if (closed) {
+                        throw new IllegalStateException("QueryContext closed for query " + dag.queryId());
+                    }
                     alloc = SHARED_ROOT.newChildAllocator("query-" + dag.queryId(), 0, perQueryMemoryLimit);
                     bufferAllocator = alloc;
                 }
@@ -130,13 +134,19 @@ public class QueryContext {
     }
 
     /**
-     * Closes the per-query buffer allocator if it was created.
-     * Called by the plan executor when the query completes.
+     * Closes the per-query buffer allocator if it was created. Idempotent and
+     * serialized with {@link #bufferAllocator()} so close can't race with lazy
+     * creation. After close, subsequent {@link #bufferAllocator()} calls throw
+     * rather than silently creating a second allocator.
      */
     public void closeBufferAllocator() {
-        BufferAllocator alloc = bufferAllocator;
-        if (alloc != null) {
-            alloc.close();
+        synchronized (this) {
+            if (closed) return;
+            closed = true;
+            if (bufferAllocator != null) {
+                bufferAllocator.close();
+                bufferAllocator = null;
+            }
         }
     }
 
