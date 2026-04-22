@@ -24,10 +24,13 @@ dependencies {
   compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-  // Apache Arrow dependencies
-  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  // Apache Arrow dependencies.
+  // arrow-vector + arrow-memory-core are provided at runtime by the parent analytics-engine
+  // plugin (we extend it via extendedPlugins); compile-only here to avoid duplicate bundling
+  // and license files.
+  compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
   implementation "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
   implementation "org.apache.arrow:arrow-format:${versions.arrow}"
   implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
@@ -54,13 +57,6 @@ tasks.withType(JavaCompile).configureEach {
 
 // TODO: Remove once back-end is built out with test suite
 testingConventions.enabled = false
-
-tasks.named('thirdPartyAudit').configure {
-  ignoreViolations(
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1'
-  )
-}
 
 tasks.named('forbiddenPatterns').configure {
     exclude '**/*.parquet'

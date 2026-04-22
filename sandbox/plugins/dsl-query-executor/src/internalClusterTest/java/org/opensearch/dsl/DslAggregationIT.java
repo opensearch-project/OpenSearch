@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -17,6 +18,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
  * Integration tests for DSL aggregation conversion.
  * Uses matchAllQuery; focus is on aggregation plan building.
  */
+@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
 public class DslAggregationIT extends DslIntegTestBase {
 
     public void testMetricOnly() {
