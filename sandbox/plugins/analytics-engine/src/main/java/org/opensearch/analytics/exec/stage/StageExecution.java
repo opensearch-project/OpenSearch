@@ -83,11 +83,17 @@ public interface StageExecution {
      */
     void cancel(String reason);
 
+    /** Lifecycle states a stage execution moves through. */
     enum State {
+        /** Initial state before {@link #start()} has been invoked. */
         CREATED,
+        /** Dispatch has begun; the stage is actively executing. */
         RUNNING,
+        /** Terminal success — all work completed, output delivered to the sink. */
         SUCCEEDED,
+        /** Terminal failure — an exception was captured and the stage stopped. */
         FAILED,
+        /** Terminal cancellation — the stage was cancelled via parent task or walker. */
         CANCELLED
     }
 }

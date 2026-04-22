@@ -57,6 +57,14 @@ dependencies {
   implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
   implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
 
+  // Arrow Flight RPC — compile-only; the arrow-flight-rpc plugin provides it at runtime.
+  // Needed for the upcoming ArrowBatchResponse migration of FragmentExecutionResponse
+  // (zero-copy Arrow streaming), and transitively brings Jackson + arrow-format +
+  // flatbuffers-java onto the compile/javadoc classpath so Arrow's Schema.class
+  // annotation and IPC references resolve.
+  compileOnly project(':plugins:arrow-flight-rpc')
+  testCompileOnly project(':plugins:arrow-flight-rpc')
+
   // Guava — required at compile time because Calcite base classes expose guava types.
   // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
   calciteCompile "com.google.guava:guava:${versions.guava}"
@@ -104,50 +112,6 @@ tasks.named('thirdPartyAudit').configure {
   ignoreViolations(
     'org.apache.arrow.memory.util.MemoryUtil',
     'org.apache.arrow.memory.util.MemoryUtil$1'
-  )
-  // arrow-format + flatbuffers-java satisfy Arrow's IPC Schema serialization path,
-  // only exercised by tests (see testRuntimeOnly declarations above). Main-runtime
-  // code paths don't invoke IPC, so the unresolved references are safe to ignore.
-  ignoreMissingClasses(
-    'com.google.flatbuffers.FlatBufferBuilder',
-    'org.apache.arrow.flatbuf.Binary',
-    'org.apache.arrow.flatbuf.BinaryView',
-    'org.apache.arrow.flatbuf.Block',
-    'org.apache.arrow.flatbuf.BodyCompression',
-    'org.apache.arrow.flatbuf.Bool',
-    'org.apache.arrow.flatbuf.Buffer',
-    'org.apache.arrow.flatbuf.Date',
-    'org.apache.arrow.flatbuf.Decimal',
-    'org.apache.arrow.flatbuf.DictionaryBatch',
-    'org.apache.arrow.flatbuf.DictionaryEncoding',
-    'org.apache.arrow.flatbuf.Duration',
-    'org.apache.arrow.flatbuf.Field',
-    'org.apache.arrow.flatbuf.FieldNode',
-    'org.apache.arrow.flatbuf.FixedSizeBinary',
-    'org.apache.arrow.flatbuf.FixedSizeList',
-    'org.apache.arrow.flatbuf.FloatingPoint',
-    'org.apache.arrow.flatbuf.Footer',
-    'org.apache.arrow.flatbuf.Int',
-    'org.apache.arrow.flatbuf.Interval',
-    'org.apache.arrow.flatbuf.KeyValue',
-    'org.apache.arrow.flatbuf.LargeBinary',
-    'org.apache.arrow.flatbuf.LargeList',
-    'org.apache.arrow.flatbuf.LargeListView',
-    'org.apache.arrow.flatbuf.LargeUtf8',
-    'org.apache.arrow.flatbuf.List',
-    'org.apache.arrow.flatbuf.ListView',
-    'org.apache.arrow.flatbuf.Map',
-    'org.apache.arrow.flatbuf.Message',
-    'org.apache.arrow.flatbuf.Null',
-    'org.apache.arrow.flatbuf.RecordBatch',
-    'org.apache.arrow.flatbuf.RunEndEncoded',
-    'org.apache.arrow.flatbuf.Schema',
-    'org.apache.arrow.flatbuf.Struct_',
-    'org.apache.arrow.flatbuf.Time',
-    'org.apache.arrow.flatbuf.Timestamp',
-    'org.apache.arrow.flatbuf.Union',
-    'org.apache.arrow.flatbuf.Utf8',
-    'org.apache.arrow.flatbuf.Utf8View'
   )
 }
 

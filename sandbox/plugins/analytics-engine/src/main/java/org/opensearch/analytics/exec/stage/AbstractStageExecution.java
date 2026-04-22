@@ -132,7 +132,12 @@ abstract class AbstractStageExecution implements StageExecution {
                 l.onStateChange(previous, target);
             } catch (Exception e) {
                 logger.warn(
-                    new ParameterizedMessage("[StageExecution] listener threw for stage {} transition {} -> {}", getStageId(), previous, target),
+                    new ParameterizedMessage(
+                        "[StageExecution] listener threw for stage {} transition {} -> {}",
+                        getStageId(),
+                        previous,
+                        target
+                    ),
                     e
                 );
             }
