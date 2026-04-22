@@ -38,7 +38,7 @@ import java.util.Properties;
  * RandomizedRunner, so tests use real objects built here.
  *
  * Standard test schema: name (VARCHAR), price (INTEGER), brand (VARCHAR), rating (DOUBLE),
- * created_date (DATE), is_active (BOOLEAN), timestamp (BIGINT), location (VARCHAR),
+ * created_date (DATE), is_active (BOOLEAN), timestamp (BIGINT), location (GEOMETRY),
  * status (VARCHAR), binary_data (VARBINARY).
  */
 public class TestUtils {
@@ -80,7 +80,7 @@ public class TestUtils {
                     .add("created_date", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.DATE), true))
                     .add("is_active", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.BOOLEAN), true))
                     .add("timestamp", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.BIGINT), true))
-                    .add("location", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
+                    .add("location", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.GEOMETRY), true))
                     .add("status", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
                     .add("binary_data", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARBINARY), true))
                     .build();

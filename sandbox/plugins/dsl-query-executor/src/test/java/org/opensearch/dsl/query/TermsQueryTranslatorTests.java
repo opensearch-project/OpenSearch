@@ -134,12 +134,10 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals(SqlKind.OR, call.getKind());
     }
 
-    public void testGeoPointType() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.termsQuery("location", 
-            new Object[]{"40.7128,-74.0060", "34.0522,-118.2437"}), ctx);
-
-        RexCall call = (RexCall) result;
-        assertEquals(SqlKind.OR, call.getKind());
+    public void testGeoPointType() {
+        expectThrows(IllegalArgumentException.class,
+            () -> translator.convert(QueryBuilders.termsQuery("location", 
+                new Object[]{"40.7128,-74.0060", "34.0522,-118.2437"}), ctx));
     }
 
     public void testKeywordType() throws ConversionException {
