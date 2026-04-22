@@ -460,7 +460,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 assertThat(snapshot, notNullValue());
                 // Flush calls refresh internally, producing 1 segment
                 assertThat(snapshot.getSegments().size(), equalTo(1));
-                assertThat(snapshot.getGeneration(), equalTo(2L));
+                assertThat(snapshot.getGeneration(), equalTo(1L));
             }
             assertThat(engine.getProcessedLocalCheckpoint(), equalTo((long) numDocs - 1));
             assertThat(engine.lastRefreshedCheckpoint(), equalTo((long) numDocs - 1));
@@ -737,7 +737,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat(engine.lastRefreshedCheckpoint(), equalTo((long) numDocs - 1));
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
                 CatalogSnapshot snapshot = ref.get();
-                assertThat(snapshot.getGeneration(), equalTo(2L));
+                assertThat(snapshot.getGeneration(), equalTo(1L));
                 assertThat(snapshot.getSegments().size(), equalTo(1));
                 assertThat(snapshot.getSegments().get(0).dfGroupedSearchableFiles().containsKey(mockDataFormat.name()), equalTo(true));
             }
