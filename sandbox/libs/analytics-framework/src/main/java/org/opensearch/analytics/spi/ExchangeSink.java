@@ -8,13 +8,32 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
+
 /**
- * Coordinator-side sink that accepts Arrow Record Batches streamed from data nodes
- * and runs the root stage computation (final aggregate, sort, etc.) over them.
+ * Write-only interface for feeding Arrow batches into a stage exchange.
+ * Producers (shard scan stages, local compute stages) call {@link #feed}
+ * to push data; they never read from the sink.
  *
  * <p>Implementations are backend-specific and created via {@link ExchangeSinkProvider}.
- * Methods will be added as part of the Scheduler and streaming transport implementation.
+ * A coordinator-side sink runs the root stage computation (final aggregate, sort, etc.)
+ * over the batches it receives.
+ *
+ * <p>Implementations must be thread-safe — multiple shard response handlers
+ * may call {@link #feed} concurrently.
  *
  * @opensearch.internal
  */
-public interface ExchangeSink {}
+public interface ExchangeSink {
+
+    /**
+     * Ingest an Arrow batch into this sink. The sink takes ownership of the
+     * batch and is responsible for releasing it when no longer needed.
+     */
+    void feed(VectorSchemaRoot batch);
+
+    /**
+     * Signal that no more batches will be fed. Releases resources.
+     */
+    void close();
+}

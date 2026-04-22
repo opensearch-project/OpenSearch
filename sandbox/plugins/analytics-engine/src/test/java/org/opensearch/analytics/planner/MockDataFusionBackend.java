@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.EngineCapability;
@@ -103,7 +104,12 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     @Override
     public ExchangeSinkProvider getExchangeSinkProvider() {
         // Stub — real implementation provided by DataFusion backend
-        return coordinatorFragmentBytes -> new ExchangeSink() {
+        return bytes -> new ExchangeSink() {
+            @Override
+            public void feed(VectorSchemaRoot batch) {}
+
+            @Override
+            public void close() {}
         };
     }
 
