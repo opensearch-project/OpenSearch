@@ -8,6 +8,8 @@
 
 package org.opensearch.http.netty4.http3;
 
+import io.netty.handler.codec.quic.Quic;
+
 /**
  * Adapted from reactor.netty.http.internal.Http3 class
  */
@@ -22,7 +24,10 @@ public final class Http3Utils {
         } catch (Throwable t) {
             http3 = false;
         }
-        isHttp3Available = http3;
+        // Quic codec (which is used by HTTP/3 implementation) is provided by the
+        // native library and may not be available on all platforms (even if HTTP/3
+        // codec is present).
+        isHttp3Available = http3 && Quic.isAvailable();
     }
 
     private Http3Utils() {

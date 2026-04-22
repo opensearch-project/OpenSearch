@@ -667,6 +667,37 @@ public class FactoryStreamingCostEstimationTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * Test that match-all query with clean segments but cardinality above the precompute threshold IS streamable.
+     * When cardinality exceeds the threshold, Check 2 is skipped because tryCollectFromTermFrequencies
+     * would bail out on high cardinality anyway.
+     */
+    public void testTermsFactoryStreamableMatchAllHighCardinality() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create index with cardinality above the default threshold (30,000)
+                for (int i = 0; i < 50000; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
+                    writer.addDocument(doc);
+                }
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
+
+                    TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("category").size(10);
+
+                    // Match-all with clean segments but high cardinality - should be streamable
+                    FactoryAndContext result = createAggregatorFactoryWithQuery(termsBuilder, searcher, new MatchAllDocsQuery(), fieldType);
+                    StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
+
+                    assertTrue("Match-all with high cardinality should be streamable", metrics.streamable());
+                }
+            }
+        }
+    }
+
     // ========================================
     // Helper methods
     // ========================================

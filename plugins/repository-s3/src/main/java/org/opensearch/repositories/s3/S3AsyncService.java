@@ -49,6 +49,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
+import org.opensearch.repositories.s3.utils.AwsCrtUtils;
 import org.opensearch.secure_sm.AccessController;
 
 import java.io.Closeable;
@@ -335,7 +336,16 @@ class S3AsyncService implements Closeable {
         if (S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE.equals(asyncHttpClientType)) {
             return buildAsyncNettyHttpClient(clientSettings, asyncTransferEventLoopGroup);
         }
-        return buildAsyncCrtHttpClient(clientSettings);
+        if (AwsCrtUtils.isAwsCrtAvailable() == true) {
+            return buildAsyncCrtHttpClient(clientSettings);
+        } else {
+            logger.warn(
+                "AWS CRT client is not available on the target platform, falling back to "
+                    + S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
+                    + " client type"
+            );
+            return buildAsyncNettyHttpClient(clientSettings, asyncTransferEventLoopGroup);
+        }
     }
 
     static SdkAsyncHttpClient buildAsyncNettyHttpClient(

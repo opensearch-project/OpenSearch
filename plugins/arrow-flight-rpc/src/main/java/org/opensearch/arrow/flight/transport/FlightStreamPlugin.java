@@ -9,11 +9,6 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.Version;
-import org.opensearch.arrow.flight.api.flightinfo.FlightServerInfoAction;
-import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
-import org.opensearch.arrow.flight.api.flightinfo.TransportNodesFlightInfoAction;
-import org.opensearch.arrow.flight.bootstrap.FlightService;
-import org.opensearch.arrow.flight.bootstrap.ServerComponents;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.DefaultSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
@@ -21,9 +16,7 @@ import org.opensearch.arrow.flight.stats.FlightStatsAction;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.arrow.flight.stats.FlightStatsRestHandler;
 import org.opensearch.arrow.flight.stats.TransportFlightStatsAction;
-import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
@@ -45,7 +38,6 @@ import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
-import org.opensearch.plugins.StreamManagerPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -64,22 +56,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
  * FlightStreamPlugin class extends BaseFlightStreamPlugin and provides implementation for FlightStream plugin.
  */
-public class FlightStreamPlugin extends Plugin
-    implements
-        StreamManagerPlugin,
-        NetworkPlugin,
-        ActionPlugin,
-        ClusterPlugin,
-        ExtensiblePlugin {
+public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionPlugin, ClusterPlugin, ExtensiblePlugin {
 
-    private final FlightService flightService;
-    private final boolean isArrowStreamsEnabled;
     private final boolean isStreamTransportEnabled;
     private FlightStatsCollector statsCollector;
 
@@ -88,16 +71,14 @@ public class FlightStreamPlugin extends Plugin
      * @param settings The settings for the FlightStreamPlugin.
      */
     public FlightStreamPlugin(Settings settings) {
-        this.isArrowStreamsEnabled = FeatureFlags.isEnabled(FeatureFlags.ARROW_STREAMS);
         this.isStreamTransportEnabled = FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
-        if (isStreamTransportEnabled || isArrowStreamsEnabled) {
+        if (isStreamTransportEnabled) {
             try {
                 ServerConfig.init(settings);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to initialize Arrow Flight server", e);
             }
         }
-        this.flightService = isArrowStreamsEnabled ? new FlightService(settings) : null;
     }
 
     /**
@@ -113,7 +94,7 @@ public class FlightStreamPlugin extends Plugin
      * @param namedWriteableRegistry The named writeable registry.
      * @param indexNameExpressionResolver The index name expression resolver instance.
      * @param repositoriesServiceSupplier The supplier for the repositories service.
-     * @return FlightService
+     * @return Collection of components
      */
     @Override
     public Collection<Object> createComponents(
@@ -129,21 +110,13 @@ public class FlightStreamPlugin extends Plugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        if (!isArrowStreamsEnabled && !isStreamTransportEnabled) {
+        if (!isStreamTransportEnabled) {
             return Collections.emptyList();
         }
 
         List<Object> components = new ArrayList<>();
-
-        if (isArrowStreamsEnabled) {
-            flightService.setClusterService(clusterService);
-            flightService.setThreadPool(threadPool);
-            flightService.setClient(client);
-        }
-        if (isStreamTransportEnabled) {
-            statsCollector = new FlightStatsCollector();
-            components.add(statsCollector);
-        }
+        statsCollector = new FlightStatsCollector();
+        components.add(statsCollector);
         return components;
     }
 
@@ -170,9 +143,6 @@ public class FlightStreamPlugin extends Plugin
         SecureTransportSettingsProvider secureTransportSettingsProvider,
         Tracer tracer
     ) {
-        if (isArrowStreamsEnabled && ServerConfig.isSslEnabled()) {
-            flightService.setSecureTransportSettingsProvider(secureTransportSettingsProvider);
-        }
         if (isStreamTransportEnabled && ServerConfig.isSslEnabled()) {
             SslContextProvider sslContextProvider = new DefaultSslContextProvider(secureTransportSettingsProvider, settings);
             return Collections.singletonMap(
@@ -254,12 +224,7 @@ public class FlightStreamPlugin extends Plugin
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
-        if (isArrowStreamsEnabled) {
-            flightService.setNetworkService(networkService);
-            return Collections.singletonMap(flightService.settingKey(), () -> flightService);
-        } else {
-            return Collections.emptyMap();
-        }
+        return Collections.emptyMap();
     }
 
     /**
@@ -283,17 +248,11 @@ public class FlightStreamPlugin extends Plugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        List<RestHandler> handlers = new ArrayList<>();
-
-        if (isArrowStreamsEnabled) {
-            handlers.add(new FlightServerInfoAction());
+        if (!isStreamTransportEnabled) {
+            return Collections.emptyList();
         }
 
-        if (isStreamTransportEnabled) {
-            handlers.add(new FlightStatsRestHandler());
-        }
-
-        return handlers;
+        return Collections.singletonList(new FlightStatsRestHandler());
     }
 
     /**
@@ -302,37 +261,11 @@ public class FlightStreamPlugin extends Plugin
      */
     @Override
     public List<ActionHandler<?, ?>> getActions() {
-        List<ActionHandler<?, ?>> actions = new ArrayList<>();
-
-        if (isArrowStreamsEnabled) {
-            actions.add(new ActionHandler<>(NodesFlightInfoAction.INSTANCE, TransportNodesFlightInfoAction.class));
+        if (!isStreamTransportEnabled) {
+            return Collections.emptyList();
         }
 
-        if (isStreamTransportEnabled) {
-            actions.add(new ActionHandler<>(FlightStatsAction.INSTANCE, TransportFlightStatsAction.class));
-        }
-
-        return actions;
-    }
-
-    /**
-     * Called when node is started. DiscoveryNode argument is passed to allow referring localNode value inside plugin
-     *
-     * @param localNode local Node info
-     */
-    @Override
-    public void onNodeStarted(DiscoveryNode localNode) {
-        if (isArrowStreamsEnabled) {
-            flightService.getFlightClientManager().buildClientAsync(localNode.getId());
-        }
-    }
-
-    /**
-     * Gets the StreamManager instance for managing flight streams.
-     */
-    @Override
-    public Optional<StreamManager> getStreamManager() {
-        return isArrowStreamsEnabled ? Optional.ofNullable(flightService.getStreamManager()) : Optional.empty();
+        return Collections.singletonList(new ActionHandler<>(FlightStatsAction.INSTANCE, TransportFlightStatsAction.class));
     }
 
     /**
@@ -341,7 +274,7 @@ public class FlightStreamPlugin extends Plugin
      */
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (!isArrowStreamsEnabled && !isStreamTransportEnabled) {
+        if (!isStreamTransportEnabled) {
             return Collections.emptyList();
         }
         return List.of(
@@ -356,16 +289,16 @@ public class FlightStreamPlugin extends Plugin
      */
     @Override
     public List<Setting<?>> getSettings() {
-        if (!isArrowStreamsEnabled && !isStreamTransportEnabled) {
+        if (!isStreamTransportEnabled) {
             return Collections.emptyList();
         }
         return new ArrayList<>(
             Arrays.asList(
-                ServerComponents.SETTING_FLIGHT_PORTS,
-                ServerComponents.SETTING_FLIGHT_HOST,
-                ServerComponents.SETTING_FLIGHT_BIND_HOST,
-                ServerComponents.SETTING_FLIGHT_PUBLISH_HOST,
-                ServerComponents.SETTING_FLIGHT_PUBLISH_PORT
+                ServerConfig.SETTING_FLIGHT_PORTS,
+                ServerConfig.SETTING_FLIGHT_HOST,
+                ServerConfig.SETTING_FLIGHT_BIND_HOST,
+                ServerConfig.SETTING_FLIGHT_PUBLISH_HOST,
+                ServerConfig.SETTING_FLIGHT_PUBLISH_PORT
             )
         ) {
             {

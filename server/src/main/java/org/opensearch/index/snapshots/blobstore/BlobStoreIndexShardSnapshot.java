@@ -340,7 +340,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment, IndexSha
             // Verify that file information is complete
             if (name == null || Strings.validFileName(name) == false) {
                 throw new OpenSearchParseException("missing or invalid file name [" + name + "]");
-            } else if (physicalName == null || Strings.validFileName(physicalName) == false) {
+            } else if (physicalName == null || Strings.validFileNameExcludingSlash(physicalName) == false) {
                 throw new OpenSearchParseException("missing or invalid physical file name [" + physicalName + "]");
             } else if (length < 0) {
                 throw new OpenSearchParseException("missing or invalid file length");

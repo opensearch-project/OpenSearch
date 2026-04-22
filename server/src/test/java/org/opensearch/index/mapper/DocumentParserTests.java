@@ -42,6 +42,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.plugins.Plugin;
 
@@ -52,7 +53,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -62,6 +65,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DocumentParserTests extends MapperServiceTestCase {
 
@@ -3504,5 +3509,156 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         // Null fields should not be created
         assertNull("Null field should not be created", doc.rootDoc().getField("mixed_nulls.null_field"));
+    }
+
+    public void testGeoPointWithCopyTo() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("point");
+            {
+                b.field("type", "geo_point");
+                b.field("copy_to", "location_copy");
+            }
+            b.endObject();
+            b.startObject("location_copy").field("type", "geo_point").endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> { b.startObject("point").field("lat", 40.71).field("lon", 74.00).endObject(); }));
+
+        // Verify that the geo_point field itself exists
+        assertNotNull(doc.rootDoc().getField("point"));
+
+        // Verify that the field was copied to the copy_to target
+        IndexableField[] copiedFields = doc.rootDoc().getFields("location_copy");
+        assertNotNull(copiedFields);
+        assertTrue(copiedFields.length > 0);
+    }
+
+    public void testGeoPointArrayWithCopyTo() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("point");
+            {
+                b.field("type", "geo_point");
+                b.field("copy_to", "location_copy");
+            }
+            b.endObject();
+            b.startObject("location_copy").field("type", "geo_point").endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> { b.array("point", 74.00, 40.71); }));
+
+        // Verify that the geo_point field itself exists
+        assertNotNull(doc.rootDoc().getField("point"));
+
+        // Verify that the field was copied to the copy_to target
+        IndexableField[] copiedFields = doc.rootDoc().getFields("location_copy");
+        assertNotNull(copiedFields);
+        assertTrue(copiedFields.length > 0);
+    }
+
+    public void testGeoPointArrayWithMultipleCopyTo() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("point");
+            {
+                b.field("type", "geo_point");
+                b.array("copy_to", "location_copy1", "location_copy2");
+            }
+            b.endObject();
+            b.startObject("location_copy1").field("type", "geo_point").endObject();
+            b.startObject("location_copy2").field("type", "geo_point").endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> { b.startObject("point").field("lat", 40.71).field("lon", 74.00).endObject(); }));
+
+        assertNotNull(doc.rootDoc().getField("point"));
+
+        IndexableField[] copy1Fields = doc.rootDoc().getFields("location_copy1");
+        assertNotNull(copy1Fields);
+        assertTrue(copy1Fields.length > 0);
+
+        IndexableField[] copy2Fields = doc.rootDoc().getFields("location_copy2");
+        assertNotNull(copy2Fields);
+        assertTrue(copy2Fields.length > 0);
+    }
+
+    public void testParseDocumentWithDocumentInputPropagated() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "text").endObject()));
+        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")), mockInput);
+
+        assertThat(doc.getDocumentInput(), sameInstance(mockInput));
+        assertNotNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testParseDocumentWithNullDocumentInput() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "text").endObject()));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")), null);
+
+        assertThat(doc.getDocumentInput(), nullValue());
+    }
+
+    public void testParseDocumentWithoutDocumentInputDefaultsToNull() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "text").endObject()));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+
+        assertThat(doc.getDocumentInput(), nullValue());
+    }
+
+    public void testParseDocumentWithDocumentInputAndDynamicMapping() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dynamic_field", "value")), mockInput);
+
+        assertThat(doc.getDocumentInput(), sameInstance(mockInput));
+        assertNotNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testParseDocumentWithDocumentInputAndNestedFields() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("obj");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("inner").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        DocumentInput<Map<String, Object>> mockInput = new TestDocumentInput();
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("obj");
+            b.field("inner", "test");
+            b.endObject();
+        }), mockInput);
+
+        assertThat(doc.getDocumentInput(), sameInstance(mockInput));
+        assertNotNull(doc.rootDoc().getField("obj.inner"));
+    }
+
+    private static class TestDocumentInput implements DocumentInput<Map<String, Object>> {
+        private final Map<String, Object> fields = new HashMap<>();
+
+        @Override
+        public Map<String, Object> getFinalInput() {
+            return Collections.unmodifiableMap(fields);
+        }
+
+        @Override
+        public void addField(MappedFieldType fieldType, Object value) {
+            fields.put(fieldType != null ? fieldType.name() : "field_" + fields.size(), value);
+        }
+
+        @Override
+        public void setRowId(String rowIdFieldName, long rowId) {
+            fields.put(rowIdFieldName, rowId);
+        }
+
+        @Override
+        public void close() {}
     }
 }

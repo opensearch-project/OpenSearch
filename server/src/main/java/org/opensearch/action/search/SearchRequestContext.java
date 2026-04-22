@@ -43,6 +43,7 @@ public class SearchRequestContext {
     private final SearchRequest searchRequest;
     private final LinkedBlockingQueue<TaskResourceInfo> phaseResourceUsage;
     private final Supplier<TaskResourceInfo> taskResourceUsageSupplier;
+    private boolean streamingRequest;
 
     SearchRequestContext(
         final SearchRequestOperationsListener searchRequestOperationsListener,
@@ -155,6 +156,14 @@ public class SearchRequestContext {
      */
     public Set<Index> getSuccessfulSearchShardIndices() {
         return successfulSearchShardIndices;
+    }
+
+    void setStreamingRequest(boolean streamingRequest) {
+        this.streamingRequest = streamingRequest;
+    }
+
+    public boolean isStreamingRequest() {
+        return streamingRequest;
     }
 }
 

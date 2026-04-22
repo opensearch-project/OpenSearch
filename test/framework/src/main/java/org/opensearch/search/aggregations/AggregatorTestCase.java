@@ -90,7 +90,6 @@ import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
-import org.opensearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -128,6 +127,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.SearchPlugin;
@@ -152,6 +152,8 @@ import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -196,6 +198,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
     protected ValuesSourceRegistry valuesSourceRegistry;
+    protected ThreadPool aggTestThreadPool;
+    protected IndicesBitsetFilterCache aggTestIndicesBitsetFilterCache;
 
     // A list of field types that should not be tested, or are not currently supported
     private static List<String> TYPE_TEST_DENYLIST;
@@ -502,7 +506,13 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.numberOfShards()).thenReturn(1);
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
         when(searchContext.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
-        when(searchContext.bitsetFilterCache()).thenReturn(new BitsetFilterCache(indexSettings, mock(Listener.class)));
+        if (aggTestThreadPool == null) {
+            aggTestThreadPool = new TestThreadPool("agg_test");
+            aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY, aggTestThreadPool);
+        }
+        when(searchContext.bitsetFilterCache()).thenReturn(
+            new BitsetFilterCache(indexSettings, aggTestIndicesBitsetFilterCache, mock(BitsetFilterCache.Listener.class))
+        );
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(indexShard.indexSettings()).thenReturn(indexSettings);
@@ -550,6 +560,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
         when(searchContext.maxAggRewriteFilters()).thenReturn(10_000);
+        when(searchContext.termsAggregationMaxPrecomputeCardinality()).thenReturn(30_000L);
         when(searchContext.cardinalityAggregationContext()).thenReturn(
             new org.opensearch.search.aggregations.metrics.CardinalityAggregationContext(false, Runtime.getRuntime().maxMemory() / 100)
         );
@@ -1377,6 +1388,14 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     private void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
+        if (aggTestIndicesBitsetFilterCache != null) {
+            aggTestIndicesBitsetFilterCache.close();
+            aggTestIndicesBitsetFilterCache = null;
+        }
+        if (aggTestThreadPool != null) {
+            ThreadPool.terminate(aggTestThreadPool, 10, java.util.concurrent.TimeUnit.SECONDS);
+            aggTestThreadPool = null;
+        }
     }
 
     /**

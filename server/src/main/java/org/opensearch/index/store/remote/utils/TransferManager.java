@@ -10,6 +10,7 @@ package org.opensearch.index.store.remote.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -206,7 +207,7 @@ public class TransferManager {
         @Override
         public IndexInput getIndexInput() throws IOException {
             if (isClosed.get()) {
-                throw new IllegalStateException("Already closed");
+                throw new AlreadyClosedException("Already closed");
             }
             if (isStarted.getAndSet(true) == false) {
                 // We're the first one here, need to download the block
@@ -233,7 +234,7 @@ public class TransferManager {
         public CompletableFuture<IndexInput> asyncLoadIndexInput(Executor executor) {
             if (isClosed.get()) {
                 fileCache.decRef(request.getFilePath());
-                return CompletableFuture.failedFuture(new IllegalStateException("Already closed"));
+                return CompletableFuture.failedFuture(new AlreadyClosedException("Already closed"));
             }
             if (isStarted.getAndSet(true) == false) {
                 // Create new future and set it as the result
@@ -242,13 +243,18 @@ public class TransferManager {
                         return createIndexInput(fileCache, streamReader, request);
                     } catch (Exception e) {
                         fileCache.remove(request.getFilePath());
-                        throw new CompletionException(e);
+                        throw (e instanceof RuntimeException) ? (RuntimeException) e : new CompletionException(e);
                     }
                 }, executor).handle((indexInput, throwable) -> {
-                    fileCache.decRef(request.getFilePath());
                     if (throwable != null) {
-                        result.completeExceptionally(throwable);
+                        // On failure, the entry was already removed from the cache in the
+                        // catch block above, so we must not decRef here.
+                        Throwable cause = (throwable instanceof CompletionException && throwable.getCause() != null)
+                            ? throwable.getCause()
+                            : throwable;
+                        result.completeExceptionally(cause);
                     } else {
+                        fileCache.decRef(request.getFilePath());
                         result.complete(indexInput);
                     }
                     return null;
