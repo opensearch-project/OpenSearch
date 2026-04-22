@@ -14,9 +14,6 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -26,7 +23,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -165,7 +161,6 @@ public class DataFormatRegistry {
         return Map.of();
     }
 
-
     /**
      * Creates {@link EngineReaderManager} instances for all applicable data formats based on index settings/mappings.
      * Each reader manager is instantiated by applying the store provider and shard path to the factory registered
@@ -177,7 +172,12 @@ public class DataFormatRegistry {
      */
     public Map<DataFormat, EngineReaderManager<?>> getReaderManager(ReaderManagerConfig readerManagerConfig) throws IOException {
         if (!readerManagerBuilders.containsKey(readerManagerConfig.format())) {
-            throw new IllegalArgumentException("Unsupported format: [" + readerManagerConfig.format() +"]. Reader Manager can be built only for: " + readerManagerBuilders.keySet());
+            throw new IllegalArgumentException(
+                "Unsupported format: ["
+                    + readerManagerConfig.format()
+                    + "]. Reader Manager can be built only for: "
+                    + readerManagerBuilders.keySet()
+            );
         }
         return Map.of(readerManagerConfig.format(), readerManagerBuilders.get(readerManagerConfig.format()).apply(readerManagerConfig));
     }

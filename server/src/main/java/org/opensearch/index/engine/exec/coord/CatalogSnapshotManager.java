@@ -19,11 +19,7 @@ import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Segment;
-<<<<<<< HEAD
 import org.opensearch.index.shard.ShardPath;
-=======
-import org.opensearch.index.store.CompositeDirectory;
->>>>>>> f7b5f6783ad (Wire reader manager via index settings)
 
 import java.io.Closeable;
 import java.io.IOException;

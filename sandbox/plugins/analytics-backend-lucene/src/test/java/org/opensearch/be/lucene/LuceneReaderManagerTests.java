@@ -20,7 +20,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.settings.Settings;
@@ -290,7 +289,12 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         LuceneCommitter committer = new LuceneCommitter(cs);
 
         try {
-            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mock(MapperService.class), store);
+            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+                new LuceneDataFormat(),
+                committer,
+                mock(MapperService.class),
+                store
+            );
             ReaderManagerConfig settings = new ReaderManagerConfig(Optional.of(engine), dataFormat, shardPath);
 
             EngineReaderManager<?> rm = LuceneSearchBackEnd.createReaderManager(settings);

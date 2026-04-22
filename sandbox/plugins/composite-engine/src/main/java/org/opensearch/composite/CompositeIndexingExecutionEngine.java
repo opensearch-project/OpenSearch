@@ -358,7 +358,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
     @Override
     public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
-        Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>(config.registry().getReaderManager(readerManagerConfig(config, primaryEngine.getDataFormat())));
+        Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>(
+            config.registry().getReaderManager(readerManagerConfig(config, primaryEngine.getDataFormat()))
+        );
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
             readerManagers.putAll(config.registry().getReaderManager(readerManagerConfig(config, engine.getDataFormat())));
         }

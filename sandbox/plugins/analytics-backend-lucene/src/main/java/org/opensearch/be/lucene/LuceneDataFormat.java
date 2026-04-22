@@ -41,10 +41,7 @@ public class LuceneDataFormat extends DataFormat {
             "keyword",
             Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.STORED_FIELDS)
         ),
-        new FieldTypeCapabilities(
-            "match_only_text",
-            Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)
-        )
+        new FieldTypeCapabilities("match_only_text", Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH))
     );
 
     /** {@inheritDoc} Returns {@code "lucene"}. */

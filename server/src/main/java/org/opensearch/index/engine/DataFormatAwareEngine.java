@@ -231,12 +231,14 @@ public class DataFormatAwareEngine implements Indexer {
             // Create Reader managers
             // We will pass IndexStoreProvider to this, which would contain store
             // and any index specific attributes useful for reads.
-            this.readerManagers = indexingExecutionEngine.buildReaderManager(new ReaderManagerConfig(
-                Optional.ofNullable(indexingExecutionEngine.getProvider()),
-                indexingExecutionEngine.getDataFormat(),
-                registry,
-                store.shardPath()
-            ));
+            this.readerManagers = indexingExecutionEngine.buildReaderManager(
+                new ReaderManagerConfig(
+                    Optional.ofNullable(indexingExecutionEngine.getProvider()),
+                    indexingExecutionEngine.getDataFormat(),
+                    registry,
+                    store.shardPath()
+                )
+            );
 
             // 6. Create CombinedCatalogSnapshotDeletionPolicy
             CombinedCatalogSnapshotDeletionPolicy combinedPolicy = new CombinedCatalogSnapshotDeletionPolicy(
