@@ -99,6 +99,58 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Werror'
 }
 
+tasks.named('thirdPartyAudit').configure {
+  // arrow-memory-core uses sun.misc.Unsafe via MemoryUtil for off-heap access
+  ignoreViolations(
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1'
+  )
+  // arrow-format + flatbuffers-java satisfy Arrow's IPC Schema serialization path,
+  // only exercised by tests (see testRuntimeOnly declarations above). Main-runtime
+  // code paths don't invoke IPC, so the unresolved references are safe to ignore.
+  ignoreMissingClasses(
+    'com.google.flatbuffers.FlatBufferBuilder',
+    'org.apache.arrow.flatbuf.Binary',
+    'org.apache.arrow.flatbuf.BinaryView',
+    'org.apache.arrow.flatbuf.Block',
+    'org.apache.arrow.flatbuf.BodyCompression',
+    'org.apache.arrow.flatbuf.Bool',
+    'org.apache.arrow.flatbuf.Buffer',
+    'org.apache.arrow.flatbuf.Date',
+    'org.apache.arrow.flatbuf.Decimal',
+    'org.apache.arrow.flatbuf.DictionaryBatch',
+    'org.apache.arrow.flatbuf.DictionaryEncoding',
+    'org.apache.arrow.flatbuf.Duration',
+    'org.apache.arrow.flatbuf.Field',
+    'org.apache.arrow.flatbuf.FieldNode',
+    'org.apache.arrow.flatbuf.FixedSizeBinary',
+    'org.apache.arrow.flatbuf.FixedSizeList',
+    'org.apache.arrow.flatbuf.FloatingPoint',
+    'org.apache.arrow.flatbuf.Footer',
+    'org.apache.arrow.flatbuf.Int',
+    'org.apache.arrow.flatbuf.Interval',
+    'org.apache.arrow.flatbuf.KeyValue',
+    'org.apache.arrow.flatbuf.LargeBinary',
+    'org.apache.arrow.flatbuf.LargeList',
+    'org.apache.arrow.flatbuf.LargeListView',
+    'org.apache.arrow.flatbuf.LargeUtf8',
+    'org.apache.arrow.flatbuf.List',
+    'org.apache.arrow.flatbuf.ListView',
+    'org.apache.arrow.flatbuf.Map',
+    'org.apache.arrow.flatbuf.Message',
+    'org.apache.arrow.flatbuf.Null',
+    'org.apache.arrow.flatbuf.RecordBatch',
+    'org.apache.arrow.flatbuf.RunEndEncoded',
+    'org.apache.arrow.flatbuf.Schema',
+    'org.apache.arrow.flatbuf.Struct_',
+    'org.apache.arrow.flatbuf.Time',
+    'org.apache.arrow.flatbuf.Timestamp',
+    'org.apache.arrow.flatbuf.Union',
+    'org.apache.arrow.flatbuf.Utf8',
+    'org.apache.arrow.flatbuf.Utf8View'
+  )
+}
+
 configurations.all {
   // okhttp-aws-signer is a transitive dep of unified-query-common (via unified-query-core),
   // only published on JitPack, not needed for PPL parsing/planning
