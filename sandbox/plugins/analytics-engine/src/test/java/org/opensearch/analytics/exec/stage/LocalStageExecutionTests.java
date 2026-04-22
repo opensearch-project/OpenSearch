@@ -71,8 +71,13 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
     public void testStartTransitionsToFailedWhenCloseThrows() {
         RuntimeException boom = new RuntimeException("close blew up");
         ExchangeSink backend = new ExchangeSink() {
-            @Override public void feed(VectorSchemaRoot batch) {}
-            @Override public void close() { throw boom; }
+            @Override
+            public void feed(VectorSchemaRoot batch) {}
+
+            @Override
+            public void close() {
+                throw boom;
+            }
         };
         LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink());
 

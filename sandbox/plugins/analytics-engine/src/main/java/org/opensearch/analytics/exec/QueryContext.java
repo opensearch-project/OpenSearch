@@ -13,7 +13,6 @@ import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
-import org.opensearch.tasks.Task;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -122,8 +121,7 @@ public class QueryContext {
             synchronized (this) {
                 alloc = bufferAllocator;
                 if (alloc == null) {
-                    alloc = SHARED_ROOT.newChildAllocator(
-                        "query-" + dag.queryId(), 0, perQueryMemoryLimit);
+                    alloc = SHARED_ROOT.newChildAllocator("query-" + dag.queryId(), 0, perQueryMemoryLimit);
                     bufferAllocator = alloc;
                 }
             }
@@ -151,6 +149,12 @@ public class QueryContext {
 
     /** Creates a test context with a stub DAG. */
     public static QueryContext forTest(String queryId, AnalyticsQueryTask parentTask) {
-        return new QueryContext(new QueryDAG(queryId, null), Runnable::run, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, Long.MAX_VALUE);
+        return new QueryContext(
+            new QueryDAG(queryId, null),
+            Runnable::run,
+            parentTask,
+            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+            Long.MAX_VALUE
+        );
     }
 }

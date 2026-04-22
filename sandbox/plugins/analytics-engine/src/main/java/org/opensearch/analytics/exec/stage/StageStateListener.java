@@ -8,8 +8,6 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.opensearch.analytics.exec.stage.StageExecution;
-
 /**
  * Observer for {@link StageExecution} state transitions. Fired synchronously
  * from within the execution's {@code transitionTo(...)} helper; listener

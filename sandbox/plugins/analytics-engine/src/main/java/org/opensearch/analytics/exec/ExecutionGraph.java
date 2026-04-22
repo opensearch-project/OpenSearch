@@ -34,12 +34,7 @@ public class ExecutionGraph {
     private final List<StageExecution> leaves;
     private final String queryId;
 
-    ExecutionGraph(
-        String queryId,
-        Map<Integer, StageExecution> executions,
-        StageExecution rootExecution,
-        List<StageExecution> leaves
-    ) {
+    ExecutionGraph(String queryId, Map<Integer, StageExecution> executions, StageExecution rootExecution, List<StageExecution> leaves) {
         this.queryId = queryId;
         this.executions = executions;
         this.rootExecution = rootExecution;

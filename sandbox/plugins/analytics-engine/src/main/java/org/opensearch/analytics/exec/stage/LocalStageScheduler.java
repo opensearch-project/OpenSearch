@@ -39,11 +39,10 @@ final class LocalStageScheduler implements StageScheduler {
 
     /** Picks the plan-alternative bytes bound to the stage's exchange sink provider. */
     private static byte[] chosenBytes(Stage stage) {
-        assert stage.getPlanAlternatives().size() == 1
-            : "COORDINATOR_REDUCE stage "
-                + stage.getStageId()
-                + " expected exactly one plan alternative, got "
-                + stage.getPlanAlternatives().size();
+        assert stage.getPlanAlternatives().size() == 1 : "COORDINATOR_REDUCE stage "
+            + stage.getStageId()
+            + " expected exactly one plan alternative, got "
+            + stage.getPlanAlternatives().size();
         return stage.getPlanAlternatives().getFirst().convertedBytes();
     }
 }

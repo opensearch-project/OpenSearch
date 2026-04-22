@@ -52,9 +52,7 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     // implementation is wired up.
     @Override
     public ExchangeSource outputSource() {
-        throw new UnsupportedOperationException(
-            "LocalStageExecution has no output source yet — backend drain contract pending"
-        );
+        throw new UnsupportedOperationException("LocalStageExecution has no output source yet — backend drain contract pending");
     }
 
     @Override
@@ -81,7 +79,9 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
         logger.error("[LocalStage] failFromChild stageId={}", stage.getStageId(), cause);
         captureFailure(cause);
         if (transitionTo(State.FAILED)) {
-            try { backendSink.close(); } catch (Exception ignore) {}
+            try {
+                backendSink.close();
+            } catch (Exception ignore) {}
             metrics.incrementTasksFailed();
             return true;
         }
@@ -92,7 +92,9 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     public void cancel(String reason) {
         logger.info("[LocalStage] cancel stageId={} reason={}", stage.getStageId(), reason);
         if (transitionTo(State.CANCELLED)) {
-            try { backendSink.close(); } catch (Exception ignore) {}
+            try {
+                backendSink.close();
+            } catch (Exception ignore) {}
         }
     }
 }

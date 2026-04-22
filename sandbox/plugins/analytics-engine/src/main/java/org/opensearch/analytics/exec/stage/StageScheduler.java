@@ -8,9 +8,9 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.spi.ExchangeSink;
 
 /**
  * Factory for creating {@link StageExecution} instances for a specific

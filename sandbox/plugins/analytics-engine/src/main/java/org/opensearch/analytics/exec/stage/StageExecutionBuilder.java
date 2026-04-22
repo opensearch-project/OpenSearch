@@ -10,13 +10,13 @@ package org.opensearch.analytics.exec.stage;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.analytics.exec.RowProducingSink;
-import org.opensearch.analytics.spi.DataConsumer;
-import org.opensearch.analytics.spi.ExchangeSink;
-import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
+import org.opensearch.analytics.exec.QueryContext;
+import org.opensearch.analytics.exec.RowProducingSink;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
+import org.opensearch.analytics.spi.DataConsumer;
+import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 
@@ -99,8 +99,7 @@ public class StageExecutionBuilder {
         StageScheduler scheduler = schedulers.get(stage.getExecutionType());
         if (scheduler == null) {
             throw new IllegalStateException(
-                "No scheduler registered for execution type " + stage.getExecutionType()
-                    + " — stage " + stage.getStageId()
+                "No scheduler registered for execution type " + stage.getExecutionType() + " — stage " + stage.getStageId()
             );
         }
         return scheduler.createExecution(stage, sink, config);

@@ -8,14 +8,14 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.opensearch.analytics.spi.ExchangeSink;
-import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
+import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 
 import java.util.ArrayList;
@@ -70,15 +70,7 @@ final class ShardFragmentStageScheduler implements StageScheduler {
         // This keeps target resolution out of the build phase so cancellation before
         // dispatch doesn't pay for cluster-state routing, and leaves room for shuffle
         // reads whose targets depend on child manifests only available at dispatch time.
-        return new ShardFragmentStageExecution(
-            stage,
-            config,
-            sink,
-            clusterService,
-            requestBuilder,
-            transport,
-            responseCodec
-        );
+        return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, transport, responseCodec);
     }
 
     private static List<FragmentExecutionRequest.PlanAlternative> buildPlanAlternatives(Stage stage) {

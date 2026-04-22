@@ -9,14 +9,11 @@
 package org.opensearch.analytics.exec.action;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 
 /**
- * {@link ActionType} singleton for the analytics scan transport action.
- * Pairs the action name with the {@link FragmentExecutionResponse} deserializer.
- * <p>
- * This is the typed replacement for the scan path previously handled by
- * {@link AnalyticsShardAction} with a generic {@code FragmentExecutionResponse}.
+ * {@link ActionType} singleton for the analytics shard-level fragment
+ * execution action. Pairs the action name with the
+ * {@link FragmentExecutionResponse} deserializer.
  */
 public class FragmentExecutionAction extends ActionType<FragmentExecutionResponse> {
 

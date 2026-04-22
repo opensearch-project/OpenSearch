@@ -130,13 +130,7 @@ abstract class AbstractStageExecution implements StageExecution {
             try {
                 l.onStateChange(previous, target);
             } catch (Exception e) {
-                logger.warn(
-                    "[StageExecution] listener threw for stage {} transition {} -> {}",
-                    getStageId(),
-                    previous,
-                    target,
-                    e
-                );
+                logger.warn("[StageExecution] listener threw for stage {} transition {} -> {}", getStageId(), previous, target, e);
             }
         }
 
@@ -154,13 +148,18 @@ abstract class AbstractStageExecution implements StageExecution {
             try {
                 switch (target) {
                     case RUNNING -> l.onStageStart(queryId, sid, stageType);
-                    case SUCCEEDED -> l.onStageSuccess(queryId, sid,
+                    case SUCCEEDED -> l.onStageSuccess(
+                        queryId,
+                        sid,
                         metrics.getEndTimeMs() > 0 && metrics.getStartTimeMs() > 0
-                            ? (metrics.getEndTimeMs() - metrics.getStartTimeMs()) * 1_000_000L : 0,
-                        metrics.getRowsProcessed());
+                            ? (metrics.getEndTimeMs() - metrics.getStartTimeMs()) * 1_000_000L
+                            : 0,
+                        metrics.getRowsProcessed()
+                    );
                     case FAILED -> l.onStageFailure(queryId, sid, getFailure());
                     case CANCELLED -> l.onStageCancelled(queryId, sid, "stage cancelled");
-                    default -> { }
+                    default -> {
+                    }
                 }
             } catch (Exception e) {
                 logger.warn("[StageExecution] operation listener threw for stage {} -> {}", sid, target, e);

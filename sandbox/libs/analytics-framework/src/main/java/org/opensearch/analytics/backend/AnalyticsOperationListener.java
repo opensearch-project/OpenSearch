@@ -8,9 +8,10 @@
 
 package org.opensearch.analytics.backend;
 
-import java.util.List;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.util.List;
 
 /**
  * Listener for analytics query execution lifecycle events. Analogous to
@@ -144,63 +145,113 @@ public interface AnalyticsOperationListener {
             this.delegates = delegates;
         }
 
-        @Override public void onQueryStart(String queryId, int stageCount) {
+        @Override
+        public void onQueryStart(String queryId, int stageCount) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onQueryStart(queryId, stageCount); } catch (Exception e) { warn("onQueryStart", e); }
+                try {
+                    l.onQueryStart(queryId, stageCount);
+                } catch (Exception e) {
+                    warn("onQueryStart", e);
+                }
             }
         }
 
-        @Override public void onQuerySuccess(String queryId, long tookInNanos, long totalRows) {
+        @Override
+        public void onQuerySuccess(String queryId, long tookInNanos, long totalRows) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onQuerySuccess(queryId, tookInNanos, totalRows); } catch (Exception e) { warn("onQuerySuccess", e); }
+                try {
+                    l.onQuerySuccess(queryId, tookInNanos, totalRows);
+                } catch (Exception e) {
+                    warn("onQuerySuccess", e);
+                }
             }
         }
 
-        @Override public void onQueryFailure(String queryId, Exception cause) {
+        @Override
+        public void onQueryFailure(String queryId, Exception cause) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onQueryFailure(queryId, cause); } catch (Exception e) { warn("onQueryFailure", e); }
+                try {
+                    l.onQueryFailure(queryId, cause);
+                } catch (Exception e) {
+                    warn("onQueryFailure", e);
+                }
             }
         }
 
-        @Override public void onStageStart(String queryId, int stageId, String stageType) {
+        @Override
+        public void onStageStart(String queryId, int stageId, String stageType) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onStageStart(queryId, stageId, stageType); } catch (Exception e) { warn("onStageStart", e); }
+                try {
+                    l.onStageStart(queryId, stageId, stageType);
+                } catch (Exception e) {
+                    warn("onStageStart", e);
+                }
             }
         }
 
-        @Override public void onStageSuccess(String queryId, int stageId, long tookInNanos, long rowsProcessed) {
+        @Override
+        public void onStageSuccess(String queryId, int stageId, long tookInNanos, long rowsProcessed) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onStageSuccess(queryId, stageId, tookInNanos, rowsProcessed); } catch (Exception e) { warn("onStageSuccess", e); }
+                try {
+                    l.onStageSuccess(queryId, stageId, tookInNanos, rowsProcessed);
+                } catch (Exception e) {
+                    warn("onStageSuccess", e);
+                }
             }
         }
 
-        @Override public void onStageFailure(String queryId, int stageId, Exception cause) {
+        @Override
+        public void onStageFailure(String queryId, int stageId, Exception cause) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onStageFailure(queryId, stageId, cause); } catch (Exception e) { warn("onStageFailure", e); }
+                try {
+                    l.onStageFailure(queryId, stageId, cause);
+                } catch (Exception e) {
+                    warn("onStageFailure", e);
+                }
             }
         }
 
-        @Override public void onStageCancelled(String queryId, int stageId, String reason) {
+        @Override
+        public void onStageCancelled(String queryId, int stageId, String reason) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onStageCancelled(queryId, stageId, reason); } catch (Exception e) { warn("onStageCancelled", e); }
+                try {
+                    l.onStageCancelled(queryId, stageId, reason);
+                } catch (Exception e) {
+                    warn("onStageCancelled", e);
+                }
             }
         }
 
-        @Override public void onPreFragmentExecution(String queryId, int stageId, String shardId) {
+        @Override
+        public void onPreFragmentExecution(String queryId, int stageId, String shardId) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onPreFragmentExecution(queryId, stageId, shardId); } catch (Exception e) { warn("onPreFragmentExecution", e); }
+                try {
+                    l.onPreFragmentExecution(queryId, stageId, shardId);
+                } catch (Exception e) {
+                    warn("onPreFragmentExecution", e);
+                }
             }
         }
 
-        @Override public void onFragmentSuccess(String queryId, int stageId, String shardId, long tookInNanos, long rowsProduced) {
+        @Override
+        public void onFragmentSuccess(String queryId, int stageId, String shardId, long tookInNanos, long rowsProduced) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onFragmentSuccess(queryId, stageId, shardId, tookInNanos, rowsProduced); } catch (Exception e) { warn("onFragmentSuccess", e); }
+                try {
+                    l.onFragmentSuccess(queryId, stageId, shardId, tookInNanos, rowsProduced);
+                } catch (Exception e) {
+                    warn("onFragmentSuccess", e);
+                }
             }
         }
 
-        @Override public void onFragmentFailure(String queryId, int stageId, String shardId, Exception cause) {
+        @Override
+        public void onFragmentFailure(String queryId, int stageId, String shardId, Exception cause) {
             for (AnalyticsOperationListener l : delegates) {
-                try { l.onFragmentFailure(queryId, stageId, shardId, cause); } catch (Exception e) { warn("onFragmentFailure", e); }
+                try {
+                    l.onFragmentFailure(queryId, stageId, shardId, cause);
+                } catch (Exception e) {
+                    warn("onFragmentFailure", e);
+                }
             }
         }
 

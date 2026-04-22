@@ -88,10 +88,12 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
     }
 
     public void testBatchesToRowsMultipleColumns() {
-        Schema schema = new Schema(List.of(
-            new Field("id", FieldType.nullable(new ArrowType.Int(64, true)), null),
-            new Field("name", FieldType.nullable(ArrowType.Utf8.INSTANCE), null)
-        ));
+        Schema schema = new Schema(
+            List.of(
+                new Field("id", FieldType.nullable(new ArrowType.Int(64, true)), null),
+                new Field("name", FieldType.nullable(ArrowType.Utf8.INSTANCE), null)
+            )
+        );
         VectorSchemaRoot batch = VectorSchemaRoot.create(schema, allocator);
         try {
             batch.allocateNew();
@@ -177,7 +179,8 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
     private static <T> List<T> toList(Iterable<T> it) {
         List<T> out = new ArrayList<>();
         Iterator<T> iter = it.iterator();
-        while (iter.hasNext()) out.add(iter.next());
+        while (iter.hasNext())
+            out.add(iter.next());
         return out;
     }
 }

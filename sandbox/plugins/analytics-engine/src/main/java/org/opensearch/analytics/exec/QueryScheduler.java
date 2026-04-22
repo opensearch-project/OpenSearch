@@ -64,16 +64,16 @@ public class QueryScheduler implements Scheduler {
     public void execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
         final String queryId = config.queryId();
         final long queryStartNanos = System.nanoTime();
-        final AnalyticsOperationListener.CompositeListener opListener =
-            new AnalyticsOperationListener.CompositeListener(config.operationListeners());
+        final AnalyticsOperationListener.CompositeListener opListener = new AnalyticsOperationListener.CompositeListener(
+            config.operationListeners()
+        );
 
         PlanWalker walker = createWalker(config, listener, queryId, queryStartNanos, opListener);
         walkerPool.put(queryId, walker);
 
         final AnalyticsQueryTask queryTask = config.parentTask();
         queryTask.setOnCancelCallback(() -> {
-            String reason = "task cancelled: "
-                + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
+            String reason = "task cancelled: " + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
             logger.info("[QueryScheduler] AnalyticsQueryTask.onCancelled fired, reason={}", reason);
             walker.cancelAll(reason);
         });
@@ -94,18 +94,15 @@ public class QueryScheduler implements Scheduler {
         long queryStartNanos,
         AnalyticsOperationListener opListener
     ) {
-        ActionListener<Iterable<VectorSchemaRoot>> wrapped = ActionListener.wrap(
-            result -> {
-                walkerPool.remove(queryId);
-                opListener.onQuerySuccess(queryId, System.nanoTime() - queryStartNanos, 0);
-                listener.onResponse(result);
-            },
-            e -> {
-                walkerPool.remove(queryId);
-                opListener.onQueryFailure(queryId, e);
-                listener.onFailure(e);
-            }
-        );
+        ActionListener<Iterable<VectorSchemaRoot>> wrapped = ActionListener.wrap(result -> {
+            walkerPool.remove(queryId);
+            opListener.onQuerySuccess(queryId, System.nanoTime() - queryStartNanos, 0);
+            listener.onResponse(result);
+        }, e -> {
+            walkerPool.remove(queryId);
+            opListener.onQueryFailure(queryId, e);
+            listener.onFailure(e);
+        });
         return new PlanWalker(config, stageExecutionBuilder, wrapped);
     }
 

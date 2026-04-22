@@ -22,5 +22,4 @@ import org.opensearch.analytics.spi.DataConsumer;
  *
  * @opensearch.internal
  */
-public interface SinkProvidingStageExecution extends StageExecution, DataConsumer, DataProducer {
-}
+public interface SinkProvidingStageExecution extends StageExecution, DataConsumer, DataProducer {}

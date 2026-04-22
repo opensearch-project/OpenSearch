@@ -57,7 +57,11 @@ public class PlanWalker {
     private final ActionListener<Iterable<VectorSchemaRoot>> completionListener;
     private volatile ExecutionGraph graph;
 
-    public PlanWalker(QueryContext config, StageExecutionBuilder stageExecutionBuilder, ActionListener<Iterable<VectorSchemaRoot>> listener) {
+    public PlanWalker(
+        QueryContext config,
+        StageExecutionBuilder stageExecutionBuilder,
+        ActionListener<Iterable<VectorSchemaRoot>> listener
+    ) {
         this.config = config;
         this.stageExecutionBuilder = stageExecutionBuilder;
         this.completionListener = listener;
@@ -148,9 +152,7 @@ public class PlanWalker {
     public Collection<StageExecution> activeExecutions() {
         ExecutionGraph g = this.graph;
         if (g == null) return List.of();
-        return g.allExecutions().stream()
-            .filter(e -> e.getState() == StageExecution.State.RUNNING)
-            .toList();
+        return g.allExecutions().stream().filter(e -> e.getState() == StageExecution.State.RUNNING).toList();
     }
 
     public Collection<StageExecution> allExecutions() {
@@ -187,7 +189,8 @@ public class PlanWalker {
                             parentExec.cancel("child " + childExec.getStageId() + " " + to);
                         }
                     }
-                    default -> { }
+                    default -> {
+                    }
                 }
             });
             buildChildrenRecursively(executions, childExec, child);
@@ -196,9 +199,7 @@ public class PlanWalker {
 
     private void wireCompletionListener(StageExecution rootExec) {
         if ((rootExec instanceof DataProducer) == false) {
-            throw new IllegalStateException(
-                "Root execution " + rootExec.getClass().getSimpleName() + " does not implement DataProducer"
-            );
+            throw new IllegalStateException("Root execution " + rootExec.getClass().getSimpleName() + " does not implement DataProducer");
         }
         final DataProducer producer = (DataProducer) rootExec;
         rootExec.addStateListener((from, to) -> {
@@ -211,11 +212,11 @@ public class PlanWalker {
                     } else if (failure != null) {
                         fireTerminal(() -> completionListener.onFailure(failure));
                     } else {
-                        fireTerminal(() -> completionListener.onFailure(
-                            new RuntimeException("Stage " + rootExec.getStageId() + " " + to)));
+                        fireTerminal(() -> completionListener.onFailure(new RuntimeException("Stage " + rootExec.getStageId() + " " + to)));
                     }
                 }
-                default -> { }
+                default -> {
+                }
             }
         });
     }

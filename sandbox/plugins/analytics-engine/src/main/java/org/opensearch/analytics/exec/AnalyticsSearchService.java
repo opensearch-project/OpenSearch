@@ -13,9 +13,9 @@ import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
-import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.common.Nullable;
@@ -50,10 +50,7 @@ public class AnalyticsSearchService {
         this(backends, List.of());
     }
 
-    public AnalyticsSearchService(
-        Map<String, AnalyticsSearchBackendPlugin> backends,
-        List<AnalyticsOperationListener> listeners
-    ) {
+    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, List<AnalyticsOperationListener> listeners) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
     }
@@ -116,7 +113,10 @@ public class AnalyticsSearchService {
 
             AnalyticsSearchBackendPlugin backend = backends.get(selectedPlan.getBackendId());
 
-            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx)) {
+            try (
+                SearchExecEngine<ExecutionContext, EngineResultStream> engine = backend.getSearchExecEngineProvider()
+                    .createSearchExecEngine(ctx)
+            ) {
                 try (EngineResultStream stream = engine.execute(ctx)) {
                     FragmentExecutionResponse response = collectResponse(stream, task);
                     long tookNanos = System.nanoTime() - startNanos;

@@ -162,9 +162,6 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     }
 
     private PendingExecutions pendingFor(ShardExecutionTarget target) {
-        return pendingPerNode.computeIfAbsent(
-            target.node().getId(),
-            n -> new PendingExecutions(config.maxConcurrentShardRequests())
-        );
+        return pendingPerNode.computeIfAbsent(target.node().getId(), n -> new PendingExecutions(config.maxConcurrentShardRequests()));
     }
 }
