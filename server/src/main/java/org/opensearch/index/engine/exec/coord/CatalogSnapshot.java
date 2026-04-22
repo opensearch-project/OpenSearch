@@ -277,4 +277,5 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      * @throws IOException in case of I/O error
      */
     public abstract Collection<String> getFiles(boolean includeSegmentsFile) throws IOException;
+
 }

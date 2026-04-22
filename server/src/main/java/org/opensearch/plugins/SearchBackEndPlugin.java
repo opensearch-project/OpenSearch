@@ -50,6 +50,7 @@ public interface SearchBackEndPlugin<R> {
     /** Unique backend name (e.g., "datafusion", "lucene"). */
     String name();
 
+    // TODO: Revisit whether this should return List<DataFormat> or List<String>.
     /** Returns the names of data formats this backend can read and query. */
     List<String> getSupportedFormats();
 
