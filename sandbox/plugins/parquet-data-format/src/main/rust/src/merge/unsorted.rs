@@ -18,7 +18,7 @@ use crate::{log_debug, log_info};
 use super::context::MergeContext;
 use super::error::MergeResult;
 use super::io_task::{BATCH_SIZE, OUTPUT_FLUSH_ROWS};
-use super::schema::{pad_batch_to_schema, projection_indices_excluding_row_id};
+use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
 
 /// Unsorted merge: reads each input file sequentially, pads to union schema,
 /// rewrites `___row_id` with globally sequential values. No sorting performed.
@@ -55,12 +55,17 @@ pub fn merge_unsorted(
     }
 
     let mut ctx = MergeContext::new(
-        arrow_schemas,
+        arrow_schemas.clone(),
         &parquet_descriptors,
         output_path,
         index_name,
         OUTPUT_FLUSH_ROWS,
     )?;
+
+    // Precompute column mappings per reader
+    let col_mappings: Vec<ColumnMapping> = arrow_schemas.iter()
+        .map(|s| ColumnMapping::new(s, ctx.data_schema()))
+        .collect();
 
     // Iterate readers for data.
     for (file_idx, reader) in readers.into_iter().enumerate() {
@@ -70,10 +75,10 @@ pub fn merge_unsorted(
             input_files.len()
         );
 
+        let mapping = &col_mappings[file_idx];
         for batch_result in reader {
             let batch = batch_result?;
-            let padded = pad_batch_to_schema(&batch, ctx.data_schema())?;
-            ctx.push_batch(padded)?;
+            ctx.push_batch(mapping.pad_batch(&batch)?)?;
         }
     }
 

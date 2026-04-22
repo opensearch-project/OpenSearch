@@ -65,33 +65,6 @@ pub fn projection_indices_excluding_row_id(schema: &ArrowSchema) -> Vec<usize> {
         .collect()
 }
 
-/// Pads a batch to conform to the target schema by adding null-filled columns
-/// for any fields present in `target_schema` but missing from the batch.
-///
-/// Returns the batch unchanged (no copy) when schemas already match.
-pub fn pad_batch_to_schema(
-    batch: &RecordBatch,
-    target_schema: &Arc<ArrowSchema>,
-) -> MergeResult<RecordBatch> {
-    let batch_schema = batch.schema();
-    if batch_schema.fields() == target_schema.fields() {
-        return Ok(batch.clone());
-    }
-
-    let num_rows = batch.num_rows();
-    let mut columns: Vec<ArrayRef> = Vec::with_capacity(target_schema.fields().len());
-
-    for field in target_schema.fields() {
-        match batch_schema.index_of(field.name()) {
-            Ok(col_idx) => columns.push(batch.column(col_idx).clone()),
-            Err(_) => {
-                columns.push(arrow::array::new_null_array(field.data_type(), num_rows));
-            }
-        }
-    }
-
-    Ok(RecordBatch::try_new(target_schema.clone(), columns)?)
-}
 
 /// Appends a `___row_id` column with sequential values `[start_id, start_id + N)`
 /// to the given batch, producing a new batch with the output schema.
@@ -106,4 +79,64 @@ pub fn append_row_id(
     columns.push(Arc::new(row_ids));
     let result = RecordBatch::try_new(output_schema.clone(), columns)?;
     Ok(result)
+}
+
+// =============================================================================
+// ColumnMapping — precomputed source→target index mapping
+// =============================================================================
+
+/// Precomputed mapping from target schema field positions to source batch
+/// column indices. Built once per cursor, reused for every batch from that cursor.
+///
+/// Replaces per-batch `schema.index_of(field.name())` name lookups with O(1)
+/// indexed access.
+pub struct ColumnMapping {
+    mapping: Vec<Option<usize>>,
+    target_schema: Arc<ArrowSchema>,
+    is_identity: bool,
+}
+
+impl ColumnMapping {
+    /// Build a mapping from `source_schema` → `target_schema`.
+    pub fn new(source_schema: &ArrowSchema, target_schema: &Arc<ArrowSchema>) -> Self {
+        let mut mapping = Vec::with_capacity(target_schema.fields().len());
+        let mut is_identity = source_schema.fields().len() == target_schema.fields().len();
+
+        for (target_idx, field) in target_schema.fields().iter().enumerate() {
+            match source_schema.index_of(field.name()) {
+                Ok(src_idx) => {
+                    if is_identity && src_idx != target_idx {
+                        is_identity = false;
+                    }
+                    mapping.push(Some(src_idx));
+                }
+                Err(_) => {
+                    is_identity = false;
+                    mapping.push(None);
+                }
+            }
+        }
+
+        Self { mapping, target_schema: target_schema.clone(), is_identity }
+    }
+
+    /// Remap a batch using the precomputed mapping. Zero-copy when schemas match.
+    #[inline]
+    pub fn pad_batch(&self, batch: &RecordBatch) -> MergeResult<RecordBatch> {
+        if self.is_identity {
+            return Ok(batch.clone());
+        }
+        let num_rows = batch.num_rows();
+        let mut columns: Vec<ArrayRef> = Vec::with_capacity(self.mapping.len());
+        for (i, entry) in self.mapping.iter().enumerate() {
+            match entry {
+                Some(src_idx) => columns.push(batch.column(*src_idx).clone()),
+                None => {
+                    let field = &self.target_schema.fields()[i];
+                    columns.push(arrow::array::new_null_array(field.data_type(), num_rows));
+                }
+            }
+        }
+        Ok(RecordBatch::try_new(self.target_schema.clone(), columns)?)
+    }
 }

@@ -19,7 +19,7 @@ use super::context::MergeContext;
 use super::cursor::FileCursor;
 use super::heap::{cmp_sort_values, get_sort_values, HeapItem};
 use super::io_task::{get_merge_pool, BATCH_SIZE, OUTPUT_FLUSH_ROWS};
-use super::schema::pad_batch_to_schema;
+use super::schema::ColumnMapping;
 
 /// Performs a streaming k-way merge with an explicit sort direction per column.
 pub fn merge_sorted(
@@ -81,12 +81,17 @@ pub fn merge_sorted(
 
     // ── Phase 2: Create MergeContext (union schemas, writer, IO task) ───
     let mut ctx = MergeContext::new(
-        arrow_schemas,
+        arrow_schemas.clone(),
         &parquet_descriptors,
         output_path,
         index_name,
         output_flush_rows,
     )?;
+
+    // Precompute column mappings per cursor (avoids per-batch name lookups)
+    let col_mappings: Vec<ColumnMapping> = arrow_schemas.iter()
+        .map(|s| ColumnMapping::new(s, ctx.data_schema()))
+        .collect();
 
     log_info!(
         "[RUST] Merge initialized ({}): {} cursors",
@@ -113,12 +118,12 @@ pub fn merge_sorted(
         // TIER 1: Single cursor remaining — drain it
         if heap.is_empty() {
             let cursor = &mut cursors[file_id];
+            let mapping = &col_mappings[file_id];
             loop {
                 let remaining = cursor.batch_height() - cursor.row_idx;
                 if remaining > 0 {
                     let slice = cursor.take_slice(cursor.row_idx, remaining);
-                    let padded = pad_batch_to_schema(&slice, ctx.data_schema())?;
-                    ctx.push_batch(padded)?;
+                    ctx.push_batch(mapping.pad_batch(&slice)?)?;
                 }
                 if !cursor.advance_past_batch()? {
                     break;
@@ -129,6 +134,7 @@ pub fn merge_sorted(
 
         // TIER 2 & 3: Multiple cursors active
         let cursor = &mut cursors[file_id];
+        let mapping = &col_mappings[file_id];
 
         loop {
             let heap_top = &heap.peek().unwrap().sort_values;
@@ -138,8 +144,7 @@ pub fn merge_sorted(
             if cmp_sort_values(&last_val, heap_top, reverse_sorts) != Ordering::Greater {
                 let remaining = cursor.batch_height() - cursor.row_idx;
                 let slice = cursor.take_slice(cursor.row_idx, remaining);
-                let padded = pad_batch_to_schema(&slice, ctx.data_schema())?;
-                ctx.push_batch(padded)?;
+                ctx.push_batch(mapping.pad_batch(&slice)?)?;
 
                 if !cursor.advance_past_batch()? {
                     break;
@@ -176,8 +181,7 @@ pub fn merge_sorted(
             let run_len = run_end - run_start + 1;
             if run_len > 0 {
                 let slice = cursor.take_slice(run_start, run_len);
-                let padded = pad_batch_to_schema(&slice, ctx.data_schema())?;
-                ctx.push_batch(padded)?;
+                ctx.push_batch(mapping.pad_batch(&slice)?)?;
             }
 
             cursor.row_idx = run_end;
