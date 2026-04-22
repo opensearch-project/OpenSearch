@@ -81,12 +81,17 @@ public class PageCacheHandleTests {
     }
 
     // ── FoyerPageCache input validation (no native required) ─────────────────
+    // All constructor calls include the required blockSizeBytes and ioEngine params.
+    // Validation of the new params is tested in the dedicated tests below.
+
+    private static final long BLOCK = 64 * 1024 * 1024L;   // 64 MB default
+    private static final String ENGINE = "auto";
 
     @Test
     public void testFoyerPageCacheThrowsOnZeroDiskBytes() {
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(0, "/tmp/cache")
+            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(0, "/tmp/cache", BLOCK, ENGINE)
         );
         assertEquals("diskBytes must be > 0, got: 0", ex.getMessage());
     }
@@ -95,7 +100,7 @@ public class PageCacheHandleTests {
     public void testFoyerPageCacheThrowsOnNegativeDiskBytes() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(-1, "/tmp/cache")
+            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(-1, "/tmp/cache", BLOCK, ENGINE)
         );
     }
 
@@ -103,7 +108,7 @@ public class PageCacheHandleTests {
     public void testFoyerPageCacheThrowsOnNullDiskDir() {
         assertThrows(
             NullPointerException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, null)
+            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, null, BLOCK, ENGINE)
         );
     }
 
@@ -111,7 +116,7 @@ public class PageCacheHandleTests {
     public void testFoyerPageCacheThrowsOnBlankDiskDir() {
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "   ")
+            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "   ", BLOCK, ENGINE)
         );
         assertEquals("diskDir must not be blank", ex.getMessage());
     }
@@ -120,8 +125,33 @@ public class PageCacheHandleTests {
     public void testFoyerPageCacheThrowsOnEmptyDiskDir() {
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "")
+            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "", BLOCK, ENGINE)
         );
         assertEquals("diskDir must not be blank", ex.getMessage());
+    }
+
+    @Test
+    public void testFoyerPageCacheThrowsOnZeroBlockSize() {
+        IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "/tmp/cache", 0, ENGINE)
+        );
+        assertEquals("blockSizeBytes must be > 0, got: 0", ex.getMessage());
+    }
+
+    @Test
+    public void testFoyerPageCacheThrowsOnNegativeBlockSize() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "/tmp/cache", -1, ENGINE)
+        );
+    }
+
+    @Test
+    public void testFoyerPageCacheThrowsOnNullIoEngine() {
+        assertThrows(
+            NullPointerException.class,
+            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "/tmp/cache", BLOCK, null)
+        );
     }
 }

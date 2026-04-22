@@ -10,19 +10,17 @@ package org.opensearch.pagecache;
 
 import java.io.Closeable;
 
+
 /**
- * A node-level page cache shared across plugins.
+ * A node-level cache for units of data read from remote storage.
  *
- * <p>Implementations manage the lifecycle of the underlying cache resources.
+ * <p>Analogous to an OS page cache, but operating at the SSD tier rather than DRAM —
+ * caching data locally to avoid repeated fetches from object storage.
+ * This interface is agnostic of entry granularity (fixed blocks or variable ranges)
+ * and of the backing implementation.
+ *
+ * <p>Implementations manage the lifecycle of underlying cache resources.
  * {@link #close()} must be called at node shutdown and must be idempotent.
- *
- * <p>The interface is intentionally minimal — methods will be added as concrete
- * callers are introduced. Planned additions include:
- * <ul>
- *   <li>{@code evict(String prefix)} — invalidate entries when a shard closes</li>
- *   <li>{@code diskCapacityBytes()} — for budget management and stats</li>
- *   <li>{@code diskUsageBytes()} — for stats reporting</li>
- * </ul>
  *
  * @opensearch.experimental
  */
