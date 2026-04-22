@@ -71,6 +71,7 @@ import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -704,7 +705,7 @@ public final class EngineConfig {
         private DataFormatRegistry dataFormatRegistry;
         private MapperService mapperService;
         private CommitterFactory committerFactory;
-        private Map<String, FormatChecksumStrategy> checksumStrategies;
+        private Map<String, FormatChecksumStrategy> checksumStrategies = Collections.emptyMap();
 
         public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
