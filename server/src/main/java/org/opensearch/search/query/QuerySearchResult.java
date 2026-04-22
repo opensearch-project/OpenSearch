@@ -33,9 +33,11 @@
 package org.opensearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -161,6 +163,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
             throw new IllegalStateException("topDocs already consumed");
         }
         return topDocsAndMaxScore;
+    }
+
+    /**
+     * Returns true if top docs are available.
+     */
+    public boolean hasTopDocs() {
+        return topDocsAndMaxScore != null;
     }
 
     /**
@@ -388,7 +397,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeNamedWriteable(sortValueFormats[i]);
             }
         }
-        writeTopDocs(out, topDocsAndMaxScore);
+        // Ensure a non-null TopDocs payload on the wire.
+        TopDocsAndMaxScore toWrite = topDocsAndMaxScore;
+        if (toWrite == null) {
+            toWrite = new TopDocsAndMaxScore(
+                new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
+                Float.NaN
+            );
+        }
+        writeTopDocs(out, toWrite);
         if (aggregations == null) {
             out.writeBoolean(false);
         } else {

@@ -396,7 +396,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
-        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
+        if (searchContext.isStreamSearch()
+            && searchContext.getFlushMode() == FlushMode.PER_SEGMENT
+            && searchContext.getStreamChannelListener() != null) {
             logger.debug(
                 "Stream intermediate aggregation for segment [{}], shard [{}]",
                 ctx.ord,
@@ -431,7 +433,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         fetchResult.hits(SearchHits.empty());
         final QueryFetchSearchResult result = new QueryFetchSearchResult(cloneResult, fetchResult);
         // flush back
-        searchContext.getStreamChannelListener().onStreamResponse(result, false);
+        if (searchContext.getStreamChannelListener() != null) {
+            searchContext.getStreamChannelListener().onStreamResponse(result, false);
+        }
     }
 
     private Weight wrapWeight(Weight weight) {
