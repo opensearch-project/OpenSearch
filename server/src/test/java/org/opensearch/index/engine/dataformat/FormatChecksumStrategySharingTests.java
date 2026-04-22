@@ -84,7 +84,7 @@ public class FormatChecksumStrategySharingTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            .put(DataFormatRegistry.PLUGGABLE_DATAFORMAT_SETTING, FORMAT_NAME)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), FORMAT_NAME)
             .build();
         return new IndexSettings(IndexMetadata.builder(indexName).settings(settings).build(), settings);
     }

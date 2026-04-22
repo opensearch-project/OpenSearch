@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -60,8 +61,10 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.format("parquet")).thenReturn(CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of()));
-        when(registry.getFormatDescriptors(indexSettings)).thenReturn(
+        DataFormat parquetFormat = CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of());
+        when(registry.format("parquet")).thenReturn(parquetFormat);
+        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of()));
+        when(registry.getFormatDescriptors(indexSettings, parquetFormat)).thenReturn(
             Map.of(
                 "parquet",
                 new org.opensearch.index.engine.dataformat.DataFormatDescriptor(

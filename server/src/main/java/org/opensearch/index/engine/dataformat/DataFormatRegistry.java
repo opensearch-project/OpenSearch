@@ -36,9 +36,6 @@ import java.util.stream.Collectors;
 @ExperimentalApi
 public class DataFormatRegistry {
 
-    /** Index setting name that specifies the active pluggable data format. */
-    public static final String PLUGGABLE_DATAFORMAT_SETTING = "pluggable_dataformat";
-
     /** Map from data format to the plugin that provides its indexing engine. */
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
 
@@ -146,8 +143,8 @@ public class DataFormatRegistry {
      * @return unmodifiable map of format name to descriptor, or empty map if no pluggable data format is configured
      */
     public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings) {
-        String dataformatName = indexSettings.getSettings().get(PLUGGABLE_DATAFORMAT_SETTING);
-        if (dataformatName != null) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
             DataFormat format = dataFormats.get(dataformatName);
             if (format != null) {
                 DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
@@ -157,6 +154,23 @@ public class DataFormatRegistry {
             }
         }
         return Map.of();
+    }
+
+    /**
+     * Returns format descriptors for a specific data format, bypassing the
+     * {@code pluggable_dataformat} index setting lookup. This is used by composite
+     * plugins to resolve child format descriptors without recursion.
+     *
+     * @param indexSettings the index settings
+     * @param dataFormat the specific data format to get descriptors for
+     * @return map of format name to descriptor, or empty map if the format is not registered
+     */
+    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormat dataFormat) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return Map.of();
+        }
+        return plugin.getFormatDescriptors(indexSettings, this);
     }
 
     /**
@@ -172,7 +186,10 @@ public class DataFormatRegistry {
         Map<String, DataFormatDescriptor> descriptors = getFormatDescriptors(indexSettings);
         Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
         for (Map.Entry<String, DataFormatDescriptor> entry : descriptors.entrySet()) {
-            strategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
+            FormatChecksumStrategy strategy = entry.getValue().getChecksumStrategy();
+            if (strategy != null) {
+                strategies.put(entry.getKey(), strategy);
+            }
         }
         return Collections.unmodifiableMap(strategies);
     }

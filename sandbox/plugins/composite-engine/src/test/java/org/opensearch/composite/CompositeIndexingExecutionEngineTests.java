@@ -76,7 +76,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         when(registry.getRegisteredFormats()).thenReturn(Set.of(CompositeTestHelper.stubFormat("lucene", 1, Set.of())));
         when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
             DataFormatPlugin plugin = CompositeTestHelper.stubPlugin("lucene", 1);
-            return plugin.indexingEngine(null, null);
+            return plugin.indexingEngine(null);
         });
 
         Settings settings = Settings.builder()

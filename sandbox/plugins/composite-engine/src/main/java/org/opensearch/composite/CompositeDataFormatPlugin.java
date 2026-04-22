@@ -110,11 +110,11 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
 
         Map<String, DataFormatDescriptor> descriptors = new HashMap<>();
         if (primaryFormatName != null) {
-            descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
+            descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings, dataFormatRegistry.format(primaryFormatName)));
         }
         for (String secondaryName : secondaryFormatNames) {
             if (secondaryName != null) {
-                descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
+                descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings, dataFormatRegistry.format(secondaryName)));
             }
         }
         return Map.copyOf(descriptors);
