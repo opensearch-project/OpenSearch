@@ -38,13 +38,18 @@ public final class FoyerPageCache implements PageCache {
     /**
      * Create the native Foyer cache and acquire its handle.
      *
-     * @param diskBytes maximum disk capacity in bytes; must be {@code > 0}
-     * @param diskDir   directory where Foyer stores cache data; must not be null or blank
-     * @throws IllegalArgumentException if {@code diskBytes <= 0} or {@code diskDir} is blank
-     * @throws NullPointerException     if {@code diskDir} is null
+     * @param diskBytes       maximum disk capacity in bytes; must be {@code > 0}
+     * @param diskDir         directory where Foyer stores cache data; must not be null or blank
+     * @param blockSizeBytes  Foyer disk block size in bytes; must be {@code > 0}.
+     *                        Typically read from {@code format_cache.block_size} (default 64 MB).
+     * @param ioEngine        I/O engine selection: {@code "auto"}, {@code "io_uring"}, or
+     *                        {@code "psync"}. Typically read from {@code format_cache.io_engine}.
+     * @throws IllegalArgumentException if {@code diskBytes <= 0}, {@code blockSizeBytes <= 0},
+     *                                  or {@code diskDir} is blank
+     * @throws NullPointerException     if {@code diskDir} or {@code ioEngine} is null
      * @throws IllegalStateException    if the native call fails to return a valid handle
      */
-    public FoyerPageCache(long diskBytes, String diskDir) {
+    public FoyerPageCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
         if (diskBytes <= 0) {
             throw new IllegalArgumentException("diskBytes must be > 0, got: " + diskBytes);
         }
@@ -52,7 +57,11 @@ public final class FoyerPageCache implements PageCache {
         if (diskDir.isBlank()) {
             throw new IllegalArgumentException("diskDir must not be blank");
         }
-        this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir);
+        if (blockSizeBytes <= 0) {
+            throw new IllegalArgumentException("blockSizeBytes must be > 0, got: " + blockSizeBytes);
+        }
+        Objects.requireNonNull(ioEngine, "ioEngine must not be null");
+        this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir, blockSizeBytes, ioEngine);
     }
 
     /**

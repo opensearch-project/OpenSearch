@@ -19,9 +19,12 @@ use crate::traits::PageCache;
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 
+const BLOCK_SIZE: usize = 64 * 1024 * 1024;  // 64 MB default for tests
+const IO_ENGINE:  &str  = "auto";
+
 fn test_cache() -> (FoyerCache, TempDir) {
     let dir = TempDir::new().expect("failed to create temp dir");
-    let cache = FoyerCache::new(64 * 1024 * 1024, dir.path());
+    let cache = FoyerCache::new(64 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE);
     (cache, dir)
 }
 
@@ -273,7 +276,7 @@ fn concurrent_evict_and_put_does_not_panic() {
 #[test]
 fn put_and_get_work_after_cache_nears_capacity() {
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path());
+    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE);
     let chunk = vec![0u8; 512 * 1024];
     for i in 0u64..4 {
         let key = range_cache_key("/data/file.parquet", i * 524288, (i + 1) * 524288);
@@ -290,7 +293,7 @@ fn put_and_get_work_after_cache_nears_capacity() {
 #[test]
 fn lru_eviction_removes_stale_keys_from_key_index() {
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path());
+    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE);
     const CHUNK_SIZE: usize = 256 * 1024;
     const TOTAL_WRITES: usize = 8;
     let chunk = vec![0xABu8; CHUNK_SIZE];
@@ -334,7 +337,13 @@ fn event_remove_after_evict_prefix_does_not_panic_or_corrupt_key_index() {
 fn ffm_create_returns_positive_pointer() {
     let dir = TempDir::new().unwrap();
     let dir_str = dir.path().to_str().unwrap();
-    let ptr = unsafe { foyer_create_cache(64 * 1024 * 1024, dir_str.as_ptr(), dir_str.len() as u64) };
+    let engine = IO_ENGINE.as_bytes();
+    let ptr = unsafe { foyer_create_cache(
+        64 * 1024 * 1024,
+        dir_str.as_ptr(), dir_str.len() as u64,
+        BLOCK_SIZE as u64,
+        engine.as_ptr(), engine.len() as u64,
+    )};
     assert!(ptr > 0);
     let result = unsafe { foyer_destroy_cache(ptr) };
     assert_eq!(result, 0);
@@ -342,7 +351,13 @@ fn ffm_create_returns_positive_pointer() {
 
 #[test]
 fn ffm_create_with_null_ptr_returns_error() {
-    let ptr = unsafe { foyer_create_cache(64 * 1024 * 1024, std::ptr::null(), 10) };
+    let engine = IO_ENGINE.as_bytes();
+    let ptr = unsafe { foyer_create_cache(
+        64 * 1024 * 1024,
+        std::ptr::null(), 10,
+        BLOCK_SIZE as u64,
+        engine.as_ptr(), engine.len() as u64,
+    )};
     assert!(ptr < 0);
     if ptr < 0 { unsafe { native_bridge_common::error::native_error_free(-ptr); } }
 }
@@ -350,7 +365,13 @@ fn ffm_create_with_null_ptr_returns_error() {
 #[test]
 fn ffm_create_with_invalid_utf8_returns_error() {
     let invalid_utf8 = [0xFF, 0xFE, 0xFD];
-    let ptr = unsafe { foyer_create_cache(64 * 1024 * 1024, invalid_utf8.as_ptr(), invalid_utf8.len() as u64) };
+    let engine = IO_ENGINE.as_bytes();
+    let ptr = unsafe { foyer_create_cache(
+        64 * 1024 * 1024,
+        invalid_utf8.as_ptr(), invalid_utf8.len() as u64,
+        BLOCK_SIZE as u64,
+        engine.as_ptr(), engine.len() as u64,
+    )};
     assert!(ptr < 0);
     if ptr < 0 { unsafe { native_bridge_common::error::native_error_free(-ptr); } }
 }
@@ -371,10 +392,16 @@ fn ffm_destroy_with_negative_ptr_returns_error() {
 
 #[test]
 fn ffm_create_destroy_lifecycle_no_leak() {
+    let engine = IO_ENGINE.as_bytes();
     for _ in 0..3 {
         let dir = TempDir::new().unwrap();
         let dir_str = dir.path().to_str().unwrap();
-        let ptr = unsafe { foyer_create_cache(16 * 1024 * 1024, dir_str.as_ptr(), dir_str.len() as u64) };
+        let ptr = unsafe { foyer_create_cache(
+            16 * 1024 * 1024,
+            dir_str.as_ptr(), dir_str.len() as u64,
+            BLOCK_SIZE as u64,
+            engine.as_ptr(), engine.len() as u64,
+        )};
         assert!(ptr > 0);
         let result = unsafe { foyer_destroy_cache(ptr) };
         assert_eq!(result, 0);

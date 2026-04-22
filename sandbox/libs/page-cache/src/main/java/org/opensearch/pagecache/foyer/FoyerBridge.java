@@ -47,14 +47,19 @@ public final class FoyerBridge {
         SymbolLookup lib    = NativeLibraryLoader.symbolLookup();
         Linker       linker = Linker.nativeLinker();
 
-        // i64 foyer_create_cache(u64 disk_bytes, *const u8 dir_ptr, u64 dir_len)
+        // i64 foyer_create_cache(u64 disk_bytes, *const u8 dir_ptr, u64 dir_len,
+        //                        u64 block_size_bytes,
+        //                        *const u8 io_engine_ptr, u64 io_engine_len)
         FOYER_CREATE_CACHE = linker.downcallHandle(
             lib.find("foyer_create_cache").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,  // return: opaque i64 handle
                 ValueLayout.JAVA_LONG,  // disk_bytes: u64
                 ValueLayout.ADDRESS,    // dir_ptr: *const u8
-                ValueLayout.JAVA_LONG   // dir_len: u64
+                ValueLayout.JAVA_LONG,  // dir_len: u64
+                ValueLayout.JAVA_LONG,  // block_size_bytes: u64
+                ValueLayout.ADDRESS,    // io_engine_ptr: *const u8
+                ValueLayout.JAVA_LONG   // io_engine_len: u64
             )
         );
 
@@ -70,21 +75,34 @@ public final class FoyerBridge {
     }
 
     /**
-     * Create a Foyer cache with the given disk capacity and storage directory.
+     * Create a Foyer cache.
      *
-     * @param diskBytes maximum disk space the cache may use, in bytes
-     * @param diskDir   path to the directory where Foyer stores cache data
+     * @param diskBytes       maximum disk space the cache may use, in bytes
+     * @param diskDir         path to the directory where Foyer stores cache data
+     * @param blockSizeBytes  Foyer disk block size in bytes (see {@code format_cache.block_size})
+     * @param ioEngine        I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     *                        (see {@code format_cache.io_engine})
      * @return an opaque handle representing the cache instance; always positive on success
      * @throws RuntimeException if the native call fails or the directory is invalid
      */
-    public static long createCache(long diskBytes, String diskDir) {
+    public static long createCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
         try (var call = new NativeCall()) {
-            var dir = call.str(diskDir);
-            long ptr = call.invoke(FOYER_CREATE_CACHE, diskBytes, dir.segment(), dir.len());
+            var dir      = call.str(diskDir);
+            var engine   = call.str(ioEngine);
+            long ptr = call.invoke(
+                FOYER_CREATE_CACHE,
+                diskBytes,
+                dir.segment(), dir.len(),
+                blockSizeBytes,
+                engine.segment(), engine.len()
+            );
             if (ptr <= 0) {
                 throw new IllegalStateException("foyer_create_cache returned invalid pointer: " + ptr);
             }
-            logger.info("Foyer cache created: diskBytes={}, dir={}", diskBytes, diskDir);
+            logger.info(
+                "Foyer cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, dir={}",
+                diskBytes, blockSizeBytes, ioEngine, diskDir
+            );
             return ptr;
         }
     }

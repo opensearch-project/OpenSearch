@@ -39,38 +39,54 @@ fn kernel_version_at_least(required_major: u32, required_minor: u32) -> bool {
     major > required_major || (major == required_major && minor >= required_minor)
 }
 
-/// Select the best available I/O engine.
+/// Select the I/O engine based on the operator-configured `choice`.
 ///
-/// On Linux with kernel ≥ 5.1, uses `io_uring` for non-blocking, batched disk
-/// I/O — significantly better throughput under concurrent reads than
-/// `pread`/`pwrite`. Falls back to POSIX synchronous I/O when:
-/// - The target platform is not Linux (e.g. macOS developer builds), or
-/// - The running Linux kernel is < 5.1 (io_uring was introduced in 5.1).
-/// - https://kernelnewbies.org/Linux_5.1
-fn build_io_engine_config() -> Box<dyn IoEngineConfig> {
-    #[cfg(target_os = "linux")]
-    {
-        let release = std::fs::read_to_string("/proc/sys/kernel/osrelease")
-            .unwrap_or_else(|_| "unknown".to_string());
-        let release = release.trim();
-        if kernel_version_at_least(5, 1) {
-            log::info!(
-                "[page-cache] kernel {} — io_uring available, using UringIoEngineConfig",
-                release
-            );
-            UringIoEngineConfig::new().boxed()
-        } else {
-            log::warn!(
-                "[page-cache] kernel {} — io_uring unavailable (requires >= 5.1), \
-                 falling back to PsyncIoEngineConfig",
-                release
-            );
+/// | `choice`   | Behaviour |
+/// |------------|-----------|
+/// | `"auto"`   | Detect at runtime: io_uring on Linux ≥ 5.1, psync otherwise (default). |
+/// | `"io_uring"` | Force io_uring. Fails at node startup if io_uring is unavailable (e.g. blocked by seccomp/AppArmor in locked-down container environments). |
+/// | `"psync"`  | Force synchronous pread/pwrite. Use when io_uring is restricted or when predictable syscall-level profiling is needed. |
+///
+/// Invalid values are treated as `"auto"` with a warning.
+fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
+    match choice {
+        "io_uring" => {
+            log::info!("[page-cache] io_engine=io_uring forced by config");
+            #[cfg(target_os = "linux")]
+            return UringIoEngineConfig::new().boxed();
+            #[cfg(not(target_os = "linux"))]
+            panic!("[page-cache] io_engine=io_uring requested but io_uring is not supported on non-Linux platforms");
+        }
+        "psync" => {
+            log::info!("[page-cache] io_engine=psync forced by config");
+            return PsyncIoEngineConfig::new().boxed();
+        }
+        other => {
+            if other != "auto" {
+                log::warn!("[page-cache] unknown io_engine='{}'; falling back to auto-detect", other);
+            }
+            // "auto" — detect by kernel version (existing logic)
+            #[cfg(target_os = "linux")]
+            {
+                let release = std::fs::read_to_string("/proc/sys/kernel/osrelease")
+                    .unwrap_or_else(|_| "unknown".to_string());
+                let release = release.trim();
+                if kernel_version_at_least(5, 1) {
+                    log::info!(
+                        "[page-cache] kernel {} — io_uring available, using UringIoEngineConfig",
+                        release
+                    );
+                    return UringIoEngineConfig::new().boxed();
+                } else {
+                    log::warn!(
+                        "[page-cache] kernel {} — io_uring unavailable (requires >= 5.1), \
+                         falling back to PsyncIoEngineConfig",
+                        release
+                    );
+                }
+            }
             PsyncIoEngineConfig::new().boxed()
         }
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        PsyncIoEngineConfig::new().boxed()
     }
 }
 
@@ -147,12 +163,23 @@ pub struct FoyerCache {
 impl FoyerCache {
     /// Initialise the cache synchronously.
     ///
-    /// Blocks the calling thread until Foyer has completed asynchronous setup.
+    /// # Parameters
+    /// - `disk_bytes` — total disk capacity for this cache.
+    /// - `disk_dir` — directory on the local SSD where Foyer stores its data files.
+    /// - `block_size_bytes` — Foyer disk block size. Must be ≥ the largest entry ever
+    ///   put into the cache. Configurable via `format_cache.block_size`.
+    /// - `io_engine` — I/O engine selection: `"auto"`, `"io_uring"`, or `"psync"`.
+    ///   Configurable via `format_cache.io_engine`.
     ///
     /// # Panics
     /// Panics if the Tokio runtime cannot be created or if Foyer fails to
     /// build the cache (e.g. insufficient disk space or invalid path).
-    pub fn new(disk_bytes: usize, disk_dir: impl Into<PathBuf>) -> Self {
+    pub fn new(
+        disk_bytes: usize,
+        disk_dir: impl Into<PathBuf>,
+        block_size_bytes: usize,
+        io_engine: &str,
+    ) -> Self {
         let disk_dir = disk_dir.into();
         let key_index: Arc<DashMap<String, Vec<String>>> = Arc::new(DashMap::new());
         let listener = Arc::new(KeyIndexListener { key_index: Arc::clone(&key_index) });
@@ -160,31 +187,41 @@ impl FoyerCache {
         let rt = tokio::runtime::Runtime::new()
             .expect("[page-cache] failed to create Tokio runtime");
         let dir_clone = disk_dir.clone();
+        let io_engine = io_engine.to_string();
+        let io_engine_for_log = io_engine.clone();  // clone for use in log after the closure
         let inner = rt.block_on(async move {
             HybridCacheBuilder::<String, Vec<u8>>::new()
                 .with_name("page-cache")
                 .with_event_listener(listener)
                 .memory(1)
+                    // Disable the in-memory tier — this cache is disk-only.
+                    // Foyer is a hybrid (DRAM + disk) cache; setting the memory capacity
+                    // to 1 byte opts out of DRAM caching. All entries go directly to the
+                    // disk tier (FsDevice) below.
                 .storage()
-                .with_io_engine_config(build_io_engine_config())
+                .with_io_engine_config(build_io_engine_config(&io_engine))
                 .with_engine_config(
                     // block_size must be >= the largest entry ever put into the cache.
                     // DataFusion reads Parquet row groups of up to 64 MB; Lucene blocks are
                     // also 64 MB. A block_size smaller than the entry causes a silent drop
                     // (put succeeds but entry is not stored, resulting in a cache miss).
+                    // Configurable via format_cache.block_size (default: 64 MB).
                     BlockEngineConfig::new(
                         FsDeviceBuilder::new(dir_clone)
                             .with_capacity(disk_bytes)
                             .build()
                             .expect("[page-cache] FsDevice build failed")
                     )
-                    .with_block_size(64 * 1024 * 1024) // 64 MB — matches Parquet row-group and Lucene block sizes
+                    .with_block_size(block_size_bytes)
                 )
                 .build()
                 .await
                 .expect("[page-cache] HybridCache build failed")
         });
-        log::info!("[page-cache] ready: disk={}B, dir={}", disk_bytes, disk_dir.display());
+        log::info!(
+            "[page-cache] ready: disk={}B, block_size={}B, io_engine={}, dir={}",
+            disk_bytes, block_size_bytes, io_engine_for_log, disk_dir.display()
+        );
         Self { inner, key_index, _runtime: Arc::new(rt) }
     }
 

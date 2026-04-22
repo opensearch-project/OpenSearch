@@ -124,6 +124,7 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
+import org.opensearch.index.store.remote.filecache.PageCacheSettings;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
@@ -765,6 +766,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TieringUtils.W2H_MAX_CONCURRENT_TIERING_REQUESTS,
                 TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT,
                 TieringUtils.FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT,
+                
+		// Settings related to block  cache
+                PageCacheSettings.BLOCK_SIZE_SETTING,
+                PageCacheSettings.IO_ENGINE_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
