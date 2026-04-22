@@ -35,6 +35,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -113,7 +114,13 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
 
     private int commitCount(IndexShard shard) throws IOException {
         List<IndexCommit> commits = DirectoryReader.listCommits(shard.store().directory());
-        return commits.size();
+        return (int) commits.stream().map(c -> {
+            try {
+                return c.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_ID);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).filter(Objects::nonNull).distinct().count();
     }
 
     // ---- Test 1: Old commit files deleted after flush ----
