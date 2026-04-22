@@ -14,8 +14,15 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
@@ -23,7 +30,9 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -32,6 +41,10 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.cluster.routing.OperationRouting;
+import org.opensearch.cluster.routing.ShardIterator;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -48,6 +61,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -211,11 +225,90 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     protected static Set<AggregateCapability> aggCaps(Set<String> formats, Map<AggregateFunction, Set<FieldType>> funcToTypes) {
         Set<AggregateCapability> caps = new HashSet<>();
         for (var entry : funcToTypes.entrySet()) {
-            for (FieldType type : entry.getValue()) {
-                caps.add(new AggregateCapability(entry.getKey(), type, formats));
-            }
+            caps.add(new AggregateCapability(entry.getKey(), entry.getValue(), formats));
         }
         return caps;
+    }
+
+    /**
+     * Walks the single-input chain asserting each node matches the expected type
+     * and has viableBackends containing all expectedBackends.
+     * TODO: extend to per-node expected backends when delegation is implemented.
+     */
+    protected static void assertPipelineViableBackends(
+        RelNode root,
+        List<Class<? extends OpenSearchRelNode>> expectedTypes,
+        Set<String> expectedBackends
+    ) {
+        RelNode current = root;
+        for (int i = 0; i < expectedTypes.size(); i++) {
+            Class<? extends OpenSearchRelNode> expectedType = expectedTypes.get(i);
+            assertTrue(
+                "Node at depth " + i + " must be " + expectedType.getSimpleName() + " but was " + current.getClass().getSimpleName(),
+                expectedType.isInstance(current)
+            );
+            OpenSearchRelNode osNode = (OpenSearchRelNode) current;
+            assertTrue(
+                "Node "
+                    + expectedType.getSimpleName()
+                    + " viableBackends must contain "
+                    + expectedBackends
+                    + " but was "
+                    + osNode.getViableBackends(),
+                osNode.getViableBackends().containsAll(expectedBackends)
+            );
+            if (i < expectedTypes.size() - 1) {
+                current = RelNodeUtils.unwrapHep(current.getInputs().get(0));
+            }
+        }
+    }
+
+    // ---- Cluster service ----
+
+    protected ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = mock(ClusterState.class);
+        OperationRouting routing = mock(OperationRouting.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.operationRouting()).thenReturn(routing);
+        when(routing.searchShards(any(), any(), any(), any())).thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
+        return clusterService;
+    }
+
+    // ---- Shared field helpers ----
+
+    protected static Map<String, Map<String, Object>> intFields() {
+        return Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer"));
+    }
+
+    /**
+     * Integer fields with doc values duplicated in both parquet and lucene formats.
+     * Models the "duplicated doc values" persona — both backends can natively scan
+     * and aggregate the same field.
+     */
+    protected Map<String, FieldStorageInfo> duplicatedIntFields() {
+        return Map.of(
+            "status",
+            new FieldStorageInfo(
+                "status",
+                "integer",
+                FieldType.INTEGER,
+                List.of(MockDataFusionBackend.PARQUET_DATA_FORMAT, MockLuceneBackend.LUCENE_DATA_FORMAT),
+                List.of(),
+                List.of(),
+                false
+            ),
+            "size",
+            new FieldStorageInfo(
+                "size",
+                "integer",
+                FieldType.INTEGER,
+                List.of(MockDataFusionBackend.PARQUET_DATA_FORMAT, MockLuceneBackend.LUCENE_DATA_FORMAT),
+                List.of(),
+                List.of(),
+                false
+            )
+        );
     }
 
     // ---- Stub ----
@@ -311,5 +404,70 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         public EngineReaderManager<Object> createReaderManager(ReaderManagerConfig settings) {
             return null;
         }
+    }
+
+    // ---- Shared aggregate helpers ----
+    // TODO: AggregateRuleTests has private copies of these — replace with these shared versions.
+
+    protected AggregateCall sumCall() {
+        return AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            stubScan(mockTable("test_index", "status", "size")),
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total_size"
+        );
+    }
+
+    protected AggregateCall countStarCall() {
+        // COUNT(*) — no field arguments, always gets annotated with aggregateCapableBackends
+        return AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            stubScan(mockTable("test_index", "status", "size")),
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
+    }
+
+    protected LogicalFilter makeFilter(RelNode input, RexNode condition) {
+        return LogicalFilter.create(input, condition);
+    }
+
+    /** Sort with fetch (LIMIT) only — no ORDER BY collation, just top-N. */
+    protected LogicalSort makeLimit(RelNode input, int fetch) {
+        return LogicalSort.create(
+            input,
+            RelCollations.EMPTY,
+            null,
+            rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+    }
+
+    /** Sort with collation on field 0 ascending. Pass fetch of 0 or less for no limit. */
+    protected LogicalSort makeSort(RelNode input, int fetch) {
+        RelCollation collation = RelCollations.of(new RelFieldCollation(0, RelFieldCollation.Direction.ASCENDING));
+        RexNode fetchRex = fetch > 0 ? rexBuilder.makeLiteral(fetch, typeFactory.createSqlType(SqlTypeName.INTEGER), true) : null;
+        return LogicalSort.create(input, collation, null, fetchRex);
+    }
+
+    protected LogicalAggregate makeAggregate(AggregateCall aggCall) {
+        return makeAggregate(stubScan(mockTable("test_index", "status", "size")), aggCall);
+    }
+
+    protected LogicalAggregate makeMultiCallAggregate(AggregateCall... aggCalls) {
+        return makeMultiCallAggregate(stubScan(mockTable("test_index", "status", "size")), aggCalls);
+    }
+
+    protected LogicalAggregate makeAggregate(RelNode input, AggregateCall... aggCalls) {
+        return LogicalAggregate.create(input, List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls));
+    }
+
+    protected LogicalAggregate makeMultiCallAggregate(RelNode input, AggregateCall... aggCalls) {
+        return LogicalAggregate.create(input, List.of(), ImmutableBitSet.of(0), null, List.of(aggCalls));
     }
 }

@@ -291,6 +291,7 @@ tasks.named('thirdPartyAudit').configure {
     'org.pentaho.aggdes.model.Table'
   )
 
+
   // Guava internal Unsafe usage — standard for any module depending on Guava
   ignoreViolations(
     'com.google.common.cache.Striped64',

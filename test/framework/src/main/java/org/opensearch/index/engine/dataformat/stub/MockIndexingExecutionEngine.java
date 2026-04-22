@@ -63,8 +63,8 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     }
 
     @Override
-    public void deleteFiles(Map<String, Collection<String>> filesToDelete) {
-        // no-op for mock
+    public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) {
+        return Map.of();
     }
 
     @Override

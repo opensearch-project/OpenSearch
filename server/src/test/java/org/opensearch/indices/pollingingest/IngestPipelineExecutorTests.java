@@ -57,6 +57,11 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
 
         assertSame(source, result);
         verify(ingestService, never()).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
+
+        // No pipeline configured — metrics should be zero
+        PollingIngestStats.PipelineStats metrics = executor.getMetrics();
+        assertEquals(0, metrics.totalExecutionCount());
+        assertEquals(0, metrics.totalFailedCount());
     }
 
     // --- Execution: pipeline transforms source ---
@@ -72,6 +77,13 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
 
         assertNotNull(result);
         verify(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
+
+        // Verify metrics
+        PollingIngestStats.PipelineStats metrics = executor.getMetrics();
+        assertEquals(1, metrics.totalExecutionCount());
+        assertTrue(metrics.totalExecutionTimeInMillis() >= 0);
+        assertEquals(0, metrics.totalFailedCount());
+        assertEquals(0, metrics.totalDroppedCount());
     }
 
     // --- Execution: pipeline drops document ---
@@ -93,9 +105,13 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         Map<String, Object> result = executor.executePipelines("1", source);
 
         assertNull(result);
-    }
 
-    // --- Execution: pipeline failure ---
+        // Verify drop metric
+        PollingIngestStats.PipelineStats metrics = executor.getMetrics();
+        assertEquals(1, metrics.totalExecutionCount());
+        assertEquals(1, metrics.totalDroppedCount());
+        assertEquals(0, metrics.totalFailedCount());
+    }
 
     public void testExecutePipelines_Failure() {
         doAnswer(invocation -> {
@@ -113,6 +129,12 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
 
         Exception e = expectThrows(RuntimeException.class, () -> executor.executePipelines("1", source));
         assertTrue(e.getMessage().contains("processor failed"));
+
+        // Verify failure metric
+        PollingIngestStats.PipelineStats metrics = executor.getMetrics();
+        assertEquals(1, metrics.totalExecutionCount());
+        assertEquals(1, metrics.totalFailedCount());
+        assertEquals(0, metrics.totalDroppedCount());
     }
 
     public void testExecutePipelines_CompletionException() {

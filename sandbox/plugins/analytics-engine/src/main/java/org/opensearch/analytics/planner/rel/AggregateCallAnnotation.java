@@ -79,7 +79,14 @@ public class AggregateCallAnnotation extends RexCall implements OperatorAnnotati
         return null;
     }
 
-    /** Extracts the annotation from an AggregateCall's rexList, or null if absent. */
+    /** Extracts the annotation from an AggregateCall's rexList, or null if absent.
+     *
+     * <p>TODO: window function aggregate calls may have ORDER BY expressions in rexList
+     * alongside our annotation. find() is safe (searches by type) and stripAnnotations
+     * filters by type, but consider moving annotations to a separate
+     * {@code Map<Integer, AggregateCallAnnotation>} on {@link OpenSearchAggregate} keyed
+     * by call index to decouple from rexList entirely.
+     */
     public static AggregateCallAnnotation find(AggregateCall call) {
         for (RexNode rex : call.rexList) {
             if (rex instanceof AggregateCallAnnotation annotation) {
