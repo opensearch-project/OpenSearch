@@ -79,9 +79,7 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     static {
         Set<FilterCapability> caps = new HashSet<>();
         for (FilterOperator op : STANDARD_OPS) {
-            for (FieldType type : STANDARD_TYPES) {
-                caps.add(new FilterCapability.Standard(op, type, LUCENE_FORMATS));
-            }
+            caps.add(new FilterCapability.Standard(op, STANDARD_TYPES, LUCENE_FORMATS));
         }
         for (FilterOperator op : FULL_TEXT_OPS) {
             for (FieldType type : FULL_TEXT_TYPES) {

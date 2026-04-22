@@ -22,7 +22,11 @@ import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
+import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
@@ -371,6 +375,85 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         assertTrue(exception.getMessage().contains("no delegation path exists"));
     }
 
+    // ---- Composed pipeline shapes ----
+
+    /**
+     * Project(Filter(Scan)) — verifies annotation propagation through filter→project
+     * at every level.
+     */
+    public void testProjectOnFilteredScan() {
+        RelNode filter = makeFilter(
+            stubScan(
+                mockTable("test_index", new String[] { "name", "value" }, new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER })
+            ),
+            makeEquals(1, SqlTypeName.INTEGER, 100)
+        );
+        RexNode castExpr = rexBuilder.makeCast(
+            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
+        );
+        List<String> fieldNames = List.of("col_0");
+        LogicalProject project = LogicalProject.create(filter, List.of(), List.of(castExpr), fieldNames);
+        PlannerContext context = buildContext("parquet", nameValueFields(), List.of(dfWithScalarFunctions(), LUCENE));
+        RelNode result = unwrapExchange(runPlanner(project, context));
+        logger.info("Plan:\n{}", RelOptUtil.toString(result));
+        assertPipelineViableBackends(
+            result,
+            List.of(OpenSearchProject.class, OpenSearchFilter.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        assertAnnotation(((OpenSearchProject) result).getProjects().get(0), MockDataFusionBackend.NAME);
+    }
+
+    /**
+     * Project(Agg(Scan)) — single shard: Project → Aggregate(SINGLE) → Scan.
+     * Multi shard: Project → Aggregate(FINAL) → ExchangeReducer → Aggregate(PARTIAL) → Scan.
+     */
+    public void testProjectOnAggregateScanSingleShard() {
+        RelNode result = runProjectOnAgg(1);
+        assertPipelineViableBackends(
+            result,
+            List.of(OpenSearchProject.class, OpenSearchAggregate.class, OpenSearchTableScan.class),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        assertAnnotation(((OpenSearchProject) result).getProjects().get(0), MockDataFusionBackend.NAME);
+    }
+
+    public void testProjectOnAggregateScanMultiShard() {
+        RelNode result = runProjectOnAgg(2);
+        assertPipelineViableBackends(
+            result,
+            List.of(
+                OpenSearchProject.class,
+                OpenSearchAggregate.class,
+                OpenSearchExchangeReducer.class,
+                OpenSearchAggregate.class,
+                OpenSearchTableScan.class
+            ),
+            Set.of(MockDataFusionBackend.NAME)
+        );
+        assertAnnotation(((OpenSearchProject) result).getProjects().get(0), MockDataFusionBackend.NAME);
+    }
+
+    private RelNode runProjectOnAgg(int shardCount) {
+        RelNode agg = makeAggregate(
+            stubScan(
+                mockTable("test_index", new String[] { "name", "value" }, new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER })
+            ),
+            sumCall()
+        );
+        // Cast SUM result (field 1, INTEGER→VARCHAR) — genuine RexCall that gets annotated
+        RexNode castExpr = rexBuilder.makeCast(
+            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+            rexBuilder.makeInputRef(agg.getRowType().getFieldList().get(1).getType(), 1)
+        );
+        LogicalProject project = LogicalProject.create(agg, List.of(), List.of(castExpr), List.of("col_0"));
+        PlannerContext context = buildContext("parquet", shardCount, nameValueFields(), List.of(dfWithScalarFunctions(), LUCENE));
+        RelNode result = unwrapExchange(runPlanner(project, context));
+        logger.info("Plan ({} shard(s)):\n{}", shardCount, RelOptUtil.toString(result));
+        return result;
+    }
+
     // ---- Helpers ----
 
     private static Map<String, Map<String, Object>> nameValueFields() {
@@ -386,10 +469,19 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     }
 
     private OpenSearchProject runProject(RexNode... exprs) {
-        return runProject("parquet", List.of(dfWithScalarFunctions(), LUCENE), exprs);
+        return runProject("parquet", List.of(dfWithScalarFunctions(), LUCENE), Set.of(MockDataFusionBackend.NAME), exprs);
     }
 
     private OpenSearchProject runProject(String format, List<AnalyticsSearchBackendPlugin> backends, RexNode... exprs) {
+        return runProject(format, backends, Set.of(MockDataFusionBackend.NAME), exprs);
+    }
+
+    private OpenSearchProject runProject(
+        String format,
+        List<AnalyticsSearchBackendPlugin> backends,
+        Set<String> expectedViable,
+        RexNode... exprs
+    ) {
         RelOptTable table = mockTable(
             "test_index",
             new String[] { "name", "value" },
@@ -403,6 +495,7 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         RelNode result = unwrapExchange(runPlanner(project, context));
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchProject", result instanceof OpenSearchProject);
+        assertPipelineViableBackends(result, List.of(OpenSearchProject.class, OpenSearchTableScan.class), expectedViable);
         return (OpenSearchProject) result;
     }
 
@@ -454,9 +547,7 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     private static Set<ProjectCapability> scalarCaps(Set<String> formats, Set<ScalarFunction> functions) {
         Set<ProjectCapability> caps = new HashSet<>();
         for (ScalarFunction func : functions) {
-            for (FieldType type : FieldType.values()) {
-                caps.add(new ProjectCapability.Scalar(func, type, formats));
-            }
+            caps.add(new ProjectCapability.Scalar(func, Set.of(FieldType.values()), formats, true));
         }
         return caps;
     }
