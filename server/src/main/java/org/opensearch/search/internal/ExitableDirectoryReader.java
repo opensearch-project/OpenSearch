@@ -39,6 +39,7 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
@@ -209,6 +210,85 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         public BytesRef next() throws IOException {
             checkAndThrowWithSampling();
             return in.next();
+        }
+
+        @Override
+        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+            // Don't reuse when wrapping, since the wrapper type differs from the delegate type
+            final PostingsEnum postings = in.postings(null, flags);
+            return new ExitablePostingsEnum(postings, queryCancellation);
+        }
+    }
+
+    /**
+     * Wrapper class for {@link PostingsEnum} that checks for query cancellation or timeout
+     * during document iteration. This closes the gap where field data loading iterates
+     * postings (e.g., {@code OrdinalsBuilder.addDoc()}) without cancellation checks.
+     */
+    private static class ExitablePostingsEnum extends PostingsEnum {
+
+        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
+
+        private final PostingsEnum in;
+        private final QueryCancellation queryCancellation;
+        private int calls;
+
+        private ExitablePostingsEnum(PostingsEnum in, QueryCancellation queryCancellation) {
+            this.in = in;
+            this.queryCancellation = queryCancellation;
+        }
+
+        private void checkAndThrowWithSampling() {
+            if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+                queryCancellation.checkCancelled();
+            }
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            checkAndThrowWithSampling();
+            return in.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            queryCancellation.checkCancelled();
+            return in.advance(target);
+        }
+
+        @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
+        public long cost() {
+            return in.cost();
+        }
+
+        @Override
+        public int freq() throws IOException {
+            return in.freq();
+        }
+
+        @Override
+        public int nextPosition() throws IOException {
+            return in.nextPosition();
+        }
+
+        @Override
+        public int startOffset() throws IOException {
+            return in.startOffset();
+        }
+
+        @Override
+        public int endOffset() throws IOException {
+            return in.endOffset();
+        }
+
+        @Override
+        public BytesRef getPayload() throws IOException {
+            return in.getPayload();
         }
     }
 
