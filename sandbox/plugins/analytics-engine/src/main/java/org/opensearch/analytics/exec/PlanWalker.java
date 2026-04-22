@@ -122,8 +122,7 @@ public class PlanWalker {
             if (state == StageExecution.State.RUNNING || state == StageExecution.State.CREATED) {
                 try {
                     exec.cancel(reason);
-                } catch (Exception ignore) {
-                }
+                } catch (Exception ignore) {}
             }
         }
     }
@@ -207,8 +206,7 @@ public class PlanWalker {
         final DataProducer producer = (DataProducer) rootExec;
         rootExec.addStateListener((from, to) -> {
             switch (to) {
-                case SUCCEEDED ->
-                    fireTerminal(() -> completionListener.onResponse(producer.outputSource().readResult()));
+                case SUCCEEDED -> fireTerminal(() -> completionListener.onResponse(producer.outputSource().readResult()));
                 case FAILED, CANCELLED -> {
                     Exception failure = rootExec.getFailure();
                     if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
