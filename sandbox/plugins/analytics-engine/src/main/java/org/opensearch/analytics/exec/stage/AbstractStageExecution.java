@@ -10,6 +10,7 @@ package org.opensearch.analytics.exec.stage;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.common.Nullable;
@@ -130,7 +131,10 @@ abstract class AbstractStageExecution implements StageExecution {
             try {
                 l.onStateChange(previous, target);
             } catch (Exception e) {
-                logger.warn("[StageExecution] listener threw for stage {} transition {} -> {}", getStageId(), previous, target, e);
+                logger.warn(
+                    new ParameterizedMessage("[StageExecution] listener threw for stage {} transition {} -> {}", getStageId(), previous, target),
+                    e
+                );
             }
         }
 
@@ -162,7 +166,7 @@ abstract class AbstractStageExecution implements StageExecution {
                     }
                 }
             } catch (Exception e) {
-                logger.warn("[StageExecution] operation listener threw for stage {} -> {}", sid, target, e);
+                logger.warn(new ParameterizedMessage("[StageExecution] operation listener threw for stage {} -> {}", sid, target), e);
             }
         }
     }

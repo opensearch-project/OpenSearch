@@ -10,6 +10,7 @@ package org.opensearch.analytics.exec.stage;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -76,7 +77,7 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
 
     @Override
     public boolean failFromChild(Exception cause) {
-        logger.error("[LocalStage] failFromChild stageId={}", stage.getStageId(), cause);
+        logger.error(new ParameterizedMessage("[LocalStage] failFromChild stageId={}", stage.getStageId()), cause);
         captureFailure(cause);
         if (transitionTo(State.FAILED)) {
             try {

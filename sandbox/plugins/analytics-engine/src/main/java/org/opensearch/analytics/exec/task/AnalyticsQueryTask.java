@@ -10,6 +10,7 @@ package org.opensearch.analytics.exec.task;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
@@ -95,7 +96,7 @@ public class AnalyticsQueryTask extends CancellableTask implements SearchBackpre
             try {
                 cb.run();
             } catch (Exception e) {
-                logger.warn("[AnalyticsQueryTask] onCancelled callback failed for queryId={}: {}", queryId, e.getMessage(), e);
+                logger.warn(new ParameterizedMessage("[AnalyticsQueryTask] onCancelled callback failed for queryId={}", queryId), e);
             }
         }
     }
