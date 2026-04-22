@@ -205,7 +205,7 @@ public interface AnalyticsOperationListener {
         }
 
         private void warn(String method, Exception e) {
-            logger.warn("[AnalyticsOperationListener.CompositeListener] {} threw", method, e);
+            logger.warn("[AnalyticsOperationListener.CompositeListener] {} threw {}", method, e);
         }
     }
 }
