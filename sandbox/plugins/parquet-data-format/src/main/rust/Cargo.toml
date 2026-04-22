@@ -25,3 +25,4 @@ crc32fast = { workspace = true }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }
+

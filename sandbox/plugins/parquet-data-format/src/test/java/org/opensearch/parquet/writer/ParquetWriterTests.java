@@ -55,6 +55,8 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         schema = buildSchema(List.of(idField, nameField, scoreField));
         Settings indexSettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(indexSettingsBuilder).build();
         indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
@@ -80,7 +82,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testAddDocReturnsSuccess() throws Exception {
         String filePath = createTempDir().resolve("success.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, indexSettings, threadPool);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, indexSettings, threadPool, null);
 
         for (int i = 0; i < 10; i++) {
             ParquetDocumentInput doc = new ParquetDocumentInput();
@@ -99,7 +101,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testFlushWithNoDocuments() throws Exception {
         String filePath = createTempDir().resolve("empty.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, indexSettings, threadPool);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, indexSettings, threadPool, null);
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         doc.addField(idField, 1);

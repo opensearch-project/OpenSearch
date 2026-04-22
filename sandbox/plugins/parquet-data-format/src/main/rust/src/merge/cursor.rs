@@ -1,3 +1,11 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 use std::fs::File;
 use std::sync::{Arc, Mutex};
 
@@ -10,6 +18,7 @@ use super::error::{MergeError, MergeResult};
 use super::heap::{get_sort_values, SortKey};
 use super::io_task::get_merge_pool;
 use super::schema::projection_indices_excluding_row_id;
+
 /// A cursor over a single sorted Parquet input file.
 ///
 /// Each cursor reads batches sequentially and prefetches the next batch on the

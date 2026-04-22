@@ -64,10 +64,9 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         ParquetDataFormat dataFormat,
         Schema schema,
         ArrowBufferPool bufferPool,
+        IndexSettings indexSettings,
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy
-        IndexSettings indexSettings,
-        ThreadPool threadPool
     ) {
         this.file = file;
         this.writerGeneration = writerGeneration;

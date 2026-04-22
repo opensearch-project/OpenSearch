@@ -150,14 +150,15 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     }
 
     private void pushSettingsToRust() {
+        Settings settings = indexSettings.getSettings();
         NativeSettings config = NativeSettings.builder()
             .indexName(indexSettings.getIndex().getName())
-            .compressionType(indexSettings.getValue(ParquetSettings.COMPRESSION_TYPE))
-            .compressionLevel(indexSettings.getValue(ParquetSettings.COMPRESSION_LEVEL))
-            .pageSizeBytes(indexSettings.getValue(ParquetSettings.PAGE_SIZE_BYTES).getBytes())
-            .pageRowLimit(indexSettings.getValue(ParquetSettings.PAGE_ROW_LIMIT))
-            .dictSizeBytes(indexSettings.getValue(ParquetSettings.DICT_SIZE_BYTES).getBytes())
-            .rowGroupSizeBytes(indexSettings.getValue(ParquetSettings.ROW_GROUP_SIZE_BYTES).getBytes())
+            .compressionType(ParquetSettings.COMPRESSION_TYPE.get(settings))
+            .compressionLevel(ParquetSettings.COMPRESSION_LEVEL.get(settings))
+            .pageSizeBytes(ParquetSettings.PAGE_SIZE_BYTES.get(settings).getBytes())
+            .pageRowLimit(ParquetSettings.PAGE_ROW_LIMIT.get(settings))
+            .dictSizeBytes(ParquetSettings.DICT_SIZE_BYTES.get(settings).getBytes())
+            .rowGroupSizeBytes(ParquetSettings.ROW_GROUP_SIZE_BYTES.get(settings).getBytes())
             .build();
         try {
             RustBridge.onSettingsUpdate(config);
@@ -179,7 +180,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             dataFormat,
             schemaSupplier.get(),
             bufferPool,
-            settings,
+            indexSettings,
             threadPool,
             checksumStrategy
         );
