@@ -20,6 +20,8 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Date;
+
 public class TermsQueryTranslatorTests extends OpenSearchTestCase {
 
     private final TermsQueryTranslator translator = new TermsQueryTranslator();
@@ -106,5 +108,52 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
 
     public void testReportsCorrectQueryType() {
         assertEquals(TermsQueryBuilder.class, translator.getQueryType());
+    }
+
+    // Supported types: VARCHAR, INTEGER, DOUBLE, BOOLEAN, BIGINT
+    // Date type still throws ClassCastException from Calcite's RexBuilder.makeLiteral()
+    
+    // TODO: Enable when date type support is added
+    public void testDateType() {
+        expectThrows(ClassCastException.class,
+            () -> translator.convert(QueryBuilders.termsQuery("created_date", 
+                new Object[]{new Date(1704067200000L), new Date(1706745600000L)}), ctx));
+    }
+
+    public void testBooleanType() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.termsQuery("is_active", new Object[]{true, false}), ctx);
+
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.OR, call.getKind());
+    }
+
+    public void testLongType() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.termsQuery("timestamp", new Object[]{1234567890L, 9876543210L}), ctx);
+
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.OR, call.getKind());
+    }
+
+    public void testGeoPointType() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.termsQuery("location", 
+            new Object[]{"40.7128,-74.0060", "34.0522,-118.2437"}), ctx);
+
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.OR, call.getKind());
+    }
+
+    public void testKeywordType() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.termsQuery("status", 
+            new Object[]{"active", "pending"}), ctx);
+
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.OR, call.getKind());
+    }
+
+    // TODO: Enable when binary type support is added
+    public void testBinaryType() {
+        expectThrows(ClassCastException.class,
+            () -> translator.convert(QueryBuilders.termsQuery("binary_data", 
+                new Object[]{"U29tZSBiaW5hcnkgYmxvYg==", "QW5vdGhlciBibG9i"}), ctx));
     }
 }
