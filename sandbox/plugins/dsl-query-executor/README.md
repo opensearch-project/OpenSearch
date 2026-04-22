@@ -13,6 +13,22 @@ _search request
       → SearchResponseBuilder (builds SearchResponse)
 ```
 
+## Supported Features
+
+### Query Types
+- **Term Query** - Exact term matching
+- **Match All Query** - Match all documents
+- **Range Query** - Numeric and date range queries with full date math support
+
+### Range Query Features
+- **Operators**: `gte`, `gt`, `lte`, `lt`
+- **Date Format**: Custom date formats (e.g., `dd/MM/yyyy`)
+- **Timezone**: Timezone handling (defaults to UTC)
+- **Date Math**: Expressions like `now-7d`, `now/d`, `now-1M/M`
+- **Rounding**: Automatic end-of-day rounding for upper bounds without explicit `/`
+- **Relation**: INTERSECTS relation support
+- **Millisecond Precision**: TIMESTAMP(3) for accurate date comparisons
+
 ## Dependencies
 
 - `analytics-engine` — provides `QueryPlanExecutor` and `EngineContext` via Guice (declared as `extendedPlugins`)
@@ -28,8 +44,8 @@ _search request
 
 ```bash
 # Unit tests
-./gradlew :sandbox:plugins:dsl-query-executor:test
+./gradlew :sandbox:plugins:dsl-query-executor:test -Dsandbox.enabled=true
 
 # Integration tests
-./gradlew :sandbox:plugins:dsl-query-executor:internalClusterTest
+./gradlew :sandbox:plugins:dsl-query-executor:internalClusterTest -Dsandbox.enabled=true
 ```
