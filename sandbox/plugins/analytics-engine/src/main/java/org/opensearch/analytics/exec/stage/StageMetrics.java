@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class StageMetrics {
 
-    private final int stageId;
     private final AtomicLong tasksCompleted = new AtomicLong();
     private final AtomicLong tasksFailed = new AtomicLong();
     private final AtomicLong rowsProcessed = new AtomicLong();
@@ -30,9 +29,7 @@ public class StageMetrics {
     private volatile long startTimeMs;
     private volatile long endTimeMs;
 
-    public StageMetrics(int stageId) {
-        this.stageId = stageId;
-    }
+    public StageMetrics() {}
 
     /** Record the dispatch start time as current wall-clock millis. */
     public void recordStart() {
@@ -68,10 +65,6 @@ public class StageMetrics {
             throw new IllegalArgumentException("bytesRead delta must be >= 0, got " + n);
         }
         bytesRead.addAndGet(n);
-    }
-
-    public int getStageId() {
-        return stageId;
     }
 
     public long getTasksCompleted() {

@@ -50,7 +50,7 @@ abstract class AbstractStageExecution implements StageExecution {
         this.stage = stage;
         this.queryId = queryId;
         this.operationListeners = operationListeners;
-        this.metrics = new StageMetrics(stage.getStageId());
+        this.metrics = new StageMetrics();
     }
 
     @Override

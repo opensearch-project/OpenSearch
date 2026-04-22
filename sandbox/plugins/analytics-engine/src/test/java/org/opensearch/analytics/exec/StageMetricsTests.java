@@ -17,8 +17,7 @@ import org.opensearch.test.OpenSearchTestCase;
 public class StageMetricsTests extends OpenSearchTestCase {
 
     public void testStageMetricsCounterAccuracy() {
-        int stageId = randomIntBetween(0, 100);
-        StageMetrics metrics = new StageMetrics(stageId);
+        StageMetrics metrics = new StageMetrics();
 
         int n = randomIntBetween(1, 50);
         int m = randomIntBetween(1, 50);
@@ -30,13 +29,12 @@ public class StageMetricsTests extends OpenSearchTestCase {
             metrics.incrementTasksFailed();
         }
 
-        assertEquals("stageId must match the value passed to constructor", stageId, metrics.getStageId());
         assertEquals("tasksCompleted must equal the number of incrementTasksCompleted() calls", n, metrics.getTasksCompleted());
         assertEquals("tasksFailed must equal the number of incrementTasksFailed() calls", m, metrics.getTasksFailed());
     }
 
     public void testStageMetricsTimestamps() {
-        StageMetrics metrics = new StageMetrics(randomIntBetween(0, 100));
+        StageMetrics metrics = new StageMetrics();
 
         assertEquals("startTimeMs must be 0 before recordStart()", 0L, metrics.getStartTimeMs());
         assertEquals("endTimeMs must be 0 before recordEnd()", 0L, metrics.getEndTimeMs());
@@ -49,7 +47,7 @@ public class StageMetricsTests extends OpenSearchTestCase {
     }
 
     public void testAddRowsProcessedAtomic() {
-        StageMetrics metrics = new StageMetrics(randomIntBetween(0, 100));
+        StageMetrics metrics = new StageMetrics();
 
         metrics.addRowsProcessed(5);
         metrics.addRowsProcessed(5);
@@ -58,7 +56,7 @@ public class StageMetricsTests extends OpenSearchTestCase {
     }
 
     public void testAddBytesReadAtomic() {
-        StageMetrics metrics = new StageMetrics(randomIntBetween(0, 100));
+        StageMetrics metrics = new StageMetrics();
 
         metrics.addBytesRead(5);
         metrics.addBytesRead(5);
@@ -67,7 +65,7 @@ public class StageMetricsTests extends OpenSearchTestCase {
     }
 
     public void testNegativeDeltaThrows() {
-        StageMetrics metrics = new StageMetrics(randomIntBetween(0, 100));
+        StageMetrics metrics = new StageMetrics();
 
         expectThrows(IllegalArgumentException.class, () -> metrics.addRowsProcessed(-1));
         expectThrows(IllegalArgumentException.class, () -> metrics.addBytesRead(-1));
