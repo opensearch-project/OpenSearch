@@ -8,8 +8,6 @@
 
 package org.opensearch.analytics.exec;
 
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
 import org.apache.logging.log4j.LogManager;
@@ -42,7 +40,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -195,19 +192,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             for (int r = 0; r < rowCount; r++) {
                 Object[] row = new Object[colCount];
                 for (int c = 0; c < colCount; c++) {
-                    row[c] = toJavaValue(batch.getVector(c), r);
+                    row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
                 }
                 rows.add(row);
             }
         }
         return rows;
-    }
-
-    private static Object toJavaValue(FieldVector vector, int index) {
-        if (vector.isNull(index)) return null;
-        if (vector instanceof VarCharVector v) {
-            return new String(v.get(index), StandardCharsets.UTF_8);
-        }
-        return vector.getObject(index);
     }
 }

@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
@@ -122,7 +123,9 @@ public class PlanWalker {
             if (state == StageExecution.State.RUNNING || state == StageExecution.State.CREATED) {
                 try {
                     exec.cancel(reason);
-                } catch (Exception ignore) {}
+                } catch (Exception e) {
+                    logger.warn(new ParameterizedMessage("[PlanWalker] cancel threw for stageId={} state={}", exec.getStageId(), state), e);
+                }
             }
         }
     }
