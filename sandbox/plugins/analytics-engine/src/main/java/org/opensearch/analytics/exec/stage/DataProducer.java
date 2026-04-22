@@ -10,30 +10,19 @@ package org.opensearch.analytics.exec.stage;
 
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.spi.DataConsumer;
-import org.opensearch.analytics.spi.ExchangeSink;
 
 /**
- * Implemented by {@link StageExecution} types that write row batches
- * into an output sink. The output sink is typically owned by the
- * parent stage (resolved via {@link DataConsumer#inputSink}).
+ * Implemented by {@link StageExecution} types whose accumulated results can
+ * be read by a downstream consumer (parent stage, or the walker's completion
+ * listener for the root stage).
  *
- * <p>Exposes both the write-side ({@link ExchangeSink}) for producers
- * feeding batches and the read-side ({@link ExchangeSource}) for the
- * walker to consume final results.
- *
+ * @see DataConsumer for the complementary input-side contract
  * @opensearch.internal
  */
 public interface DataProducer {
 
     /**
-     * Returns the write-side sink this stage feeds batches into.
-     */
-    ExchangeSink outputSink();
-
-    /**
-     * Returns the read-side source for consuming accumulated results.
-     * For stages backed by a {@code RowProducingSink}, this returns the
-     * same object as {@link #outputSink()} (which implements both interfaces).
+     * Returns the read-side source for consuming this stage's output.
      */
     ExchangeSource outputSource();
 }

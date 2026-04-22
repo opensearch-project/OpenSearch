@@ -15,10 +15,10 @@ import org.opensearch.analytics.spi.DataConsumer;
  * both accept child input and produce output (root gather, local compute).
  *
  * <p>Stages that own a single shared sink (like {@link PassThroughStageExecution})
- * return the same sink from both {@link DataConsumer#inputSink(int)} and
- * {@link DataProducer#outputSink()}. Stages with per-child routing (like
- * {@link LocalStageExecution}) override {@link DataConsumer#inputSink(int)}
- * to delegate to the backend.
+ * return the same object for both {@link DataConsumer#inputSink(int)} and
+ * {@link DataProducer#outputSource()}. Stages with backend-provided per-child
+ * routing (like {@link LocalStageExecution}) delegate both methods to the
+ * backend's fragment executor.
  *
  * @opensearch.internal
  */

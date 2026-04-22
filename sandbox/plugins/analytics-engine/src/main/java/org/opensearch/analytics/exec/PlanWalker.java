@@ -87,7 +87,7 @@ public class PlanWalker {
     }
 
     /**
-     * Phase 2: Start execution by dispatching leaf stages.
+     * Start execution by dispatching leaf stages.
      * Must be called after {@link #build()}.
      *
      * @param executionGraph the graph returned by {@link #build()}

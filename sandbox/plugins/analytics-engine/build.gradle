@@ -68,6 +68,14 @@ dependencies {
   testRuntimeOnly "org.codehaus.janino:janino:3.1.12"
   testRuntimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
 
+  // arrow-memory-unsafe provides the default allocation manager arrow-memory-core
+  // needs at runtime (fails with "No DefaultAllocationManager found on classpath" otherwise).
+  // arrow-format + flatbuffers-java satisfy Arrow's IPC Schema serialization path
+  // that some VectorSchemaRoot operations invoke transitively.
+  testRuntimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
+  testRuntimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+  testRuntimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+
   // SQL Unified Query API for PPL parsing
   testImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
     exclude group: 'org.opensearch'
@@ -108,6 +116,7 @@ configurations.all {
     force "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
     force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
     force "org.slf4j:slf4j-api:${versions.slf4j}"
+    force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
     force "org.locationtech.jts:jts-core:${versions.jts}"
     force "commons-codec:commons-codec:${versions.commonscodec}"
     force "joda-time:joda-time:2.12.7"
@@ -127,6 +136,14 @@ configurations.all {
     force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
     force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
   }
+}
+
+// Arrow needs these --add-opens for direct-memory access via reflection.
+// Applied to both unit test and internal cluster test tasks.
+test {
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  jvmArgs '-Darrow.memory.debug.allocator=false'
 }
 
 // Arrow/Flight requires these JVM flags

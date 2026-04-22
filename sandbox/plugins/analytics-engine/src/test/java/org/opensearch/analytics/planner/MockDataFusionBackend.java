@@ -104,16 +104,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     @Override
     public ExchangeSinkProvider getExchangeSinkProvider() {
         // Stub — real implementation provided by DataFusion backend
-        return coordinatorFragmentBytes -> new ExchangeSink() {
-            @Override
-            public void feed(VectorSchemaRoot batch) {
-
-            }
-
-            @Override
-            public void close() {
-
-            }
+        return bytes -> new ExchangeSink() {
+            @Override public void feed(VectorSchemaRoot batch) {}
+            @Override public void close() {}
         };
     }
 

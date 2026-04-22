@@ -9,7 +9,7 @@
 package org.opensearch.analytics.spi;
 
 /**
- * Implemented by types whose children write row batches into them, keyed by
+ * Implemented by stage types whose children write row batches into them, keyed by
  * child stage id. Used by the framework during construction to resolve the
  * {@link ExchangeSink} a child stage should write into, and by backend-provided
  * compute units that accept per-child input fan-in.
@@ -20,7 +20,8 @@ public interface DataConsumer {
 
     /**
      * Returns the {@link ExchangeSink} that the given child stage
-     * should write its output into.
+     * should write its output into. Used for backends to give children specific
+     * sink implementations.
      */
     ExchangeSink inputSink(int childStageId);
 }

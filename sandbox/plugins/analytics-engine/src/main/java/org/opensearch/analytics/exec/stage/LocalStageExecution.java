@@ -11,21 +11,17 @@ package org.opensearch.analytics.exec.stage;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ExchangeSource;
-import org.opensearch.analytics.backend.LocalStageContext;
 import org.opensearch.analytics.planner.dag.Stage;
-import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
-import org.opensearch.core.action.ActionListener;
 
 /**
- * {@link StageExecution} implementation for COORDINATOR_REDUCE stages. Owns the
- * {@link LocalStageContext} lifecycle (start, finalize, fail, cancel)
- * and ensures the downstream listener is signaled exactly once.
+ * {@link StageExecution} implementation for COORDINATOR_REDUCE stages. Holds a
+ * backend-provided {@link ExchangeSink} (from {@link org.opensearch.analytics.spi.ExchangeSinkProvider})
+ * and routes all child stage output into it via {@link #inputSink(int)}.
  *
- * <p>Implements {@link SinkProvidingStageExecution} as both a
- * {@link DataConsumer} (children write into per-child input sinks via
- * {@link #inputSink(int)}) and a {@link DataProducer} (output is
- * produced by the backend into the parent's sink).
+ * <p>This is a placeholder shape: the backend sink accepts batches but there is
+ * no contract yet for draining its output downstream. The drain/output contract
+ * will be re-introduced when a real backend implementation lands.
  *
  * <p>Lifecycle:
  * {@code CREATED → RUNNING → (SUCCEEDED | FAILED | CANCELLED)}
@@ -36,78 +32,56 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
 
     private static final Logger logger = LogManager.getLogger(LocalStageExecution.class);
 
-    private final LocalStageContext ctx;
-    private final ExchangeSink outputSinkRef;
+    private final ExchangeSink backendSink;
+    private final ExchangeSink downstream;
 
-    public LocalStageExecution(Stage stage, LocalStageContext ctx, ExchangeSink outputSink) {
+    public LocalStageExecution(Stage stage, ExchangeSink backendSink, ExchangeSink downstream) {
         super(stage);
-        this.ctx = ctx;
-        this.outputSinkRef = outputSink;
+        this.backendSink = backendSink;
+        this.downstream = downstream;
         logger.info("[LocalStage] CREATED stageId={} childCount={}", stage.getStageId(), stage.getChildStages().size());
     }
 
-    /** Returns the backend-provided context for this local stage. */
-    public LocalStageContext getCtx() {
-        return ctx;
-    }
-
+    // All children feed into the single backend sink.
     @Override
     public ExchangeSink inputSink(int childStageId) {
-        return ctx.sinkFor(childStageId);
+        return backendSink;
     }
 
-    @Override
-    public ExchangeSink outputSink() {
-        return outputSinkRef;
-    }
-
+    // No output drain contract yet. Will be reintroduced when a real backend
+    // implementation is wired up.
     @Override
     public ExchangeSource outputSource() {
-        if (outputSinkRef instanceof ExchangeSource source) {
-            return source;
-        }
-        throw new UnsupportedOperationException("outputSink does not implement ExchangeSource");
+        throw new UnsupportedOperationException(
+            "LocalStageExecution has no output source yet — backend drain contract pending"
+        );
     }
 
-    /**
-     * Called by the walker / runner once all children have completed successfully
-     * and their batches have landed in the per-child input sinks. Transitions to
-     * {@code RUNNING}, then delegates to the backend's
-     * {@link LocalStageContext#asyncFinalize} which drains output and signals the
-     * listener with the terminal state transition.
-     */
     @Override
     public void start() {
         if (transitionTo(State.RUNNING) == false) return;
         logger.info("[LocalStage] start() stageId={}", stage.getStageId());
-        ctx.asyncFinalize(ActionListener.wrap(v -> {
+        try {
+            backendSink.close();
+            downstream.close();
             if (transitionTo(State.SUCCEEDED)) {
-                logger.info("[LocalStage] listener.onResponse stageId={}", stage.getStageId());
+                logger.info("[LocalStage] SUCCEEDED stageId={}", stage.getStageId());
             }
-        }, e -> {
+        } catch (Exception e) {
             captureFailure(e);
             if (transitionTo(State.FAILED)) {
                 metrics.incrementTasksFailed();
-                logger.info("[LocalStage] listener.onFailure stageId={} cause={}", stage.getStageId(), e.getMessage());
+                logger.info("[LocalStage] FAILED stageId={} cause={}", stage.getStageId(), e.getMessage());
             }
-        }));
+        }
     }
 
-    /**
-     * Called by the walker when any child stage fails before finalize. Closes
-     * the backend context, records metrics, and signals the listener with the
-     * failure. Used by {@code PlanWalker}'s per-parent state listener to
-     * propagate child failures upward while ensuring the
-     * {@link LocalStageContext} is released.
-     */
     @Override
     public boolean failFromChild(Exception cause) {
         logger.error("[LocalStage] failFromChild stageId={}", stage.getStageId(), cause);
         captureFailure(cause);
         if (transitionTo(State.FAILED)) {
-            try {
-                ctx.close();
-            } catch (Exception ignore) {}
+            try { backendSink.close(); } catch (Exception ignore) {}
             metrics.incrementTasksFailed();
             return true;
         }
@@ -118,10 +92,7 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     public void cancel(String reason) {
         logger.info("[LocalStage] cancel stageId={} reason={}", stage.getStageId(), reason);
         if (transitionTo(State.CANCELLED)) {
-            try {
-                ctx.close();
-            } catch (Exception ignore) {}
+            try { backendSink.close(); } catch (Exception ignore) {}
         }
     }
-
 }

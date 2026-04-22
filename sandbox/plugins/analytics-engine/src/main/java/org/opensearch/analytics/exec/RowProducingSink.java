@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.backend.ExchangeSource;
 
@@ -35,7 +36,7 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
     @Override
     public void feed(VectorSchemaRoot batch) {
         if (fieldNames.isEmpty() && batch.getSchema().getFields().isEmpty() == false) {
-            for (org.apache.arrow.vector.types.pojo.Field f : batch.getSchema().getFields()) {
+            for (Field f : batch.getSchema().getFields()) {
                 fieldNames.add(f.getName());
             }
         }

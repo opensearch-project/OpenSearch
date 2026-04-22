@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.planner.dag;
 
-import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.common.Nullable;
@@ -23,10 +22,6 @@ import java.util.List;
  * <p>Execution shape is surfaced explicitly via {@link #getExecutionType()}, derived
  * at construction in priority order:
  * <ol>
- *   <li>{@link ExchangeInfo#distributionType()} == {@code HASH_DISTRIBUTED}
- *       → {@link StageExecutionType#SHUFFLE_WRITE}.</li>
- *   <li>{@link ExchangeInfo#distributionType()} == {@code BROADCAST_DISTRIBUTED}
- *       → {@link StageExecutionType#BROADCAST_WRITE}.</li>
  *   <li>{@link #getTargetResolver()} non-null → {@link StageExecutionType#SHARD_FRAGMENT}
  *       — dispatch fragment per-shard to data nodes.</li>
  *   <li>{@link #getExchangeSinkProvider()} non-null → {@link StageExecutionType#COORDINATOR_REDUCE}
@@ -65,7 +60,7 @@ public class Stage {
         this.exchangeInfo = exchangeInfo;
         this.exchangeSinkProvider = exchangeSinkProvider;
         this.targetResolver = targetResolver;
-        this.executionType = setStageExecutionType(exchangeInfo, exchangeSinkProvider, targetResolver);
+        this.executionType = setStageExecutionType(exchangeSinkProvider, targetResolver);
         this.planAlternatives = List.of();
     }
 
@@ -123,12 +118,8 @@ public class Stage {
         this.planAlternatives = planAlternatives;
     }
 
-    private StageExecutionType setStageExecutionType(ExchangeInfo exchangeInfo, ExchangeSinkProvider exchangeSinkProvider, TargetResolver targetResolver) {
-        if (exchangeInfo != null && exchangeInfo.distributionType() == RelDistribution.Type.HASH_DISTRIBUTED) {
-            return StageExecutionType.SHUFFLE_WRITE;
-        } else if (exchangeInfo != null && exchangeInfo.distributionType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
-            return StageExecutionType.BROADCAST_WRITE;
-        } else if (targetResolver != null) {
+    private StageExecutionType setStageExecutionType(ExchangeSinkProvider exchangeSinkProvider, TargetResolver targetResolver) {
+        if (targetResolver != null) {
             return StageExecutionType.SHARD_FRAGMENT;
         } else if (exchangeSinkProvider != null) {
             return StageExecutionType.COORDINATOR_REDUCE;

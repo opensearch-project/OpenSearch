@@ -24,8 +24,8 @@ public enum StageExecutionType {
     /**
      * Runs at the coordinator with a backend-provided {@code ExchangeSink}
      * (from {@code ExchangeSinkProvider}). Used for final aggregation, sort,
-     * and any residual coordinator-side reduction the backend owns. Inputs
-     * are child stage outputs (either rows from SHARD_SCAN or shuffle reads).
+     * and any residual coordinator-side reduction the backend owns. Child
+     * SHARD_FRAGMENT stage outputs are fed into the sink.
      */
     COORDINATOR_REDUCE,
     /**
@@ -35,17 +35,5 @@ public enum StageExecutionType {
      * stages sitting above children that already produced the final rows.
      * A single-stage query that scans shards is {@link #SHARD_FRAGMENT}, not this.
      */
-    LOCAL_PASSTHROUGH,
-    /**
-     * Fragment dispatched per-shard to data nodes; responses are hash-partitioned
-     * shuffle manifests (not row batches). Used by the producer side of a
-     * HASH_DISTRIBUTED exchange. Scheduler NYI — registry throws until landed.
-     */
-    SHUFFLE_WRITE,
-    /**
-     * Fragment dispatched per-shard to data nodes; responses are broadcast
-     * handles (not row batches). Used by the producer side of a
-     * BROADCAST_DISTRIBUTED exchange. Scheduler NYI — registry throws until landed.
-     */
-    BROADCAST_WRITE
+    LOCAL_PASSTHROUGH
 }

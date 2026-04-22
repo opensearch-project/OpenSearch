@@ -54,11 +54,6 @@ final class PassThroughStageExecution extends AbstractStageExecution implements 
     }
 
     @Override
-    public ExchangeSink outputSink() {
-        return ownedSink;
-    }
-
-    @Override
     public ExchangeSource outputSource() {
         return ownedSink;
     }

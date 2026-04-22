@@ -184,8 +184,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
      * Materializes Arrow batches into row-oriented {@code Object[]}s for the
      * external query API. The scheduler yields batches (the native wire format);
      * the row materialization happens here, once, at the API edge.
+     *
+     * <p>Package-private for unit testing.
      */
-    private static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches) {
+    static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches) {
         List<Object[]> rows = new ArrayList<>();
         for (VectorSchemaRoot batch : batches) {
             int colCount = batch.getFieldVectors().size();

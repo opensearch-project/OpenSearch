@@ -149,11 +149,6 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     }
 
     @Override
-    public ExchangeSink outputSink() {
-        return outputSink;
-    }
-
-    @Override
     public ExchangeSource outputSource() {
         if (outputSink instanceof ExchangeSource source) {
             return source;
