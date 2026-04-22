@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  * Main plugin class for the DataFusion native engine integration.
  * <p>
  * Owns the {@link DataFusionService} lifecycle (memory pool, native runtime).
- * Analytics query capabilities are declared in {@link DataFusionAnalyticsExtension},
+ * Analytics query capabilities are declared in {@link DataFusionAnalyticsBackendPlugin},
  * which is SPI-discovered and receives this plugin instance via its constructor.
  */
 public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader> {

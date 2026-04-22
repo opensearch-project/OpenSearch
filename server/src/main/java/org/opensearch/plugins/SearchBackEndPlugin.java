@@ -43,6 +43,8 @@ import java.util.function.Supplier;
  * @param <R> the reader type produced by this backend's reader manager
  * @opensearch.internal
  */
+// TODO: Rename to something more meaningful (e.g. EngineReaderPlugin, BackEndReaderPlugin)
+// to avoid confusion with AnalyticsSearchBackendPlugin.
 public interface SearchBackEndPlugin<R> {
 
     /** Unique backend name (e.g., "datafusion", "lucene"). */
@@ -60,6 +62,8 @@ public interface SearchBackEndPlugin<R> {
      */
     EngineReaderManager<?> createReaderManager(ReaderManagerConfig settings) throws IOException;
 
+    // TODO: Evaluate restricting this method to only pass DataFormatRegistry and moving common
+    // parameters (Client, ClusterService, Environment, etc.) to Plugin.createComponents.
     /**
      * Returns components added by this plugin.
      * Any components returned that implement {@link org.opensearch.common.lifecycle.LifecycleComponent}

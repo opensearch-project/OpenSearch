@@ -33,7 +33,7 @@ import java.util.Set;
  * Declares all analytics query capabilities (operators, filters, aggregates) and
  * creates per-shard execution engines.
  */
-public class DataFusionAnalyticsExtension implements AnalyticsSearchBackendPlugin {
+public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugin {
 
     private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT);
 
@@ -69,7 +69,7 @@ public class DataFusionAnalyticsExtension implements AnalyticsSearchBackendPlugi
 
     private final DataFusionPlugin plugin;
 
-    public DataFusionAnalyticsExtension(DataFusionPlugin plugin) {
+    public DataFusionAnalyticsBackendPlugin(DataFusionPlugin plugin) {
         this.plugin = plugin;
     }
 
