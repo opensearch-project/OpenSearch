@@ -33,6 +33,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
@@ -227,12 +228,15 @@ public class DataFormatAwareEngine implements Indexer {
                 LinkedList::new,
                 Runtime.getRuntime().availableProcessors()
             );
-            this.readerManagers = registry.getReaderManagers(
+            // Create Reader managers
+            // We will pass IndexStoreProvider to this, which would contain store
+            // and any index specific attributes useful for reads.
+            this.readerManagers = indexingExecutionEngine.buildReaderManager(new ReaderManagerConfig(
                 Optional.ofNullable(indexingExecutionEngine.getProvider()),
-                engineConfig.getMapperService(),
-                engineConfig.getIndexSettings(),
+                indexingExecutionEngine.getDataFormat(),
+                registry,
                 store.shardPath()
-            );
+            ));
 
             // 6. Create CombinedCatalogSnapshotDeletionPolicy
             CombinedCatalogSnapshotDeletionPolicy combinedPolicy = new CombinedCatalogSnapshotDeletionPolicy(

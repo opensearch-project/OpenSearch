@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
@@ -17,7 +19,11 @@ import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Segment;
+<<<<<<< HEAD
 import org.opensearch.index.shard.ShardPath;
+=======
+import org.opensearch.index.store.CompositeDirectory;
+>>>>>>> f7b5f6783ad (Wire reader manager via index settings)
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -39,6 +45,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @ExperimentalApi
 public class CatalogSnapshotManager implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(CatalogSnapshotManager.class);
 
     private volatile CatalogSnapshot latestCatalogSnapshot;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -142,6 +150,8 @@ public class CatalogSnapshotManager implements Closeable {
 
         CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
         latestCatalogSnapshot = newSnapshot;
+
+        logger.trace("New Catalog Snapshot created: {}", latestCatalogSnapshot);
 
         // Release the manager's own reference to the old snapshot.
         // The snapshot won't be deleted if the commit path still holds a reference.

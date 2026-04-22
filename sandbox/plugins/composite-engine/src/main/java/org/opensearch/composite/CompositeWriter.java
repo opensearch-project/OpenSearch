@@ -105,7 +105,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
             throw new IllegalStateException("Cannot add document to writer in state " + state.get());
         }
         // Write to primary first
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, rowIdGenerator.currentRowId());
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, rowIdGenerator.nextRowId());
         WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
         switch (primaryResult) {
             case WriteResult.Success s -> logger.trace("Successfully added document in primary format [{}]", primaryFormat.name());

@@ -92,4 +92,12 @@ public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearc
             return new Segment(generation, dfGroupedSearchableFiles);
         }
     }
+
+    @Override
+    public String toString() {
+        return "Segment{" +
+            "generation=" + generation +
+            ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles +
+            '}';
+    }
 }

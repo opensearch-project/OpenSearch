@@ -21,9 +21,11 @@ import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -352,6 +354,19 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                 return providers.get(dataFormat).getStore(dataFormat);
             }
         };
+    }
+
+    @Override
+    public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
+        Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>(config.registry().getReaderManager(readerManagerConfig(config, primaryEngine.getDataFormat())));
+        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+            readerManagers.putAll(config.registry().getReaderManager(readerManagerConfig(config, engine.getDataFormat())));
+        }
+        return Map.copyOf(readerManagers);
+    }
+
+    private ReaderManagerConfig readerManagerConfig(ReaderManagerConfig config, DataFormat toAugment) {
+        return new ReaderManagerConfig(config.indexStoreProvider(), toAugment, config.registry(), config.shardPath());
     }
 
     /**
