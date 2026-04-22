@@ -550,10 +550,6 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public void refresh(String source) throws EngineException {
-        refresh(source, false);
-    }
-
-    private void refresh(String source, boolean force) throws EngineException {
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed = false;
         try (ReleasableLock ignored = readLock.acquire()) {
@@ -589,7 +585,7 @@ public class DataFormatAwareEngine implements Indexer {
                         logger.debug("Produced {} new segments from flush", newSegments.size());
 
                         // refresh only if new segments have been created or force param is true
-                        if (force || refreshed) {
+                        if (refreshed) {
                             RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
@@ -644,7 +640,7 @@ public class DataFormatAwareEngine implements Indexer {
             }
             try {
                 // Refresh first to flush buffered data to segments
-                refresh("flush", force);
+                refresh("flush");
                 // Persist the latest catalog snapshot so it survives restart
                 try (GatedConditionalCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshotForCommit()) {
                     CatalogSnapshot snapshot = snapshotRef.get();
