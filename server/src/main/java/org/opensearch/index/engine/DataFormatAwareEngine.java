@@ -584,20 +584,21 @@ public class DataFormatAwareEngine implements Indexer {
                         }
                         logger.debug("Produced {} new segments from flush", newSegments.size());
 
-                        RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
-                        RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
-                        catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
+                        // refresh only if new segments have been created or force param is true
+                        if (refreshed) {
+                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
+                            RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
+                            catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
 
-                        // TODO: Add other Refresh listeners
-                        // Notify reader managers so they can create readers for the new snapshot
-                        try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
-                            CatalogSnapshot newSnapshot = newSnapshotRef.get();
-                            for (EngineReaderManager<?> rm : readerManagers.values()) {
-                                rm.afterRefresh(refreshed, newSnapshot);
+                            // TODO: Add other Refresh listeners
+                            // Notify reader managers so they can create readers for the new snapshot
+                            try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+                                CatalogSnapshot newSnapshot = newSnapshotRef.get();
+                                for (EngineReaderManager<?> rm : readerManagers.values()) {
+                                    rm.afterRefresh(refreshed, newSnapshot);
+                                }
                             }
                         }
-
-                        refreshed = true;
                     } finally {
                         store.decRef();
                     }
@@ -640,29 +641,37 @@ public class DataFormatAwareEngine implements Indexer {
             try {
                 // Refresh first to flush buffered data to segments
                 refresh("flush");
-                // Sync translog before commit so the global checkpoint is persisted
-                // and available to the deletion policy when onCommit is triggered.
-                translogManager.ensureCanFlush();
-                translogManager.syncTranslog();
                 // Persist the latest catalog snapshot so it survives restart
                 try (GatedConditionalCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshotForCommit()) {
                     CatalogSnapshot snapshot = snapshotRef.get();
-                    Map<String, String> commitData = new HashMap<>();
-                    commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
-                    commitData.put(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(snapshot.getLastWriterGeneration()));
-                    commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(snapshot.getId()));
-                    commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
-                    commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpointTracker.getProcessedCheckpoint()));
-                    commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
-                    commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-                    commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
-                    // Update snapshot userData so deletion policy can read max_seq_no
-                    snapshot.setUserData(commitData, true);
-                    committer.commit(commitData);
-                    snapshotRef.markSuccess();
+                    Map<String, String> lastCommitData = committer.getLastCommittedData();
+                    String lastCommittedSnapshotId = lastCommitData.get(CatalogSnapshot.CATALOG_SNAPSHOT_ID);
+                    // commit only if last committed CS id is different from the one we are about to commit or if force param is true
+                    if (force || lastCommittedSnapshotId == null || snapshot.getId() != Long.parseLong(lastCommittedSnapshotId)) {
+                        // Sync translog before commit so the global checkpoint is persisted
+                        // and available to the deletion policy when onCommit is triggered.
+                        translogManager.ensureCanFlush();
+                        translogManager.syncTranslog();
+                        Map<String, String> commitData = new HashMap<>();
+                        commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
+                        commitData.put(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(snapshot.getLastWriterGeneration()));
+                        commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(snapshot.getId()));
+                        commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
+                        commitData.put(
+                            SequenceNumbers.LOCAL_CHECKPOINT_KEY,
+                            Long.toString(localCheckpointTracker.getProcessedCheckpoint())
+                        );
+                        commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                        commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                        commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
+                        // Update snapshot userData so deletion policy can read max_seq_no
+                        snapshot.setUserData(commitData, true);
+                        committer.commit(commitData);
+                        snapshotRef.markSuccess();
+                        translogManager.rollTranslogGeneration();
+                        translogManager.trimUnreferencedReaders();
+                    }
                 }
-                translogManager.rollTranslogGeneration();
-                translogManager.trimUnreferencedReaders();
                 logger.trace("flush completed");
             } catch (AlreadyClosedException e) {
                 failOnTragicEvent(e);
