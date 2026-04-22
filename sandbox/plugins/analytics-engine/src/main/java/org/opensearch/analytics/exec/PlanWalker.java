@@ -22,9 +22,9 @@ import org.opensearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -75,7 +75,7 @@ public class PlanWalker {
      * @return the fully-wired execution graph
      */
     public ExecutionGraph build() {
-        Map<Integer, StageExecution> executions = new ConcurrentHashMap<>();
+        Map<Integer, StageExecution> executions = new HashMap<>();
 
         Stage rootStage = config.dag().rootStage();
         final StageExecution rootExec = stageExecutionBuilder.buildRootExecution(rootStage, config);
@@ -122,12 +122,15 @@ public class PlanWalker {
             if (state == StageExecution.State.RUNNING || state == StageExecution.State.CREATED) {
                 try {
                     exec.cancel(reason);
-                } catch (Exception ignore) {}
+                } catch (Exception ignore) {
+                }
             }
         }
     }
 
-    /** Returns the built execution graph, or null if {@link #build()} hasn't been called. */
+    /**
+     * Returns the built execution graph, or null if {@link #build()} hasn't been called.
+     */
     public ExecutionGraph getGraph() {
         return graph;
     }
@@ -204,7 +207,8 @@ public class PlanWalker {
         final DataProducer producer = (DataProducer) rootExec;
         rootExec.addStateListener((from, to) -> {
             switch (to) {
-                case SUCCEEDED -> fireTerminal(() -> completionListener.onResponse(producer.outputSource().readResult()));
+                case SUCCEEDED ->
+                    fireTerminal(() -> completionListener.onResponse(producer.outputSource().readResult()));
                 case FAILED, CANCELLED -> {
                     Exception failure = rootExec.getFailure();
                     if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
