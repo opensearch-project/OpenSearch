@@ -30,7 +30,7 @@ dependencies {
   // and license files.
   compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
   implementation "org.apache.arrow:arrow-format:${versions.arrow}"
   implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
