@@ -18,16 +18,22 @@ import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.Supplier;
+
+import static org.opensearch.storage.prefetch.TieredStoragePrefetchSettings.CFS_FILE_SUFFIX;
 
 /**
  * Block-based index input that prefetches subsequent blocks from remote storage on demand.
  */
 public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapshotIndexInput {
 
+    /** Supplier for prefetch settings */
+    public final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
     protected final ThreadPool threadPool;
     protected FileCache fileCache;
     protected final String resourceDescription;
@@ -42,12 +48,14 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
         FSDirectory directory,
         TransferManager transferManager,
         ThreadPool threadPool,
-        FileCache fileCache
+        FileCache fileCache,
+        Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier
     ) {
         super(resourceDescription, fileInfo, offset, length, isClone, directory, transferManager);
         this.threadPool = threadPool;
         this.fileCache = fileCache;
         this.resourceDescription = resourceDescription;
+        this.tieredStoragePrefetchSettingsSupplier = tieredStoragePrefetchSettingsSupplier;
     }
 
     @Override
@@ -64,12 +72,14 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
         FSDirectory directory,
         TransferManager transferManager,
         ThreadPool threadPool,
-        FileCache fileCache
+        FileCache fileCache,
+        Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier
     ) {
         super(builder, fileInfo, directory, transferManager);
         this.threadPool = threadPool;
         this.fileCache = fileCache;
         this.resourceDescription = resourceDescription;
+        this.tieredStoragePrefetchSettingsSupplier = tieredStoragePrefetchSettingsSupplier;
     }
 
     @Override
@@ -86,13 +96,17 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
             directory,
             transferManager,
             threadPool,
-            fileCache
+            fileCache,
+            tieredStoragePrefetchSettingsSupplier
         );
     }
 
     protected void fetchNextNBlocks(int blockId) {
-        // TODO: Read-ahead with configurable block count. TieredStoragePrefetchSettings integration will be added later.
-        int readAheadBlockCount = 4; // DEFAULT_READ_AHEAD_BLOCK_COUNT
+        // check if read ahead was enabled and file type was doc values
+        if (!checkIfFileEnabledReadAhead()) {
+            return;
+        }
+        int readAheadBlockCount = tieredStoragePrefetchSettingsSupplier.get().getReadAheadBlockCount();
         readAheadBlockCount = Math.min(readAheadBlockCount, getTotalBlocks() - 1 - blockId);
         if (readAheadBlockCount <= 0) {
             logger.trace("read ahead block is <=0, for File: {} and Block ID: {}", fileName, blockId);
@@ -100,10 +114,18 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
         }
         logger.trace("Prefetching Read Ahead Block Count: {} from Block ID: {} for File: {}", readAheadBlockCount, blockId, fileName);
         downloadBlocksAsync(blockId + 1, blockId + readAheadBlockCount, true);
+        // TODO: Metric recording will be added when TieredStorageQueryMetricService is available
     }
 
     @Override
     public void prefetch(long offset, long length) throws IOException {
+        // This can trigger by lucene as well internally having validation here will make us to stop async download if needed.
+        if (!checkIfStoredFieldsPrefetchEnabled()) {
+            return;
+        }
+        if (length <= 0) {
+            return;
+        }
         offset = offset + this.offset;
         final int startBlock = getBlock(offset);
         final int endBlock = Math.min(getTotalBlocks() - 1, getBlock(offset + length - 1L));
@@ -146,6 +168,25 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
                 );
             }
         }
+    }
+
+    /**
+     * Checks if read-ahead is enabled for the current file format.
+     * @return true if the file format supports read-ahead
+     */
+    protected boolean checkIfFileEnabledReadAhead() {
+        return tieredStoragePrefetchSettingsSupplier.get()
+            .getReadAheadEnableFileFormats()
+            .stream()
+            .anyMatch(format -> fileName.endsWith(format) || (resourceDescription.endsWith(format) && fileName.endsWith(CFS_FILE_SUFFIX)));
+    }
+
+    /**
+     * Checks if stored fields prefetch is enabled.
+     * @return true if stored fields prefetch is enabled
+     */
+    protected boolean checkIfStoredFieldsPrefetchEnabled() {
+        return tieredStoragePrefetchSettingsSupplier.get().isStoredFieldsPrefetchEnabled();
     }
 
     @Override
