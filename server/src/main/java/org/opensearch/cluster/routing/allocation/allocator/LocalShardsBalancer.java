@@ -141,6 +141,27 @@ public class LocalShardsBalancer extends ShardsBalancer {
     }
 
     /**
+     * Returns the average disk usage in bytes per node.
+     * <p>
+     * Computed on demand by summing {@code diskUsageInBytes} across the live {@link BalancedShardsAllocator.ModelNode}
+     * map. The per-node value is kept current inside {@link BalancedShardsAllocator.ModelNode#addShard}
+     * and {@link BalancedShardsAllocator.ModelNode#removeShard}, so this is the single source of truth
+     * for the cluster-wide mean during a balance round and cannot drift out of sync with
+     * {@link #allocateUnassigned()}, {@link #moveShards()}, and {@link #tryRelocateShard}.
+     */
+    @Override
+    public float avgDiskUsageInBytesPerNode() {
+        if (nodes.isEmpty()) {
+            return 0f;
+        }
+        long total = 0L;
+        for (BalancedShardsAllocator.ModelNode node : nodes.values()) {
+            total += node.diskUsageInBytes();
+        }
+        return ((float) total) / nodes.size();
+    }
+
+    /**
      * Returns a new {@link BalancedShardsAllocator.NodeSorter} that sorts the nodes based on their
      * current weight with respect to the index passed to the sorter. The
      * returned sorter is not sorted. Use {@link BalancedShardsAllocator.NodeSorter#reset(String)}
@@ -643,6 +664,16 @@ public class LocalShardsBalancer extends ShardsBalancer {
             if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                 final BalancedShardsAllocator.ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
                 final BalancedShardsAllocator.ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
+                if (weight.diskUsageBalance() != 0f && logger.isDebugEnabled()) {
+                    logger.debug(
+                        "disk_usage-aware move: shard [{}] from [{}] (bytes={}) to [{}] (bytes={})",
+                        shardRouting.shardId(),
+                        sourceNode.getNodeId(),
+                        sourceNode.diskUsageInBytes(),
+                        targetNode.getNodeId(),
+                        targetNode.diskUsageInBytes()
+                    );
+                }
                 sourceNode.removeShard(shardRouting);
                 --totalShardCount;
                 Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
@@ -765,7 +796,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private Map<String, BalancedShardsAllocator.ModelNode> buildModelFromAssigned() {
         Map<String, BalancedShardsAllocator.ModelNode> nodes = new HashMap<>();
         for (RoutingNode rn : routingNodes) {
-            BalancedShardsAllocator.ModelNode node = new BalancedShardsAllocator.ModelNode(rn);
+            BalancedShardsAllocator.ModelNode node = new BalancedShardsAllocator.ModelNode(
+                rn,
+                allocation.clusterInfo(),
+                weight.diskUsageBalance() != 0f
+            );
             nodes.put(rn.nodeId(), node);
             for (ShardRouting shard : rn) {
                 assert rn.nodeId().equals(shard.currentNodeId());
@@ -1104,6 +1139,16 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 if (decision.type() == Decision.Type.YES) {
                     /* only allocate on the cluster if we are not throttled */
                     logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
+                    if (weight.diskUsageBalance() != 0f && logger.isDebugEnabled()) {
+                        logger.debug(
+                            "disk_usage-aware relocation: shard [{}] from [{}] (bytes={}) to [{}] (bytes={})",
+                            shard.shardId(),
+                            maxNode.getNodeId(),
+                            maxNode.diskUsageInBytes(),
+                            minNode.getNodeId(),
+                            minNode.diskUsageInBytes()
+                        );
+                    }
                     minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
                     ++totalShardCount;
                     return true;

@@ -87,4 +87,14 @@ public abstract class ShardsBalancer {
         return Float.MAX_VALUE;
     }
 
+    /**
+     * Returns the average disk usage in bytes per node. The default returns {@code 0f}
+     * so that subclasses which do not track per-shard byte size contribute a neutral
+     * disk-weight component ({@code node.diskUsageInBytes() - 0f}) instead of saturating
+     * the weight function with {@link Float#MAX_VALUE}.
+     */
+    public float avgDiskUsageInBytesPerNode() {
+        return 0f;
+    }
+
 }
