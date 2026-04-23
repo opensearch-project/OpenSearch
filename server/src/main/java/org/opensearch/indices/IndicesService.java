@@ -318,7 +318,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Settings settings;
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
-    private final NamedXContentRegistry xContentRegistry;
+    private volatile NamedXContentRegistry xContentRegistry;
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -336,7 +336,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final MapperRegistry mapperRegistry;
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    private volatile NamedWriteableRegistry namedWriteableRegistry;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
     final IndicesRequestCache indicesRequestCache; // pkg-private for testing
@@ -364,6 +364,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
     private volatile int maxSizeInRequestCache;
+    private volatile org.opensearch.http.HttpServerTransport httpServerTransport;
 
     @Override
     protected void doStart() {
@@ -2193,5 +2194,48 @@ public class IndicesService extends AbstractLifecycleComponent
     // Package-private for testing
     void setMaxSizeInRequestCache(Integer maxSizeInRequestCache) {
         this.maxSizeInRequestCache = maxSizeInRequestCache;
+    }
+    
+    /**
+     * Set the HttpServerTransport reference for registry updates (for search plugin hot reload)
+     * @param httpServerTransport the HttpServerTransport instance
+     */
+    public synchronized void setHttpServerTransport(org.opensearch.http.HttpServerTransport httpServerTransport) {
+        this.httpServerTransport = httpServerTransport;
+    }
+    
+    // ========== Dynamic Registry Update Methods for Search Plugin Hot Reload ==========
+    
+    /**
+     * Update the XContent registry with a new one (for search plugin hot reload)
+     * @param newRegistry the new registry to use
+     */
+    public synchronized void updateXContentRegistry(NamedXContentRegistry newRegistry) {
+        logger.info("Updating NamedXContentRegistry for search plugin hot reload");
+        this.xContentRegistry = newRegistry;
+        
+        // Update all existing IndexService instances
+        for (IndexService indexService : this) {
+            indexService.updateXContentRegistry(newRegistry);
+        }
+        
+        // Update HttpServerTransport if available
+        if (httpServerTransport != null && httpServerTransport instanceof org.opensearch.http.AbstractHttpServerTransport) {
+            ((org.opensearch.http.AbstractHttpServerTransport) httpServerTransport).updateXContentRegistry(newRegistry);
+        }
+    }
+    
+    /**
+     * Update the NamedWriteable registry with a new one (for search plugin hot reload)
+     * @param newRegistry the new registry to use
+     */
+    public synchronized void updateNamedWriteableRegistry(NamedWriteableRegistry newRegistry) {
+        logger.info("Updating NamedWriteableRegistry for search plugin hot reload");
+        this.namedWriteableRegistry = newRegistry;
+        
+        // Update all existing IndexService instances
+        for (IndexService indexService : this) {
+            indexService.updateNamedWriteableRegistry(newRegistry);
+        }
     }
 }
