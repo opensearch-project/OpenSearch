@@ -8,11 +8,12 @@
 
 package org.opensearch.analytics.backend;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
 /**
- * Execution context carrying reader and delegation state through
+ * Execution context carrying reader and plan state through
  * the query execution lifecycle.
  *
  * @opensearch.internal
@@ -22,6 +23,8 @@ public class ExecutionContext {
     private final String tableName;
     private final Reader reader;
     private final SearchShardTask task;
+    private byte[] fragmentBytes;
+    private BufferAllocator allocator;
 
     /**
      * Constructs an execution context.
@@ -48,5 +51,15 @@ public class ExecutionContext {
     /** Returns the data-format aware reader. */
     public Reader getReader() {
         return reader;
+    }
+
+    /** Returns the backend-specific serialized plan fragment bytes, or null if not set. */
+    public byte[] getFragmentBytes() {
+        return fragmentBytes;
+    }
+
+    /** Sets the backend-specific serialized plan fragment bytes. */
+    public void setFragmentBytes(byte[] fragmentBytes) {
+        this.fragmentBytes = fragmentBytes;
     }
 }

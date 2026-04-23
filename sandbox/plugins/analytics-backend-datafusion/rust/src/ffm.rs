@@ -104,12 +104,13 @@ pub unsafe extern "C" fn df_execute_query(
     plan_ptr: *const u8,
     plan_len: i64,
     runtime_ptr: i64,
+    context_id: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
     let table_name = str_from_raw(table_name_ptr, table_name_len).map_err(|e| format!("df_execute_query: {}", e))?;
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     mgr.io_runtime
-        .block_on(api::execute_query(shard_view_ptr, table_name, plan_bytes, runtime_ptr, &mgr))
+        .block_on(api::execute_query(shard_view_ptr, table_name, plan_bytes, runtime_ptr, &mgr, context_id))
         .map_err(|e| e.to_string())
 }
 

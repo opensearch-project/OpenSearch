@@ -46,6 +46,7 @@ import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -495,6 +496,7 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .setWaitForActiveShards(2 * numOfShards * (numOfReplica + 1))
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
+            .setTimeout(TimeValue.timeValueMinutes(2))
             .execute()
             .actionGet();
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();

@@ -35,6 +35,7 @@ import org.opensearch.index.store.Store;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -222,17 +223,20 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     @Override
-    public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
+    public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
+        Map<String, Collection<String>> allFailed = new HashMap<>();
         IOException firstException = null;
         try {
-            primaryEngine.deleteFiles(filesToDelete);
+            Map<String, Collection<String>> failed = primaryEngine.deleteFiles(filesToDelete);
+            failed.forEach((k, v) -> allFailed.computeIfAbsent(k, x -> new ArrayList<>()).addAll(v));
         } catch (IOException e) {
             logger.error("Failed to delete files in primary engine [{}]: {}", primaryEngine.getDataFormat().name(), e.getMessage());
             firstException = e;
         }
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
             try {
-                engine.deleteFiles(filesToDelete);
+                Map<String, Collection<String>> failed = engine.deleteFiles(filesToDelete);
+                failed.forEach((k, v) -> allFailed.computeIfAbsent(k, x -> new ArrayList<>()).addAll(v));
             } catch (IOException e) {
                 logger.error("Failed to delete files in secondary engine [{}]: {}", engine.getDataFormat().name(), e.getMessage());
                 if (firstException == null) {
@@ -245,6 +249,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         if (firstException != null) {
             throw firstException;
         }
+        return allFailed;
     }
 
     @Override
