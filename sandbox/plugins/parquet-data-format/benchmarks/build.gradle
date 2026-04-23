@@ -9,6 +9,8 @@
 apply plugin: 'opensearch.build'
 apply plugin: 'application'
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
 assemble.enabled = false
 
 application {

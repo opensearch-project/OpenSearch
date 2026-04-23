@@ -15,6 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -343,6 +344,70 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
         snapshot.decRef();
         assertTrue(snapshot.isClosed());
         assertFalse(snapshot.tryIncRef());
+    }
+
+    public void testGetUploadFileNamesProducesFormatSlashFile() throws Exception {
+        // Build a snapshot with known segments and files
+        WriterFileSet parquetWfs = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt", "_1.pqt"), 100);
+        WriterFileSet luceneWfs = new WriterFileSet("/tmp/lc", 1L, Set.of("_0.cfe", "_0.si"), 50);
+        Segment segment = new Segment(1L, Map.of("parquet", parquetWfs, "lucene", luceneWfs));
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(segment), 0L, Map.of());
+
+        Collection<String> uploadNames = snapshot.getFiles(true);
+
+        // Parquet files: "parquet/_0.pqt", "parquet/_1.pqt"
+        // Lucene files: plain names "_0.cfe", "_0.si" (FileMetadata.serialize() omits "lucene/" prefix)
+        assertEquals(4, uploadNames.size());
+        assertTrue(uploadNames.contains("parquet/_0.pqt"));
+        assertTrue(uploadNames.contains("parquet/_1.pqt"));
+        assertTrue(uploadNames.contains("_0.cfe"));
+        assertTrue(uploadNames.contains("_0.si"));
+    }
+
+    public void testGetFilesEmptySegments() throws Exception {
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(), 0L, Map.of());
+        Collection<String> uploadNames = snapshot.getFiles(true);
+        assertTrue(uploadNames.isEmpty());
+    }
+
+    public void testGetFilesMultipleSegments() throws Exception {
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt"), 10);
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/pq", 2L, Set.of("_1.pqt"), 20);
+        Segment seg1 = new Segment(1L, Map.of("parquet", wfs1));
+        Segment seg2 = new Segment(2L, Map.of("parquet", wfs2));
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(seg1, seg2), 0L, Map.of());
+
+        Collection<String> uploadNames = snapshot.getFiles(true);
+        assertEquals(2, uploadNames.size());
+        assertTrue(uploadNames.contains("parquet/_0.pqt"));
+        assertTrue(uploadNames.contains("parquet/_1.pqt"));
+    }
+
+    public void testSerializeThrowsUnsupportedOperation() {
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(), 0L, Map.of());
+        expectThrows(UnsupportedOperationException.class, snapshot::serialize);
+    }
+
+    public void testGetFormatVersionForFileReturnsOpenSearchMajor() {
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(), 0L, Map.of());
+        assertEquals(org.opensearch.Version.CURRENT.major, snapshot.getFormatVersionForFile("any_file.pqt"));
+    }
+
+    public void testSetUserDataUpdatesAndReturns() {
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(), 0L, Map.of("a", "b"));
+        assertEquals(Map.of("a", "b"), snapshot.getUserData());
+        snapshot.setUserData(Map.of("x", "y"), false);
+        assertEquals(Map.of("x", "y"), snapshot.getUserData());
+    }
+
+    public void testClonePreservesUserData() {
+        Map<String, String> userData = Map.of("key1", "val1", "key2", "val2");
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(42L, 10L, 5L, List.of(), 3L, userData);
+        DataformatAwareCatalogSnapshot cloned = snapshot.clone();
+        assertEquals(userData, cloned.getUserData());
+        assertEquals(42L, cloned.getId());
+        assertEquals(10L, cloned.getGeneration());
+        assertEquals(5L, cloned.getVersion());
     }
 
     // --- helpers ---

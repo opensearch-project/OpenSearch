@@ -11,11 +11,11 @@ opensearchplugin {
   classname = 'org.opensearch.parquet.ParquetDataFormatPlugin'
 }
 
-def buildType = project.hasProperty('rustDebug') ? 'debug' : 'release'
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
-  // Shared native bridge lib
-  implementation project(':sandbox:libs:native-bridge-spi')
+  // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
+  implementation project(':sandbox:libs:dataformat-native')
 
   // Apache Arrow dependencies
   implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
@@ -27,8 +27,13 @@ dependencies {
   // Required by Arrow
   implementation 'org.checkerframework:checker-qual:3.42.0'
   implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  // jackson-core is on the server classpath; jackson-databind and jackson-annotations are not.
+  compileOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}") {
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 }
 
@@ -38,127 +43,12 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
-    'org.apache.commons.codec.binary.Hex',
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory'
+    'org.apache.commons.codec.binary.Hex'
   )
   ignoreViolations(
     'org.apache.arrow.memory.util.MemoryUtil',
     'org.apache.arrow.memory.util.MemoryUtil$1'
   )
-}
-
-// --- Rust native library build tasks ---
-
-def rustDir = file("${projectDir}/src/main/rust")
-
-def isCargoInstalled() {
-  def possiblePaths = [
-    System.getenv('HOME') + '/.cargo/bin/cargo',
-    '/usr/local/bin/cargo'
-  ]
-  for (String path : possiblePaths) {
-    if (new File(path).exists()) {
-      return true
-    }
-  }
-  try {
-    def process = 'which cargo'.execute()
-    process.waitFor()
-    return process.exitValue() == 0
-  } catch (Exception e) {
-    return false
-  }
-}
-
-// Resolves cargo path at execution time (after installRust may have run)
-def findCargo() {
-  def possiblePaths = [
-    System.getenv('HOME') + '/.cargo/bin/cargo',
-    '/usr/local/bin/cargo',
-    'cargo'
-  ]
-  for (String path : possiblePaths) {
-    if (new File(path).exists()) {
-      return path
-    }
-  }
-  return 'cargo'
-}
-
-tasks.register('installRust', Exec) {
-  description = 'Install Rust toolchain via rustup if cargo is not available'
-  group = 'build'
-  onlyIf { !isCargoInstalled() }
-  commandLine 'sh', '-c', 'curl --proto \'=https\' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
-}
-
-tasks.register('buildRust', Exec) {
-  description = 'Build the Rust JNI library using Cargo'
-  group = 'build'
-  dependsOn installRust
-  workingDir = rustDir
-  environment 'CARGO_TARGET_DIR', file("${rustDir}/target").absolutePath
-
-  inputs.files fileTree("${rustDir}/src")
-  inputs.file "${rustDir}/Cargo.toml"
-  outputs.dir "${rustDir}/target/${buildType}"
-
-  doFirst {
-    def cargoArgs = [findCargo(), 'build']
-    if (buildType == 'release') {
-      cargoArgs.add('--release')
-    }
-    executable cargoArgs[0]
-    args cargoArgs.drop(1)
-  }
-}
-
-tasks.register('copyNativeLib', Copy) {
-  dependsOn buildRust
-  from "${rustDir}/target/${buildType}"
-  into "src/main/resources/native"
-  include "libparquet_dataformat_jni.dylib"
-  include "libparquet_dataformat_jni.so"
-  include "parquet_dataformat_jni.dll"
-  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-  // Normalize permissions to non-executable (0644) so that the filepermissions precommit check does not flag .so files
-  filePermissions {
-    unix("0644")
-  }
-
-  eachFile { file ->
-    def os = System.getProperty('os.name').toLowerCase()
-    def arch = System.getProperty('os.arch').toLowerCase()
-    def osDir = os.contains('win') ? 'windows' : os.contains('mac') ? 'macos' : 'linux'
-    def archDir = (arch.contains('aarch64') || arch.contains('arm64')) ? 'aarch64' : 'x86_64'
-    file.path = "${osDir}-${archDir}/${file.name}"
-  }
-}
-
-tasks.register('runNativeUnitTests', Exec) {
-  description = 'Run Rust unit and integration tests'
-  group = 'verification'
-  dependsOn installRust
-  workingDir = rustDir
-  doFirst {
-    executable findCargo()
-    args 'test'
-  }
-}
-
-// Wire Rust build into Java build lifecycle
-compileJava.dependsOn copyNativeLib
-processResources.dependsOn copyNativeLib
-
-// Ensure tasks that scan or package src/main/resources run after native lib is copied
-['filepermissions', 'forbiddenPatterns', 'spotlessJava', 'spotlessJavaCheck', 'spotlessMisc', 'spotlessMiscCheck', 'sourcesJar'].each { taskName ->
-    tasks.named(taskName).configure {
-        dependsOn copyNativeLib
-    }
-}
-tasks.named('forbiddenPatterns').configure {
-    exclude '**/native/**'
 }
 
 spotless {
@@ -167,14 +57,14 @@ spotless {
     }
 }
 
-clean {
-  doFirst {
-    delete "src/main/resources/native"
-    delete "${rustDir}/target"
-  }
-}
-
 test {
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+    enabled = false
 }

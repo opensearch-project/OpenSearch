@@ -79,6 +79,8 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MapperService;
@@ -96,12 +98,15 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
+import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -159,6 +164,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
     private final IndexStorePlugin.CompositeDirectoryFactory compositeDirectoryFactory;
+    private final DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory;
     private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
@@ -167,7 +173,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NamedXContentRegistry xContentRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
-    private final EngineFactory engineFactory;
+    private final IndexerFactory indexerFactory;
     private final EngineConfigFactory engineConfigFactory;
     private final IndexWarmer warmer;
     private volatile Map<Integer, IndexShard> shards = emptyMap();
@@ -221,7 +227,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
         IndexAnalyzers indexAnalyzers,
-        EngineFactory engineFactory,
+        IndexerFactory indexerFactory,
         EngineConfigFactory engineConfigFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -238,6 +244,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
         List<SearchOperationListener> searchOperationListeners,
         List<IndexingOperationListener> indexingOperationListeners,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -258,7 +265,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
         ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
-        DataFormatRegistry dataFormatRegistry
+        DataFormatRegistry dataFormatRegistry,
+        DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -304,8 +312,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
-            this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
+            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this));
+            this.warmer = new IndexWarmer(
+                threadPool,
+                indexFieldData,
+                indicesBitsetFilterCache != null ? indicesBitsetFilterCache.createListener(threadPool) : null
+            );
             this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
@@ -327,9 +339,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.nodeEnv = nodeEnv;
         this.directoryFactory = directoryFactory;
         this.compositeDirectoryFactory = compositeDirectoryFactory;
+        this.dataFormatAwareStoreDirectoryFactory = dataFormatAwareStoreDirectoryFactory;
         this.remoteDirectoryFactory = remoteDirectoryFactory;
         this.recoveryStateFactory = recoveryStateFactory;
-        this.engineFactory = Objects.requireNonNull(engineFactory);
+        this.indexerFactory = Objects.requireNonNull(indexerFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.readerWrapper = wrapperFactory.apply(this);
@@ -357,11 +370,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
-        indexSettings.setDefaultMaxThreadAndMergeCount(
-            clusterMergeSchedulerConfig.getClusterMaxThreadCount(),
-            clusterMergeSchedulerConfig.getClusterMaxMergeCount()
-        );
-        indexSettings.setDefaultAutoThrottleEnabled(clusterMergeSchedulerConfig.getClusterMergeAutoThrottleEnabled());
+        if (clusterMergeSchedulerConfig != null) {
+            indexSettings.setDefaultMaxThreadAndMergeCount(
+                clusterMergeSchedulerConfig.getClusterMaxThreadCount(),
+                clusterMergeSchedulerConfig.getClusterMaxMergeCount()
+            );
+            indexSettings.setDefaultAutoThrottleEnabled(clusterMergeSchedulerConfig.getClusterMergeAutoThrottleEnabled());
+        }
         updateFsyncTaskIfNecessary();
         synchronized (refreshMutex) {
             if (shardLevelRefreshEnabled == false) {
@@ -381,7 +396,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
         IndexAnalyzers indexAnalyzers,
-        EngineFactory engineFactory,
+        IndexerFactory indexerFactory,
         EngineConfigFactory engineConfigFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -422,7 +437,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             similarityService,
             shardStoreDeleter,
             indexAnalyzers,
-            engineFactory,
+            indexerFactory,
             engineConfigFactory,
             circuitBreakerService,
             bigArrays,
@@ -439,6 +454,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             wrapperFactory,
             mapperRegistry,
             indicesFieldDataCache,
+            null,
             searchOperationListeners,
             indexingOperationListeners,
             namedWriteableRegistry,
@@ -459,6 +475,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             (shardId) -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnce,
             clusterMergeSchedulerConfig,
+            null,
             null
         );
     }
@@ -767,8 +784,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     fileCache,
                     threadPool
                 );
-            } else {
+            } else if (!this.indexSettings.isPluggableDataFormatEnabled()) {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
+            } else {
+                // Will be enabled in case of formatAware indices.
+                directory = createDataFormatAwareStoreDirectory(shardId, path);
             }
             store = storeFactory.newStore(
                 shardId,
@@ -789,7 +809,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexCache,
                 mapperService,
                 similarityService,
-                engineFactory,
+                indexerFactory,
                 engineConfigFactory,
                 eventListener,
                 readerWrapper,
@@ -1320,6 +1340,26 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         rescheduleRefreshTasks();
     }
 
+    /**
+     * Creates DataFormatAwareStoreDirectory using the factory if available, otherwise fallback to Store's internal creation.
+     * This method centralizes the directory creation logic and enables plugin-based format discovery.
+     */
+    private DataFormatAwareStoreDirectory createDataFormatAwareStoreDirectory(ShardId shardId, ShardPath shardPath) throws IOException {
+        if (dataFormatAwareStoreDirectoryFactory != null) {
+            logger.debug("Using DataFormatAwareStoreDirectoryFactory to create directory for shard path: {}", shardPath);
+            return dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
+                indexSettings,
+                shardId,
+                shardPath,
+                directoryFactory,
+                dataFormatRegistry
+            );
+        }
+
+        logger.debug("No DataFormatAwareStoreDirectoryFactory available, Store will handle internal creation for: {}", shardPath);
+        return null;
+    }
+
     private void updateFsyncTaskIfNecessary() {
         if (indexSettings.getTranslogDurability() == Translog.Durability.REQUEST) {
             try {
@@ -1370,8 +1410,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
     }
 
+    public final IndexerFactory getIndexerFactory() {
+        return indexerFactory;
+    }
+
     public final EngineFactory getEngineFactory() {
-        return engineFactory;
+        if (indexerFactory instanceof EngineBackedIndexerFactory) {
+            return ((EngineBackedIndexerFactory) indexerFactory).getEngineFactory();
+        }
+        throw new UnsupportedOperationException("Engine Factory doesn't exist for current index.");
     }
 
     final CheckedFunction<DirectoryReader, DirectoryReader, IOException> getReaderWrapper() {

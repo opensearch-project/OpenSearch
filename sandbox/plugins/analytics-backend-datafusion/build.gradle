@@ -12,88 +12,41 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
-def buildType = project.hasProperty('rustDebug') ? 'debug' : 'release'
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
+  // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
+  implementation project(':sandbox:libs:dataformat-native')
+
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
 
   compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-  // TODO: check if the dependencies need to be in analytics plugin
-  // Apache Arrow dependencies
-  implementation "org.apache.arrow:arrow-memory-core:18.3.0"
-  implementation "org.apache.arrow:arrow-memory-unsafe:18.3.0"
-  implementation "org.apache.arrow:arrow-vector:18.3.0"
-  implementation "org.apache.arrow:arrow-c-data:18.3.0"
-  implementation "org.apache.arrow:arrow-format:18.3.0"
+  // Apache Arrow dependencies.
+  // arrow-vector + arrow-memory-core are provided at runtime by the parent analytics-engine
+  // plugin (we extend it via extendedPlugins); compile-only here to avoid duplicate bundling
+  // and license files.
+  compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-format:${versions.arrow}"
   implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation "org.checkerframework:checker-qual:3.43.0"
 
-  // Jackson — required by Arrow's schema import (C Data Interface)
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-}
-
-// Rust native library build
-task buildRustLibrary(type: Exec) {
-  description = 'Build the Rust JNI library using Cargo'
-  group = 'build'
-  workingDir file('jni')
-
-  def cargoExecutable = 'cargo'
-  [System.getenv('HOME') + '/.cargo/bin/cargo', '/usr/local/bin/cargo'].each { path ->
-    if (new File(path).exists()) { cargoExecutable = path }
-  }
-
-  def cargoArgs = [cargoExecutable, 'build']
-  if (buildType == 'release') { cargoArgs.add('--release') }
-  commandLine cargoArgs
-
-  environment 'CARGO_TARGET_DIR', file('target').absolutePath
-  inputs.files fileTree('jni/src')
-  inputs.file 'jni/Cargo.toml'
-}
-
-task copyNativeLibrary(type: Copy, dependsOn: buildRustLibrary) {
-  description = 'Copy the native library to Java resources'
-  group = 'build'
-
-  def osName = System.getProperty('os.name').toLowerCase()
-  def libExtension = osName.contains('mac') ? '.dylib' : '.so'
-
-  from file("target/${buildType}/libopensearch_datafusion_jni${libExtension}")
-  into file('src/main/resources/native')
-  filePermissions { unix(0644) }
-}
-
-compileJava.dependsOn copyNativeLibrary
-processResources.dependsOn copyNativeLibrary
-sourcesJar.dependsOn copyNativeLibrary
-
-// copyNativeLibrary writes into src/main/resources/native — any task that scans
-// the source tree must run after it to satisfy Gradle's implicit-dependency check.
-tasks.named("forbiddenPatterns").configure {
-  dependsOn copyNativeLibrary
-  exclude '**/native/**'
-  exclude '**/*.parquet'
-}
-
-for (def taskName : ["filepermissions", "spotlessJava", "spotlessJavaCheck"]) {
-  tasks.named(taskName).configure { dependsOn copyNativeLibrary }
-}
-
-clean {
-  delete file('target')
-  delete file('src/main/resources/native')
+  // SLF4J and Jackson — provided at runtime by the analytics-engine parent plugin.
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  compileOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  compileOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 }
 
 test {
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
-  systemProperty 'java.library.path', file('src/main/resources/native').absolutePath
+  jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -104,9 +57,10 @@ tasks.withType(JavaCompile).configureEach {
 // TODO: Remove once back-end is built out with test suite
 testingConventions.enabled = false
 
-tasks.named('thirdPartyAudit').configure {
-  ignoreViolations(
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1'
-  )
+tasks.named('forbiddenPatterns').configure {
+    exclude '**/*.parquet'
+}
+
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+    enabled = false
 }

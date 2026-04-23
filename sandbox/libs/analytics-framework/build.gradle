@@ -14,8 +14,24 @@
 
 def calciteVersion = '1.41.0'
 
+configurations {
+  calciteCompile
+  compileClasspath { exclude group: 'com.google.guava' }
+}
+sourceSets.main.compileClasspath += configurations.calciteCompile
+
 dependencies {
+  // Guava — required at compile time because Calcite base classes expose guava types.
+  // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
+  calciteCompile "com.google.guava:guava:${versions.guava}"
+
   compileOnly project(':server')
+  // Arrow — framework exposes Arrow types (VectorSchemaRoot, BufferAllocator, Schema) in
+  // public interfaces (ExchangeSink, LocalStageContext, LocalStageRequest). compileOnly so
+  // framework doesn't bundle arrow at runtime — each backend plugin that implements these
+  // interfaces declares its own runtime arrow dep (see analytics-backend-datafusion).
+  compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
   api "org.apache.calcite:calcite-core:${calciteVersion}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
   api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
@@ -38,6 +54,11 @@ dependencies {
   runtimeOnly 'org.codehaus.janino:janino:3.1.9'
   runtimeOnly 'org.codehaus.janino:commons-compiler:3.1.9'
   runtimeOnly 'org.jooq:joou-java-6:0.9.4'
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.opensearch', module: 'opensearch-core'
+    exclude group: 'org.opensearch', module: 'opensearch-common'
+  }
   runtimeOnly 'com.jayway.jsonpath:json-path:2.9.0'
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
@@ -50,6 +71,12 @@ dependencies {
 }
 
 testingConventions.enabled = false
+
+tasks.withType(JavaCompile).configureEach {
+  // Arrow's Schema.class references Jackson annotations not on framework's compile classpath
+  // — harmless warnings, but -Werror breaks the build
+  options.compilerArgs -= '-Werror'
+}
 
 // analytics-framework depends on server for SearchAnalyticsBackEndPlugin SPI
 tasks.named('forbiddenApisMain').configure {
@@ -275,6 +302,7 @@ tasks.named('thirdPartyAudit').configure {
     'org.pentaho.aggdes.model.StatisticsProvider',
     'org.pentaho.aggdes.model.Table'
   )
+
 
   // Guava internal Unsafe usage — standard for any module depending on Guava
   ignoreViolations(

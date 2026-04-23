@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
 import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_LOCATION;
@@ -62,7 +63,7 @@ public class IngestionEngine extends InternalEngine {
 
     private StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
-    private final DocumentMapperForType documentMapperForType;
+    private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final IngestPipelineExecutor pipelineExecutor;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
@@ -74,7 +75,7 @@ public class IngestionEngine extends InternalEngine {
             engineConfig.getIndexSettings().getIndex().getName(),
             engineConfig.getIndexSettings()
         );
-        this.documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
+        this.documentMapperForTypeSupplier = engineConfig.getDocumentMapperForTypeSupplier();
         registerDynamicIndexSettingsHandlers();
     }
 
@@ -499,7 +500,7 @@ public class IngestionEngine extends InternalEngine {
     }
 
     public DocumentMapperForType getDocumentMapperForType() {
-        return documentMapperForType;
+        return documentMapperForTypeSupplier.get();
     }
 
     @Override
@@ -525,7 +526,13 @@ public class IngestionEngine extends InternalEngine {
 
     @Override
     public PollingIngestStats pollingIngestStats() {
-        return streamPoller.getStats();
+        PollingIngestStats pollerStats = streamPoller.getStats();
+        // Enrich with pipeline execution metrics from the shared executor
+        return new PollingIngestStats(
+            pollerStats.getMessageProcessorStats(),
+            pollerStats.getConsumerStats(),
+            pipelineExecutor.getMetrics()
+        );
     }
 
     private void registerDynamicIndexSettingsHandlers() {

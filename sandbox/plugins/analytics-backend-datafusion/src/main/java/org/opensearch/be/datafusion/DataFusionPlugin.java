@@ -10,10 +10,6 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
-import org.opensearch.analytics.backend.SearchExecEngine;
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -22,9 +18,9 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -42,11 +38,11 @@ import java.util.function.Supplier;
 /**
  * Main plugin class for the DataFusion native engine integration.
  * <p>
- * Initializes the {@link DataFusionService} at node startup and creates
- * per-shard {@link DatafusionSearchExecEngine} instances via the
- * {@link AnalyticsSearchBackendPlugin} SPI.
+ * Owns the {@link DataFusionService} lifecycle (memory pool, native runtime).
+ * Analytics query capabilities are declared in {@link DataFusionAnalyticsBackendPlugin},
+ * which is SPI-discovered and receives this plugin instance via its constructor.
  */
-public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader>, AnalyticsSearchBackendPlugin {
+public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader> {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -66,7 +62,10 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         Setting.Property.NodeScope
     );
 
+    private static final String SUPPORTED_FORMAT = "parquet";
+
     private volatile DataFusionService dataFusionService;
+    private volatile DataFormatRegistry dataFormatRegistry;
 
     /**
      * Creates the DataFusion plugin.
@@ -85,12 +84,13 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        DataFormatRegistry dataFormatRegistry
     ) {
+        this.dataFormatRegistry = dataFormatRegistry;
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
-        // TODO : Get the spill directory from configuration
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
 
         dataFusionService = DataFusionService.builder()
@@ -104,42 +104,27 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         return Collections.singletonList(dataFusionService);
     }
 
+    DataFormatRegistry getDataFormatRegistry() {
+        return dataFormatRegistry;
+    }
+
+    DataFusionService getDataFusionService() {
+        return dataFusionService;
+    }
+
     @Override
     public String name() {
         return "datafusion";
     }
 
     @Override
-    public EngineReaderManager<DatafusionReader> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
-        return new DatafusionReaderManager(format, shardPath, dataFusionService);
-    }
-
-    /**
-     * Data formats this plugin can handle. Used by CompositeEngine to route queries.
-     */
-    public List<DataFormat> getSupportedFormats() {
-        return null; // TODO : List.of("parquet");
+    public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
+        return new DatafusionReaderManager(settings.format(), settings.shardPath(), dataFusionService);
     }
 
     @Override
-    public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
-        DatafusionReader dfReader = null;
-        List<DataFormat> formats = getSupportedFormats();
-        if (formats != null) {
-            for (DataFormat format : formats) {
-                dfReader = ctx.getReader().getReader(format, DatafusionReader.class);
-                if (dfReader != null) {
-                    break;
-                }
-            }
-        }
-        if (dfReader == null) {
-            throw new IllegalStateException("No DatafusionReader available in the acquired reader");
-        }
-        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
-        DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context, dataFusionService::newChildAllocator);
-        engine.prepare(ctx);
-        return engine;
+    public List<String> getSupportedFormats() {
+        return List.of(SUPPORTED_FORMAT);
     }
 
     @Override

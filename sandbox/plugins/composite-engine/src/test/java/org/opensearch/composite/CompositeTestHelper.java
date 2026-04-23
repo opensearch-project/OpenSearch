@@ -12,26 +12,37 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.store.FormatChecksumStrategy;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Shared test utilities for composite engine tests.
@@ -44,11 +55,24 @@ final class CompositeTestHelper {
      * Creates a CompositeIndexingExecutionEngine with stub engines for testing.
      */
     static CompositeIndexingExecutionEngine createStubEngine(String primaryName, String... secondaryNames) {
+        Map<String, DataFormat> formats = new HashMap<>();
         Map<String, DataFormatPlugin> plugins = new HashMap<>();
+        formats.put(primaryName, stubFormat(primaryName, 1, Set.of()));
         plugins.put(primaryName, stubPlugin(primaryName, 1));
         for (String name : secondaryNames) {
+            formats.put(name, stubFormat(name, 2, Set.of()));
             plugins.put(name, stubPlugin(name, 2));
         }
+
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        for (Map.Entry<String, DataFormat> entry : formats.entrySet()) {
+            when(registry.format(entry.getKey())).thenReturn(entry.getValue());
+        }
+        when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
+            DataFormat format = invocation.getArgument(1);
+            DataFormatPlugin plugin = plugins.get(format.name());
+            return plugin.indexingEngine(null, null);
+        });
 
         Settings.Builder settingsBuilder = Settings.builder()
             .put("index.composite.primary_data_format", primaryName)
@@ -64,7 +88,7 @@ final class CompositeTestHelper {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        return new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null);
+        return new CompositeIndexingExecutionEngine(indexSettings, null, new StubCommitter(), registry, null, null);
     }
 
     static DataFormatPlugin stubPlugin(String formatName, long priority) {
@@ -76,11 +100,7 @@ final class CompositeTestHelper {
             }
 
             @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(
-                MapperService mapperService,
-                ShardPath shardPath,
-                IndexSettings indexSettings
-            ) {
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
                 return new StubIndexingExecutionEngine(format);
             }
         };
@@ -95,11 +115,7 @@ final class CompositeTestHelper {
             }
 
             @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(
-                MapperService mapperService,
-                ShardPath shardPath,
-                IndexSettings indexSettings
-            ) {
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
                 return new StubIndexingExecutionEngine(format);
             }
         };
@@ -162,7 +178,9 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public void deleteFiles(Map<String, Collection<String>> filesToDelete) {}
+        public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) {
+            return Map.of();
+        }
 
         @Override
         public long getNextWriterGeneration() {
@@ -173,6 +191,14 @@ final class CompositeTestHelper {
         public DocumentInput<?> newDocumentInput() {
             return new StubDocumentInput();
         }
+
+        @Override
+        public IndexStoreProvider getProvider() {
+            return null;
+        }
+
+        @Override
+        public void close() {}
     }
 
     /**
@@ -206,6 +232,22 @@ final class CompositeTestHelper {
 
         @Override
         public void close() {}
+
+        @Override
+        public long generation() {
+            return 0;
+        }
+
+        @Override
+        public void lock() {}
+
+        @Override
+        public boolean tryLock() {
+            return true;
+        }
+
+        @Override
+        public void unlock() {}
     }
 
     /**
@@ -225,5 +267,48 @@ final class CompositeTestHelper {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Minimal stub Committer that records close calls and does nothing on commit.
+     */
+    static class StubCommitter implements Committer {
+        boolean closeCalled = false;
+
+        @Override
+        public void commit(Map<String, String> commitData) {}
+
+        @Override
+        public void close() {
+            closeCalled = true;
+        }
+
+        @Override
+        public Map<String, String> getLastCommittedData() {
+            return Map.of();
+        }
+
+        @Override
+        public CommitStats getCommitStats() {
+            return null;
+        }
+
+        @Override
+        public SafeCommitInfo getSafeCommitInfo() {
+            return SafeCommitInfo.EMPTY;
+        }
+
+        @Override
+        public List<CatalogSnapshot> listCommittedSnapshots() {
+            return List.of();
+        }
+
+        @Override
+        public void deleteCommit(CatalogSnapshot snapshot) {}
+
+        @Override
+        public boolean isCommitManagedFile(String fileName) {
+            return false;
+        }
     }
 }

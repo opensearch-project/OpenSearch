@@ -12,7 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
-import org.opensearch.be.datafusion.jni.StreamHandle;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
@@ -45,7 +45,8 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
     public void prepare(ExecutionContext requestContext) {
         // TODO: wire Substrait conversion (RelNode → Substrait bytes)
         byte[] substraitBytes = null;
-        datafusionContext.setDatafusionQuery(new DatafusionQuery(requestContext.getTableName(), substraitBytes));
+        long contextId = datafusionContext.task() != null ? datafusionContext.task().getId() : 0L;
+        datafusionContext.setDatafusionQuery(new DatafusionQuery(requestContext.getTableName(), substraitBytes, contextId));
     }
 
     @Override
