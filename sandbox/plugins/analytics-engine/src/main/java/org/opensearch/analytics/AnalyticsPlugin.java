@@ -72,7 +72,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         backEnds.addAll(loader.loadExtensions(AnalyticsSearchBackendPlugin.class));
-        operatorTable = aggregateOperatorTables();
     }
 
     @Override
@@ -89,6 +88,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        operatorTable = aggregateOperatorTables();
         DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
 

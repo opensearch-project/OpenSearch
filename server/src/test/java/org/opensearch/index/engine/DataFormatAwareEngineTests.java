@@ -212,7 +212,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         PluginsService pluginsService = mock(PluginsService.class);
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(mockPlugin));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(
-            List.of(new MockSearchBackEndPlugin(List.of(mockDataFormat)))
+            List.of(new MockSearchBackEndPlugin(List.of(mockDataFormat.name())))
         );
         return new DataFormatRegistry(pluginsService);
     }
