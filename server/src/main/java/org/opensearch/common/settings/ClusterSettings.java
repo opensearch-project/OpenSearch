@@ -172,6 +172,7 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.storage.common.tiering.TieringUtils;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -757,6 +758,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
                 FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
+
+                // Settings related to Tiered Storage
+                TieringUtils.H2W_MAX_CONCURRENT_TIERING_REQUESTS,
+                TieringUtils.W2H_MAX_CONCURRENT_TIERING_REQUESTS,
+                TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT,
+                TieringUtils.FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
