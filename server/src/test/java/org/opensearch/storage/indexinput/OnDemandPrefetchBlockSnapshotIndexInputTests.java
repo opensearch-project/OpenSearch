@@ -28,6 +28,7 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -36,6 +37,7 @@ import org.junit.Before;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -65,6 +67,14 @@ public class OnDemandPrefetchBlockSnapshotIndexInputTests extends OpenSearchTest
     private Path path;
     private ThreadPool threadPool;
     private FileCache fileCache;
+
+    private Supplier<TieredStoragePrefetchSettings> getPrefetchSettingsSupplier() {
+        TieredStoragePrefetchSettings settings = mock(TieredStoragePrefetchSettings.class);
+        when(settings.getReadAheadBlockCount()).thenReturn(TieredStoragePrefetchSettings.DEFAULT_READ_AHEAD_BLOCK_COUNT);
+        when(settings.getReadAheadEnableFileFormats()).thenReturn(TieredStoragePrefetchSettings.READ_AHEAD_ENABLE_FILE_FORMATS);
+        when(settings.isStoredFieldsPrefetchEnabled()).thenReturn(true);
+        return () -> settings;
+    }
 
     @Before
     public void init() {
@@ -179,7 +189,8 @@ public class OnDemandPrefetchBlockSnapshotIndexInputTests extends OpenSearchTest
                 directory,
                 transferManager,
                 threadPool,
-                fileCache
+                fileCache,
+                getPrefetchSettingsSupplier()
             )
         ) {
             indexInput.seek(repositoryChunkSize);
@@ -273,7 +284,8 @@ public class OnDemandPrefetchBlockSnapshotIndexInputTests extends OpenSearchTest
             directory,
             transferManager,
             threadPool,
-            fileCache
+            fileCache,
+            getPrefetchSettingsSupplier()
         );
     }
 
