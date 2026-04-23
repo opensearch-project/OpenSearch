@@ -45,6 +45,8 @@ lazy_static! {
     /// Unified per-writer registry. Keyed by temp filename.
     static ref WRITERS: DashMap<String, WriterState> = DashMap::new();
     pub static ref SETTINGS_STORE: DashMap<String, NativeSettings> = DashMap::new();
+    /// Holds file handles for finalized files pending fsync. Removed after sync.
+    static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
 }
 
 pub struct NativeParquetWriter;
@@ -185,6 +187,10 @@ impl NativeParquetWriter {
                             // Compute CRC32 by reading the final sorted file
                             let crc32 = Self::compute_file_crc32(&filename)?;
                             log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
+
+                            // Keep a handle for sync_to_disk
+                            let file_for_sync = File::open(&filename)?;
+                            FILE_MANAGER.insert(filename.clone(), file_for_sync);
 
                             // Read full ParquetMetaData from the final file
                             let file = File::open(&filename)?;
@@ -425,23 +431,15 @@ impl NativeParquetWriter {
     pub fn sync_to_disk(filename: String) -> Result<(), Box<dyn std::error::Error>> {
         log_debug!("sync_to_disk called for file: {}", filename);
 
-        let file = match File::open(&filename) {
-            Ok(f) => f,
-            Err(e) => {
-                log_error!("ERROR: Failed to open file for fsync: {}", filename);
-                return Err(e.into());
-            }
-        };
-
-        match file.sync_all() {
-            Ok(_) => {
-                log_debug!("Successfully fsynced file: {}", filename);
-                Ok(())
-            }
-            Err(e) => {
-                log_error!("ERROR: Failed to fsync file: {}", filename);
-                Err(e.into())
-            }
+        if let Some(file) = FILE_MANAGER.get_mut(&filename) {
+            file.sync_all()?;
+            log_debug!("Successfully fsynced file: {}", filename);
+            drop(file);
+            FILE_MANAGER.remove(&filename);
+            Ok(())
+        } else {
+            log_error!("ERROR: File not found for fsync: {}", filename);
+            Err("File not found".into())
         }
     }
 
