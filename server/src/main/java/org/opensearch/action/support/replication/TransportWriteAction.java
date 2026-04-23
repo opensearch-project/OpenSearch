@@ -586,6 +586,9 @@ public abstract class TransportWriteAction<
                     exception,
                     listener
                 );
+            } else {
+                // always call listener
+                listener.onResponse(null);
             }
         }
 

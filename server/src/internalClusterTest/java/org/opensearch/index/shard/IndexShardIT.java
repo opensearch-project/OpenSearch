@@ -704,7 +704,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             indexService.cache(),
             indexService.mapperService(),
             indexService.similarityService(),
-            shard.getEngineFactory(),
+            shard.getIndexerFactory(),
             shard.getEngineConfigFactory(),
             indexService.getIndexEventListener(),
             wrapper,
@@ -733,7 +733,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             indexService.getRefreshMutex(),
             clusterService.getClusterApplierService(),
             MergedSegmentPublisher.EMPTY,
-            ReferencedSegmentsPublisher.EMPTY
+            ReferencedSegmentsPublisher.EMPTY,
+            null // TODO
         );
     }
 

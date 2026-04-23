@@ -12,11 +12,55 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
 dependencies {
-  // Shared types and SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.)
-  // Also provides calcite-core transitively via api.
-  api project(':sandbox:libs:analytics-framework')
+  // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
+  implementation project(':sandbox:libs:dataformat-native')
+
+  // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
+  compileOnly project(':sandbox:libs:analytics-framework')
+
+  compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+  // Apache Arrow dependencies.
+  // arrow-vector + arrow-memory-core are provided at runtime by the parent analytics-engine
+  // plugin (we extend it via extendedPlugins); compile-only here to avoid duplicate bundling
+  // and license files.
+  compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-format:${versions.arrow}"
+  implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+
+  // SLF4J and Jackson — provided at runtime by the analytics-engine parent plugin.
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  compileOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  compileOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+}
+
+test {
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+tasks.withType(JavaCompile).configureEach {
+  // Arrow references Jackson annotations not on classpath — harmless warnings
+  options.compilerArgs -= '-Werror'
 }
 
 // TODO: Remove once back-end is built out with test suite
 testingConventions.enabled = false
+
+tasks.named('forbiddenPatterns').configure {
+    exclude '**/*.parquet'
+}
+
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+    enabled = false
+}

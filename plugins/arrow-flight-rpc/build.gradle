@@ -213,6 +213,8 @@ tasks.named('thirdPartyAudit').configure {
     'io.netty.pkitesting.CertificateBuilder$Algorithm',
     'io.netty.pkitesting.X509Bundle',
 
+    'io.netty.internal.tcnative.SSLCredential',
+
     'com.google.protobuf.util.Timestamps'
   )
   ignoreViolations(

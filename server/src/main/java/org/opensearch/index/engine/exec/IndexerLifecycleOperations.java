@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;

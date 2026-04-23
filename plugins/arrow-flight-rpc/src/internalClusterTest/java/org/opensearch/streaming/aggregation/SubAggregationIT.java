@@ -37,12 +37,12 @@ import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Cardinality;
 import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -72,7 +72,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(FlightStreamPlugin.class);
+        return Arrays.asList(FlightStreamPlugin.class, InternalSettingsPlugin.class);
     }
 
     @Override
@@ -97,10 +97,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .put("index.number_of_shards", NUM_SHARDS)    // Number of primary shards
             .put("index.number_of_replicas", 0)  // Number of replica shards
             .put("index.search.concurrent_segment_search.mode", "none")
-            // Disable segment merging to keep individual segments
-            .put("index.merge.policy.max_merged_segment", "1kb") // Keep segments small
-            .put("index.merge.policy.segments_per_tier", "20") // Allow many segments per tier
-            .put("index.merge.scheduler.max_thread_count", "1") // Limit merge threads
+            .put("index.merge.enabled", false) // Disable merges to keep individual segments
             .build();
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("index").settings(indexSettings);
@@ -178,9 +175,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .put("index.number_of_shards", NUM_SHARDS)
             .put("index.number_of_replicas", 0)
             .put("index.search.concurrent_segment_search.mode", "none")
-            .put("index.merge.policy.max_merged_segment", "1kb")
-            .put("index.merge.policy.segments_per_tier", "20")
-            .put("index.merge.scheduler.max_thread_count", "1")
+            .put("index.merge.enabled", false)
             .build();
 
         CreateIndexRequest orderIndexRequest = new CreateIndexRequest("order_test").settings(orderIndexSettings);
