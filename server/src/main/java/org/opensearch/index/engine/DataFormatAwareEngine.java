@@ -695,7 +695,8 @@ public class DataFormatAwareEngine implements Indexer {
         final long localCheckpointOfLastCommit = localCheckpointTracker.getPersistedCheckpoint();
         return translogManager.shouldPeriodicallyFlush(
             localCheckpointOfLastCommit,
-            engineConfig.getIndexSettings().getFlushThresholdSize().getBytes()
+            engineConfig.getIndexSettings().getFlushThresholdSize().getBytes(),
+            engineConfig.getIndexSettings().getFlushThresholdOps()
         );
     }
 

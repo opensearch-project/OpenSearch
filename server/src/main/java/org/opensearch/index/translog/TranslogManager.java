@@ -163,10 +163,12 @@ public interface TranslogManager extends Closeable {
     /**
      *
      * @param localCheckpointOfLastCommit local checkpoint reference of last commit to translog
-     * @param flushThreshold threshold to flush to translog
+     * @param flushThreshold size based threshold to flush the translog (bytes)
+     * @param flushThresholdOps operation count based threshold to flush the translog; a flush is triggered when
+     *                          either the size or the operation count threshold is crossed
      * @return if the translog should be flushed
      */
-    boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold);
+    boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold, int flushThresholdOps);
 
     /**
      * Retrieves the underlying translog tragic exception

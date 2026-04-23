@@ -6763,6 +6763,49 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testShouldPeriodicallyFlushOnOpsThreshold() throws Exception {
+        assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
+        // Index a handful of operations below the default ops threshold (Integer.MAX_VALUE)
+        final int numDocs = between(5, 20);
+        for (int id = 0; id < numDocs; id++) {
+            final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
+            engine.index(indexForDoc(doc));
+        }
+        assertThat("Default ops threshold not crossed", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        // Lower the ops threshold below the number of uncommitted ops; size threshold stays at default so
+        // the flush must be triggered by the ops check (OR logic).
+        final IndexSettings indexSettings = engine.config().getIndexSettings();
+        final int opsThreshold = Math.max(100, numDocs / 2 + 100);
+        // Re-index enough ops to exceed the threshold
+        for (int id = numDocs; id < opsThreshold + numDocs; id++) {
+            final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
+            engine.index(indexForDoc(doc));
+        }
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
+            .settings(
+                Settings.builder()
+                    .put(indexSettings.getSettings())
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS_SETTING.getKey(), opsThreshold)
+            )
+            .build();
+        indexSettings.updateIndexMetadata(indexMetadata);
+        engine.onSettingsChanged(
+            indexSettings.getTranslogRetentionAge(),
+            indexSettings.getTranslogRetentionSize(),
+            indexSettings.getSoftDeleteRetentionOperations()
+        );
+        assertThat(indexSettings.getFlushThresholdOps(), equalTo(opsThreshold));
+        assertThat(
+            "Ops threshold crossed, flush expected",
+            engine.translogManager().getTranslogStats().getUncommittedOperations(),
+            greaterThanOrEqualTo(opsThreshold)
+        );
+        assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
+        engine.flush();
+        assertThat("After flush, ops threshold no longer crossed", engine.shouldPeriodicallyFlush(), equalTo(false));
+    }
+
     public void testShouldPeriodicallyFlushAfterMerge() throws Exception {
         engine.close();
         // Do not use MockRandomMergePolicy as it can cause a force merge performing two merges.

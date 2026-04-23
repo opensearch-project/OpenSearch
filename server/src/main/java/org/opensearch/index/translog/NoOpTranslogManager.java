@@ -173,7 +173,7 @@ public class NoOpTranslogManager implements TranslogManager {
     public void trimUnreferencedReaders() throws IOException {}
 
     @Override
-    public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
+    public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold, int flushThresholdOps) {
         return false;
     }
 

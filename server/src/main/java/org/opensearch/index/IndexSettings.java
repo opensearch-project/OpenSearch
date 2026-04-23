@@ -442,6 +442,21 @@ public final class IndexSettings {
     );
 
     /**
+     * Number of operations in the translog that will trigger a flush in addition to the size based threshold
+     * configured via {@link #INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING}. A flush is triggered when either
+     * threshold is crossed. Default is {@link Integer#MAX_VALUE} which effectively disables the count based
+     * trigger and preserves the existing size only behaviour.
+     */
+    public static final Setting<Integer> INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS_SETTING = Setting.intSetting(
+        "index.translog.flush_threshold_ops",
+        Integer.MAX_VALUE,
+        100,
+        Integer.MAX_VALUE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * The minimum size of a merge that triggers a flush in order to free resources
      */
     public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
@@ -964,6 +979,7 @@ public final class IndexSettings {
     private volatile TimeValue refreshInterval;
     private volatile TimeValue periodicFlushInterval;
     private volatile ByteSizeValue flushThresholdSize;
+    private volatile int flushThresholdOps;
     private volatile TimeValue translogRetentionAge;
     private volatile ByteSizeValue translogRetentionSize;
     private volatile ByteSizeValue generationThresholdSize;
@@ -1193,6 +1209,7 @@ public final class IndexSettings {
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         periodicFlushInterval = scopedSettings.get(INDEX_PERIODIC_FLUSH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
+        flushThresholdOps = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         flushAfterMergeThresholdSize = scopedSettings.get(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
@@ -1342,6 +1359,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS_SETTING, this::setTranslogFlushThresholdOps);
         scopedSettings.addSettingsUpdateConsumer(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING, this::setFlushAfterMergeThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING, this::setGenerationThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
@@ -1421,6 +1439,10 @@ public final class IndexSettings {
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
         this.flushThresholdSize = byteSizeValue;
+    }
+
+    private void setTranslogFlushThresholdOps(int ops) {
+        this.flushThresholdOps = ops;
     }
 
     private void setFlushAfterMergeThresholdSize(ByteSizeValue byteSizeValue) {
@@ -1815,6 +1837,14 @@ public final class IndexSettings {
      */
     public ByteSizeValue getFlushThresholdSize() {
         return flushThresholdSize;
+    }
+
+    /**
+     * Returns the transaction log operation count threshold when to forcefully flush the index and clear the
+     * transaction log. A flush is triggered when either this or {@link #getFlushThresholdSize()} is crossed.
+     */
+    public int getFlushThresholdOps() {
+        return flushThresholdOps;
     }
 
     /**
