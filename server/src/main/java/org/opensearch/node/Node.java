@@ -239,6 +239,7 @@ import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SecureSettingsFactory;
@@ -1142,6 +1143,28 @@ public class Node implements Closeable {
 
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
+
+            @SuppressWarnings("rawtypes")
+            Collection<Object> searchBackEndPluginComponents = pluginsService.filterPlugins(SearchBackEndPlugin.class)
+                .stream()
+                .flatMap(
+                    p -> ((SearchBackEndPlugin<?>) p).createComponents(
+                        client,
+                        clusterService,
+                        threadPool,
+                        resourceWatcherService,
+                        scriptService,
+                        xContentRegistry,
+                        environment,
+                        nodeEnvironment,
+                        namedWriteableRegistry,
+                        clusterModule.getIndexNameExpressionResolver(),
+                        repositoriesServiceReference::get,
+                        dataFormatRegistry
+                    ).stream()
+                )
+                .collect(Collectors.toList());
+            pluginComponents.addAll(searchBackEndPluginComponents);
 
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
