@@ -19,7 +19,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
  * A coordinator-side sink runs the root stage computation (final aggregate, sort, etc.)
  * over the batches it receives.
  *
- * <p>Implementations must be thread-safe — multiple shard response handlers
+ * <p>Implementations must be thrad-safe — multiple shard response handlers
  * may call {@link #feed} concurrently.
  *
  * @opensearch.internal
