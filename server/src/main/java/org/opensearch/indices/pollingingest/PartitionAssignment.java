@@ -44,7 +44,7 @@ public class PartitionAssignment {
                 "Shard ID [" + shardId + "] must be >= 0 and < numShards [" + numShards + "]"
             );
         }
-
+        // TODO - support "RANGE" below when we implement https://github.com/opensearch-project/OpenSearch/issues/21267
         switch (strategy) {
             case FIXED:
                 if (shardId >= numSourcePartitions) {
