@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.nativebridge.spi.stats;
+package org.opensearch.plugin.stats;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -32,10 +32,28 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
     /** Number of fields in a RuntimeMetrics block. */
     public static final int RUNTIME_METRICS_COUNT = 8;
 
-    /** Operation type keys in documented order. */
-    private static final String[] OPERATION_TYPES = {
-        "query_execution", "stream_next", "fetch_phase", "segment_stats"
-    };
+    /** Operation types in documented order. */
+    public enum OperationType {
+        /** Query execution operation. */
+        QUERY_EXECUTION("query_execution"),
+        /** Stream next (pagination) operation. */
+        STREAM_NEXT("stream_next"),
+        /** Fetch phase operation. */
+        FETCH_PHASE("fetch_phase"),
+        /** Segment-level statistics collection operation. */
+        SEGMENT_STATS("segment_stats");
+
+        private final String key;
+
+        OperationType(String key) {
+            this.key = key;
+        }
+
+        /** Returns the snake_case key used in serialization and XContent output. */
+        public String key() {
+            return key;
+        }
+    }
 
     private final RuntimeMetrics ioRuntime;
     private final RuntimeMetrics cpuRuntime; // nullable
@@ -69,8 +87,8 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
         this.cpuRuntime = in.readBoolean() ? new RuntimeMetrics(in) : null;
 
         this.taskMonitors = new LinkedHashMap<>();
-        for (String opType : OPERATION_TYPES) {
-            this.taskMonitors.put(opType, new TaskMonitorStats(in));
+        for (OperationType opType : OperationType.values()) {
+            this.taskMonitors.put(opType.key(), new TaskMonitorStats(in));
         }
     }
 
@@ -83,8 +101,8 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
         } else {
             out.writeBoolean(false);
         }
-        for (String opType : OPERATION_TYPES) {
-            taskMonitors.get(opType).writeTo(out);
+        for (OperationType opType : OperationType.values()) {
+            taskMonitors.get(opType.key()).writeTo(out);
         }
     }
 
@@ -168,6 +186,15 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 
         /**
          * Construct from explicit field values.
+         *
+         * @param workersCount        number of worker threads
+         * @param totalPollsCount     total task polls across all workers
+         * @param totalBusyDurationMs total busy time in milliseconds
+         * @param totalOverflowCount  total overflow queue pushes
+         * @param globalQueueDepth    current global injection queue depth
+         * @param blockingQueueDepth  current blocking thread pool queue depth
+         * @param numAliveTasks       tasks currently alive
+         * @param spawnedTasksCount   total tasks spawned since creation
          */
         public RuntimeMetrics(
             long workersCount, long totalPollsCount, long totalBusyDurationMs,
@@ -186,6 +213,9 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 
         /**
          * Deserialize from stream.
+         *
+         * @param in the stream input
+         * @throws IOException if deserialization fails
          */
         public RuntimeMetrics(StreamInput in) throws IOException {
             this.workersCount = in.readVLong();
@@ -212,6 +242,9 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 
         /**
          * Render all 8 fields as snake_case JSON fields.
+         *
+         * @param builder the XContent builder to write to
+         * @throws IOException if writing fails
          */
         public void toXContent(XContentBuilder builder) throws IOException {
             builder.field("workers_count", workersCount);
@@ -260,6 +293,10 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 
         /**
          * Construct from explicit field values.
+         *
+         * @param totalPollDurationMs      total poll duration in milliseconds
+         * @param totalScheduledDurationMs total scheduled duration in milliseconds
+         * @param totalIdleDurationMs      total idle duration in milliseconds
          */
         public TaskMonitorStats(
             long totalPollDurationMs, long totalScheduledDurationMs, long totalIdleDurationMs
@@ -271,6 +308,9 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 
         /**
          * Deserialize from stream.
+         *
+         * @param in the stream input
+         * @throws IOException if deserialization fails
          */
         public TaskMonitorStats(StreamInput in) throws IOException {
             this.totalPollDurationMs = in.readVLong();
@@ -287,6 +327,9 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 
         /**
          * Render all 3 fields as snake_case JSON fields.
+         *
+         * @param builder the XContent builder to write to
+         * @throws IOException if writing fails
          */
         public void toXContent(XContentBuilder builder) throws IOException {
             builder.field("total_poll_duration_ms", totalPollDurationMs);

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.nativebridge.spi.stats;
+package org.opensearch.plugin.stats;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

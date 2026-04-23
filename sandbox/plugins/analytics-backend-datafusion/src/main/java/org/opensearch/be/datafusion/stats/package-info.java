@@ -12,6 +12,6 @@
  * <p>Contains {@link org.opensearch.be.datafusion.stats.DataFusionBackendStatsProvider}
  * which implements the SPI {@code BackendStatsProvider} interface. The core stats types
  * ({@code DataFusionStats}, {@code NativeExecutorsStats}) live in the
- * {@code org.opensearch.nativebridge.spi.stats} package.
+ * {@code org.opensearch.plugin.stats} package.
  */
 package org.opensearch.be.datafusion.stats;

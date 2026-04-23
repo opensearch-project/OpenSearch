@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.nativebridge.spi.stats;
+package org.opensearch.plugin.stats;
 
 /**
  * Each backend (DataFusion, Parquet, future engines) implements this interface

@@ -10,9 +10,10 @@ package org.opensearch.be.datafusion.stats;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats;
-import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats.TaskMonitorStats;
+import org.opensearch.plugin.stats.NativeExecutorsStats;
+import org.opensearch.plugin.stats.NativeExecutorsStats.OperationType;
+import org.opensearch.plugin.stats.NativeExecutorsStats.RuntimeMetrics;
+import org.opensearch.plugin.stats.NativeExecutorsStats.TaskMonitorStats;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -39,15 +40,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 public class NodeStatsNativeMetricRoundTripTests {
 
-    /** The 4 operation types in documented order. */
-    private static final String[] OPERATION_TYPES = { "query_execution", "stream_next", "fetch_phase", "segment_stats" };
-
     // ---- Generators ----
 
     @Provide
     Arbitrary<RuntimeMetrics> runtimeMetrics() {
         Arbitrary<Long> nonNeg = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        return Combinators.combine(nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg).as(RuntimeMetrics::new);
+        return Combinators.combine(nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg).as(RuntimeMetrics::new);
     }
 
     @Provide
@@ -67,7 +65,8 @@ public class NodeStatsNativeMetricRoundTripTests {
                     rt.totalOverflowCount,
                     rt.globalQueueDepth,
                     rt.blockingQueueDepth,
-                    rt.numAliveTasks
+                    rt.numAliveTasks,
+                    rt.spawnedTasksCount
                 );
             }
             return rt;
@@ -142,21 +141,22 @@ public class NodeStatsNativeMetricRoundTripTests {
         assertEquals(expected.globalQueueDepth, actual.globalQueueDepth, label + ".global_queue_depth");
         assertEquals(expected.blockingQueueDepth, actual.blockingQueueDepth, label + ".blocking_queue_depth");
         assertEquals(expected.numAliveTasks, actual.numAliveTasks, label + ".num_alive_tasks");
+        assertEquals(expected.spawnedTasksCount, actual.spawnedTasksCount, label + ".spawned_tasks_count");
     }
 
     private void assertTaskMonitorsEqual(Map<String, TaskMonitorStats> expected, Map<String, TaskMonitorStats> actual) {
         assertEquals(4, expected.size(), "original must have exactly 4 task monitors");
         assertEquals(4, actual.size(), "deserialized must have exactly 4 task monitors");
 
-        for (String opType : OPERATION_TYPES) {
-            TaskMonitorStats exp = expected.get(opType);
-            TaskMonitorStats act = actual.get(opType);
-            assertNotNull(exp, "original must contain " + opType);
-            assertNotNull(act, "deserialized must contain " + opType);
+        for (OperationType opType : OperationType.values()) {
+            TaskMonitorStats exp = expected.get(opType.key());
+            TaskMonitorStats act = actual.get(opType.key());
+            assertNotNull(exp, "original must contain " + opType.key());
+            assertNotNull(act, "deserialized must contain " + opType.key());
 
-            assertEquals(exp.totalPollDurationMs, act.totalPollDurationMs, opType + ".total_poll_duration_ms");
-            assertEquals(exp.totalScheduledDurationMs, act.totalScheduledDurationMs, opType + ".total_scheduled_duration_ms");
-            assertEquals(exp.totalIdleDurationMs, act.totalIdleDurationMs, opType + ".total_idle_duration_ms");
+            assertEquals(exp.totalPollDurationMs, act.totalPollDurationMs, opType.key() + ".total_poll_duration_ms");
+            assertEquals(exp.totalScheduledDurationMs, act.totalScheduledDurationMs, opType.key() + ".total_scheduled_duration_ms");
+            assertEquals(exp.totalIdleDurationMs, act.totalIdleDurationMs, opType.key() + ".total_idle_duration_ms");
         }
     }
 }
