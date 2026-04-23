@@ -173,6 +173,7 @@ import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.storage.common.tiering.TieringUtils;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -901,7 +902,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
                 StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
-                StreamSearchTransportService.STREAM_SEARCH_ENABLED
+                StreamSearchTransportService.STREAM_SEARCH_ENABLED,
+                TieredStoragePrefetchSettings.READ_AHEAD_BLOCK_COUNT,
+                TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING
             )
         )
     );
