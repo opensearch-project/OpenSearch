@@ -35,6 +35,7 @@ package org.opensearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IntroSorter;
+import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
@@ -83,6 +84,10 @@ import static org.opensearch.cluster.routing.allocation.ConstraintTypes.INDEX_SH
  * <li><code>cluster.routing.allocation.balance.threshold</code> - A <b>threshold</b> to set the minimal optimization
  * value of operations that should be performed</li>
  * <li><code>cluster.routing.allocation.balance.prefer_primary</code> - Defines whether primary shard balance is desired</li>
+ * <li><code>cluster.routing.allocation.balance.disk_usage</code> - The <b>disk-usage balance</b> defines a factor
+ * applied to per-shard byte size so rebalancing can be biased by actual disk footprint rather than purely
+ * by shard count. Defaults to {@code 0.0f} (disabled). See
+ * {@link #DISK_USAGE_BALANCE_FACTOR_SETTING} for calibration guidance.</li>
  * </ul>
  * <p>
  * These parameters are combined in a {@link WeightFunction} that allows calculation of node weights which
@@ -106,6 +111,48 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         "cluster.routing.allocation.balance.shard",
         0.45f,
         0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    /**
+     * Balance factor for the disk-usage component of the shard-balancer weight function.
+     *
+     * <p>Unlike {@link #INDEX_BALANCE_FACTOR_SETTING} and {@link #SHARD_BALANCE_FACTOR_SETTING},
+     * which multiply <em>shard counts</em>, this factor multiplies raw <em>byte counts</em>
+     * reported by {@link org.opensearch.cluster.ClusterInfo#getShardSize}. The resulting
+     * disk-weight term is on a different scale than the count-based terms, so this setting
+     * is intentionally not normalized against them: operators are expected to tune it per
+     * cluster based on their typical shard size.
+     *
+     * <p>As a rule of thumb, pick a factor such that {@code factor * avg_shard_bytes} is of
+     * the same order of magnitude as the count-based weights (O(1) per shard). Start small,
+     * observe rebalance activity, and increase only if byte skew persists. A factor that is
+     * too large makes the disk term dominate and can destabilize count balance, producing
+     * oscillating rebalance decisions.
+     *
+     * <p>Achievable byte skew is bounded by shard granularity: when shards are large relative
+     * to node capacity or are heterogeneous in size, the allocator converges to a local
+     * optimum dictated by indivisible shard boundaries regardless of this factor.
+     *
+     * <p>The default is {@code 0.0f}, which disables disk-usage balancing entirely and keeps
+     * the factor zero-overhead on the reroute hot path: when the factor is {@code 0.0f} the
+     * allocator uses only the count and index terms and skips shard-size lookups.
+     */
+    public static final Setting<Float> DISK_USAGE_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.disk_usage",
+        0.0f,
+        0.0f,
+        Float.MAX_VALUE,
+        new Setting.Validator<Float>() {
+            @Override
+            public void validate(Float value) {
+                if (value != null && Float.isFinite(value) == false) {
+                    throw new IllegalArgumentException(
+                        "Illegal value for [cluster.routing.allocation.balance.disk_usage]: must be a finite number, got [" + value + "]"
+                    );
+                }
+            }
+        },
         Property.Dynamic,
         Property.NodeScope
     );
@@ -235,6 +282,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile float preferPrimaryShardRebalanceBuffer;
     private volatile float indexBalanceFactor;
     private volatile float shardBalanceFactor;
+    private volatile float diskUsageBalanceFactor;
     private volatile WeightFunction weightFunction;
     private volatile float threshold;
     private volatile long primaryConstraintThreshold;
@@ -253,6 +301,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
         setShardBalanceFactor(SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setIndexBalanceFactor(INDEX_BALANCE_FACTOR_SETTING.get(settings));
+        setDiskUsageBalanceFactor(DISK_USAGE_BALANCE_FACTOR_SETTING.get(settings));
         setPreferPrimaryShardRebalanceBuffer(PRIMARY_SHARD_REBALANCE_BUFFER.get(settings));
         setIgnoreThrottleInRestore(IGNORE_THROTTLE_FOR_REMOTE_RESTORE.get(settings));
         updateWeightFunction();
@@ -268,6 +317,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVEMENT_STRATEGY_SETTING, this::setShardMovementStrategy);
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, this::updateIndexBalanceFactor);
         clusterSettings.addSettingsUpdateConsumer(SHARD_BALANCE_FACTOR_SETTING, this::updateShardBalanceFactor);
+        clusterSettings.addSettingsUpdateConsumer(DISK_USAGE_BALANCE_FACTOR_SETTING, this::updateDiskUsageBalanceFactor);
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_SHARD_REBALANCE_BUFFER, this::updatePreferPrimaryShardBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_REBALANCE, this::setPreferPrimaryShardRebalance);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
@@ -316,6 +366,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.shardBalanceFactor = shardBalanceFactor;
     }
 
+    private void setDiskUsageBalanceFactor(float diskUsageBalanceFactor) {
+        this.diskUsageBalanceFactor = diskUsageBalanceFactor;
+    }
+
     private void setPreferPrimaryShardRebalanceBuffer(float preferPrimaryShardRebalanceBuffer) {
         this.preferPrimaryShardRebalanceBuffer = preferPrimaryShardRebalanceBuffer;
     }
@@ -330,6 +384,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         updateWeightFunction();
     }
 
+    private void updateDiskUsageBalanceFactor(float diskUsageBalanceFactor) {
+        this.diskUsageBalanceFactor = diskUsageBalanceFactor;
+        updateWeightFunction();
+    }
+
     private void updatePreferPrimaryShardBalanceBuffer(float preferPrimaryShardBalanceBuffer) {
         this.preferPrimaryShardRebalanceBuffer = preferPrimaryShardBalanceBuffer;
         updateWeightFunction();
@@ -339,6 +398,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         weightFunction = new WeightFunction(
             this.indexBalanceFactor,
             this.shardBalanceFactor,
+            this.diskUsageBalanceFactor,
             this.preferPrimaryShardRebalanceBuffer,
             this.primaryConstraintThreshold,
             this.preferPrimaryShardBalance,
@@ -512,6 +572,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     /**
+     * Returns the disk-usage related weight factor.
+     */
+    public float getDiskUsageBalance() {
+        return weightFunction.diskUsageBalance;
+    }
+
+    /**
      * Returns preferPrimaryShardBalance.
      */
     public boolean getPreferPrimaryBalance() {
@@ -548,8 +615,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         private final float indexBalance;
         private final float shardBalance;
+        private final float diskUsageBalance;
         private final float theta0;
         private final float theta1;
+        private final float theta2;
         private long primaryConstraintThreshold;
         private AllocationConstraints constraints;
         private RebalanceConstraints rebalanceConstraints;
@@ -557,19 +626,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         WeightFunction(
             float indexBalance,
             float shardBalance,
+            float diskUsageBalance,
             float preferPrimaryBalanceBuffer,
             long primaryConstraintThreshold,
             boolean preferPrimaryShardBalance,
             boolean preferPrimaryShardRebalance
         ) {
-            float sum = indexBalance + shardBalance;
+            float sum = indexBalance + shardBalance + diskUsageBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
             theta0 = shardBalance / sum;
             theta1 = indexBalance / sum;
+            theta2 = diskUsageBalance / sum;
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
+            this.diskUsageBalance = diskUsageBalance;
             this.primaryConstraintThreshold = primaryConstraintThreshold;
             RebalanceParameter rebalanceParameter = new RebalanceParameter(preferPrimaryBalanceBuffer);
             this.constraints = new AllocationConstraints();
@@ -587,6 +659,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return balancerWeight + constraints.weight(balancer, node, index, primaryConstraintThreshold);
         }
 
+        /**
+         * Returns the raw disk_usage balance factor configured on this weight function.
+         * Callers (e.g. {@link LocalShardsBalancer}) use this to decide whether the
+         * per-shard byte bookkeeping in {@link ModelNode} should be performed, so that
+         * the default (0.0f) stays zero-overhead.
+         */
+        float diskUsageBalance() {
+            return diskUsageBalance;
+        }
+
         public float weightWithRebalanceConstraints(ShardsBalancer balancer, ModelNode node, String index) {
             float balancerWeight = weight(balancer, node, index);
             return balancerWeight + rebalanceConstraints.weight(balancer, node, index, primaryConstraintThreshold);
@@ -595,7 +677,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         float weight(ShardsBalancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            return theta0 * weightShard + theta1 * weightIndex;
+            final float weightDiskUsage = node.diskUsageInBytes() - balancer.avgDiskUsageInBytesPerNode();
+            return theta0 * weightShard + theta1 * weightIndex + theta2 * weightDiskUsage;
         }
 
         void updateAllocationConstraint(String constraint, boolean enable) {
@@ -620,10 +703,30 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
         private int numPrimaryShards = 0;
+        private long diskUsageInBytes = 0;
         private final RoutingNode routingNode;
+        private final ClusterInfo clusterInfo;
+        /**
+         * When {@code false} the per-shard byte bookkeeping in {@link #addShard} / {@link #removeShard}
+         * is skipped entirely. This keeps the feature zero-overhead on the hot path when
+         * {@link BalancedShardsAllocator#DISK_USAGE_BALANCE_FACTOR_SETTING} is at its 0.0f default,
+         * avoiding a {@link ClusterInfo#getShardSize} call (and its shard-identifier string
+         * allocation) per shard per reroute.
+         */
+        private final boolean trackDiskUsage;
 
         ModelNode(RoutingNode routingNode) {
+            this(routingNode, ClusterInfo.EMPTY, false);
+        }
+
+        ModelNode(RoutingNode routingNode, ClusterInfo clusterInfo) {
+            this(routingNode, clusterInfo, true);
+        }
+
+        ModelNode(RoutingNode routingNode, ClusterInfo clusterInfo, boolean trackDiskUsage) {
             this.routingNode = routingNode;
+            this.clusterInfo = clusterInfo == null ? ClusterInfo.EMPTY : clusterInfo;
+            this.trackDiskUsage = trackDiskUsage;
         }
 
         public ModelIndex getIndex(String indexId) {
@@ -656,6 +759,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return numPrimaryShards;
         }
 
+        public long diskUsageInBytes() {
+            return diskUsageInBytes;
+        }
+
         public int highestPrimary(String index) {
             ModelIndex idx = indices.get(index);
             if (idx != null) {
@@ -675,6 +782,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 numPrimaryShards++;
             }
 
+            if (trackDiskUsage) {
+                diskUsageInBytes += clusterInfo.getShardSize(shard, 0L);
+            }
             numShards++;
         }
 
@@ -691,6 +801,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 numPrimaryShards--;
             }
 
+            if (trackDiskUsage) {
+                diskUsageInBytes -= clusterInfo.getShardSize(shard, 0L);
+            }
             numShards--;
         }
 
