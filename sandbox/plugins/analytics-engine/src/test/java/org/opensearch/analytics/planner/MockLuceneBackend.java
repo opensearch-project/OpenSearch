@@ -11,8 +11,6 @@ package org.opensearch.analytics.planner;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -20,10 +18,6 @@ import org.opensearch.plugins.SearchBackEndPlugin;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
-import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE;
-import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS;
 
 /**
  * Mock Lucene backend for tests. Supports lucene format with index structures
@@ -102,30 +96,8 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     // ---- SearchBackEndPlugin (storage) ----
 
     @Override
-    public List<DataFormat> getSupportedFormats() {
-        return List.of(new DataFormat() {
-            @Override
-            public String name() {
-                return LUCENE_DATA_FORMAT;
-            }
-
-            @Override
-            public long priority() {
-                return 0;
-            }
-
-            @Override
-            public Set<FieldTypeCapabilities> supportedFields() {
-                return Set.of(
-                    new FieldTypeCapabilities("integer", Set.of(POINT_RANGE, STORED_FIELDS)),
-                    new FieldTypeCapabilities("long", Set.of(POINT_RANGE, STORED_FIELDS)),
-                    new FieldTypeCapabilities("keyword", Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
-                    new FieldTypeCapabilities("text", Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
-                    new FieldTypeCapabilities("boolean", Set.of(STORED_FIELDS)),
-                    new FieldTypeCapabilities("date", Set.of(POINT_RANGE, STORED_FIELDS))
-                );
-            }
-        });
+    public List<String> getSupportedFormats() {
+        return List.of(LUCENE_DATA_FORMAT);
     }
 
     @Override

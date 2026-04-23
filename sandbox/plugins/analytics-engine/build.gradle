@@ -58,12 +58,23 @@ dependencies {
   implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
 
   // Arrow Flight RPC — compile-only; the arrow-flight-rpc plugin provides it at runtime.
-  // Needed for the upcoming ArrowBatchResponse migration of FragmentExecutionResponse
-  // (zero-copy Arrow streaming), and transitively brings Jackson + arrow-format +
-  // flatbuffers-java onto the compile/javadoc classpath so Arrow's Schema.class
-  // annotation and IPC references resolve.
-  compileOnly project(':plugins:arrow-flight-rpc')
-  testCompileOnly project(':plugins:arrow-flight-rpc')
+  // transitive = false prevents arrow-flight-rpc's transitives (slf4j, jackson, arrow-*,
+  // guava, netty, grpc, etc.) from landing on resolveableCompileOnly, which bundlePlugin
+  // subtracts from runtimeClasspath. Without this, jars analytics-engine needs to bundle
+  // (arrow-vector, arrow-memory-core, guava, slf4j) get stripped from the zip.
+  compileOnly(project(':plugins:arrow-flight-rpc')) {
+    transitive = false
+  }
+  testCompileOnly(project(':plugins:arrow-flight-rpc')) {
+    transitive = false
+  }
+
+  // Arrow Flight types reference these at compile/javadoc time. compileOnly so they
+  // don't end up in the zip — arrow-flight-rpc provides them at runtime.
+  compileOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+  compileOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
   // Guava — required at compile time because Calcite base classes expose guava types.
   // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
@@ -72,15 +83,26 @@ dependencies {
   // Guava for test compilation — Calcite API exposes guava types
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
 
+  // Guava — required at runtime because Calcite's SqlOperatorTables and SqlKind
+  // static initializers use com.google.common classes. The compileClasspath exclude
+  // above also strips Guava from runtimeClasspath, so add it back explicitly.
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+
+  // SLF4J — Arrow's BaseAllocator requires it at runtime. Child plugins
+  // (analytics-backend-datafusion) see it via the extendedPlugins classloader.
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+
   // Calcite code generation (optional in calcite-core POM, needed at runtime for Enumerable pipeline)
   testRuntimeOnly "org.codehaus.janino:janino:3.1.12"
   testRuntimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
 
-  // arrow-memory-unsafe provides the default allocation manager arrow-memory-core
-  // needs at runtime (fails with "No DefaultAllocationManager found on classpath" otherwise).
+  // arrow-memory-unsafe provides the DefaultAllocationManager that arrow-memory-core
+  // discovers via ServiceLoader at runtime. Must be in the parent plugin's classloader
+  // because BaseAllocator (from arrow-memory-core) does the ServiceLoader lookup.
+  runtimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
   // arrow-format + flatbuffers-java satisfy Arrow's IPC Schema serialization path
   // that some VectorSchemaRoot operations invoke transitively.
-  testRuntimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
   testRuntimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
   testRuntimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
@@ -98,6 +120,11 @@ dependencies {
   // Arrow Flight streaming transport for ITs
   internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
 
+  // jackson-annotations — required at runtime by jackson-databind (transitive via Calcite).
+  // Without this, child plugins that use Arrow's Schema (which triggers ObjectMapper init)
+  // fail with NoClassDefFoundError for JsonSerializeAs.
+  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+
   // Calcite bytecode references @Immutable from immutables — resolve at test compile time
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
 }
@@ -111,7 +138,21 @@ tasks.named('thirdPartyAudit').configure {
   // arrow-memory-core uses sun.misc.Unsafe via MemoryUtil for off-heap access
   ignoreViolations(
     'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1'
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+    // Guava internal Unsafe usage
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
 }
 

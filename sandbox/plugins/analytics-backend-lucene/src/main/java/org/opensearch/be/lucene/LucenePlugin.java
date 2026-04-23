@@ -11,7 +11,6 @@ package org.opensearch.be.lucene;
 import org.apache.lucene.index.DirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
@@ -44,7 +43,7 @@ public class LucenePlugin extends Plugin implements SearchBackEndPlugin<Director
     }
 
     @Override
-    public List<DataFormat> getSupportedFormats() {
+    public List<String> getSupportedFormats() {
         return List.of();
     }
 
