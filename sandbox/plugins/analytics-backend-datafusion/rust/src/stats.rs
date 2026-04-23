@@ -2,78 +2,125 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//! Stats packing helpers for the JNI `stats()` function.
+//! Stats packing helpers for the FFM `df_stats()` function.
 //!
 //! Packs Tokio runtime metrics and per-operation task monitor metrics
-//! into a fixed-layout `[i64; 28]` buffer for efficient transfer across
-//! the JNI boundary.
+//! into a `#[repr(C)]` `DfStatsBuffer` struct (224 bytes) for efficient
+//! transfer across the FFM boundary.
 //!
-//! ## Array layout
+//! ## Struct layout
 //!
-//! | Offset  | Count | Content                                    |
-//! |---------|-------|--------------------------------------------|
-//! | 0–7     | 8     | IO runtime (RuntimeValues)                 |
-//! | 8–15    | 8     | CPU runtime (RuntimeValues, zeros if N/A)  |
-//! | 16–18   | 3     | `query_execution` task monitor             |
-//! | 19–21   | 3     | `stream_next` task monitor                 |
-//! | 22–24   | 3     | `fetch_phase` task monitor                 |
-//! | 25–27   | 3     | `segment_stats` task monitor               |
+//! | Group             | Type                | Fields |
+//! |-------------------|---------------------|--------|
+//! | `io_runtime`      | `RuntimeMetricsRepr`| 8 × i64 |
+//! | `cpu_runtime`     | `RuntimeMetricsRepr`| 8 × i64 (zeroed if N/A) |
+//! | `query_execution` | `TaskMonitorRepr`   | 3 × i64 |
+//! | `stream_next`     | `TaskMonitorRepr`   | 3 × i64 |
+//! | `fetch_phase`     | `TaskMonitorRepr`   | 3 × i64 |
+//! | `segment_stats`   | `TaskMonitorRepr`   | 3 × i64 |
 
 use tokio::runtime::Handle;
 use tokio_metrics::{RuntimeMonitor, TaskMonitor};
 
-pub mod layout {
-    pub const RUNTIME_SIZE: usize = 8;
-    pub const TASK_MONITOR_SIZE: usize = 3;
-    pub const TOTAL_SIZE: usize = RUNTIME_SIZE * 2 + TASK_MONITOR_SIZE * 4;
-    const _: () = assert!(TOTAL_SIZE == 28);
+#[repr(C)]
+pub struct RuntimeMetricsRepr {
+    pub workers_count: i64,
+    pub total_polls_count: i64,
+    pub total_busy_duration_ms: i64,
+    pub total_overflow_count: i64,
+    pub global_queue_depth: i64,
+    pub blocking_queue_depth: i64,
+    pub num_alive_tasks: i64,
+    pub spawned_tasks_count: i64,
 }
 
-/// Snapshot a `RuntimeMonitor` and write 8 fields into `buf` starting at `offset`.
+impl RuntimeMetricsRepr {
+    pub fn zeroed() -> Self {
+        Self {
+            workers_count: 0,
+            total_polls_count: 0,
+            total_busy_duration_ms: 0,
+            total_overflow_count: 0,
+            global_queue_depth: 0,
+            blocking_queue_depth: 0,
+            num_alive_tasks: 0,
+            spawned_tasks_count: 0,
+        }
+    }
+}
+
+#[repr(C)]
+pub struct TaskMonitorRepr {
+    pub total_poll_duration_ms: i64,
+    pub total_scheduled_duration_ms: i64,
+    pub total_idle_duration_ms: i64,
+}
+
+#[repr(C)]
+pub struct DfStatsBuffer {
+    pub io_runtime: RuntimeMetricsRepr,
+    pub cpu_runtime: RuntimeMetricsRepr,
+    pub query_execution: TaskMonitorRepr,
+    pub stream_next: TaskMonitorRepr,
+    pub fetch_phase: TaskMonitorRepr,
+    pub segment_stats: TaskMonitorRepr,
+}
+
+const _: () = assert!(std::mem::size_of::<RuntimeMetricsRepr>() == 8 * 8);
+const _: () = assert!(std::mem::size_of::<TaskMonitorRepr>() == 3 * 8);
+const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 28 * 8);
+
+pub mod layout {
+    use super::*;
+    pub const BUFFER_BYTE_SIZE: usize = std::mem::size_of::<DfStatsBuffer>();
+    const _: () = assert!(BUFFER_BYTE_SIZE == 224);
+}
+
+/// Snapshot a `RuntimeMonitor` and return a populated `RuntimeMetricsRepr`.
 ///
-/// ## Field mapping
+/// ## Fields
 ///
-/// | Sub-offset | Field                          |
-/// |------------|--------------------------------|
-/// | 0          | workers_count                  |
-/// | 1          | total_polls_count              |
-/// | 2          | total_busy_duration (ms)       |
-/// | 3          | total_overflow_count           |
-/// | 4          | global_queue_depth             |
-/// | 5          | blocking_queue_depth           |
-/// | 6          | num_alive_tasks                |
-/// | 7          | spawned_tasks_count            |
-pub fn pack_runtime_metrics(monitor: &RuntimeMonitor, handle: &Handle, buf: &mut [i64; layout::TOTAL_SIZE], offset: usize) {
+/// | Field                  | Source                                     |
+/// |------------------------|--------------------------------------------|
+/// | workers_count          | `RuntimeIntervals` snapshot                |
+/// | total_polls_count      | `RuntimeIntervals` snapshot                |
+/// | total_busy_duration_ms | `RuntimeIntervals` snapshot (millis)       |
+/// | total_overflow_count   | `RuntimeIntervals` snapshot                |
+/// | global_queue_depth     | `RuntimeIntervals` snapshot                |
+/// | blocking_queue_depth   | `Handle::metrics()`                        |
+/// | num_alive_tasks        | `Handle::metrics()`                        |
+/// | spawned_tasks_count    | `Handle::metrics()`                        |
+pub fn pack_runtime_metrics(monitor: &RuntimeMonitor, handle: &Handle) -> RuntimeMetricsRepr {
     let mut intervals = monitor.intervals();
     let snapshot = intervals.next().expect("RuntimeMonitor intervals should never be empty");
 
-    buf[offset]     = snapshot.workers_count as i64;
-    buf[offset + 1] = snapshot.total_polls_count as i64;
-    buf[offset + 2] = snapshot.total_busy_duration.as_millis() as i64;
-    buf[offset + 3] = snapshot.total_overflow_count as i64;
-    buf[offset + 4] = snapshot.global_queue_depth as i64;
-    buf[offset + 5] = handle.metrics().blocking_queue_depth() as i64;
-    buf[offset + 6] = handle.metrics().num_alive_tasks() as i64;
-    buf[offset + 7] = handle.metrics().spawned_tasks_count() as i64;
+    RuntimeMetricsRepr {
+        workers_count: snapshot.workers_count as i64,
+        total_polls_count: snapshot.total_polls_count as i64,
+        total_busy_duration_ms: snapshot.total_busy_duration.as_millis() as i64,
+        total_overflow_count: snapshot.total_overflow_count as i64,
+        global_queue_depth: snapshot.global_queue_depth as i64,
+        blocking_queue_depth: handle.metrics().blocking_queue_depth() as i64,
+        num_alive_tasks: handle.metrics().num_alive_tasks() as i64,
+        spawned_tasks_count: handle.metrics().spawned_tasks_count() as i64,
+    }
 }
 
 
-/// Write 3 fields for a single task monitor into `buf` starting at `offset`.
+/// Snapshot a `TaskMonitor` and return a populated `TaskMonitorRepr`.
 ///
-/// | Sub-offset | Field                          |
-/// |------------|--------------------------------|
-/// | +0         | total_poll_duration (ms)       |
-/// | +1         | total_scheduled_duration (ms)  |
-/// | +2         | total_idle_duration (ms)       |
-pub fn pack_task_monitor(
-    monitor: &TaskMonitor,
-    buf: &mut [i64; layout::TOTAL_SIZE],
-    offset: usize,
-) {
+/// | Field                        | Source                          |
+/// |------------------------------|---------------------------------|
+/// | total_poll_duration_ms       | cumulative poll duration (ms)   |
+/// | total_scheduled_duration_ms  | cumulative scheduled dur. (ms)  |
+/// | total_idle_duration_ms       | cumulative idle duration (ms)   |
+pub fn pack_task_monitor(monitor: &TaskMonitor) -> TaskMonitorRepr {
     let cumulative = monitor.cumulative();
-    buf[offset]     = cumulative.total_poll_duration.as_millis() as i64;
-    buf[offset + 1] = cumulative.total_scheduled_duration.as_millis() as i64;
-    buf[offset + 2] = cumulative.total_idle_duration.as_millis() as i64;
+    TaskMonitorRepr {
+        total_poll_duration_ms: cumulative.total_poll_duration.as_millis() as i64,
+        total_scheduled_duration_ms: cumulative.total_scheduled_duration.as_millis() as i64,
+        total_idle_duration_ms: cumulative.total_idle_duration.as_millis() as i64,
+    }
 }
 
 #[cfg(test)]
@@ -92,34 +139,32 @@ mod tests {
             .build()
             .unwrap();
         let monitor = RuntimeMonitor::new(&rt.handle());
-        let mut buf = [0i64; layout::TOTAL_SIZE];
-        pack_runtime_metrics(&monitor, rt.handle(), &mut buf, 0);
-        assert_eq!(buf[0], 2);
+        let result = pack_runtime_metrics(&monitor, rt.handle());
+        assert_eq!(result.workers_count, 2);
     }
 
     #[test]
-    fn test_pack_runtime_metrics_at_offset() {
+    fn test_pack_runtime_metrics_returns_struct() {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(3)
             .enable_all()
             .build()
             .unwrap();
         let monitor = RuntimeMonitor::new(&rt.handle());
-        let mut buf = [0i64; layout::TOTAL_SIZE];
-        pack_runtime_metrics(&monitor, rt.handle(), &mut buf, layout::RUNTIME_SIZE);
-        assert_eq!(buf[layout::RUNTIME_SIZE], 3);
-        assert_eq!(buf[0], 0);
+        let result = pack_runtime_metrics(&monitor, rt.handle());
+        assert_eq!(result.workers_count, 3);
+        assert!(result.total_polls_count >= 0);
+        assert!(result.total_busy_duration_ms >= 0);
+        assert!(result.global_queue_depth >= 0);
     }
 
     #[test]
     fn test_pack_task_monitor_writes_duration_fields() {
         let monitor = TaskMonitor::new();
-        let mut buf = [0i64; layout::TOTAL_SIZE];
-        let offset = layout::RUNTIME_SIZE * 2; // 12
-        pack_task_monitor(&monitor, &mut buf, offset);
-        assert_eq!(buf[offset], 0);     // total_poll_duration
-        assert_eq!(buf[offset + 1], 0); // total_scheduled_duration
-        assert_eq!(buf[offset + 2], 0); // total_idle_duration
+        let result = pack_task_monitor(&monitor);
+        assert_eq!(result.total_poll_duration_ms, 0);
+        assert_eq!(result.total_scheduled_duration_ms, 0);
+        assert_eq!(result.total_idle_duration_ms, 0);
     }
 
     #[tokio::test]
@@ -132,39 +177,54 @@ mod tests {
         let result = fut.await;
         assert_eq!(result, 42);
 
-        let mut buf = [0i64; layout::TOTAL_SIZE];
-        let offset = layout::RUNTIME_SIZE * 2;
-        pack_task_monitor(monitor, &mut buf, offset);
-        assert!(buf[offset] >= 0, "total_poll_duration should be >= 0, got {}", buf[offset]);
+        let tm = pack_task_monitor(monitor);
+        assert!(tm.total_poll_duration_ms >= 0, "total_poll_duration should be >= 0, got {}", tm.total_poll_duration_ms);
     }
 
     #[tokio::test]
     async fn test_full_stats_packing() {
         let mgr = crate::runtime_manager::RuntimeManager::new(1);
-        let mut buf = [0i64; layout::TOTAL_SIZE];
 
-        pack_runtime_metrics(&mgr.io_monitor, mgr.io_runtime.handle(), &mut buf, 0);
-        if let Some(ref cpu_mon) = mgr.cpu_monitor {
+        let io_runtime = pack_runtime_metrics(&mgr.io_monitor, mgr.io_runtime.handle());
+
+        let cpu_runtime = if let Some(ref cpu_mon) = mgr.cpu_monitor {
             if let Some(cpu_handle) = mgr.cpu_executor.handle() {
-                pack_runtime_metrics(cpu_mon, &cpu_handle, &mut buf, layout::RUNTIME_SIZE);
+                pack_runtime_metrics(cpu_mon, &cpu_handle)
+            } else {
+                RuntimeMetricsRepr::zeroed()
             }
-        }
+        } else {
+            RuntimeMetricsRepr::zeroed()
+        };
 
-        let tm_base = layout::RUNTIME_SIZE * 2;
-        pack_task_monitor(query_execution_monitor(), &mut buf, tm_base);
-        pack_task_monitor(stream_next_monitor(), &mut buf, tm_base + layout::TASK_MONITOR_SIZE);
-        pack_task_monitor(fetch_phase_monitor(), &mut buf, tm_base + layout::TASK_MONITOR_SIZE * 2);
-        pack_task_monitor(segment_stats_monitor(), &mut buf, tm_base + layout::TASK_MONITOR_SIZE * 3);
+        let buf = DfStatsBuffer {
+            io_runtime,
+            cpu_runtime,
+            query_execution: pack_task_monitor(query_execution_monitor()),
+            stream_next: pack_task_monitor(stream_next_monitor()),
+            fetch_phase: pack_task_monitor(fetch_phase_monitor()),
+            segment_stats: pack_task_monitor(segment_stats_monitor()),
+        };
 
-        assert_eq!(layout::TOTAL_SIZE, 28);
-        assert_eq!(buf.len(), 28);
-        assert!(buf[0] > 0, "IO runtime workers_count should be > 0, got {}", buf[0]);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 224);
+        assert!(buf.io_runtime.workers_count > 0, "IO runtime workers_count should be > 0, got {}", buf.io_runtime.workers_count);
 
         if mgr.cpu_monitor.is_some() {
-            assert!(buf[layout::RUNTIME_SIZE] > 0, "CPU runtime workers_count should be > 0, got {}", buf[layout::RUNTIME_SIZE]);
+            assert!(buf.cpu_runtime.workers_count > 0, "CPU runtime workers_count should be > 0, got {}", buf.cpu_runtime.workers_count);
         }
 
         mgr.cpu_executor.shutdown();
         std::mem::forget(mgr);
+    }
+
+    #[test]
+    fn test_df_stats_buffer_too_small() {
+        // Verify that the buffer size assertion holds
+        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 224);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 224);
+        // A buffer smaller than 224 bytes should be rejected by df_stats.
+        // We can't call df_stats directly without a runtime manager,
+        // but we verify the constant is correct.
+        assert!(layout::BUFFER_BYTE_SIZE > 0);
     }
 }

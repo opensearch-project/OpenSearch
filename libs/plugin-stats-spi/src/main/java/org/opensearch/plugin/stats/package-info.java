@@ -15,10 +15,10 @@
  *
  * <p>Key types:
  * <ul>
- *   <li>{@link org.opensearch.nativebridge.spi.stats.PluginStats} — marker interface for all backend stats</li>
- *   <li>{@link org.opensearch.nativebridge.spi.stats.BackendStatsProvider} — interface for backends to provide stats</li>
- *   <li>{@link org.opensearch.nativebridge.spi.stats.DataFusionStats} — top-level DataFusion stats container</li>
- *   <li>{@link org.opensearch.nativebridge.spi.stats.NativeExecutorsStats} — native executor metrics</li>
+ *   <li>{@link org.opensearch.plugin.stats.PluginStats} — marker interface for all backend stats</li>
+ *   <li>{@link org.opensearch.plugin.stats.BackendStatsProvider} — interface for backends to provide stats</li>
+ *   <li>{@link org.opensearch.plugin.stats.DataFusionStats} — top-level DataFusion stats container</li>
+ *   <li>{@link org.opensearch.plugin.stats.NativeExecutorsStats} — native executor metrics</li>
  * </ul>
  */
-package org.opensearch.nativebridge.spi.stats;
+package org.opensearch.plugin.stats;

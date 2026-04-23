@@ -11,10 +11,10 @@ package org.opensearch.be.datafusion.stats;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.nativebridge.spi.stats.DataFusionStats;
-import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats;
-import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats.TaskMonitorStats;
+import org.opensearch.plugin.stats.DataFusionStats;
+import org.opensearch.plugin.stats.NativeExecutorsStats;
+import org.opensearch.plugin.stats.NativeExecutorsStats.RuntimeMetrics;
+import org.opensearch.plugin.stats.NativeExecutorsStats.TaskMonitorStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

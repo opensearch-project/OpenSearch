@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.nativebridge.spi.stats;
+package org.opensearch.plugin.stats;
 
 /**
  * Marker interface for all backend stats types in the Mustang Stats Framework.

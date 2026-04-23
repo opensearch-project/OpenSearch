@@ -42,6 +42,10 @@ subprojects {
   project.afterEvaluate {
     if (!project.path.equals(':libs:agent-sm:agent')) {
         configurations.all { Configuration conf ->
+          // Allow propertyTest configurations to depend on other libs (test-only)
+          if (conf.name.startsWith('propertyTest')) {
+            return
+          }
           dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
             Project depProject = project.project(dep.path)
             if (depProject != null

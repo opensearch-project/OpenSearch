@@ -16,10 +16,11 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.nativebridge.spi.stats.DataFusionStats;
-import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats;
-import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.nativebridge.spi.stats.NativeExecutorsStats.TaskMonitorStats;
+import org.opensearch.plugin.stats.DataFusionStats;
+import org.opensearch.plugin.stats.NativeExecutorsStats;
+import org.opensearch.plugin.stats.NativeExecutorsStats.OperationType;
+import org.opensearch.plugin.stats.NativeExecutorsStats.RuntimeMetrics;
+import org.opensearch.plugin.stats.NativeExecutorsStats.TaskMonitorStats;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -61,9 +62,6 @@ public class DataFusionStatsPropertyTests {
 
     /** JSON field names for TaskMonitorStats in documented order (3 fields). */
     private static final String[] TASK_FIELD_NAMES = { "total_poll_duration_ms", "total_scheduled_duration_ms", "total_idle_duration_ms" };
-
-    /** Operation type keys under task_monitors, in documented order. */
-    private static final String[] OPERATION_TYPES = { "query_execution", "stream_next", "fetch_phase", "segment_stats" };
 
     // ---- Object generators ----
 
@@ -185,11 +183,11 @@ public class DataFusionStatsPropertyTests {
         JsonNode taskMonitors = nativeExecutors.get("task_monitors");
         assertNotNull(taskMonitors, "task_monitors must be present");
         assertEquals(4, taskMonitors.size());
-        for (String opType : OPERATION_TYPES) {
-            JsonNode monitor = taskMonitors.get(opType);
-            assertNotNull(monitor, "task_monitors." + opType + " must be present");
+        for (OperationType opType : OperationType.values()) {
+            JsonNode monitor = taskMonitors.get(opType.key());
+            assertNotNull(monitor, "task_monitors." + opType.key() + " must be present");
             assertEquals(3, monitor.size());
-            verifyTaskMonitorFields(nes.getTaskMonitors().get(opType), monitor, opType);
+            verifyTaskMonitorFields(nes.getTaskMonitors().get(opType.key()), monitor, opType.key());
         }
     }
 
@@ -219,11 +217,11 @@ public class DataFusionStatsPropertyTests {
         JsonNode taskMonitors = nativeExecutors.get("task_monitors");
         assertNotNull(taskMonitors);
         assertEquals(4, taskMonitors.size());
-        for (String opType : OPERATION_TYPES) {
-            JsonNode monitor = taskMonitors.get(opType);
+        for (OperationType opType : OperationType.values()) {
+            JsonNode monitor = taskMonitors.get(opType.key());
             assertNotNull(monitor);
             assertEquals(3, monitor.size());
-            verifyTaskMonitorFields(nes.getTaskMonitors().get(opType), monitor, opType);
+            verifyTaskMonitorFields(nes.getTaskMonitors().get(opType.key()), monitor, opType.key());
         }
     }
 

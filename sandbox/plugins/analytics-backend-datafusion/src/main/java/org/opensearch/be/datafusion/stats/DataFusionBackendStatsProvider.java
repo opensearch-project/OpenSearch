@@ -9,8 +9,8 @@
 package org.opensearch.be.datafusion.stats;
 
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
-import org.opensearch.nativebridge.spi.stats.BackendStatsProvider;
-import org.opensearch.nativebridge.spi.stats.PluginStats;
+import org.opensearch.plugin.stats.BackendStatsProvider;
+import org.opensearch.plugin.stats.PluginStats;
 
 /**
  * DataFusion implementation of {@link BackendStatsProvider}.

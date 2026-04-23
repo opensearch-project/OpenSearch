@@ -17,7 +17,7 @@ import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.nativebridge.spi.stats.DataFusionStats;
+import org.opensearch.plugin.stats.DataFusionStats;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLong;
