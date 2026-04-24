@@ -54,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -88,7 +89,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         ActionListener<SearchResponse> listener,
         GroupShardsIterator<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,
-        ClusterState clusterState,
+        Supplier<ClusterState> clusterStateSupplier,
         SearchTask task,
         Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
         SearchResponse.Clusters clusters,
@@ -109,7 +110,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             listener,
             shardsIts,
             timeProvider,
-            clusterState,
+            clusterStateSupplier,
             task,
             new CanMatchSearchPhaseResults(shardsIts.size()),
             shardsIts.size(),
