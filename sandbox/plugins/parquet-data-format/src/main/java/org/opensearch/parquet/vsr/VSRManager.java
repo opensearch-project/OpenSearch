@@ -56,7 +56,8 @@ public class VSRManager implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(VSRManager.class);
 
     private final AtomicReference<ManagedVSR> managedVSR = new AtomicReference<>();
-    private final String fileName;
+    private final String objectPath;
+    private final long storePointer;
     private final VSRPool vsrPool;
     private final ThreadPool threadPool;
     private final String vsrRotationThread;
@@ -67,20 +68,29 @@ public class VSRManager implements AutoCloseable {
     /**
      * Creates a new VSRManager with asynchronous background writes (production default).
      *
-     * @param fileName output Parquet file path
+     * @param storePointer native ObjectStore pointer (shard-scoped)
+     * @param objectPath relative path within the store
      * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
      * @param maxRowsPerVSR row threshold triggering VSR rotation
      * @param threadPool the thread pool for background native writes
      */
-    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR, ThreadPool threadPool) {
-        this(fileName, schema, bufferPool, maxRowsPerVSR, threadPool, true);
+    public VSRManager(
+        long storePointer,
+        String objectPath,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool
+    ) {
+        this(storePointer, objectPath, schema, bufferPool, maxRowsPerVSR, threadPool, true);
     }
 
     /**
      * Creates a new VSRManager.
      *
-     * @param fileName output Parquet file path
+     * @param storePointer native ObjectStore pointer (shard-scoped)
+     * @param objectPath relative path within the store
      * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
      * @param maxRowsPerVSR row threshold triggering VSR rotation
@@ -89,15 +99,17 @@ public class VSRManager implements AutoCloseable {
      *                 if false, they run on the calling thread (for benchmarks/tests)
      */
     public VSRManager(
-        String fileName,
+        long storePointer,
+        String objectPath,
         Schema schema,
         ArrowBufferPool bufferPool,
         int maxRowsPerVSR,
         ThreadPool threadPool,
         boolean runAsync
     ) {
-        this.fileName = fileName;
-        this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
+        this.storePointer = storePointer;
+        this.objectPath = objectPath;
+        this.vsrPool = new VSRPool("pool-" + objectPath, schema, bufferPool, maxRowsPerVSR);
         this.threadPool = threadPool;
         this.vsrRotationThread = runAsync ? ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME : ThreadPool.Names.SAME;
         this.managedVSR.set(vsrPool.getActiveVSR());
@@ -141,10 +153,10 @@ public class VSRManager implements AutoCloseable {
         if (rotated == false) {
             return;
         }
-        logger.debug("VSR rotation occurred for {}", fileName);
+        logger.debug("VSR rotation occurred for {}", objectPath);
         ManagedVSR frozenVSR = vsrPool.getFrozenVSR();
         if (frozenVSR != null) {
-            logger.debug("Writing frozen VSR {} ({} rows) for {}", frozenVSR.getId(), frozenVSR.getRowCount(), fileName);
+            logger.debug("Writing frozen VSR {} ({} rows) for {}", frozenVSR.getId(), frozenVSR.getRowCount(), objectPath);
             Runnable writeTask = () -> {
                 try (ArrowExport export = frozenVSR.exportToArrow()) {
                     writer.write(export.getArrayAddress(), export.getSchemaAddress());
@@ -161,7 +173,7 @@ public class VSRManager implements AutoCloseable {
             throw new IOException("No active VSR available after rotation");
         }
         managedVSR.set(newVSR);
-        logger.debug("VSR rotation completed for {}, new active VSR: {}", fileName, newVSR.getId());
+        logger.debug("VSR rotation completed for {}, new active VSR: {}", objectPath, newVSR.getId());
     }
 
     /**
@@ -173,7 +185,7 @@ public class VSRManager implements AutoCloseable {
         awaitPendingWrite(ROTATION_TIMEOUT, false);
         ManagedVSR currentVSR = managedVSR.get();
         if (currentVSR != null && currentVSR.getRowCount() > 0) {
-            logger.info("Flushing {} rows for {}", currentVSR.getRowCount(), fileName);
+            logger.info("Flushing {} rows for {}", currentVSR.getRowCount(), objectPath);
             currentVSR.moveToFrozen();
             try (ArrowExport export = currentVSR.exportToArrow()) {
                 writer.write(export.getArrayAddress(), export.getSchemaAddress());
@@ -182,16 +194,16 @@ public class VSRManager implements AutoCloseable {
             managedVSR.set(null);
         }
         ParquetFileMetadata metadata = writer.flush();
-        logger.debug("Flush completed for {} with metadata: {}", fileName, metadata);
+        logger.debug("Flush completed for {} with metadata: {}", objectPath, metadata);
         return metadata;
     }
 
     /**
-     * Syncs the Parquet file to disk. Must be called after {@link #flush()}.
+     * Syncs the Parquet file to durable storage. No-op for ObjectStore-backed writers
+     * since ObjectStore handles durability on finalize.
      */
     public void sync() throws IOException {
         awaitPendingWrite(ROTATION_TIMEOUT, false);
-        writer.sync();
     }
 
     @Override
@@ -204,7 +216,7 @@ public class VSRManager implements AutoCloseable {
             vsrPool.close();
             managedVSR.set(null);
         } catch (Exception e) {
-            logger.error("Error during close for {}: {}", fileName, e.getMessage());
+            logger.error("Error during close for {}: {}", objectPath, e.getMessage());
             throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
         }
     }
@@ -212,7 +224,7 @@ public class VSRManager implements AutoCloseable {
     private void initializeWriter() {
         ArrowSchema arrowSchema = managedVSR.get().exportSchema();
         try {
-            writer = new NativeParquetWriter(fileName, arrowSchema.memoryAddress());
+            writer = new NativeParquetWriter(storePointer, objectPath, arrowSchema.memoryAddress());
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
         } finally {
@@ -239,12 +251,12 @@ public class VSRManager implements AutoCloseable {
             }
         } catch (TimeoutException e) {
             if (ignoreTimeout) {
-                logger.warn("Timed out waiting for background VSR write for {}", fileName);
+                logger.warn("Timed out waiting for background VSR write for {}", objectPath);
             } else {
-                throw new IOException("Timed out waiting for background VSR write for " + fileName, e);
+                throw new IOException("Timed out waiting for background VSR write for " + objectPath, e);
             }
         } catch (Exception e) {
-            throw new IOException("Background VSR write failed for " + fileName, e.getCause());
+            throw new IOException("Background VSR write failed for " + objectPath, e.getCause());
         } finally {
             pendingWrite = null;
         }

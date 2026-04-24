@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.store.ShardNativeStore;
 import org.opensearch.index.store.Store;
 
 /**
@@ -24,10 +25,11 @@ import org.opensearch.index.store.Store;
  * @param indexSettings the index-level settings
  * @param store the shard's store, or null if not available
  * @param registry DataFormatRegistry containing information about registered data formats.
+ * @param shardNativeStore the shard-scoped native object store, or {@link ShardNativeStore#EMPTY}
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public record IndexingEngineConfig(Committer committer, MapperService mapperService, IndexSettings indexSettings, Store store,
-    DataFormatRegistry registry) {
+    DataFormatRegistry registry, ShardNativeStore shardNativeStore) {
 }

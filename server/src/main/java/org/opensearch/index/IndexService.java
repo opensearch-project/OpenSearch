@@ -78,6 +78,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.IndexerFactory;
@@ -100,6 +101,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
+import org.opensearch.index.store.NativeStoreFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -118,7 +120,9 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.threadpool.ThreadPool;
@@ -797,7 +801,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
                 path,
-                directoryFactory
+                directoryFactory,
+                resolveNativeStoreFactory(repositoriesService)
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -1358,6 +1363,31 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         logger.debug("No DataFormatAwareStoreDirectoryFactory available, Store will handle internal creation for: {}", shardPath);
         return null;
+    }
+
+    /**
+     * Resolves a {@link NativeStoreFactory} for this index. If the index has a pluggable data format
+     * and a remote store repository, the factory captures the repository-level native store and
+     * delegates to the data format plugin for shard-level scoping. Otherwise returns {@link NativeStoreFactory#EMPTY}.
+     */
+    private NativeStoreFactory resolveNativeStoreFactory(RepositoriesService repositoriesService) {
+        String formatName = this.indexSettings.pluggableDataFormat();
+        if (formatName == null || dataFormatRegistry == null) {
+            return NativeStoreFactory.EMPTY;
+        }
+
+        NativeStoreRepository repoStore = NativeStoreRepository.EMPTY;
+        String repoName = this.indexSettings.getRemoteStoreRepository();
+        if (repoName != null) {
+            try {
+                repoStore = repositoriesService.repository(repoName).getNativeStore();
+            } catch (RepositoryMissingException e) {
+                logger.warn("Native store not available for repository [{}]", repoName);
+            }
+        }
+
+        DataFormat format = dataFormatRegistry.format(formatName);
+        return dataFormatRegistry.getNativeStoreFactory(format, repoStore);
     }
 
     private void updateFsyncTaskIfNecessary() {

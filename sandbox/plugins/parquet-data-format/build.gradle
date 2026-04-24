@@ -17,6 +17,9 @@ dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
+  // FS native store plugin (test-only, for creating local ObjectStore handles)
+  testImplementation project(':sandbox:plugins:native-repository-fs')
+
   // Apache Arrow dependencies
   implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
   implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"

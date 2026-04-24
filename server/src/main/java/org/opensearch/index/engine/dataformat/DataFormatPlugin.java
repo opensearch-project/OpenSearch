@@ -11,6 +11,8 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.store.NativeStoreFactory;
+import org.opensearch.repositories.NativeStoreRepository;
 
 import java.util.Map;
 
@@ -53,5 +55,23 @@ public interface DataFormatPlugin {
      */
     default Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         return Map.of();
+    }
+
+    /**
+     * Returns a factory that creates shard-scoped native object store handles.
+     * The factory captures the repository-level native store internally and
+     * scopes it to a shard path when {@link NativeStoreFactory#create} is called.
+     *
+     * <p>Called once per index at shard creation time. The returned factory is
+     * stored on the {@link org.opensearch.index.store.Store} and invoked by the engine to create the
+     * shard-scoped handle.
+     *
+     * <p>The default implementation returns {@link NativeStoreFactory#EMPTY}.
+     *
+     * @param repoStore the repository-level native store, or {@link NativeStoreRepository#EMPTY}
+     * @return a factory that produces shard-scoped handles
+     */
+    default NativeStoreFactory getNativeStoreFactory(NativeStoreRepository repoStore) {
+        return NativeStoreFactory.EMPTY;
     }
 }

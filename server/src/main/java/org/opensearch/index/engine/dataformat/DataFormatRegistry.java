@@ -16,8 +16,11 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.store.NativeStoreFactory;
+import org.opensearch.index.store.ShardNativeStore;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
+import org.opensearch.repositories.NativeStoreRepository;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -112,6 +115,22 @@ public class DataFormatRegistry {
     }
 
     /**
+     * Returns a factory that creates shard-scoped native object store handles for the given data format.
+     * Delegates to {@link DataFormatPlugin#getNativeStoreFactory(NativeStoreRepository)}.
+     *
+     * @param format the data format
+     * @param repoStore the repository-level native store
+     * @return a factory that produces shard-scoped handles, or {@link NativeStoreFactory#EMPTY}
+     */
+    public NativeStoreFactory getNativeStoreFactory(DataFormat format, NativeStoreRepository repoStore) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+        if (plugin == null) {
+            return NativeStoreFactory.EMPTY;
+        }
+        return plugin.getNativeStoreFactory(repoStore);
+    }
+
+    /**
      * Returns all registered data formats that support a specific capability for a field type.
      *
      * @param fieldType the field type name
@@ -170,6 +189,7 @@ public class DataFormatRegistry {
      * @param mapperService the mapper service for field mapping resolution (reserved for future filtering)
      * @param indexSettings the index settings (reserved for future filtering)
      * @param shardPath the shard path used to create reader managers
+     * @param shardNativeStore the shard-scoped native object store
      * @return a map from data format to its reader manager
      * @throws IOException if reader manager creation fails
      */
@@ -177,13 +197,14 @@ public class DataFormatRegistry {
         Optional<IndexStoreProvider> indexStoreProvider,
         MapperService mapperService,
         IndexSettings indexSettings,
-        ShardPath shardPath
+        ShardPath shardPath,
+        ShardNativeStore shardNativeStore
     ) throws IOException {
         // TODO: Filter based on index settings
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
         for (Map.Entry<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
             .entrySet()) {
-            ReaderManagerConfig settings = new ReaderManagerConfig(indexStoreProvider, entry.getKey(), shardPath);
+            ReaderManagerConfig settings = new ReaderManagerConfig(indexStoreProvider, entry.getKey(), shardPath, shardNativeStore);
             readerManagers.put(entry.getKey(), entry.getValue().apply(settings));
         }
         return readerManagers;

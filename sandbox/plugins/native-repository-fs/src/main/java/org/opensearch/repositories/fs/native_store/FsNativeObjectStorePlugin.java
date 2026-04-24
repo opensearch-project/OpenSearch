@@ -115,4 +115,21 @@ public class FsNativeObjectStorePlugin extends Plugin implements NativeRemoteObj
             return builder.toString();
         }
     }
+
+    /**
+     * Creates a local FS ObjectStore for testing. Returns the native pointer.
+     *
+     * @param rootPath the root directory for the local filesystem store
+     * @return native ObjectStore pointer, or 0 on failure
+     */
+    public static long createTestStore(final String rootPath) throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            builder.field("base_path", rootPath);
+            builder.endObject();
+            final String configJson = builder.toString();
+            final FsNativeObjectStorePlugin plugin = new FsNativeObjectStorePlugin();
+            return plugin.invokeCreateStore(configJson);
+        }
+    }
 }

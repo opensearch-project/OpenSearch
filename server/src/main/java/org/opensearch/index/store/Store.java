@@ -186,6 +186,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final boolean isParentFieldEnabledVersion;
     private final boolean isIndexSortEnabled;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
+    private final NativeStoreFactory nativeStoreFactory;
 
     // used to ref count files when a new Reader is opened for PIT/Scroll queries
     // prevents segment files deletion until the PIT/Scroll expires or is discarded
@@ -199,7 +200,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     };
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null, null);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null, null, NativeStoreFactory.EMPTY);
     }
 
     public Store(
@@ -210,7 +211,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         OnClose onClose,
         ShardPath shardPath
     ) {
-        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, null);
+        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, null, NativeStoreFactory.EMPTY);
     }
 
     public Store(
@@ -221,6 +222,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         OnClose onClose,
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory directoryFactory
+    ) {
+        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory, NativeStoreFactory.EMPTY);
+    }
+
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        ShardPath shardPath,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        NativeStoreFactory nativeStoreFactory
     ) {
         super(shardId, indexSettings);
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
@@ -233,10 +247,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.isIndexSortEnabled = indexSettings.getIndexSortConfig().hasIndexSort();
         this.isParentFieldEnabledVersion = indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0);
         this.directoryFactory = directoryFactory;
+        this.nativeStoreFactory = nativeStoreFactory != null ? nativeStoreFactory : NativeStoreFactory.EMPTY;
 
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
+    }
+
+    /**
+     * Returns the factory for creating a shard-scoped native object store handle.
+     * The factory encapsulates the repository-level store and scopes it to the shard
+     * when {@link NativeStoreFactory#create(ShardPath)} is called.
+     *
+     * @return the native store factory, never null
+     */
+    public NativeStoreFactory getNativeStoreFactory() {
+        return nativeStoreFactory;
     }
 
     public Directory directory() {

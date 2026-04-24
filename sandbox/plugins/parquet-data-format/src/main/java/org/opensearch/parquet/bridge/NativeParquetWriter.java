@@ -16,12 +16,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Type-safe handle for the native Rust Parquet writer with lifecycle management.
  *
- * <p>Wraps the stateless JNI methods in {@link RustBridge} with a file-scoped lifecycle:
+ * <p>Handle-based: the Rust side holds the writer state, Java holds the handle.
+ * No global map on the Rust side — each writer is independent.
+ *
  * <ol>
- *   <li>{@code new NativeParquetWriter(filePath, schemaAddress)} — creates the native writer</li>
+ *   <li>{@code new NativeParquetWriter(storePointer, objectPath, schemaAddress)} — creates the native writer</li>
  *   <li>{@link #write(long, long)} — sends one or more Arrow batches (repeatable)</li>
- *   <li>{@link #flush()} — finalizes the Parquet file and returns metadata</li>
- *   <li>{@link #sync()} — fsyncs the file to durable storage (calls flush if needed)</li>
+ *   <li>{@link #flush()} — finalizes the Parquet file, uploads to ObjectStore, returns metadata</li>
  * </ol>
  *
  * <p>This class is not thread-safe. External synchronization is required
@@ -30,19 +31,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class NativeParquetWriter {
 
     private final AtomicBoolean writerFlushed = new AtomicBoolean(false);
-    private final String filePath;
+    private final long writerHandle;
+    private final String objectPath;
     private final SetOnce<ParquetFileMetadata> metadata = new SetOnce<>();
 
     /**
-     * Creates a new NativeParquetWriter.
+     * Creates a new NativeParquetWriter backed by an ObjectStore.
      *
-     * @param filePath      the path to the Parquet file to write
+     * @param storePointer  the native ObjectStore pointer (shard-scoped)
+     * @param objectPath    relative path within the store (e.g., "gen_1/data_0.parquet")
      * @param schemaAddress the native memory address of the Arrow schema
      * @throws IOException if the native writer creation fails
      */
-    public NativeParquetWriter(String filePath, long schemaAddress) throws IOException {
-        this.filePath = filePath;
-        RustBridge.createWriter(filePath, schemaAddress);
+    public NativeParquetWriter(long storePointer, String objectPath, long schemaAddress) throws IOException {
+        this.objectPath = objectPath;
+        this.writerHandle = RustBridge.createWriter(storePointer, objectPath, schemaAddress);
     }
 
     /**
@@ -54,35 +57,23 @@ public class NativeParquetWriter {
      */
     public void write(long arrayAddress, long schemaAddress) throws IOException {
         if (writerFlushed.get()) {
-            throw new IOException("Cannot write to flushed Parquet writer: " + filePath);
+            throw new IOException("Cannot write to flushed Parquet writer: " + objectPath);
         }
-        RustBridge.write(filePath, arrayAddress, schemaAddress);
+        RustBridge.write(writerHandle, arrayAddress, schemaAddress);
     }
 
     /**
-     * Finalizes the Parquet file and returns metadata.
+     * Finalizes the Parquet file, uploads to ObjectStore, and returns metadata.
+     * The writer handle is consumed regardless of success or failure.
      *
      * @return the file metadata
      * @throws IOException if the finalization fails
      */
     public ParquetFileMetadata flush() throws IOException {
         if (writerFlushed.compareAndSet(false, true)) {
-            metadata.set(RustBridge.finalizeWriter(filePath));
+            metadata.set(RustBridge.finalizeWriter(writerHandle));
         }
         return metadata.get();
-    }
-
-    /**
-     * Syncs the Parquet file to disk.
-     * If flush has not been called yet, it will be called first.
-     *
-     * @throws IOException if the sync fails
-     */
-    public void sync() throws IOException {
-        if (!writerFlushed.get()) {
-            flush();
-        }
-        RustBridge.syncToDisk(filePath);
     }
 
     /**
@@ -93,5 +84,4 @@ public class NativeParquetWriter {
     public ParquetFileMetadata getMetadata() {
         return metadata.get();
     }
-
 }

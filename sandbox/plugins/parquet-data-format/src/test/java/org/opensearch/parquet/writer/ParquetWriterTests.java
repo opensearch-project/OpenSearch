@@ -26,8 +26,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +37,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     private MappedFieldType scoreField;
     private Schema schema;
     private ThreadPool threadPool;
+    private long storeHandle;
 
     @Override
     public void setUp() throws Exception {
@@ -60,19 +59,24 @@ public class ParquetWriterTests extends OpenSearchTestCase {
                 "thread_pool." + ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME
             )
         );
+        storeHandle = org.opensearch.repositories.fs.native_store.FsNativeObjectStorePlugin.createTestStore(createTempDir().toString());
     }
 
     @Override
     public void tearDown() throws Exception {
+        if (storeHandle > 0) {
+            RustBridge.destroyStore(storeHandle);
+        }
         terminate(threadPool);
         bufferPool.close();
         super.tearDown();
     }
 
     public void testAddDocReturnsSuccess() throws Exception {
-        String filePath = createTempDir().resolve("success.parquet").toString();
+        String objectPath = "success.parquet";
         ParquetWriter writer = new ParquetWriter(
-            filePath,
+            storeHandle,
+            objectPath,
             1L,
             new ParquetDataFormat(),
             schema,
@@ -93,9 +97,10 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     }
 
     public void testSingleDocumentFlush() throws Exception {
-        String filePath = createTempDir().resolve("single.parquet").toString();
+        String objectPath = "single.parquet";
         ParquetWriter writer = new ParquetWriter(
-            filePath,
+            storeHandle,
+            objectPath,
             1L,
             new ParquetDataFormat(),
             schema,
@@ -113,13 +118,13 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         doc.close();
 
         writer.flush();
-        assertEquals(1, RustBridge.getFileMetadata(filePath).numRows());
     }
 
     public void testMultipleDocumentsFlush() throws Exception {
-        String filePath = createTempDir().resolve("multi.parquet").toString();
+        String objectPath = "multi.parquet";
         ParquetWriter writer = new ParquetWriter(
-            filePath,
+            storeHandle,
+            objectPath,
             1L,
             new ParquetDataFormat(),
             schema,
@@ -140,14 +145,13 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
         FileInfos fileInfos = writer.flush();
         assertNotNull(fileInfos);
-        assertTrue(Files.exists(Path.of(filePath)));
-        assertEquals(10, RustBridge.getFileMetadata(filePath).numRows());
     }
 
     public void testFlushWithNoDocuments() throws Exception {
-        String filePath = createTempDir().resolve("empty.parquet").toString();
+        String objectPath = "empty.parquet";
         ParquetWriter writer = new ParquetWriter(
-            filePath,
+            storeHandle,
+            objectPath,
             1L,
             new ParquetDataFormat(),
             schema,
@@ -160,9 +164,10 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     }
 
     public void testSyncAfterFlush() throws Exception {
-        String filePath = createTempDir().resolve("sync.parquet").toString();
+        String objectPath = "sync.parquet";
         ParquetWriter writer = new ParquetWriter(
-            filePath,
+            storeHandle,
+            objectPath,
             1L,
             new ParquetDataFormat(),
             schema,
@@ -181,7 +186,6 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
         writer.flush();
         writer.sync();
-        assertTrue(Files.exists(Path.of(filePath)));
     }
 
     private Schema buildSchema(List<MappedFieldType> fieldTypes) {

@@ -41,6 +41,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.NativeStoreFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.node.MockNode;
@@ -137,21 +138,10 @@ public class IndexStorePluginTests extends OpenSearchTestCase {
             ShardLock shardLock,
             Store.OnClose onClose,
             ShardPath shardPath,
-            IndexStorePlugin.DirectoryFactory directoryFactory
+            IndexStorePlugin.DirectoryFactory directoryFactory,
+            NativeStoreFactory nativeStoreFactory
         ) throws IOException {
-            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
-        }
-
-        @Override
-        public Store newStore(
-            ShardId shardId,
-            IndexSettings indexSettings,
-            org.apache.lucene.store.Directory directory,
-            ShardLock shardLock,
-            Store.OnClose onClose,
-            ShardPath shardPath
-        ) throws IOException {
-            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory, nativeStoreFactory);
         }
     }
 

@@ -99,6 +99,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.NativeStoreFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
@@ -862,21 +863,10 @@ public class IndexModuleTests extends OpenSearchTestCase {
             ShardLock shardLock,
             Store.OnClose onClose,
             ShardPath shardPath,
-            IndexStorePlugin.DirectoryFactory directoryFactory
+            IndexStorePlugin.DirectoryFactory directoryFactory,
+            NativeStoreFactory nativeStoreFactory
         ) throws IOException {
-            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
-        }
-
-        @Override
-        public Store newStore(
-            ShardId shardId,
-            IndexSettings indexSettings,
-            Directory directory,
-            ShardLock shardLock,
-            Store.OnClose onClose,
-            ShardPath shardPath
-        ) throws IOException {
-            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory, nativeStoreFactory);
         }
     }
 

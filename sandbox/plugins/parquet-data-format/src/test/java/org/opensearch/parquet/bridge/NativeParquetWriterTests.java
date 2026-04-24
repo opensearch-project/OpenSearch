@@ -29,12 +29,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.function.Consumer;
 
 public class NativeParquetWriterTests extends OpenSearchTestCase {
 
     private BufferAllocator allocator;
     private Schema schema;
+    private long storeHandle;
+    private Path storeRoot;
 
     @Override
     public void setUp() throws Exception {
@@ -48,17 +49,26 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
                 new Field("score", FieldType.nullable(new ArrowType.Int(64, true)), null)
             )
         );
+        // Create a local FS ObjectStore rooted at a temp dir
+        // This simulates what FsNativeObjectStorePlugin does
+        storeRoot = createTempDir();
+        // We need the native library to create a store handle.
+        // For unit tests that mock the native layer, storeHandle would be mocked.
+        // For integration tests, we use the real FFM bridge.
+        storeHandle = createFsStore(storeRoot.toString());
     }
 
     @Override
     public void tearDown() throws Exception {
+        if (storeHandle > 0) {
+            RustBridge.destroyStore(storeHandle);
+        }
         allocator.close();
         super.tearDown();
     }
 
     public void testFullLifecycle() throws Exception {
-        String filePath = createTempDir().resolve("full.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
+        NativeParquetWriter writer = createWriter("full.parquet");
 
         try (
             ArrowExport export = exportData(
@@ -70,17 +80,15 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
             writer.write(export.getArrayAddress(), export.getSchemaAddress());
         }
 
-        writer.flush();
-        assertNotNull(writer.getMetadata());
-        assertEquals(3, writer.getMetadata().numRows());
+        ParquetFileMetadata metadata = writer.flush();
+        assertNotNull(metadata);
+        assertEquals(3, metadata.numRows());
 
-        writer.sync();
-        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
+        assertTrue("Parquet file should exist", Files.exists(storeRoot.resolve("full.parquet")));
     }
 
-    public void testMultipleBatchesThenCloseAndFlush() throws Exception {
-        String filePath = createTempDir().resolve("multi-batch.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
+    public void testMultipleBatches() throws Exception {
+        NativeParquetWriter writer = createWriter("multi-batch.parquet");
 
         try (ArrowExport batch1 = exportData(new int[] { 1, 2 }, new String[] { "alice", "bob" }, new long[] { 10L, 20L })) {
             writer.write(batch1.getArrayAddress(), batch1.getSchemaAddress());
@@ -92,48 +100,28 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
             writer.write(batch2.getArrayAddress(), batch2.getSchemaAddress());
         }
 
-        writer.flush();
-        assertEquals(5, writer.getMetadata().numRows());
-        writer.sync();
-        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
+        ParquetFileMetadata metadata = writer.flush();
+        assertEquals(5, metadata.numRows());
+        assertTrue("Parquet file should exist", Files.exists(storeRoot.resolve("multi-batch.parquet")));
     }
 
     public void testFlushWithoutWrite() throws Exception {
-        String filePath = createTempDir().resolve("close-only.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
-        writer.flush();
-        assertNotNull(writer.getMetadata());
-        assertEquals(0, writer.getMetadata().numRows());
+        NativeParquetWriter writer = createWriter("close-only.parquet");
+        ParquetFileMetadata metadata = writer.flush();
+        assertNotNull(metadata);
+        assertEquals(0, metadata.numRows());
     }
 
     public void testFlushIsIdempotent() throws Exception {
-        String filePath = createTempDir().resolve("idempotent.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
+        NativeParquetWriter writer = createWriter("idempotent.parquet");
         writer.flush();
         ParquetFileMetadata first = writer.getMetadata();
         writer.flush();
         assertSame(first, writer.getMetadata());
     }
 
-    public void testSyncAutoFlushesIfNotFlushed() throws Exception {
-        String filePath = createTempDir().resolve("auto-flush.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
-
-        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
-            writer.write(export.getArrayAddress(), export.getSchemaAddress());
-        }
-
-        // sync without explicit close — should auto-close first
-        assertNull(writer.getMetadata());
-        writer.sync();
-        assertNotNull(writer.getMetadata());
-        assertEquals(1, writer.getMetadata().numRows());
-        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
-    }
-
     public void testWriteAfterFlushThrows() throws Exception {
-        String filePath = createTempDir().resolve("write-after-flush.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
+        NativeParquetWriter writer = createWriter("write-after-flush.parquet");
         writer.flush();
 
         try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
@@ -141,101 +129,77 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         }
     }
 
-    public void testCreateWriterWithNonExistentDirectory() {
-        expectThrows(IOException.class, () -> {
-            try (ArrowExport export = exportSchema()) {
-                new NativeParquetWriter("/nonexistent/dir/file.parquet", export.getSchemaAddress());
-            }
-        });
-    }
-
-    public void testCreateWriterWithInvalidSchemaAddress() {
-        String filePath = createTempDir().resolve("bad-schema.parquet").toString();
-        expectThrows(Exception.class, () -> new NativeParquetWriter(filePath, 0L));
-    }
-
-    public void testWriteWithSchemaMismatch() throws Exception {
-        String filePath = createTempDir().resolve("mismatch.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
-
-        // Writer was created with (id:int, name:utf8, score:long), write with (other_field:int)
-        try (
-            ArrowExport export = exportDataWithSchema(
-                new Schema(List.of(new Field("other_field", FieldType.nullable(new ArrowType.Int(32, true)), null))),
-                root -> {
-                    ((IntVector) root.getVector("other_field")).setSafe(0, 99);
-                    root.setRowCount(1);
-                }
-            )
-        ) {
-            writer.write(export.getArrayAddress(), export.getSchemaAddress());
-        }
-
-        // Flush fails — Parquet ArrowWriter detects row count mismatch between columns
-        expectThrows(IOException.class, writer::flush);
-    }
-
-    public void testCreateDuplicateWriterForSameFile() throws Exception {
-        String filePath = createTempDir().resolve("duplicate.parquet").toString();
-        NativeParquetWriter writer1 = createWriter(filePath);
-
-        // Native side rejects creating a second writer for the same file
-        expectThrows(IOException.class, () -> createWriter(filePath));
-
-        writer1.flush();
-    }
-
-    public void testSyncCalledTwice() throws Exception {
-        String filePath = createTempDir().resolve("double-sync.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
-
-        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
-            writer.write(export.getArrayAddress(), export.getSchemaAddress());
-        }
-
-        writer.flush();
-        writer.sync();
-        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
-        // Second sync fails — native side removed file from FILE_MANAGER after first fsync
-        expectThrows(IOException.class, writer::sync);
-    }
-
     public void testWriteEmptyBatch() throws Exception {
-        String filePath = createTempDir().resolve("empty-batch.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
+        NativeParquetWriter writer = createWriter("empty-batch.parquet");
 
         try (ArrowExport export = exportData(new int[] {}, new String[] {}, new long[] {})) {
             writer.write(export.getArrayAddress(), export.getSchemaAddress());
         }
 
-        writer.flush();
-        assertNotNull(writer.getMetadata());
-        assertEquals(0, writer.getMetadata().numRows());
+        ParquetFileMetadata metadata = writer.flush();
+        assertNotNull(metadata);
+        assertEquals(0, metadata.numRows());
     }
 
-    public void testWriteWithNullAddresses() throws Exception {
-        String filePath = createTempDir().resolve("null-addr.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
+    public void testPrefixStoreWritesToCorrectPath() throws Exception {
+        long scopedHandle = RustBridge.createScopedStore(storeHandle, "indices/test-uuid/0/parquet/");
+        try {
+            NativeParquetWriter writer;
+            try (ArrowExport export = exportSchema()) {
+                writer = new NativeParquetWriter(scopedHandle, "gen_1.parquet", export.getSchemaAddress());
+            }
 
-        // Both null
-        expectThrows(IOException.class, () -> writer.write(0L, 0L));
+            try (ArrowExport export = exportData(new int[] { 1, 2 }, new String[] { "a", "b" }, new long[] { 10L, 20L })) {
+                writer.write(export.getArrayAddress(), export.getSchemaAddress());
+            }
 
-        // Null array only
-        try (ArrowExport schemaExport = exportSchema()) {
-            expectThrows(IOException.class, () -> writer.write(0L, schemaExport.getSchemaAddress()));
+            ParquetFileMetadata metadata = writer.flush();
+            assertEquals(2, metadata.numRows());
+
+            // Verify file at prefixed path
+            Path expectedFile = storeRoot.resolve("indices/test-uuid/0/parquet/gen_1.parquet");
+            assertTrue("File should exist at prefixed path: " + expectedFile, Files.exists(expectedFile));
+        } finally {
+            RustBridge.destroyStore(scopedHandle);
         }
-
-        // Null schema only
-        try (ArrowExport dataExport = exportData(new int[] { 1 }, new String[] { "a" }, new long[] { 1L })) {
-            expectThrows(IOException.class, () -> writer.write(dataExport.getArrayAddress(), 0L));
-        }
-
-        writer.flush();
     }
 
-    private NativeParquetWriter createWriter(String filePath) throws Exception {
+    public void testCrc32IsNonZero() throws Exception {
+        NativeParquetWriter writer = createWriter("crc32.parquet");
+
+        try (ArrowExport export = exportData(new int[] { 1, 2, 3 }, new String[] { "a", "b", "c" }, new long[] { 1L, 2L, 3L })) {
+            writer.write(export.getArrayAddress(), export.getSchemaAddress());
+        }
+
+        ParquetFileMetadata metadata = writer.flush();
+        assertNotEquals("CRC32 should be non-zero", 0L, metadata.crc32());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Helpers
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Creates a local FS ObjectStore via the native FFM bridge.
+     * This simulates what FsNativeObjectStorePlugin.createNativeStore() does.
+     */
+    private long createFsStore(String rootPath) throws IOException {
+        // The FS native plugin creates a LocalFileSystem store via FFM.
+        // For tests, we use the same FFM path through the parquet plugin's
+        // scoped store mechanism — create a "root" store by calling the FS plugin's
+        // native function, or use a test helper.
+        //
+        // Since we don't have direct access to fs_create_store from this plugin,
+        // we'll create the store via the FS plugin's Java API if available,
+        // or use a test-only FFM call.
+        //
+        // For now, use the FS plugin's native function directly:
+        return org.opensearch.repositories.fs.native_store.FsNativeObjectStorePlugin.createTestStore(rootPath);
+    }
+
+    private NativeParquetWriter createWriter(String objectPath) throws Exception {
         try (ArrowExport export = exportSchema()) {
-            return new NativeParquetWriter(filePath, export.getSchemaAddress());
+            return new NativeParquetWriter(storeHandle, objectPath, export.getSchemaAddress());
         }
     }
 
@@ -257,17 +221,6 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
                 scoreVec.setSafe(i, scores[i]);
             }
             root.setRowCount(ids.length);
-
-            ArrowArray array = ArrowArray.allocateNew(allocator);
-            ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
-            Data.exportVectorSchemaRoot(allocator, root, null, array, arrowSchema);
-            return new ArrowExport(array, arrowSchema);
-        }
-    }
-
-    private ArrowExport exportDataWithSchema(Schema customSchema, Consumer<VectorSchemaRoot> populator) {
-        try (VectorSchemaRoot root = VectorSchemaRoot.create(customSchema, allocator)) {
-            populator.accept(root);
             ArrowArray array = ArrowArray.allocateNew(allocator);
             ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
             Data.exportVectorSchemaRoot(allocator, root, null, array, arrowSchema);

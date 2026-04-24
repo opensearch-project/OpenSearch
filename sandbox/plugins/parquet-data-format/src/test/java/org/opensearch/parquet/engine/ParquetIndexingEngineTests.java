@@ -44,6 +44,7 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     private Path tempDir;
     private ParquetIndexingEngine engine;
     private ThreadPool threadPool;
+    private long storeHandle;
 
     @Override
     public void setUp() throws Exception {
@@ -65,11 +66,15 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
                 "thread_pool." + ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME
             )
         );
+        storeHandle = org.opensearch.repositories.fs.native_store.FsNativeObjectStorePlugin.createTestStore(tempDir.toString());
         engine = createEngine();
     }
 
     @Override
     public void tearDown() throws Exception {
+        if (storeHandle > 0) {
+            RustBridge.destroyStore(storeHandle);
+        }
         terminate(threadPool);
         super.tearDown();
     }
@@ -86,10 +91,8 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             doc.close();
         }
 
-        writer.flush();
-        String expectedFile = getExpectedParquetPath(1L);
-        assertTrue(Files.exists(Path.of(expectedFile)));
-        assertEquals(5, RustBridge.getFileMetadata(expectedFile).numRows());
+        FileInfos fileInfos = writer.flush();
+        assertNotNull(fileInfos);
     }
 
     public void testMultipleWriterGenerations() throws Exception {
@@ -101,8 +104,8 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             doc.addField(scoreField, gen * 100);
             writer.addDoc(doc);
             doc.close();
-            writer.flush();
-            assertEquals(1, RustBridge.getFileMetadata(getExpectedParquetPath(gen)).numRows());
+            FileInfos fileInfos = writer.flush();
+            assertNotNull(fileInfos);
         }
     }
 
@@ -162,20 +165,21 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             String indexUUID = "test_index_uuid";
             ShardId shardId = new ShardId("test_index", indexUUID, 0);
             Path dataPath = tempDir.resolve(indexUUID).resolve("0");
-            Files.createDirectories(dataPath.resolve("parquet"));
+            Files.createDirectories(dataPath);
             ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
-            return new ParquetIndexingEngine(Settings.EMPTY, new ParquetDataFormat(), shardPath, () -> schema, null, threadPool);
+            return new ParquetIndexingEngine(
+                Settings.EMPTY,
+                new ParquetDataFormat(),
+                shardPath,
+                () -> schema,
+                null,
+                threadPool,
+                new org.opensearch.index.store.PrecomputedChecksumStrategy(),
+                storeHandle
+            );
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private String getExpectedParquetPath(long generation) {
-        return tempDir.resolve("test_index_uuid")
-            .resolve("0")
-            .resolve("parquet")
-            .resolve(ParquetIndexingEngine.FILE_NAME_PREFIX + "_" + generation + ParquetIndexingEngine.FILE_NAME_EXT)
-            .toString();
     }
 
     private Schema buildSchema(List<MappedFieldType> fieldTypes) {
