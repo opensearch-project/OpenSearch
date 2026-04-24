@@ -654,10 +654,10 @@ class S3Repository extends MeteredBlobStoreRepository {
             cannedACL,
             storageClass,
             serverSideEncryptionType,
-            serverSideEncryptionKmsKey,
+            Strings.hasLength(serverSideEncryptionKmsKey) ? "<set>" : "<unset>",
             serverSideEncryptionBucketKey,
-            serverSideEncryptionEncryptionContext,
-            expectedBucketOwner
+            Strings.hasLength(serverSideEncryptionEncryptionContext) ? "<set>" : "<unset>",
+            Strings.hasLength(expectedBucketOwner) ? "<set>" : "<unset>"
         );
     }
 
