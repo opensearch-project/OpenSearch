@@ -47,6 +47,11 @@ import io.substrait.proto.Rel;
  * Tests for {@link DataFusionFragmentConvertor}.
  * Builds Calcite RelNode trees in-process, converts them via the convertor,
  * then decodes the returned Substrait proto bytes and asserts on proto shape.
+ *
+ * <p>TODO: Add end-to-end tests that feed the generated Substrait bytes into
+ * the actual DataFusion native runtime (see {@link DataFusionQueryExecutionTests}
+ * for the pattern) to verify the plans execute correctly, not just that the
+ * proto structure is well-formed.
  */
 public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 

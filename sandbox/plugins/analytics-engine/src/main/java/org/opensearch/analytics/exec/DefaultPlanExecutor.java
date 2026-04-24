@@ -95,6 +95,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.scheduler = scheduler;
     }
 
+    // TODO: Extract plan → optimize → fork → convert → DAG into a dedicated component (e.g. QueryDAGBuilder)
+    // that takes the logical fragment and returns a fully-built DAG ready for scheduling.
+    // Also add per-step timing (plan, fork, convert, schedule, execute) for observability.
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));

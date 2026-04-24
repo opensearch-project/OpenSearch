@@ -70,6 +70,13 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Werror'
 }
 
+tasks.named('thirdPartyAudit').configure {
+  ignoreMissingClasses(
+    // Optional Calcite DDL parser — lives in calcite-server module, not needed at runtime
+    'org.apache.calcite.sql.parser.ddl.SqlDdlParserImpl'
+  )
+}
+
 // TODO: Remove once back-end is built out with test suite
 testingConventions.enabled = false
 
