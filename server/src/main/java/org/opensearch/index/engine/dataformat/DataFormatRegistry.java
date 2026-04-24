@@ -43,14 +43,17 @@ public class DataFormatRegistry {
     /** Map from data format to the plugin that provides its indexing engine. */
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
 
+    private final DeleteDataFormatPlugin deleteDataFormatPlugin;
+
     /** Map from data format to a factory that creates an {@link EngineReaderManager} for the given settings. */
     private final Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
 
     /**
-     * Creates a registry by discovering all {@link DataFormatPlugin} and {@link SearchBackEndPlugin} implementations
-     * from the given {@link PluginsService}. Registers each data format with its indexing plugin and reader manager factory.
+     * Creates a registry by discovering all {@link DataFormatPlugin}, {@link DeleteDataFormatPlugin},
+     * and {@link SearchBackEndPlugin} implementations from the given {@link PluginsService}.
+     * Registers each data format with its indexing plugin, delete plugin, and reader manager factory.
      *
      * @param pluginsService the plugins service used to discover data format plugins and search back-end plugins
      * @throws IllegalArgumentException if a data format is registered by more than one plugin
@@ -62,6 +65,7 @@ public class DataFormatRegistry {
         Map<String, DataFormat> dataFormats = new HashMap<>();
 
         for (DataFormatPlugin plugin : pluginsService.filterPlugins(DataFormatPlugin.class)) {
+            if (plugin instanceof DeleteDataFormatPlugin) continue; // skip delete-only plugins
             DataFormat format = plugin.getDataFormat();
             DataFormatPlugin existing = dataFormatPlugiRegistry.putIfAbsent(format, plugin);
             if (existing != null) {
@@ -78,6 +82,11 @@ public class DataFormatRegistry {
                 }
             }
         }
+        List<DeleteDataFormatPlugin> deletePlugins = pluginsService.filterPlugins(DeleteDataFormatPlugin.class);
+        if (deletePlugins.size() > 1) {
+            throw new IllegalArgumentException("Only one DeleteDataFormatPlugin allowed, found " + deletePlugins.size());
+        }
+        this.deleteDataFormatPlugin = deletePlugins.isEmpty() ? null : deletePlugins.getFirst();
 
         this.dataFormatPluginRegistry = Map.copyOf(dataFormatPlugiRegistry);
         this.dataFormats = Map.copyOf(dataFormats);
@@ -109,6 +118,15 @@ public class DataFormatRegistry {
             throw new IllegalArgumentException("No data format registered with name [" + name + "]");
         }
         return format;
+    }
+
+    /**
+     * Returns the delete execution engine, same for all data formats.
+     *
+     * @return the delete execution engine
+     */
+    public DeleteExecutionEngine<?, ?> getDeleteEngine(){
+        return this.deleteDataFormatPlugin.deleteEngine();
     }
 
     /**
