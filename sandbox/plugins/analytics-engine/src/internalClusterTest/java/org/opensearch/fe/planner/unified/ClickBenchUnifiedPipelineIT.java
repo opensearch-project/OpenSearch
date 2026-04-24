@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  * with the full mapping, and issues each PPL query via the transport action
  * using client().execute().
  */
-@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
+//@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: no backend registers scan capability for the 'hits' index fields (OpenSearchTableScanRule fails with 'No backend can scan all requested fields'); shard execution + Arrow Flight drain also not yet wired")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class ClickBenchUnifiedPipelineIT extends OpenSearchIntegTestCase {
 
