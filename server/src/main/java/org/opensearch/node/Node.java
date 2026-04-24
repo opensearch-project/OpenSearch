@@ -250,6 +250,9 @@ import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.catalog.MetadataClient;
+import org.opensearch.catalog.RemoteCatalogService;
+import org.opensearch.plugins.CatalogPlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -1430,6 +1433,25 @@ public class Node implements Closeable {
             );
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
+
+            // Discover CatalogPlugin and create MetadataClient for catalog publish
+            final MetadataClient metadataClient;
+            List<CatalogPlugin> catalogPlugins = pluginsService.filterPlugins(CatalogPlugin.class);
+            if (catalogPlugins.isEmpty()) {
+                metadataClient = null;
+            } else if (catalogPlugins.size() == 1) {
+                metadataClient = catalogPlugins.get(0).createMetadataClient(environment, clusterService);
+            } else {
+                throw new IllegalStateException(
+                    "only one CatalogPlugin is allowed but found [" + catalogPlugins.size() + "]"
+                );
+            }
+            final RemoteCatalogService remoteCatalogService = new RemoteCatalogService(
+                metadataClient,
+                clusterService,
+                repositoriesServiceReference::get,
+                client
+            );
             SnapshotsService snapshotsService = new SnapshotsService(
                 settings,
                 clusterService,
