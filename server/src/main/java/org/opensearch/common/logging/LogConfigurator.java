@@ -88,6 +88,8 @@ public class LogConfigurator {
      * fail startup and any such messages can be seen on the console.
      */
     private static final AtomicBoolean error = new AtomicBoolean();
+
+    private static final AtomicBoolean julBridgeInstalled = new AtomicBoolean(false);
     private static final StatusListener ERROR_LISTENER = new StatusConsoleListener(Level.ERROR) {
         @Override
         public void log(StatusData data) {
@@ -196,8 +198,11 @@ public class LogConfigurator {
         // through the configured logging framework instead of falling back to the default ConsoleHandler,
         // which writes to stderr and would be captured at WARN level. Setting the system property
         // "java.util.logging.manager" alone is insufficient because JUL's LogManager may already be
-        // initialized by the JVM before this point.
-        Log4jBridgeHandler.install(true, null, true);
+        // initialized by the JVM before this point. Guard against duplicate installation in case
+        // configure() is called multiple times (e.g., in tests).
+        if (julBridgeInstalled.compareAndSet(false, true)) {
+            Log4jBridgeHandler.install(true, null, true);
+        }
 
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that
