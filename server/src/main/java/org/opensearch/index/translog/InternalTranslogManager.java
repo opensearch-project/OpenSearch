@@ -435,10 +435,12 @@ public class InternalTranslogManager implements TranslogManager {
     /**
      *
      * @param localCheckpointOfLastCommit local checkpoint reference of last commit to translog
-     * @param flushThreshold threshold to flush to translog
+     * @param flushThreshold size based threshold to flush the translog (bytes)
+     * @param flushThresholdOps operation count based threshold to flush the translog; a flush is triggered when
+     *                          either the size or the operation count threshold is crossed
      * @return if the translog should be flushed
      */
-    public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
+    public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold, int flushThresholdOps) {
         /*
          * This can trigger flush depending upon translog's implementation
          */
@@ -448,7 +450,9 @@ public class InternalTranslogManager implements TranslogManager {
         // This is the minimum seqNo that is referred in translog and considered for calculating translog size
         long minTranslogRefSeqNo = translog.getMinUnreferencedSeqNoInSegments(localCheckpointOfLastCommit + 1);
         final long minReferencedTranslogGeneration = translog.getMinGenerationForSeqNo(minTranslogRefSeqNo).translogFileGeneration;
-        if (translog.sizeInBytesByMinGen(minReferencedTranslogGeneration) < flushThreshold) {
+        final boolean sizeExceeded = translog.sizeInBytesByMinGen(minReferencedTranslogGeneration) >= flushThreshold;
+        final boolean opsExceeded = translog.totalOperationsByMinGen(minReferencedTranslogGeneration) >= flushThresholdOps;
+        if (sizeExceeded == false && opsExceeded == false) {
             return false;
         }
         /*
@@ -458,8 +462,9 @@ public class InternalTranslogManager implements TranslogManager {
          * commit points to the later generation the last commit's(eg. gen-of-last-commit < gen-of-new-commit)[1].
          *
          * When the local checkpoint equals to max_seqno, and translog-gen of the last commit equals to translog-gen of
-         * the new commit, we know that the last generation must contain operations because its size is above the flush
-         * threshold and the flush-threshold is guaranteed to be higher than an empty translog by the setting validation.
+         * the new commit, we know that the last generation must contain operations because its size (or operation
+         * count) is above the corresponding flush-threshold; the size threshold is guaranteed to be higher than an
+         * empty translog by setting validation, and the ops threshold has a minimum bound enforced by the setting.
          * This guarantees that the new commit will point to the newly rolled generation. In fact, this scenario only
          * happens when the generation-threshold is close to or above the flush-threshold; otherwise we have rolled
          * generations as the generation-threshold was reached, then the first condition (eg. [1]) is already satisfied.
