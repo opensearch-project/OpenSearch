@@ -956,6 +956,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             stats.add(remoteClusterStateService.getFullDownloadStats());
             stats.add(remoteClusterStateService.getDiffDownloadStats());
         }
+
         clusterStateStats.setPersistenceStats(stats);
         return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats(), clusterStateStats);
     }
