@@ -61,14 +61,16 @@ public interface MetadataClient extends Closeable {
     ) throws IOException;
 
     /**
-     * Called once after all shards have been published successfully. Implementations can
-     * use this to stamp a completion marker, update catalog-level metadata, or perform
-     * any post-publish cleanup. Default is no-op.
+     * Called once after all shards complete. {@code success} is true when every shard's
+     * {@link #publish} returned without error. Implementations use this to stamp a
+     * completion marker on success, or rollback partial commits on failure. Default is
+     * no-op.
      *
      * @param indexName  name of the index that was published
+     * @param success    whether all shards published successfully
      * @throws IOException if the finalization fails
      */
-    default void finalizePublish(String indexName) throws IOException {}
+    default void finalizePublish(String indexName, boolean success) throws IOException {}
 
     /**
      * Reads index metadata previously persisted by {@link #initialize}.
