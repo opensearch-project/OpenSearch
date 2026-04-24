@@ -7,14 +7,15 @@
  */
 
 /*
- * page-cache lib (sandbox)
+ * block-cache lib (sandbox)
  *
- * Java lifecycle library for the Foyer disk page cache.
+ * Java lifecycle library for the Foyer block cache (variable-size SSD-resident cache).
  *
  * Provides FoyerBridge, which wraps the two native lifecycle operations
  * (create and destroy) via the Java Foreign Function & Memory (FFM) API.
- * The underlying Rust implementation lives in sandbox/libs/page-cache/src/main/rust
+ * The underlying Rust implementation lives in sandbox/libs/block-cache/src/main/rust
  * and is compiled into the shared native library — no separate .so is produced.
+ * Java classes are in org.opensearch.blockcache.
  */
 
 apply plugin: 'java'

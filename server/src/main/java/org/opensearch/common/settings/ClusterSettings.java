@@ -124,7 +124,7 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.index.store.remote.filecache.PageCacheSettings;
+import org.opensearch.index.store.remote.filecache.BlockCacheSettings;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
@@ -759,9 +759,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
                 FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
 
-                // Settings related to format (page) cache
-                PageCacheSettings.BLOCK_SIZE_SETTING,
-                PageCacheSettings.IO_ENGINE_SETTING,
+                // Settings related to format (block) cache
+                BlockCacheSettings.BLOCK_SIZE_SETTING,
+                BlockCacheSettings.IO_ENGINE_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.pagecache;
+package org.opensearch.blockcache;
 
 import org.junit.Test;
 
@@ -18,16 +18,16 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 
 /**
- * Unit tests for {@link PageCacheHandle} validation and lifecycle.
+ * Unit tests for {@link BlockCacheHandle} validation and lifecycle.
  *
  * <p>These tests do NOT require the native Foyer library. They exercise only the
- * Java-side validation and the delegation contract of {@link PageCacheHandle}
- * using in-line {@link PageCache} implementations (lambdas / anonymous classes).
+ * Java-side validation and the delegation contract of {@link BlockCacheHandle}
+ * using in-line {@link BlockCache} implementations (lambdas / anonymous classes).
  *
- * <p>Tests that require the native library (i.e. actual {@code FoyerPageCache}
+ * <p>Tests that require the native library (i.e. actual {@code FoyerBlockCache}
  * creation/destruction) belong in integration tests that load the native shared lib.
  */
-public class PageCacheHandleTests {
+public class BlockCacheHandleTests {
 
     // ── Construction guard ────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ public class PageCacheHandleTests {
     public void testConstructorThrowsOnNullCache() {
         assertThrows(
             NullPointerException.class,
-            () -> new PageCacheHandle(null)
+            () -> new BlockCacheHandle(null)
         );
     }
 
@@ -43,24 +43,24 @@ public class PageCacheHandleTests {
 
     @Test
     public void testGetCacheReturnsSameInstance() {
-        PageCache mockCache = () -> {};
-        PageCacheHandle handle = new PageCacheHandle(mockCache);
+        BlockCache mockCache = () -> {};
+        BlockCacheHandle handle = new BlockCacheHandle(mockCache);
 
         assertNotNull(handle.getCache());
         assertSame(mockCache, handle.getCache());
     }
 
     @Test
-    public void testGetCacheReturnsPageCacheInterface() {
-        PageCacheHandle handle = new PageCacheHandle(() -> {});
-        PageCache cache = handle.getCache();  // compile-time check: returns interface
+    public void testGetCacheReturnsBlockCacheInterface() {
+        BlockCacheHandle handle = new BlockCacheHandle(() -> {});
+        BlockCache cache = handle.getCache();  // compile-time check: returns interface
         assertNotNull(cache);
     }
 
     @Test
     public void testCloseDelegatesToCache() {
         AtomicInteger closeCount = new AtomicInteger(0);
-        PageCacheHandle handle = new PageCacheHandle(closeCount::incrementAndGet);
+        BlockCacheHandle handle = new BlockCacheHandle(closeCount::incrementAndGet);
         handle.close();
 
         assertEquals("close() must delegate to cache.close()", 1, closeCount.get());
@@ -68,90 +68,88 @@ public class PageCacheHandleTests {
 
     @Test
     public void testCloseCallsUnderlyingCacheEachTime() {
-        // PageCacheHandle delegates close() on every call.
-        // Idempotency is the responsibility of the PageCache implementation
-        // (e.g. FoyerPageCache uses an AtomicBoolean). PageCacheHandle
+        // BlockCacheHandle delegates close() on every call.
+        // Idempotency is the responsibility of the BlockCache implementation
+        // (e.g. FoyerBlockCache uses an AtomicBoolean). BlockCacheHandle
         // intentionally adds no extra guard — the impl owns the contract.
         AtomicInteger closeCount = new AtomicInteger(0);
-        PageCacheHandle handle = new PageCacheHandle(closeCount::incrementAndGet);
+        BlockCacheHandle handle = new BlockCacheHandle(closeCount::incrementAndGet);
         handle.close();
         handle.close();
 
-        assertEquals("PageCacheHandle delegates both close() calls to the impl", 2, closeCount.get());
+        assertEquals("BlockCacheHandle delegates both close() calls to the impl", 2, closeCount.get());
     }
 
-    // ── FoyerPageCache input validation (no native required) ─────────────────
-    // All constructor calls include the required blockSizeBytes and ioEngine params.
-    // Validation of the new params is tested in the dedicated tests below.
+    // ── FoyerBlockCache input validation (no native required) ─────────────────
 
     private static final long BLOCK = 64 * 1024 * 1024L;   // 64 MB default
     private static final String ENGINE = "auto";
 
     @Test
-    public void testFoyerPageCacheThrowsOnZeroDiskBytes() {
+    public void testFoyerBlockCacheThrowsOnZeroDiskBytes() {
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(0, "/tmp/cache", BLOCK, ENGINE)
+            () -> new org.opensearch.blockcache.foyer.FoyerBlockCache(0, "/tmp/cache", BLOCK, ENGINE)
         );
         assertEquals("diskBytes must be > 0, got: 0", ex.getMessage());
     }
 
     @Test
-    public void testFoyerPageCacheThrowsOnNegativeDiskBytes() {
+    public void testFoyerBlockCacheThrowsOnNegativeDiskBytes() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(-1, "/tmp/cache", BLOCK, ENGINE)
+            () -> new org.opensearch.blockcache.foyer.FoyerBlockCache(-1, "/tmp/cache", BLOCK, ENGINE)
         );
     }
 
     @Test
-    public void testFoyerPageCacheThrowsOnNullDiskDir() {
+    public void testFoyerBlockCacheThrowsOnNullDiskDir() {
         assertThrows(
             NullPointerException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, null, BLOCK, ENGINE)
+            () -> new org.opensearch.blockcache.foyer.FoyerBlockCache(1024, null, BLOCK, ENGINE)
         );
     }
 
     @Test
-    public void testFoyerPageCacheThrowsOnBlankDiskDir() {
+    public void testFoyerBlockCacheThrowsOnBlankDiskDir() {
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "   ", BLOCK, ENGINE)
-        );
-        assertEquals("diskDir must not be blank", ex.getMessage());
-    }
-
-    @Test
-    public void testFoyerPageCacheThrowsOnEmptyDiskDir() {
-        IllegalArgumentException ex = assertThrows(
-            IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "", BLOCK, ENGINE)
+            () -> new org.opensearch.blockcache.foyer.FoyerBlockCache(1024, "   ", BLOCK, ENGINE)
         );
         assertEquals("diskDir must not be blank", ex.getMessage());
     }
 
     @Test
-    public void testFoyerPageCacheThrowsOnZeroBlockSize() {
+    public void testFoyerBlockCacheThrowsOnEmptyDiskDir() {
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "/tmp/cache", 0, ENGINE)
+            () -> new org.opensearch.blockcache.foyer.FoyerBlockCache(1024, "", BLOCK, ENGINE)
+        );
+        assertEquals("diskDir must not be blank", ex.getMessage());
+    }
+
+    @Test
+    public void testFoyerBlockCacheThrowsOnZeroBlockSize() {
+        IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> new org.opensearch.blockcache.foyer.FoyerBlockCache(1024, "/tmp/cache", 0, ENGINE)
         );
         assertEquals("blockSizeBytes must be > 0, got: 0", ex.getMessage());
     }
 
     @Test
-    public void testFoyerPageCacheThrowsOnNegativeBlockSize() {
+    public void testFoyerBlockCacheThrowsOnNegativeBlockSize() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "/tmp/cache", -1, ENGINE)
+            () -> new org.opensearch.blockcache.foyer.FoyerBlockCache(1024, "/tmp/cache", -1, ENGINE)
         );
     }
 
     @Test
-    public void testFoyerPageCacheThrowsOnNullIoEngine() {
+    public void testFoyerBlockCacheThrowsOnNullIoEngine() {
         assertThrows(
             NullPointerException.class,
-            () -> new org.opensearch.pagecache.foyer.FoyerPageCache(1024, "/tmp/cache", BLOCK, null)
+            () -> new org.opensearch.blockcache.foyer.FoyerBlockCache(1024, "/tmp/cache", BLOCK, null)
         );
     }
 }
