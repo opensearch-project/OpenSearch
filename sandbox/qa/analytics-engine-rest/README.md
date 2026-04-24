@@ -8,9 +8,9 @@ REST-based integration tests for the analytics engine's DataFusion and Parquet q
 DataFusionRestTestCase          ← abstract base (cluster config, helpers)
 ├── ParquetDataFusionIT         ← pure parquet indexing + query end-to-end
 ├── DslClickBenchIT             ← DSL queries via _search → DataFusion
-└── PplClickBenchIT             ← PPL queries via /_plugins/_ppl → DataFusion
+└── PplClickBenchIT             ← PPL queries via /_analytics/ppl → DataFusion
 
-ClickBenchTestFixture           ← static helper (ClickBench index provisioning, query loading)
+ClickBenchTestFixture           ← static helper (ClickBench parquet index provisioning, query loading)
 ```
 
 - `DataFusionRestTestCase` — handles cluster preservation, resource loading, JSON escaping, and assertion helpers. Extend this for any new integration test.
@@ -22,7 +22,7 @@ ClickBenchTestFixture           ← static helper (ClickBench index provisioning
 |------|-------------|
 | `ParquetDataFusionIT` | Creates a parquet-format index, bulk-indexes documents, flushes, and queries via `_search` |
 | `DslClickBenchIT` | Runs ClickBench DSL queries via `_search` → dsl-query-executor → Calcite → Substrait → DataFusion |
-| `PplClickBenchIT` | Runs ClickBench PPL queries via `/_plugins/_ppl` → SQL plugin → analytics-engine → Calcite → Substrait → DataFusion |
+| `PplClickBenchIT` | Runs ClickBench PPL queries via `/_analytics/ppl` → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion |
 
 ## Prerequisites
 
@@ -50,15 +50,6 @@ The `./gradlew run` command resolves plugins from Maven. Publish core + sandbox 
 ./gradlew publishToMavenLocal -Dsandbox.enabled=true -x test -x javadoc
 ```
 
-### SQL Plugin (PPL tests only)
-
-`PplClickBenchIT` requires the SQL plugin. Clone the main branch and publish:
-
-```bash
-cd sql
-./gradlew publishToMavenLocal -x test -x javadoc
-```
-
 ## Running Tests
 
 ### Via managed testClusters (integTest)
@@ -81,20 +72,16 @@ Start a cluster manually (see below), then run:
 
 ### Starting a cluster manually
 
-The native library must be on `java.library.path` for the DataFusion plugin to load:
+The native library must be on `java.library.path` for the DataFusion plugin to load.
+Note: `test-ppl-frontend` is a sandbox QA plugin and is not available via `./gradlew run -PinstalledPlugins`.
+PPL tests should be run via `integTest` (managed testClusters) which uses project references.
 
 ```bash
 NATIVE_LIB_DIR=$(pwd)/sandbox/libs/dataformat-native/rust/target/release
 
-# Full cluster (all plugins, parquet indexing + DataFusion + DSL)
+# Cluster for DSL + Parquet tests (no PPL)
 ./gradlew run -Dsandbox.enabled=true \
   -PinstalledPlugins="['analytics-engine', 'parquet-data-format', 'analytics-backend-datafusion', 'analytics-backend-lucene', 'dsl-query-executor', 'composite-engine']" \
-  -Dtests.jvm.argline="-Djava.library.path=$NATIVE_LIB_DIR -Dopensearch.experimental.feature.pluggable.dataformat.enabled=true" \
-  -x javadoc -x test -x missingJavadoc
-
-# With SQL plugin (for PPL tests)
-./gradlew run -Dsandbox.enabled=true \
-  -PinstalledPlugins="['opensearch-job-scheduler', 'opensearch-sql-plugin', 'analytics-engine', 'parquet-data-format', 'analytics-backend-datafusion', 'analytics-backend-lucene', 'dsl-query-executor', 'composite-engine']" \
   -Dtests.jvm.argline="-Djava.library.path=$NATIVE_LIB_DIR -Dopensearch.experimental.feature.pluggable.dataformat.enabled=true" \
   -x javadoc -x test -x missingJavadoc
 ```
@@ -112,7 +99,7 @@ NATIVE_LIB_DIR=$(pwd)/sandbox/libs/dataformat-native/rust/target/release
   --tests "org.opensearch.analytics.qa.DslClickBenchIT" \
   -Dtests.rest.cluster=localhost:9200 -Dtests.cluster=localhost:9200 -Dtests.clustername=runTask
 
-# PPL ClickBench (requires SQL plugin)
+# PPL ClickBench (via test-ppl-frontend, run via integTest)
 ./gradlew :sandbox:qa:analytics-engine-rest:restTest -Dsandbox.enabled=true \
   --tests "org.opensearch.analytics.qa.PplClickBenchIT" \
   -Dtests.rest.cluster=localhost:9200 -Dtests.cluster=localhost:9200 -Dtests.clustername=runTask
@@ -133,4 +120,4 @@ src/test/resources/clickbench/
 - Parquet indexing uses the composite data format framework: `index.composite.primary_data_format = parquet`
 - The `pluggable.dataformat.enabled` feature flag must be set as a JVM system property at cluster startup
 - DSL path: `_search` → dsl-query-executor → Calcite planning → Substrait → DataFusion
-- PPL path: `/_plugins/_ppl` → SQL plugin → analytics-engine → Calcite → Substrait → DataFusion
+- PPL path: `/_analytics/ppl` → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion

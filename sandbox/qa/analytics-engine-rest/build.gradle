@@ -27,6 +27,7 @@ dependencies {
     testImplementation project(':sandbox:plugins:dsl-query-executor')
     testImplementation project(':sandbox:plugins:composite-engine')
     testImplementation project(':sandbox:plugins:parquet-data-format')
+    testImplementation project(':sandbox:qa:test-ppl-frontend')
 }
 
 testClusters.integTest {
@@ -36,10 +37,14 @@ testClusters.integTest {
     plugin ':sandbox:plugins:dsl-query-executor'
     plugin ':sandbox:plugins:composite-engine'
     plugin ':sandbox:plugins:parquet-data-format'
+    plugin ':sandbox:qa:test-ppl-frontend'
 
     // Arrow/Flight JVM flags for DataFusion native library
     jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
     jvmArgs '--enable-native-access=ALL-UNNAMED'
+
+    // Native library path for DataFusion
+    systemProperty 'java.library.path', "${project(':sandbox:libs:dataformat-native').ext.nativeLibPath.parent}"
 
     // Enable pluggable dataformat feature flag
     systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
