@@ -23,6 +23,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.opensearch.dsl.aggregation.AggregationMetadata;
+import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.aggregation.AggregationRegistryFactory;
 import org.opensearch.dsl.aggregation.AggregationTreeWalker;
 import org.opensearch.dsl.executor.QueryPlans;
@@ -50,6 +51,7 @@ public class SearchSourceConverter {
     private final AggregateConverter aggConverter;
     private final PostAggregateConverter postAggConverter;
     private final AggregationTreeWalker treeWalker;
+    private final AggregationRegistry aggRegistry;
 
     /**
      * Initializes planning infrastructure from the given schema.
@@ -77,8 +79,13 @@ public class SearchSourceConverter {
         this.aggConverter = new AggregateConverter();
         this.postAggConverter = new PostAggregateConverter();
 
-        var aggRegistry = AggregationRegistryFactory.create();
+        this.aggRegistry = AggregationRegistryFactory.create();
         this.treeWalker = new AggregationTreeWalker(aggRegistry);
+    }
+
+    /** Returns the aggregation registry used by this converter. */
+    public AggregationRegistry getAggregationRegistry() {
+        return aggRegistry;
     }
 
     /**
