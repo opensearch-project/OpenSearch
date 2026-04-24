@@ -68,6 +68,11 @@ dependencies {
   // consumers' compile/javadoc classpath without becoming a runtime dep.
   compileOnlyApi 'org.apiguardian:apiguardian-api:1.1.2'
   compileOnlyApi 'org.checkerframework:checker-qual:3.43.0'
+
+  // Arrow's Schema.class carries @JsonInclude / @JsonTypeInfo / @JsonProperty annotations.
+  // Needed on the javadoc/compile classpath so the references resolve; compileOnly keeps
+  // it out of the runtime bundle (runtime Jackson is provided by server).
+  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 }
 
 testingConventions.enabled = false
