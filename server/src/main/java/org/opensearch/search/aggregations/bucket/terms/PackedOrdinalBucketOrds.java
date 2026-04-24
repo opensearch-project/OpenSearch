@@ -307,6 +307,15 @@ public class PackedOrdinalBucketOrds implements MultiTermsBucketOrds {
     }
 
     @Override
+    public long[] getOrdinals(long bucketOrd) {
+        if (singleLongDelegate != null) {
+            return unpackSingleLong(singleLongDelegate.get(bucketOrd));
+        } else {
+            return unpackTwoLongs(twoLongDelegate.getKey1(bucketOrd), twoLongDelegate.getKey2(bucketOrd));
+        }
+    }
+
+    @Override
     public void close() {
         Releasables.close(singleLongDelegate, twoLongDelegate);
     }

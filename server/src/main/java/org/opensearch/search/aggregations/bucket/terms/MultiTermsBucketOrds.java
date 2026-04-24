@@ -46,6 +46,13 @@ public interface MultiTermsBucketOrds extends Releasable {
     BucketOrdsEnum ordsEnum(long owningBucketOrd);
 
     /**
+     * Look up the ordinal tuple for a specific bucket ordinal.
+     * Used by the two-pass build optimization to resolve ordinals
+     * only for top-K buckets without iterating all buckets.
+     */
+    long[] getOrdinals(long bucketOrd);
+
+    /**
      * An iterator for buckets inside a particular {@code owningBucketOrd}.
      *
      * @opensearch.internal

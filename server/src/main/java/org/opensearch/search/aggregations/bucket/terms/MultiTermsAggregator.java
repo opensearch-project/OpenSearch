@@ -200,8 +200,142 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
     /**
      * Build top buckets from the ordinal-based path by resolving packed ordinals
      * back to term values via {@code lookupOrd()}.
+     * <p>
+     * When ordering by doc count descending (the default), uses a two-pass approach:
+     * first finds the top-K bucket ordinals by doc count without resolving any ordinals,
+     * then resolves ordinals only for the top-K winners. This avoids O(total_buckets)
+     * lookupOrd calls and BytesRef allocations.
      */
     private InternalMultiTerms.Bucket[] buildOrdinalBuckets(
+        long owningBucketOrd,
+        LocalBucketCountThresholds localBucketCountThresholds,
+        long[] otherDocCounts,
+        int ordIdx,
+        SortedSetDocValues[] globalOrdsForLookup
+    ) throws IOException {
+        if (InternalOrder.isCountDesc(order)) {
+            return buildOrdinalBucketsTwoPass(owningBucketOrd, localBucketCountThresholds, otherDocCounts, ordIdx, globalOrdsForLookup);
+        }
+        return buildOrdinalBucketsSinglePass(owningBucketOrd, localBucketCountThresholds, otherDocCounts, ordIdx, globalOrdsForLookup);
+    }
+
+    /**
+     * Two-pass build for count-descending order. Pass 1 finds top-K by doc count
+     * using only bucket ordinals (no term resolution). Pass 2 resolves ordinals
+     * only for the top-K buckets.
+     */
+    private InternalMultiTerms.Bucket[] buildOrdinalBucketsTwoPass(
+        long owningBucketOrd,
+        LocalBucketCountThresholds localBucketCountThresholds,
+        long[] otherDocCounts,
+        int ordIdx,
+        SortedSetDocValues[] globalOrdsForLookup
+    ) throws IOException {
+        long bucketsInOrd = ordinalBucketOrds.bucketsInOrd(owningBucketOrd);
+        int requiredSize = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
+        long minDocCount = localBucketCountThresholds.getMinDocCount();
+
+        // Pass 1: find top-K bucket ords by doc count — no ordinal resolution
+        // Use a min-heap of size requiredSize: the smallest doc count is at the top.
+        // When a new bucket has a higher doc count than the min, it replaces it.
+        long[] topBucketOrds = new long[requiredSize];
+        long[] topDocCounts = new long[requiredSize];
+        int topCount = 0;
+        long totalOtherDocCount = 0;
+
+        MultiTermsBucketOrds.BucketOrdsEnum ordsEnum = ordinalBucketOrds.ordsEnum(owningBucketOrd);
+        while (ordsEnum.next()) {
+            long bucketOrd = ordsEnum.ord();
+            long docCount = bucketDocCount(bucketOrd);
+            totalOtherDocCount += docCount;
+            if (docCount < minDocCount) {
+                continue;
+            }
+            if (topCount < requiredSize) {
+                // Heap not full yet — just add
+                topBucketOrds[topCount] = bucketOrd;
+                topDocCounts[topCount] = docCount;
+                topCount++;
+                if (topCount == requiredSize) {
+                    // Heapify once full
+                    buildMinHeap(topBucketOrds, topDocCounts, topCount);
+                }
+            } else if (docCount > topDocCounts[0]) {
+                // Replace the min element
+                topBucketOrds[0] = bucketOrd;
+                topDocCounts[0] = docCount;
+                siftDown(topBucketOrds, topDocCounts, 0, topCount);
+            }
+        }
+
+        otherDocCounts[ordIdx] += totalOtherDocCount;
+
+        // Pass 2: resolve ordinals only for the top-K buckets
+        CheckedSupplier<InternalMultiTerms.Bucket, IOException> emptyBucketBuilder = () -> InternalMultiTerms.Bucket.EMPTY(
+            showTermDocCountError,
+            formats
+        );
+        InternalMultiTerms.Bucket[] bucketsForOrd = new InternalMultiTerms.Bucket[topCount];
+        for (int i = 0; i < topCount; i++) {
+            long bucketOrd = topBucketOrds[i];
+            long docCount = topDocCounts[i];
+
+            // Resolve ordinals for this bucket
+            long[] ordinals = ordinalBucketOrds.getOrdinals(bucketOrd);
+            List<Object> termValues = new ArrayList<>(ordinals.length);
+            for (int f = 0; f < ordinals.length; f++) {
+                termValues.add(BytesRef.deepCopyOf(globalOrdsForLookup[f].lookupOrd(ordinals[f])));
+            }
+
+            InternalMultiTerms.Bucket bucket = emptyBucketBuilder.get();
+            bucket.termValues = termValues;
+            bucket.docCount = docCount;
+            bucket.bucketOrd = bucketOrd;
+            bucketsForOrd[i] = bucket;
+            otherDocCounts[ordIdx] -= docCount;
+        }
+
+        // Sort by doc count descending (the heap doesn't guarantee order)
+        Arrays.sort(bucketsForOrd, (a, b) -> Long.compare(b.getDocCount(), a.getDocCount()));
+        return bucketsForOrd;
+    }
+
+    /** Build a min-heap on docCounts (parallel arrays). */
+    private static void buildMinHeap(long[] ords, long[] counts, int size) {
+        for (int i = size / 2 - 1; i >= 0; i--) {
+            siftDown(ords, counts, i, size);
+        }
+    }
+
+    /** Sift down element at index i in a min-heap on counts. */
+    private static void siftDown(long[] ords, long[] counts, int i, int size) {
+        long ord = ords[i];
+        long count = counts[i];
+        int half = size >>> 1;
+        while (i < half) {
+            int child = (i << 1) + 1;
+            long childCount = counts[child];
+            int right = child + 1;
+            if (right < size && counts[right] < childCount) {
+                child = right;
+                childCount = counts[right];
+            }
+            if (count <= childCount) {
+                break;
+            }
+            ords[i] = ords[child];
+            counts[i] = counts[child];
+            i = child;
+        }
+        ords[i] = ord;
+        counts[i] = count;
+    }
+
+    /**
+     * Original single-pass build for non-count-descending orders (key order, sub-agg order).
+     * Resolves ordinals for every bucket and uses the full comparator.
+     */
+    private InternalMultiTerms.Bucket[] buildOrdinalBucketsSinglePass(
         long owningBucketOrd,
         LocalBucketCountThresholds localBucketCountThresholds,
         long[] otherDocCounts,
