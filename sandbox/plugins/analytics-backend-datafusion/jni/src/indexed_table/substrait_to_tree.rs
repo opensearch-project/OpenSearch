@@ -171,10 +171,27 @@ fn convert_expr(
             Ok(SubstraitBoolNode::Or(vec![left, right]))
         }
 
-        // NOT
+        // NOT (standard form)
         Expr::Not(inner) => {
             let child = convert_expr(inner, predicates)?;
             Ok(SubstraitBoolNode::Not(Box::new(child)))
+        }
+
+        // NOT rewritten as `expr = false` by optimizer
+        Expr::BinaryExpr(bin) if bin.op == Operator::Eq => {
+            if matches!(bin.right.as_ref(), Expr::Literal(ScalarValue::Boolean(Some(false)), _)) {
+                let child = convert_expr(&bin.left, predicates)?;
+                return Ok(SubstraitBoolNode::Not(Box::new(child)));
+            }
+            if matches!(bin.left.as_ref(), Expr::Literal(ScalarValue::Boolean(Some(false)), _)) {
+                let child = convert_expr(&bin.right, predicates)?;
+                return Ok(SubstraitBoolNode::Not(Box::new(child)));
+            }
+            // Regular equality comparison: Column = Literal → Predicate
+            let (column, op, value) = extract_comparison(bin)?;
+            let predicate_id = predicates.len() as u16;
+            predicates.push(ResolvedPredicate { column, op, value });
+            Ok(SubstraitBoolNode::Predicate { predicate_id })
         }
 
         // Comparison: Column op Literal → Predicate
@@ -185,7 +202,22 @@ fn convert_expr(
             Ok(SubstraitBoolNode::Predicate { predicate_id })
         }
 
-        _ => Err(format!("unsupported expression type: {:?}", expr)),
+        // IsFalse(expr) — another optimizer rewrite of NOT
+        Expr::IsFalse(inner) => {
+            let child = convert_expr(inner, predicates)?;
+            Ok(SubstraitBoolNode::Not(Box::new(child)))
+        }
+
+        // IsTrue(expr) — identity, just unwrap
+        Expr::IsTrue(inner) => convert_expr(inner, predicates),
+
+        // Anything else: Passthrough — let DataFusion's residual filter handle it.
+        // This makes the converter robust against any unsupported expression pattern
+        // (IN, LIKE, IS NULL, BETWEEN, nested functions, CASE/WHEN, etc.).
+        _ => {
+            log::warn!("expr_to_bool_tree: unsupported expression, using Passthrough: {:?}", expr);
+            Ok(SubstraitBoolNode::Passthrough)
+        }
     }
 }
 

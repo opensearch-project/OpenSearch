@@ -96,4 +96,13 @@ public class LuceneReaderManager implements EngineReaderManager<OpenSearchDirect
     public void onFilesAdded(Collection<String> files) throws IOException {
         // no-op
     }
+
+    @Override
+    public void close() throws IOException {
+        // Close all tracked readers
+        for (OpenSearchDirectoryReader reader : readers.values()) {
+            reader.close();
+        }
+        readers.clear();
+    }
 }

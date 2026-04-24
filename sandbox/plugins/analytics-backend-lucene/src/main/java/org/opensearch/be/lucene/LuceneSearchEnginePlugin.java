@@ -8,12 +8,12 @@
 
 package org.opensearch.be.lucene;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexFilterTreeProvider;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LuceneSearchEnginePlugin implements SearchBackEndPlugin<DirectoryReader> {
+public class LuceneSearchEnginePlugin implements SearchBackEndPlugin<OpenSearchDirectoryReader> {
 
     /** Creates a new LuceneSearchEnginePlugin. */
     public LuceneSearchEnginePlugin() {}
@@ -36,8 +36,8 @@ public class LuceneSearchEnginePlugin implements SearchBackEndPlugin<DirectoryRe
     }
 
     @Override
-    public EngineReaderManager<DirectoryReader> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
-        return new LuceneReaderManager(format);
+    public EngineReaderManager<OpenSearchDirectoryReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
+        return LuceneSearchBackEnd.createReaderManager(settings);
     }
 
     /**

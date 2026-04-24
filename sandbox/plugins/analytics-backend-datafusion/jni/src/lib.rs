@@ -147,7 +147,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_create
             return 0;
         }
     };
-    let filenames = match parse_string_arr(env, files) {
+    let filenames = match parse_string_arr(&mut env, files) {
         Ok(f) => f,
         Err(e) => {
             let _ = env.throw_new("java/lang/IllegalArgumentException", format!("Invalid file list: {}", e));
@@ -522,7 +522,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
 
     let pq_paths = {
         let arr = unsafe { JObjectArray::from_raw(_parquet_paths.as_raw()) };
-        match parse_string_arr(env, arr) {
+        match parse_string_arr(&mut env, arr) {
             Ok(p) => p,
             Err(e) => {
                 set_action_listener_error(
@@ -752,6 +752,11 @@ impl Drop for JniBridgeCollector {
 
 impl indexed_table::index::RowGroupDocsCollector for JniBridgeCollector {
     fn collect(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+        {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_jni_collect.txt").unwrap();
+            writeln!(f, "JniBridgeCollector.collect: context_id={}, collector_key={}, min_doc={}, max_doc={}", self.context_id, self.collector_key, min_doc, max_doc).ok();
+        }
         let mut env = self.jvm.attach_current_thread()
             .map_err(|e| format!("Failed to attach thread: {}", e))?;
 
@@ -769,7 +774,22 @@ impl indexed_table::index::RowGroupDocsCollector for JniBridgeCollector {
                 JValue::Int(max_doc),
             ],
         )
-        .map_err(|e| format!("collectDocs failed: {}", e))?;
+        .map_err(|e| {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_jni_collect.txt").unwrap();
+            writeln!(f, "  collectDocs JNI call FAILED: {}", e).ok();
+            format!("collectDocs failed: {}", e)
+        })?;
+
+        // Check for pending Java exception
+        if env.exception_check().unwrap_or(false) {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_jni_collect.txt").unwrap();
+            writeln!(f, "  Java exception pending after collectDocs!").ok();
+            env.exception_describe().ok();
+            env.exception_clear().ok();
+            return Ok(Vec::new());
+        }
 
         let array_obj = result.l()
             .map_err(|e| format!("Failed to get array: {}", e))?;
@@ -777,6 +797,12 @@ impl indexed_table::index::RowGroupDocsCollector for JniBridgeCollector {
         let long_array = unsafe { jni::objects::JLongArray::from_raw(array_obj.as_raw()) };
         let len = env.get_array_length(&long_array)
             .map_err(|e| format!("Failed to get array length: {}", e))? as usize;
+
+        {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_jni_collect.txt").unwrap();
+            writeln!(f, "  result: len={}", len).ok();
+        }
 
         if len == 0 {
             return Ok(Vec::new());
@@ -820,7 +846,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
     // Parse parquet paths (String[])
     let pq_paths = {
         let arr = unsafe { JObjectArray::from_raw(parquet_paths.as_raw()) };
-        match parse_string_arr(env, arr) {
+        match parse_string_arr(&mut env, arr) {
             Ok(p) => p,
             Err(e) => {
                 set_action_listener_error(
@@ -957,6 +983,8 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
         use datafusion::physical_plan::execute_stream;
         use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
         use prost::Message;
+
+        std::fs::write("/tmp/rust_debug_async_start.txt", "async block started").ok();
 
         // Build session context with index_filter UDF registered
         let runtime = if runtime_ptr != 0 {
@@ -1114,18 +1142,31 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
         )?;
 
         // Replace the temporary table with the real TreeIndexedTableProvider
+        std::fs::write("/tmp/rust_debug_before_deregister.txt", "about to deregister").ok();
         ctx.deregister_table(&table_name_str)
             .map_err(|e| DataFusionError::Execution(format!("deregister temp table: {}", e)))?;
+        std::fs::write("/tmp/rust_debug_after_deregister.txt", "deregistered ok").ok();
         ctx.register_table(&table_name_str, Arc::new(provider))
             .map_err(|e| DataFusionError::Execution(format!("register_table: {}", e)))?;
+        std::fs::write("/tmp/rust_debug_after_register.txt", "registered ok").ok();
 
         // Execute substrait plan → physical plan → stream
         // Re-decode the substrait plan now that the real table is registered
         let logical_plan2 = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
+        let plan_str = format!("{}", logical_plan2.display_indent());
+        std::fs::write("/tmp/rust_debug_plan.txt", &plan_str).ok();
         let dataframe = ctx.execute_logical_plan(logical_plan2).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
+        let phys_str = format!("{}", datafusion::physical_plan::displayable(physical_plan.as_ref()).indent(true));
+        std::fs::write("/tmp/rust_debug_physical_plan.txt", &phys_str).ok();
 
         let df_stream = execute_stream(physical_plan, ctx.task_ctx())?;
+
+        // IMPORTANT: Keep the SessionContext alive — it owns the TreeIndexedTableProvider
+        // which owns the IndexFilterBridgeSearchers. Dropping the context would release
+        // the providers/collectors via Drop impls before the stream is consumed.
+        // Leak the context. The JNI bridge state is cleaned up by IndexFilterDelegate.close().
+        let _ctx_leaked = Box::leak(Box::new(ctx));
 
         // Wrap in CrossRtStream for safe cross-runtime consumption
         let cpu_executor = tokio_rt_mgr.cpu_executor();
@@ -1195,6 +1236,9 @@ fn build_old_bool_node_inner(
             *predicate_idx += 1;
             indexed_table::bool_tree::BoolNode::Predicate { predicate_id: id }
         }
+        indexed_table::bool_tree::PartiallyResolvedNode::Passthrough => {
+            indexed_table::bool_tree::BoolNode::Passthrough
+        }
     }
 }
 
@@ -1253,6 +1297,7 @@ impl indexed_table::index::ShardSearcher for IndexFilterBridgeSearcher {
         doc_min: i32,
         doc_max: i32,
     ) -> Result<Arc<dyn indexed_table::index::RowGroupDocsCollector>, String> {
+        log::info!("IndexFilterBridgeSearcher.collector: segment_ord={}, doc_min={}, doc_max={}, provider_key={}", segment_ord, doc_min, doc_max, self.provider_key);
         let mut env = self.jvm.attach_current_thread()
             .map_err(|e| format!("Failed to attach thread: {}", e))?;
 
@@ -1275,8 +1320,11 @@ impl indexed_table::index::ShardSearcher for IndexFilterBridgeSearcher {
         .i()
         .map_err(|e| format!("Failed to get int: {}", e))?;
 
+        log::info!("IndexFilterBridgeSearcher.collector: collector_key={}", collector_key);
+
         if collector_key < 0 {
             // Return empty collector for failed creation
+            log::warn!("IndexFilterBridgeSearcher.collector: collector_key < 0, returning empty");
             return Ok(Arc::new(EmptyBridgeCollector));
         }
 
@@ -1409,3 +1457,13 @@ fn sql_to_substrait_with_index_filter(
         Ok(buf)
     })
 }
+
+// force rebuild marker 3
+
+// force rebuild marker 4
+
+// force rebuild marker 5
+
+// force rebuild marker 6
+
+// force rebuild marker 7

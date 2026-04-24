@@ -198,17 +198,24 @@ public final class IndexFilterBridge {
     public static long[] collectDocs(long contextId, int collectorKey, int minDoc, int maxDoc) {
         BridgeContext ctx = activeContexts.get(contextId);
         if (ctx == null) {
+            System.err.println("[IndexFilterBridge] collectDocs: ctx is null for contextId=" + contextId);
             return new long[0];
         }
 
         CollectorEntry entry = ctx.activeCollectors.get(collectorKey);
         if (entry == null) {
+            System.err.println("[IndexFilterBridge] collectDocs: entry is null for collectorKey=" + collectorKey
+                + ", activeCollectors.keys=" + ctx.activeCollectors.keySet());
             return new long[0];
         }
 
         try {
+            System.err.println("[IndexFilterBridge] collectDocs: calling provider.collectDocs(internalKey="
+                + entry.internalCollectorKey + ", min=" + minDoc + ", max=" + maxDoc + ")");
             return entry.provider.collectDocs(entry.internalCollectorKey, minDoc, maxDoc);
         } catch (Exception e) {
+            System.err.println("[IndexFilterBridge] collectDocs: EXCEPTION: " + e.getClass().getName() + ": " + e.getMessage());
+            e.printStackTrace(System.err);
             return new long[0];
         }
     }

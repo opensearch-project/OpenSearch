@@ -235,14 +235,18 @@ impl ExecutionPlan for TreeQueryShardExec {
     fn execute(
         &self, partition: usize, context: Arc<datafusion::execution::TaskContext>,
     ) -> Result<datafusion::execution::SendableRecordBatchStream> {
+        eprintln!("[RUST TreeQueryShardExec] execute: partition={}, assignments={}, segments={}", partition, self.assignments.len(), self.segments.len());
         let pm = PartitionMetrics::new(&self.metrics, partition);
         if partition >= self.assignments.len() {
+            eprintln!("[RUST TreeQueryShardExec] execute: partition >= assignments, returning empty");
             return Ok(Box::pin(datafusion::physical_plan::stream::EmptyRecordBatchStream::new(self.schema.clone())));
         }
         let assignment = &self.assignments[partition];
         if assignment.chunks.is_empty() {
+            eprintln!("[RUST TreeQueryShardExec] execute: no chunks, returning empty");
             return Ok(Box::pin(datafusion::physical_plan::stream::EmptyRecordBatchStream::new(self.schema.clone())));
         }
+        eprintln!("[RUST TreeQueryShardExec] execute: {} chunks", assignment.chunks.len());
         let stream_metrics = pm.into_stream_metrics(Some(Arc::clone(&self.inner_parquet_metrics)));
         let mut streams: Vec<datafusion::execution::SendableRecordBatchStream> = Vec::new();
 
@@ -256,10 +260,26 @@ impl ExecutionPlan for TreeQueryShardExec {
             // Create per-Index-leaf collectors for this segment chunk
             let mut chunk_collectors: Vec<Arc<dyn super::index::RowGroupDocsCollector>> =
                 Vec::with_capacity(self.searchers.len());
-            for searcher in &self.searchers {
+            {
+                use std::io::Write;
+                let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_chunk_collectors.txt").unwrap();
+                writeln!(f, "chunk: segment_idx={}, doc_min={}, doc_max={}, searchers={}", chunk.segment_idx, chunk.doc_min, chunk.doc_max, self.searchers.len()).ok();
+            }
+            for (i, searcher) in self.searchers.iter().enumerate() {
                 match searcher.collector(chunk.segment_idx, chunk.doc_min, chunk.doc_max) {
-                    Ok(c) => chunk_collectors.push(c),
-                    Err(_) => chunk_collectors.push(Arc::new(EmptyCollector)),
+                    Ok(c) => {
+                        use std::io::Write;
+                        let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_chunk_collectors.txt").unwrap();
+                        writeln!(f, "  searcher[{}]: Ok, type={}", i, std::any::type_name_of_val(&*c)).ok();
+                        chunk_collectors.push(c);
+                    }
+                    Err(e) => {
+                        use std::io::Write;
+                        let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_chunk_collectors.txt").unwrap();
+                        writeln!(f, "  searcher[{}]: Err({})", i, e).ok();
+                        log::error!("TreeQueryShardExec: searcher.collector failed: {}", e);
+                        chunk_collectors.push(Arc::new(EmptyCollector));
+                    }
                 }
             }
 
@@ -296,3 +316,5 @@ impl ExecutionPlan for TreeQueryShardExec {
         }
     }
 }
+
+// force rebuild marker 2

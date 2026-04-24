@@ -99,20 +99,28 @@ impl TreeIndexReader {
         rg_idx: usize,
         doc_range: Option<(i32, i32)>,
     ) -> std::result::Result<Option<PrefetchedRowGroup>, String> {
-        if rg_idx >= row_groups.len() { return Ok(None); }
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_fetch_rg.txt").unwrap();
+        writeln!(f, "fetch_row_group: rg_idx={}, row_groups.len={}, doc_range={:?}", rg_idx, row_groups.len(), doc_range).ok();
+        if rg_idx >= row_groups.len() { writeln!(f, "  -> rg_idx >= len, returning None").ok(); return Ok(None); }
         let rg = row_groups[rg_idx].clone();
         let mut min_doc = rg.first_row as i32;
         let mut max_doc = (rg.first_row + rg.num_rows) as i32;
         if let Some((range_min, range_max)) = doc_range {
             min_doc = min_doc.max(range_min);
             max_doc = max_doc.min(range_max);
-            if min_doc >= max_doc { return Ok(None); }
+            if min_doc >= max_doc {
+                writeln!(f, "  -> min_doc({}) >= max_doc({}), returning None", min_doc, max_doc).ok();
+                return Ok(None);
+            }
         }
+        writeln!(f, "  -> min_doc={}, max_doc={}, rg.first_row={}, rg.num_rows={}", min_doc, max_doc, rg.first_row, rg.num_rows).ok();
         let t = std::time::Instant::now();
         let ctx = EvalContext { rg_idx: rg.index, rg_first_row: rg.first_row,
             rg_num_rows: rg.num_rows, min_doc, max_doc };
         let result = tree_eval::evaluate_tree_prefetch(tree, &ctx, page_pruner)?;
-        if result.candidates.is_empty() { return Ok(None); }
+        writeln!(f, "  -> candidates cardinality={}", result.candidates.len()).ok();
+        if result.candidates.is_empty() { writeln!(f, "  -> empty candidates, returning None").ok(); return Ok(None); }
         let offsets = tree_eval::bitmap_to_offsets(&result.candidates, rg.first_row);
         Ok(Some(PrefetchedRowGroup {
             rg, offsets, eval_nanos: t.elapsed().as_nanos() as u64,
@@ -121,6 +129,10 @@ impl TreeIndexReader {
     }
 
     fn start_prefetch(&mut self, rg_idx: usize) {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_start_prefetch.txt").unwrap();
+        writeln!(f, "rg_idx={}, row_groups.len={}", rg_idx, self.row_groups.len()).ok();
+        eprintln!("[RUST tree_stream] start_prefetch: rg_idx={}, row_groups.len={}", rg_idx, self.row_groups.len());
         if rg_idx >= self.row_groups.len() { return; }
         let tree = Arc::clone(&self.tree);
         let pp = Arc::clone(&self.page_pruner);
@@ -215,6 +227,7 @@ impl ExecutionPlan for TreeIndexedExec {
     fn metrics(&self) -> Option<MetricsSet> { Some(self.metrics.clone_inner()) }
 
     fn execute(&self, _partition: usize, _context: Arc<datafusion::execution::TaskContext>) -> Result<SendableRecordBatchStream> {
+        eprintln!("[RUST TreeIndexedExec] execute: row_groups={}, predicates={}", self.row_groups.len(), self.predicates.len());
         let collectors = {
             let mut guard = self.collectors.lock().unwrap();
             guard.take().ok_or_else(|| DataFusionError::Internal("collectors already consumed".into()))?
@@ -291,6 +304,7 @@ impl Stream for TreeIndexedStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if !self.initialized {
+            eprintln!("[RUST TreeIndexedStream] poll_next: initializing prefetch");
             self.index_reader.init_prefetch();
             self.initialized = true;
         }

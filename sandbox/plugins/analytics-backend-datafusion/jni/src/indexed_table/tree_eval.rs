@@ -65,7 +65,7 @@ enum Phase2Cost { Collector, Predicate, Nested }
 
 fn phase1_cost(node: &ResolvedNode) -> Phase1Cost {
     match node {
-        ResolvedNode::Predicate { .. } => Phase1Cost::Predicate,
+        ResolvedNode::Predicate { .. } | ResolvedNode::Passthrough => Phase1Cost::Predicate,
         ResolvedNode::Collector { .. } => Phase1Cost::Collector,
         _ => Phase1Cost::Nested,
     }
@@ -74,7 +74,7 @@ fn phase1_cost(node: &ResolvedNode) -> Phase1Cost {
 fn phase2_cost(node: &ResolvedNode) -> Phase2Cost {
     match node {
         ResolvedNode::Collector { .. } => Phase2Cost::Collector,
-        ResolvedNode::Predicate { .. } => Phase2Cost::Predicate,
+        ResolvedNode::Predicate { .. } | ResolvedNode::Passthrough => Phase2Cost::Predicate,
         _ => Phase2Cost::Nested,
     }
 }
@@ -87,6 +87,19 @@ pub fn evaluate_tree_prefetch(
     ctx: &EvalContext,
     page_pruner: &PagePruner,
 ) -> Result<PrefetchResult, String> {
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_prefetch.txt").unwrap();
+        let node_type = match node {
+            ResolvedNode::And(_) => "And",
+            ResolvedNode::Or(_) => "Or",
+            ResolvedNode::Not(_) => "Not",
+            ResolvedNode::Collector { .. } => "Collector",
+            ResolvedNode::Predicate { .. } => "Predicate",
+            ResolvedNode::Passthrough => "Passthrough",
+        };
+        writeln!(f, "evaluate_tree_prefetch: node_type={}", node_type).ok();
+    }
     match node {
         ResolvedNode::And(children) => prefetch_and(children, ctx, page_pruner),
         ResolvedNode::Or(children) => prefetch_or(children, ctx, page_pruner),
@@ -98,6 +111,10 @@ pub fn evaluate_tree_prefetch(
         ResolvedNode::Collector { collector, .. } => prefetch_collector(collector, ctx),
         ResolvedNode::Predicate { column, op, value } => {
             prefetch_predicate(column, op, value, ctx, page_pruner)
+        }
+        ResolvedNode::Passthrough => {
+            // Passthrough: all rows are candidates. The residual filter handles actual filtering.
+            Ok(PrefetchResult { candidates: universe_bitmap(ctx), collector_bitmaps: CollectorBitmaps::new() })
         }
     }
 }
@@ -169,7 +186,9 @@ fn prefetch_collector(
     collector: &Arc<dyn crate::indexed_table::index::RowGroupDocsCollector>,
     ctx: &EvalContext,
 ) -> Result<PrefetchResult, String> {
+    eprintln!("[RUST tree_eval] prefetch_collector: min_doc={}, max_doc={}", ctx.min_doc, ctx.max_doc);
     let bm = collect_to_roaring(collector, ctx)?;
+    eprintln!("[RUST tree_eval] prefetch_collector: bitmap cardinality={}", bm.len());
     let key = Arc::as_ptr(collector) as *const () as usize;
     let mut collector_bitmaps = CollectorBitmaps::new();
     collector_bitmaps.insert(key, bm.clone());
@@ -199,7 +218,17 @@ fn collect_to_roaring(
     collector: &Arc<dyn crate::indexed_table::index::RowGroupDocsCollector>,
     ctx: &EvalContext,
 ) -> Result<RoaringBitmap, String> {
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_collect.txt").unwrap();
+        writeln!(f, "collect_to_roaring: calling collector.collect({}, {})", ctx.min_doc, ctx.max_doc).ok();
+    }
     let bitset = collector.collect(ctx.min_doc, ctx.max_doc)?;
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/rust_debug_collect.txt").unwrap();
+        writeln!(f, "collect_to_roaring: bitset len={}, values={:?}", bitset.len(), &bitset).ok();
+    }
     let mut bm = RoaringBitmap::new();
     let base = ctx.min_doc as i64;
     for (word_idx, &word) in bitset.iter().enumerate() {
@@ -257,6 +286,10 @@ pub fn evaluate_tree_on_batch(
         }
         ResolvedNode::Predicate { column, op, value } => {
             evaluate_predicate_on_batch(column, op, value, batch)
+        }
+        ResolvedNode::Passthrough => {
+            // Passthrough: all rows match. The residual filter handles actual filtering.
+            Ok(BooleanArray::from(vec![true; batch_len]))
         }
     }
 }
@@ -339,3 +372,7 @@ fn evaluate_predicate_on_batch(
         _ => Err(format!("unsupported operator: {:?}", op)),
     }
 }
+
+// force rebuild marker
+
+// force rebuild marker 8

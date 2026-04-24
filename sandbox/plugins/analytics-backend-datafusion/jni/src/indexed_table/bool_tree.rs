@@ -39,6 +39,8 @@ pub enum BoolNode {
     Not(Box<BoolNode>),
     Collector { provider_id: u16, collector_idx: usize },
     Predicate { predicate_id: u16 },
+    /// Passthrough: always matches all rows. The residual filter handles it.
+    Passthrough,
 }
 
 /// Resolved tree with collectors and predicates attached (ready for evaluation).
@@ -49,6 +51,8 @@ pub enum ResolvedNode {
     Not(Box<ResolvedNode>),
     Collector { provider_id: u16, collector: Arc<dyn RowGroupDocsCollector> },
     Predicate { column: String, op: Operator, value: ScalarValue },
+    /// Passthrough: always matches all rows. The residual filter handles it.
+    Passthrough,
 }
 
 /// A resolved predicate extracted from the Substrait plan.
@@ -68,7 +72,7 @@ impl BoolNode {
             }
             BoolNode::Not(child) => child.collector_leaf_count(),
             BoolNode::Collector { .. } => 1,
-            BoolNode::Predicate { .. } => 0,
+            BoolNode::Predicate { .. } | BoolNode::Passthrough => 0,
         }
     }
 
@@ -88,7 +92,7 @@ impl BoolNode {
             BoolNode::Collector { provider_id, collector_idx } => {
                 out.push((*provider_id, *collector_idx));
             }
-            BoolNode::Predicate { .. } => {}
+            BoolNode::Predicate { .. } | BoolNode::Passthrough => {}
         }
     }
 
@@ -143,6 +147,7 @@ impl BoolNode {
                     value: pred.value.clone(),
                 })
             }
+            BoolNode::Passthrough => Ok(ResolvedNode::Passthrough),
         }
     }
 }
@@ -160,7 +165,7 @@ fn push_not_into(child: BoolNode) -> BoolNode {
                 .push_not_down()
         }
         BoolNode::Not(inner) => inner.push_not_down(),
-        // Predicate and Collector under NOT stay wrapped — evaluator handles negation
+        // Predicate, Collector, and Passthrough under NOT stay wrapped
         leaf => BoolNode::Not(Box::new(leaf)),
     }
 }
@@ -230,6 +235,10 @@ pub enum SubstraitBoolNode {
     Not(Box<SubstraitBoolNode>),
     Collector { column: String, value: String },
     Predicate { predicate_id: u16 },
+    /// Passthrough: expression the converter doesn't understand.
+    /// Evaluates to "all rows match" in tree eval — DataFusion's residual
+    /// FilterExec handles the actual filtering for this expression.
+    Passthrough,
 }
 
 /// Partially resolved tree: predicates resolved upfront, collectors carry
@@ -241,6 +250,8 @@ pub enum PartiallyResolvedNode {
     Not(Box<PartiallyResolvedNode>),
     Collector { column: String, value: String },
     Predicate { column: String, op: Operator, value: ScalarValue },
+    /// Passthrough: always matches all rows. The residual filter handles it.
+    Passthrough,
 }
 
 impl SubstraitBoolNode {
@@ -255,7 +266,7 @@ impl SubstraitBoolNode {
                 SubstraitBoolNode::Or(children.into_iter().map(|c| c.push_not_down()).collect())
             }
             SubstraitBoolNode::Not(child) => substrait_push_not_into(*child),
-            leaf => leaf,
+            leaf => leaf, // Collector, Predicate, Passthrough stay as-is
         }
     }
 
@@ -294,6 +305,7 @@ impl SubstraitBoolNode {
                     value: pred.value.clone(),
                 })
             }
+            SubstraitBoolNode::Passthrough => Ok(PartiallyResolvedNode::Passthrough),
         }
     }
 }
@@ -363,6 +375,7 @@ impl PartiallyResolvedNode {
                     value: value.clone(),
                 })
             }
+            PartiallyResolvedNode::Passthrough => Ok(ResolvedNode::Passthrough),
         }
     }
 
@@ -374,7 +387,7 @@ impl PartiallyResolvedNode {
             }
             PartiallyResolvedNode::Not(child) => child.collector_leaf_count(),
             PartiallyResolvedNode::Collector { .. } => 1,
-            PartiallyResolvedNode::Predicate { .. } => 0,
+            PartiallyResolvedNode::Predicate { .. } | PartiallyResolvedNode::Passthrough => 0,
         }
     }
 
@@ -394,7 +407,7 @@ impl PartiallyResolvedNode {
             PartiallyResolvedNode::Collector { column, value } => {
                 out.push((column.clone(), value.clone()));
             }
-            PartiallyResolvedNode::Predicate { .. } => {}
+            PartiallyResolvedNode::Predicate { .. } | PartiallyResolvedNode::Passthrough => {}
         }
     }
 }
