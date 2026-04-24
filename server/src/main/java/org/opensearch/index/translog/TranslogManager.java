@@ -161,6 +161,18 @@ public interface TranslogManager extends Closeable {
     void trimUnreferencedReaders() throws IOException;
 
     /**
+     * Backwards compatible overload that keeps the count-based threshold disabled by delegating to
+     * {@link #shouldPeriodicallyFlush(long, long, int)} with {@link Integer#MAX_VALUE} for the ops threshold.
+     *
+     * @param localCheckpointOfLastCommit local checkpoint reference of last commit to translog
+     * @param flushThreshold size based threshold to flush the translog (bytes)
+     * @return if the translog should be flushed
+     */
+    default boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
+        return shouldPeriodicallyFlush(localCheckpointOfLastCommit, flushThreshold, Integer.MAX_VALUE);
+    }
+
+    /**
      *
      * @param localCheckpointOfLastCommit local checkpoint reference of last commit to translog
      * @param flushThreshold size based threshold to flush the translog (bytes)

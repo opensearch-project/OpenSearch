@@ -444,8 +444,12 @@ public final class IndexSettings {
     /**
      * Number of operations in the translog that will trigger a flush in addition to the size based threshold
      * configured via {@link #INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING}. A flush is triggered when either
-     * threshold is crossed. Default is {@link Integer#MAX_VALUE} which effectively disables the count based
-     * trigger and preserves the existing size only behaviour.
+     * threshold is crossed.
+     *
+     * <p>The default value is {@link Integer#MAX_VALUE}, which effectively disables the operation count based
+     * trigger and preserves the legacy size only behaviour. The same {@link Integer#MAX_VALUE} is also the
+     * accepted upper bound: the setting is intentionally capped at the largest representable {@code int} and
+     * any value at or near the ceiling should be interpreted as "disabled".</p>
      */
     public static final Setting<Integer> INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS_SETTING = Setting.intSetting(
         "index.translog.flush_threshold_ops",
