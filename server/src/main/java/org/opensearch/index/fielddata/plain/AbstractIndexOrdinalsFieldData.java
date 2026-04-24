@@ -169,6 +169,13 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction);
     }
 
+    /**
+     * Load global ordinals directly with periodic cancellation checks.
+     */
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader, Runnable cancellationCheck) throws Exception {
+        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction, cancellationCheck);
+    }
+
     @Override
     public boolean supportsGlobalOrdinalsMapping() {
         return false;

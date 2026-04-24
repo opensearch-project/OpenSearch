@@ -71,12 +71,28 @@ public enum GlobalOrdinalsBuilder {
         Logger logger,
         Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
     ) throws IOException {
+        return build(indexReader, indexFieldData, breakerService, logger, scriptFunction, () -> {});
+    }
+
+    /**
+     * Build global ordinals for the provided {@link IndexReader}, with periodic cancellation checks
+     * between segment iterations.
+     */
+    public static IndexOrdinalsFieldData build(
+        final IndexReader indexReader,
+        IndexOrdinalsFieldData indexFieldData,
+        CircuitBreakerService breakerService,
+        Logger logger,
+        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction,
+        Runnable cancellationCheck
+    ) throws IOException {
         assert indexReader.leaves().size() > 1;
         long startTimeNS = System.nanoTime();
 
         final LeafOrdinalsFieldData[] atomicFD = new LeafOrdinalsFieldData[indexReader.leaves().size()];
         final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
+            cancellationCheck.run();
             atomicFD[i] = indexFieldData.load(indexReader.leaves().get(i));
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
