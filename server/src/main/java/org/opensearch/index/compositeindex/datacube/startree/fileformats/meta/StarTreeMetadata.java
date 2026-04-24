@@ -34,7 +34,7 @@ import java.util.Set;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeMetadata extends CompositeIndexMetadata {
     private static final Logger logger = LogManager.getLogger(StarTreeMetadata.class);
 

@@ -48,7 +48,7 @@ import java.util.Map;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(StarTreeDocsFileManager.class);
     private static final String STAR_TREE_DOC_FILE_NAME = "star-tree.documents";

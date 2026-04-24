@@ -31,7 +31,7 @@ import java.util.List;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class SegmentDocsFileManager extends AbstractDocumentsFileManager implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(SegmentDocsFileManager.class);

@@ -17,7 +17,7 @@ import org.opensearch.search.startree.StarTreeNodeCollector;
 /**
  * Filter which matches no StarTreeNodes.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class MatchNoneFilter implements DimensionFilter {
 
     @Override

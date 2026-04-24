@@ -25,7 +25,7 @@ import java.util.TreeSet;
 /**
  * Handles Term and Terms query like search in StarTree Dimension filtering.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class ExactMatchDimFilter implements DimensionFilter {
 
     private final String dimensionName;

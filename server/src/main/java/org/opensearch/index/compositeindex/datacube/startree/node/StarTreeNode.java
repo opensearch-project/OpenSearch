@@ -20,7 +20,7 @@ import java.util.Iterator;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface StarTreeNode {
 
     /**

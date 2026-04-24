@@ -21,7 +21,7 @@ import java.util.Iterator;
 /**
  * Matches all StarTreeNodes
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class MatchAllFilter implements DimensionFilter {
 
     public final String dimensionName;
