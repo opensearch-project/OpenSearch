@@ -12,12 +12,15 @@ import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.plugin.stats.DataFusionStats;
+import org.opensearch.plugin.stats.NativeExecutorsStats;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.LinkedHashMap;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -51,6 +54,7 @@ public final class NativeBridge {
     private static final MethodHandle STREAM_NEXT;
     private static final MethodHandle STREAM_CLOSE;
     private static final MethodHandle SQL_TO_SUBSTRAIT;
+    private static final MethodHandle STATS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -137,6 +141,12 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS
             )
+        );
+
+        // i64 df_stats(out_ptr, out_cap)
+        STATS = linker.downcallHandle(
+            lib.find("df_stats").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
     }
 
@@ -248,6 +258,36 @@ public final class NativeBridge {
 
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
+    }
+
+    // ---- Stats collection ----
+
+    /**
+     * Collects all native executor metrics in a single FFM call.
+     * Decodes directly from the MemorySegment — no intermediate long[].
+     *
+     * @return a fully constructed {@link DataFusionStats}
+     * @throws IllegalStateException if the runtime manager is not initialized
+     */
+    public static DataFusionStats stats() {
+        try (var call = new NativeCall()) {
+            var seg = call.buf((int) StatsLayout.LAYOUT.byteSize());
+            call.invoke(STATS, seg, StatsLayout.LAYOUT.byteSize());
+
+            // IO runtime (always present — zeroed if not yet initialized)
+            var ioRuntime = StatsLayout.readRuntimeMetrics(seg, "io_runtime");
+
+            // CPU runtime (always present — zeroed when absent)
+            var cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
+
+            // Task monitors
+            var taskMonitors = new LinkedHashMap<String, NativeExecutorsStats.TaskMonitorStats>();
+            for (NativeExecutorsStats.OperationType op : NativeExecutorsStats.OperationType.values()) {
+                taskMonitors.put(op.key(), StatsLayout.readTaskMonitor(seg, op.key()));
+            }
+
+            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors));
+        }
     }
 
     // ---- Stubs ----

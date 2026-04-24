@@ -165,3 +165,59 @@ pub unsafe extern "C" fn df_sql_to_substrait(
     }
     Ok(0)
 }
+
+// ---- Stats collection ----
+
+/// Collects all native executor metrics into a caller-provided byte buffer.
+///
+/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (224).
+/// Returns 0 on success.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
+    use crate::stats::{layout, pack_runtime_metrics, pack_task_monitor, DfStatsBuffer, RuntimeMetricsRepr};
+    use crate::task_monitors::{
+        query_execution_monitor, stream_next_monitor,
+        fetch_phase_monitor, segment_stats_monitor,
+    };
+
+    if (out_cap as usize) < layout::BUFFER_BYTE_SIZE {
+        return Err(format!(
+            "stats buffer too small: need {} but got {}",
+            layout::BUFFER_BYTE_SIZE, out_cap
+        ));
+    }
+
+    let mgr = get_rt_manager()?;
+
+    // IO runtime (always present)
+    let io_runtime = pack_runtime_metrics(&mgr.io_monitor, mgr.io_runtime.handle());
+
+    // CPU runtime (optional — zeroed when absent)
+    let cpu_runtime = if let Some(ref cpu_mon) = mgr.cpu_monitor {
+        if let Some(cpu_handle) = mgr.cpu_executor.handle() {
+            pack_runtime_metrics(cpu_mon, &cpu_handle)
+        } else {
+            RuntimeMetricsRepr::zeroed()
+        }
+    } else {
+        RuntimeMetricsRepr::zeroed()
+    };
+
+    let buf = DfStatsBuffer {
+        io_runtime,
+        cpu_runtime,
+        query_execution: pack_task_monitor(query_execution_monitor()),
+        stream_next: pack_task_monitor(stream_next_monitor()),
+        fetch_phase: pack_task_monitor(fetch_phase_monitor()),
+        segment_stats: pack_task_monitor(segment_stats_monitor()),
+    };
+
+    // Copy struct bytes to caller buffer
+    std::ptr::copy_nonoverlapping(
+        &buf as *const DfStatsBuffer as *const u8,
+        out_ptr,
+        std::mem::size_of::<DfStatsBuffer>(),
+    );
+    Ok(0)
+}
