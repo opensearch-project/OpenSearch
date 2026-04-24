@@ -25,7 +25,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Static helper that provisions the ClickBench test dataset into a live cluster.
+ * Static helper that provisions the ClickBench test dataset into a live cluster
+ * with parquet as the primary data format.
  * <p>
  * Stateless utility — all methods are static and take a {@link RestClient} parameter.
  * This makes it composable: any test class can use it without inheritance.
@@ -48,9 +49,9 @@ public final class ClickBenchTestFixture {
     }
 
     /**
-     * Provision the ClickBench dataset into the cluster. Idempotent: deletes the
-     * index first if it already exists, then creates it with the ClickBench mapping
-     * and bulk-ingests 100 documents.
+     * Provision the ClickBench dataset into the cluster with parquet as the primary
+     * data format. Idempotent: deletes the index first if it already exists, then
+     * creates it with parquet settings, ClickBench mapping, and bulk-ingests 100 documents.
      *
      * @param client the REST client connected to the test cluster
      */
@@ -62,10 +63,12 @@ public final class ClickBenchTestFixture {
             // index may not exist — ignore
         }
 
-        // Create index with mapping
-        String mapping = loadResource("clickbench/parquet_hits_mapping.json");
+        // Load the mapping from resource and inject parquet data format settings
+        String mappingBody = loadResource("clickbench/parquet_hits_mapping.json");
+        String indexBody = injectParquetSettings(mappingBody);
+
         Request createIndex = new Request("PUT", "/" + INDEX_NAME);
-        createIndex.setJsonEntity(mapping);
+        createIndex.setJsonEntity(indexBody);
         client.performRequest(createIndex);
 
         // Bulk ingest
@@ -79,13 +82,34 @@ public final class ClickBenchTestFixture {
         Response bulkResponse = client.performRequest(bulkRequest);
         assertEquals("Bulk insert failed", 200, bulkResponse.getStatusLine().getStatusCode());
 
+        // Flush to commit parquet files to disk
+        Request flushRequest = new Request("POST", "/" + INDEX_NAME + "/_flush");
+        flushRequest.addParameter("force", "true");
+        client.performRequest(flushRequest);
+
         // Wait for index health
         Request healthRequest = new Request("GET", "/_cluster/health/" + INDEX_NAME);
         healthRequest.addParameter("wait_for_status", "yellow");
         healthRequest.addParameter("timeout", "60s");
         client.performRequest(healthRequest);
 
-        logger.info("Index [{}] provisioned with {} documents", INDEX_NAME, EXPECTED_DOC_COUNT);
+        logger.info("Index [{}] provisioned with {} documents (parquet primary format)", INDEX_NAME, EXPECTED_DOC_COUNT);
+    }
+
+    /**
+     * Inject parquet data format settings into the index creation body.
+     * Adds pluggable dataformat and composite settings to the existing settings block.
+     */
+    private static String injectParquetSettings(String mappingBody) {
+        // The mapping file has: {"settings": {"number_of_shards": 1, ...}, "mappings": {...}}
+        // Inject parquet settings after the opening of the settings block
+        return mappingBody.replace(
+            "\"number_of_shards\"",
+            "\"index.pluggable.dataformat.enabled\": true, "
+                + "\"index.pluggable.dataformat\": \"composite\", "
+                + "\"index.composite.primary_data_format\": \"parquet\", "
+                + "\"number_of_shards\""
+        );
     }
 
     /**
