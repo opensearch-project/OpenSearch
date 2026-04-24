@@ -13,6 +13,7 @@ import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneCommitterFactory;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -113,7 +114,7 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
      * @throws IOException if reader creation fails
      */
     @Override
-    public EngineReaderManager<DirectoryReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
+    public EngineReaderManager<OpenSearchDirectoryReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         return LuceneSearchBackEnd.createReaderManager(settings);
     }
 
