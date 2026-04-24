@@ -17,4 +17,7 @@ import org.opensearch.plugins.Plugin;
  * OpenSearch index data to S3 Tables. It copies S3 client code from repository-s3
  * for plugin isolation (plugins cannot depend on other plugins).
  */
-public class IcebergCatalogPlugin extends Plugin {}
+public class IcebergCatalogPlugin extends Plugin {
+    /** Creates a new instance. */
+    public IcebergCatalogPlugin() {}
+}
