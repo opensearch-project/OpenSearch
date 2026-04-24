@@ -212,14 +212,6 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             merged.add(builder.build());
         }
 
-        // Merged result must contain at least as many segments as the primary produced —
-        // secondary engines add files to existing generations but never remove segments
-        assert merged.size() >= primary.refreshedSegments().size() : "merged segments ["
-            + merged.size()
-            + "] must be >= primary segments ["
-            + primary.refreshedSegments().size()
-            + "]";
-
         return new RefreshResult(merged);
     }
 

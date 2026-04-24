@@ -17,6 +17,7 @@ import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
@@ -34,6 +35,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.test.DummyShardLock;
@@ -82,10 +84,13 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             Store.OnClose.EMPTY,
             shardPath
         );
+        store.createEmpty(org.apache.lucene.util.Version.LATEST);
 
         PluginsService mockPluginsService = mock(PluginsService.class);
         when(mockPluginsService.filterPlugins(EnginePlugin.class)).thenReturn(List.of(new LucenePlugin()));
 
+        Path translogPath = dataPath.resolve("translog");
+        java.nio.file.Files.createDirectories(translogPath);
         EngineConfig engineConfig = new EngineConfigFactory(mockPluginsService, indexSettings).newEngineConfig(
             shardId,
             null,
@@ -99,7 +104,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            null,
+            new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false),
             TimeValue.timeValueMinutes(5),
             null,
             null,
