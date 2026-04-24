@@ -63,9 +63,7 @@ public class JulBridgeTests extends OpenSearchTestCase {
         Log4jBridgeHandler.install(true, null, true);
         Log4jBridgeHandler.install(true, null, true);
 
-        long bridgeHandlerCount = Arrays.stream(julRootLogger.getHandlers())
-            .filter(h -> h instanceof Log4jBridgeHandler)
-            .count();
+        long bridgeHandlerCount = Arrays.stream(julRootLogger.getHandlers()).filter(h -> h instanceof Log4jBridgeHandler).count();
 
         assertEquals("Log4jBridgeHandler should only be present once even after multiple install calls", 1, bridgeHandlerCount);
     }
