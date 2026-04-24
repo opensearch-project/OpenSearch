@@ -17,7 +17,7 @@ import java.io.IOException;
 public class PublishShardRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
-        PublishShardRequest original = new PublishShardRequest("my-index", "my-catalog-repo");
+        PublishShardRequest original = new PublishShardRequest("my-index");
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -26,13 +26,11 @@ public class PublishShardRequestTests extends OpenSearchTestCase {
         PublishShardRequest deserialized = new PublishShardRequest(in);
 
         assertArrayEquals(original.indices(), deserialized.indices());
-        assertEquals(original.getCatalogRepoName(), deserialized.getCatalogRepoName());
     }
 
     public void testToString() {
-        PublishShardRequest request = new PublishShardRequest("logs-2024", "iceberg-catalog");
+        PublishShardRequest request = new PublishShardRequest("logs-2024");
         String str = request.toString();
         assertTrue(str.contains("logs-2024"));
-        assertTrue(str.contains("iceberg-catalog"));
     }
 }
