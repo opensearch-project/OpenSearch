@@ -15,39 +15,42 @@ import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
 
+import java.util.List;
+import java.util.Map;
+
 /**
- * Translates a metric aggregation (AVG, SUM, MIN, MAX, etc.) to a Calcite AggregateCall,
+ * Translates a metric aggregation to Calcite AggregateCall(s),
  * and converts raw result values back to OpenSearch InternalAggregation for response building.
  */
 public interface MetricTranslator<T extends AggregationBuilder> extends AggregationTranslator<T> {
 
     /**
-     * Converts the metric aggregation to a Calcite AggregateCall.
+     * Converts the metric aggregation to Calcite AggregateCall(s).
      *
      * @param agg the metric aggregation builder
      * @param rowType the index row type for field lookup
-     * @return the Calcite AggregateCall
+     * @return list of Calcite AggregateCalls
      * @throws ConversionException if conversion fails
      */
-    AggregateCall toAggregateCall(T agg, RelDataType rowType) throws ConversionException;
+    List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType) throws ConversionException;
 
     /**
-     * Returns the output field name for this aggregation.
+     * Returns the output field names for this aggregation.
      *
      * @param agg the metric aggregation builder
-     * @return the aggregate field name
+     * @return list of aggregate field names
      */
-    String getAggregateFieldName(T agg);
+    List<String> getAggregateFieldNames(T agg);
 
     // TODO: Revisit signature — accept a stream/iterator of <String,Object> for bulk conversion
     // to avoid per-row virtual dispatch overhead, and use Arrow-native types once Analytics Core
     // exposes them.
     /**
-     * Converts a raw result value from execution into an OpenSearch InternalAggregation.
+     * Converts raw result values from execution into an OpenSearch InternalAggregation.
      *
      * @param name the aggregation name
-     * @param value the raw value (may be null)
+     * @param values map of field names to their computed values
      * @return the corresponding InternalAggregation
      */
-    InternalAggregation toInternalAggregation(String name, Object value);
+    InternalAggregation toInternalAggregation(String name, Map<String, Object> values);
 }
