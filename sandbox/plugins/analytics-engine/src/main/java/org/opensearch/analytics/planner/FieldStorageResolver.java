@@ -8,9 +8,12 @@
 
 package org.opensearch.analytics.planner;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -91,15 +94,20 @@ public class FieldStorageResolver {
         return result;
     }
 
+    private static final Logger logger = LogManager.getLogger(FieldStorageResolver.class);
+
+
     private static FieldStorageInfo resolveField(String fieldName, String fieldType, Map<String, Object> fieldProps, String primaryFormat) {
         // Doc values: present for all types except text, unless explicitly disabled
         boolean hasDocValues = !"text".equals(fieldType) && !Boolean.FALSE.equals(fieldProps.get("doc_values"));
+
 
         // Index: only when explicitly set to true in mapping
         boolean isIndexed = Boolean.TRUE.equals(fieldProps.get("index"));
 
         // Stored fields: only when explicitly set to true in mapping
         boolean isStored = Boolean.TRUE.equals(fieldProps.get("store"));
+        logger.info("Has doc values {} indexed {} stored {}", hasDocValues, isIndexed, isStored);
 
         List<String> docValueFormats = hasDocValues ? List.of(primaryFormat) : List.of();
         List<String> indexFormats = isIndexed ? List.of(LUCENE_FORMAT) : List.of();

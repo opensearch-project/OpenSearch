@@ -95,13 +95,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.scheduler = scheduler;
     }
 
-    // TODO: Extract plan → optimize → fork → convert → DAG into a dedicated component (e.g. QueryDAGBuilder)
-    // that takes the logical fragment and returns a fully-built DAG ready for scheduling.
-    // Also add per-step timing (plan, fork, convert, schedule, execute) for observability.
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
+        // Phase 4: generate plan alternatives per stage. Phase 5: convert each to backend bytes.
+        // Both must run before the scheduler picks `chosenBytes` for COORDINATOR_REDUCE / SHARD_FRAGMENT
+        // dispatch — otherwise plan alternatives stay empty and LocalStageScheduler asserts.
         PlanForker.forkAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         logger.info("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
@@ -194,16 +194,21 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches) {
         List<Object[]> rows = new ArrayList<>();
         for (VectorSchemaRoot batch : batches) {
-            int colCount = batch.getFieldVectors().size();
-            int rowCount = batch.getRowCount();
-            for (int r = 0; r < rowCount; r++) {
-                Object[] row = new Object[colCount];
-                for (int c = 0; c < colCount; c++) {
-                    row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
+            try {
+                int colCount = batch.getFieldVectors().size();
+                int rowCount = batch.getRowCount();
+                for (int r = 0; r < rowCount; r++) {
+                    Object[] row = new Object[colCount];
+                    for (int c = 0; c < colCount; c++) {
+                        row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
+                    }
+                    rows.add(row);
                 }
-                rows.add(row);
+            } finally {
+                // Release the Arrow buffers back to the query allocator. Without this the
+                // query teardown's allocator.close() detects a leak and fails the query.
+                batch.close();
             }
-            batch.close();
         }
         return rows;
     }

@@ -17,7 +17,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
  * Integration tests for DSL query conversion (filter path).
  * Uses various query types; sort and projection use defaults.
  */
-@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
+@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: FieldStorageResolver fails with 'Field [...] has no storage in any format' (no backend registers storage for index fields); shard execution + Arrow Flight drain also not yet wired")
 public class DslQueryIT extends DslIntegTestBase {
 
     public void testNoQuery() {

@@ -16,7 +16,7 @@ import org.opensearch.search.sort.SortOrder;
  * Integration tests for DSL sort and pagination conversion.
  * Uses matchAllQuery; focus is on sort/from/size behavior.
  */
-@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
+@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: FieldStorageResolver fails with 'Field [...] has no storage in any format' (no backend registers storage for index fields); shard execution + Arrow Flight drain also not yet wired")
 public class DslSortIT extends DslIntegTestBase {
 
     public void testDefaultPagination() {

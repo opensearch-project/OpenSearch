@@ -165,3 +165,69 @@ pub unsafe extern "C" fn df_sql_to_substrait(
     }
     Ok(0)
 }
+
+// ---------------------------------------------------------------------------
+// Coordinator-reduce local execution exports
+//
+// Mirror the shard-scan exports above: fallible entry points use `#[ffm_safe]`
+// so `Err(String)` returns are converted into a negated heap-allocated error
+// string pointer that `NativeCall.invoke` reads and frees on the Java side.
+// Close functions are infallible and do not use the macro. The output stream
+// returned by `df_execute_local_plan` is the same `QueryStreamHandle` shape
+// as `df_execute_query`, so it drains through the existing `df_stream_next` /
+// `df_stream_close` paths unchanged.
+// ---------------------------------------------------------------------------
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_create_local_session(runtime_ptr: i64) -> i64 {
+    api::create_local_session(runtime_ptr).map_err(|e| e.to_string())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn df_close_local_session(ptr: i64) {
+    api::close_local_session(ptr);
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream(
+    session_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len)
+        .map_err(|e| format!("df_register_partition_stream: input_id: {}", e))?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    api::register_partition_stream(session_ptr, input_id, schema_ipc).map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_execute_local_plan(
+    session_ptr: i64,
+    substrait_ptr: *const u8,
+    substrait_len: i64,
+) -> i64 {
+    let mgr = get_rt_manager()?;
+    let substrait_bytes = slice::from_raw_parts(substrait_ptr, substrait_len as usize);
+    mgr.io_runtime
+        .block_on(api::execute_local_plan(session_ptr, substrait_bytes, &mgr, 0))
+        .map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_sender_send(sender_ptr: i64, array_ptr: i64, schema_ptr: i64) -> i64 {
+    let mgr = get_rt_manager()?;
+    api::sender_send(sender_ptr, array_ptr, schema_ptr, mgr.io_runtime.handle())
+        .map(|_| 0)
+        .map_err(|e| e.to_string())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
+    api::sender_close(sender_ptr);
+}

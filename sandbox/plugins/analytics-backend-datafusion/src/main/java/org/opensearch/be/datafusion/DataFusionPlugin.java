@@ -110,6 +110,13 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         return Collections.singletonList(dataFusionService);
     }
 
+    /**
+     * Loads the Substrait default extension catalog with the plugin's classloader as the
+     * thread context classloader. Jackson polymorphic deserialization (used by Substrait
+     * to load its {@code SimpleExtension} subclasses) consults the TCCL; in an OpenSearch
+     * plugin context the TCCL is typically the server classloader, which cannot see the
+     * plugin-local Substrait classes.
+     */
     private static SimpleExtension.ExtensionCollection loadSubstraitExtensions() {
         Thread t = Thread.currentThread();
         ClassLoader previous = t.getContextClassLoader();

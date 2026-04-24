@@ -49,11 +49,21 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
         return backendSink;
     }
 
-    // No output drain contract yet. Will be reintroduced when a real backend
-    // implementation is wired up.
+    /**
+     * Returns the downstream sink as an {@link ExchangeSource}. The backend sink's
+     * {@code close()} drains native batches into this same downstream as the
+     * last step of {@link #start()}, so by the time the walker reads via
+     * {@code outputSource().readResult()} every result batch is already buffered
+     * here.
+     */
     @Override
     public ExchangeSource outputSource() {
-        throw new UnsupportedOperationException("LocalStageExecution has no output source yet — backend drain contract pending");
+        if (downstream instanceof ExchangeSource source) {
+            return source;
+        }
+        throw new UnsupportedOperationException(
+            "downstream sink " + downstream.getClass().getSimpleName() + " does not implement ExchangeSource"
+        );
     }
 
     @Override
@@ -61,8 +71,12 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
         if (transitionTo(State.RUNNING) == false) return;
         logger.info("[LocalStage] start() stageId={}", stage.getStageId());
         try {
+            // Closing the backend sink signals EOF to the native side and drains the
+            // output stream into `downstream`. Must NOT close `downstream` here —
+            // the walker hasn't read its buffered batches yet. Downstream closure
+            // happens implicitly when the completion listener's consumer finishes
+            // reading each batch.
             backendSink.close();
-            downstream.close();
             if (transitionTo(State.SUCCEEDED)) {
                 logger.info("[LocalStage] SUCCEEDED stageId={}", stage.getStageId());
             }

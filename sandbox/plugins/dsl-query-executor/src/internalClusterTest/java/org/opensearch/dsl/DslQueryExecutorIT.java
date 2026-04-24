@@ -24,7 +24,7 @@ import java.util.List;
  * Integration test that verifies the full DSL query execution pipeline:
  * SearchActionFilter → TransportDslExecuteAction → SearchSourceConverter → DslQueryPlanExecutor → SearchResponse.
  */
-@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
+@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: FieldStorageResolver fails with 'Field [...] has no storage in any format' (no backend registers storage for index fields); shard execution + Arrow Flight drain also not yet wired")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class DslQueryExecutorIT extends OpenSearchIntegTestCase {
 
