@@ -52,6 +52,7 @@ import static org.mockito.Mockito.when;
  * Tests cover single block downloads, failure scenarios, duplicate handling, and concurrent operations.
  */
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public class BlockTransferManagerTests extends LuceneTestCase {
 
     // Node and index configuration constants
