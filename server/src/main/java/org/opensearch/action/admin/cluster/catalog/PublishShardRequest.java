@@ -15,38 +15,29 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Request to publish shard data to an external catalog. Carries the index name and
- * catalog repository name so the shard-level handler can build the
- * {@code RemoteSegmentStoreDirectory} and call {@code MetadataClient.publish()}.
+ * Request to publish shard data to the catalog registered on each node. Carries only the
+ * index name — there is one catalog destination per node, configured via node settings at
+ * startup.
  *
  * @opensearch.experimental
  */
 public class PublishShardRequest extends BroadcastRequest<PublishShardRequest> {
 
-    private final String catalogRepoName;
-
-    public PublishShardRequest(String indexName, String catalogRepoName) {
+    public PublishShardRequest(String indexName) {
         super(indexName);
-        this.catalogRepoName = catalogRepoName;
     }
 
     public PublishShardRequest(StreamInput in) throws IOException {
         super(in);
-        this.catalogRepoName = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(catalogRepoName);
-    }
-
-    public String getCatalogRepoName() {
-        return catalogRepoName;
     }
 
     @Override
     public String toString() {
-        return "PublishShardRequest{indices=" + String.join(",", indices()) + ", catalogRepo=" + catalogRepoName + "}";
+        return "PublishShardRequest{indices=" + String.join(",", indices()) + "}";
     }
 }
