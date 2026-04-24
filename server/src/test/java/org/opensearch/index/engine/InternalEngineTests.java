@@ -6773,11 +6773,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(doc));
         }
         // Default ops threshold is Integer.MAX_VALUE so the feature is disabled and no flush should be scheduled.
-        assertThat(
-            "Default ops threshold is disabled, flush should not be scheduled",
-            engine.shouldPeriodicallyFlush(),
-            equalTo(false)
-        );
+        assertThat("Default ops threshold is disabled, flush should not be scheduled", engine.shouldPeriodicallyFlush(), equalTo(false));
         assertThat(engine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(numDocs));
 
         // Lower the ops threshold below the number of uncommitted ops so the count-based condition triggers.
@@ -6803,8 +6799,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat("Ops threshold crossed, flush expected", engine.shouldPeriodicallyFlush(), equalTo(true));
 
         engine.flush();
-        assertThat("After flush, no uncommitted operations remain above the threshold",
-            engine.shouldPeriodicallyFlush(), equalTo(false));
+        assertThat("After flush, no uncommitted operations remain above the threshold", engine.shouldPeriodicallyFlush(), equalTo(false));
     }
 
     public void testShouldPeriodicallyFlushAfterMerge() throws Exception {

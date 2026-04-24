@@ -615,19 +615,14 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
         // dynamic update
         int newOps = randomIntBetween(100, 1_000_000);
-        settings.updateIndexMetadata(
-            newIndexMeta("index", Settings.builder().put(key, newOps).build())
-        );
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, newOps).build()));
         assertEquals(newOps, settings.getFlushThresholdOps());
 
         // minimum bound is enforced (must be >= 100)
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new IndexSettings(
-                newIndexMeta(
-                    "index",
-                    Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put(key, 99).build()
-                ),
+                newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put(key, 99).build()),
                 Settings.EMPTY
             )
         );
