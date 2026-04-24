@@ -200,6 +200,10 @@ impl QueryTrackingContext {
             start_time: Instant::now(),
             context_id,
             memory_pool: query_pool,
+            // CancellationToken is a thread-safe, cloneable handle that can be used to
+            // signal cancellation to async tasks via `token.cancelled().await` in a
+            // `tokio::select!` branch. Calling `token.cancel()` fires all waiters.
+            // See: https://github.com/tokio-rs/tokio/blob/master/tokio-util/src/sync/cancellation_token/tree_node.rs
             cancellation_token: CancellationToken::new(),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
