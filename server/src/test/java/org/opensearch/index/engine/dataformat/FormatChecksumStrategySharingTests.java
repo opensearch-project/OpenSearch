@@ -72,7 +72,7 @@ public class FormatChecksumStrategySharingTests extends OpenSearchTestCase {
 
     private DataFormatRegistry createRegistry(MockDataFormat format) {
         StrategyCreatingPlugin plugin = new StrategyCreatingPlugin(format);
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
         PluginsService pluginsService = mock(PluginsService.class);
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
