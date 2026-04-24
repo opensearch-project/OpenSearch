@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -20,7 +21,12 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import java.io.IOException;
 
 /**
- * Static helpers for creating Lucene-based reader managers.
+ * Static helpers for creating Lucene-based {@link EngineReaderManager} instances.
+ * <p>
+ * Called by {@link org.opensearch.be.lucene.LucenePlugin#createReaderManager} during
+ * shard initialization. The factory method opens an NRT reader from the
+ * {@link LuceneIndexingExecutionEngine}'s shared {@link org.apache.lucene.index.IndexWriter}
+ * when available, falling back to a directory-based reader for read-only replicas.
  *
  * @opensearch.experimental
  */
@@ -45,11 +51,11 @@ final class LuceneSearchBackEnd {
         IndexStoreProvider provider = settings.indexStoreProvider()
             .orElseThrow(() -> new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager"));
         DirectoryReader directoryReader;
-        if (provider instanceof LuceneIndexingExecutionEngine luceneProvider) {
-            directoryReader = DirectoryReader.open(luceneProvider.getWriter());
+        if (provider.getStore(settings.format()) instanceof LuceneIndexingExecutionEngine.LuceneFormatStore luceneProvider) {
+            directoryReader = DirectoryReader.open(luceneProvider.writer());
         } else {
             logger.warn("Initialising it with a DirectorReader instead of a writer");
-            directoryReader = StandardDirectoryReader.open(provider.getStore().directory());
+            directoryReader = StandardDirectoryReader.open(provider.getStore(settings.format()).store().directory());
         }
         return new LuceneReaderManager(settings.format(), directoryReader);
     }

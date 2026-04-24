@@ -231,4 +231,20 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         }
         return fileNames;
     }
+
+    @Override
+    public String toString() {
+        return "DataformatAwareCatalogSnapshot{"
+            + "id="
+            + id
+            + ", segments="
+            + segments
+            + ", lastWriterGeneration="
+            + lastWriterGeneration
+            + ", userData="
+            + userData
+            + ", closed="
+            + closed
+            + '}';
+    }
 }
