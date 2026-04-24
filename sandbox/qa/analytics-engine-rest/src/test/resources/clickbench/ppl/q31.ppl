@@ -1,0 +1,1 @@
+source = clickbench | where SearchPhrase != '' | stats count() as c, sum(IsRefresh), avg(ResolutionWidth) by SearchEngineID, ClientIP | sort - c | head 10
