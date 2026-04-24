@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.pagecache.foyer;
+package org.opensearch.blockcache.foyer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,7 +20,7 @@ import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 
 /**
- * FFM bridge for the Foyer page cache lifecycle.
+ * FFM bridge for the Foyer block cache lifecycle.
  *
  * <p>Exposes two operations: {@link #createCache} and {@link #destroyCache}.
  * These map to the {@code foyer_create_cache} and {@code foyer_destroy_cache}
@@ -75,7 +75,7 @@ public final class FoyerBridge {
     }
 
     /**
-     * Create a Foyer cache.
+     * Create a Foyer block cache.
      *
      * @param diskBytes       maximum disk space the cache may use, in bytes
      * @param diskDir         path to the directory where Foyer stores cache data
@@ -100,7 +100,7 @@ public final class FoyerBridge {
                 throw new IllegalStateException("foyer_create_cache returned invalid pointer: " + ptr);
             }
             logger.info(
-                "Foyer cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, dir={}",
+                "Foyer block cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, dir={}",
                 diskBytes, blockSizeBytes, ioEngine, diskDir
             );
             return ptr;
@@ -119,7 +119,7 @@ public final class FoyerBridge {
         try (var call = new NativeCall()) {
             call.invoke(FOYER_DESTROY_CACHE, ptr);
         }
-        logger.info("Foyer cache destroyed");
+        logger.info("Foyer block cache destroyed");
     }
 
     private FoyerBridge() {}

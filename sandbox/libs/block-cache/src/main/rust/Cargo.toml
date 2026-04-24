@@ -1,13 +1,13 @@
 [package]
-name = "opensearch-page-cache"
+name = "opensearch-block-cache"
 version = "0.1.0"
 edition = "2021"
-description = "Disk page cache backed by Foyer — rlib member of the dataformat-native workspace"
+description = "Disk block cache backed by Foyer — rlib member of the dataformat-native workspace"
 license = "Apache-2.0"
 workspace = "../../../../dataformat-native/rust"
 
 [lib]
-name = "opensearch_page_cache"
+name = "opensearch_block_cache"
 crate-type = ["rlib"]
 
 [dependencies]

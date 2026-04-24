@@ -6,28 +6,28 @@
  * compatible open source license.
  */
 
-package org.opensearch.pagecache.foyer;
+package org.opensearch.blockcache.foyer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.pagecache.PageCache;
+import org.opensearch.blockcache.BlockCache;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Foyer-backed implementation of {@link PageCache}.
+ * Foyer-backed implementation of {@link BlockCache}.
  *
  * <p>Holds the native cache handle privately. Callers interact with this class
- * through the {@link PageCache} interface. Native-aware callers that need the
- * underlying handle must cast to {@code FoyerPageCache} and call
+ * through the {@link BlockCache} interface. Native-aware callers that need the
+ * underlying handle must cast to {@code FoyerBlockCache} and call
  * {@link #nativeCachePtr()}.
  *
  * @opensearch.experimental
  */
-public final class FoyerPageCache implements PageCache {
+public final class FoyerBlockCache implements BlockCache {
 
-    private static final Logger logger = LogManager.getLogger(FoyerPageCache.class);
+    private static final Logger logger = LogManager.getLogger(FoyerBlockCache.class);
 
     /** Opaque native handle returned by {@code foyer_create_cache}. Always positive. */
     private final long cachePtr;
@@ -49,7 +49,7 @@ public final class FoyerPageCache implements PageCache {
      * @throws NullPointerException     if {@code diskDir} or {@code ioEngine} is null
      * @throws IllegalStateException    if the native call fails to return a valid handle
      */
-    public FoyerPageCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
+    public FoyerBlockCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
         if (diskBytes <= 0) {
             throw new IllegalArgumentException("diskBytes must be > 0, got: " + diskBytes);
         }
@@ -68,9 +68,9 @@ public final class FoyerPageCache implements PageCache {
      * Returns the opaque native cache pointer.
      *
      * <p><strong>Native-aware callers only.</strong> This method lives outside the
-     * {@link PageCache} interface to prevent leakage of the native handle into
+     * {@link BlockCache} interface to prevent leakage of the native handle into
      * general-purpose code. Callers must first verify the runtime type with
-     * {@code instanceof FoyerPageCache} before calling this method.
+     * {@code instanceof FoyerBlockCache} before calling this method.
      *
      * @return the positive {@code long} handle to the native cache instance
      */
@@ -88,7 +88,7 @@ public final class FoyerPageCache implements PageCache {
     public void close() {
         if (closed.compareAndSet(false, true)) {
             FoyerBridge.destroyCache(cachePtr);
-            logger.info("FoyerPageCache closed");
+            logger.info("FoyerBlockCache closed");
         }
     }
 }

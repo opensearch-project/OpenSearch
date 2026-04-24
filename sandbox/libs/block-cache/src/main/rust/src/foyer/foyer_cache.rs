@@ -51,19 +51,19 @@ fn kernel_version_at_least(required_major: u32, required_minor: u32) -> bool {
 fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
     match choice {
         "io_uring" => {
-            log::info!("[page-cache] io_engine=io_uring forced by config");
+            log::info!("[block-cache] io_engine=io_uring forced by config");
             #[cfg(target_os = "linux")]
             return UringIoEngineConfig::new().boxed();
             #[cfg(not(target_os = "linux"))]
-            panic!("[page-cache] io_engine=io_uring requested but io_uring is not supported on non-Linux platforms");
+            panic!("[block-cache] io_engine=io_uring requested but io_uring is not supported on non-Linux platforms");
         }
         "psync" => {
-            log::info!("[page-cache] io_engine=psync forced by config");
+            log::info!("[block-cache] io_engine=psync forced by config");
             return PsyncIoEngineConfig::new().boxed();
         }
         other => {
             if other != "auto" {
-                log::warn!("[page-cache] unknown io_engine='{}'; falling back to auto-detect", other);
+                log::warn!("[block-cache] unknown io_engine='{}'; falling back to auto-detect", other);
             }
             // "auto" — detect by kernel version (existing logic)
             #[cfg(target_os = "linux")]
@@ -73,13 +73,13 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
                 let release = release.trim();
                 if kernel_version_at_least(5, 1) {
                     log::info!(
-                        "[page-cache] kernel {} — io_uring available, using UringIoEngineConfig",
+                        "[block-cache] kernel {} — io_uring available, using UringIoEngineConfig",
                         release
                     );
                     return UringIoEngineConfig::new().boxed();
                 } else {
                     log::warn!(
-                        "[page-cache] kernel {} — io_uring unavailable (requires >= 5.1), \
+                        "[block-cache] kernel {} — io_uring unavailable (requires >= 5.1), \
                          falling back to PsyncIoEngineConfig",
                         release
                     );
@@ -135,7 +135,7 @@ impl EventListener for KeyIndexListener {
 
 // ── FoyerCache ────────────────────────────────────────────────────────────────
 
-/// Disk page cache with prefix-based eviction support backed by Foyer.
+/// Disk block cache with prefix-based eviction support backed by Foyer.
 ///
 /// Wraps a Foyer [`HybridCache`] configured as a disk-only store, together
 /// with a concurrent key index that maps each index prefix to its cached entry
@@ -185,13 +185,13 @@ impl FoyerCache {
         let listener = Arc::new(KeyIndexListener { key_index: Arc::clone(&key_index) });
 
         let rt = tokio::runtime::Runtime::new()
-            .expect("[page-cache] failed to create Tokio runtime");
+            .expect("[block-cache] failed to create Tokio runtime");
         let dir_clone = disk_dir.clone();
         let io_engine = io_engine.to_string();
         let io_engine_for_log = io_engine.clone();  // clone for use in log after the closure
         let inner = rt.block_on(async move {
             HybridCacheBuilder::<String, Vec<u8>>::new()
-                .with_name("page-cache")
+                .with_name("block-cache")
                 .with_event_listener(listener)
                 .memory(1)
                     // Disable the in-memory tier — this cache is disk-only.
@@ -210,16 +210,16 @@ impl FoyerCache {
                         FsDeviceBuilder::new(dir_clone)
                             .with_capacity(disk_bytes)
                             .build()
-                            .expect("[page-cache] FsDevice build failed")
+                            .expect("[block-cache] FsDevice build failed")
                     )
                     .with_block_size(block_size_bytes)
                 )
                 .build()
                 .await
-                .expect("[page-cache] HybridCache build failed")
+                .expect("[block-cache] HybridCache build failed")
         });
         log::info!(
-            "[page-cache] ready: disk={}B, block_size={}B, io_engine={}, dir={}",
+            "[block-cache] ready: disk={}B, block_size={}B, io_engine={}, dir={}",
             disk_bytes, block_size_bytes, io_engine_for_log, disk_dir.display()
         );
         Self { inner, key_index, _runtime: Arc::new(rt) }

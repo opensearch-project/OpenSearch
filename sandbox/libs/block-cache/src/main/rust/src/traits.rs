@@ -11,7 +11,7 @@
 use bytes::Bytes;
 use crate::range_cache::CacheKey;
 
-/// A disk page cache.
+/// A disk block cache.
 ///
 /// Keys are [`CacheKey`] values — opaque newtypes that can only be constructed
 /// via the helpers in [`crate::range_cache`]. This enforces the `\x1F` separator

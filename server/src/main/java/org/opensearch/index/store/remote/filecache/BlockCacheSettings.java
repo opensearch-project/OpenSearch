@@ -16,16 +16,21 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import java.util.Set;
 
 /**
- * Settings for the node-level format (page) cache backed by Foyer.
+ * Settings for the node-level block cache backed by Foyer.
  *
  * <p>All settings are {@link Setting.Property#NodeScope}: they are applied once at
  * node startup when the cache is constructed, and require a node restart to take
  * effect. The cache cannot be reconfigured on a live node.
  *
+ * <p>"Block" here is used in the storage sense — a contiguous, variable-size byte
+ * range read as an indivisible I/O unit — not a fixed-size disk sector.
+ * Entry granularity is determined by the calling layer (Parquet column chunks,
+ * Lucene segment files) and may range from kilobytes to tens of megabytes.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public final class PageCacheSettings {
+public final class BlockCacheSettings {
 
     /**
      * Block size for the format cache disk tier.
@@ -82,5 +87,5 @@ public final class PageCacheSettings {
         Setting.Property.NodeScope
     );
 
-    private PageCacheSettings() {}
+    private BlockCacheSettings() {}
 }
