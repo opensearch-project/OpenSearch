@@ -109,6 +109,7 @@ public class S3AsyncDeleteHelper {
                     .build()
             )
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().getDeleteObjectsMetricPublisher()))
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
             .build();
     }
 }
