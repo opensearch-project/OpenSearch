@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.lucene;
+package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;

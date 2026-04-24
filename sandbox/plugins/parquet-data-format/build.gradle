@@ -25,7 +25,7 @@ dependencies {
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
 
   // Required by Arrow
-  implementation 'org.checkerframework:checker-qual:3.42.0'
+  implementation 'org.checkerframework:checker-qual:3.43.0'
   implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
   // jackson-core is on the server classpath; jackson-databind and jackson-annotations are not.
