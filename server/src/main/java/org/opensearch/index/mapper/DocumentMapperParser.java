@@ -42,6 +42,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.mapper.MapperRegistry;
@@ -74,6 +75,7 @@ public class DocumentMapperParser {
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
     private final ScriptService scriptService;
+    private final DataFormatRegistry dataFormatRegistry;
 
     public DocumentMapperParser(
         IndexSettings indexSettings,
@@ -84,6 +86,28 @@ public class DocumentMapperParser {
         Supplier<QueryShardContext> queryShardContextSupplier,
         ScriptService scriptService
     ) {
+        this(
+            indexSettings,
+            mapperService,
+            xContentRegistry,
+            similarityService,
+            mapperRegistry,
+            queryShardContextSupplier,
+            scriptService,
+            null
+        );
+    }
+
+    public DocumentMapperParser(
+        IndexSettings indexSettings,
+        MapperService mapperService,
+        NamedXContentRegistry xContentRegistry,
+        SimilarityService similarityService,
+        MapperRegistry mapperRegistry,
+        Supplier<QueryShardContext> queryShardContextSupplier,
+        ScriptService scriptService,
+        @Nullable DataFormatRegistry dataFormatRegistry
+    ) {
         this.mapperService = mapperService;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
@@ -92,6 +116,7 @@ public class DocumentMapperParser {
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers();
+        this.dataFormatRegistry = dataFormatRegistry;
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
@@ -102,7 +127,8 @@ public class DocumentMapperParser {
             indexVersionCreated,
             queryShardContextSupplier,
             null,
-            scriptService
+            scriptService,
+            dataFormatRegistry
         );
     }
 
@@ -114,7 +140,8 @@ public class DocumentMapperParser {
             indexVersionCreated,
             queryShardContextSupplier,
             dateFormatter,
-            scriptService
+            scriptService,
+            dataFormatRegistry
         );
     }
 

@@ -57,6 +57,8 @@ import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.query.DistanceFeatureQueryBuilder;
 import org.opensearch.index.query.IntervalMode;
@@ -69,9 +71,11 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -92,6 +96,24 @@ public abstract class MappedFieldType {
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
+
+    /** Authoritative list of metadata field names that bypass capability-based filtering. */
+    private static final Set<String> METADATA_FIELD_NAMES = Set.of(
+        "_id",
+        "_routing",
+        "_seq_no",
+        "_version",
+        "_primary_term",
+        "_doc_count",
+        "_ignored",
+        "_size"
+    );
+
+    /**
+     * Capability map assigning each registered {@link DataFormat} to the set of capabilities it owns for this field type.
+     * Set once at mapping creation time, read at indexing time. Volatile for cross-thread visibility.
+     */
+    private volatile Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap = Map.of();
 
     public MappedFieldType(
         String name,
@@ -464,6 +486,38 @@ public abstract class MappedFieldType {
 
     public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+    }
+
+    /**
+     * Returns an unmodifiable view of the capability map for this field type.
+     * The map assigns each registered {@link DataFormat} to the set of capabilities it owns for this field type.
+     * Returns an empty map if no capability map has been set.
+     *
+     * @return an unmodifiable capability map
+     */
+    public Map<DataFormat, Set<FieldTypeCapabilities.Capability>> getCapabilityMap() {
+        return Collections.unmodifiableMap(capabilityMap);
+    }
+
+    /**
+     * Sets the capability map for this field type. Stores a defensive immutable copy.
+     * Called at mapping creation time by the composite engine.
+     *
+     * @param capabilityMap the capability map to set
+     */
+    public void setCapabilityMap(Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap) {
+        this.capabilityMap = Map.copyOf(capabilityMap);
+    }
+
+    /**
+     * Returns whether the given field name is a metadata field that bypasses capability filtering.
+     * Metadata fields are always accepted by all data formats.
+     *
+     * @param fieldName the field name to check
+     * @return {@code true} if the field name is a metadata field
+     */
+    public static boolean isMetadataField(String fieldName) {
+        return METADATA_FIELD_NAMES.contains(fieldName);
     }
 
     /** Return a {@link DocValueFormat} that can be used to display and parse
