@@ -43,6 +43,7 @@ import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
+import org.apache.logging.log4j.jul.Log4jBridgeHandler;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
@@ -190,6 +191,13 @@ public class LogConfigurator {
         context.start(new CompositeConfiguration(configurations));
 
         configureLoggerLevels(settings);
+
+        // Bridge java.util.logging (JUL) to Log4j2 so that libraries using JUL (e.g., Lucene) route
+        // through the configured logging framework instead of falling back to the default ConsoleHandler,
+        // which writes to stderr and would be captured at WARN level. Setting the system property
+        // "java.util.logging.manager" alone is insufficient because JUL's LogManager may already be
+        // initialized by the JVM before this point.
+        Log4jBridgeHandler.install(true, null, true);
 
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that
