@@ -10,6 +10,8 @@ package org.opensearch.common.logging;
 
 import org.apache.logging.log4j.jul.Log4jBridgeHandler;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.logging.ConsoleHandler;
@@ -19,10 +21,34 @@ import java.util.logging.Logger;
 
 public class JulBridgeTests extends OpenSearchTestCase {
 
-    public void testLog4jBridgeHandlerInstallation() {
-        Logger julRootLogger = LogManager.getLogManager().getLogger("");
+    private Handler[] originalHandlers;
+    private Logger julRootLogger;
 
-        // Install the bridge (removes existing handlers including ConsoleHandler)
+    @Before
+    public void saveJulHandlers() {
+        julRootLogger = LogManager.getLogManager().getLogger("");
+        originalHandlers = julRootLogger.getHandlers();
+        // Remove all handlers to start from a known state
+        for (Handler handler : originalHandlers) {
+            julRootLogger.removeHandler(handler);
+        }
+        // Add a ConsoleHandler to simulate a pre-bridge state
+        julRootLogger.addHandler(new ConsoleHandler());
+    }
+
+    @After
+    public void restoreJulHandlers() {
+        // Remove any handlers added during the test
+        for (Handler handler : julRootLogger.getHandlers()) {
+            julRootLogger.removeHandler(handler);
+        }
+        // Restore original handlers
+        for (Handler handler : originalHandlers) {
+            julRootLogger.addHandler(handler);
+        }
+    }
+
+    public void testLog4jBridgeHandlerInstallation() {
         Log4jBridgeHandler.install(true, null, true);
 
         Handler[] handlers = julRootLogger.getHandlers();
@@ -34,9 +60,6 @@ public class JulBridgeTests extends OpenSearchTestCase {
     }
 
     public void testLog4jBridgeHandlerInstallationIsIdempotent() {
-        Logger julRootLogger = LogManager.getLogManager().getLogger("");
-
-        // Calling install twice should not result in duplicate handlers
         Log4jBridgeHandler.install(true, null, true);
         Log4jBridgeHandler.install(true, null, true);
 
@@ -44,6 +67,6 @@ public class JulBridgeTests extends OpenSearchTestCase {
             .filter(h -> h instanceof Log4jBridgeHandler)
             .count();
 
-        assertEquals("Log4jBridgeHandler should only be installed once even after multiple install calls", 1, bridgeHandlerCount);
+        assertEquals("Log4jBridgeHandler should only be present once even after multiple install calls", 1, bridgeHandlerCount);
     }
 }
