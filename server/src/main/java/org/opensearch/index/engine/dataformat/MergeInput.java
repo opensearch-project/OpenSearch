@@ -21,14 +21,14 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapping, long newWriterGeneration) {
+public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapping, long newWriterGeneration, String indexName) {
 
     public MergeInput {
         writerFiles = List.copyOf(writerFiles);
     }
 
     private MergeInput(Builder builder) {
-        this(new ArrayList<>(builder.fileMetadataList), builder.rowIdMapping, builder.newWriterGeneration);
+        this(new ArrayList<>(builder.fileMetadataList), builder.rowIdMapping, builder.newWriterGeneration, builder.indexName);
     }
 
     /**
@@ -48,6 +48,7 @@ public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapp
         private List<WriterFileSet> fileMetadataList = new ArrayList<>();
         private RowIdMapping rowIdMapping;
         private long newWriterGeneration;
+        private String indexName;
 
         private Builder() {}
 
@@ -92,6 +93,17 @@ public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapp
          */
         public Builder newWriterGeneration(long newWriterGeneration) {
             this.newWriterGeneration = newWriterGeneration;
+            return this;
+        }
+
+        /**
+         * Sets the index name for settings lookup during merge.
+         *
+         * @param indexName the index name
+         * @return this builder
+         */
+        public Builder indexName(String indexName) {
+            this.indexName = indexName;
             return this;
         }
 

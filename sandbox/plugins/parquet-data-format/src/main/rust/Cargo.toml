@@ -14,18 +14,15 @@ crate-type = ["rlib"]
 
 [dependencies]
 arrow = { workspace = true }
-arrow-array = { workspace = true }
-arrow-schema = { workspace = true }
-arrow-buffer = { workspace = true }
-log = { workspace = true }
 parquet = { workspace = true }
 lazy_static = { workspace = true }
 dashmap = { workspace = true }
-chrono = { workspace = true }
-mimalloc = { workspace = true }
 tempfile = { workspace = true }
 native-bridge-common = { workspace = true }
+rayon = { workspace = true }
+tokio = { workspace = true }
 crc32fast = { workspace = true }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }
+
