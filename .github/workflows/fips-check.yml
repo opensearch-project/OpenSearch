@@ -1,0 +1,81 @@
+name: FIPS Check
+on:
+  schedule:
+    - cron: '0 4 * * *' # Daily at 4:00 AM UTC
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fips-check:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - name: Remove unnecessary files
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: gradle
+      - name: Run FIPS tests
+        run: |
+          ./gradlew test -Pcrypto.standard=FIPS-140-3 \
+            -Dtests.fips.only=true \
+            --continue
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fips-test-results
+          path: '**/build/reports/tests/'
+          retention-days: 7
+
+  open-issue-on-failure:
+    if: failure() && github.event_name == 'schedule'
+    needs: fips-check
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const title = 'Nightly FIPS check failed';
+            const { data: existing_issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'autocut,CI',
+              per_page: 100
+            });
+            const existing = existing_issues.find(i => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Another nightly FIPS failure.\n\n[View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              });
+              console.log('Commented on existing issue.');
+              return;
+            }
+            const body = `The nightly FIPS check workflow failed.\n\n[View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['autocut', 'CI']
+            });

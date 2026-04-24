@@ -187,6 +187,7 @@ public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
             final String clientName = clientNamePrefix + i;
             secureSettings.setString("s3.client." + clientName + ".role_arn", clientName + "_role_arn");
             secureSettings.setString("s3.client." + clientName + ".role_session_name", clientName + "_role_session_name");
+            plainSettings.put("s3.client." + clientName + ".region", "us-east1");
         }
         final Settings settings = Settings.builder().loadFromMap(plainSettings).setSecureSettings(secureSettings).build();
         final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings, configPath());
