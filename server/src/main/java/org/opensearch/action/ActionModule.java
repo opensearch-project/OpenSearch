@@ -161,6 +161,8 @@ import org.opensearch.action.admin.indices.flush.FlushAction;
 import org.opensearch.action.admin.indices.flush.TransportFlushAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.opensearch.action.admin.indices.forcemerge.TransportForceMergeAction;
+import org.opensearch.action.admin.cluster.catalog.PublishShardAction;
+import org.opensearch.action.admin.cluster.catalog.TransportPublishShardAction;
 import org.opensearch.action.admin.indices.get.GetIndexAction;
 import org.opensearch.action.admin.indices.get.TransportGetIndexAction;
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
@@ -716,6 +718,7 @@ public class ActionModule extends AbstractModule {
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
+        actions.register(PublishShardAction.INSTANCE, TransportPublishShardAction.class);
         actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
         actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
         actions.register(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);

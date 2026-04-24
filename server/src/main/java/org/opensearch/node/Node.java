@@ -250,6 +250,11 @@ import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.catalog.CatalogRepository;
+import org.opensearch.catalog.MetadataClient;
+import org.opensearch.catalog.RemoteCatalogService;
+import org.opensearch.plugins.CatalogPlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -442,6 +447,29 @@ public class Node implements Closeable {
         Node::validateFileCacheSize,
         Property.NodeScope
     );
+
+    /**
+     * Type of the catalog repository registered at node startup (e.g., {@code iceberg_s3tables}).
+     * When unset, catalog publish is disabled on this node and {@code _catalog/publish} returns
+     * an error. When set, a {@link org.opensearch.plugins.CatalogPlugin} must be installed that
+     * registers an internal repository factory for this type.
+     */
+    public static final Setting<String> CATALOG_REPOSITORY_TYPE_SETTING = Setting.simpleString(
+        "catalog.repository.type",
+        Property.NodeScope
+    );
+
+    /**
+     * Settings passed to the catalog repository factory. Keys under this prefix are stripped and
+     * forwarded verbatim — see each catalog implementation for supported settings.
+     */
+    public static final Setting.AffixSetting<String> CATALOG_REPOSITORY_SETTINGS = Setting.prefixKeySetting(
+        "catalog.repository.settings.",
+        (key) -> Setting.simpleString(key, Property.NodeScope)
+    );
+
+    /** Internal repository name used for the catalog. Hidden from the public snapshot API. */
+    public static final String CATALOG_REPOSITORY_NAME = "_catalog";
 
     private static final String CLIENT_TYPE = "node";
 
@@ -1430,6 +1458,9 @@ public class Node implements Closeable {
             );
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
+
+            final MetadataClient catalogMetadataClient = createCatalogMetadataClient(settings, pluginsService, repositoryService);
+            final RemoteCatalogService remoteCatalogService = new RemoteCatalogService(clusterService, client, catalogMetadataClient);
             SnapshotsService snapshotsService = new SnapshotsService(
                 settings,
                 clusterService,
@@ -2528,6 +2559,44 @@ public class Node implements Closeable {
     private static String validateFileCacheSize(String capacityRaw) {
         calculateFileCacheSize(capacityRaw, 0L);
         return capacityRaw;
+    }
+
+    private static MetadataClient createCatalogMetadataClient(
+        Settings settings,
+        PluginsService pluginsService,
+        RepositoriesService repositoriesService
+    ) {
+        String catalogType = CATALOG_REPOSITORY_TYPE_SETTING.get(settings);
+        if (catalogType == null || catalogType.isEmpty()) {
+            return null;
+        }
+
+        List<CatalogPlugin> catalogPlugins = pluginsService.filterPlugins(CatalogPlugin.class);
+        if (catalogPlugins.isEmpty()) {
+            throw new IllegalStateException(
+                "[" + CATALOG_REPOSITORY_TYPE_SETTING.getKey() + "] is set to [" + catalogType
+                    + "] but no CatalogPlugin is installed"
+            );
+        }
+        if (catalogPlugins.size() > 1) {
+            throw new IllegalStateException(
+                "only one CatalogPlugin is allowed but found [" + catalogPlugins.size() + "]"
+            );
+        }
+
+        // Strip the "catalog.repository.settings." prefix and forward the rest to the factory.
+        Settings repoSettings = settings.getByPrefix("catalog.repository.settings.");
+
+        repositoriesService.registerInternalRepository(CATALOG_REPOSITORY_NAME, catalogType, repoSettings);
+
+        Repository repository = repositoriesService.repository(CATALOG_REPOSITORY_NAME);
+        if (!(repository instanceof CatalogRepository)) {
+            throw new IllegalStateException(
+                "catalog repository type [" + catalogType + "] did not produce a CatalogRepository, got ["
+                    + repository.getClass().getName() + "]"
+            );
+        }
+        return catalogPlugins.get(0).createMetadataClient((CatalogRepository) repository);
     }
 
     /**
