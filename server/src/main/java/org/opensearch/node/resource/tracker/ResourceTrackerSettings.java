@@ -72,12 +72,28 @@ public class ResourceTrackerSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public static final Setting<TimeValue> GLOBAL_NATIVE_MEMORY_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
+        "node.resource.tracker.global_native_memory_usage.polling_interval",
+        TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL_IN_MILLIS),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
+        "node.resource.tracker.global_native_memory_usage.window_duration",
+        TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_SECONDS),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile TimeValue cpuWindowDuration;
     private volatile TimeValue cpuPollingInterval;
     private volatile TimeValue memoryWindowDuration;
     private volatile TimeValue memoryPollingInterval;
     private volatile TimeValue ioWindowDuration;
     private volatile TimeValue ioPollingInterval;
+    private volatile TimeValue nativeMemoryWindowDuration;
+    private volatile TimeValue nativeMemoryPollingInterval;
 
     public ResourceTrackerSettings(Settings settings) {
         this.cpuPollingInterval = GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
@@ -86,6 +102,8 @@ public class ResourceTrackerSettings {
         this.memoryWindowDuration = GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
         this.ioPollingInterval = GLOBAL_IO_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
         this.ioWindowDuration = GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
+        this.nativeMemoryPollingInterval = GLOBAL_NATIVE_MEMORY_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
+        this.nativeMemoryWindowDuration = GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
     }
 
     public TimeValue getCpuWindowDuration() {
@@ -122,5 +140,17 @@ public class ResourceTrackerSettings {
 
     public void setIoWindowDuration(TimeValue ioWindowDuration) {
         this.ioWindowDuration = ioWindowDuration;
+    }
+
+    public TimeValue getNativeMemoryPollingInterval() {
+        return nativeMemoryPollingInterval;
+    }
+
+    public TimeValue getNativeMemoryWindowDuration() {
+        return nativeMemoryWindowDuration;
+    }
+
+    public void setNativeMemoryWindowDuration(TimeValue nativeMemoryWindowDuration) {
+        this.nativeMemoryWindowDuration = nativeMemoryWindowDuration;
     }
 }

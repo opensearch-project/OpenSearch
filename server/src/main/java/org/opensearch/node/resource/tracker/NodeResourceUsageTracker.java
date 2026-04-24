@@ -26,6 +26,7 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     private AverageCpuUsageTracker cpuUsageTracker;
     private AverageMemoryUsageTracker memoryUsageTracker;
     private AverageIoUsageTracker ioUsageTracker;
+    private AverageNativeMemoryUsageTracker nativeMemoryUsageTracker;
 
     private ResourceTrackerSettings resourceTrackerSettings;
 
@@ -67,11 +68,24 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     }
 
     /**
+     * Return native memory utilization average if we have enough datapoints, otherwise return 0
+     */
+    public double getNativeMemoryUtilizationPercent() {
+        if (nativeMemoryUsageTracker.isReady()) {
+            return nativeMemoryUsageTracker.getAverage();
+        }
+        return 0.0;
+    }
+
+    /**
      * Checks if all of the resource usage trackers are ready
      */
     public boolean isReady() {
         if (Constants.LINUX) {
-            return memoryUsageTracker.isReady() && cpuUsageTracker.isReady() && ioUsageTracker.isReady();
+            return memoryUsageTracker.isReady()
+                && cpuUsageTracker.isReady()
+                && ioUsageTracker.isReady()
+                && nativeMemoryUsageTracker.isReady();
         }
         return memoryUsageTracker.isReady() && cpuUsageTracker.isReady();
     }
@@ -107,6 +121,18 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
             ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING,
             this::setIoWindowDuration
         );
+
+        nativeMemoryUsageTracker = new AverageNativeMemoryUsageTracker(
+            threadPool,
+            resourceTrackerSettings.getNativeMemoryPollingInterval(),
+            resourceTrackerSettings.getNativeMemoryWindowDuration()
+        );
+        if (Constants.LINUX) {
+            clusterSettings.addSettingsUpdateConsumer(
+                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING,
+                this::setNativeMemoryWindowDuration
+            );
+        }
     }
 
     private void setMemoryWindowDuration(TimeValue windowDuration) {
@@ -124,6 +150,11 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
         resourceTrackerSettings.setIoWindowDuration(windowDuration);
     }
 
+    private void setNativeMemoryWindowDuration(TimeValue windowDuration) {
+        nativeMemoryUsageTracker.setWindowSize(windowDuration);
+        resourceTrackerSettings.setNativeMemoryWindowDuration(windowDuration);
+    }
+
     /**
      * Visible for testing
      */
@@ -136,6 +167,9 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
         cpuUsageTracker.doStart();
         memoryUsageTracker.doStart();
         ioUsageTracker.doStart();
+        if (Constants.LINUX) {
+            nativeMemoryUsageTracker.doStart();
+        }
     }
 
     @Override
@@ -143,6 +177,9 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
         cpuUsageTracker.doStop();
         memoryUsageTracker.doStop();
         ioUsageTracker.doStop();
+        if (Constants.LINUX) {
+            nativeMemoryUsageTracker.doStop();
+        }
     }
 
     @Override
@@ -150,5 +187,8 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
         cpuUsageTracker.doClose();
         memoryUsageTracker.doClose();
         ioUsageTracker.doClose();
+        if (Constants.LINUX) {
+            nativeMemoryUsageTracker.doClose();
+        }
     }
 }

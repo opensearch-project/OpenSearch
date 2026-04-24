@@ -39,6 +39,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.monitor.Probes;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
@@ -251,6 +252,48 @@ public class OsProbe {
         final List<String> lines = Files.readAllLines(path);
         assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
+    }
+
+    /**
+     * Returns the available memory in bytes on Linux by reading {@code MemAvailable} from {@code /proc/meminfo}.
+     * Available memory is a better estimate than free memory as it accounts for reclaimable page cache and slab memory.
+     * Returns -1 if not on Linux or if the value cannot be read.
+     */
+    public long getAvailableMemorySize() {
+        if (!Constants.LINUX) {
+            return -1;
+        }
+        try {
+            return readAvailableMemoryFromProcMeminfo();
+        } catch (Exception e) {
+            logger.warn("error reading available memory from /proc/meminfo", e);
+            return -1;
+        }
+    }
+
+    /**
+     * Reads {@code MemAvailable} from {@code /proc/meminfo}.
+     *
+     * @return the available memory in bytes, or -1 if not found
+     * @throws IOException if an I/O exception occurs reading {@code /proc/meminfo}
+     */
+    @SuppressForbidden(reason = "access /proc/meminfo")
+    long readAvailableMemoryFromProcMeminfo() throws IOException {
+        try (BufferedReader reader = Files.newBufferedReader(PathUtils.get("/proc/meminfo"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("MemAvailable:")) {
+                    final String[] parts = line.split("\\s+");
+                    if (parts.length >= 2) {
+                        // Value in /proc/meminfo is in kB
+                        return Long.parseLong(parts[1]) * 1024;
+                    } else {
+                        return -1;
+                    }
+                }
+            }
+        }
+        return -1;
     }
 
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with

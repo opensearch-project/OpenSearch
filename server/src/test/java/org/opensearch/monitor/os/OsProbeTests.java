@@ -310,6 +310,39 @@ public class OsProbeTests extends OpenSearchTestCase {
         verify(logger, never()).warn(anyString());
     }
 
+    public void testGetAvailableMemorySizeLinux() {
+        assumeTrue("test runs on Linux only", Constants.LINUX);
+
+        final OsProbe probe = new OsProbe() {
+            @Override
+            long readAvailableMemoryFromProcMeminfo() {
+                return 8388608L; // 8 MB in bytes
+            }
+        };
+
+        assertThat(probe.getAvailableMemorySize(), equalTo(8388608L));
+    }
+
+    public void testGetAvailableMemorySizeNonLinux() {
+        assumeFalse("test does not run on Linux", Constants.LINUX);
+
+        final OsProbe probe = new OsProbe();
+        assertThat(probe.getAvailableMemorySize(), equalTo(-1L));
+    }
+
+    public void testGetAvailableMemorySizeWhenReadThrowsException() {
+        assumeTrue("test runs on Linux only", Constants.LINUX);
+
+        final OsProbe probe = new OsProbe() {
+            @Override
+            long readAvailableMemoryFromProcMeminfo() throws IOException {
+                throw new IOException("simulated /proc/meminfo read failure");
+            }
+        };
+
+        assertThat(probe.getAvailableMemorySize(), equalTo(-1L));
+    }
+
     private static List<String> getProcSelfGroupLines(String hierarchy) {
         return Arrays.asList(
             "10:freezer:/",
