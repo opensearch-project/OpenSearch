@@ -128,6 +128,23 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         public void messageReceived(CheckpointInfoRequest request, TransportChannel channel, Task task) throws Exception {
             final ReplicationTimer timer = new ReplicationTimer();
             timer.start();
+
+            final ShardId shardId = request.getCheckpoint().getShardId();
+            final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            final IndexShard indexShard = indexService.getShard(shardId.id());
+            if (false == indexShard.isPrimaryMode() || IndexShardState.STARTED != indexShard.state() || indexShard.isHandoffInProgress()) {
+                throw new IllegalStateException(
+                    String.format(
+                        Locale.ROOT,
+                        "%s must be a started primary shard that is not in the hand-off process. However, the current states are isPrimaryMode %s, state %s, isHandoffInProgress %s",
+                        shardId,
+                        indexShard.isPrimaryMode(),
+                        indexShard.state(),
+                        indexShard.isHandoffInProgress()
+                    )
+                );
+            }
+
             final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = getRemoteSegmentFileChunkWriter(
                 SegmentReplicationTargetService.Actions.FILE_CHUNK,
                 request,
