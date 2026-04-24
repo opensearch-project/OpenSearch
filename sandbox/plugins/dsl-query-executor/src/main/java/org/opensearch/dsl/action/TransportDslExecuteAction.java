@@ -78,13 +78,21 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         try {
             String indexName = resolveToSingleIndex(request);
+            long startTime = System.currentTimeMillis();
 
-            long convertStart = System.nanoTime();
             SearchSourceConverter converter = new SearchSourceConverter(engineContext.getSchema());
             QueryPlans plans = converter.convert(request.source(), indexName);
-            long convertTime = System.nanoTime() - convertStart;
+
             List<ExecutionResult> results = planExecutor.execute(plans);
-            SearchResponse response = SearchResponseBuilder.build(results, convertTime);
+
+            long tookInMillis = System.currentTimeMillis() - startTime;
+            SearchResponse response = SearchResponseBuilder.build(
+                results,
+                request,
+                converter.getAggregationRegistry(),
+                tookInMillis
+            );
+
             listener.onResponse(response);
         } catch (Exception e) {
             logger.error("DSL execution failed", e);
