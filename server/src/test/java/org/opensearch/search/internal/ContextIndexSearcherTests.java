@@ -46,6 +46,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostQuery;
@@ -72,11 +73,13 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.support.StreamSearchChannelListener;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.shard.IndexShard;
@@ -88,6 +91,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.QueryFetchSearchResult;
+import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -583,6 +587,92 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         @Override
         public void visit(QueryVisitor visitor) {
             visitor.visitLeaf(this);
+        }
+    }
+
+    public void testTimeoutIsSetOnSearcher() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            QueryTimeout timeout = searcher.getTimeout();
+            assertNotNull("setTimeout should have been called with MutableQueryTimeout", timeout);
+        });
+    }
+
+    public void testTimeoutShouldExitReturnsFalseWhenNoCancellations() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            assertFalse("shouldExit should return false when no cancellations are registered", searcher.getTimeout().shouldExit());
+        });
+    }
+
+    public void testTimeoutShouldExitReturnsFalseWhenCancellationDoesNotThrow() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            searcher.addQueryCancellation(() -> {});
+            assertFalse("shouldExit should return false when cancellation does not throw", searcher.getTimeout().shouldExit());
+        });
+    }
+
+    public void testTimeoutShouldExitReturnsTrueWhenTimeoutExceeded() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            searcher.addQueryCancellation(() -> { throw new QueryPhase.TimeExceededException(); });
+            assertTrue("shouldExit should return true on TimeExceededException", searcher.getTimeout().shouldExit());
+        });
+    }
+
+    public void testTimeoutShouldExitReturnsTrueWhenTaskCancelled() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            searcher.addQueryCancellation(() -> { throw new TaskCancelledException("cancelled"); });
+            assertTrue("shouldExit should return true on TaskCancelledException", searcher.getTimeout().shouldExit());
+        });
+    }
+
+    public void testTimeoutShouldExitDoesNotCatchUnrelatedExceptions() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            searcher.addQueryCancellation(() -> { throw new NullPointerException("unrelated"); });
+            expectThrows(NullPointerException.class, () -> searcher.getTimeout().shouldExit());
+        });
+    }
+
+    public void testTimeoutShouldExitReflectsRemoval() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            Runnable cancellation = searcher.addQueryCancellation(() -> { throw new QueryPhase.TimeExceededException(); });
+            assertTrue("shouldExit should return true while cancellation is active", searcher.getTimeout().shouldExit());
+
+            searcher.removeQueryCancellation(cancellation);
+            assertFalse("shouldExit should return false after cancellation is removed", searcher.getTimeout().shouldExit());
+        });
+    }
+
+    /**
+     * Helper that creates a {@link ContextIndexSearcher} backed by a single-doc index and a mocked
+     * {@link SearchContext}, then passes it to the provided consumer. All resources are closed
+     * automatically.
+     */
+    private void withContextIndexSearcher(CheckedConsumer<ContextIndexSearcher, Exception> test) throws Exception {
+        try (
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()))
+        ) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "value", Field.Store.NO));
+            writer.addDocument(doc);
+            writer.commit();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchContext searchContext = mock(SearchContext.class);
+                IndexShard indexShard = mock(IndexShard.class);
+                when(searchContext.indexShard()).thenReturn(indexShard);
+                when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    searchContext
+                );
+                test.accept(searcher);
+            }
         }
     }
 
