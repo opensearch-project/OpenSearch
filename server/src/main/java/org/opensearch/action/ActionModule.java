@@ -109,7 +109,9 @@ import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.opensearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexStatusAction;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.opensearch.action.admin.cluster.snapshots.status.TransportSnapshotIndexStatusAction;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.TransportClusterStateAction;
@@ -373,6 +375,7 @@ import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.rest.action.admin.cluster.RestGetScriptContextAction;
 import org.opensearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
 import org.opensearch.rest.action.admin.cluster.RestGetSnapshotsAction;
+import org.opensearch.rest.action.admin.cluster.RestSnapshotIndexStatusAction;
 import org.opensearch.rest.action.admin.cluster.RestGetStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestGetTaskAction;
 import org.opensearch.rest.action.admin.cluster.RestListTasksAction;
@@ -698,6 +701,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
+        actions.register(SnapshotIndexStatusAction.INSTANCE, TransportSnapshotIndexStatusAction.class);
 
         actions.register(ClusterAddWeightedRoutingAction.INSTANCE, TransportAddWeightedRoutingAction.class);
         actions.register(ClusterGetWeightedRoutingAction.INSTANCE, TransportGetWeightedRoutingAction.class);
@@ -918,6 +922,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRestoreSnapshotAction());
         registerHandler.accept(new RestDeleteSnapshotAction());
         registerHandler.accept(new RestSnapshotsStatusAction());
+        registerHandler.accept(new RestSnapshotIndexStatusAction());
         registerHandler.accept(new RestGetIndicesAction());
         registerHandler.accept(new RestIndicesStatsAction());
         registerHandler.accept(new RestIndicesSegmentsAction());
