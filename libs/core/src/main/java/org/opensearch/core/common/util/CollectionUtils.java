@@ -268,6 +268,7 @@ public class CollectionUtils {
     }
 
     @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> arrayAsArrayList(E... elements) {
         if (elements == null) {
             throw new NullPointerException("elements");
@@ -276,6 +277,7 @@ public class CollectionUtils {
     }
 
     @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> asArrayList(E first, E... other) {
         if (other == null) {
             throw new NullPointerException("other");
@@ -287,6 +289,7 @@ public class CollectionUtils {
     }
 
     @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> asArrayList(E first, E second, E... other) {
         if (other == null) {
             throw new NullPointerException("other");
