@@ -14,23 +14,79 @@ opensearchplugin {
 }
 
 dependencies {
+
+  // Iceberg
   api "org.apache.iceberg:iceberg-api:1.6.1"
   api "org.apache.iceberg:iceberg-core:1.6.1"
-  api "org.apache.iceberg:iceberg-common:1.6.1"
+  api("org.apache.iceberg:iceberg-aws:1.6.1") {
+    exclude group: 'org.apache.iceberg', module: 'iceberg-bundled-guava'
+  }
+
+  // AWS SDK v2 — core + S3 + Apache HTTP client
+  api "software.amazon.awssdk:s3:${versions.aws}"
+  api "software.amazon.awssdk:apache-client:${versions.aws}"
+  api "software.amazon.awssdk:sdk-core:${versions.aws}"
+  api "software.amazon.awssdk:aws-core:${versions.aws}"
+  api "software.amazon.awssdk:auth:${versions.aws}"
+  api "software.amazon.awssdk:identity-spi:${versions.aws}"
+  api "software.amazon.awssdk:http-client-spi:${versions.aws}"
+  api "software.amazon.awssdk:regions:${versions.aws}"
+  api "software.amazon.awssdk:utils:${versions.aws}"
+  api "software.amazon.awssdk:annotations:${versions.aws}"
+  api "software.amazon.awssdk:endpoints-spi:${versions.aws}"
+  api "software.amazon.awssdk:metrics-spi:${versions.aws}"
+
+  // ============================================================================
+  // Runtime-only
+  // ============================================================================
+
+  // AWS SDK v2 runtime modules — signing, retries, protocols, checksums, auth wiring.
+  runtimeOnly "software.amazon.awssdk:http-auth:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:http-auth-aws:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:http-auth-spi:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:retries:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:retries-spi:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:checksums:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:checksums-spi:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:profiles:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:json-utils:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:protocol-core:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:aws-json-protocol:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:aws-xml-protocol:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:signer:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.aws}"
+  runtimeOnly "software.amazon.awssdk:sts:${versions.aws}"
+
+  // Apache HTTP transitives used by apache-client at runtime.
+  runtimeOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
+
+  // Jackson (iceberg-core and SDK both use it at runtime).
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
+  // slf4j (iceberg uses slf4j for logging at runtime).
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // Iceberg runtime modules.
+  runtimeOnly "org.apache.iceberg:iceberg-common:1.6.1"
   runtimeOnly("org.apache.iceberg:iceberg-bundled-guava:1.6.1") {
     exclude group: 'org.apache.hadoop'
     exclude group: 'org.slf4j'
   }
+  runtimeOnly "com.github.ben-manes.caffeine:caffeine:2.9.3"
 }
 
-// Disable checks that are not relevant for this initial scaffold.
-// Re-enable individually as the plugin grows.
-tasks.named("licenseHeaders").configure { enabled = false }
-tasks.named("dependencyLicenses").configure { enabled = false }
-tasks.named("javadoc").configure { enabled = false }
-tasks.named("missingJavadoc").configure { enabled = false }
+tasks.named("dependencyLicenses").configure {
+  // Iceberg and Jackson artifacts share a common LICENSE/NOTICE; map variants.
+  mapping from: /iceberg-.*/, to: 'iceberg'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
 tasks.named("thirdPartyAudit").configure { enabled = false }
-tasks.named("loggerUsageCheck").configure { enabled = false }
 
 if (tasks.findByName("yamlRestTest") != null) {
   tasks.named("yamlRestTest").configure { enabled = false }
