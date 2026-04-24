@@ -32,6 +32,8 @@
 
 package org.opensearch.index.fielddata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -52,6 +54,8 @@ import java.util.Objects;
  */
 @PublicApi(since = "1.0.0")
 public class FieldDataStats implements Writeable, ToXContentFragment {
+
+    private static final Logger logger = LogManager.getLogger(FieldDataStats.class);
 
     private static final String FIELDDATA = "fielddata";
     private static final String MEMORY_SIZE = "memory_size";
@@ -164,8 +168,18 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(memorySize);
-        out.writeVLong(evictions);
+        if (memorySize < 0) {
+            logger.warn("FieldDataStats 'memorySize' is negative: {}, writing 0 instead", memorySize);
+            out.writeVLong(0);
+        } else {
+            out.writeVLong(memorySize);
+        }
+        if (evictions < 0) {
+            logger.warn("FieldDataStats 'evictions' is negative: {}, writing 0 instead", evictions);
+            out.writeVLong(0);
+        } else {
+            out.writeVLong(evictions);
+        }
         out.writeOptionalWriteable(fields);
     }
 
