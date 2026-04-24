@@ -20,7 +20,7 @@ public class QueryRegistryFactory {
         QueryRegistry registry = new QueryRegistry();
         registry.register(new TermQueryTranslator());
         registry.register(new MatchAllQueryTranslator());
-        // TODO: add other query translators
+        registry.register(new BoolQueryTranslator(registry));
         return registry;
     }
 }
