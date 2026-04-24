@@ -15,6 +15,7 @@ import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.dsl.result.ExecutionResult;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -53,10 +54,27 @@ public class DslQueryPlanExecutor {
             logPlan(relNode);
             // TODO: context param is null, may carry execution hints
             Iterable<Object[]> rows = executor.execute(relNode, null);
+            logRows(rows);
             results.add(new ExecutionResult(plan, rows));
         }
 
         return results;
+    }
+
+    private static void logRows(Iterable<Object[]> rows) {
+        if (logger.isInfoEnabled() == false) return;
+        List<Object[]> list = (rows instanceof List) ? (List<Object[]>) rows : null;
+        int count = list != null ? list.size() : -1;
+        logger.info("Query result rowCount={}", count);
+        if (list != null) {
+            int preview = Math.min(20, list.size());
+            for (int i = 0; i < preview; i++) {
+                logger.info("row[{}]={}", i, Arrays.toString(list.get(i)));
+            }
+            if (list.size() > preview) {
+                logger.info("... ({} more rows)", list.size() - preview);
+            }
+        }
     }
 
     // TODO: move plan logging behind a debug flag

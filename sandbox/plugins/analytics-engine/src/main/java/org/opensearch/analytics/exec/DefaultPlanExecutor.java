@@ -24,6 +24,8 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
+import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
+import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -97,6 +99,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
+        PlanForker.forkAll(dag, capabilityRegistry);
+        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         logger.info("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
@@ -196,6 +200,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
                 }
                 rows.add(row);
             }
+            batch.close();
         }
         return rows;
     }
