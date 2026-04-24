@@ -1467,14 +1467,7 @@ public class StoreTests extends OpenSearchTestCase {
         };
 
         // Should not throw — index is valid
-        Store.tryOpenIndex(
-            indexDir,
-            shardId,
-            (id, l, d) -> new DummyShardLock(id),
-            logger,
-            trackingFactory,
-            INDEX_SETTINGS
-        );
+        Store.tryOpenIndex(indexDir, shardId, (id, l, d) -> new DummyShardLock(id), logger, trackingFactory, INDEX_SETTINGS);
 
         assertEquals("DirectoryFactory should have been called once", 1, factoryCalls.get());
     }
@@ -1523,7 +1516,8 @@ public class StoreTests extends OpenSearchTestCase {
             @Override
             public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
                 Directory inner = new NIOFSDirectory(shardPath.resolveIndex());
-                return new FilterDirectory(inner) {};
+                return new FilterDirectory(inner) {
+                };
             }
 
             @Override
