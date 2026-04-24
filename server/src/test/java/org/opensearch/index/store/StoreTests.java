@@ -1467,18 +1467,7 @@ public class StoreTests extends OpenSearchTestCase {
         };
 
         // Should not throw — index is valid
-<<<<<<< HEAD
         Store.tryOpenIndex(indexDir, shardId, (id, l, d) -> new DummyShardLock(id), logger, trackingFactory, INDEX_SETTINGS);
-=======
-        Store.tryOpenIndex(
-            indexDir,
-            shardId,
-            (id, l, d) -> new DummyShardLock(id),
-            logger,
-            trackingFactory,
-            INDEX_SETTINGS
-        );
->>>>>>> 8a95da1ca4e (feat(store): Use pluggable DirectoryFactory in shard store validation)
 
         assertEquals("DirectoryFactory should have been called once", 1, factoryCalls.get());
     }

@@ -28,7 +28,6 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.shard.ShardStateMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.plugins.IndexStorePlugin;
 
