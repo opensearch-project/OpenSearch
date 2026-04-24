@@ -284,6 +284,13 @@ public class DataFormatAwareEngine implements Indexer {
                 this::updateAutoIdTimestamp,
                 (a, b) -> null
             );
+            // All critical engine components must be initialized before the engine is considered ready
+            assert translogManager != null : "translog manager must be initialized";
+            assert localCheckpointTracker != null : "local checkpoint tracker must be initialized";
+            assert catalogSnapshotManager != null : "catalog snapshot manager must be initialized";
+            assert indexingExecutionEngine != null : "indexing execution engine must be initialized";
+            assert committer != null : "committer must be initialized";
+            assert writerPool != null : "writer pool must be initialized";
             success = true;
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
@@ -423,6 +430,8 @@ public class DataFormatAwareEngine implements Indexer {
                         );
                     } else {
                         markSeqNoAsSeen(index.seqNo());
+                        // Replica and recovery operations must arrive with a pre-assigned sequence number
+                        assert index.seqNo() >= 0 : "recovery or replica ops should have an assigned seq no.; origin: " + index.origin();
                     }
 
                     assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
@@ -457,16 +466,26 @@ public class DataFormatAwareEngine implements Indexer {
         Engine.IndexResult indexResult;
 
         assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
+        // Primary term must be positive — it identifies the current primary shard
+        assert index.primaryTerm() > 0 : "primary term must be positive but was: " + index.primaryTerm();
 
         // Convert ParsedDocument to DocumentInput and write via the execution engine's writer
         Writer currentWriter = null;
         try {
             currentWriter = writerPool.getAndLock();
+            // Writer pool must never return null — it creates on demand via the supplier
+            assert currentWriter != null : "writer pool returned null writer";
 
             WriteResult result = currentWriter.addDoc(index.parsedDoc().getDocumentInput());
 
             if (result instanceof WriteResult.Success) {
                 indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), index.seqNo(), true);
+                // The result must carry the same seq no that was assigned to the operation
+                assert indexResult.getSeqNo() == index.seqNo() : "IndexResult seq no ["
+                    + indexResult.getSeqNo()
+                    + "] must match operation seq no ["
+                    + index.seqNo()
+                    + "]";
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;
                 indexResult = new Engine.IndexResult(f.cause(), index.version(), index.primaryTerm(), index.seqNo());
@@ -494,6 +513,13 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             indexResult.setTranslogLocation(location);
         }
+        // Non-translog-origin successful operations must be recorded in the translog for durability
+        assert index.origin().isFromTranslog()
+            || indexResult.getResultType() != Engine.Result.Type.SUCCESS
+            || indexResult.getTranslogLocation() != null : "successful non-translog-origin op must have a translog location";
+        // Translog-origin operations must NOT be written back to the translog (would cause duplicates)
+        assert index.origin().isFromTranslog() == false || indexResult.getTranslogLocation() == null
+            : "translog-origin op should not have a translog location";
 
         // Track the sequence number
         localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
@@ -646,11 +672,20 @@ public class DataFormatAwareEngine implements Indexer {
                             refreshed |= hasFiles;
                         }
                         logger.debug("Produced {} new segments from flush", newSegments.size());
+                        // Every new segment must contain files from at least one data format
+                        assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().isEmpty() == false)
+                            : "new segments must have at least one format's files";
 
                         // refresh only if new segments have been created or force param is true
                         if (refreshed) {
                             RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
+                            // Refresh result must contain at least as many segments as existed before (existing + new)
+                            assert result.refreshedSegments().size() >= existingSegments.size()
+                                : "refresh must not lose existing segments; had "
+                                    + existingSegments.size()
+                                    + " but got "
+                                    + result.refreshedSegments().size();
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
 
                             // TODO: Add other Refresh listeners
@@ -726,6 +761,13 @@ public class DataFormatAwareEngine implements Indexer {
                         // and available to the deletion policy when onCommit is triggered.
                         translogManager.ensureCanFlush();
                         translogManager.syncTranslog();
+                        // After sync, the persisted checkpoint must equal the processed checkpoint
+                        assert localCheckpointTracker.getPersistedCheckpoint() == localCheckpointTracker.getProcessedCheckpoint()
+                            : "persisted checkpoint ["
+                                + localCheckpointTracker.getPersistedCheckpoint()
+                                + "] must equal processed checkpoint ["
+                                + localCheckpointTracker.getProcessedCheckpoint()
+                                + "] after sync";
                         Map<String, String> commitData = new HashMap<>();
                         commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
                         commitData.put(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(snapshot.getLastWriterGeneration()));
@@ -740,6 +782,12 @@ public class DataFormatAwareEngine implements Indexer {
                         commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
                         // Update snapshot userData so deletion policy can read max_seq_no
                         snapshot.setUserData(commitData, true);
+                        // Commit data must contain all keys required for recovery
+                        assert commitData.containsKey(CatalogSnapshot.CATALOG_SNAPSHOT_KEY) : "commit data missing catalog snapshot";
+                        assert commitData.containsKey(Translog.TRANSLOG_UUID_KEY) : "commit data missing translog UUID";
+                        assert commitData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit data missing local checkpoint";
+                        assert commitData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit data missing max seq no";
+                        assert commitData.containsKey(Engine.HISTORY_UUID_KEY) : "commit data missing history UUID";
                         committer.commit(commitData);
                         snapshotRef.markSuccess();
                         translogManager.rollTranslogGeneration();
@@ -1120,6 +1168,8 @@ public class DataFormatAwareEngine implements Indexer {
                 failedEngine.set(failure != null ? failure : new IllegalStateException(reason));
                 try {
                     closeNoLock("engine failed on: [" + reason + "]");
+                    // After failEngine, the engine must be in a closed state
+                    assert isClosed.get() : "engine must be closed after failEngine";
                 } finally {
                     logger.warn(() -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     engineConfig.getEventListener().onFailedEngine(reason, failure);

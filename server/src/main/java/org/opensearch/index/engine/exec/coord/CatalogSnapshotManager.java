@@ -128,6 +128,10 @@ public class CatalogSnapshotManager implements Closeable {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
 
+        // Snapshot generation must advance monotonically — this is the ordering guarantee
+        // that readers and the commit path depend on
+        long prevGen = latestCatalogSnapshot.getGeneration();
+
         DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
             latestCatalogSnapshot.getId() + 1,
             latestCatalogSnapshot.getGeneration() + 1,
@@ -136,6 +140,19 @@ public class CatalogSnapshotManager implements Closeable {
             latestCatalogSnapshot.getLastWriterGeneration() + 1,
             latestCatalogSnapshot.getUserData()
         );
+
+        // New snapshot generation must be strictly greater than the previous
+        assert newSnapshot.getGeneration() > prevGen : "new snapshot generation ["
+            + newSnapshot.getGeneration()
+            + "] must be > previous ["
+            + prevGen
+            + "]";
+        // New snapshot ID must be strictly greater than the previous
+        assert newSnapshot.getId() > latestCatalogSnapshot.getId() : "new snapshot ID ["
+            + newSnapshot.getId()
+            + "] must be > previous ["
+            + latestCatalogSnapshot.getId()
+            + "]";
 
         try {
             indexFileDeleter.addFileReferences(newSnapshot);

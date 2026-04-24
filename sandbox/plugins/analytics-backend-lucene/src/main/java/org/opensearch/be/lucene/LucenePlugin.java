@@ -101,7 +101,7 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
     /** {@inheritDoc} Returns a singleton list containing the Lucene data format. */
     @Override
     public List<String> getSupportedFormats() {
-        return List.of();
+        return List.of(LuceneDataFormat.LUCENE_FORMAT_NAME);
     }
 
     /**

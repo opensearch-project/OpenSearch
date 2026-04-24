@@ -228,12 +228,12 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                 indexWriter.rollback();
             }
         } catch (Exception e) {
-            logger.warn("Failed to rollback IndexWriter for generation {}", writerGeneration, e);
+            logger.warn("Failed to rollback IndexWriter for generation[{}]: {}", writerGeneration, e);
         }
         try {
             directory.close();
         } catch (Exception e) {
-            logger.warn("Failed to close directory for generation {}", writerGeneration, e);
+            logger.warn("Failed to close directory for generation[{}]: {}", writerGeneration, e);
         }
         IOUtils.rm(tempDirectory);
     }
