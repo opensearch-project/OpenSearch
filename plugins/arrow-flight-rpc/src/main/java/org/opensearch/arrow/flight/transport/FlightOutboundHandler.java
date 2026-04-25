@@ -17,6 +17,7 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightRuntimeException;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -151,8 +152,28 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         }
 
         try {
-            try (VectorStreamOutput out = new VectorStreamOutput(flightChannel.getAllocator(), flightChannel.getRoot())) {
+            VectorStreamOutput out;
+            if (task.response() instanceof ArrowBatchResponse arrowResponse) {
+                // Native Arrow path: zero-copy transfer producer's vectors into shared root
+                VectorSchemaRoot sharedRoot = flightChannel.getRoot();
+                if (sharedRoot == null) {
+                    // Create shared root using the producer's allocator for same-allocator transfer.
+                    // This avoids an Arrow bug where cross-allocator transferOwnership of foreign-backed
+                    // buffers (from C data import) doesn't properly free the ArrowArray C struct.
+                    // The producer's allocator must be long-lived (not closed per-request).
+                    sharedRoot = VectorSchemaRoot.create(
+                        arrowResponse.getRoot().getSchema(),
+                        arrowResponse.getRoot().getFieldVectors().get(0).getAllocator()
+                    );
+                }
+                arrowResponse.transferTo(sharedRoot);
+                arrowResponse.getRoot().close();  // release producer's buffers — safe, they've been moved
+                out = VectorStreamOutput.forNativeArrow(sharedRoot);
+            } else {
+                out = VectorStreamOutput.create(flightChannel.getAllocator(), flightChannel.getRoot());
                 task.response().writeTo(out);
+            }
+            try (out) {
                 flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out);
                 messageListener.onResponseSent(task.requestId(), task.action(), task.response());
             }

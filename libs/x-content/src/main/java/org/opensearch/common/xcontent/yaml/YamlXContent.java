@@ -87,7 +87,7 @@ public class YamlXContent implements XContent, XContentConstraints {
         );
         builder.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER, true);
 
-        yamlFactory = builder.build();
+        yamlFactory = new OpenSearchYamlFactory(builder);
         yamlXContent = new YamlXContent();
     }
 

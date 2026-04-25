@@ -54,7 +54,7 @@ import static org.opensearch.core.tasks.resourcetracker.ResourceStatsType.WORKER
 @SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
 public class TaskResourceTrackingService implements RunnableTaskExecutionListener {
 
-    private static final Logger logger = LogManager.getLogger(TaskManager.class);
+    private static final Logger logger = LogManager.getLogger(TaskResourceTrackingService.class);
 
     public static final Setting<Boolean> TASK_RESOURCE_TRACKING_ENABLED = Setting.boolSetting(
         "task_resource_tracking.enabled",

@@ -50,6 +50,30 @@ dependencies {
   // Also provides calcite-core transitively via api.
   api project(':sandbox:libs:analytics-framework')
 
+  // Arrow — framework's public interfaces (ExchangeSink, LocalStageContext, etc.) expose
+  // Arrow types. analytics-engine's own code (RowBatchToArrowConverter, ShardFragmentStageExecution)
+  // uses arrow directly. Bundle runtime here; backend plugins that extend analytics-engine
+  // declare arrow as compileOnly to avoid jar hell.
+  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+
+  // Arrow Flight RPC — compile-only; the arrow-flight-rpc plugin provides it at runtime.
+  // transitive = false prevents arrow-flight-rpc's transitives (slf4j, jackson, arrow-*,
+  // guava, netty, grpc, etc.) from landing on resolveableCompileOnly, which bundlePlugin
+  // subtracts from runtimeClasspath. Without this, jars analytics-engine needs to bundle
+  // (arrow-vector, arrow-memory-core, guava, slf4j) get stripped from the zip.
+  compileOnly(project(':plugins:arrow-flight-rpc')) {
+    transitive = false
+  }
+  testCompileOnly(project(':plugins:arrow-flight-rpc')) {
+    transitive = false
+  }
+
+  // Required at runtime by arrow-vector (Schema, ArrowType subclasses reference jackson).
+  // implementation (not compileOnly) so bundlePlugin doesn't strip them.
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+
   // Guava — required at compile time because Calcite base classes expose guava types.
   // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
   calciteCompile "com.google.guava:guava:${versions.guava}"
@@ -57,9 +81,27 @@ dependencies {
   // Guava for test compilation — Calcite API exposes guava types
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
 
+  // Guava — required at runtime because Calcite's SqlOperatorTables and SqlKind
+  // static initializers use com.google.common classes. The compileClasspath exclude
+  // above also strips Guava from runtimeClasspath, so add it back explicitly.
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+
+  // SLF4J — Arrow's BaseAllocator requires it at runtime. Child plugins
+  // (analytics-backend-datafusion) see it via the extendedPlugins classloader.
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+
   // Calcite code generation (optional in calcite-core POM, needed at runtime for Enumerable pipeline)
   testRuntimeOnly "org.codehaus.janino:janino:3.1.12"
   testRuntimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
+
+  // arrow-memory-unsafe provides the DefaultAllocationManager that arrow-memory-core
+  // discovers via ServiceLoader at runtime. Must be in the parent plugin's classloader
+  // because BaseAllocator (from arrow-memory-core) does the ServiceLoader lookup.
+  runtimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
+  // Required at runtime by arrow-vector (ArrowType subclasses reference flatbuffers and arrow-format).
+  runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  runtimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
 
   // SQL Unified Query API for PPL parsing
   testImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
@@ -79,6 +121,33 @@ dependencies {
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
 }
 
+tasks.withType(JavaCompile).configureEach {
+  // Arrow's Schema.class references Jackson annotations we don't pull in — harmless warnings
+  options.compilerArgs -= '-Werror'
+}
+
+tasks.named('thirdPartyAudit').configure {
+  // arrow-memory-core uses sun.misc.Unsafe via MemoryUtil for off-heap access
+  ignoreViolations(
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+    // Guava internal Unsafe usage
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+  )
+}
+
 configurations.all {
   // okhttp-aws-signer is a transitive dep of unified-query-common (via unified-query-core),
   // only published on JitPack, not needed for PPL parsing/planning
@@ -96,6 +165,7 @@ configurations.all {
     force "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
     force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
     force "org.slf4j:slf4j-api:${versions.slf4j}"
+    force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
     force "org.locationtech.jts:jts-core:${versions.jts}"
     force "commons-codec:commons-codec:${versions.commonscodec}"
     force "joda-time:joda-time:2.12.7"
@@ -115,6 +185,14 @@ configurations.all {
     force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
     force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
   }
+}
+
+// Arrow needs these --add-opens for direct-memory access via reflection.
+// Applied to both unit test and internal cluster test tasks.
+test {
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  jvmArgs '-Darrow.memory.debug.allocator=false'
 }
 
 // Arrow/Flight requires these JVM flags

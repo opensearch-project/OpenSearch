@@ -12,12 +12,12 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.storage.tiering.HotToWarmTieringService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 /**
  * Transport Tiering action to move indices from hot to warm.
- * HotToWarmTieringService dependency will be added in the implementation PR.
  */
 public class TransportHotToWarmTierAction extends TransportTierAction {
 
@@ -29,6 +29,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
      * @param threadPool the thread pool
      * @param actionFilters the action filters
      * @param indexNameExpressionResolver the index name expression resolver
+     * @param hotToWarmTieringService the hot to warm tiering service
      */
     @Inject
     public TransportHotToWarmTierAction(
@@ -36,8 +37,17 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        HotToWarmTieringService hotToWarmTieringService
     ) {
-        super(transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, HotToWarmTierAction.NAME);
+        super(
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            HotToWarmTierAction.NAME,
+            hotToWarmTieringService
+        );
     }
 }
