@@ -370,49 +370,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         if (source != null) {
-            // apply request-level source filtering
             if (fetchSourceContext.fetchSource() == false) {
                 source = null;
-            } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                Map<String, Object> sourceAsMap;
-                // TODO: The source might be parsed and available in the sourceLookup but that one uses unordered maps so different.
-                // Do we care?
-                Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
-                XContentType sourceContentType = typeMapTuple.v1();
-                sourceAsMap = typeMapTuple.v2();
-                sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
-                try {
-                    source = BytesReference.bytes(MediaTypeRegistry.contentBuilder(sourceContentType).map(sourceAsMap));
-                } catch (IOException e) {
-                    throw new OpenSearchException("Failed to get id [" + id + "] with includes/excludes set", e);
-                }
-            }
-        }
-
-        if (!fetchSourceContext.fetchSource()) {
-            source = null;
-        }
-
-        if (source != null && get.isFromTranslog()) {
-            // reapply source filters from mapping (possibly also nulling the source)
-            try {
-                source = docMapper.sourceMapper().applyFilters(source, null);
-            } catch (IOException e) {
-                throw new OpenSearchException("Failed to reapply filters for [" + id + "] after reading from translog", e);
-            }
-        }
-
-        if (source != null && (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0)) {
-            Map<String, Object> sourceAsMap;
-            // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
-            Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
-            XContentType sourceContentType = typeMapTuple.v1();
-            sourceAsMap = typeMapTuple.v2();
-            sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
-            try {
-                source = BytesReference.bytes(MediaTypeRegistry.contentBuilder(sourceContentType).map(sourceAsMap));
-            } catch (IOException e) {
-                throw new OpenSearchException("Failed to get id [" + id + "] with includes/excludes set", e);
+            } else {
+                source = applyMappingSourceFilters(docMapper, source, id);
+                source = applyRequestSourceFilters(source, fetchSourceContext, id);
             }
         }
 
@@ -427,6 +389,37 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             documentFields,
             metadataFields
         );
+    }
+
+    private BytesReference applyMappingSourceFilters(DocumentMapper docMapper, BytesReference source, String id) {
+        SourceFieldMapper sourceMapper = docMapper.sourceMapper();
+        if (sourceMapper.isComplete()) {
+            return source;
+        }
+        try {
+            return sourceMapper.applyFilters(source, null);
+        } catch (IOException e) {
+            throw new OpenSearchException("Failed to reapply mapping source filters for [" + id + "]", e);
+        }
+    }
+
+    private BytesReference applyRequestSourceFilters(BytesReference source, FetchSourceContext fetchSourceContext, String id) {
+        if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {
+            return source;
+        }
+
+        Map<String, Object> sourceAsMap;
+        // TODO: The source might be parsed and available in the sourceLookup but that one uses unordered maps so different.
+        // Do we care?
+        Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
+        XContentType sourceContentType = typeMapTuple.v1();
+        sourceAsMap = typeMapTuple.v2();
+        sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
+        try {
+            return BytesReference.bytes(MediaTypeRegistry.contentBuilder(sourceContentType).map(sourceAsMap));
+        } catch (IOException e) {
+            throw new OpenSearchException("Failed to get id [" + id + "] with includes/excludes set", e);
+        }
     }
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {
