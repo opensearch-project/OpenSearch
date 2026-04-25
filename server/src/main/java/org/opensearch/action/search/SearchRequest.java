@@ -43,6 +43,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.tasks.TaskId;
@@ -62,6 +63,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -127,6 +129,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private String pipeline;
 
     private Boolean phaseTook = null;
+
+    private final ConcurrentHashMap<Version, BytesReference> memoizedSerializedSourceByVersion = new ConcurrentHashMap<>();
 
     public SearchRequest() {
         this.localClusterAlias = null;
@@ -533,6 +537,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
         this.source = Objects.requireNonNull(sourceBuilder, "source must not be null");
+        // Invalidate any previously memoized serialized source since content changed
+        this.memoizedSerializedSourceByVersion.clear();
         return this;
     }
 
@@ -541,6 +547,32 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    /**
+     * Pre-serialize the SearchSourceBuilder to avoid repeated serialization when fanning out to many shards.
+     * This method memoizes the serialized bytes and returns them. Subsequent calls return the memoized value.
+     *
+     * @param version the version to use for serialization
+     * @return the serialized SearchSourceBuilder bytes, or null if source is null
+     * @throws IOException if serialization fails
+     * @opensearch.internal
+     */
+    BytesReference getOrCreateSerializedSource(Version version) throws IOException {
+        if (source == null) {
+            return null;
+        }
+        BytesReference memoized = memoizedSerializedSourceByVersion.get(version);
+        if (memoized != null) {
+            return memoized;
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
+        source.writeTo(out);
+        // Get a contiguous byte[] to avoid repeated page coalescing (e.g., toBytesRef on paged refs)
+        BytesReference serialized = out.copyBytes();
+        BytesReference previous = memoizedSerializedSourceByVersion.putIfAbsent(version, serialized);
+        return previous != null ? previous : serialized;
     }
 
     public PointInTimeBuilder pointInTimeBuilder() {
