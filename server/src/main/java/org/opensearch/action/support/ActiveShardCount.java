@@ -177,7 +177,10 @@ public final class ActiveShardCount implements Writeable {
                 // and we can stop waiting
                 continue;
             }
-            assert indexRoutingTable != null;
+            if (indexRoutingTable == null) {
+                // Only index metadata update occurred
+                return false;
+            }
 
             if (indexRoutingTable.allPrimaryShardsActive() == false) {
                 if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false) == false) {

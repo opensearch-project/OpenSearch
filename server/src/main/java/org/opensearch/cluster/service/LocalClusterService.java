@@ -13,11 +13,13 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.coordination.ClusterStatePublisher;
+import org.opensearch.cluster.metadata.IndexMetadataCoordinatorService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
