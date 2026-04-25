@@ -167,6 +167,7 @@ import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.MergedSegmentTransferTracker;
+import org.opensearch.index.merge.VirtualShardFilteredMergePolicy;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
@@ -1734,6 +1735,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             false,
             forceMerge.forceMergeUUID()
         );
+    }
+
+    /**
+     * Extracts documents belonging to the given virtual shard into a standalone index at {@code outputPath}.
+     */
+    public void extractVirtualShard(int vShardId, java.nio.file.Path outputPath) throws IOException {
+        verifyNotClosed();
+        IndexMetadata indexMetadata = indexSettings.getIndexMetadata();
+        int numVirtualShards = indexMetadata.getNumberOfVirtualShards();
+        if (numVirtualShards <= 0) {
+            throw new IllegalStateException("virtual shards are not enabled on index [" + shardId.getIndex() + "]");
+        }
+        if (vShardId < 0 || vShardId >= numVirtualShards) {
+            throw new IllegalArgumentException(
+                "vShardId [" + vShardId + "] out of range [0, " + numVirtualShards + ") for index [" + shardId.getIndex() + "]"
+            );
+        }
+        VirtualShardFilteredMergePolicy.isolateVirtualShard(this, indexMetadata, vShardId, outputPath);
     }
 
     /**
