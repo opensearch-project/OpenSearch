@@ -113,6 +113,7 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -4768,6 +4769,92 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShardThread.join();
 
         // close store.
+        closeShard(shard, false);
+    }
+
+    /**
+     * Verifies that {@code getSegmentInfosSnapshot()} on the ReadOnlyEngine created during
+     * {@link IndexShard#resetEngineToGlobalCheckpoint()} does not block on {@code engineMutex}.
+     * <p>
+     * Regression test for
+     * <a href="https://github.com/opensearch-project/OpenSearch/issues/11869">#11869</a>:
+     * the close thread holds {@code engineMutex} and waits for {@code writeLock}, while the
+     * recovery thread holds {@code readLock} (via {@code recoverFromTranslog}) and calls
+     * {@code getSegmentInfosSnapshot()} through the {@code ReplicationCheckpointUpdater} refresh
+     * listener -- if both paths synchronize on {@code engineMutex}, the cycle deadlocks.
+     * <p>
+     * Pauses {@code resetEngineToGlobalCheckpoint} before translog replay, holds
+     * {@code engineMutex} via reflection, and asserts {@code getSegmentInfosSnapshot()}
+     * completes within 5 seconds.
+     */
+    public void testNoDeadlockOnCloseWhileRecoveringTranslog() throws Exception {
+        CountDownLatch recoveryStartedLatch = new CountDownLatch(1);
+        CountDownLatch proceedWithRecoveryLatch = new CountDownLatch(1);
+        AtomicBoolean armed = new AtomicBoolean(false);
+        Settings segRepSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        IndexerFactory customFactory = new EngineBackedIndexerFactory(config -> new InternalEngine(config, new TranslogEventListener() {
+            @Override
+            public void onBeginTranslogRecovery() {
+                if (armed.compareAndSet(true, false)) {
+                    recoveryStartedLatch.countDown();
+                    try {
+                        proceedWithRecoveryLatch.await(30, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+        }));
+        IndexShard shard = newShard(false, segRepSettings, customFactory);
+        IndexShard primary = newStartedShard(true, segRepSettings);
+        recoverReplica(shard, primary, true, (a) -> null);
+        closeShards(primary);
+
+        java.lang.reflect.Field engineMutexField = IndexShard.class.getDeclaredField("engineMutex");
+        engineMutexField.setAccessible(true);
+        Object engineMutex = engineMutexField.get(shard);
+
+        final CountDownLatch engineResetLatch = new CountDownLatch(1);
+
+        shard.acquireAllReplicaOperationsPermits(
+            shard.getOperationPrimaryTerm(),
+            shard.getLastKnownGlobalCheckpoint(),
+            0L,
+            ActionListener.wrap(r -> {
+                try (Releasable dummy = r) {
+                    armed.set(true);
+                    shard.resetEngineToGlobalCheckpoint();
+                } finally {
+                    engineResetLatch.countDown();
+                }
+            }, Assert::assertNotNull),
+            TimeValue.timeValueMinutes(1L)
+        );
+
+        // Wait until the reset has created the ReadOnlyEngine (installed as current engine)
+        // and the new InternalEngine, then paused before translog replay.
+        assertTrue("recovery should start", recoveryStartedLatch.await(30, TimeUnit.SECONDS));
+
+        // Verify getSegmentInfosSnapshot() on the ReadOnlyEngine doesn't block when
+        // engineMutex is held -- this is the code path that deadlocks in production.
+        CountDownLatch snapshotCompletedLatch = new CountDownLatch(1);
+        Thread snapshotThread = new Thread(() -> {
+            try {
+                GatedCloseable<SegmentInfos> snapshot = shard.getSegmentInfosSnapshot();
+                if (snapshot != null) snapshot.close();
+            } catch (IOException | IllegalStateException ignored) {} finally {
+                snapshotCompletedLatch.countDown();
+            }
+        });
+
+        synchronized (engineMutex) {
+            snapshotThread.start();
+            assertTrue("getSegmentInfosSnapshot should not block on engineMutex", snapshotCompletedLatch.await(5, TimeUnit.SECONDS));
+        }
+        snapshotThread.join(5_000);
+
+        proceedWithRecoveryLatch.countDown();
+        assertTrue("engine reset should complete", engineResetLatch.await(30, TimeUnit.SECONDS));
         closeShard(shard, false);
     }
 
