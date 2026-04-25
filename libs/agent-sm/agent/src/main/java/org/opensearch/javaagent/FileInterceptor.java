@@ -9,6 +9,7 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.secure_sm.policy.Policy;
 
 import java.io.FilePermission;
 import java.lang.reflect.Method;
@@ -18,7 +19,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.spi.FileSystemProvider;
-import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
 import java.util.Set;
@@ -42,7 +42,7 @@ public class FileInterceptor {
      * @throws Exception exceptions
      */
     @Advice.OnMethodEnter
-    @SuppressWarnings({ "removal", "deprecation" })
+    @SuppressWarnings({ "deprecation" })
     public static void intercept(@Advice.AllArguments Object[] args, @Advice.Origin Method method) throws Exception {
         final Policy policy = AgentPolicy.getPolicy();
         if (policy == null) {

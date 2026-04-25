@@ -20,5 +20,9 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
+dependencies {
+  compileOnly project(":libs:agent-sm:agent-policy")
+}
+
 test.enabled = false
 testingConventions.enabled = false
