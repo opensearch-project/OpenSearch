@@ -32,14 +32,15 @@
 
 package org.opensearch.cli;
 
-import joptsimple.ArgumentAcceptingOptionSpec;
-import joptsimple.OptionSet;
-import joptsimple.util.KeyValuePair;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -69,6 +70,10 @@ public class MultiCommandTests extends CommandTestCase {
         final boolean throwsExceptionOnClose;
         final AtomicBoolean closeCalled = new AtomicBoolean();
 
+        // capture all remaining positionals to print "Arguments: [...]"
+        @Parameters(arity = "0..*", paramLabel = "args")
+        List<String> args = new ArrayList<>();
+
         DummySubCommand() {
             this(false);
         }
@@ -79,8 +84,8 @@ public class MultiCommandTests extends CommandTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
-            terminal.println("Arguments: " + options.nonOptionArguments().toString());
+        protected void execute(Terminal terminal) throws Exception {
+            terminal.println("Arguments: " + args.toString());
         }
 
         @Override
@@ -95,18 +100,14 @@ public class MultiCommandTests extends CommandTestCase {
     }
 
     static class DummySettingsSubCommand extends DummySubCommand {
-        private final ArgumentAcceptingOptionSpec<KeyValuePair> settingOption;
-
-        DummySettingsSubCommand() {
-            super();
-            this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
-        }
+        // accepts "-E key=value" forwarded by MultiCommand
+        @Option(names = "-E", paramLabel = "key=value", arity = "1..*", description = "Configure a setting")
+        List<String> settings = new ArrayList<>();
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
-            final List<KeyValuePair> values = this.settingOption.values(options);
-            terminal.println("Settings: " + values);
-            super.execute(terminal, options);
+        protected void execute(Terminal terminal) throws Exception {
+            terminal.println("Settings: " + settings);
+            super.execute(terminal);
         }
     }
 
@@ -199,8 +200,7 @@ public class MultiCommandTests extends CommandTestCase {
         multiCommand.subcommands.put("command1", subCommand1);
         multiCommand.subcommands.put("command2", subCommand2);
         if (command1Throws || command2Throws) {
-            // verify exception is thrown, as well as other non failed sub-commands closed
-            // properly.
+            // verify exception is thrown, as well as other non failed sub-commands closed properly.
             IOException ioe = expectThrows(IOException.class, multiCommand::close);
             assertEquals("Error occurred while closing DummySubCommand", ioe.getMessage());
             if (command1Throws && command2Throws) {
@@ -234,7 +234,7 @@ public class MultiCommandTests extends CommandTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal) throws Exception {
             throw new UserException(1, "Dummy error");
         }
 
@@ -258,7 +258,7 @@ public class MultiCommandTests extends CommandTestCase {
         MultiCommand mc = new ErrorHandlingMultiCommand();
         mc.subcommands.put("throw", new ErrorThrowingSubCommand() {
             @Override
-            protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            protected void execute(Terminal terminal) throws Exception {
                 throw new UserException(1, null);
             }
         });
@@ -266,5 +266,4 @@ public class MultiCommandTests extends CommandTestCase {
         assertThat(terminal.getOutput(), is(emptyString()));
         assertThat(terminal.getErrorOutput(), is(emptyString()));
     }
-
 }
