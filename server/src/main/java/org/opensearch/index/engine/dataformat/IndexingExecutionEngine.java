@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.store.FormatChecksumStrategy;
 
@@ -116,5 +117,9 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      */
     default FormatChecksumStrategy getChecksumStrategy() {
         return null;
+    }
+
+    default Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
+        return config.registry().getReaderManager(config);
     }
 }

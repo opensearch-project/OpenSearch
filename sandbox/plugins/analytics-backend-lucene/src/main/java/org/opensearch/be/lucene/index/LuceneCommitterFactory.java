@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.lucene;
+package org.opensearch.be.lucene.index;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -16,14 +16,20 @@ import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import java.io.IOException;
 
 /**
- * Factory for creating Lucene-based engine components.
+ * {@link CommitterFactory} implementation that creates {@link LuceneCommitter} instances.
+ * <p>
+ * Registered by {@link org.opensearch.be.lucene.LucenePlugin} via the
+ * {@link org.opensearch.plugins.EnginePlugin} SPI. When the composite engine initializes
+ * a shard, it calls {@link #getCommitter(CommitterConfig)} to obtain a committer that owns
+ * the shared Lucene {@link org.apache.lucene.index.IndexWriter} for durable segment commits.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-final class LuceneCommitterFactory implements CommitterFactory {
+public final class LuceneCommitterFactory implements CommitterFactory {
 
-    LuceneCommitterFactory() {}
+    /** Creates a new factory instance. */
+    public LuceneCommitterFactory() {}
 
     /**
      * Creates a new {@link LuceneCommitter} for the given settings.

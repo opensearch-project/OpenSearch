@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.lucene;
+package org.opensearch.be.lucene.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +22,7 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.SafeBootstrapCommitter;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -41,8 +42,22 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Lucene-specific committer that owns the {@link IndexWriter} lifecycle.
+ * Lucene-specific {@link Committer} that owns the shared {@link IndexWriter} lifecycle
+ * for a single shard.
  * Extends {@link SafeBootstrapCommitter} to enforce safe commit trimming on startup.
+ * <p>
+ * The shared writer is opened during construction using configuration from
+ * {@link CommitterConfig} (analyzer, codec, similarity, RAM buffer, index sort, etc.).
+ * All per-generation {@link LuceneWriter} instances produce segments in isolated temp
+ * directories; those segments are later incorporated into this shared writer via
+ * {@code IndexWriter.addIndexes} during refresh in {@link LuceneIndexingExecutionEngine}.
+ * <p>
+ * Commit data (catalog snapshot, translog UUID, sequence numbers) is persisted atomically
+ * via {@link #commit(Map)}, which sets the live commit data on the writer and calls
+ * {@link IndexWriter#commit()}.
+ * <p>
+ * The store reference is incremented on construction and decremented on {@link #close()}.
+ * Closing the committer also closes the underlying IndexWriter.
  *
  * @opensearch.experimental
  */
@@ -79,6 +94,14 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
 
     // --- Committer interface ---
 
+    /**
+     * Atomically persists the given commit data (catalog snapshot, translog UUID,
+     * sequence numbers) and commits the IndexWriter.
+     *
+     * @param commitData the key-value pairs to store as live commit data
+     * @throws IOException if the commit fails
+     * @throws IllegalStateException if this committer is closed
+     */
     @Override
     public synchronized void commit(Map<String, String> commitData) throws IOException {
         ensureOpen();
@@ -86,6 +109,12 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         indexWriter.commit();
     }
 
+    /**
+     * Closes the IndexWriter and releases the store reference.
+     * Subsequent calls are no-ops.
+     *
+     * @throws IOException if closing the IndexWriter fails
+     */
     @Override
     public List<CatalogSnapshot> listCommittedSnapshots() throws IOException {
         ensureOpen();
@@ -100,6 +129,14 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         }
     }
 
+    /**
+     * Returns the last committed data as an unmodifiable map.
+     * If no commit data has been set, returns an empty map.
+     *
+     * @return the last committed key-value pairs
+     * @throws IOException if reading commit data fails
+     * @throws IllegalStateException if this committer is closed
+     */
     @Override
     public Map<String, String> getLastCommittedData() throws IOException {
         ensureOpen();
@@ -114,6 +151,11 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         return Map.copyOf(result);
     }
 
+    /**
+     * Returns commit statistics derived from the latest committed segment infos.
+     *
+     * @return the commit stats, or {@code null} if segment infos cannot be read
+     */
     @Override
     public CommitStats getCommitStats() {
         ensureOpen();
@@ -126,6 +168,12 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         }
     }
 
+    /**
+     * Not yet implemented. Will return safe commit info once the index deleter is wired in.
+     *
+     * @return never returns normally
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
         throw new UnsupportedOperationException("TODO:: with index deleter");
