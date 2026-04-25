@@ -370,6 +370,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public DateFieldMapper build(BuilderContext context) {
+            boolean effectiveSkipList = resolveEffectiveSkipList(context);
             DateFieldType ft = new DateFieldType(
                 buildFullName(context),
                 index.getValue(),
@@ -378,11 +379,29 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 buildFormatter(),
                 resolution,
                 nullValue.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                effectiveSkipList
             );
             ft.setBoost(boost.getValue());
             Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);
+        }
+
+        private boolean resolveEffectiveSkipList(BuilderContext context) {
+            if (skiplist.getValue()) {
+                return true;
+            }
+            if (skiplist.isConfigured() == false && indexCreatedVersion.onOrAfter(Version.V_3_3_0) && context.indexSettings() != null) {
+                String fullName = buildFullName(context);
+                List<String> sortFields = IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(context.indexSettings());
+                if (sortFields.isEmpty() == false && sortFields.get(0).equals(fullName)) {
+                    return true;
+                }
+                if (DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD.getName().equals(fullName)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -411,6 +430,26 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         protected final DateMathParser dateMathParser;
         protected final Resolution resolution;
         protected final String nullValue;
+        protected final boolean skipList;
+
+        public DateFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            Map<String, String> meta,
+            boolean skipList
+        ) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.dateTimeFormatter = dateTimeFormatter;
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
+            this.resolution = resolution;
+            this.nullValue = nullValue;
+            this.skipList = skipList;
+        }
 
         public DateFieldType(
             String name,
@@ -422,27 +461,28 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             String nullValue,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            this.dateTimeFormatter = dateTimeFormatter;
-            this.dateMathParser = dateTimeFormatter.toDateMathParser();
-            this.resolution = resolution;
-            this.nullValue = nullValue;
+            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, false);
         }
 
         public DateFieldType(String name) {
-            this(name, true, false, true, getDefaultDateTimeFormatter(), Resolution.MILLISECONDS, null, Collections.emptyMap());
+            this(name, true, false, true, getDefaultDateTimeFormatter(), Resolution.MILLISECONDS, null, Collections.emptyMap(), false);
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
-            this(name, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, Collections.emptyMap());
+            this(name, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, Collections.emptyMap(), false);
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, false, true, getDefaultDateTimeFormatter(), resolution, null, Collections.emptyMap());
+            this(name, true, false, true, getDefaultDateTimeFormatter(), resolution, null, Collections.emptyMap(), false);
         }
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
-            this(name, true, false, true, dateFormatter, resolution, null, Collections.emptyMap());
+            this(name, true, false, true, dateFormatter, resolution, null, Collections.emptyMap(), false);
+        }
+
+        @Override
+        public boolean hasSkipList() {
+            return skipList;
         }
 
         @Override
