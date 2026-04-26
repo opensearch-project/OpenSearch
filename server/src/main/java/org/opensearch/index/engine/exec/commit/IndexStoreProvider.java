@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.exec.commit;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.store.Store;
 
 /**
@@ -30,5 +31,15 @@ public interface IndexStoreProvider {
      *
      * @return the store, or null if not available
      */
-    Store getStore();
+    FormatStore getStore(DataFormat dataFormat);
+
+    /**
+     * A format-specific store wrapper providing access to the underlying {@link Store}.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    interface FormatStore {
+        Store store();
+    }
 }

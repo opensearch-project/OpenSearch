@@ -16,6 +16,7 @@ import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
+import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -116,6 +117,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 return Set.copyOf(caps);
             }
         };
+    }
+
+    @Override
+    public FragmentConvertor getFragmentConvertor() {
+        return new DataFusionFragmentConvertor(plugin.getSubstraitExtensions());
     }
 
     @Override
