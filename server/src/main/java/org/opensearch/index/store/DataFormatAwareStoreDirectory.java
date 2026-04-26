@@ -68,7 +68,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @PublicApi(since = "3.0.0")
-public class DataFormatAwareStoreDirectory extends FilterDirectory {
+public class DataFormatAwareStoreDirectory extends FilterDirectory implements RemoteSyncAwareDirectory {
 
     private static final Logger logger = LogManager.getLogger(DataFormatAwareStoreDirectory.class);
 
@@ -94,7 +94,31 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
         ShardPath shardPath,
         DataFormatRegistry dataFormatRegistry
     ) {
-        super(new SubdirectoryAwareDirectory(delegate, shardPath));
+        this(indexSettings, new SubdirectoryAwareDirectory(delegate, shardPath), shardPath, dataFormatRegistry, false);
+    }
+
+    /**
+     * Constructs a DataFormatAwareStoreDirectory with a pre-built delegate directory.
+     *
+     * <p>Unlike the primary constructor which auto-wraps the delegate in
+     * {@link SubdirectoryAwareDirectory}, this constructor uses the delegate as-is.
+     * This is intended for warm nodes where the delegate is already a
+     * TieredSubdirectoryAwareDirectory (which wraps SubdirectoryAwareDirectory internally).
+     *
+     * @param indexSettings       the index settings
+     * @param delegate            the pre-built directory (e.g., TieredSubdirectoryAwareDirectory)
+     * @param shardPath           the shard path for resolving subdirectories
+     * @param dataFormatRegistry  registry providing format-specific checksum handlers
+     * @param directDelegate      marker flag; when {@code true}, delegate is used directly without wrapping
+     */
+    public DataFormatAwareStoreDirectory(
+        IndexSettings indexSettings,
+        Directory delegate,
+        ShardPath shardPath,
+        DataFormatRegistry dataFormatRegistry,
+        boolean directDelegate
+    ) {
+        super(delegate);
         this.shardPath = shardPath;
         Map<String, DataFormatDescriptor> descriptors = dataFormatRegistry.getFormatDescriptors(indexSettings);
         this.checksumStrategies = new HashMap<>();
@@ -104,7 +128,8 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
         this.checksumStrategies.put(DEFAULT_FORMAT, new LuceneChecksumHandler());
 
         logger.debug(
-            "Created DataFormatAwareStoreDirectory for shard {} with checksum strategies for formats: {}",
+            "Created DataFormatAwareStoreDirectory (directDelegate={}) for shard {} with checksum strategies for formats: {}",
+            directDelegate,
             shardPath.getShardId(),
             checksumStrategies.keySet()
         );
@@ -139,6 +164,16 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
             fileName = toFileIdentifier(fm);
         }
         return fileName;
+    }
+
+    @Override
+    public void afterSyncToRemote(String file) {
+        Directory inner = getDelegate();
+        if (inner instanceof RemoteSyncAwareDirectory) {
+            ((RemoteSyncAwareDirectory) inner).afterSyncToRemote(file);
+        }
+        // On hot: inner is SubdirectoryAwareDirectory → not RemoteSyncAwareDirectory → no-op
+        // On warm: inner is TieredSubdirectoryAwareDirectory → implements it → delegates
     }
 
     @Override

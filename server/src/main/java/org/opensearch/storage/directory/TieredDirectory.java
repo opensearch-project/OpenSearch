@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.store.CompositeDirectory;
@@ -24,6 +23,7 @@ import org.opensearch.storage.indexinput.CachedSwitchableIndexInput;
 import org.opensearch.storage.indexinput.SwitchableIndexInput;
 import org.opensearch.storage.indexinput.SwitchableIndexInputWrapper;
 import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
+import org.opensearch.storage.utils.DirectoryUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -229,7 +229,7 @@ public class TieredDirectory extends CompositeDirectory {
             new CachedSwitchableIndexInput(
                 fileCache,
                 fileName,
-                (FSDirectory) localDirectory,
+                DirectoryUtils.getFSDirectory(localDirectory),
                 remoteDirectory,
                 transferManager,
                 cacheFromRemote,
