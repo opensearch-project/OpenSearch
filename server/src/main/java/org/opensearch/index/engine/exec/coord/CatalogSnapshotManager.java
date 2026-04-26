@@ -113,6 +113,27 @@ public class CatalogSnapshotManager implements Closeable {
         );
     }
 
+    /**
+     * Creates a manager for a segment-replication replica. The replica does not own the
+     * primary's files (they arrive via replication) and never flushes, so no
+     * {@link FileDeleter}s, {@link FilesListener}s, or {@link CommitFileManager} are wired.
+     * Uses {@link CatalogSnapshotDeletionPolicy#KEEP_LATEST_ONLY}.
+     *
+     * @param shardPath shard path for orphan cleanup, or {@code null} to skip
+     */
+    public static CatalogSnapshotManager createForReplica(ShardPath shardPath) throws IOException {
+        CatalogSnapshot seed = createInitialSnapshot(0L, 0L, 0L, List.of(), -1L, Map.of());
+        return new CatalogSnapshotManager(
+            List.of(seed),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of(),
+            Map.of(),
+            List.of(),
+            shardPath,
+            null
+        );
+    }
+
     // ---- Refresh path ----
 
     /**
@@ -135,7 +156,7 @@ public class CatalogSnapshotManager implements Closeable {
         DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
             latestCatalogSnapshot.getId() + 1,
             latestCatalogSnapshot.getGeneration() + 1,
-            latestCatalogSnapshot.getVersion(),
+            latestCatalogSnapshot.getVersion() + 1,
             refreshedSegments,
             latestCatalogSnapshot.getLastWriterGeneration() + 1,
             latestCatalogSnapshot.getUserData()
@@ -169,6 +190,26 @@ public class CatalogSnapshotManager implements Closeable {
         // Release the manager's own reference to the old snapshot.
         // The snapshot won't be deleted if the commit path still holds a reference.
         decRefAndMaybeDelete(oldSnapshot);
+    }
+
+    /**
+     * Replaces the current snapshot with one received from the primary via segment replication.
+     * The incoming snapshot is registered with the file deleter (ref counts for its files), then
+     * the manager's prior reference is released. Replica-only: does not go through a commit.
+     */
+    public synchronized void applyReplicationSnapshot(CatalogSnapshot incoming) {
+        if (closed.get()) {
+            throw new IllegalStateException("CatalogSnapshotManager is closed");
+        }
+        try {
+            indexFileDeleter.addFileReferences(incoming);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to add file references for replicated snapshot [gen=" + incoming.getGeneration() + "]", e);
+        }
+        catalogSnapshotMap.put(incoming.getGeneration(), incoming);
+        CatalogSnapshot previous = latestCatalogSnapshot;
+        latestCatalogSnapshot = incoming;
+        decRefAndMaybeDelete(previous);
     }
 
     // ---- Acquire path ----

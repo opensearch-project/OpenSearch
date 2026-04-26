@@ -93,7 +93,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
@@ -122,6 +121,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -254,6 +254,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public ShardPath shardPath() {
         return shardPath;
+    }
+
+    /**
+     * Maps a data-format name to its absolute on-disk directory for this shard. Default formats
+     * (per {@link DataFormatAwareStoreDirectory#isDefaultFormat}) live at {@code <shard>/index};
+     * others at {@code <shard>/<formatName>}. Used when deserializing a {@link CatalogSnapshot}
+     * on a replica/recovery target.
+     */
+    public Function<String, String> shardFormatDirectoryResolver() {
+        return formatName -> DataFormatAwareStoreDirectory.isDefaultFormat(formatName)
+            ? shardPath.resolveIndex().toString()
+            : shardPath.getDataPath().resolve(formatName).toString();
     }
 
     public boolean shouldSetParentField() {
@@ -409,15 +421,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @return {@link Map} map file name to {@link StoreFileMetadata}.
      * @throws IOException in case of I/O error during metadata computation.
      */
-    // TODO: Remove the SegmentInfosCatalogSnapshot instanceof check once loadMetadata(CatalogSnapshot, ...) is fully implemented.
     public Map<String, StoreFileMetadata> getSegmentMetadataMap(CatalogSnapshot catalogSnapshot) throws IOException {
         assert indexSettings.isSegRepEnabledOrRemoteNode();
         failIfCorrupted();
-
-        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot segmentInfosCatalogSnapshot) {
-            return getSegmentMetadataMap(segmentInfosCatalogSnapshot.getSegmentInfos());
-        }
-
         try {
             return loadMetadata(catalogSnapshot, directory, logger, true).fileMetadata;
         } catch (NoSuchFileException | CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
@@ -1246,8 +1252,33 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Logger logger,
             boolean ignoreSegmentsFile
         ) throws IOException {
-            // TODO: Implement format-aware loadMetadata equivalent to the SegmentInfos version
-            throw new UnsupportedOperationException("loadMetadata for CatalogSnapshot is not yet implemented");
+            final long numDocs = catalogSnapshot.getNumDocs();
+            final Map<String, String> commitUserDataBuilder = new HashMap<>(catalogSnapshot.getUserData());
+            final Map<String, StoreFileMetadata> builder = new HashMap<>();
+
+            Version maxVersion = null;
+            for (String file : catalogSnapshot.getFiles(false)) {
+                final Version version = catalogSnapshot.getFormatVersionForFile(file);
+                if (maxVersion == null || version.onOrAfter(maxVersion)) {
+                    maxVersion = version;
+                }
+                // .si files get full-file hash (mirrors the old SegmentInfos path).
+                final boolean isSiFile = SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file));
+                checksumFromFile(directory, file, builder, logger, version, isSiFile);
+            }
+
+            if (maxVersion == null) {
+                maxVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+            }
+
+            if (ignoreSegmentsFile == false) {
+                final String segmentsFile = catalogSnapshot.getSegmentsFileName();
+                if (segmentsFile != null) {
+                    checksumFromFile(directory, segmentsFile, builder, logger, maxVersion, true);
+                }
+            }
+
+            return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }
 
         private static void checksumFromLuceneFile(
@@ -1291,6 +1322,70 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
                 builder.put(file, new StoreFileMetadata(file, length, checksum, version, fileHash.get()));
             }
+        }
+
+        /**
+         * Format-agnostic analogue of {@link #checksumFromLuceneFile}. When {@code readFileAsHash
+         * == true} (segments file or {@code .si} file), behaves identically. Otherwise routes through
+         * {@link DataFormatAwareStoreDirectory#calculateUploadChecksum} if the directory is
+         * DFA-wrapped, else reads the Lucene codec footer directly.
+         */
+        private static void checksumFromFile(
+            Directory directory,
+            String file,
+            Map<String, StoreFileMetadata> builder,
+            Logger logger,
+            Version version,
+            boolean readFileAsHash
+        ) throws IOException {
+            final long length = directory.fileLength(file);
+
+            if (readFileAsHash) {
+                // Segments-file: hash first ≤1 MB and verify Lucene footer in one pass.
+                final String checksum;
+                final BytesRefBuilder fileHash = new BytesRefBuilder();
+                try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+                    try {
+                        if (length < CodecUtil.footerLength()) {
+                            throw new CorruptIndexException(
+                                "Can't retrieve checksum from file: "
+                                    + file
+                                    + " file length must be >= "
+                                    + CodecUtil.footerLength()
+                                    + " but was: "
+                                    + length,
+                                in
+                            );
+                        }
+                        final VerifyingIndexInput verifyingIndexInput = new VerifyingIndexInput(in);
+                        hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, length), length);
+                        checksum = digestToString(verifyingIndexInput.verify());
+                    } catch (Exception ex) {
+                        logger.debug(() -> new ParameterizedMessage("Can retrieve checksum from file [{}]", file), ex);
+                        throw ex;
+                    }
+                }
+                builder.put(file, new StoreFileMetadata(file, length, checksum, version, fileHash.get()));
+                return;
+            }
+
+            // Per-file checksum: use the format-aware strategy when pluggable dataformat is wired
+            // (directory is wrapped in DataFormatAwareStoreDirectory); otherwise read the Lucene footer.
+            final DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(directory);
+            final String checksum;
+            try {
+                if (dfasd != null) {
+                    checksum = dfasd.calculateUploadChecksum(file);
+                } else {
+                    try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+                        checksum = digestToString(CodecUtil.retrieveChecksum(in));
+                    }
+                }
+            } catch (Exception ex) {
+                logger.debug(() -> new ParameterizedMessage("Can retrieve checksum from file [{}]", file), ex);
+                throw ex;
+            }
+            builder.put(file, new StoreFileMetadata(file, length, checksum, version));
         }
 
         /**

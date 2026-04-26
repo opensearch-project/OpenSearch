@@ -378,6 +378,24 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     /**
+     * Applies received segment state to the replica engine. This indexer only wraps Lucene-backed
+     * shards, so any other engine/snapshot combination is a wiring bug.
+     */
+    @Override
+    public void finalizeReplication(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (engine instanceof NRTReplicationEngine nrtEngine && catalogSnapshot instanceof SegmentInfosCatalogSnapshot siSnapshot) {
+            nrtEngine.updateSegments(siSnapshot.getSegmentInfos());
+        } else {
+            throw new IllegalStateException(
+                "EngineBackedIndexer.finalizeReplication expected NRTReplicationEngine + SegmentInfosCatalogSnapshot, got engine="
+                    + engine.getClass().getName()
+                    + ", snapshot="
+                    + catalogSnapshot.getClass().getName()
+            );
+        }
+    }
+
+    /**
      * Returns a snapshot of the catalog of segments in this engine. This snapshot is
      * guaranteed to be consistent and can be used for recovery purposes.
      */

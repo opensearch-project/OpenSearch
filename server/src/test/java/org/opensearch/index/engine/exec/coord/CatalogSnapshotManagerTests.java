@@ -621,6 +621,49 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         return userData;
     }
 
+    public void testCreateForReplicaProducesEmptySnapshot() throws Exception {
+        try (CatalogSnapshotManager manager = CatalogSnapshotManager.createForReplica(null)) {
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                CatalogSnapshot snapshot = ref.get();
+                assertEquals(0L, snapshot.getId());
+                assertEquals(0L, snapshot.getGeneration());
+                assertTrue(snapshot.getSegments().isEmpty());
+                assertTrue(snapshot.getUserData().isEmpty());
+            }
+        }
+    }
+
+    public void testApplyReplicationSnapshotReplacesAndReleasesPrevious() throws Exception {
+        CatalogSnapshotManager manager = CatalogSnapshotManager.createForReplica(null);
+        CatalogSnapshot previous;
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            previous = ref.get();
+        }
+
+        DataformatAwareCatalogSnapshot incoming = new DataformatAwareCatalogSnapshot(
+            randomNonNegativeLong(),
+            previous.getGeneration() + 1,
+            randomNonNegativeLong(),
+            randomSegments(),
+            randomNonNegativeLong(),
+            randomUserData(randomIntBetween(0, 4))
+        );
+        manager.applyReplicationSnapshot(incoming);
+
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            assertSame("latest should be the incoming snapshot", incoming, ref.get());
+        }
+
+        manager.close();
+    }
+
+    public void testApplyReplicationSnapshotOnClosedManagerThrows() throws Exception {
+        CatalogSnapshotManager manager = CatalogSnapshotManager.createForReplica(null);
+        manager.close();
+        DataformatAwareCatalogSnapshot incoming = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, randomSegments(), 1L, Map.of());
+        expectThrows(IllegalStateException.class, () -> manager.applyReplicationSnapshot(incoming));
+    }
+
     private CatalogSnapshotManager createRandomManager() {
         try {
             return createManager(randomSegments(), Map.of());

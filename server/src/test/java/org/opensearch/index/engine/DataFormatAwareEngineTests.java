@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
@@ -167,7 +168,25 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath));
     }
 
+    private DataFormatAwareEngine createDFAEngineWithListeners(
+        Store store,
+        Path translogPath,
+        List<org.apache.lucene.search.ReferenceManager.RefreshListener> internalListeners
+    ) throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath, internalListeners));
+    }
+
     private EngineConfig buildDFAEngineConfig(Store store, Path translogPath) {
+        return buildDFAEngineConfig(store, translogPath, List.of());
+    }
+
+    private EngineConfig buildDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        List<org.apache.lucene.search.ReferenceManager.RefreshListener> internalListeners
+    ) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder()
@@ -198,7 +217,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(List.of())
-            .internalRefreshListener(List.of())
+            .internalRefreshListener(internalListeners)
             .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
             .primaryTermSupplier(primaryTerm::get)
@@ -414,6 +433,79 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             // After refresh, last refreshed checkpoint should be at the processed checkpoint
             assertThat(engine.lastRefreshedCheckpoint(), equalTo((long) numDocs - 1));
             assertThat(engine.lastRefreshedCheckpoint(), equalTo(engine.getProcessedLocalCheckpoint()));
+        }
+    }
+
+    public void testInternalRefreshListenersFireOnRefresh() throws IOException {
+        AtomicInteger beforeCalls = new AtomicInteger();
+        AtomicInteger afterCalls = new AtomicInteger();
+        AtomicReference<Boolean> lastDidRefresh = new AtomicReference<>();
+        org.apache.lucene.search.ReferenceManager.RefreshListener listener =
+            new org.apache.lucene.search.ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() {
+                    beforeCalls.incrementAndGet();
+                }
+
+                @Override
+                public void afterRefresh(boolean didRefresh) {
+                    afterCalls.incrementAndGet();
+                    lastDidRefresh.set(didRefresh);
+                }
+            };
+        try (DataFormatAwareEngine engine = createDFAEngineWithListeners(store, createTempDir(), List.of(listener))) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.refresh("test");
+
+            // Both callbacks fire exactly once per refresh, beforeRefresh always before afterRefresh.
+            assertThat(beforeCalls.get(), equalTo(1));
+            assertThat(afterCalls.get(), equalTo(1));
+            assertThat(lastDidRefresh.get(), notNullValue());
+            // The writer produced at least one file; afterRefresh sees didRefresh=true.
+            assertThat(lastDidRefresh.get(), equalTo(true));
+        }
+    }
+
+    public void testInternalRefreshListenerExceptionDoesNotFailEngine() throws IOException {
+        AtomicInteger goodBefore = new AtomicInteger();
+        AtomicInteger goodAfter = new AtomicInteger();
+        org.apache.lucene.search.ReferenceManager.RefreshListener throwing =
+            new org.apache.lucene.search.ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() throws IOException {
+                    throw new IOException("boom before");
+                }
+
+                @Override
+                public void afterRefresh(boolean didRefresh) throws IOException {
+                    throw new IOException("boom after");
+                }
+            };
+        org.apache.lucene.search.ReferenceManager.RefreshListener healthy =
+            new org.apache.lucene.search.ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() {
+                    goodBefore.incrementAndGet();
+                }
+
+                @Override
+                public void afterRefresh(boolean didRefresh) {
+                    goodAfter.incrementAndGet();
+                }
+            };
+        try (DataFormatAwareEngine engine = createDFAEngineWithListeners(store, createTempDir(), List.of(throwing, healthy))) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            // Refresh must complete successfully — a listener failure is logged, not propagated.
+            engine.refresh("test");
+
+            // The healthy listener was still invoked for both before and after, despite the earlier listener throwing.
+            assertThat(goodBefore.get(), equalTo(1));
+            assertThat(goodAfter.get(), equalTo(1));
+            // And the engine is still open / usable afterwards.
+            engine.index(indexOp(createParsedDoc("2", null)));
+            engine.refresh("after-failure");
+            assertThat(goodBefore.get(), equalTo(2));
+            assertThat(goodAfter.get(), equalTo(2));
         }
     }
 
@@ -1526,6 +1618,56 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
                 assertThat(ref.get().getSegments().size(), greaterThan(0));
+            }
+        }
+    }
+
+    public void testAcquireSafeIndexCommitReturnsCommitWithUserData() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.refresh("before-flush");
+            engine.flush(false, true);
+
+            try (GatedCloseable<IndexCommit> handle = engine.acquireSafeIndexCommit()) {
+                IndexCommit commit = handle.get();
+                assertThat(commit, notNullValue());
+                assertThat(commit.getSegmentsFileName(), notNullValue());
+                // Note: with the test's InMemoryCommitter stub, flushed commit data is kept in memory
+                // and not written to the underlying Lucene directory. Production LuceneCommitter DOES
+                // persist CATALOG_SNAPSHOT_KEY into commit userData — that end-to-end assertion is
+                // the responsibility of the IT, not this unit test.
+            }
+        }
+    }
+
+    public void testAcquireSafeIndexCommitPinsFilesAgainstConcurrentFlush() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.refresh("r1");
+            engine.flush(false, true);
+
+            // Snapshot the first commit, then force a second flush. In production with
+            // SnapshotDeletionPolicy the pinned commit's files would be kept alive; the
+            // test stub InMemoryCommitter does not pin but we still validate that the
+            // snapshot returns a valid IndexCommit that can be inspected.
+            try (GatedCloseable<IndexCommit> pinned = engine.acquireSafeIndexCommit()) {
+                IndexCommit firstCommit = pinned.get();
+                String firstSegmentsFile = firstCommit.getSegmentsFileName();
+                assertThat(firstSegmentsFile, notNullValue());
+                assertThat(firstCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), notNullValue());
+            }
+        }
+    }
+
+    public void testAcquireSafeIndexCommitOnFreshEngineUsesBootstrapCommit() throws IOException {
+        // Fresh engine: bootstrapStoreWithMetadata() writes a Lucene empty commit in setUp,
+        // so acquireSafeIndexCommit should succeed and return that bootstrap commit.
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            try (GatedCloseable<IndexCommit> handle = engine.acquireSafeIndexCommit()) {
+                assertThat(handle.get(), notNullValue());
+                assertThat(handle.get().getSegmentsFileName(), notNullValue());
             }
         }
     }

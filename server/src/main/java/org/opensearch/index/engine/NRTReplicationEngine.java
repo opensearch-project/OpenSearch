@@ -29,11 +29,9 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
-import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
-import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -116,21 +114,7 @@ public class NRTReplicationEngine extends Engine {
                 readLock,
                 this::getLocalCheckpointTracker,
                 translogUUID,
-                new TranslogEventListener() {
-                    @Override
-                    public void onFailure(String reason, Exception ex) {
-                        failEngine(reason, ex);
-                    }
-
-                    @Override
-                    public void onAfterTranslogSync() {
-                        try {
-                            translogManager.trimUnreferencedReaders();
-                        } catch (IOException ex) {
-                            throw new TranslogException(shardId, "failed to trim unreferenced translog readers", ex);
-                        }
-                    }
-                },
+                NRTReplicaTranslogOps.createTranslogEventListener(this::failEngine, this::translogManager, shardId),
                 this,
                 engineConfig.getTranslogFactory(),
                 engineConfig.getStartedPrimarySupplier(),
@@ -243,37 +227,19 @@ public class NRTReplicationEngine extends Engine {
     @Override
     public IndexResult index(Index index) throws IOException {
         ensureOpen();
-        IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
-        final Translog.Location location = translogManager.add(new Translog.Index(index, indexResult));
-        indexResult.setTranslogLocation(location);
-        indexResult.setTook(System.nanoTime() - index.startTime());
-        indexResult.freeze();
-        localCheckpointTracker.advanceMaxSeqNo(index.seqNo());
-        return indexResult;
+        return NRTReplicaTranslogOps.index(translogManager, localCheckpointTracker, index);
     }
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
         ensureOpen();
-        DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
-        final Translog.Location location = translogManager.add(new Translog.Delete(delete, deleteResult));
-        deleteResult.setTranslogLocation(location);
-        deleteResult.setTook(System.nanoTime() - delete.startTime());
-        deleteResult.freeze();
-        localCheckpointTracker.advanceMaxSeqNo(delete.seqNo());
-        return deleteResult;
+        return NRTReplicaTranslogOps.delete(translogManager, localCheckpointTracker, delete);
     }
 
     @Override
     public NoOpResult noOp(NoOp noOp) throws IOException {
         ensureOpen();
-        NoOpResult noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
-        final Translog.Location location = translogManager.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
-        noOpResult.setTranslogLocation(location);
-        noOpResult.setTook(System.nanoTime() - noOp.startTime());
-        noOpResult.freeze();
-        localCheckpointTracker.advanceMaxSeqNo(noOp.seqNo());
-        return noOpResult;
+        return NRTReplicaTranslogOps.noOp(translogManager, localCheckpointTracker, noOp);
     }
 
     @Override
