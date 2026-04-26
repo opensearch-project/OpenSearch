@@ -14,22 +14,20 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
+import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.FieldValuePair;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
-import org.opensearch.search.sort.SortOrder;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -213,19 +211,12 @@ public class VSRManager implements AutoCloseable {
     }
 
     private void initializeWriter() {
-        // Read sort config from index settings
-        List<String> sortColumns = IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexSettings.getSettings());
-        List<SortOrder> sortOrders = IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(indexSettings.getSettings());
-        List<Boolean> reverseSorts = sortOrders.stream().map(o -> o == SortOrder.DESC).toList();
-
-        List<String> missingValues = IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(indexSettings.getSettings());
-        List<Boolean> nullsFirst = missingValues.stream().map("_first"::equals).collect(java.util.stream.Collectors.toList());
-
+        ParquetSortConfig sortConfig = new ParquetSortConfig(indexSettings);
         String indexName = indexSettings.getIndex().getName();
 
         ArrowSchema arrowSchema = managedVSR.get().exportSchema();
         try {
-            writer = new NativeParquetWriter(fileName, indexName, arrowSchema.memoryAddress(), sortColumns, reverseSorts, nullsFirst);
+            writer = new NativeParquetWriter(fileName, indexName, arrowSchema.memoryAddress(), sortConfig);
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
         } finally {

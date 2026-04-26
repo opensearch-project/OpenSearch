@@ -120,24 +120,22 @@ public class RustBridge {
         String file,
         String indexName,
         long schemaAddress,
-        List<String> sortColumns,
-        List<Boolean> reverseSorts,
-        List<Boolean> nullsFirst
+        ParquetSortConfig sortConfig
     ) throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             var idx = call.str(indexName);
-            var sorts = call.strArray(sortColumns.toArray(new String[0]));
-            var reverseArray = marshalBoolList(call, reverseSorts);
-            var nullsFirstArray = marshalBoolList(call, nullsFirst);
+            var sorts = call.strArray(sortConfig.sortColumns().toArray(new String[0]));
+            var reverseArray = marshalBoolList(call, sortConfig.reverseSorts());
+            var nullsFirstArray = marshalBoolList(call, sortConfig.nullsFirst());
             call.invokeIO(
                 CREATE_WRITER,
                 f.segment(), f.len(),
                 idx.segment(), idx.len(),
                 schemaAddress,
                 sorts.ptrs(), sorts.lens(), sorts.count(),
-                reverseArray, (long) reverseSorts.size(),
-                nullsFirstArray, (long) nullsFirst.size()
+                reverseArray, (long) sortConfig.reverseSorts().size(),
+                nullsFirstArray, (long) sortConfig.nullsFirst().size()
             );
         }
     }

@@ -22,13 +22,13 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.nativebridge.spi.ArrowExport;
+import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -145,14 +145,14 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
     public void testCreateWriterWithNonExistentDirectory() {
         expectThrows(IOException.class, () -> {
             try (ArrowExport export = exportSchema()) {
-                new NativeParquetWriter("/nonexistent/dir/file.parquet", "test-index", export.getSchemaAddress(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+                new NativeParquetWriter("/nonexistent/dir/file.parquet", "test-index", export.getSchemaAddress(), ParquetSortConfig.empty());
             }
         });
     }
 
     public void testCreateWriterWithInvalidSchemaAddress() {
         String filePath = createTempDir().resolve("bad-schema.parquet").toString();
-        expectThrows(Exception.class, () -> new NativeParquetWriter(filePath, "test-index", 0L, Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
+        expectThrows(Exception.class, () -> new NativeParquetWriter(filePath, "test-index", 0L, ParquetSortConfig.empty()));
     }
 
     public void testWriteWithSchemaMismatch() throws Exception {
@@ -236,7 +236,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
 
     private NativeParquetWriter createWriter(String filePath) throws Exception {
         try (ArrowExport export = exportSchema()) {
-            return new NativeParquetWriter(filePath, "test-index", export.getSchemaAddress(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+            return new NativeParquetWriter(filePath, "test-index", export.getSchemaAddress(), ParquetSortConfig.empty());
         }
     }
 
