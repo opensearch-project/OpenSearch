@@ -51,6 +51,7 @@ public final class NativeBridge {
     private static final MethodHandle STREAM_NEXT;
     private static final MethodHandle STREAM_CLOSE;
     private static final MethodHandle SQL_TO_SUBSTRAIT;
+    private static final MethodHandle REGISTER_FILTER_TREE_CALLBACKS;
     private static final MethodHandle CREATE_LOCAL_SESSION;
     private static final MethodHandle CLOSE_LOCAL_SESSION;
     private static final MethodHandle REGISTER_PARTITION_STREAM;
@@ -203,9 +204,119 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG
             )
         );
+
+        // void df_register_filter_tree_callbacks(createCollector, collectDocs, releaseCollector)
+        REGISTER_FILTER_TREE_CALLBACKS = linker.downcallHandle(
+            lib.find("df_register_filter_tree_callbacks").orElseThrow(),
+            FunctionDescriptor.ofVoid(
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS
+            )
+        );
+
+        // Hand the five filter-tree upcall stubs to Rust now. No explicit
+        // caller step required — as soon as this class is loaded, callbacks
+        // are installed and `df_execute_indexed_query` can dispatch into Java.
+        installFilterTreeCallbacks(linker);
     }
 
     private NativeBridge() {}
+
+    private static void installFilterTreeCallbacks(Linker linker) {
+        try {
+            java.lang.foreign.Arena arena = java.lang.foreign.Arena.global();
+            Class<?> cb = org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks.class;
+            var lookup = java.lang.invoke.MethodHandles.lookup();
+
+            MethodHandle createProvider = lookup.findStatic(
+                cb,
+                "createProvider",
+                java.lang.invoke.MethodType.methodType(
+                    int.class,
+                    java.lang.foreign.MemorySegment.class,
+                    long.class
+                )
+            );
+            MethodHandle releaseProvider = lookup.findStatic(
+                cb,
+                "releaseProvider",
+                java.lang.invoke.MethodType.methodType(void.class, int.class)
+            );
+            MethodHandle createCollector = lookup.findStatic(
+                cb,
+                "createCollector",
+                java.lang.invoke.MethodType.methodType(int.class, int.class, int.class, int.class, int.class)
+            );
+            MethodHandle collectDocs = lookup.findStatic(
+                cb,
+                "collectDocs",
+                java.lang.invoke.MethodType.methodType(
+                    long.class,
+                    int.class,
+                    int.class,
+                    int.class,
+                    java.lang.foreign.MemorySegment.class,
+                    long.class
+                )
+            );
+            MethodHandle releaseCollector = lookup.findStatic(
+                cb,
+                "releaseCollector",
+                java.lang.invoke.MethodType.methodType(void.class, int.class)
+            );
+
+            java.lang.foreign.MemorySegment createProviderStub = linker.upcallStub(
+                createProvider,
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                arena
+            );
+            java.lang.foreign.MemorySegment releaseProviderStub = linker.upcallStub(
+                releaseProvider,
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT),
+                arena
+            );
+            java.lang.foreign.MemorySegment createCollectorStub = linker.upcallStub(
+                createCollector,
+                FunctionDescriptor.of(
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT
+                ),
+                arena
+            );
+            java.lang.foreign.MemorySegment collectDocsStub = linker.upcallStub(
+                collectDocs,
+                FunctionDescriptor.of(
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_LONG
+                ),
+                arena
+            );
+            java.lang.foreign.MemorySegment releaseCollectorStub = linker.upcallStub(
+                releaseCollector,
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT),
+                arena
+            );
+            REGISTER_FILTER_TREE_CALLBACKS.invokeWithArguments(
+                createProviderStub,
+                releaseProviderStub,
+                createCollectorStub,
+                collectDocsStub,
+                releaseCollectorStub
+            );
+        } catch (Throwable t) {
+            throw new ExceptionInInitializerError(t);
+        }
+    }
 
     // ---- Tokio runtime management (no Arena needed — no string/buffer args) ----
 
@@ -314,6 +425,7 @@ public final class NativeBridge {
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
     }
+
 
     // ---- Stubs ----
 

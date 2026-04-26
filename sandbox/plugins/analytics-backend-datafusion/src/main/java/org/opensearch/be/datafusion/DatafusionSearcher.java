@@ -21,6 +21,10 @@ import java.util.concurrent.CompletableFuture;
 /**
  * DataFusion searcher — executes substrait query plans against a native DataFusion reader.
  * <p>
+ * A single entry point: {@link NativeBridge#executeQueryAsync} handles both vanilla
+ * parquet and indexed (index_filter-bearing) plans. The native side classifies the
+ * substrait plan and dispatches internally; Java is oblivious to which path runs.
+ * <p>
  * After {@link #search}, the result stream handle is available on the context
  * via {@link DatafusionContext#getStreamHandle()}.
  *
@@ -41,18 +45,6 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
 
     @Override
     public void search(DatafusionContext context) throws IOException {
-        if (context.getFilterTree() == null) {
-            searchVanilla(context);
-        } else {
-            searchWithFilterTree(context);
-        }
-    }
-
-    private void searchWithFilterTree(DatafusionContext context) {
-        throw new UnsupportedOperationException("Indexed query path not yet wired");
-    }
-
-    private void searchVanilla(DatafusionContext context) throws IOException {
         DatafusionQuery query = context.getDatafusionQuery();
         if (query == null) {
             throw new IllegalStateException("DatafusionQuery must be set before search");

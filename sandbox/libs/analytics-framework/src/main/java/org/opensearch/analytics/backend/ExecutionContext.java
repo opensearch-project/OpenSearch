@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.backend;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
@@ -24,8 +23,6 @@ public class ExecutionContext {
     private final Reader reader;
     private final SearchShardTask task;
     private byte[] fragmentBytes;
-    private BufferAllocator allocator;
-
     /**
      * Constructs an execution context.
      * @param tableName the target table name
