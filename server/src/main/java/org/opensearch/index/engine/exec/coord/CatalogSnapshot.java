@@ -18,6 +18,9 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,6 +57,12 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     protected long version;
 
     private final AbstractRefCounted refCounter;
+
+    /**
+     * Lazily computed cache of file names grouped by format. Computed once on first access
+     * since segments are immutable after construction.
+     */
+    private volatile Map<String, Collection<String>> filesByFormatCache;
 
     protected CatalogSnapshot(String name, long generation, long version) {
         this.generation = generation;
@@ -176,6 +185,35 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      * @throws IOException if an I/O error occurs
      */
     public abstract String serializeToString() throws IOException;
+
+    /**
+     * Returns all file names grouped by data format name. The result is computed once
+     * and cached for the lifetime of this snapshot (segments are immutable after construction).
+     * <p>
+     * Used by {@code IndexFileDeleter} for ref-count bookkeeping, avoiding repeated
+     * iteration over segments on every add/remove call.
+     *
+     * @return unmodifiable map of format name to unmodifiable set of file names
+     */
+    public Map<String, Collection<String>> getFilesByFormat() {
+        Map<String, Collection<String>> cached = this.filesByFormatCache;
+        if (cached != null) {
+            return cached;
+        }
+        Map<String, Set<String>> result = new HashMap<>();
+        for (Segment segment : getSegments()) {
+            for (Map.Entry<String, WriterFileSet> entry : segment.dfGroupedSearchableFiles().entrySet()) {
+                result.computeIfAbsent(entry.getKey(), k -> new HashSet<>()).addAll(entry.getValue().files());
+            }
+        }
+        Map<String, Collection<String>> unmodifiable = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : result.entrySet()) {
+            unmodifiable.put(entry.getKey(), Collections.unmodifiableSet(entry.getValue()));
+        }
+        cached = Collections.unmodifiableMap(unmodifiable);
+        this.filesByFormatCache = cached;
+        return cached;
+    }
 
     /**
      * Creates a clone without acquiring a reference count.

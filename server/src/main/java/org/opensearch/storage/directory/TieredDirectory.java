@@ -23,6 +23,7 @@ import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.storage.indexinput.CachedSwitchableIndexInput;
 import org.opensearch.storage.indexinput.SwitchableIndexInput;
 import org.opensearch.storage.indexinput.SwitchableIndexInputWrapper;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.opensearch.index.store.remote.utils.FileTypeUtils.BLOCK_FILE_IDENTIFIER;
@@ -43,8 +45,17 @@ public class TieredDirectory extends CompositeDirectory {
 
     private static final Logger logger = LogManager.getLogger(TieredDirectory.class);
 
-    public TieredDirectory(Directory localDirectory, Directory remoteDirectory, FileCache fileCache, ThreadPool threadPool) {
+    private final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
+
+    public TieredDirectory(
+        Directory localDirectory,
+        Directory remoteDirectory,
+        FileCache fileCache,
+        ThreadPool threadPool,
+        Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier
+    ) {
         super(localDirectory, remoteDirectory, fileCache, threadPool);
+        this.tieredStoragePrefetchSettingsSupplier = tieredStoragePrefetchSettingsSupplier;
     }
 
     @Override
@@ -222,7 +233,8 @@ public class TieredDirectory extends CompositeDirectory {
                 remoteDirectory,
                 transferManager,
                 cacheFromRemote,
-                threadPool
+                threadPool,
+                tieredStoragePrefetchSettingsSupplier
             )
         );
     }

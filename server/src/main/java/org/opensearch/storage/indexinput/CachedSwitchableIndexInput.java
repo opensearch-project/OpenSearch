@@ -15,10 +15,12 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.TransferManager;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.opensearch.storage.utils.DirectoryUtils.getFilePath;
 import static org.opensearch.storage.utils.DirectoryUtils.getFilePathSwitchable;
@@ -38,7 +40,8 @@ public class CachedSwitchableIndexInput implements CachedIndexInput {
         RemoteSegmentStoreDirectory remoteDirectory,
         TransferManager transferManager,
         boolean cacheFromRemote,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier
     ) throws IOException {
         isClosed = new AtomicBoolean(false);
         String resourceDescription = "SwitchableIndexInput (path=" + getFilePath(localDirectory, fileName) + ")";
@@ -52,7 +55,8 @@ public class CachedSwitchableIndexInput implements CachedIndexInput {
             remoteDirectory,
             transferManager,
             cacheFromRemote,
-            threadPool
+            threadPool,
+            tieredStoragePrefetchSettingsSupplier
         );
     }
 

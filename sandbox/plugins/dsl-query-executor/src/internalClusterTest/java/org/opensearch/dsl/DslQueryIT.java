@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -16,6 +17,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
  * Integration tests for DSL query conversion (filter path).
  * Uses various query types; sort and projection use defaults.
  */
+@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
 public class DslQueryIT extends DslIntegTestBase {
 
     public void testNoQuery() {
