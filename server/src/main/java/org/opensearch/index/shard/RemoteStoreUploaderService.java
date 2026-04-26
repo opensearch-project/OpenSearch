@@ -19,8 +19,8 @@ import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSyncAwareDirectory;
 
 import java.util.Collection;
 import java.util.Map;
@@ -63,7 +63,6 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
         logger.debug("Effective new segments files to upload {}", localSegments);
         ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, localSegments.size());
-        Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
 
         for (String localSegment : localSegments) {
             // Initializing listener here to ensure that the stats increment operations are thread-safe
@@ -72,9 +71,7 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
                 statsListener.onSuccess(localSegment);
                 batchUploadListener.onResponse(resp);
                 // Once uploaded to Remote, local files become eligible for eviction from FileCache
-                if (directory instanceof CompositeDirectory compositeDirectory) {
-                    compositeDirectory.afterSyncToRemote(localSegment);
-                }
+                notifyAfterSyncToRemote(storeDirectory, localSegment);
             }, ex -> {
                 logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
                 if (ex instanceof CorruptIndexException) {
@@ -92,6 +89,21 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
                 isLowPriorityUpload,
                 cryptoMetadata
             );
+        }
+    }
+
+    private static void notifyAfterSyncToRemote(Directory dir, String file) {
+        Directory current = dir;
+        while (current != null) {
+            if (current instanceof RemoteSyncAwareDirectory) {
+                ((RemoteSyncAwareDirectory) current).afterSyncToRemote(file);
+                return;
+            }
+            if (current instanceof FilterDirectory) {
+                current = ((FilterDirectory) current).getDelegate();
+            } else {
+                break;
+            }
         }
     }
 }

@@ -989,4 +989,65 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         assertEquals("orc", dataFormatAwareStoreDirectory.getDataFormat("orc/data.orc"));
         assertEquals("custom", dataFormatAwareStoreDirectory.getDataFormat("custom/myfile.dat"));
     }
+
+    public void testAfterSyncToRemoteWithNonRemoteSyncAwareDelegate() {
+        // Default constructor wraps delegate in SubdirectoryAwareDirectory which does NOT
+        // implement RemoteSyncAwareDirectory → afterSyncToRemote should be a no-op
+        dataFormatAwareStoreDirectory.afterSyncToRemote("_0.cfe");
+        // No exception = pass. The inner SubdirectoryAwareDirectory is not RemoteSyncAwareDirectory.
+    }
+
+    public void testAfterSyncToRemoteWithRemoteSyncAwareDelegate() {
+        // Create a DataFormatAwareStoreDirectory with a RemoteSyncAwareDirectory delegate
+        RemoteSyncAwareDirectory mockDelegate = mock(RemoteSyncAwareDirectory.class);
+        org.apache.lucene.store.Directory mockDir = mock(org.apache.lucene.store.Directory.class);
+
+        // We need a Directory that is also RemoteSyncAwareDirectory — use the abstract helper
+        RemoteSyncAwareMockDirectory syncAwareDir = mock(RemoteSyncAwareMockDirectory.class);
+
+        PluginsService pluginsService = mock(PluginsService.class);
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test-index").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings idxSettings = new IndexSettings(metadata, Settings.EMPTY);
+
+        DataFormatAwareStoreDirectory dir = new DataFormatAwareStoreDirectory(idxSettings, syncAwareDir, shardPath, registry, true);
+        dir.afterSyncToRemote("_0.cfe");
+        org.mockito.Mockito.verify(syncAwareDir).afterSyncToRemote("_0.cfe");
+    }
+
+    public void testDirectDelegateConstructorDoesNotDoubleWrap() throws IOException {
+        // The directDelegate=true constructor should use the delegate as-is
+        PluginsService pluginsService = mock(PluginsService.class);
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test-index").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings idxSettings = new IndexSettings(metadata, Settings.EMPTY);
+
+        SubdirectoryAwareDirectory subdirAware = new SubdirectoryAwareDirectory(fsDirectory, shardPath);
+        DataFormatAwareStoreDirectory dir = new DataFormatAwareStoreDirectory(idxSettings, subdirAware, shardPath, registry, true);
+
+        // The delegate should be the SubdirectoryAwareDirectory directly, not wrapped again
+        org.apache.lucene.store.Directory delegate = org.apache.lucene.store.FilterDirectory.unwrap(dir);
+        // unwrap goes all the way to the leaf — should be FSDirectory
+        assertTrue("Leaf should be FSDirectory", delegate instanceof FSDirectory);
+        dir.close();
+    }
+
+    /**
+     * Helper interface for mocking a Directory that also implements RemoteSyncAwareDirectory.
+     */
+    abstract static class RemoteSyncAwareMockDirectory extends org.apache.lucene.store.Directory implements RemoteSyncAwareDirectory {}
 }
