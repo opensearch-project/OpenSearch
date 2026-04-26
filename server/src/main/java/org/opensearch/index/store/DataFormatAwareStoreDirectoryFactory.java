@@ -12,7 +12,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
@@ -29,7 +31,6 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-@FunctionalInterface
 public interface DataFormatAwareStoreDirectoryFactory {
 
     /**
@@ -57,4 +58,38 @@ public interface DataFormatAwareStoreDirectoryFactory {
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
         Map<String, FormatChecksumStrategy> checksumStrategies
     ) throws IOException;
+
+    /**
+     * Creates a new DataFormatAwareStoreDirectory for warm nodes with tiered storage support.
+     *
+     * <p>This overload accepts additional parameters needed for warm node directory creation,
+     * including the remote directory, file cache, and thread pool. The default implementation
+     * delegates to the 5-parameter method, ignoring the warm-specific parameters.
+     *
+     * <p>Implementations that support warm+format (e.g., TieredDataFormatAwareStoreDirectoryFactory)
+     * should override this method to build the full tiered directory stack.
+     *
+     * @param indexSettings          the shard's index settings
+     * @param shardId                the shard identifier
+     * @param shardPath              the path the shard is using for file storage
+     * @param localDirectoryFactory  the factory for creating the underlying local directory
+     * @param dataFormatRegistry     registry of available data format plugins
+     * @param remoteDirectory        the remote segment store directory
+     * @param fileCache              the file cache for warm node caching
+     * @param threadPool             the thread pool for async operations
+     * @return a new DataFormatAwareStoreDirectory instance
+     * @throws IOException if directory creation fails
+     */
+    default DataFormatAwareStoreDirectory newDataFormatAwareStoreDirectory(
+        IndexSettings indexSettings,
+        ShardId shardId,
+        ShardPath shardPath,
+        IndexStorePlugin.DirectoryFactory localDirectoryFactory,
+        DataFormatRegistry dataFormatRegistry,
+        RemoteSegmentStoreDirectory remoteDirectory,
+        FileCache fileCache,
+        ThreadPool threadPool
+    ) throws IOException {
+        return newDataFormatAwareStoreDirectory(indexSettings, shardId, shardPath, localDirectoryFactory, dataFormatRegistry);
+    }
 }

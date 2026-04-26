@@ -10,11 +10,13 @@ package org.opensearch.index.engine.dataformat;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.Directory;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
@@ -133,6 +135,37 @@ public class DataFormatRegistry {
      */
     public Set<DataFormat> getRegisteredFormats() {
         return Set.copyOf(dataFormatPluginRegistry.keySet());
+    }
+
+    /**
+     * Asks each registered format plugin for a tiered directory and returns the non-null results.
+     * Called by TieredDataFormatAwareStoreDirectoryFactory at shard open time on warm nodes.
+     *
+     * @param localDirectory    the subdirectory-aware local directory
+     * @param remoteDirectory   the remote segment store directory
+     * @param indexSettings     the index settings for this shard
+     * @return map of format name to tiered directory (only formats that provide one)
+     */
+    public Map<DataFormat, Directory> getTieredDirectories(
+        Directory localDirectory,
+        RemoteSegmentStoreDirectory remoteDirectory,
+        IndexSettings indexSettings
+    ) {
+        Map<DataFormat, Directory> result = new HashMap<>();
+        String dataformatName = indexSettings.getSettings().get(PLUGGABLE_DATAFORMAT_SETTING);
+        if (dataformatName != null) {
+            DataFormat format = dataFormats.get(dataformatName);
+            if (format != null) {
+                DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+                if (plugin != null) {
+                    Directory dir = plugin.getTieredDirectory(localDirectory, remoteDirectory, indexSettings);
+                    if (dir != null) {
+                        result.put(format, dir);
+                    }
+                }
+            }
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     /**

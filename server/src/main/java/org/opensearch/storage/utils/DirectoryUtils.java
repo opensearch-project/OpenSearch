@@ -27,6 +27,32 @@ public class DirectoryUtils {
     public static final String SWITCHABLE_PREFIX = "_switchable";
 
     /**
+     * Walks the {@link FilterDirectory} chain to find the underlying {@link FSDirectory}.
+     * Returns immediately if the given directory is already an FSDirectory.
+     *
+     * @param directory the directory to unwrap
+     * @return the underlying FSDirectory
+     * @throws IllegalArgumentException if no FSDirectory is found in the chain
+     */
+    public static FSDirectory unwrapFSDirectory(Directory directory) {
+        Directory current = directory;
+        while (current instanceof FilterDirectory) {
+            current = ((FilterDirectory) current).getDelegate();
+        }
+        if (current instanceof FSDirectory) {
+            return (FSDirectory) current;
+        }
+        throw new IllegalArgumentException("Expected FSDirectory but got: " + directory.getClass().getName());
+    }
+
+    /**
+     * Alias for {@link #unwrapFSDirectory(Directory)}.
+     */
+    public static FSDirectory getFSDirectory(Directory dir) {
+        return unwrapFSDirectory(dir);
+    }
+
+    /**
      * Resolves the file path for a given file name in the directory.
      * @param localDirectory the directory
      * @param fileName the file name
@@ -44,24 +70,5 @@ public class DirectoryUtils {
      */
     public static Path getFilePathSwitchable(Directory localDirectory, String fileName) {
         return unwrapFSDirectory(localDirectory).getDirectory().resolve(fileName + SWITCHABLE_PREFIX);
-    }
-
-    /**
-     * Unwraps a directory chain to find the underlying FSDirectory.
-     * Handles cases where the directory is wrapped in FilterDirectory layers
-     * such as BucketedCompositeDirectory.
-     * @param directory the directory to unwrap
-     * @return the underlying FSDirectory
-     * @throws IllegalArgumentException if no FSDirectory is found in the chain
-     */
-    public static FSDirectory unwrapFSDirectory(Directory directory) {
-        Directory current = directory;
-        while (current instanceof FilterDirectory) {
-            current = ((FilterDirectory) current).getDelegate();
-        }
-        if (current instanceof FSDirectory) {
-            return (FSDirectory) current;
-        }
-        throw new IllegalArgumentException("Expected FSDirectory but got: " + directory.getClass().getName());
     }
 }

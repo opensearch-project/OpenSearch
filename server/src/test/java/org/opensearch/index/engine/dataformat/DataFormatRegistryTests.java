@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -314,5 +315,70 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(indexSettings, unregistered);
         assertTrue(descriptors.isEmpty());
+    }
+
+    public void testGetTieredDirectoriesReturnsEmptyWhenNoPluggableDataformat() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        // indexSettings has no pluggable_dataformat setting → empty result
+        Directory localDir = mock(Directory.class);
+
+        Map<DataFormat, Directory> result = registry.getTieredDirectories(localDir, null, indexSettings);
+        assertTrue("Should return empty map when no pluggable_dataformat setting", result.isEmpty());
+    }
+
+    public void testGetTieredDirectoriesReturnsEmptyWhenPluginReturnsNull() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        // Create settings with pluggable_dataformat = "columnar"
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .put("pluggable_dataformat", "columnar")
+            .build();
+        IndexSettings settingsWithFormat = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+
+        Directory localDir = mock(Directory.class);
+
+        // MockDataFormatPlugin.getTieredDirectory returns null by default → empty result
+        Map<DataFormat, Directory> result = registry.getTieredDirectories(localDir, null, settingsWithFormat);
+        assertTrue("Should return empty map when plugin returns null directory", result.isEmpty());
+    }
+
+    public void testGetTieredDirectoriesReturnsEmptyWhenFormatNameNotRegistered() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        // Create settings with pluggable_dataformat = "unknown" (not registered)
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .put("pluggable_dataformat", "unknown")
+            .build();
+        IndexSettings settingsWithFormat = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+
+        Directory localDir = mock(Directory.class);
+
+        Map<DataFormat, Directory> result = registry.getTieredDirectories(localDir, null, settingsWithFormat);
+        assertTrue("Should return empty map when format name not registered", result.isEmpty());
     }
 }

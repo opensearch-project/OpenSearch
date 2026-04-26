@@ -101,6 +101,7 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -778,7 +779,22 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (this.indexSettings.isPluggableDataFormatEnabled() && dataFormatRegistry != null) {
                 checksumStrategies = dataFormatRegistry.createChecksumStrategies(this.indexSettings);
             }
-            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
+            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING)
+                && this.indexSettings.isWarmIndex()
+                && this.indexSettings.isPluggableDataFormatEnabled()
+                && this.dataFormatAwareStoreDirectoryFactory != null) {
+                // Warm + format-aware: use warm-aware factory overload
+                directory = dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
+                    this.indexSettings,
+                    shardId,
+                    path,
+                    directoryFactory,
+                    dataFormatRegistry,
+                    (RemoteSegmentStoreDirectory) remoteDirectory,
+                    fileCache,
+                    threadPool
+                );
+            } else if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isWarmIndex()) {
                 directory = compositeDirectoryFactory.newDirectory(
@@ -789,7 +805,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     fileCache,
                     threadPool
                 );
-            } else if (!this.indexSettings.isPluggableDataFormatEnabled()) {
+            } else if (this.indexSettings.isPluggableDataFormatEnabled() == false) {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
             } else {
                 // Will be enabled in case of formatAware indices.
