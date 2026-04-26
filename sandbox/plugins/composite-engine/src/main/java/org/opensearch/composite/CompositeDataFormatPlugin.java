@@ -20,7 +20,6 @@ import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -92,19 +91,14 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
-        Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
-        for (Map.Entry<String, DataFormatDescriptor> entry : getFormatDescriptors(settings.indexSettings(), settings.registry())
-            .entrySet()) {
-            strategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
-        }
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
         return new CompositeIndexingExecutionEngine(
             settings.indexSettings(),
             settings.mapperService(),
             settings.committer(),
             settings.registry(),
             settings.store(),
-            strategies
+            settings.checksumStrategies()
         );
     }
 
@@ -116,11 +110,11 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
 
         Map<String, DataFormatDescriptor> descriptors = new HashMap<>();
         if (primaryFormatName != null) {
-            descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
+            descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings, dataFormatRegistry.format(primaryFormatName)));
         }
         for (String secondaryName : secondaryFormatNames) {
             if (secondaryName != null) {
-                descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
+                descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings, dataFormatRegistry.format(secondaryName)));
             }
         }
         return Map.copyOf(descriptors);

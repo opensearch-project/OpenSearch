@@ -30,7 +30,6 @@ import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.store.FormatChecksumStrategy;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -71,7 +70,7 @@ final class CompositeTestHelper {
         when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
             DataFormat format = invocation.getArgument(1);
             DataFormatPlugin plugin = plugins.get(format.name());
-            return plugin.indexingEngine(null, null);
+            return plugin.indexingEngine(null);
         });
 
         Settings.Builder settingsBuilder = Settings.builder()
@@ -100,7 +99,7 @@ final class CompositeTestHelper {
             }
 
             @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
                 return new StubIndexingExecutionEngine(format);
             }
         };
@@ -115,7 +114,7 @@ final class CompositeTestHelper {
             }
 
             @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
                 return new StubIndexingExecutionEngine(format);
             }
         };

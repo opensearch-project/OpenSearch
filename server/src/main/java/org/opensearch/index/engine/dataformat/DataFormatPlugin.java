@@ -10,7 +10,6 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.store.FormatChecksumStrategy;
 
 import java.util.Map;
 
@@ -35,13 +34,9 @@ public interface DataFormatPlugin {
      * Creates the indexing engine for the data format. This should be instantiated per shard.
      *
      * @param settings          the engine initialization settings
-     * @param checksumStrategy  the checksum strategy owned by the directory for this format,
-     *                          or null if not available. Engines that pre-compute checksums
-     *                          during write should register into this instance so the upload
-     *                          path can retrieve them in O(1).
      * @return the indexing execution engine instance
      */
-    IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy);
+    IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings);
 
     /**
      * Returns format descriptors for this plugin, filtered by the given index settings.

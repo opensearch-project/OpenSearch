@@ -19,6 +19,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -34,9 +35,6 @@ import java.util.stream.Collectors;
  */
 @ExperimentalApi
 public class DataFormatRegistry {
-
-    /** Index setting name that specifies the active pluggable data format. */
-    public static final String PLUGGABLE_DATAFORMAT_SETTING = "pluggable_dataformat";
 
     /** Map from data format to the plugin that provides its indexing engine. */
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
@@ -97,10 +95,7 @@ public class DataFormatRegistry {
         if (plugin == null) {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
         }
-        Map<String, DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(settings.indexSettings(), this);
-        DataFormatDescriptor descriptor = descriptors.get(format.name());
-        FormatChecksumStrategy checksumStrategy = descriptor != null ? descriptor.getChecksumStrategy() : null;
-        return plugin.indexingEngine(settings, checksumStrategy);
+        return plugin.indexingEngine(settings);
     }
 
     public DataFormat format(String name) {
@@ -148,8 +143,8 @@ public class DataFormatRegistry {
      * @return unmodifiable map of format name to descriptor, or empty map if no pluggable data format is configured
      */
     public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings) {
-        String dataformatName = indexSettings.getSettings().get(PLUGGABLE_DATAFORMAT_SETTING);
-        if (dataformatName != null) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
             DataFormat format = dataFormats.get(dataformatName);
             if (format != null) {
                 DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
@@ -159,6 +154,44 @@ public class DataFormatRegistry {
             }
         }
         return Map.of();
+    }
+
+    /**
+     * Returns format descriptors for a specific data format, bypassing the
+     * {@code pluggable_dataformat} index setting lookup. This is used by composite
+     * plugins to resolve child format descriptors without recursion.
+     *
+     * @param indexSettings the index settings
+     * @param dataFormat the specific data format to get descriptors for
+     * @return map of format name to descriptor, or empty map if the format is not registered
+     */
+    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormat dataFormat) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return Map.of();
+        }
+        return plugin.getFormatDescriptors(indexSettings, this);
+    }
+
+    /**
+     * Creates checksum strategies for all formats of the given index, intended to be called
+     * once per shard during initialization. The returned map should be shared between the
+     * directory and the engine so that pre-computed checksums registered during write are
+     * visible to the upload path.
+     *
+     * @param indexSettings the index settings used to determine the active data format
+     * @return unmodifiable map of format name to checksum strategy
+     */
+    public Map<String, FormatChecksumStrategy> createChecksumStrategies(IndexSettings indexSettings) {
+        Map<String, DataFormatDescriptor> descriptors = getFormatDescriptors(indexSettings);
+        Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
+        for (Map.Entry<String, DataFormatDescriptor> entry : descriptors.entrySet()) {
+            FormatChecksumStrategy strategy = entry.getValue().getChecksumStrategy();
+            if (strategy != null) {
+                strategies.put(entry.getKey(), strategy);
+            }
+        }
+        return Collections.unmodifiableMap(strategies);
     }
 
     /**
