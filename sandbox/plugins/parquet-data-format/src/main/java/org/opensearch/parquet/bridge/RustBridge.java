@@ -12,6 +12,7 @@ import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
@@ -245,12 +246,14 @@ public class RustBridge {
             var inputs = call.strArray(paths);
             var out = call.str(outputFile);
             var idx = call.str(indexName);
-            call.invoke(
+            call.invokeIO(
                 MERGE_FILES,
                 inputs.ptrs(), inputs.lens(), inputs.count(),
                 out.segment(), out.len(),
                 idx.segment(), idx.len()
             );
+        } catch (IOException e) {
+            throw new UncheckedIOException("Native merge failed", e);
         }
     }
 

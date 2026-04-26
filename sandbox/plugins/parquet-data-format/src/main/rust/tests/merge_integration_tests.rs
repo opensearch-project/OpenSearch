@@ -51,17 +51,23 @@ fn count_rows(path: &str) -> i64 {
     reader.metadata().file_metadata().num_rows()
 }
 
-const INPUT_DIR: &str = "/Users/shaikumm/Downloads/files";
+fn input_dir() -> Option<String> {
+    std::env::var("PARQUET_TEST_INPUT_DIR").ok()
+}
 
 #[test]
 fn test_unsorted_merge_real_files() {
-    if !Path::new(INPUT_DIR).exists() {
-        eprintln!("Skipping: {} not found", INPUT_DIR);
+    let Some(input_dir) = input_dir() else {
+        eprintln!("Skipping: PARQUET_TEST_INPUT_DIR not set");
+        return;
+    };
+    if !Path::new(&input_dir).exists() {
+        eprintln!("Skipping: {} not found", input_dir);
         return;
     }
 
-    let files = list_parquet_files(INPUT_DIR);
-    assert!(!files.is_empty(), "No parquet files found in {}", INPUT_DIR);
+    let files = list_parquet_files(&input_dir);
+    assert!(!files.is_empty(), "No parquet files found in {}", input_dir);
     println!("Found {} input files", files.len());
 
     let expected_rows = count_rows_in_files(&files);
@@ -106,13 +112,17 @@ fn verify_row_id_order(path: &str) {
 
 #[test]
 fn test_sorted_merge_real_files() {
-    if !Path::new(INPUT_DIR).exists() {
-        eprintln!("Skipping: {} not found", INPUT_DIR);
+    let Some(input_dir) = input_dir() else {
+        eprintln!("Skipping: PARQUET_TEST_INPUT_DIR not set");
+        return;
+    };
+    if !Path::new(&input_dir).exists() {
+        eprintln!("Skipping: {} not found", input_dir);
         return;
     }
 
-    let files = list_parquet_files(INPUT_DIR);
-    assert!(!files.is_empty(), "No parquet files found in {}", INPUT_DIR);
+    let files = list_parquet_files(&input_dir);
+    assert!(!files.is_empty(), "No parquet files found in {}", input_dir);
 
     let expected_rows = count_rows_in_files(&files);
     println!("Total input rows: {}", expected_rows);
