@@ -43,20 +43,57 @@ public class NativeSettings {
         this.sortBatchSize = builder.sortBatchSize;
     }
 
-    public String getIndexName() { return indexName; }
-    public String getCompressionType() { return compressionType; }
-    public Integer getCompressionLevel() { return compressionLevel; }
-    public Long getPageSizeBytes() { return pageSizeBytes; }
-    public Integer getPageRowLimit() { return pageRowLimit; }
-    public Long getDictSizeBytes() { return dictSizeBytes; }
-    public Long getRowGroupSizeBytes() { return rowGroupSizeBytes; }
-    public Boolean getBloomFilterEnabled() { return bloomFilterEnabled; }
-    public Double getBloomFilterFpp() { return bloomFilterFpp; }
-    public Long getBloomFilterNdv() { return bloomFilterNdv; }
-    public Long getSortInMemoryThresholdBytes() { return sortInMemoryThresholdBytes; }
-    public Integer getSortBatchSize() { return sortBatchSize; }
+    public String getIndexName() {
+        return indexName;
+    }
 
-    public static Builder builder() { return new Builder(); }
+    public String getCompressionType() {
+        return compressionType;
+    }
+
+    public Integer getCompressionLevel() {
+        return compressionLevel;
+    }
+
+    public Long getPageSizeBytes() {
+        return pageSizeBytes;
+    }
+
+    public Integer getPageRowLimit() {
+        return pageRowLimit;
+    }
+
+    public Long getDictSizeBytes() {
+        return dictSizeBytes;
+    }
+
+    public Long getRowGroupSizeBytes() {
+        return rowGroupSizeBytes;
+    }
+
+    public Boolean getBloomFilterEnabled() {
+        return bloomFilterEnabled;
+    }
+
+    public Double getBloomFilterFpp() {
+        return bloomFilterFpp;
+    }
+
+    public Long getBloomFilterNdv() {
+        return bloomFilterNdv;
+    }
+
+    public Long getSortInMemoryThresholdBytes() {
+        return sortInMemoryThresholdBytes;
+    }
+
+    public Integer getSortBatchSize() {
+        return sortBatchSize;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
 
     public static class Builder {
         private String indexName;
@@ -72,19 +109,68 @@ public class NativeSettings {
         private Long sortInMemoryThresholdBytes;
         private Integer sortBatchSize;
 
-        public Builder indexName(String v) { this.indexName = v; return this; }
-        public Builder compressionType(String v) { this.compressionType = v; return this; }
-        public Builder compressionLevel(Integer v) { this.compressionLevel = v; return this; }
-        public Builder pageSizeBytes(Long v) { this.pageSizeBytes = v; return this; }
-        public Builder pageRowLimit(Integer v) { this.pageRowLimit = v; return this; }
-        public Builder dictSizeBytes(Long v) { this.dictSizeBytes = v; return this; }
-        public Builder rowGroupSizeBytes(Long v) { this.rowGroupSizeBytes = v; return this; }
-        public Builder bloomFilterEnabled(Boolean v) { this.bloomFilterEnabled = v; return this; }
-        public Builder bloomFilterFpp(Double v) { this.bloomFilterFpp = v; return this; }
-        public Builder bloomFilterNdv(Long v) { this.bloomFilterNdv = v; return this; }
-        public Builder sortInMemoryThresholdBytes(Long v) { this.sortInMemoryThresholdBytes = v; return this; }
-        public Builder sortBatchSize(Integer v) { this.sortBatchSize = v; return this; }
+        public Builder indexName(String v) {
+            this.indexName = v;
+            return this;
+        }
 
-        public NativeSettings build() { return new NativeSettings(this); }
+        public Builder compressionType(String v) {
+            this.compressionType = v;
+            return this;
+        }
+
+        public Builder compressionLevel(Integer v) {
+            this.compressionLevel = v;
+            return this;
+        }
+
+        public Builder pageSizeBytes(Long v) {
+            this.pageSizeBytes = v;
+            return this;
+        }
+
+        public Builder pageRowLimit(Integer v) {
+            this.pageRowLimit = v;
+            return this;
+        }
+
+        public Builder dictSizeBytes(Long v) {
+            this.dictSizeBytes = v;
+            return this;
+        }
+
+        public Builder rowGroupSizeBytes(Long v) {
+            this.rowGroupSizeBytes = v;
+            return this;
+        }
+
+        public Builder bloomFilterEnabled(Boolean v) {
+            this.bloomFilterEnabled = v;
+            return this;
+        }
+
+        public Builder bloomFilterFpp(Double v) {
+            this.bloomFilterFpp = v;
+            return this;
+        }
+
+        public Builder bloomFilterNdv(Long v) {
+            this.bloomFilterNdv = v;
+            return this;
+        }
+
+        public Builder sortInMemoryThresholdBytes(Long v) {
+            this.sortInMemoryThresholdBytes = v;
+            return this;
+        }
+
+        public Builder sortBatchSize(Integer v) {
+            this.sortBatchSize = v;
+            return this;
+        }
+
+        public NativeSettings build() {
+            return new NativeSettings(this);
+        }
     }
 }

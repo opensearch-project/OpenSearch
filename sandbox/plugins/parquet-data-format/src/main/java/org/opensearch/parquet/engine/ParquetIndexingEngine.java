@@ -255,7 +255,11 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         try {
             RustBridge.removeSettings(indexSettings.getIndex().getName());
         } catch (Exception e) {
-            logger.warn("Failed to remove Parquet settings from Rust store for index [{}]: {}", indexSettings.getIndex().getName(), e.getMessage());
+            logger.warn(
+                "Failed to remove Parquet settings from Rust store for index [{}]: {}",
+                indexSettings.getIndex().getName(),
+                e.getMessage()
+            );
         }
         bufferPool.close();
     }

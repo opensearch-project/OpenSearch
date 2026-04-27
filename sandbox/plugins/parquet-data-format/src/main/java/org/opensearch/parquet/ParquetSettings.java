@@ -26,10 +26,7 @@ public final class ParquetSettings {
     public static final int DEFAULT_MAX_ROWS_PER_VSR = 50000;
 
     /** Group setting prefix for all Parquet settings. */
-    public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting(
-        "index.parquet.",
-        Setting.Property.IndexScope
-    );
+    public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting("index.parquet.", Setting.Property.IndexScope);
 
     /** Maximum row group size in bytes (default 128MB). */
     public static final Setting<ByteSizeValue> ROW_GROUP_SIZE_BYTES = Setting.byteSizeSetting(
@@ -134,11 +131,19 @@ public final class ParquetSettings {
     public static List<Setting<?>> getSettings() {
         return List.of(
             PARQUET_SETTINGS,
-            ROW_GROUP_SIZE_BYTES, PAGE_SIZE_BYTES, PAGE_ROW_LIMIT, DICT_SIZE_BYTES,
-            COMPRESSION_TYPE, COMPRESSION_LEVEL,
-            BLOOM_FILTER_ENABLED, BLOOM_FILTER_FPP, BLOOM_FILTER_NDV,
-            MAX_NATIVE_ALLOCATION, MAX_ROWS_PER_VSR,
-            SORT_IN_MEMORY_THRESHOLD, SORT_BATCH_SIZE
+            ROW_GROUP_SIZE_BYTES,
+            PAGE_SIZE_BYTES,
+            PAGE_ROW_LIMIT,
+            DICT_SIZE_BYTES,
+            COMPRESSION_TYPE,
+            COMPRESSION_LEVEL,
+            BLOOM_FILTER_ENABLED,
+            BLOOM_FILTER_FPP,
+            BLOOM_FILTER_NDV,
+            MAX_NATIVE_ALLOCATION,
+            MAX_ROWS_PER_VSR,
+            SORT_IN_MEMORY_THRESHOLD,
+            SORT_BATCH_SIZE
         );
     }
 }

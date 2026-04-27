@@ -70,8 +70,14 @@ public class VSRManager implements AutoCloseable {
     /**
      * Creates a new VSRManager with asynchronous background writes (production default).
      */
-    public VSRManager(String fileName, IndexSettings indexSettings, Schema schema, ArrowBufferPool bufferPool,
-                      int maxRowsPerVSR, ThreadPool threadPool) {
+    public VSRManager(
+        String fileName,
+        IndexSettings indexSettings,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool
+    ) {
         this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true);
     }
 

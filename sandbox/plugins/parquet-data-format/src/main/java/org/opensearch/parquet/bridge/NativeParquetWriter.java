@@ -42,12 +42,7 @@ public class NativeParquetWriter {
      * @param sortConfig    the sort configuration for the Parquet file
      * @throws IOException if the native writer creation fails
      */
-    public NativeParquetWriter(
-        String filePath,
-        String indexName,
-        long schemaAddress,
-        ParquetSortConfig sortConfig
-    ) throws IOException {
+    public NativeParquetWriter(String filePath, String indexName, long schemaAddress, ParquetSortConfig sortConfig) throws IOException {
         this.filePath = filePath;
         RustBridge.createWriter(filePath, indexName, schemaAddress, sortConfig);
     }

@@ -41,29 +41,41 @@ public class RustBridge {
             lib.find("parquet_create_writer").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,   // file
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,   // index_name
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // file
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // index_name
                 ValueLayout.JAVA_LONG,                        // schema_address
-                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, // sort_columns (ptrs, lens, count)
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,   // reverse_sorts (vals, count)
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG    // nulls_first (vals, count)
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG, // sort_columns (ptrs, lens, count)
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // reverse_sorts (vals, count)
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG    // nulls_first (vals, count)
             )
         );
         WRITE = linker.downcallHandle(
             lib.find("parquet_write").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
             )
         );
         FINALIZE_WRITER = linker.downcallHandle(
             lib.find("parquet_finalize_writer").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS
             )
         );
@@ -75,9 +87,13 @@ public class RustBridge {
             lib.find("parquet_get_file_metadata").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
             )
         );
         GET_FILTERED_BYTES = linker.downcallHandle(
@@ -88,8 +104,10 @@ public class RustBridge {
             lib.find("parquet_on_settings_update").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,   // index_name
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,   // compression_type
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // index_name
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // compression_type
                 ValueLayout.JAVA_LONG,                        // compression_level
                 ValueLayout.JAVA_LONG,                        // page_size_bytes
                 ValueLayout.JAVA_LONG,                        // page_row_limit
@@ -110,21 +128,20 @@ public class RustBridge {
             lib.find("parquet_merge_files").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, // input files (ptrs, lens, count)
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,                      // output file
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG                       // index_name
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG, // input files (ptrs, lens, count)
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,                      // output file
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG                       // index_name
             )
         );
     }
 
     public static void initLogger() {}
 
-    static void createWriter(
-        String file,
-        String indexName,
-        long schemaAddress,
-        ParquetSortConfig sortConfig
-    ) throws IOException {
+    static void createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig) throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             var idx = call.str(indexName);
@@ -133,12 +150,18 @@ public class RustBridge {
             var nullsFirstArray = marshalBoolList(call, sortConfig.nullsFirst());
             call.invokeIO(
                 CREATE_WRITER,
-                f.segment(), f.len(),
-                idx.segment(), idx.len(),
+                f.segment(),
+                f.len(),
+                idx.segment(),
+                idx.len(),
                 schemaAddress,
-                sorts.ptrs(), sorts.lens(), sorts.count(),
-                reverseArray, (long) sortConfig.reverseSorts().size(),
-                nullsFirstArray, (long) sortConfig.nullsFirst().size()
+                sorts.ptrs(),
+                sorts.lens(),
+                sorts.count(),
+                reverseArray,
+                (long) sortConfig.reverseSorts().size(),
+                nullsFirstArray,
+                (long) sortConfig.nullsFirst().size()
             );
         }
     }
@@ -159,9 +182,13 @@ public class RustBridge {
             var out = call.outBuffer(1024);
             long rc = call.invokeIO(
                 FINALIZE_WRITER,
-                f.segment(), f.len(),
-                versionOut, numRowsOut,
-                out.data(), (long) out.capacity(), out.lenOut(),
+                f.segment(),
+                f.len(),
+                versionOut,
+                numRowsOut,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut(),
                 crc32Out
             );
             if (rc == 1) return null;
@@ -190,12 +217,7 @@ public class RustBridge {
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
             var out = call.outBuffer(1024);
-            call.invokeIO(
-                GET_FILE_METADATA,
-                f.segment(), f.len(),
-                versionOut, numRowsOut,
-                out.data(), (long) out.capacity(), out.lenOut()
-            );
+            call.invokeIO(GET_FILE_METADATA, f.segment(), f.len(), versionOut, numRowsOut, out.data(), (long) out.capacity(), out.lenOut());
             int createdByLen = out.actualLength();
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
@@ -221,8 +243,10 @@ public class RustBridge {
             var ct = nativeSettings.getCompressionType() != null ? call.str(nativeSettings.getCompressionType()) : null;
             call.invokeIO(
                 ON_SETTINGS_UPDATE,
-                idx.segment(), idx.len(),
-                ct != null ? ct.segment() : java.lang.foreign.MemorySegment.NULL, ct != null ? ct.len() : -1L,
+                idx.segment(),
+                idx.len(),
+                ct != null ? ct.segment() : java.lang.foreign.MemorySegment.NULL,
+                ct != null ? ct.len() : -1L,
                 nativeSettings.getCompressionLevel() != null ? (long) nativeSettings.getCompressionLevel() : -1L,
                 nativeSettings.getPageSizeBytes() != null ? nativeSettings.getPageSizeBytes() : -1L,
                 nativeSettings.getPageRowLimit() != null ? (long) nativeSettings.getPageRowLimit() : -1L,
@@ -250,12 +274,7 @@ public class RustBridge {
             var inputs = call.strArray(paths);
             var out = call.str(outputFile);
             var idx = call.str(indexName);
-            call.invokeIO(
-                MERGE_FILES,
-                inputs.ptrs(), inputs.lens(), inputs.count(),
-                out.segment(), out.len(),
-                idx.segment(), idx.len()
-            );
+            call.invokeIO(MERGE_FILES, inputs.ptrs(), inputs.lens(), inputs.count(), out.segment(), out.len(), idx.segment(), idx.len());
         } catch (IOException e) {
             throw new UncheckedIOException("Native merge failed", e);
         }

@@ -21,15 +21,17 @@ import org.opensearch.parquet.engine.ParquetIndexingEngine;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Implements merging of Parquet files.
  */
 public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
 
-    private static final Logger logger =
-        LogManager.getLogger(StreamingParquetMergeStrategy.class);
+    private static final Logger logger = LogManager.getLogger(StreamingParquetMergeStrategy.class);
 
     @Override
     public MergeResult mergeParquetFiles(MergeInput mergeInput) {
@@ -41,8 +43,7 @@ public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
         }
 
         List<Path> filePaths = new ArrayList<>();
-        files.forEach(writerFileSet ->  writerFileSet.files().forEach(
-            file -> filePaths.add(Path.of(writerFileSet.directory(), file))));
+        files.forEach(writerFileSet -> writerFileSet.files().forEach(file -> filePaths.add(Path.of(writerFileSet.directory(), file))));
 
         String outputDirectory = files.getFirst().directory();
         String mergedFilePath = getMergedFilePath(writerGeneration, outputDirectory);
@@ -52,35 +53,23 @@ public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
             // Merge files in Rust
             RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath, mergeInput.indexName());
 
-            WriterFileSet mergedWriterFileSet =
-            WriterFileSet.builder().directory(Path.of(outputDirectory)).addFile(mergedFileName).writerGeneration(writerGeneration).build();
+            WriterFileSet mergedWriterFileSet = WriterFileSet.builder()
+                .directory(Path.of(outputDirectory))
+                .addFile(mergedFileName)
+                .writerGeneration(writerGeneration)
+                .build();
 
-            Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(
-                new ParquetDataFormat(),
-                mergedWriterFileSet
-            );
+            Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(new ParquetDataFormat(), mergedWriterFileSet);
 
             return new MergeResult(mergedWriterFileSetMap);
 
         } catch (Exception exception) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "Merge failed while creating merged file [{}]",
-                    mergedFilePath
-                ),
-                exception
-            );
+            logger.error(() -> new ParameterizedMessage("Merge failed while creating merged file [{}]", mergedFilePath), exception);
             try {
                 Files.deleteIfExists(Path.of(mergedFilePath));
                 logger.info("Stale Merged File Deleted at : [{}]", mergedFilePath);
             } catch (Exception innerException) {
-                logger.error(
-                    () -> new ParameterizedMessage(
-                        "Failed to delete stale merged file [{}]",
-                        mergedFilePath
-                    ),
-                    innerException
-                );
+                logger.error(() -> new ParameterizedMessage("Failed to delete stale merged file [{}]", mergedFilePath), innerException);
 
             }
             throw exception;

@@ -8,7 +8,6 @@
 
 package org.opensearch.parquet.merge;
 
-
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 

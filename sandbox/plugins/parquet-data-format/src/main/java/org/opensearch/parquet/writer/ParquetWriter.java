@@ -73,8 +73,12 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         this.dataFormat = dataFormat;
         this.checksumStrategy = checksumStrategy;
         this.vsrManager = new VSRManager(
-            file, indexSettings, schema, bufferPool,
-            ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()), threadPool
+            file,
+            indexSettings,
+            schema,
+            bufferPool,
+            ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
+            threadPool
         );
     }
 

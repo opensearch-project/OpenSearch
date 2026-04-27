@@ -15,7 +15,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.FileInfos;
-import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -82,7 +81,16 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testAddDocReturnsSuccess() throws Exception {
         String filePath = createTempDir().resolve("success.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, indexSettings, threadPool, null);
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
 
         for (int i = 0; i < 10; i++) {
             ParquetDocumentInput doc = new ParquetDocumentInput();
@@ -101,7 +109,16 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testFlushWithNoDocuments() throws Exception {
         String filePath = createTempDir().resolve("empty.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, indexSettings, threadPool, null);
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         doc.addField(idField, 1);

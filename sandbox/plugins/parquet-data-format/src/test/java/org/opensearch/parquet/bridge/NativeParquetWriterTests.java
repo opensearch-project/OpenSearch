@@ -22,7 +22,6 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.nativebridge.spi.ArrowExport;
-import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -145,7 +144,12 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
     public void testCreateWriterWithNonExistentDirectory() {
         expectThrows(IOException.class, () -> {
             try (ArrowExport export = exportSchema()) {
-                new NativeParquetWriter("/nonexistent/dir/file.parquet", "test-index", export.getSchemaAddress(), ParquetSortConfig.empty());
+                new NativeParquetWriter(
+                    "/nonexistent/dir/file.parquet",
+                    "test-index",
+                    export.getSchemaAddress(),
+                    ParquetSortConfig.empty()
+                );
             }
         });
     }

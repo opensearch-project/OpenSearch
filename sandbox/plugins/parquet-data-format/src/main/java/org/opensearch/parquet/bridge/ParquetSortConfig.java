@@ -37,10 +37,8 @@ public record ParquetSortConfig(List<String> sortColumns, List<Boolean> reverseS
     public ParquetSortConfig(IndexSettings indexSettings) {
         this(
             IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexSettings.getSettings()),
-            IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(indexSettings.getSettings())
-                .stream().map(o -> o == SortOrder.DESC).toList(),
-            IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(indexSettings.getSettings())
-                .stream().map("_first"::equals).toList()
+            IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(indexSettings.getSettings()).stream().map(o -> o == SortOrder.DESC).toList(),
+            IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(indexSettings.getSettings()).stream().map("_first"::equals).toList()
         );
     }
 
