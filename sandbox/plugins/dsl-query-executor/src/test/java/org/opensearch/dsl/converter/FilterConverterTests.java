@@ -72,7 +72,7 @@ public class FilterConverterTests extends OpenSearchTestCase {
     }
 
     public void testUnsupportedQueryProducesFilterWithUnresolvedCondition() throws ConversionException {
-        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.wildcardQuery("name", "lap*"));
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.regexpQuery("name", "lap.*"));
         ConversionContext ctx = TestUtils.createContext(source);
         RelNode result = converter.convert(scan, ctx);
 

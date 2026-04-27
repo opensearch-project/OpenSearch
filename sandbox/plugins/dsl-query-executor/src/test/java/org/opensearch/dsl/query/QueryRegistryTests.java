@@ -16,7 +16,6 @@ import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class QueryRegistryTests extends OpenSearchTestCase {
@@ -41,11 +40,11 @@ public class QueryRegistryTests extends OpenSearchTestCase {
     }
 
     public void testUnknownQueryTypeReturnsUnresolved() throws ConversionException {
-        RexNode result = registry.convert(QueryBuilders.wildcardQuery("name", "lap*"), ctx);
+        RexNode result = registry.convert(QueryBuilders.regexpQuery("name", "lap.*"), ctx);
 
         assertTrue(result instanceof UnresolvedQueryCall);
         UnresolvedQueryCall unresolved = (UnresolvedQueryCall) result;
-        assertTrue(unresolved.getQueryBuilder() instanceof WildcardQueryBuilder);
+        assertTrue(unresolved.getQueryBuilder() instanceof org.opensearch.index.query.RegexpQueryBuilder);
     }
 
     public void testEmptyRegistryReturnsUnresolvedForAnyQuery() throws ConversionException {
