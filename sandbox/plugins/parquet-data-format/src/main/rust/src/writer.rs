@@ -34,7 +34,6 @@ pub struct FinalizeResult {
 /// drops the writer, closes the file handle, and cleans up sort config.
 struct WriterState {
     writer: Arc<Mutex<ArrowWriter<File>>>,
-    file_handle: File,
     settings: NativeSettings,
 }
 
@@ -94,7 +93,6 @@ impl NativeParquetWriter {
         log_debug!("Schema created with {} fields", schema.fields().len());
 
         let file = File::create(&temp_filename)?;
-        let file_clone = file.try_clone()?;
 
         let mut settings: NativeSettings = SETTINGS_STORE
             .get(&index_name)
@@ -113,7 +111,6 @@ impl NativeParquetWriter {
 
         WRITERS.insert(temp_filename, WriterState {
             writer: Arc::new(Mutex::new(writer)),
-            file_handle: file_clone,
             settings,
         });
 
@@ -160,7 +157,7 @@ impl NativeParquetWriter {
         log_debug!("finalize_writer called for file: {} (temp: {})", filename, temp_filename);
 
         if let Some((_, state)) = WRITERS.remove(&temp_filename) {
-            let WriterState { writer: writer_arc, file_handle: _file, settings } = state;
+            let WriterState { writer: writer_arc, settings } = state;
             let index_name = settings.index_name.as_deref().unwrap_or("");
             match Arc::try_unwrap(writer_arc) {
                 Ok(mutex) => {

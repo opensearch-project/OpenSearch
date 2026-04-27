@@ -38,6 +38,9 @@ pub const RATE_LIMIT_MB_PER_SEC: f64 = 20.0;
 /// Number of threads in the shared Rayon pool for parallel column encoding.
 const RAYON_NUM_THREADS: usize = 4;
 
+/// Number of Tokio worker threads for async IO.
+const TOKIO_WORKER_THREADS: usize = 4;
+
 /// Bounded channel capacity between the merge loop and the IO task.
 const IO_CHANNEL_BUFFER: usize = 2;
 
@@ -66,7 +69,7 @@ static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 fn get_io_runtime() -> &'static Runtime {
     IO_RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
+            .worker_threads(TOKIO_WORKER_THREADS)
             .thread_name("parquet-io")
             .enable_all()
             .build()

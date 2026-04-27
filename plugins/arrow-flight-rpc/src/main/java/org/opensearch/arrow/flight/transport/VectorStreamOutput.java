@@ -19,82 +19,145 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.List;
 
-class VectorStreamOutput extends StreamOutput {
+/**
+ * A {@link StreamOutput} that produces a {@link VectorSchemaRoot} for the Flight transport.
+ *
+ * <p>Two factory methods create the appropriate instance:
+ * <ul>
+ *   <li>{@link #create(BufferAllocator, VectorSchemaRoot)} — byte serialization.
+ *       {@code writeTo()} writes bytes into a VarBinary vector.</li>
+ *   <li>{@link #forNativeArrow(VectorSchemaRoot)} — native Arrow.
+ *       The root is already populated; writes are no-ops.</li>
+ * </ul>
+ *
+ * <p>The framework selects the right factory based on whether the response
+ * is an {@link ArrowBatchResponse}.
+ *
+ * @opensearch.internal
+ */
+abstract class VectorStreamOutput extends StreamOutput {
 
-    private int row = 0;
-    private final VarBinaryVector vector;
-    private VectorSchemaRoot root;
-    private final byte[] tempBuffer = new byte[8192];
-    private int tempBufferPos = 0;
+    /** Creates a VectorStreamOutput. */
+    protected VectorStreamOutput() {}
 
-    public VectorStreamOutput(BufferAllocator allocator, VectorSchemaRoot root) {
-        if (root != null) {
-            vector = (VarBinaryVector) root.getVector(0);
-            this.root = root;
-        } else {
-            Field field = new Field("0", new FieldType(true, new ArrowType.Binary(), null, null), null);
-            vector = (VarBinaryVector) field.createVector(allocator);
-            // Pre-allocate with reasonable capacity to avoid repeated allocations
-            vector.setInitialCapacity(16);
-            vector.allocateNew();
-        }
+    /**
+     * Creates a byte-serialization output.
+     */
+    static VectorStreamOutput create(BufferAllocator allocator, VectorSchemaRoot existingRoot) {
+        return new ByteSerialized(allocator, existingRoot);
     }
 
-    @Override
-    public void writeByte(byte b) {
-        // Buffer small writes to reduce vector operations
-        if (tempBufferPos >= tempBuffer.length) {
-            flushTempBuffer();
-        }
-        tempBuffer[tempBufferPos++] = b;
+    /**
+     * Creates a native Arrow output. The root is already populated.
+     */
+    static VectorStreamOutput forNativeArrow(VectorSchemaRoot root) {
+        return new NativeArrow(root);
     }
 
-    @Override
-    public void writeBytes(byte[] b, int offset, int length) {
-        if (length == 0) {
-            return;
-        }
-        if (b.length < (offset + length)) {
-            throw new IllegalArgumentException("Illegal offset " + offset + "/length " + length + " for byte[] of length " + b.length);
-        }
-        if (tempBufferPos > 0) {
-            flushTempBuffer();
-        }
-        vector.setSafe(row++, b, offset, length);
-    }
+    /**
+     * Returns the {@link VectorSchemaRoot} to send over Flight.
+     */
+    public abstract VectorSchemaRoot getRoot();
 
-    private void flushTempBuffer() {
-        if (tempBufferPos > 0) {
-            vector.setSafe(row++, tempBuffer, 0, tempBufferPos);
+    // ── Byte serialization ──
+
+    static final class ByteSerialized extends VectorStreamOutput {
+        private int row = 0;
+        private final VarBinaryVector vector;
+        private VectorSchemaRoot root;
+        private final byte[] tempBuffer = new byte[8192];
+        private int tempBufferPos = 0;
+
+        ByteSerialized(BufferAllocator allocator, VectorSchemaRoot existingRoot) {
+            if (existingRoot != null) {
+                vector = (VarBinaryVector) existingRoot.getVector(0);
+                this.root = existingRoot;
+            } else {
+                Field field = new Field("0", new FieldType(true, new ArrowType.Binary(), null, null), null);
+                vector = (VarBinaryVector) field.createVector(allocator);
+                vector.setInitialCapacity(16);
+                vector.allocateNew();
+            }
+        }
+
+        @Override
+        public void writeByte(byte b) {
+            if (tempBufferPos >= tempBuffer.length) flushTempBuffer();
+            tempBuffer[tempBufferPos++] = b;
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) {
+            if (length == 0) return;
+            if (b.length < (offset + length)) {
+                throw new IllegalArgumentException("Illegal offset " + offset + "/length " + length + " for byte[] of length " + b.length);
+            }
+            if (tempBufferPos > 0) flushTempBuffer();
+            vector.setSafe(row++, b, offset, length);
+        }
+
+        private void flushTempBuffer() {
+            if (tempBufferPos > 0) {
+                vector.setSafe(row++, tempBuffer, 0, tempBufferPos);
+                tempBufferPos = 0;
+            }
+        }
+
+        @Override
+        public void flush() {}
+
+        @Override
+        public void close() throws IOException {
+            row = 0;
+            vector.close();
+        }
+
+        @Override
+        public void reset() {
+            row = 0;
             tempBufferPos = 0;
+            vector.clear();
+        }
+
+        @Override
+        public VectorSchemaRoot getRoot() {
+            flushTempBuffer();
+            vector.setValueCount(row);
+            if (root == null) {
+                root = new VectorSchemaRoot(List.of(vector));
+            }
+            root.setRowCount(row);
+            return root;
         }
     }
 
-    @Override
-    public void flush() {
+    // ── Native Arrow ──
 
-    }
+    static final class NativeArrow extends VectorStreamOutput {
+        private final VectorSchemaRoot root;
 
-    @Override
-    public void close() throws IOException {
-        row = 0;
-        vector.close();
-    }
-
-    @Override
-    public void reset() {
-        row = 0;
-        tempBufferPos = 0;
-        vector.clear();
-    }
-
-    public VectorSchemaRoot getRoot() {
-        flushTempBuffer();
-        vector.setValueCount(row);
-        if (root == null) {
-            root = new VectorSchemaRoot(List.of(vector));
+        NativeArrow(VectorSchemaRoot root) {
+            this.root = root;
         }
-        root.setRowCount(row);
-        return root;
+
+        @Override
+        public VectorSchemaRoot getRoot() {
+            return root;
+        }
+
+        @Override
+        public void writeByte(byte b) {}
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) {}
+
+        @Override
+        public void flush() {}
+
+        @Override
+        public void close() {}
+
+        @Override
+        public void reset() {}
     }
 }
