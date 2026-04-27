@@ -14,6 +14,14 @@ opensearchplugin {
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
+// Guava is forbidden on compile classpaths by OpenSearch. Calcite's TableScan
+// references ImmutableList, so tests need it. Bypass via custom configuration.
+configurations {
+  calciteTestCompile
+  testCompileClasspath { exclude group: 'com.google.guava' }
+}
+sourceSets.test.compileClasspath += configurations.calciteTestCompile
+
 dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
@@ -24,20 +32,30 @@ dependencies {
   compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-  // Apache Arrow dependencies
-  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
+  // Apache Arrow dependencies.
+  // arrow-vector + arrow-memory-core are provided at runtime by the parent analytics-engine
+  // plugin (we extend it via extendedPlugins); compile-only here to avoid duplicate bundling
+  // and license files.
+  compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-format:${versions.arrow}"
-  implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation "org.checkerframework:checker-qual:3.43.0"
+  // Provided at runtime by parent analytics-engine plugin; compileOnly to avoid jar hell.
+  compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+  compileOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
-  // Jackson — required by Arrow's schema import (C Data Interface)
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  compileOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  // Provided at runtime by parent analytics-engine plugin; compileOnly to avoid jar hell.
+  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  compileOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+
+  // Substrait — Calcite RelNode to Substrait plan conversion for DataFusion native runtime
+  implementation "io.substrait:isthmus:0.67.0"
+  implementation "io.substrait:core:0.67.0"
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
+
+  calciteTestCompile "com.google.guava:guava:${versions.guava}"
 }
 
 test {
@@ -52,15 +70,15 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Werror'
 }
 
-// TODO: Remove once back-end is built out with test suite
-testingConventions.enabled = false
-
 tasks.named('thirdPartyAudit').configure {
-  ignoreViolations(
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1'
+  ignoreMissingClasses(
+    // Optional Calcite DDL parser — lives in calcite-server module, not needed at runtime
+    'org.apache.calcite.sql.parser.ddl.SqlDdlParserImpl'
   )
 }
+
+// TODO: Remove once back-end is built out with test suite
+testingConventions.enabled = false
 
 tasks.named('forbiddenPatterns').configure {
     exclude '**/*.parquet'
