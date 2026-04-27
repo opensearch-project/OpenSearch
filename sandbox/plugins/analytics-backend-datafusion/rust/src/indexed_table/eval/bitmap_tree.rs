@@ -91,6 +91,9 @@ impl TreeEvaluator for BitmapTreeEvaluator {
             usize,
             Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
         >,
+        page_prune_metrics: Option<
+            &crate::indexed_table::page_pruner::PagePruneMetrics,
+        >,
     ) -> Result<TreePrefetch, String> {
         let mut per_leaf = Vec::new();
         let mut dfs_counter = 0usize;
@@ -103,6 +106,7 @@ impl TreeEvaluator for BitmapTreeEvaluator {
             leaves,
             page_pruner,
             pruning_predicates,
+            page_prune_metrics,
             &mut dfs_counter,
             &mut per_leaf,
             /* under_all_and_path */ true,
@@ -174,6 +178,7 @@ fn prefetch_node(
         usize,
         Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
     >,
+    page_prune_metrics: Option<&crate::indexed_table::page_pruner::PagePruneMetrics>,
     dfs: &mut usize,
     out: &mut Vec<(usize, RoaringBitmap)>,
     under_all_and_path: bool,
@@ -191,6 +196,7 @@ fn prefetch_node(
                     leaves,
                     page_pruner,
                     pruning_predicates,
+                    page_prune_metrics,
                     dfs,
                     out,
                     under_all_and_path, // AND preserves the all-AND path
@@ -239,6 +245,7 @@ fn prefetch_node(
                     leaves,
                     page_pruner,
                     pruning_predicates,
+                    page_prune_metrics,
                     dfs,
                     out,
                     // OR breaks all-AND propagation for its subtree.
@@ -272,7 +279,8 @@ fn prefetch_node(
                 leaves,
                 page_pruner,
                 pruning_predicates,
-                dfs,
+                    page_prune_metrics,
+                    dfs,
                 out,
                 /* under_all_and_path */ false,
             )?;
@@ -316,6 +324,7 @@ fn prefetch_node(
                 ctx,
                 page_pruner,
                 pruning_predicates,
+                page_prune_metrics,
             ))
         }
     }
@@ -390,6 +399,7 @@ fn predicate_page_bitmap(
         usize,
         Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
     >,
+    page_prune_metrics: Option<&crate::indexed_table::page_pruner::PagePruneMetrics>,
 ) -> RoaringBitmap {
     // Identity key: same Arc used at build time is the same Arc we see here.
     let key = Arc::as_ptr(expr) as *const () as usize;
@@ -406,7 +416,7 @@ fn predicate_page_bitmap(
         }
     };
     // Evaluate page pruning for this single conjunct.
-    let selection = page_pruner.prune_rg(pruning_predicate, ctx.rg_idx);
+    let selection = page_pruner.prune_rg(pruning_predicate, ctx.rg_idx, page_prune_metrics);
     let mut bm = RoaringBitmap::new();
     match selection {
         Some(sel) => {
@@ -721,7 +731,21 @@ fn all_false(n: usize) -> BooleanArray {
 /// Expands index-backed `RowGroupDocsCollector` output into RoaringBitmaps.
 /// Pulls the collector directly off the `ResolvedNode::Collector` passed to
 /// it — no separate indexing required, so this impl is fully stateless.
-pub struct CollectorLeafBitmaps;
+pub struct CollectorLeafBitmaps {
+    /// Incremented once per call to [`Self::leaf_bitmap`] — one FFM
+    /// round-trip to Java per Collector leaf per RG. `None` for tests
+    /// that don't care about metrics.
+    pub ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
+}
+
+impl CollectorLeafBitmaps {
+    /// Construct a `CollectorLeafBitmaps` with no metrics.
+    pub fn without_metrics() -> Self {
+        Self {
+            ffm_collector_calls: None,
+        }
+    }
+}
 
 impl LeafBitmapSource for CollectorLeafBitmaps {
     fn leaf_bitmap(
@@ -735,6 +759,9 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
             _ => return Err("CollectorLeafBitmaps: non-Collector node passed to leaf_bitmap".into()),
         };
         let bitset = collector.collect_packed_u64_bitset(ctx.min_doc, ctx.max_doc)?;
+        if let Some(ref c) = self.ffm_collector_calls {
+            c.add(1);
+        }
         let mut result_bitmap = RoaringBitmap::new();
         // Iterate only set bits via trailing_zeros — sparse bitsets (typical
         // for selective queries) visit O(set_bits) instead of O(span).
@@ -865,7 +892,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
         assert_eq!(result.per_leaf.len(), 2);
@@ -879,7 +906,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
             .unwrap();
         assert_eq!(result.candidates, bm(&[1, 2, 3]));
     }
@@ -892,7 +919,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
             .unwrap();
         // Universe is [0, 16). Minus {0,1,2} = {3..15}
         let expected: RoaringBitmap = (3u32..16).collect();
@@ -907,7 +934,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let state = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
             .unwrap();
 
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
@@ -1172,7 +1199,7 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1212,7 +1239,7 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
             .unwrap();
         // OR contributes {5} from standalone_leaf → non-empty candidates.
         assert!(!result.candidates.is_empty());
@@ -1250,7 +1277,7 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
             .unwrap();
         // NOT inverts empty AND → universe.
         assert_eq!(result.candidates.len(), 16);

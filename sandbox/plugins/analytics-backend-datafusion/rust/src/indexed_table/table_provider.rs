@@ -80,7 +80,11 @@ pub struct SegmentFileInfo {
 /// cross-chunk or cross-query state (e.g. a Java-resident tree) should
 /// keep that state external and reference it by handle from the evaluator.
 pub type EvaluatorFactory = Arc<
-    dyn Fn(&SegmentFileInfo, &SegmentChunk) -> Result<Arc<dyn RowGroupBitsetSource>, String>
+    dyn Fn(
+            &SegmentFileInfo,
+            &SegmentChunk,
+            &crate::indexed_table::metrics::StreamMetrics,
+        ) -> Result<Arc<dyn RowGroupBitsetSource>, String>
         + Send
         + Sync,
 >;
@@ -338,7 +342,7 @@ impl ExecutionPlan for QueryShardExec {
             }
 
             // Build evaluator for this chunk.
-            let evaluator = (self.config.evaluator_factory)(segment, chunk)
+            let evaluator = (self.config.evaluator_factory)(segment, chunk, &stream_metrics)
                 .map_err(|e| DataFusionError::External(e.into()))?;
 
             let props = PlanProperties::new(
@@ -423,7 +427,7 @@ mod tests {
             store_url:
                 datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
             // Evaluator factory would never be invoked for this test (no segments).
-            evaluator_factory: Arc::new(|_, _| unreachable!()),
+            evaluator_factory: Arc::new(|_, _, _| unreachable!()),
             target_partitions: 1,
             force_strategy: None,
             force_pushdown: None,

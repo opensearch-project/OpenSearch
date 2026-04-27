@@ -184,7 +184,7 @@ pub async fn execute_indexed_query(
                 )
             });
 
-            Arc::new(move |segment: &SegmentFileInfo, chunk| {
+            Arc::new(move |segment: &SegmentFileInfo, chunk, stream_metrics: &crate::indexed_table::metrics::StreamMetrics| {
                 let collector = FfmSegmentCollector::create(
                     provider.key(),
                     segment.segment_ord,
@@ -200,6 +200,12 @@ pub async fn execute_indexed_query(
                         Arc::new(collector) as Arc<dyn RowGroupDocsCollector>,
                         pruner,
                         residual_pruning_predicate.clone(),
+                        Some(
+                            crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(
+                                stream_metrics,
+                            ),
+                        ),
+                        stream_metrics.ffm_collector_calls.clone(),
                     ),
                 );
                 Ok(eval)
@@ -252,7 +258,7 @@ pub async fn execute_indexed_query(
                     .collect(),
             );
 
-            Arc::new(move |segment: &SegmentFileInfo, chunk| {
+            Arc::new(move |segment: &SegmentFileInfo, chunk, stream_metrics: &crate::indexed_table::metrics::StreamMetrics| {
                 // Build one collector per Collector leaf for this chunk.
                 let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
                     Vec::with_capacity(providers.len());
@@ -281,11 +287,18 @@ pub async fn execute_indexed_query(
                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                     tree: resolved,
                     evaluator: Arc::new(BitmapTreeEvaluator),
-                    leaves: Arc::new(CollectorLeafBitmaps),
+                    leaves: Arc::new(CollectorLeafBitmaps {
+                        ffm_collector_calls: stream_metrics.ffm_collector_calls.clone(),
+                    }),
                     page_pruner: pruner,
                     cost_predicate,
                     cost_collector,
                     pruning_predicates: Arc::clone(&pruning_predicates),
+                    page_prune_metrics: Some(
+                        crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(
+                            stream_metrics,
+                        ),
+                    ),
                 });
                 Ok(eval)
             })

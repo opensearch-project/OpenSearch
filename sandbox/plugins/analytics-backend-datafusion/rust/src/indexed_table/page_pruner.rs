@@ -83,20 +83,32 @@ impl PagePruner {
         &self,
         pruning_predicate: &PruningPredicate,
         rg_idx: usize,
+        metrics: Option<&PagePruneMetrics>,
     ) -> Option<RowSelection> {
-        let stats = MultiColumnPagesPruningStats::try_new(
+        let stats = match MultiColumnPagesPruningStats::try_new(
             rg_idx,
             &self.schema,
             &self.metadata,
-        )?;
+        ) {
+            Some(s) => s,
+            None => {
+                if let Some(m) = metrics {
+                    if let Some(ref c) = m.page_pruning_unavailable {
+                        c.add(1);
+                    }
+                }
+                return None;
+            }
+        };
         let keep = match pruning_predicate.prune(&stats) {
             Ok(k) => k,
             Err(e) => {
-                log::debug!(
-                    "page pruning skipped for rg {}: {}",
-                    rg_idx,
-                    e
-                );
+                log::debug!("page pruning skipped for rg {}: {}", rg_idx, e);
+                if let Some(m) = metrics {
+                    if let Some(ref c) = m.page_pruning_unavailable {
+                        c.add(1);
+                    }
+                }
                 return None;
             }
         };
@@ -107,9 +119,45 @@ impl PagePruner {
                 keep.len(),
                 stats.page_row_counts.len()
             );
+            if let Some(m) = metrics {
+                if let Some(ref c) = m.page_pruning_unavailable {
+                    c.add(1);
+                }
+            }
             return None;
         }
+        if let Some(m) = metrics {
+            let pruned = keep.iter().filter(|k| !**k).count();
+            let total = keep.len();
+            if let Some(ref c) = m.pages_pruned {
+                c.add(pruned);
+            }
+            if let Some(ref c) = m.pages_total {
+                c.add(total);
+            }
+        }
         Some(to_row_selection(keep, &stats.page_row_counts))
+    }
+}
+
+/// Per-call counter bundle for [`PagePruner::prune_rg`]. Callers with
+/// `StreamMetrics` build one via [`PagePruneMetrics::from_stream_metrics`].
+#[derive(Default, Clone)]
+pub struct PagePruneMetrics {
+    pub pages_pruned: Option<datafusion::physical_plan::metrics::Count>,
+    pub pages_total: Option<datafusion::physical_plan::metrics::Count>,
+    pub page_pruning_unavailable: Option<datafusion::physical_plan::metrics::Count>,
+}
+
+impl PagePruneMetrics {
+    pub fn from_stream_metrics(
+        sm: &crate::indexed_table::metrics::StreamMetrics,
+    ) -> Self {
+        Self {
+            pages_pruned: sm.pages_pruned.clone(),
+            pages_total: sm.pages_total.clone(),
+            page_pruning_unavailable: sm.page_pruning_unavailable.clone(),
+        }
     }
 }
 
@@ -461,7 +509,7 @@ mod tests {
         let (pruner, schema, _) = two_col_fixture();
         let expr = bin(col("price", 0), Operator::Eq, lit_int(5));
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 8);
     }
 
@@ -474,7 +522,7 @@ mod tests {
         let q_lt_110 = bin(col("qty", 1), Operator::Lt, lit_int(110));
         let expr = bin(p_gt_20, Operator::And, q_lt_110);
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 0, "AND of disjoint page sets prunes everything");
     }
 
@@ -487,7 +535,7 @@ mod tests {
         let q_gt_125 = bin(col("qty", 1), Operator::Gt, lit_int(125));
         let expr = bin(p_lt_5, Operator::Or, q_gt_125);
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         // Keep 2 pages × 8 rows = 16.
         assert_eq!(count_rows_kept(&sel), 16);
     }
@@ -500,7 +548,7 @@ mod tests {
         let q = bin(col("qty", 1), Operator::Gt, lit_int(999));
         let expr = bin(p, Operator::Or, q);
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 0, "OR of unreachable ranges prunes everything");
     }
 
@@ -518,7 +566,7 @@ mod tests {
         let right = bin(col("price", 0), Operator::Gt, lit_int(24));
         let expr = bin(left, Operator::And, right);
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 8);
     }
 
@@ -551,7 +599,7 @@ mod tests {
         let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
         let pp = build_pruning_predicate(&expr, schema)
             .expect("NOT push-down should leave a prunable expression");
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 32);
     }
 
@@ -568,7 +616,7 @@ mod tests {
         )));
         let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         let kept = count_rows_kept(&sel);
         assert!(kept >= 8 && kept <= 16, "expected 8–16 rows kept, got {}", kept);
     }
@@ -586,7 +634,7 @@ mod tests {
         )))));
         let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 8, "double NOT cancels");
     }
 
@@ -607,7 +655,7 @@ mod tests {
         let expr =
             datafusion::physical_expr::expressions::in_list(c, list, &false, &schema).unwrap();
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         // Pages 0 and 1 survive, 2 and 3 pruned.
         assert_eq!(count_rows_kept(&sel), 16);
     }
@@ -622,7 +670,7 @@ mod tests {
         let expr =
             datafusion::physical_expr::expressions::in_list(c, list, &true, &schema).unwrap();
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 32);
     }
 
@@ -636,7 +684,7 @@ mod tests {
         let expr =
             datafusion::physical_expr::expressions::in_list(c, list, &false, &schema).unwrap();
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 0);
     }
 
@@ -656,7 +704,7 @@ mod tests {
         let (pruner, schema, _) = two_col_fixture();
         let expr: Arc<dyn PhysicalExpr> = Arc::new(IsNullExpr::new(col("price", 0)));
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 0);
     }
 
@@ -671,7 +719,7 @@ mod tests {
         match pp {
             None => {}
             Some(pp) => {
-                let sel = pruner.prune_rg(&pp, 0).unwrap();
+                let sel = pruner.prune_rg(&pp, 0, None).unwrap();
                 assert_eq!(count_rows_kept(&sel), 32);
             }
         }
@@ -688,7 +736,7 @@ mod tests {
         let run = |op: Operator, v: i32| -> usize {
             let expr = bin(col("price", 0), op, lit_int(v));
             let pp = build_pruning_predicate(&expr, schema.clone()).unwrap();
-            let sel = pruner.prune_rg(&pp, 0).unwrap();
+            let sel = pruner.prune_rg(&pp, 0, None).unwrap();
             count_rows_kept(&sel)
         };
         // price = 5 → page 0 only (8 rows).
@@ -735,7 +783,7 @@ mod tests {
         let (pruner, schema, _) = two_col_fixture();
         let expr = bin(col("price", 0), Operator::Gt, lit_int(-1));
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(run_count(&sel), 1, "all-select should coalesce");
         assert_eq!(count_rows_kept(&sel), 32);
     }
@@ -746,7 +794,7 @@ mod tests {
         let (pruner, schema, _) = two_col_fixture();
         let expr = bin(col("price", 0), Operator::Lt, lit_int(-100));
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 0);
         assert_eq!(run_count(&sel), 1, "single skip run covers the whole RG");
     }
@@ -762,7 +810,7 @@ mod tests {
         let expr =
             datafusion::physical_expr::expressions::in_list(c, list, &false, &schema).unwrap();
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         assert_eq!(count_rows_kept(&sel), 16, "2 pages × 8 rows");
         assert_eq!(run_count(&sel), 4, "expected select/skip/select/skip");
     }
@@ -798,7 +846,7 @@ mod tests {
         let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
         let pp = build_pruning_predicate(&expr, schema)
             .expect("non-Collector subtree should still be prunable");
-        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let sel = pruner.prune_rg(&pp, 0, None).unwrap();
         // price > 20 → pages 2 (16..23 — max 23 > 20) + 3 (24..31).
         assert!(count_rows_kept(&sel) > 0);
         assert!(count_rows_kept(&sel) <= 16);
@@ -870,8 +918,8 @@ mod tests {
         // price > 50: RG0 (0..31) → nothing, RG1 (100..131) → all.
         let expr = bin(col("price", 0), Operator::Gt, lit_int(50));
         let pp = build_pruning_predicate(&expr, schema).unwrap();
-        let sel0 = pruner.prune_rg(&pp, 0).unwrap();
-        let sel1 = pruner.prune_rg(&pp, 1).unwrap();
+        let sel0 = pruner.prune_rg(&pp, 0, None).unwrap();
+        let sel1 = pruner.prune_rg(&pp, 1, None).unwrap();
         assert_eq!(count_rows_kept(&sel0), 0, "RG0 fully pruned");
         assert_eq!(count_rows_kept(&sel1), 32, "RG1 fully kept");
     }

@@ -139,7 +139,7 @@ async fn run_two_segment_query(
     let factory: super::super::table_provider::EvaluatorFactory = {
         let per_segment_matches = Arc::clone(&per_segment_matches);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk| {
+        Arc::new(move |segment, _chunk, _stream_metrics| {
             let matching = per_segment_matches
                 .get(segment.segment_ord as usize)
                 .cloned()
@@ -151,6 +151,8 @@ async fn run_two_segment_query(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
                     collector,
                     pruner,
+                    None,
+                    None,
                     None,
                 ),
             );
@@ -341,7 +343,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
     let factory: super::super::table_provider::EvaluatorFactory = {
         let per_segment_matches = Arc::clone(&per_segment_matches);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk| {
+        Arc::new(move |segment, _chunk, _stream_metrics| {
             let matching = per_segment_matches
                 .get(segment.segment_ord as usize)
                 .cloned()
@@ -353,6 +355,8 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
                     collector,
                     pruner,
+                    None,
+                    None,
                     None,
                 ),
             );
@@ -719,7 +723,7 @@ async fn run_wide_segments(
     let factory: super::super::table_provider::EvaluatorFactory = {
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk| {
+        Arc::new(move |segment, _chunk, _stream_metrics| {
             // One (provider_key, collector) per Collector leaf — our trees
             // here use 1 collector leaf, so one pair.
             let leaf_count = tree.collector_leaf_count();
@@ -738,12 +742,13 @@ async fn run_wide_segments(
                         crate::indexed_table::eval::bitmap_tree::BitmapTreeEvaluator,
                     ),
                     leaves: Arc::new(
-                        crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps,
+                        crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::without_metrics(),
                     ),
                     page_pruner: pruner,
                     cost_predicate: 1,
                     cost_collector: 10,
                     pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
+                page_prune_metrics: None,
                 },
             );
             Ok(eval)

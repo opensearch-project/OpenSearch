@@ -38,6 +38,7 @@ use super::stream::{FilterStrategy, RowGroupInfo};
 use super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFileInfo};
 
 mod boolean_algebra;
+mod metrics;
 mod multi_segment;
 mod null_columns;
 mod schema_drift;
@@ -168,6 +169,14 @@ fn status_eq(value: &str) -> Arc<dyn RowGroupDocsCollector> {
 // ── Test runner: build provider + execute + collect rows ───────────
 
 async fn run_tree(tree: BoolNode) -> Vec<(String, i32, String, String)> {
+    run_tree_and_plan(tree).await.0
+}
+
+/// Like [`run_tree`] but also returns the physical plan so tests can
+/// read metrics off it after execution.
+async fn run_tree_and_plan(
+    tree: BoolNode,
+) -> (Vec<(String, i32, String, String)>, std::sync::Arc<dyn datafusion::physical_plan::ExecutionPlan>) {
     let tmp = write_fixture_parquet();
     let path = tmp.path().to_path_buf();
     let size = std::fs::metadata(&path).unwrap().len();
@@ -212,17 +221,24 @@ async fn run_tree(tree: BoolNode) -> Vec<(String, i32, String, String)> {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk| {
+        Arc::new(move |segment, _chunk, _stream_metrics| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
-                leaves: Arc::new(CollectorLeafBitmaps),
+                leaves: Arc::new(crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
+                    ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
+                }),
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
+                page_prune_metrics: Some(
+                    crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(
+                        _stream_metrics,
+                    ),
+                ),
             });
             Ok(eval)
         })
@@ -251,7 +267,13 @@ async fn run_tree(tree: BoolNode) -> Vec<(String, i32, String, String)> {
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
     let df = ctx.sql("SELECT brand, price, status, category FROM t").await.unwrap();
-    let mut stream = df.execute_stream().await.unwrap();
+    let plan = df.create_physical_plan().await.unwrap();
+    let task_ctx = ctx.task_ctx();
+    let mut stream = datafusion::physical_plan::execute_stream(
+        std::sync::Arc::clone(&plan),
+        task_ctx,
+    )
+    .unwrap();
     let mut rows: Vec<(String, i32, String, String)> = Vec::new();
     while let Some(batch) = stream.next().await {
         let b = batch.unwrap();
@@ -268,7 +290,7 @@ async fn run_tree(tree: BoolNode) -> Vec<(String, i32, String, String)> {
             ));
         }
     }
-    rows
+    (rows, plan)
 }
 
 // ── Tree-building helpers ──────────────────────────────────────────

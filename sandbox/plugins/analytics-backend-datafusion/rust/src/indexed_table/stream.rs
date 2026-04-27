@@ -94,6 +94,10 @@ struct IndexReader {
     pending_prefetch: Option<PrefetchHandle>,
     cached_result: Option<PrefetchResult>,
     doc_range: Option<(i32, i32)>,
+    /// Counted once per RG whose prefetch returned `None` (candidate
+    /// bitmap empty → RG skipped without a parquet read). Handle is
+    /// cloned from the stream's `PartitionMetrics`.
+    rg_skipped: Option<datafusion::physical_plan::metrics::Count>,
 }
 
 impl IndexReader {
@@ -101,6 +105,7 @@ impl IndexReader {
         evaluator: Arc<dyn RowGroupBitsetSource>,
         row_groups: Vec<RowGroupInfo>,
         doc_range: Option<(i32, i32)>,
+        rg_skipped: Option<datafusion::physical_plan::metrics::Count>,
     ) -> Self {
         Self {
             evaluator,
@@ -109,6 +114,7 @@ impl IndexReader {
             pending_prefetch: None,
             cached_result: None,
             doc_range,
+            rg_skipped,
         }
     }
 
@@ -164,7 +170,14 @@ impl IndexReader {
                 self.start_prefetch(self.current_rg_idx);
                 match result {
                     Ok(Some(p)) => return Poll::Ready(Ok(Some(p))),
-                    Ok(None) => continue,
+                    Ok(None) => {
+                        // RG had no candidates — skipped without a
+                        // parquet read. Count for EXPLAIN ANALYZE.
+                        if let Some(ref c) = self.rg_skipped {
+                            c.add(1);
+                        }
+                        continue;
+                    }
                     Err(e) => return Poll::Ready(Err(DataFusionError::External(e.into()))),
                 }
             }
@@ -286,8 +299,12 @@ impl ExecutionPlan for IndexedExec {
                 .take()
                 .ok_or_else(|| DataFusionError::Internal("evaluator already consumed".into()))?
         };
-        let index_reader =
-            IndexReader::new(evaluator, self.row_groups.clone(), self.doc_range);
+        let index_reader = IndexReader::new(
+            evaluator,
+            self.row_groups.clone(),
+            self.doc_range,
+            self.stream_metrics.rg_skipped.clone(),
+        );
         Ok(Box::pin(IndexedStream::new(
             self.schema.clone(),
             self.full_schema.clone(),
@@ -531,6 +548,9 @@ impl IndexedStream {
             if let Some(ref counter) = self.metrics.output_rows {
                 counter.add(output.num_rows());
             }
+            if let Some(ref counter) = self.metrics.batches_produced {
+                counter.add(1);
+            }
         }
         Poll::Ready(Some(Ok(output)))
     }
@@ -540,16 +560,39 @@ impl Stream for IndexedStream {
     type Item = Result<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // Manual timer for `elapsed_compute`: total wall time spent
+        // inside this poll. Attributed to the operator for EXPLAIN
+        // ANALYZE, separate from `index_time` / `parquet_time` which
+        // time downstream work.
+        let poll_start = std::time::Instant::now();
+
         if !self.initialized {
             self.index_reader.init_prefetch();
             self.initialized = true;
         }
 
+        let result = self.as_mut().poll_inner(cx);
+
+        if let Some(ref t) = self.metrics.elapsed_compute {
+            t.add_duration(poll_start.elapsed());
+        }
+        result
+    }
+}
+
+impl IndexedStream {
+    fn poll_inner(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<RecordBatch>>> {
         loop {
             // Poll current stream
             if let Some(ref mut stream) = self.current_stream {
                 match Pin::new(stream).poll_next(cx) {
                     Poll::Ready(Some(Ok(batch))) if batch.num_rows() > 0 => {
+                        if let Some(ref c) = self.metrics.parquet_batches_received {
+                            c.add(1);
+                        }
                         let result = self.as_mut().finalize_batch(batch);
                         match result {
                             Poll::Ready(Some(Ok(b))) if b.num_rows() == 0 => continue,
@@ -598,6 +641,14 @@ impl Stream for IndexedStream {
                     if let Some(ref counter) = self.metrics.rows_matched {
                         counter.add(candidates.len() as usize);
                     }
+                    if let Some(ref counter) = self.metrics.rows_pruned {
+                        // Rows in this RG that the candidate stage
+                        // dropped (either via Collector intersection or
+                        // page-level pruning). `rg.num_rows - matched`.
+                        let pruned = (rg.num_rows as usize)
+                            .saturating_sub(candidates.len() as usize);
+                        counter.add(pruned);
+                    }
                     if let Some(ref counter) = self.metrics.rg_processed {
                         counter.add(1);
                     }
@@ -638,10 +689,10 @@ impl Stream for IndexedStream {
                     // same counters as before so `EXPLAIN ANALYZE` output
                     // stays comparable.
                     if min_skip_run == 1 {
-                        if let Some(ref counter) = self.metrics.row_selection_count {
+                        if let Some(ref counter) = self.metrics.min_skip_run_row_granular {
                             counter.add(1);
                         }
-                    } else if let Some(ref counter) = self.metrics.boolean_mask_count {
+                    } else if let Some(ref counter) = self.metrics.min_skip_run_block_granular {
                         counter.add(1);
                     }
 
@@ -659,6 +710,26 @@ impl Stream for IndexedStream {
                         &selection,
                         min_skip_run,
                     );
+                    // Metric: record which PositionMap variant this RG
+                    // landed in. Useful for tuning min_skip_run and
+                    // understanding per-query memory profiles.
+                    match &position_map {
+                        PositionMap::Identity { .. } => {
+                            if let Some(ref c) = self.metrics.position_map_identity {
+                                c.add(1);
+                            }
+                        }
+                        PositionMap::Bitmap { .. } => {
+                            if let Some(ref c) = self.metrics.position_map_bitmap {
+                                c.add(1);
+                            }
+                        }
+                        PositionMap::Runs { .. } => {
+                            if let Some(ref c) = self.metrics.position_map_runs {
+                                c.add(1);
+                            }
+                        }
+                    }
 
                     let t_plan = std::time::Instant::now();
                     match self.create_row_selection_stream(&rg, selection) {

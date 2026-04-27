@@ -32,8 +32,7 @@
 //!    This is extensible to different implementations.
 //! 2. **Leaf bitmap source** ([`LeafBitmapSource`]) — given a `Collector`
 //!    leaf, produce its RoaringBitmap for this RG. Today: backend-backed
-//!    (FFM upcall + bitset expansion). Could also be parquet-stats-backed
-//!    or anything else implementing the trait.
+//!    (FFM upcall + bitset expansion).
 //!
 //! [`TreeBitsetSource`] composes any `TreeEvaluator` with any
 //! `LeafBitmapSource` and exposes the composite as a `RowGroupBitsetSource`.
@@ -188,6 +187,9 @@ pub trait TreeEvaluator: Send + Sync {
             usize,
             Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
         >,
+        page_prune_metrics: Option<
+            &crate::indexed_table::page_pruner::PagePruneMetrics,
+        >,
     ) -> Result<TreePrefetch, String>;
 
     /// Refinement stage: produce the exact per-row `BooleanArray` for one
@@ -218,7 +220,7 @@ pub trait TreeEvaluator: Send + Sync {
 /// let source = TreeBitsetSource {
 ///     tree: Arc::new(resolved),
 ///     evaluator: Arc::new(BitmapTreeEvaluator),        // or JavaTreeEvaluator
-///     leaves: Arc::new(CollectorLeafBitmaps),           // or ParquetStatsLeaves
+///     leaves: Arc::new(CollectorLeafBitmaps::without_metrics()),           // or ParquetStatsLeaves
 ///     page_pruner: Arc::new(pruner),
 /// };
 /// ```
@@ -254,6 +256,11 @@ pub struct TreeBitsetSource {
             Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
         >,
     >,
+    /// Counters recorded by `page_pruner.prune_rg` at each Predicate
+    /// leaf in the tree walk. Populated from the stream's
+    /// `PartitionMetrics` at dispatch time.
+    pub page_prune_metrics:
+        Option<crate::indexed_table::page_pruner::PagePruneMetrics>,
 }
 
 impl RowGroupBitsetSource for TreeBitsetSource {
@@ -281,6 +288,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
                 &*self.leaves,
                 &self.page_pruner,
                 &self.pruning_predicates,
+                self.page_prune_metrics.as_ref(),
             )?;
         if prefetch.candidates.is_empty() {
             return Ok(None);
@@ -396,6 +404,9 @@ mod tests {
                 usize,
                 Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
             >,
+            _page_prune_metrics: Option<
+                &crate::indexed_table::page_pruner::PagePruneMetrics,
+            >,
         ) -> Result<TreePrefetch, String> {
             Ok(TreePrefetch {
                 candidates: roaring::RoaringBitmap::new(),
@@ -443,6 +454,7 @@ mod tests {
             cost_predicate: 1,
             cost_collector: 10,
             pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
+                page_prune_metrics: None,
         };
         assert!(!source.needs_row_mask());
     }

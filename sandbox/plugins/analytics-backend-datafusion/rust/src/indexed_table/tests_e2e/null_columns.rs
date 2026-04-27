@@ -313,17 +313,18 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         let per_leaf = per_leaf.clone();
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
-        Arc::new(move |segment, _chunk| {
+        Arc::new(move |segment, _chunk, _stream_metrics| {
             let resolved = tree.resolve(&per_leaf)?;
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
-                leaves: Arc::new(CollectorLeafBitmaps),
+                leaves: Arc::new(CollectorLeafBitmaps::without_metrics()),
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
+                page_prune_metrics: None,
             });
             Ok(eval)
         })

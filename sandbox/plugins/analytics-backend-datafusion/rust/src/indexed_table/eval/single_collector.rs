@@ -48,6 +48,13 @@ pub struct SingleCollectorEvaluator {
     /// top-level AND, translated to a `PruningPredicate`. `None` means
     /// no residual predicate applies (nothing to prune with).
     pruning_predicate: Option<Arc<PruningPredicate>>,
+    /// Counters recorded by `page_pruner.prune_rg`. Built from the
+    /// stream's `PartitionMetrics` at evaluator construction.
+    page_prune_metrics:
+        Option<crate::indexed_table::page_pruner::PagePruneMetrics>,
+    /// Incremented once per `prefetch_rg` call (once per RG) — the
+    /// Collector path always performs one FFM round-trip to Java.
+    ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
 }
 
 impl SingleCollectorEvaluator {
@@ -55,11 +62,17 @@ impl SingleCollectorEvaluator {
         collector: Arc<dyn RowGroupDocsCollector>,
         page_pruner: Arc<PagePruner>,
         pruning_predicate: Option<Arc<PruningPredicate>>,
+        page_prune_metrics: Option<
+            crate::indexed_table::page_pruner::PagePruneMetrics,
+        >,
+        ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
     ) -> Self {
         Self {
             collector,
             page_pruner,
             pruning_predicate,
+            page_prune_metrics,
+            ffm_collector_calls,
         }
     }
 }
@@ -75,6 +88,9 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
 
         // Collect bitset from backend → RG-relative RoaringBitmap.
         let bitset = self.collector.collect_packed_u64_bitset(min_doc, max_doc)?;
+        if let Some(ref c) = self.ffm_collector_calls {
+            c.add(1);
+        }
 
         let mut candidates = RoaringBitmap::new();
         for (word_idx, &word) in bitset.iter().enumerate() {
@@ -98,7 +114,11 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
 
         // Apply page-level pruning if we have a residual predicate.
         if let Some(ref pp) = self.pruning_predicate {
-            if let Some(sel) = self.page_pruner.prune_rg(pp, rg.index) {
+            if let Some(sel) = self.page_pruner.prune_rg(
+                pp,
+                rg.index,
+                self.page_prune_metrics.as_ref(),
+            ) {
                 let allowed = row_selection_to_bitmap(&sel);
                 candidates &= allowed;
             }
@@ -193,7 +213,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None, None, None);
 
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("has matches");
@@ -205,7 +225,7 @@ mod tests {
     fn on_batch_mask_returns_none_for_path_b() {
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None, None, None);
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
@@ -227,7 +247,7 @@ mod tests {
         // (it's the only post-decode filter we have on this path).
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None, None, None);
         assert!(eval.needs_row_mask());
     }
 
@@ -235,7 +255,7 @@ mod tests {
     fn empty_match_returns_none() {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None, None, None);
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         assert!(eval.prefetch_rg(&rg, 0, 8).unwrap().is_none());
     }
@@ -250,7 +270,7 @@ mod tests {
         let collector = Arc::new(StubCollector { docs: vec![0, 3, 7] })
             as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None, None, None);
 
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("has matches");
