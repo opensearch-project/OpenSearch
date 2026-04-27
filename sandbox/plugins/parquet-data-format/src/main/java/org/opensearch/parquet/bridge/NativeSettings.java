@@ -25,6 +25,8 @@ public class NativeSettings {
     private final Boolean bloomFilterEnabled;
     private final Double bloomFilterFpp;
     private final Long bloomFilterNdv;
+    private final Long sortInMemoryThresholdBytes;
+    private final Integer sortBatchSize;
 
     private NativeSettings(Builder builder) {
         this.indexName = builder.indexName;
@@ -37,6 +39,8 @@ public class NativeSettings {
         this.bloomFilterEnabled = builder.bloomFilterEnabled;
         this.bloomFilterFpp = builder.bloomFilterFpp;
         this.bloomFilterNdv = builder.bloomFilterNdv;
+        this.sortInMemoryThresholdBytes = builder.sortInMemoryThresholdBytes;
+        this.sortBatchSize = builder.sortBatchSize;
     }
 
     public String getIndexName() { return indexName; }
@@ -49,6 +53,8 @@ public class NativeSettings {
     public Boolean getBloomFilterEnabled() { return bloomFilterEnabled; }
     public Double getBloomFilterFpp() { return bloomFilterFpp; }
     public Long getBloomFilterNdv() { return bloomFilterNdv; }
+    public Long getSortInMemoryThresholdBytes() { return sortInMemoryThresholdBytes; }
+    public Integer getSortBatchSize() { return sortBatchSize; }
 
     public static Builder builder() { return new Builder(); }
 
@@ -63,6 +69,8 @@ public class NativeSettings {
         private Boolean bloomFilterEnabled;
         private Double bloomFilterFpp;
         private Long bloomFilterNdv;
+        private Long sortInMemoryThresholdBytes;
+        private Integer sortBatchSize;
 
         public Builder indexName(String v) { this.indexName = v; return this; }
         public Builder compressionType(String v) { this.compressionType = v; return this; }
@@ -74,6 +82,8 @@ public class NativeSettings {
         public Builder bloomFilterEnabled(Boolean v) { this.bloomFilterEnabled = v; return this; }
         public Builder bloomFilterFpp(Double v) { this.bloomFilterFpp = v; return this; }
         public Builder bloomFilterNdv(Long v) { this.bloomFilterNdv = v; return this; }
+        public Builder sortInMemoryThresholdBytes(Long v) { this.sortInMemoryThresholdBytes = v; return this; }
+        public Builder sortBatchSize(Integer v) { this.sortBatchSize = v; return this; }
 
         public NativeSettings build() { return new NativeSettings(this); }
     }

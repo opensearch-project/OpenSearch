@@ -27,27 +27,27 @@ public final class ParquetSettings {
 
     /** Group setting prefix for all Parquet settings. */
     public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting(
-        "parquet.",
+        "index.parquet.",
         Setting.Property.IndexScope
     );
 
     /** Maximum row group size in bytes (default 128MB). */
     public static final Setting<ByteSizeValue> ROW_GROUP_SIZE_BYTES = Setting.byteSizeSetting(
-        "parquet.row_group_size_bytes",
+        "index.parquet.row_group_size_bytes",
         new ByteSizeValue(128, ByteSizeUnit.MB),
         Setting.Property.IndexScope
     );
 
     /** Data page size limit in bytes (default 1MB). */
     public static final Setting<ByteSizeValue> PAGE_SIZE_BYTES = Setting.byteSizeSetting(
-        "parquet.page_size_bytes",
+        "index.parquet.page_size_bytes",
         new ByteSizeValue(1, ByteSizeUnit.MB),
         Setting.Property.IndexScope
     );
 
     /** Maximum number of rows per data page (default 20000). */
     public static final Setting<Integer> PAGE_ROW_LIMIT = Setting.intSetting(
-        "parquet.page_row_limit",
+        "index.parquet.page_row_limit",
         20000,
         1,
         Setting.Property.IndexScope
@@ -55,24 +55,48 @@ public final class ParquetSettings {
 
     /** Dictionary page size limit in bytes (default 2MB). */
     public static final Setting<ByteSizeValue> DICT_SIZE_BYTES = Setting.byteSizeSetting(
-        "parquet.dict_size_bytes",
+        "index.parquet.dict_size_bytes",
         new ByteSizeValue(2, ByteSizeUnit.MB),
         Setting.Property.IndexScope
     );
 
     /** Compression codec for Parquet files, e.g. ZSTD, SNAPPY, LZ4_RAW (default LZ4_RAW). */
     public static final Setting<String> COMPRESSION_TYPE = Setting.simpleString(
-        "parquet.compression_type",
+        "index.parquet.compression_type",
         "LZ4_RAW",
         Setting.Property.IndexScope
     );
 
     /** Compression level for the chosen codec (default 2, range 1–9). */
     public static final Setting<Integer> COMPRESSION_LEVEL = Setting.intSetting(
-        "parquet.compression_level",
+        "index.parquet.compression_level",
         2,
         1,
         9,
+        Setting.Property.IndexScope
+    );
+
+    /** Whether bloom filters are enabled for Parquet columns (default true). */
+    public static final Setting<Boolean> BLOOM_FILTER_ENABLED = Setting.boolSetting(
+        "index.parquet.bloom_filter_enabled",
+        true,
+        Setting.Property.IndexScope
+    );
+
+    /** Bloom filter false positive probability (default 0.1). */
+    public static final Setting<Double> BLOOM_FILTER_FPP = Setting.doubleSetting(
+        "index.parquet.bloom_filter_fpp",
+        0.1,
+        0.0,
+        1.0,
+        Setting.Property.IndexScope
+    );
+
+    /** Bloom filter number of distinct values hint (default 100000). */
+    public static final Setting<Long> BLOOM_FILTER_NDV = Setting.longSetting(
+        "index.parquet.bloom_filter_ndv",
+        100_000L,
+        1L,
         Setting.Property.IndexScope
     );
 
@@ -91,13 +115,30 @@ public final class ParquetSettings {
         Setting.Property.NodeScope
     );
 
+    /** File size threshold for in-memory sort vs streaming merge sort (default 32MB). */
+    public static final Setting<ByteSizeValue> SORT_IN_MEMORY_THRESHOLD = Setting.byteSizeSetting(
+        "index.parquet.sort_in_memory_threshold",
+        new ByteSizeValue(32, ByteSizeUnit.MB),
+        Setting.Property.IndexScope
+    );
+
+    /** Batch size for streaming merge sort (default 8192 rows). */
+    public static final Setting<Integer> SORT_BATCH_SIZE = Setting.intSetting(
+        "index.parquet.sort_batch_size",
+        8192,
+        1,
+        Setting.Property.IndexScope
+    );
+
     /** Returns all settings defined by the Parquet plugin. */
     public static List<Setting<?>> getSettings() {
         return List.of(
             PARQUET_SETTINGS,
             ROW_GROUP_SIZE_BYTES, PAGE_SIZE_BYTES, PAGE_ROW_LIMIT, DICT_SIZE_BYTES,
             COMPRESSION_TYPE, COMPRESSION_LEVEL,
-            MAX_NATIVE_ALLOCATION, MAX_ROWS_PER_VSR
+            BLOOM_FILTER_ENABLED, BLOOM_FILTER_FPP, BLOOM_FILTER_NDV,
+            MAX_NATIVE_ALLOCATION, MAX_ROWS_PER_VSR,
+            SORT_IN_MEMORY_THRESHOLD, SORT_BATCH_SIZE
         );
     }
 }

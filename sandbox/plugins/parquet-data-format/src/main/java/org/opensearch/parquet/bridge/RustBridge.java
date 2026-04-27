@@ -97,7 +97,9 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,                        // row_group_size_bytes
                 ValueLayout.JAVA_LONG,                        // bloom_filter_enabled
                 ValueLayout.JAVA_DOUBLE,                      // bloom_filter_fpp
-                ValueLayout.JAVA_LONG                         // bloom_filter_ndv
+                ValueLayout.JAVA_LONG,                        // bloom_filter_ndv
+                ValueLayout.JAVA_LONG,                        // sort_in_memory_threshold_bytes
+                ValueLayout.JAVA_LONG                         // sort_batch_size
             )
         );
         REMOVE_SETTINGS = linker.downcallHandle(
@@ -228,7 +230,9 @@ public class RustBridge {
                 nativeSettings.getRowGroupSizeBytes() != null ? nativeSettings.getRowGroupSizeBytes() : -1L,
                 nativeSettings.getBloomFilterEnabled() != null ? (nativeSettings.getBloomFilterEnabled() ? 1L : 0L) : -1L,
                 nativeSettings.getBloomFilterFpp() != null ? nativeSettings.getBloomFilterFpp() : -1.0,
-                nativeSettings.getBloomFilterNdv() != null ? nativeSettings.getBloomFilterNdv() : -1L
+                nativeSettings.getBloomFilterNdv() != null ? nativeSettings.getBloomFilterNdv() : -1L,
+                nativeSettings.getSortInMemoryThresholdBytes() != null ? nativeSettings.getSortInMemoryThresholdBytes() : -1L,
+                nativeSettings.getSortBatchSize() != null ? (long) nativeSettings.getSortBatchSize() : -1L
             );
         }
     }

@@ -219,6 +219,8 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     bloom_filter_enabled: i64,
     bloom_filter_fpp: f64,
     bloom_filter_ndv: i64,
+    sort_in_memory_threshold_bytes: i64,
+    sort_batch_size: i64,
 ) -> i64 {
     let index_name = str_from_raw(index_name_ptr, index_name_len)
         .map_err(|e| format!("parquet_on_settings_update index_name: {}", e))?.to_string();
@@ -247,6 +249,8 @@ pub unsafe extern "C" fn parquet_on_settings_update(
         bloom_filter_enabled: opt_bool(bloom_filter_enabled),
         bloom_filter_fpp: opt_f64(bloom_filter_fpp),
         bloom_filter_ndv: opt_u64(bloom_filter_ndv),
+        sort_in_memory_threshold_bytes: opt_u64(sort_in_memory_threshold_bytes),
+        sort_batch_size: opt_usize(sort_batch_size),
         ..Default::default()
     };
 

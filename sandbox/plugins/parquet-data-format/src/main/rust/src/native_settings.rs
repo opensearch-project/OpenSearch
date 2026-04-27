@@ -27,6 +27,8 @@ pub struct NativeSettings {
     pub sort_columns: Vec<String>,
     pub reverse_sorts: Vec<bool>,
     pub nulls_first: Vec<bool>,
+    pub sort_in_memory_threshold_bytes: Option<u64>,
+    pub sort_batch_size: Option<usize>,
 }
 
 impl NativeSettings {
@@ -76,6 +78,14 @@ impl NativeSettings {
 
     pub fn has_field_configs(&self) -> bool {
         self.field_configs.as_ref().map_or(false, |configs| !configs.is_empty())
+    }
+
+    pub fn get_sort_in_memory_threshold_bytes(&self) -> u64 {
+        self.sort_in_memory_threshold_bytes.unwrap_or(32 * 1024 * 1024)
+    }
+
+    pub fn get_sort_batch_size(&self) -> usize {
+        self.sort_batch_size.unwrap_or(8192)
     }
 }
 

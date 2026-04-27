@@ -159,6 +159,11 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .pageRowLimit(ParquetSettings.PAGE_ROW_LIMIT.get(settings))
             .dictSizeBytes(ParquetSettings.DICT_SIZE_BYTES.get(settings).getBytes())
             .rowGroupSizeBytes(ParquetSettings.ROW_GROUP_SIZE_BYTES.get(settings).getBytes())
+            .bloomFilterEnabled(ParquetSettings.BLOOM_FILTER_ENABLED.get(settings))
+            .bloomFilterFpp(ParquetSettings.BLOOM_FILTER_FPP.get(settings))
+            .bloomFilterNdv(ParquetSettings.BLOOM_FILTER_NDV.get(settings))
+            .sortInMemoryThresholdBytes(ParquetSettings.SORT_IN_MEMORY_THRESHOLD.get(settings).getBytes())
+            .sortBatchSize(ParquetSettings.SORT_BATCH_SIZE.get(settings))
             .build();
         try {
             RustBridge.onSettingsUpdate(config);
@@ -250,7 +255,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         try {
             RustBridge.removeSettings(indexSettings.getIndex().getName());
         } catch (Exception e) {
-            logger.warn("Failed to remove Parquet settings from Rust store for index [{}]", indexSettings.getIndex().getName(), e);
+            logger.warn("Failed to remove Parquet settings from Rust store for index [{}]: {}", indexSettings.getIndex().getName(), e.getMessage());
         }
         bufferPool.close();
     }
