@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.store.FormatChecksumStrategy;
 
@@ -80,10 +81,11 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     /**
      * Deletes the specified files grouped by directory.
      *
-     * @param filesToDelete map of directory paths to collections of file names to delete
+     * @param filesToDelete map of data format name to collections of file names to delete
+     * @return map of data format name to collection of file names that failed to delete
      * @throws IOException if an I/O error occurs during deletion
      */
-    void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException;
+    Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException;
 
     /**
      * Creates a new empty document input for this engine's data format.
@@ -115,5 +117,9 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      */
     default FormatChecksumStrategy getChecksumStrategy() {
         return null;
+    }
+
+    default Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
+        return config.registry().getReaderManager(config);
     }
 }

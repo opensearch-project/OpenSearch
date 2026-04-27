@@ -17,6 +17,7 @@ import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.SingleRel;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.planner.RelNodeUtils;
 
 import java.util.List;
 
@@ -46,7 +47,8 @@ public class OpenSearchExchangeReducer extends SingleRel implements OpenSearchRe
 
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
-        if (getInput() instanceof OpenSearchRelNode openSearchInput) {
+        RelNode input = RelNodeUtils.unwrapHep(getInput());
+        if (input instanceof OpenSearchRelNode openSearchInput) {
             return openSearchInput.getOutputFieldStorage();
         }
         return List.of();
@@ -67,4 +69,14 @@ public class OpenSearchExchangeReducer extends SingleRel implements OpenSearchRe
         return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
 
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
+        return new OpenSearchExchangeReducer(getCluster(), getTraitSet(), children.getFirst(), List.of(backend));
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        // ExchangeReducer is an infrastructure node — strip children but keep the node itself.
+        return new OpenSearchExchangeReducer(getCluster(), getTraitSet(), strippedChildren.getFirst(), viableBackends);
+    }
 }

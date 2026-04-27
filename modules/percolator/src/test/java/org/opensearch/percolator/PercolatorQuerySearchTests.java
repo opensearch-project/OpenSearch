@@ -303,6 +303,39 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
         assertSearchHits(response, "1");
     }
 
+    public void testMapUnmappedFieldAsTextAfterDynamicMappingUpdate() throws IOException {
+        Settings.Builder settings = Settings.builder().put("index.percolator.map_unmapped_fields_as_text", true);
+        createIndexWithSimpleMappings("test", settings.build(), "query", "type=percolator", "title", "type=text");
+
+        // Index a document that triggers a dynamic mapping update
+        client().prepareIndex("test")
+            .setId("doc1")
+            .setSource(
+                jsonBuilder().startObject().field("title", "some document").field("new_dynamic_field", "triggers mapping").endObject()
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // Now index a percolator query referencing an unmapped field — this should still work
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("query", matchQuery("unmapped_field", "value")).endObject())
+            .get();
+        client().admin().indices().prepareRefresh().get();
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(
+                new PercolateQueryBuilder(
+                    "query",
+                    BytesReference.bytes(jsonBuilder().startObject().field("unmapped_field", "value").endObject()),
+                    MediaTypeRegistry.JSON
+                )
+            )
+            .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+    }
+
     public void testRangeQueriesWithNow() throws Exception {
         IndexService indexService = createIndexWithSimpleMappings(
             "test",

@@ -21,8 +21,13 @@ import java.nio.file.Path;
  */
 public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
 
+    // Note: initTokioRuntimeManager uses OnceLock and can only be initialized once per JVM.
+    // Do NOT call shutdownTokioRuntimeManager() here — it permanently kills the shared
+    // executor and other test classes (DatafusionSearchExecEngineTests, etc.) will fail
+    // with "Worker gone" if they run after this class.
+
     public void testRuntimeLifecycle() {
-        // Init tokio runtime
+        // Init tokio runtime (no-op if already initialized by another test class)
         NativeBridge.initTokioRuntimeManager(2);
 
         // Create global runtime with small memory pool
@@ -35,9 +40,8 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         );
         assertTrue("Runtime pointer should be non-zero", runtimePtr != 0);
 
-        // Clean up
+        // Clean up the per-test runtime only
         NativeBridge.closeGlobalRuntime(runtimePtr);
-        NativeBridge.shutdownTokioRuntimeManager();
     }
 
     public void testReaderLifecycle() throws Exception {
@@ -58,6 +62,5 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         readerHandle.close();
 
         NativeBridge.closeGlobalRuntime(runtimePtr);
-        NativeBridge.shutdownTokioRuntimeManager();
     }
 }

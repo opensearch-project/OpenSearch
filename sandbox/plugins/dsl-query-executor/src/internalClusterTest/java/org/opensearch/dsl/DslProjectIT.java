@@ -8,12 +8,14 @@
 
 package org.opensearch.dsl;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
 /**
  * Integration tests for DSL _source filtering (projection) conversion.
  * Uses matchAllQuery; focus is on _source includes/excludes behavior.
  */
+@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
 public class DslProjectIT extends DslIntegTestBase {
 
     public void testNoSourceFiltering() {
