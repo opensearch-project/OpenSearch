@@ -24,7 +24,7 @@ import java.util.Map;
  * <p>
  * Requires feature flag: {@code opensearch.experimental.feature.pluggable.dataformat.enabled=true}
  */
-public class ParquetDataFusionIT extends DataFusionRestTestCase {
+public class ParquetDataFusionIT extends AnalyticsRestTestCase {
 
     private static final String INDEX_NAME = "parquet_e2e_test";
 

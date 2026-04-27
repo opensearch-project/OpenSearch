@@ -11,46 +11,56 @@ package org.opensearch.analytics.qa;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
-import java.util.Map;
+import java.util.List;
 
 /**
- * ClickBench integration test for DSL queries through the DataFusion backend.
+ * ClickBench DSL integration test. Runs DSL queries against a parquet-backed ClickBench index.
  * <p>
  * Query path: {@code POST /{index}/_search} → dsl-query-executor → Calcite → Substrait → DataFusion
  * <p>
- * ClickBench data is provisioned into a parquet-format index via {@link ClickBenchTestFixture}.
- * To add more queries, add test methods that load from {@code clickbench/dsl/q{N}.json}.
+ * Currently runs a subset of queries (see {@link #QUERY_NUMBERS}). To run all 43 ClickBench
+ * queries, use {@link DatasetQueryRunner#discoverQueryNumbers(Dataset, String)}. Some queries
+ * hit analytics-engine planner/translator limitations and are excluded until resolved.
  */
-public class DslClickBenchIT extends DataFusionRestTestCase {
+public class DslClickBenchIT extends AnalyticsRestTestCase {
+
+    /**
+     * ClickBench DSL query numbers to run. Q1 validates the DSL → DataFusion path end-to-end.
+     * Additional queries can be added here as the analytics engine adds support for more
+     * aggregation translators and planner rules.
+     */
+    private static final List<Integer> QUERY_NUMBERS = List.of(1);
 
     private static boolean dataProvisioned = false;
 
     private void ensureDataProvisioned() throws Exception {
         if (dataProvisioned == false) {
-            ClickBenchTestFixture.provisionIndex(client());
+            DatasetProvisioner.provision(client(), ClickBenchTestHelper.DATASET);
             dataProvisioned = true;
         }
     }
 
-    /**
-     * Verify that a simple search against the parquet-backed ClickBench index
-     * returns a valid response via the DSL query path.
-     */
-    public void testSimpleSearch() throws Exception {
+    public void testClickBenchDslQueries() throws Exception {
         ensureDataProvisioned();
 
-        Request request = new Request("POST", "/" + ClickBenchTestFixture.INDEX_NAME + "/_search");
-        request.setJsonEntity("{\"size\": 0, \"track_total_hits\": true}");
-        Response response = client().performRequest(request);
+        logger.info("Running {} DSL queries: {}", QUERY_NUMBERS.size(), QUERY_NUMBERS);
 
-        Map<String, Object> responseMap = assertOkAndParse(response, "DSL simple search");
-        logger.info("DSL simple search response: {}", responseMap);
+        List<String> failures = DatasetQueryRunner.runQueries(
+            client(),
+            ClickBenchTestHelper.DATASET,
+            "dsl",
+            "json",
+            QUERY_NUMBERS,
+            (client, dataset, queryBody) -> {
+                Request request = new Request("POST", "/" + dataset.indexName + "/_search");
+                request.setJsonEntity(queryBody);
+                Response response = client.performRequest(request);
+                return assertOkAndParse(response, "DSL query");
+            }
+        );
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> hits = (Map<String, Object>) responseMap.get("hits");
-        assertNotNull("Response should contain 'hits'", hits);
+        if (failures.isEmpty() == false) {
+            fail("DSL query failures:\n" + String.join("\n", failures));
+        }
     }
-
-    // TODO: Add ClickBench aggregation queries (Q1-Q43) once the scheduler
-    // transport thread assertion is resolved in the analytics engine.
 }
