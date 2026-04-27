@@ -13,21 +13,17 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 
-import java.util.Collections;
 import java.util.List;
 
-/**
- * Example plugin demonstrating streaming transport actions
- */
 public class StreamTransportExamplePlugin extends Plugin implements ActionPlugin {
 
-    /**
-     * Constructor
-     */
     public StreamTransportExamplePlugin() {}
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(StreamDataAction.INSTANCE, TransportStreamDataAction.class));
+        return List.of(
+            new ActionHandler<>(StreamDataAction.INSTANCE, TransportStreamDataAction.class),
+            new ActionHandler<>(NativeArrowStreamDataAction.INSTANCE, TransportNativeArrowStreamDataAction.class)
+        );
     }
 }

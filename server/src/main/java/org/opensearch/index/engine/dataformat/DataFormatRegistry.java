@@ -8,13 +8,12 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -24,7 +23,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -47,6 +45,8 @@ public class DataFormatRegistry {
     private final Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
+
+    private static final Logger logger = LogManager.getLogger(DataFormatRegistry.class);
 
     /**
      * Creates a registry by discovering all {@link DataFormatPlugin} and {@link SearchBackEndPlugin} implementations
@@ -71,8 +71,11 @@ public class DataFormatRegistry {
         }
 
         for (SearchBackEndPlugin<?> plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
-            for (DataFormat format : plugin.getSupportedFormats()) {
-                readerManagerBuilders.put(format, settings -> plugin.createReaderManager(settings));
+            for (String formatName : plugin.getSupportedFormats()) {
+                DataFormat format = dataFormats.get(formatName);
+                if (format != null) {
+                    readerManagerBuilders.put(format, settings -> plugin.createReaderManager(settings));
+                }
             }
         }
 
@@ -163,26 +166,19 @@ public class DataFormatRegistry {
      * Each reader manager is instantiated by applying the store provider and shard path to the factory registered
      * by the corresponding {@link SearchBackEndPlugin}.
      *
-     * @param indexStoreProvider the store provider, or empty if not available
-     * @param mapperService the mapper service for field mapping resolution (reserved for future filtering)
-     * @param indexSettings the index settings (reserved for future filtering)
-     * @param shardPath the shard path used to create reader managers
+     * @param readerManagerConfig config containing details about how to construct reader manager
      * @return a map from data format to its reader manager
      * @throws IOException if reader manager creation fails
      */
-    public Map<DataFormat, EngineReaderManager<?>> getReaderManagers(
-        Optional<IndexStoreProvider> indexStoreProvider,
-        MapperService mapperService,
-        IndexSettings indexSettings,
-        ShardPath shardPath
-    ) throws IOException {
-        // TODO: Filter based on index settings
-        Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
-        for (Map.Entry<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
-            .entrySet()) {
-            ReaderManagerConfig settings = new ReaderManagerConfig(indexStoreProvider, entry.getKey(), shardPath);
-            readerManagers.put(entry.getKey(), entry.getValue().apply(settings));
+    public Map<DataFormat, EngineReaderManager<?>> getReaderManager(ReaderManagerConfig readerManagerConfig) throws IOException {
+        if (!readerManagerBuilders.containsKey(readerManagerConfig.format())) {
+            throw new IllegalArgumentException(
+                "Unsupported format: ["
+                    + readerManagerConfig.format()
+                    + "]. Reader Manager can be built only for: "
+                    + readerManagerBuilders.keySet()
+            );
         }
-        return readerManagers;
+        return Map.of(readerManagerConfig.format(), readerManagerBuilders.get(readerManagerConfig.format()).apply(readerManagerConfig));
     }
 }

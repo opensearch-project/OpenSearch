@@ -11,12 +11,15 @@ package org.opensearch.index.engine.dataformat.stub;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -63,8 +66,8 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     }
 
     @Override
-    public void deleteFiles(Map<String, Collection<String>> filesToDelete) {
-        // no-op for mock
+    public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) {
+        return Map.of();
     }
 
     @Override
@@ -85,5 +88,10 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     @Override
     public void close() {
         // no-op for mock
+    }
+
+    @Override
+    public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
+        return Map.of(getDataFormat(), new MockReaderManager(getDataFormat().name()));
     }
 }

@@ -42,16 +42,19 @@ public class GetTieringStatusResponse extends ActionResponse implements ToXConte
      * @throws IOException if an I/O error occurs
      */
     public GetTieringStatusResponse(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        tieringStatus = TieringStatus.readFrom(in);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        builder.startObject();
+        tieringStatus.toXContent(builder, params);
+        builder.endObject();
+        return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        tieringStatus.writeTo(out);
     }
 }

@@ -85,6 +85,9 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         this.lastWriterGeneration = in.readLong();
 
         int segmentCount = in.readVInt();
+        if (segmentCount < 0 || segmentCount > in.available()) {
+            throw new IOException("Invalid segment count: " + segmentCount);
+        }
         List<Segment> segmentList = new ArrayList<>(segmentCount);
         for (int i = 0; i < segmentCount; i++) {
             segmentList.add(new Segment(in, directoryResolver));
@@ -227,5 +230,21 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
             }
         }
         return fileNames;
+    }
+
+    @Override
+    public String toString() {
+        return "DataformatAwareCatalogSnapshot{"
+            + "id="
+            + id
+            + ", segments="
+            + segments
+            + ", lastWriterGeneration="
+            + lastWriterGeneration
+            + ", userData="
+            + userData
+            + ", closed="
+            + closed
+            + '}';
     }
 }

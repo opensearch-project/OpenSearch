@@ -141,7 +141,7 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         when(context.hasFetchSourceContext()).thenReturn(false);
         when(context.storedFieldsContext()).thenReturn(null);
         when(context.fetchSourceContext(any(FetchSourceContext.class))).thenReturn(null);
-        when(context.fetchSourceContext()).thenReturn(new FetchSourceContext(true));
+        when(context.fetchSourceContext()).thenReturn(FetchSourceContext.FETCH_SOURCE);
 
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         SearchLookup lookup = new SearchLookup(mock(MapperService.class), (ft, sl) -> null);

@@ -15,6 +15,7 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -49,7 +50,7 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class);
+        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class);
     }
 
     @Override
@@ -141,5 +142,92 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
         assertEquals(Set.of("parquet"), snapshot.getDataFormats());
 
         ensureGreen(INDEX_NAME);
+    }
+
+    public void testCompositeParquetWithLuceneSecondary() throws IOException {
+        String indexName = "test-composite-parquet-lucene";
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats", "lucene")
+            .build();
+
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(indexSettings)
+            .setMapping("field_text", "type=text", "field_keyword", "type=keyword", "field_number", "type=integer")
+            .get();
+        assertTrue("Index creation should be acknowledged", response.isAcknowledged());
+
+        ensureGreen(indexName);
+
+        // Index documents with text, keyword, and integer fields
+        for (int i = 0; i < 10; i++) {
+            IndexResponse indexResponse = client().prepareIndex()
+                .setIndex(indexName)
+                .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", randomInt(100))
+                .get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+
+        ensureGreen(indexName);
+
+        // Refresh
+        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(indexName).get();
+        assertEquals(RestStatus.OK, refreshResponse.getStatus());
+        assertEquals(1, refreshResponse.getSuccessfulShards());
+        assertEquals(1, refreshResponse.getTotalShards());
+        assertEquals(0, refreshResponse.getShardFailures().length);
+
+        ensureGreen(indexName);
+
+        // Flush
+        FlushResponse flushResponse = client().admin().indices().prepareFlush(indexName).get();
+        assertEquals(RestStatus.OK, flushResponse.getStatus());
+        assertEquals(1, flushResponse.getSuccessfulShards());
+        assertEquals(1, flushResponse.getTotalShards());
+        assertEquals(0, flushResponse.getShardFailures().length);
+
+        // Verify commit stats contain a catalog snapshot
+        IndicesStatsResponse statsResponse = client().admin()
+            .indices()
+            .prepareStats(indexName)
+            .clear()
+            .setIndexing(true)
+            .setRefresh(true)
+            .setDocs(true)
+            .setStore(true)
+            .get();
+
+        ShardStats shardStats = statsResponse.getIndex(indexName).getShards()[0];
+
+        assertEquals(10, shardStats.getStats().indexing.getTotal().getIndexCount());
+
+        CommitStats commitStats = shardStats.getCommitStats();
+        assertNotNull(commitStats);
+        assertNotNull(commitStats.getUserData());
+        assertTrue(commitStats.getUserData().containsKey(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY));
+        assertTrue(commitStats.getUserData().containsKey(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY));
+
+        // Deserialize the catalog snapshot and verify it contains BOTH parquet AND lucene data formats
+        DataformatAwareCatalogSnapshot snapshot = DataformatAwareCatalogSnapshot.deserializeFromString(
+            commitStats.getUserData().get(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY),
+            Function.identity()
+        );
+        assertEquals(Set.of("parquet", "lucene"), snapshot.getDataFormats());
+
+        // Verify segment count and that each segment has files for both formats
+        assertFalse("Snapshot should have segments", snapshot.getSegments().isEmpty());
+        for (org.opensearch.index.engine.exec.Segment segment : snapshot.getSegments()) {
+            assertTrue("Each segment should have parquet files", segment.dfGroupedSearchableFiles().containsKey("parquet"));
+            assertTrue("Each segment should have lucene files", segment.dfGroupedSearchableFiles().containsKey("lucene"));
+        }
+
+        ensureGreen(indexName);
     }
 }

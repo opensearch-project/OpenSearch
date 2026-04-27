@@ -19,8 +19,12 @@ import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
+import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistry;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -44,6 +48,8 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
 
     private SearchServiceImpl service;
     private AbstractQueryBuilderProtoUtils queryUtils;
+    private AggregationBuilderProtoConverterRegistry aggregationRegistry;
+    private AggregateProtoConverterRegistry aggregateRegistry;
 
     @Mock
     private NodeClient client;
@@ -62,45 +68,61 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         MockitoAnnotations.openMocks(this);
         when(circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)).thenReturn(circuitBreaker);
         queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
-        service = new SearchServiceImpl(client, queryUtils, circuitBreakerService);
+        aggregationRegistry = new AggregationBuilderProtoConverterRegistryImpl();
+        aggregateRegistry = new AggregateProtoConverterRegistryImpl();
+        service = new SearchServiceImpl(client, queryUtils, aggregationRegistry, aggregateRegistry, circuitBreakerService);
     }
 
     public void testConstructorWithNullClient() {
         // Test that constructor throws IllegalArgumentException when client is null
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(null, queryUtils, circuitBreakerService)
+            () -> new SearchServiceImpl(null, queryUtils, aggregationRegistry, aggregateRegistry, circuitBreakerService)
         );
 
         assertEquals("Client cannot be null", exception.getMessage());
     }
 
     public void testConstructorWithNullQueryUtils() {
-        // Test that constructor throws IllegalArgumentException when queryUtils is null
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(client, null, circuitBreakerService)
+            () -> new SearchServiceImpl(client, null, aggregationRegistry, aggregateRegistry, circuitBreakerService)
         );
 
         assertEquals("Query utils cannot be null", exception.getMessage());
     }
 
-    public void testConstructorWithNullCircuitBreakerService() {
-        // Test that constructor throws IllegalArgumentException when circuitBreakerService is null
+    public void testConstructorWithNullAggregationRegistry() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(client, queryUtils, null)
+            () -> new SearchServiceImpl(client, queryUtils, null, aggregateRegistry, circuitBreakerService)
+        );
+
+        assertEquals("Aggregation registry cannot be null", exception.getMessage());
+    }
+
+    public void testConstructorWithNullAggregateRegistry() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(client, queryUtils, aggregationRegistry, null, circuitBreakerService)
+        );
+
+        assertEquals("Aggregate registry cannot be null", exception.getMessage());
+    }
+
+    public void testConstructorWithNullCircuitBreakerService() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(client, queryUtils, aggregationRegistry, aggregateRegistry, null)
         );
 
         assertEquals("Circuit breaker service cannot be null", exception.getMessage());
     }
 
     public void testConstructorWithBothNull() {
-        // Test that constructor throws IllegalArgumentException when both parameters are null
-        // Should fail on the first null check (client)
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(null, null, circuitBreakerService)
+            () -> new SearchServiceImpl(null, null, aggregationRegistry, aggregateRegistry, circuitBreakerService)
         );
 
         assertEquals("Client cannot be null", exception.getMessage());

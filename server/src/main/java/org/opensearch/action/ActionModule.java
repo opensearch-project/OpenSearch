@@ -500,6 +500,21 @@ import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestPutSearchPipelineAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
+import org.opensearch.storage.action.tiering.CancelTieringAction;
+import org.opensearch.storage.action.tiering.HotToWarmTierAction;
+import org.opensearch.storage.action.tiering.RestCancelTierAction;
+import org.opensearch.storage.action.tiering.RestHotToWarmTierAction;
+import org.opensearch.storage.action.tiering.RestWarmToHotTierAction;
+import org.opensearch.storage.action.tiering.TransportCancelTierAction;
+import org.opensearch.storage.action.tiering.TransportHotToWarmTierAction;
+import org.opensearch.storage.action.tiering.TransportWarmToHotTierAction;
+import org.opensearch.storage.action.tiering.WarmToHotTierAction;
+import org.opensearch.storage.action.tiering.status.GetTieringStatusAction;
+import org.opensearch.storage.action.tiering.status.ListTieringStatusAction;
+import org.opensearch.storage.action.tiering.status.rest.RestGetTieringStatusAction;
+import org.opensearch.storage.action.tiering.status.rest.RestListTieringStatusAction;
+import org.opensearch.storage.action.tiering.status.transport.TransportGetTieringStatusAction;
+import org.opensearch.storage.action.tiering.status.transport.TransportListTieringStatusAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.node.NodeClient;
@@ -841,6 +856,15 @@ public class ActionModule extends AbstractModule {
         actions.register(GetIngestionStateAction.INSTANCE, TransportGetIngestionStateAction.class);
         actions.register(UpdateIngestionStateAction.INSTANCE, TransportUpdateIngestionStateAction.class);
 
+        // Tiering status actions
+        if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+            actions.register(ListTieringStatusAction.INSTANCE, TransportListTieringStatusAction.class);
+            actions.register(GetTieringStatusAction.INSTANCE, TransportGetTieringStatusAction.class);
+            actions.register(CancelTieringAction.INSTANCE, TransportCancelTierAction.class);
+            actions.register(HotToWarmTierAction.INSTANCE, TransportHotToWarmTierAction.class);
+            actions.register(WarmToHotTierAction.INSTANCE, TransportWarmToHotTierAction.class);
+        }
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -1081,6 +1105,15 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPauseIngestionAction());
         registerHandler.accept(new RestResumeIngestionAction());
         registerHandler.accept(new RestGetIngestionStateAction());
+
+        // Tiering status api
+        if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+            registerHandler.accept(new RestListTieringStatusAction());
+            registerHandler.accept(new RestGetTieringStatusAction());
+            registerHandler.accept(new RestCancelTierAction());
+            registerHandler.accept(new RestHotToWarmTierAction());
+            registerHandler.accept(new RestWarmToHotTierAction());
+        }
     }
 
     @Override
