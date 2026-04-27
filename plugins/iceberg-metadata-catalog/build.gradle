@@ -82,12 +82,84 @@ dependencies {
 }
 
 tasks.named("dependencyLicenses").configure {
-  // Iceberg and Jackson artifacts share a common LICENSE/NOTICE; map variants.
+  // Iceberg artifacts share a common LICENSE/NOTICE.
   mapping from: /iceberg-.*/, to: 'iceberg'
+
+  // Jackson artifacts share a common LICENSE/NOTICE.
   mapping from: /jackson-.*/, to: 'jackson'
 }
-tasks.named("thirdPartyAudit").configure { enabled = false }
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+  ignoreViolations(
+    // Caffeine uses sun.misc.Unsafe for atomic field updates and array access.
+    'com.github.benmanes.caffeine.base.UnsafeAccess',
+    'com.github.benmanes.caffeine.cache.BaseMpscLinkedArrayQueue',
+    'com.github.benmanes.caffeine.cache.BBHeader$ReadAndWriteCounterRef',
+    'com.github.benmanes.caffeine.cache.BBHeader$ReadCounterRef',
+    'com.github.benmanes.caffeine.cache.BLCHeader$DrainStatusRef',
+    'com.github.benmanes.caffeine.cache.FD',
+    'com.github.benmanes.caffeine.cache.FDA',
+    'com.github.benmanes.caffeine.cache.FDAR',
+    'com.github.benmanes.caffeine.cache.FDAW',
+    'com.github.benmanes.caffeine.cache.FDAWR',
+    'com.github.benmanes.caffeine.cache.FDR',
+    'com.github.benmanes.caffeine.cache.FDW',
+    'com.github.benmanes.caffeine.cache.FDWR',
+    'com.github.benmanes.caffeine.cache.FS',
+    'com.github.benmanes.caffeine.cache.FSA',
+    'com.github.benmanes.caffeine.cache.FSAR',
+    'com.github.benmanes.caffeine.cache.FSAW',
+    'com.github.benmanes.caffeine.cache.FSAWR',
+    'com.github.benmanes.caffeine.cache.FSR',
+    'com.github.benmanes.caffeine.cache.FSW',
+    'com.github.benmanes.caffeine.cache.FSWR',
+    'com.github.benmanes.caffeine.cache.FW',
+    'com.github.benmanes.caffeine.cache.FWA',
+    'com.github.benmanes.caffeine.cache.FWAR',
+    'com.github.benmanes.caffeine.cache.FWAW',
+    'com.github.benmanes.caffeine.cache.FWAWR',
+    'com.github.benmanes.caffeine.cache.FWR',
+    'com.github.benmanes.caffeine.cache.FWW',
+    'com.github.benmanes.caffeine.cache.FWWR',
+    'com.github.benmanes.caffeine.cache.PD',
+    'com.github.benmanes.caffeine.cache.PDA',
+    'com.github.benmanes.caffeine.cache.PDAR',
+    'com.github.benmanes.caffeine.cache.PDAW',
+    'com.github.benmanes.caffeine.cache.PDAWR',
+    'com.github.benmanes.caffeine.cache.PDR',
+    'com.github.benmanes.caffeine.cache.PDW',
+    'com.github.benmanes.caffeine.cache.PDWR',
+    'com.github.benmanes.caffeine.cache.PS',
+    'com.github.benmanes.caffeine.cache.PSA',
+    'com.github.benmanes.caffeine.cache.PSAR',
+    'com.github.benmanes.caffeine.cache.PSAW',
+    'com.github.benmanes.caffeine.cache.PSAWR',
+    'com.github.benmanes.caffeine.cache.PSR',
+    'com.github.benmanes.caffeine.cache.PSW',
+    'com.github.benmanes.caffeine.cache.PSWR',
+    'com.github.benmanes.caffeine.cache.PW',
+    'com.github.benmanes.caffeine.cache.PWA',
+    'com.github.benmanes.caffeine.cache.PWAR',
+    'com.github.benmanes.caffeine.cache.PWAW',
+    'com.github.benmanes.caffeine.cache.PWAWR',
+    'com.github.benmanes.caffeine.cache.PWR',
+    'com.github.benmanes.caffeine.cache.PWW',
+    'com.github.benmanes.caffeine.cache.PWWR',
+    'com.github.benmanes.caffeine.cache.StripedBuffer',
+    'com.github.benmanes.caffeine.cache.UnsafeAccess',
+    'com.github.benmanes.caffeine.cache.UnsafeRefArrayAccess',
+    'com.github.benmanes.caffeine.SCQHeader$HeadAndTailRef',
+    'com.github.benmanes.caffeine.SingleConsumerQueue',
+    'com.github.benmanes.caffeine.SingleConsumerQueue$Node',
 
-if (tasks.findByName("yamlRestTest") != null) {
-  tasks.named("yamlRestTest").configure { enabled = false }
+    // Iceberg's relocated Guava uses sun.misc.Unsafe for atomics and byte array access.
+    'org.apache.iceberg.relocated.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.iceberg.relocated.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.iceberg.relocated.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.iceberg.relocated.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.iceberg.relocated.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+  )
 }
+

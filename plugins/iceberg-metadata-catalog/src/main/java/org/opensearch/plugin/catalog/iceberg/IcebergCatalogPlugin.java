@@ -51,9 +51,7 @@ public class IcebergCatalogPlugin extends Plugin implements RepositoryPlugin, Ca
     @Override
     public MetadataClient createMetadataClient(CatalogRepository repository) {
         if (!(repository instanceof IcebergCatalogRepository)) {
-            throw new IllegalArgumentException(
-                "expected an IcebergCatalogRepository but got [" + repository.getClass().getName() + "]"
-            );
+            throw new IllegalArgumentException("expected an IcebergCatalogRepository but got [" + repository.getClass().getName() + "]");
         }
         return new IcebergMetadataClient((IcebergCatalogRepository) repository);
     }
