@@ -9,6 +9,8 @@
 package org.opensearch.be.datafusion;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
@@ -30,6 +32,8 @@ import java.util.function.Supplier;
 @ExperimentalApi
 public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionContext, EngineResultStream> {
 
+    private static final Logger logger = LogManager.getLogger(DatafusionSearchExecEngine.class);
+
     private final DatafusionContext datafusionContext;
     private final Supplier<BufferAllocator> allocatorFactory;
 
@@ -45,8 +49,7 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
 
     @Override
     public void prepare(ExecutionContext requestContext) {
-        // TODO: wire Substrait conversion (RelNode → Substrait bytes)
-        byte[] substraitBytes = null;
+        byte[] substraitBytes = requestContext.getFragmentBytes();
         long contextId = datafusionContext.task() != null ? datafusionContext.task().getId() : 0L;
         datafusionContext.setDatafusionQuery(new DatafusionQuery(requestContext.getTableName(), substraitBytes, contextId));
     }

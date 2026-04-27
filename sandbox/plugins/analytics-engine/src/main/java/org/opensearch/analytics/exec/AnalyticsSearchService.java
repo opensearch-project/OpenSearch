@@ -21,7 +21,7 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.tasks.TaskCancelledException;
-import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 
@@ -76,9 +76,9 @@ public class AnalyticsSearchService {
      * @return a response containing field names and result rows
      */
     public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
-        DataFormatAwareEngine compositeEngine = shard.getCompositeEngine();
-        if (compositeEngine == null) {
-            throw new IllegalStateException("No CompositeEngine on " + shard.shardId());
+        IndexReaderProvider readerProvider = shard.getReaderProvider();
+        if (readerProvider == null) {
+            throw new IllegalStateException("No ReaderProvider on " + shard.shardId());
         }
 
         // Select the first available plan alternative whose backend is registered on this node.
@@ -106,7 +106,7 @@ public class AnalyticsSearchService {
         listener.onPreFragmentExecution(queryId, stageId, shardIdStr);
 
         long startNanos = System.nanoTime();
-        try (GatedCloseable<Reader> gatedReader = compositeEngine.acquireReader()) {
+        try (GatedCloseable<Reader> gatedReader = readerProvider.acquireReader()) {
             SearchShardTask searchShardTask = null; // TODO: real task for cancellation
             ExecutionContext ctx = new ExecutionContext(request.getShardId().getIndexName(), searchShardTask, gatedReader.get());
             ctx.setFragmentBytes(selectedPlan.getFragmentBytes());
