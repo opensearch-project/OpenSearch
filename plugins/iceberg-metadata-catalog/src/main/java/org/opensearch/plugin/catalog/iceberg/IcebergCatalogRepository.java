@@ -27,22 +27,13 @@ public class IcebergCatalogRepository extends CatalogRepository {
     public static final String TYPE = "iceberg_s3tables";
 
     /** ARN of the S3 Tables bucket that stores the warehouse data files. */
-    public static final Setting<String> BUCKET_ARN_SETTING = Setting.simpleString(
-        "bucket_arn",
-        Setting.Property.NodeScope
-    );
+    public static final Setting<String> BUCKET_ARN_SETTING = Setting.simpleString("bucket_arn", Setting.Property.NodeScope);
 
     /** AWS region of the S3 Tables bucket and the REST catalog endpoint. */
-    public static final Setting<String> REGION_SETTING = Setting.simpleString(
-        "region",
-        Setting.Property.NodeScope
-    );
+    public static final Setting<String> REGION_SETTING = Setting.simpleString("region", Setting.Property.NodeScope);
 
     /** URL of the Iceberg REST catalog service. */
-    public static final Setting<String> CATALOG_ENDPOINT_SETTING = Setting.simpleString(
-        "catalog_endpoint",
-        Setting.Property.NodeScope
-    );
+    public static final Setting<String> CATALOG_ENDPOINT_SETTING = Setting.simpleString("catalog_endpoint", Setting.Property.NodeScope);
 
     /**
      * Creates a new repository from the given metadata.
