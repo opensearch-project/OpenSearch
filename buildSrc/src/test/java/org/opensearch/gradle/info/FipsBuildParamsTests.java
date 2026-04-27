@@ -14,6 +14,30 @@ import java.util.function.Function;
 
 public class FipsBuildParamsTests extends GradleUnitTestCase {
 
+    public void testIsInFipsApprovedOnlyMode() {
+        FipsBuildParams.init(cryptoEntryFnWithStringParam);
+
+        FipsBuildParams.fipsModeEnvSupplier = () -> "true";
+        assertTrue(FipsBuildParams.isInFipsApprovedOnlyMode());
+
+        FipsBuildParams.fipsModeEnvSupplier = () -> "TRUE";
+        assertTrue(FipsBuildParams.isInFipsApprovedOnlyMode());
+
+        FipsBuildParams.fipsModeEnvSupplier = () -> "false";
+        assertFalse(FipsBuildParams.isInFipsApprovedOnlyMode());
+
+        FipsBuildParams.fipsModeEnvSupplier = () -> null;
+        assertFalse(FipsBuildParams.isInFipsApprovedOnlyMode());
+
+        // Not in FIPS mode — should always be false regardless of env var
+        FipsBuildParams.init(param -> null);
+        FipsBuildParams.fipsModeEnvSupplier = () -> "true";
+        assertFalse(FipsBuildParams.isInFipsApprovedOnlyMode());
+
+        // Reset
+        FipsBuildParams.fipsModeEnvSupplier = () -> System.getenv("OPENSEARCH_FIPS_MODE");
+    }
+
     public void testIsInFipsMode() {
         FipsBuildParams.init(cryptoEntryFnWithStringParam);
         assertTrue(FipsBuildParams.isInFipsMode());
