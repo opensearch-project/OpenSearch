@@ -162,6 +162,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             if (svc == null) {
                 throw new IllegalStateException("DataFusionService not initialized");
             }
+            String mode = plugin.getClusterService() != null
+                ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
+                : "streaming";
+            if ("memtable".equals(mode)) {
+                return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+            }
             return new DatafusionReduceSink(ctx, svc.getNativeRuntime());
         };
     }

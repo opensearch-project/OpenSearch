@@ -27,9 +27,11 @@
 
 use std::sync::Arc;
 
+use arrow_array::RecordBatch;
 use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::common::DataFusionError;
 use datafusion::catalog::streaming::StreamingTable;
+use datafusion::common::DataFusionError;
+use datafusion::datasource::MemTable;
 use datafusion::execution::memory_pool::MemoryPool;
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::{SendableRecordBatchStream, SessionStateBuilder};
@@ -100,6 +102,31 @@ impl LocalSession {
                 ))
             })?;
         Ok(sender)
+    }
+
+    /// Registers an in-memory input on the session under `name`, holding all
+    /// `batches` in a single [`MemTable`] partition.
+    ///
+    /// Unlike [`Self::register_partition`], this method does not return a
+    /// channel sender — the batches are fully materialized in the table. Used
+    /// by the memtable variant of the coordinator-reduce sink, which buffers
+    /// shard responses in Java and hands them across in one call.
+    pub fn register_memtable(
+        &mut self,
+        name: &str,
+        schema: SchemaRef,
+        batches: Vec<RecordBatch>,
+    ) -> Result<(), DataFusionError> {
+        let table = MemTable::try_new(schema, vec![batches])?;
+        self.ctx
+            .register_table(name, Arc::new(table))
+            .map_err(|e| {
+                DataFusionError::Execution(format!(
+                    "Failed to register memtable '{}': {}",
+                    name, e
+                ))
+            })?;
+        Ok(())
     }
 
     /// Decodes a Substrait plan against the session and returns the resulting
@@ -239,6 +266,63 @@ mod tests {
             }
         }
         producer.join().expect("producer thread");
+        assert_eq!(total, 45);
+    }
+
+    #[tokio::test]
+    async fn execute_substrait_sums_memtable_input() {
+        let env = test_runtime_env();
+        let mut session = LocalSession::new(&env);
+        let schema = i64_schema("x");
+
+        let batches = vec![
+            i64_batch(&schema, &[1, 2, 3]),
+            i64_batch(&schema, &[4, 5, 6]),
+            i64_batch(&schema, &[7, 8, 9]),
+        ];
+        session
+            .register_memtable("input-0", Arc::clone(&schema), batches)
+            .expect("register memtable");
+
+        // Build the Substrait bytes from a SQL-built logical plan against a
+        // matching session — the plan only references `input-0`, so it is
+        // portable onto our real session.
+        let substrait_bytes = {
+            let env = test_runtime_env();
+            let mut producer = LocalSession::new(&env);
+            producer
+                .register_memtable("input-0", Arc::clone(&schema), vec![])
+                .expect("producer register");
+            let df = producer
+                .ctx
+                .sql("SELECT SUM(x) AS total FROM \"input-0\"")
+                .await
+                .expect("sum parses");
+            let plan = df.logical_plan().clone();
+            let substrait = to_substrait_plan(&plan, &producer.ctx.state())
+                .expect("to_substrait");
+            let mut buf = Vec::new();
+            substrait.encode(&mut buf).expect("encode");
+            buf
+        };
+
+        let mut stream = session
+            .execute_substrait(&substrait_bytes)
+            .await
+            .expect("execute");
+
+        let mut total: i64 = 0;
+        while let Some(batch) = stream.next().await {
+            let batch = batch.expect("batch ok");
+            let col = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .expect("i64 col");
+            for i in 0..col.len() {
+                total += col.value(i);
+            }
+        }
         assert_eq!(total, 45);
     }
 }

@@ -57,6 +57,7 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_LOCAL_PLAN;
     private static final MethodHandle SENDER_SEND;
     private static final MethodHandle SENDER_CLOSE;
+    private static final MethodHandle REGISTER_MEMTABLE;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -185,6 +186,23 @@ public final class NativeBridge {
 
         // void df_sender_close(sender_ptr)
         SENDER_CLOSE = linker.downcallHandle(lib.find("df_sender_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+
+        // i64 df_register_memtable(session_ptr, input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len,
+        //                          array_ptrs, schema_ptrs, n_batches)
+        REGISTER_MEMTABLE = linker.downcallHandle(
+            lib.find("df_register_memtable").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
     }
 
     private NativeBridge() {}
@@ -392,6 +410,34 @@ public final class NativeBridge {
     /** Closes the sender, signalling end-of-input. Tolerates a zero pointer. */
     public static void senderClose(long senderPtr) {
         NativeCall.invokeVoid(SENDER_CLOSE, senderPtr);
+    }
+
+    /**
+     * Memtable variant of {@link #registerPartitionStream}: hands across a list of
+     * already-exported Arrow C Data batches in two parallel pointer arrays so the native side can
+     * build a {@code MemTable} in one shot. Native takes ownership of all FFI structs on success.
+     */
+    public static long registerMemtable(long sessionPtr, String inputId, byte[] schemaIpc, long[] arrayPtrs, long[] schemaPtrs) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        if (arrayPtrs.length != schemaPtrs.length) {
+            throw new IllegalArgumentException(
+                "arrayPtrs.length (" + arrayPtrs.length + ") != schemaPtrs.length (" + schemaPtrs.length + ")"
+            );
+        }
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            return call.invoke(
+                REGISTER_MEMTABLE,
+                sessionPtr,
+                id.segment(),
+                id.len(),
+                call.bytes(schemaIpc),
+                (long) schemaIpc.length,
+                call.longs(arrayPtrs),
+                call.longs(schemaPtrs),
+                (long) arrayPtrs.length
+            );
+        }
     }
 
     public static void cacheManagerAddFiles(long runtimePtr, String[] filePaths) {}

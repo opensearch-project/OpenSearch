@@ -633,3 +633,72 @@ pub unsafe fn sender_close(sender_ptr: i64) {
         let _ = Box::from_raw(sender_ptr as *mut PartitionStreamSender);
     }
 }
+
+/// Imports a batch of Arrow C Data structures into a [`Vec<RecordBatch>`] and
+/// registers them as an in-memory table on the given session under `input_id`.
+///
+/// The Java side has accumulated all shard responses, exported each
+/// `VectorSchemaRoot` to a paired `FFI_ArrowArray` / `FFI_ArrowSchema`, and
+/// passed the raw pointers as two parallel slices. Rust takes ownership of
+/// the FFI structs on success.
+///
+/// On error ownership is released back to Rust's drop impls (the imported
+/// structs go out of scope without being forgotten).
+///
+/// # Safety
+/// - `session_ptr` must be a valid, non-zero pointer returned by
+///   `create_local_session`.
+/// - `array_ptrs` and `schema_ptrs` must point to populated FFI structs owned
+///   by the caller; ownership transfers to Rust on success.
+pub unsafe fn register_memtable(
+    session_ptr: i64,
+    input_id: &str,
+    schema_ipc: &[u8],
+    array_ptrs: &[i64],
+    schema_ptrs: &[i64],
+) -> Result<(), DataFusionError> {
+    if array_ptrs.len() != schema_ptrs.len() {
+        return Err(DataFusionError::Execution(format!(
+            "register_memtable: array_ptrs.len()={} != schema_ptrs.len()={}",
+            array_ptrs.len(),
+            schema_ptrs.len()
+        )));
+    }
+    let session = &mut *(session_ptr as *mut LocalSession);
+
+    let mut cursor = Cursor::new(schema_ipc);
+    let reader = StreamReader::try_new(&mut cursor, None).map_err(|e| {
+        DataFusionError::Execution(format!(
+            "Failed to decode Arrow IPC schema for '{}': {}",
+            input_id, e
+        ))
+    })?;
+    let table_schema = reader.schema();
+
+    // The IPC schema is what the substrait plan was compiled against — same as the streaming
+    // sink registers. The exported VSRs may arrive with batch-level schemas that differ in
+    // nullability/metadata/field-naming details; the streaming sink tolerates this because
+    // DataFusion's streaming source addresses columns by index. `MemTable::try_new` instead
+    // checks each batch's schema against the table schema. To stay compatible with both
+    // shapes, rebuild each imported batch with `table_schema` — the column data is reused
+    // verbatim, but the schema header is the planner's.
+    let mut batches = Vec::with_capacity(array_ptrs.len());
+    for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
+        let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
+        let ffi_schema = FFI_ArrowSchema::from_raw(schema_ptr as *mut FFI_ArrowSchema);
+        let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+            DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
+        })?;
+        let struct_array = StructArray::from(array_data);
+        let raw = RecordBatch::from(struct_array);
+        let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec()).map_err(|e| {
+            DataFusionError::Execution(format!(
+                "Failed to align imported batch to registered schema for '{}': {}",
+                input_id, e
+            ))
+        })?;
+        batches.push(aligned);
+    }
+
+    session.register_memtable(input_id, table_schema, batches)
+}
