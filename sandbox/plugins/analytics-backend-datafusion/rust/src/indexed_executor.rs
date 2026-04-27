@@ -155,7 +155,12 @@ pub async fn execute_indexed_query(
             ));
         }
         FilterClass::SingleCollector => {
-            let extraction = extraction.as_ref().unwrap();
+            let extraction = extraction.as_ref().ok_or_else(|| {
+                DataFusionError::Internal(
+                    "classify_filter returned SingleCollector but extraction is None"
+                        .into(),
+                )
+            })?;
             let bytes = single_collector_bytes(&extraction.tree)
                 .ok_or_else(|| {
                     DataFusionError::Internal(
@@ -190,7 +195,17 @@ pub async fn execute_indexed_query(
                     segment.segment_ord,
                     chunk.doc_min,
                     chunk.doc_max,
-                )?;
+                )
+                .map_err(|e| {
+                    format!(
+                        "FfmSegmentCollector::create(provider={}, seg={}, doc_range=[{},{})): {}",
+                        provider.key(),
+                        segment.segment_ord,
+                        chunk.doc_min,
+                        chunk.doc_max,
+                        e
+                    )
+                })?;
                 let pruner = Arc::new(PagePruner::new(
                     &schema_for_pruner,
                     Arc::clone(&segment.metadata),
@@ -212,7 +227,11 @@ pub async fn execute_indexed_query(
             })
         }
         FilterClass::Tree => {
-            let extraction = extraction.unwrap();
+            let extraction = extraction.ok_or_else(|| {
+                DataFusionError::Internal(
+                    "classify_filter returned Tree but extraction is None".into(),
+                )
+            })?;
             // Normalize: push NOTs to leaves (De Morgan) then flatten nested
             // same-kind connectives. Flatten after push_not_down so the
             // connective changes from De Morgan (e.g. NOT(AND(...)) -> OR(NOT...))
@@ -276,7 +295,9 @@ pub async fn execute_indexed_query(
                     ));
                 }
 
-                let resolved = tree.resolve(&per_leaf)?;
+                let resolved = tree
+                    .resolve(&per_leaf)
+                    .map_err(|e| format!("tree.resolve for segment {}: {}", segment.segment_ord, e))?;
                 let resolved = Arc::new(resolved);
 
                 let pruner = Arc::new(PagePruner::new(

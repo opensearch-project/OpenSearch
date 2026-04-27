@@ -87,7 +87,14 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         let t = std::time::Instant::now();
 
         // Collect bitset from backend → RG-relative RoaringBitmap.
-        let bitset = self.collector.collect_packed_u64_bitset(min_doc, max_doc)?;
+        let bitset = self.collector
+            .collect_packed_u64_bitset(min_doc, max_doc)
+            .map_err(|e| {
+                format!(
+                    "collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
+                    rg.index, min_doc, max_doc, e
+                )
+            })?;
         if let Some(ref c) = self.ffm_collector_calls {
             c.add(1);
         }

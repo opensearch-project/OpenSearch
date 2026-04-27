@@ -289,7 +289,8 @@ impl RowGroupBitsetSource for TreeBitsetSource {
                 &self.page_pruner,
                 &self.pruning_predicates,
                 self.page_prune_metrics.as_ref(),
-            )?;
+            )
+            .map_err(|e| format!("TreeBitsetSource::prefetch_rg(rg={}): {}", rg.index, e))?;
         if prefetch.candidates.is_empty() {
             return Ok(None);
         }

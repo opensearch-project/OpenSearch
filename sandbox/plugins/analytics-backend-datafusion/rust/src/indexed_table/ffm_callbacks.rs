@@ -38,7 +38,12 @@ static CREATE_COLLECTOR: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 static COLLECT_DOCS: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 static RELEASE_COLLECTOR: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 
-/// Registered by Java at startup.
+/// Registered by Java at startup. Stores function pointers into atomic
+/// slots. Each call to this entry replaces the slots wholesale.
+///
+/// Not annotated `#[ffm_safe]` because that macro is specific to the
+/// `-> i64` error-pointer convention. We use a manual `catch_unwind`
+/// instead, though the body (atomic stores) can't realistically panic.
 #[no_mangle]
 pub unsafe extern "C" fn df_register_filter_tree_callbacks(
     create_provider: CreateProviderFn,
@@ -47,11 +52,18 @@ pub unsafe extern "C" fn df_register_filter_tree_callbacks(
     collect_docs: CollectDocsFn,
     release_collector: ReleaseCollectorFn,
 ) {
-    CREATE_PROVIDER.store(create_provider as *mut (), Ordering::Release);
-    RELEASE_PROVIDER.store(release_provider as *mut (), Ordering::Release);
-    CREATE_COLLECTOR.store(create_collector as *mut (), Ordering::Release);
-    COLLECT_DOCS.store(collect_docs as *mut (), Ordering::Release);
-    RELEASE_COLLECTOR.store(release_collector as *mut (), Ordering::Release);
+    // catch_unwind is defense-in-depth: atomic stores shouldn't panic,
+    // but if they ever did (e.g. allocator OOM if we grew the atomics),
+    // unwinding across the FFM boundary is UB. Swallow the panic
+    // silently — there's no way to report it back to Java for a
+    // `-> ()` function.
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        CREATE_PROVIDER.store(create_provider as *mut (), Ordering::Release);
+        RELEASE_PROVIDER.store(release_provider as *mut (), Ordering::Release);
+        CREATE_COLLECTOR.store(create_collector as *mut (), Ordering::Release);
+        COLLECT_DOCS.store(collect_docs as *mut (), Ordering::Release);
+        RELEASE_COLLECTOR.store(release_collector as *mut (), Ordering::Release);
+    }));
 }
 
 fn load_create_provider() -> Result<CreateProviderFn, String> {
@@ -181,7 +193,20 @@ impl RowGroupDocsCollector for FfmSegmentCollector {
         if n < 0 {
             return Err(format!("collectDocs(key={}) failed: {}", self.key, n));
         }
-        buf.truncate(n as usize);
+        // Defensive: the Java callback is contracted to return
+        // `wordsWritten <= outWordCap`. If it lied, the buffer already
+        // overflowed, but truncating won't recover the clobbered heap.
+        // Detect the violation and fail loudly so the Java callback bug
+        // is surfaced before downstream code consumes the tainted bitset.
+        let n = n as usize;
+        if n > word_count {
+            return Err(format!(
+                "collectDocs(key={}) reported wordsWritten={} > capacity={}; \
+                 callback contract violated (possible heap overflow)",
+                self.key, n, word_count,
+            ));
+        }
+        buf.truncate(n);
         Ok(buf)
     }
 }
