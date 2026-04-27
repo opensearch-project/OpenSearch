@@ -22,19 +22,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Abstract base class for all DataFusion REST integration tests in the sandbox QA package.
+ * Abstract base class for all analytics REST integration tests in the sandbox QA package.
  * <p>
  * Handles cluster-level concerns: preserving cluster/indices across test methods,
  * loading classpath resources, JSON escaping, and common assertion helpers.
  * <p>
- * Test data provisioning (e.g. ClickBench dataset) is handled separately by
- * {@link ClickBenchTestFixture} to keep cluster config orthogonal to test data.
- * Future test classes (LuceneScanRestIT, etc.) can extend this without needing
- * ClickBench data.
+ * Test data provisioning is handled separately by dataset-specific helpers
+ * (e.g. {@link ClickBenchTestHelper}) to keep cluster config orthogonal to test data.
  */
-public abstract class DataFusionRestTestCase extends OpenSearchRestTestCase {
+public abstract class AnalyticsRestTestCase extends OpenSearchRestTestCase {
 
-    protected static final Logger logger = LogManager.getLogger(DataFusionRestTestCase.class);
+    protected static final Logger logger = LogManager.getLogger(AnalyticsRestTestCase.class);
 
     @Override
     protected boolean preserveClusterUponCompletion() {
