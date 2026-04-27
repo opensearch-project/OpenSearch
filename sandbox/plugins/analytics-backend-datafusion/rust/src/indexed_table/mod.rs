@@ -62,6 +62,7 @@ pub mod metrics;
 pub mod page_pruner;
 pub mod parquet_bridge;
 pub mod partitioning;
+pub mod row_selection;
 pub mod segment_info;
 pub mod stream;
 pub mod substrait_to_tree;

@@ -73,6 +73,7 @@ use super::{LeafBitmapSource, RgEvalContext, TreeEvaluator, TreePrefetch};
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::bool_tree::ResolvedNode;
 use crate::indexed_table::page_pruner::PagePruner;
+use crate::indexed_table::row_selection::PositionMap;
 
 /// In-process Rust `TreeEvaluator`. Stateless — all per-RG state lives in the
 /// `TreePrefetch` value threaded through `RowGroupBitsetSource`.
@@ -113,12 +114,11 @@ impl TreeEvaluator for BitmapTreeEvaluator {
         state: &TreePrefetch,
         batch: &RecordBatch,
         rg_first_row: i64,
+        position_map: &crate::indexed_table::row_selection::PositionMap,
         batch_offset: usize,
         batch_len: usize,
     ) -> Result<BooleanArray, String> {
-        // Absolute doc ID of row 0 of this batch
-        let batch_first_doc = rg_first_row + batch_offset as i64;
-        on_batch_node(tree, state, batch, batch_first_doc, batch_len)
+        on_batch_node(tree, state, batch, rg_first_row, position_map, batch_offset, batch_len)
     }
 }
 
@@ -456,14 +456,16 @@ fn on_batch_node(
     node: &ResolvedNode,
     state: &TreePrefetch,
     batch: &RecordBatch,
-    batch_first_doc: i64,
+    rg_first_row: i64,
+    position_map: &PositionMap,
+    batch_offset: usize,
     batch_len: usize,
 ) -> Result<BooleanArray, String> {
     match node {
         ResolvedNode::And(children) => {
             let mut optional_result_bitmap: Option<BooleanArray> = None;
             for child in children {
-                let child_bitmap = on_batch_node(child, state, batch, batch_first_doc, batch_len)?;
+                let child_bitmap = on_batch_node(child, state, batch, rg_first_row, position_map, batch_offset, batch_len)?;
                 optional_result_bitmap = Some(match optional_result_bitmap {
                     None => child_bitmap,
                     Some(result_bitmap) => and(&result_bitmap, &child_bitmap).map_err(|e| e.to_string())?,
@@ -482,7 +484,7 @@ fn on_batch_node(
         ResolvedNode::Or(children) => {
             let mut optional_result_bitmap: Option<BooleanArray> = None;
             for child in children {
-                let child_bitmap = on_batch_node(child, state, batch, batch_first_doc, batch_len)?;
+                let child_bitmap = on_batch_node(child, state, batch, rg_first_row, position_map, batch_offset, batch_len)?;
                 optional_result_bitmap = Some(match optional_result_bitmap {
                     None => child_bitmap,
                     Some(result_bitmap) => or(&result_bitmap, &child_bitmap).map_err(|e| e.to_string())?,
@@ -499,7 +501,7 @@ fn on_batch_node(
             Ok(optional_result_bitmap.unwrap_or_else(|| all_false(batch_len)))
         }
         ResolvedNode::Not(child) => {
-            let child_bitmap = on_batch_node(child, state, batch, batch_first_doc, batch_len)?;
+            let child_bitmap = on_batch_node(child, state, batch, rg_first_row, position_map, batch_offset, batch_len)?;
             not(&child_bitmap).map_err(|e| e.to_string())
         }
         ResolvedNode::Collector { collector, .. } => {
@@ -509,7 +511,14 @@ fn on_batch_node(
                 .iter()
                 .find_map(|(i, bm)| if *i == key { Some(bm) } else { None })
                 .ok_or_else(|| format!("Phase 2: leaf bitmap missing for key {:#x}", key))?;
-            Ok(bitmap_to_batch_mask(bitmap, state.min_doc, batch_first_doc, batch_len))
+            Ok(bitmap_to_batch_mask(
+                bitmap,
+                state.min_doc,
+                rg_first_row,
+                position_map,
+                batch_offset,
+                batch_len,
+            ))
         }
         ResolvedNode::Predicate { pred } => {
             predicate_to_batch_mask(batch, &pred.column, &pred.op, &pred.value)
@@ -517,23 +526,40 @@ fn on_batch_node(
     }
 }
 
+/// Translate a Collector leaf's bitmap (in min-doc-relative coordinates) to
+/// a per-batch `BooleanArray`.
+///
+/// With block-granular RowSelection the delivered rows are a compacted
+/// subset of the RG, not a contiguous span. `position_map` lets us recover
+/// which RG-relative position each delivered row came from; from there we
+/// compute the absolute doc id and look it up in `bm`.
+///
+/// `batch_offset` is the delivered-row index of the first row in this
+/// batch; delivered row `batch_offset + i` maps to RG position
+/// `position_map.rg_position(batch_offset + i)`.
 fn bitmap_to_batch_mask(
     bm: &RoaringBitmap,
     min_doc: i32,
-    batch_first_doc: i64,
+    rg_first_row: i64,
+    position_map: &PositionMap,
+    batch_offset: usize,
     batch_len: usize,
 ) -> BooleanArray {
-    // Write bits directly into a packed bitmap (8× less memory than Vec<bool>
-    // and skips the pack-scan that BooleanArray::from(Vec<bool>) would do).
     use datafusion::arrow::array::builder::BooleanBufferBuilder;
     let mut builder = BooleanBufferBuilder::new(batch_len);
-    builder.append_n(batch_len, false);
-    let anchor = batch_first_doc - min_doc as i64;
-    for row in 0..batch_len {
-        let bit = anchor + row as i64;
-        if bit >= 0 && bit <= u32::MAX as i64 && bm.contains(bit as u32) {
-            builder.set_bit(row, true);
-        }
+    for i in 0..batch_len {
+        let rg_pos = match position_map.rg_position(batch_offset + i) {
+            Some(p) => p,
+            // Defensive: batch rows beyond delivered_count → false.
+            None => {
+                builder.append(false);
+                continue;
+            }
+        };
+        let abs_doc = rg_first_row + rg_pos as i64;
+        let bit = abs_doc - min_doc as i64;
+        let hit = bit >= 0 && bit <= u32::MAX as i64 && bm.contains(bit as u32);
+        builder.append(hit);
     }
     BooleanArray::new(builder.finish(), None)
 }
@@ -579,9 +605,7 @@ fn all_false(n: usize) -> BooleanArray {
     BooleanArray::from(vec![false; n])
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// CollectorLeafBitmaps — default LeafBitmapSource for today's flow
-// ══════════════════════════════════════════════════════════════════════
+/// CollectorLeafBitmaps — default LeafBitmapSource for today's flow
 
 /// Expands index-backed `RowGroupDocsCollector` output into RoaringBitmaps.
 /// Pulls the collector directly off the `ResolvedNode::Collector` passed to
@@ -643,6 +667,7 @@ mod tests {
     use crate::indexed_table::bool_tree::{ResolvedNode, ResolvedPredicate};
     use datafusion::arrow::array::Int32Array;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::parquet::arrow::arrow_reader::{RowSelection, RowSelector};
 
     /// Deterministic bitmap source for tests.
     struct FixedLeafBitmaps {
@@ -779,8 +804,12 @@ mod tests {
         )
         .unwrap();
         // Batch covers docs [0, 8). Match bitmap {1,3,5}.
+        // Full-scan position map: delivered index == RG position.
+        let pm = PositionMap::from_selection(&RowSelection::from(vec![
+            RowSelector::select(8),
+        ]));
         let mask = BitmapTreeEvaluator
-            .on_batch(&tree, &state, &batch, 0, 0, 8)
+            .on_batch(&tree, &state, &batch, 0, &pm, 0, 8)
             .unwrap();
         let expected = BooleanArray::from(vec![
             false, true, false, true, false, true, false, false,
@@ -788,29 +817,39 @@ mod tests {
         assert_eq!(mask, expected);
     }
 
+    /// Identity position map over `rg_num_rows`. Delivered index == RG
+    /// position — matches the pre-block-granular full-scan behaviour and
+    /// keeps the per-test expected values unchanged.
+    fn identity_pm(rg_num_rows: usize) -> PositionMap {
+        PositionMap::from_selection(&RowSelection::from(vec![
+            RowSelector::select(rg_num_rows),
+        ]))
+    }
+
     #[test]
     fn bitmap_to_batch_mask_anchors_correctly() {
-        // min_doc = 100, bitmap has {101, 105}. Batch starts at doc 100, length 8.
-        // row i corresponds to doc (100 + i); relative bit index = i.
-        // Bitmap is in min_doc-relative space, so {101, 105} means bits at
-        // relative positions 1 and 5 → rows 1 and 5 in this batch.
+        // min_doc = 100, bitmap has {1, 5} (min_doc-relative).
+        // rg_first_row = 100, batch starts at offset 0, length 8.
+        // For each row i: rg_pos = i, abs_doc = 100 + i,
+        // rel_doc = abs_doc - min_doc = i. bits set at i=1 and i=5.
         let bm = {
             let mut b = RoaringBitmap::new();
             b.insert(1);
             b.insert(5);
             b
         };
-        let mask = bitmap_to_batch_mask(&bm, /*min_doc*/ 100, /*batch_first_doc*/ 100, 8);
+        let pm = identity_pm(8);
+        let mask = bitmap_to_batch_mask(&bm, /*min_doc*/ 100, /*rg_first_row*/ 100, &pm, 0, 8);
         let got: Vec<bool> = (0..8).map(|i| mask.value(i)).collect();
         assert_eq!(got, vec![false, true, false, false, false, true, false, false]);
     }
 
     #[test]
     fn bitmap_to_batch_mask_handles_batch_offset_within_rg() {
-        // min_doc = 0, batch_first_doc = 4 (batch is second half of the RG).
-        // Bitmap has {0, 5, 9} in rg-relative space.
-        // anchor = 4 - 0 = 4. Row i's relative bit = 4 + i.
-        // Rows: 0→bit 4 (not in bm) | 1→bit 5 (yes) | 2→bit 6 (no) | 3→bit 7 (no)
+        // min_doc = 0, rg_first_row = 0, batch starts at rg offset 4, len 4.
+        // Identity position map over rg_num_rows=16.
+        // For row i: rg_pos = 4 + i, abs_doc = 4 + i, rel = 4 + i.
+        // Bitmap bits {0, 5, 9} → rows where (4+i) in {0,5,9} → i=1, i=5 (out of range), so only i=1.
         let bm = {
             let mut b = RoaringBitmap::new();
             b.insert(0);
@@ -818,7 +857,8 @@ mod tests {
             b.insert(9);
             b
         };
-        let mask = bitmap_to_batch_mask(&bm, 0, 4, 4);
+        let pm = identity_pm(16);
+        let mask = bitmap_to_batch_mask(&bm, 0, 0, &pm, 4, 4);
         let got: Vec<bool> = (0..4).map(|i| mask.value(i)).collect();
         assert_eq!(got, vec![false, true, false, false]);
     }
@@ -826,7 +866,8 @@ mod tests {
     #[test]
     fn bitmap_to_batch_mask_empty_bitmap_produces_all_false() {
         let bm = RoaringBitmap::new();
-        let mask = bitmap_to_batch_mask(&bm, 0, 0, 5);
+        let pm = identity_pm(5);
+        let mask = bitmap_to_batch_mask(&bm, 0, 0, &pm, 0, 5);
         assert_eq!(mask.true_count(), 0);
         assert_eq!(mask.len(), 5);
     }
@@ -838,8 +879,38 @@ mod tests {
             b.insert(0);
             b
         };
-        let mask = bitmap_to_batch_mask(&bm, 0, 0, 0);
+        let pm = identity_pm(1);
+        let mask = bitmap_to_batch_mask(&bm, 0, 0, &pm, 0, 0);
         assert_eq!(mask.len(), 0);
+    }
+
+    #[test]
+    fn bitmap_to_batch_mask_respects_position_map() {
+        // RG has 10 rows; RowSelection selects rows [0..3] and [7..10],
+        // skipping [3..7]. Delivered rows = 6 (3 + 3).
+        // delivered idx 0 → rg_pos 0
+        // delivered idx 1 → rg_pos 1
+        // delivered idx 2 → rg_pos 2
+        // delivered idx 3 → rg_pos 7
+        // delivered idx 4 → rg_pos 8
+        // delivered idx 5 → rg_pos 9
+        // Bitmap (min_doc-relative, min_doc = 0, rg_first_row = 0) {2, 8}.
+        // Expected mask per delivered index: [F,F,T,F,T,F]
+        let sel = RowSelection::from(vec![
+            RowSelector::select(3),
+            RowSelector::skip(4),
+            RowSelector::select(3),
+        ]);
+        let pm = PositionMap::from_selection(&sel);
+        let bm = {
+            let mut b = RoaringBitmap::new();
+            b.insert(2);
+            b.insert(8);
+            b
+        };
+        let mask = bitmap_to_batch_mask(&bm, 0, 0, &pm, 0, 6);
+        let got: Vec<bool> = (0..6).map(|i| mask.value(i)).collect();
+        assert_eq!(got, vec![false, false, true, false, true, false]);
     }
 
     // ── Phase 2 short-circuit ─────────────────────────────────────────
@@ -908,7 +979,7 @@ mod tests {
         let batch = RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![0i32; 4]))])
             .unwrap();
 
-        let mask = on_batch_node(&tree, &state, &batch, 0, 4)
+        let mask = on_batch_node(&tree, &state, &batch, 0, &identity_pm(4), 0, 4)
             .expect("AND should short-circuit on all-false acc, skipping poison leaf");
         assert_eq!(mask.true_count(), 0);
     }
@@ -938,7 +1009,7 @@ mod tests {
         let batch = RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![0i32; 4]))])
             .unwrap();
 
-        let mask = on_batch_node(&tree, &state, &batch, 0, 4)
+        let mask = on_batch_node(&tree, &state, &batch, 0, &identity_pm(4), 0, 4)
             .expect("OR should short-circuit on all-true acc, skipping poison leaf");
         assert_eq!(mask.true_count(), 4);
     }

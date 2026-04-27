@@ -25,6 +25,7 @@ use std::sync::Arc;
 
 use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::record_batch::RecordBatch;
+use roaring::RoaringBitmap;
 
 use super::{PrefetchedRg, RowGroupBitsetSource};
 use crate::indexed_table::index::{BitsetMode, RowGroupDocsCollector};
@@ -103,13 +104,18 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             return Ok(None);
         }
 
-        let offsets: Vec<u64> = final_ids
-            .iter()
-            .map(|&id| (id - rg.first_row) as u64)
-            .collect();
+        // Convert RG-absolute doc IDs to RG-relative positions and pack into
+        // a RoaringBitmap.
+        let mut candidates = RoaringBitmap::new();
+        for &id in &final_ids {
+            let rel = id - rg.first_row;
+            if rel >= 0 && rel <= u32::MAX as i64 {
+                candidates.insert(rel as u32);
+            }
+        }
 
         Ok(Some(PrefetchedRg::without_context(
-            offsets,
+            candidates,
             t.elapsed().as_nanos() as u64,
         )))
     }
@@ -118,6 +124,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         &self,
         _rg_state: &dyn std::any::Any,
         _rg_first_row: i64,
+        _position_map: &crate::indexed_table::row_selection::PositionMap,
         _batch_offset: usize,
         _batch_len: usize,
         _batch: &RecordBatch,
@@ -219,7 +226,8 @@ mod tests {
 
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("has matches");
-        assert_eq!(prefetched.offsets, vec![0, 3, 7]);
+        let got: Vec<u32> = prefetched.candidates.iter().collect();
+        assert_eq!(got, vec![0u32, 3, 7]);
     }
 
     #[test]
@@ -232,7 +240,13 @@ mod tests {
             schema,
             vec![Arc::new(datafusion::arrow::array::Int32Array::from(vec![1, 2, 3]))],
         ).unwrap();
-        assert!(eval.on_batch_mask(&(), 0, 0, 3, &batch).unwrap().is_none());
+        // Empty position map is fine; SingleCollectorEvaluator ignores it.
+        let pm = crate::indexed_table::row_selection::PositionMap::from_selection(
+            &datafusion::parquet::arrow::arrow_reader::RowSelection::from(
+                Vec::<datafusion::parquet::arrow::arrow_reader::RowSelector>::new(),
+            ),
+        );
+        assert!(eval.on_batch_mask(&(), 0, &pm, 0, 3, &batch).unwrap().is_none());
     }
 
     #[test]
@@ -271,7 +285,8 @@ mod tests {
 
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("has matches");
-        assert_eq!(prefetched.offsets, (0u64..8).collect::<Vec<_>>());
+        let got: Vec<u32> = prefetched.candidates.iter().collect();
+        assert_eq!(got, (0u32..8).collect::<Vec<_>>());
     }
 
     // Keep the `fmt` import used

@@ -33,7 +33,6 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use datafusion::arrow::array::{Array, BooleanArray};
-use datafusion::arrow::array::builder::BooleanBufferBuilder;
 use datafusion::arrow::compute::filter_record_batch;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -52,6 +51,9 @@ use tokio::sync::oneshot;
 use super::eval::{PrefetchedRg, RowGroupBitsetSource};
 use super::metrics::StreamMetrics;
 use super::parquet_bridge::{self, RowGroupStreamConfig};
+use super::row_selection::{
+    build_mask, build_row_selection_with_min_skip_run, PositionMap,
+};
 
 /// Row group metadata.
 #[derive(Debug, Clone)]
@@ -61,71 +63,16 @@ pub struct RowGroupInfo {
     pub num_rows: i64,
 }
 
-/// Strategy for filtering rows within a row group — chosen per-RG by
-/// `IndexedStream` based on selectivity.
+/// Test-only override for the per-RG `min_skip_run` selectivity heuristic.
+/// `IndexedStream` normally picks `min_skip_run` from candidate
+/// selectivity; setting `force_strategy` to one of these variants pins the
+/// choice so tests can exercise either extreme.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FilterStrategy {
-    /// `RowSelection` during parquet decode — best for <3% selectivity.
+    /// Force row-granular selection (`min_skip_run = 1`).
     RowSelection,
-    /// `BooleanArray` mask after decode — best for ≥3% selectivity.
+    /// Force a single whole-RG select (`min_skip_run > rg_num_rows`).
     BooleanMask,
-}
-
-impl FilterStrategy {
-    pub fn choose(num_selected: usize, total_rows: i64) -> Self {
-        let selectivity = num_selected as f64 / total_rows as f64;
-        if selectivity < 0.03 {
-            FilterStrategy::RowSelection
-        } else {
-            FilterStrategy::BooleanMask
-        }
-    }
-}
-
-/// Convert sorted offsets to `RowSelection`.
-pub fn offsets_to_row_selection(offsets: &[u64], num_rows: i64) -> RowSelection {
-    if offsets.is_empty() {
-        return RowSelection::from(vec![RowSelector::skip(num_rows as usize)]);
-    }
-    let mut selectors = Vec::new();
-    let mut pos = 0u64;
-    let mut i = 0;
-    while i < offsets.len() {
-        let start = offsets[i];
-        if start > pos {
-            selectors.push(RowSelector::skip((start - pos) as usize));
-        }
-        let mut run = 1usize;
-        while i + run < offsets.len() && offsets[i + run] == start + run as u64 {
-            run += 1;
-        }
-        selectors.push(RowSelector::select(run));
-        pos = start + run as u64;
-        i += run;
-    }
-    if pos < num_rows as u64 {
-        selectors.push(RowSelector::skip((num_rows as u64 - pos) as usize));
-    }
-    RowSelection::from(selectors)
-}
-
-/// Build a BooleanArray mask from matching row-offsets within an RG.
-///
-/// Uses `BooleanBufferBuilder` — writes bits directly into the packed
-/// bitmap instead of materializing a `Vec<bool>` (one byte per row) and
-/// scanning it to pack. For a 100k-row RG this is ~8× less memory and
-/// avoids the final scan-and-pack that `BooleanArray::from(Vec<bool>)`
-/// would do.
-fn build_mask(offsets: &[u64], num_rows: i64) -> BooleanArray {
-    let n = num_rows as usize;
-    let mut builder = BooleanBufferBuilder::new(n);
-    builder.append_n(n, false);
-    for &offset in offsets {
-        if (offset as i64) < num_rows {
-            builder.set_bit(offset as usize, true);
-        }
-    }
-    BooleanArray::new(builder.finish(), None)
 }
 
 // ── Prefetched Row Group ─────────────────────────────────────────────
@@ -374,6 +321,11 @@ struct IndexedStream {
     /// can reach into it during refinement (used by the multi-filter tree
     /// path to access per-leaf bitmaps keyed by `Arc::as_ptr` identity).
     current_rg_context: Option<Box<dyn Any + Send + Sync>>,
+    /// Per-RG map from delivered batch-row index to RG-relative position.
+    /// Used by `on_batch_mask` to translate the batch-coordinate under
+    /// block-granular `RowSelection`. Rebuilt each RG from the selection
+    /// we handed to parquet.
+    current_position_map: Option<PositionMap>,
     mask_offset: usize,
     batch_offset: usize,
     finished: bool,
@@ -418,6 +370,7 @@ impl IndexedStream {
             current_mask: None,
             current_rg_first_row: 0,
             current_rg_context: None,
+            current_position_map: None,
             mask_offset: 0,
             batch_offset: 0,
             finished: false,
@@ -447,24 +400,17 @@ impl IndexedStream {
     fn create_row_selection_stream(
         &self,
         rg: &RowGroupInfo,
-        offsets: &[u64],
+        selection: RowSelection,
     ) -> Result<(SendableRecordBatchStream, Arc<dyn ExecutionPlan>)> {
-        let selection = offsets_to_row_selection(offsets, rg.num_rows);
-        // RowSelection fires only at <3% candidate selectivity — parquet is
-        // already decoding very few rows. Pushing the residual predicate
-        // into decode is cheap for such a narrow set and occasionally lets
-        // parquet skip whole column chunks the residual proves unneeded.
-        // Tests use `force_pushdown = Some(false)` to disable when
-        // exercising the non-pushdown path.
+        // Whether to push the residual predicate into parquet decode. At
+        // narrow selectivity (row-granular RowSelection), decoder-time
+        // predicate application is cheap and occasionally lets parquet skip
+        // whole column chunks. For block-granular selection (higher
+        // selectivity), pushdown would double-evaluate the predicate
+        // (FilterExec re-runs it because we report `Inexact`), so we
+        // disable it. Tests can override via `force_pushdown`.
         let push = self.force_pushdown.unwrap_or(true);
         parquet_bridge::create_row_selection_stream(&self.bridge_config(), rg.index, selection, push)
-    }
-
-    fn create_full_scan_stream(
-        &self,
-        rg: &RowGroupInfo,
-    ) -> Result<(SendableRecordBatchStream, Arc<dyn ExecutionPlan>)> {
-        parquet_bridge::create_full_scan_stream(&self.bridge_config(), rg.index)
     }
 
     fn finalize_batch(&mut self, batch: RecordBatch) -> Poll<Option<Result<RecordBatch>>> {
@@ -490,9 +436,21 @@ impl IndexedStream {
             Some(ctx) => ctx.as_ref(),
             None => &UNIT,
         };
+        // Unwrap position_map for this RG. Always set alongside
+        // current_stream by poll_next; use an empty default on the defensive
+        // path.
+        let empty_pos_map = PositionMap::from_selection(&RowSelection::from(
+            Vec::<RowSelector>::new(),
+        ));
+        let position_map = self
+            .current_position_map
+            .as_ref()
+            .unwrap_or(&empty_pos_map);
+
         let eval_mask = match self.evaluator.on_batch_mask(
             rg_state,
             self.current_rg_first_row,
+            position_map,
             self.batch_offset,
             batch_len,
             &batch,
@@ -591,6 +549,7 @@ impl Stream for IndexedStream {
                         self.current_stream = None;
                         self.current_mask = None;
                         self.current_rg_context = None;
+                        self.current_position_map = None;
                         self.mask_offset = 0;
                         self.batch_offset = 0;
                     }
@@ -606,7 +565,7 @@ impl Stream for IndexedStream {
             match self.index_reader.poll_next_row_group(cx) {
                 Poll::Ready(Ok(Some(prefetched))) => {
                     let rg = prefetched.rg;
-                    let offsets = prefetched.prefetched.offsets;
+                    let candidates = prefetched.prefetched.candidates;
 
                     if let Some(ref timer) = self.metrics.index_time {
                         timer.add_duration(std::time::Duration::from_nanos(
@@ -614,7 +573,7 @@ impl Stream for IndexedStream {
                         ));
                     }
                     if let Some(ref counter) = self.metrics.rows_matched {
-                        counter.add(offsets.len());
+                        counter.add(candidates.len() as usize);
                     }
                     if let Some(ref counter) = self.metrics.rg_processed {
                         counter.add(1);
@@ -627,54 +586,82 @@ impl Stream for IndexedStream {
                     self.current_rg_context = Some(prefetched.prefetched.context);
                     self.batch_offset = 0;
 
-                    let strategy = self
-                        .force_strategy
-                        .unwrap_or_else(|| FilterStrategy::choose(offsets.len(), rg.num_rows));
-                    let t_plan = std::time::Instant::now();
+                    // Decide min_skip_run for this RG.
+                    //
+                    // - `force_strategy = RowSelection`: row-granular
+                    //   (min_skip_run = 1) — "sparse" path.
+                    // - `force_strategy = BooleanMask`: disable skipping
+                    //   (min_skip_run > rg.num_rows) — full scan.
+                    // - otherwise: pick based on selectivity. At low
+                    //   selectivity every gap is worth skipping (1); at
+                    //   higher selectivity noisy short gaps would explode
+                    //   the selector Vec, so absorb anything smaller than
+                    //   the default block size.
+                    const DEFAULT_MIN_SKIP_RUN: usize = 1024;
+                    let selectivity =
+                        candidates.len() as f64 / rg.num_rows as f64;
+                    let min_skip_run = match self.force_strategy {
+                        Some(FilterStrategy::RowSelection) => 1,
+                        Some(FilterStrategy::BooleanMask) => rg.num_rows as usize + 1,
+                        None => {
+                            if selectivity < 0.03 {
+                                1
+                            } else {
+                                DEFAULT_MIN_SKIP_RUN
+                            }
+                        }
+                    };
 
-                    match strategy {
-                        FilterStrategy::RowSelection => {
-                            if let Some(ref counter) = self.metrics.row_selection_count {
-                                counter.add(1);
-                            }
-                            match self.create_row_selection_stream(&rg, &offsets) {
-                                Ok((stream, plan)) => {
-                                    if let Some(ref timer) = self.metrics.parquet_time {
-                                        timer.add_duration(t_plan.elapsed());
-                                    }
-                                    self.current_stream = Some(stream);
-                                    self.current_inner_plan = Some(plan);
-                                    self.current_mask = None;
-                                }
-                                Err(e) => return Poll::Ready(Some(Err(e))),
-                            }
+                    // Metrics: track which regime we landed in, using the
+                    // same counters as before so `EXPLAIN ANALYZE` output
+                    // stays comparable.
+                    if min_skip_run == 1 {
+                        if let Some(ref counter) = self.metrics.row_selection_count {
+                            counter.add(1);
                         }
-                        FilterStrategy::BooleanMask => {
-                            if let Some(ref counter) = self.metrics.boolean_mask_count {
-                                counter.add(1);
+                    } else if let Some(ref counter) = self.metrics.boolean_mask_count {
+                        counter.add(1);
+                    }
+
+                    let selection = build_row_selection_with_min_skip_run(
+                        &candidates,
+                        rg.num_rows as usize,
+                        min_skip_run,
+                    );
+                    // Share the bitmap between PositionMap (under
+                    // row-granular regime) and build_mask without cloning
+                    // the underlying data.
+                    let candidates = Arc::new(candidates);
+                    let position_map = PositionMap::from_candidates_with_selection(
+                        Arc::clone(&candidates),
+                        &selection,
+                        min_skip_run,
+                    );
+
+                    let t_plan = std::time::Instant::now();
+                    match self.create_row_selection_stream(&rg, selection) {
+                        Ok((stream, plan)) => {
+                            if let Some(ref timer) = self.metrics.parquet_time {
+                                timer.add_duration(t_plan.elapsed());
                             }
-                            match self.create_full_scan_stream(&rg) {
-                                Ok((stream, plan)) => {
-                                    if let Some(ref timer) = self.metrics.parquet_time {
-                                        timer.add_duration(t_plan.elapsed());
-                                    }
-                                    self.current_stream = Some(stream);
-                                    self.current_inner_plan = Some(plan);
-                                    // Skip building the row-mask when the
-                                    // evaluator won't use it (e.g. the
-                                    // multi-filter tree path: its refinement
-                                    // mask is authoritative and `finalize_batch`
-                                    // ignores `current_mask` in that branch).
-                                    self.current_mask = if self.evaluator.needs_row_mask() {
-                                        Some(build_mask(&offsets, rg.num_rows))
-                                    } else {
-                                        None
-                                    };
-                                    self.mask_offset = 0;
-                                }
-                                Err(e) => return Poll::Ready(Some(Err(e))),
-                            }
+                            self.current_stream = Some(stream);
+                            self.current_inner_plan = Some(plan);
+                            // Under row-granular (min_skip_run == 1) every
+                            // delivered row is by construction a candidate,
+                            // so the mask would be all-true — skip building
+                            // it. Under block/full regimes, build the mask
+                            // only if the evaluator consumes it.
+                            self.current_mask = if min_skip_run == 1 {
+                                None
+                            } else if self.evaluator.needs_row_mask() {
+                                Some(build_mask(&candidates, &position_map))
+                            } else {
+                                None
+                            };
+                            self.mask_offset = 0;
+                            self.current_position_map = Some(position_map);
                         }
+                        Err(e) => return Poll::Ready(Some(Err(e))),
                     }
                 }
                 Poll::Ready(Ok(None)) => {
@@ -694,39 +681,3 @@ impl RecordBatchStream for IndexedStream {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn build_mask_empty_offsets_produces_all_false() {
-        let m = build_mask(&[], 8);
-        assert_eq!(m.len(), 8);
-        assert_eq!(m.true_count(), 0);
-    }
-
-    #[test]
-    fn build_mask_sparse_offsets_set_only_named_bits() {
-        let m = build_mask(&[0, 3, 7], 8);
-        assert_eq!(m.len(), 8);
-        let got: Vec<bool> = (0..m.len()).map(|i| m.value(i)).collect();
-        assert_eq!(got, vec![true, false, false, true, false, false, false, true]);
-    }
-
-    #[test]
-    fn build_mask_offsets_outside_range_are_ignored() {
-        let m = build_mask(&[2, 9, 100], 4);
-        assert_eq!(m.len(), 4);
-        let got: Vec<bool> = (0..m.len()).map(|i| m.value(i)).collect();
-        assert_eq!(got, vec![false, false, true, false]);
-    }
-
-    #[test]
-    fn build_mask_dense_run_covers_every_position() {
-        // All offsets set → all-true mask.
-        let offsets: Vec<u64> = (0..16).collect();
-        let m = build_mask(&offsets, 16);
-        assert_eq!(m.true_count(), 16);
-        assert_eq!(m.null_count(), 0);
-    }
-}

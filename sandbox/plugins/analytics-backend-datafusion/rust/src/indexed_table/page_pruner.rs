@@ -284,17 +284,25 @@ impl PagePruner {
     }
 
     /// Row IDs within pages that match the filters (OR-mode entry point).
+    /// Only used for single collector
     pub fn candidate_row_ids(&self, rg_idx: usize, rg_first_row: i64, rg_num_rows: i64) -> Vec<i64> {
+        // Case 1: no filters. Nothing is ruled out. Everything in the RG is a candidate → emit every row ID in the RG.
         if self.filters.is_empty() {
             return (rg_first_row..rg_first_row + rg_num_rows).collect();
         }
 
+        // Case 2: filters exist, page ranges computed. compute_page_ranges returns the
+        // AND-intersection of all page ranges that survived pruning, expressed as a set of Range<i64> (absolute row IDs).
         let ranges = match self.compute_page_ranges(rg_idx, rg_first_row) {
             Some(r) if r.is_empty() => return vec![],
             Some(r) => r,
             None => return (rg_first_row..rg_first_row + rg_num_rows).collect(),
         };
 
+        //Case 3: expand the ranges. Each Range<i64> covers absolute row IDs.
+        // The .max(rg_first_row) and .min(rg_first_row + rg_num_rows) clip the range to this RG's
+        // bounds — defensive in case a page range overhangs an RG boundary.
+        // Then materialize into individual IDs.
         let mut ids = Vec::new();
         for range in &ranges {
             let start = range.start.max(rg_first_row);

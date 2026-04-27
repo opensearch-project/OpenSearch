@@ -68,6 +68,9 @@ pub trait RowGroupBitsetSource: Send + Sync {
     ///
     /// - `rg_state` is the `context` returned by the last `prefetch_rg` for
     ///   this RG — evaluators downcast it to their own per-RG state type.
+    /// - `position_map` translates delivered batch-row indices to RG-relative
+    ///   positions (identity under full-scan; non-trivial under
+    ///   block-granular RowSelection).
     /// - `None` = no refinement mask needed (e.g. `SingleCollectorEvaluator`
     ///   relies on DataFusion's own predicate pushdown, so the candidate
     ///   stage's RowSelection is authoritative).
@@ -75,6 +78,7 @@ pub trait RowGroupBitsetSource: Send + Sync {
         &self,
         rg_state: &dyn Any,
         rg_first_row: i64,
+        position_map: &crate::indexed_table::row_selection::PositionMap,
         batch_offset: usize,
         batch_len: usize,
         batch: &RecordBatch,
@@ -95,8 +99,11 @@ pub trait RowGroupBitsetSource: Send + Sync {
 
 /// Output of `prefetch_rg`.
 pub struct PrefetchedRg {
-    /// Doc-id offsets relative to `rg.first_row`.
-    pub offsets: Vec<u64>,
+    /// Candidate doc-id bitmap, RG-relative (bit 0 = first row of the RG
+    /// doc range). `IndexedStream` converts this to a `RowSelection` using
+    /// `min_skip_run` and keeps the matching `PositionMap` alongside for
+    /// post-decode alignment.
+    pub candidates: RoaringBitmap,
     /// Time spent producing the bitset (nanoseconds). For metrics.
     pub eval_nanos: u64,
     /// Opaque per-RG state threaded to `on_batch_mask` via `rg_state: &dyn Any`.
@@ -107,19 +114,17 @@ pub struct PrefetchedRg {
 impl PrefetchedRg {
     /// Helper for evaluators with no per-RG state (e.g. the single-collector
     /// path, which doesn't do refinement [post-scan]).
-    pub fn without_context(offsets: Vec<u64>, eval_nanos: u64) -> Self {
+    pub fn without_context(candidates: RoaringBitmap, eval_nanos: u64) -> Self {
         Self {
-            offsets,
+            candidates,
             eval_nanos,
             context: Box::new(()),
         }
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Multi-filter tree path: pluggable tree evaluator + leaf bitmap source
-// ══════════════════════════════════════════════════════════════════════
-
+/// Multi-filter tree path: pluggable tree evaluator + leaf bitmap source
+/// 
 /// Context for evaluating a tree against one row group.
 #[derive(Debug, Clone, Copy)]
 pub struct RgEvalContext {
@@ -172,12 +177,18 @@ pub trait TreeEvaluator: Send + Sync {
     /// Refinement stage: produce the exact per-row `BooleanArray` for one
     /// record batch, consuming the candidate-stage `state` for the RG this
     /// batch belongs to.
+    ///
+    /// `position_map` translates delivered batch-row index to RG-relative
+    /// position (identity under full-scan; non-trivial under block-granular
+    /// RowSelection). `batch_offset` is the delivered-row index of the
+    /// first row in this batch.
     fn on_batch(
         &self,
         tree: &ResolvedNode,
         state: &TreePrefetch,
         batch: &RecordBatch,
         rg_first_row: i64,
+        position_map: &crate::indexed_table::row_selection::PositionMap,
         batch_offset: usize,
         batch_len: usize,
     ) -> Result<BooleanArray, String>;
@@ -235,15 +246,19 @@ impl RowGroupBitsetSource for TreeBitsetSource {
         if prefetch.candidates.is_empty() {
             return Ok(None);
         }
-        // Candidates domain is [0, max_doc - min_doc). Offset relative to rg.first_row.
-        let anchor = min_doc as i64 - rg.first_row;
-        let offsets: Vec<u64> = prefetch
-            .candidates
-            .iter()
-            .map(|rel| (rel as i64 + anchor) as u64)
-            .collect();
+        // `prefetch.candidates` is in min_doc-relative space [0, max_doc - min_doc).
+        // `PrefetchedRg.candidates` is in RG-relative space [0, rg.num_rows).
+        // anchor = (min_doc - rg.first_row) shifts each relative bit.
+        let anchor = (min_doc as i64) - rg.first_row;
+        let mut rg_candidates = RoaringBitmap::new();
+        for rel in prefetch.candidates.iter() {
+            let shifted = rel as i64 + anchor;
+            if shifted >= 0 && shifted <= u32::MAX as i64 {
+                rg_candidates.insert(shifted as u32);
+            }
+        }
         Ok(Some(PrefetchedRg {
-            offsets,
+            candidates: rg_candidates,
             eval_nanos: t.elapsed().as_nanos() as u64,
             context: Box::new(prefetch),
         }))
@@ -253,6 +268,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
         &self,
         rg_state: &dyn Any,
         rg_first_row: i64,
+        position_map: &crate::indexed_table::row_selection::PositionMap,
         batch_offset: usize,
         batch_len: usize,
         batch: &RecordBatch,
@@ -265,6 +281,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
             state,
             batch,
             rg_first_row,
+            position_map,
             batch_offset,
             batch_len,
         )?;
@@ -349,6 +366,7 @@ mod tests {
             _state: &TreePrefetch,
             _batch: &RecordBatch,
             _rg_first_row: i64,
+            _position_map: &crate::indexed_table::row_selection::PositionMap,
             _batch_offset: usize,
             batch_len: usize,
         ) -> Result<datafusion::arrow::array::BooleanArray, String> {
