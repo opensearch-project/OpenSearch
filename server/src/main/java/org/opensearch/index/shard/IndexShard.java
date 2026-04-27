@@ -6177,6 +6177,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return nonClosingReaderWrapperCache;
     }
 
+    // Visible for testing
+    Object getEngineMutex() {
+        return engineMutex;
+    }
+
     // Below methods exists for bwc only. We should never make indexshard aware of DataFormatAwareEngine directy.
     // All interactions should happen via indexer only.
     @Deprecated

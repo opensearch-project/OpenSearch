@@ -4810,9 +4810,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(shard, primary, true, (a) -> null);
         closeShards(primary);
 
-        java.lang.reflect.Field engineMutexField = IndexShard.class.getDeclaredField("engineMutex");
-        engineMutexField.setAccessible(true);
-        Object engineMutex = engineMutexField.get(shard);
+        Object engineMutex = shard.getEngineMutex();
 
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
 
