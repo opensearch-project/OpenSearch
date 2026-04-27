@@ -387,6 +387,8 @@ async fn run_large(
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(CollectorLeafBitmaps),
                 page_pruner: pruner,
+                cost_predicate: 1,
+                cost_collector: 10,
             });
             Ok(eval)
         })
@@ -398,9 +400,10 @@ async fn run_large(
         store: Arc::new(object_store::local::LocalFileSystem::new()) as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
-        num_partitions: 1,
+        target_partitions: 1,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 
     let ctx = SessionContext::new();
@@ -806,6 +809,8 @@ async fn run_large_partitioned(
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(CollectorLeafBitmaps),
                 page_pruner: pruner,
+                cost_predicate: 1,
+                cost_collector: 10,
             });
             Ok(eval)
         })
@@ -816,9 +821,10 @@ async fn run_large_partitioned(
         store: Arc::new(object_store::local::LocalFileSystem::new()) as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
-        num_partitions: partitions,
+        target_partitions: partitions,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

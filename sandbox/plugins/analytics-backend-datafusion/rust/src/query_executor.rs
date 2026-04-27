@@ -44,6 +44,7 @@ pub async fn execute_query(
     // to execute using the global pool. Can be made required once all flows
     // wire up context_id correctly.
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
+    query_config: &crate::datafusion_query_config::DatafusionQueryConfig,
 ) -> Result<i64, DataFusionError> {
     // Pre-populate the list-files cache so DataFusion doesn't re-list the directory
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
@@ -82,9 +83,9 @@ pub async fn execute_query(
 
     // Build a fresh session state per query. TODO : Tune this during planning per query
     let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = false;
-    config.options_mut().execution.target_partitions = 4;
-    config.options_mut().execution.batch_size = 8192;
+    config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
+    config.options_mut().execution.target_partitions = query_config.target_partitions;
+    config.options_mut().execution.batch_size = query_config.batch_size;
 
     let state = SessionStateBuilder::new()
         .with_config(config)

@@ -95,7 +95,7 @@ fn bench_execute_query(c: &mut Criterion) {
                     let exec = mgr.cpu_executor();
                     async {
                         let ptr = query_executor::execute_query(
-                            url, metas, "t".into(), plan, &df_runtime, exec, None,
+                            url, metas, "t".into(), plan, &df_runtime, exec, None, &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::default(),
                         ).await.unwrap();
                         // Consume and free the stream
                         let mut stream = unsafe {
@@ -133,7 +133,7 @@ fn bench_stream_next(c: &mut Criterion) {
             let exec = mgr.cpu_executor();
             async {
                 let ptr = query_executor::execute_query(
-                    url, metas, "t".into(), plan, &df_runtime, exec, None,
+                    url, metas, "t".into(), plan, &df_runtime, exec, None, &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::default(),
                 ).await.unwrap();
                 let mut stream = unsafe {
                     Box::from_raw(ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<
@@ -169,7 +169,7 @@ fn bench_aggregation(c: &mut Criterion) {
             let exec = mgr.cpu_executor();
             async {
                 let ptr = query_executor::execute_query(
-                    url, metas, "t".into(), plan, &df_runtime, exec, None,
+                    url, metas, "t".into(), plan, &df_runtime, exec, None, &opensearch_datafusion::datafusion_query_config::DatafusionQueryConfig::default(),
                 ).await.unwrap();
                 let mut stream = unsafe {
                     Box::from_raw(ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<

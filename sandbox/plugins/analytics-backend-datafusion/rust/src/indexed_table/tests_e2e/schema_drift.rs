@@ -109,6 +109,8 @@ async fn run_missing_col_tree(tree_bool: BoolNode, predicates: Vec<ResolvedPredi
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(CollectorLeafBitmaps),
                 page_pruner: pruner,
+                cost_predicate: 1,
+                cost_collector: 10,
             });
             Ok(eval)
         })
@@ -119,9 +121,10 @@ async fn run_missing_col_tree(tree_bool: BoolNode, predicates: Vec<ResolvedPredi
         store: Arc::new(object_store::local::LocalFileSystem::new()) as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
-        num_partitions: 1,
+        target_partitions: 1,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

@@ -96,11 +96,14 @@ pub struct IndexedTableConfig {
     /// URL of the store for DataFusion's `FileScanConfig`.
     pub store_url: datafusion::execution::object_store::ObjectStoreUrl,
     pub evaluator_factory: EvaluatorFactory,
-    pub num_partitions: usize,
+    pub target_partitions: usize,
     /// If `Some`, override the per-RG strategy choice. Mainly for tests.
     pub force_strategy: Option<FilterStrategy>,
     /// If `Some`, force `with_pushdown_filters` on/off. Mainly for tests.
     pub force_pushdown: Option<bool>,
+    /// Query-scoped tunables (batch_size, min_skip_run_default, costs, …).
+    /// Shared by reference across fanned-out `QueryShardExec` instances.
+    pub query_config: Arc<crate::datafusion_query_config::DatafusionQueryConfig>,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -112,7 +115,7 @@ impl std::fmt::Debug for IndexedTableProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IndexedTableProvider")
             .field("segments", &self.config.segments.len())
-            .field("partitions", &self.config.num_partitions)
+            .field("partitions", &self.config.target_partitions)
             .finish()
     }
 }
@@ -196,7 +199,7 @@ impl TableProvider for IndexedTableProvider {
                 row_groups: seg.row_groups.clone(),
             })
             .collect();
-        let assignments = compute_assignments(&layouts, self.config.num_partitions);
+        let assignments = compute_assignments(&layouts, self.config.target_partitions);
 
         let properties = PlanProperties::new(
             EquivalenceProperties::new(projected_schema.clone()),
@@ -363,6 +366,7 @@ impl ExecutionPlan for QueryShardExec {
                 stream_metrics: stream_metrics.clone(),
                 force_pushdown: self.config.force_pushdown,
                 force_strategy: self.config.force_strategy,
+                query_config: Arc::clone(&self.config.query_config),
             };
             execs.push(Arc::new(exec));
         }
@@ -420,9 +424,10 @@ mod tests {
                 datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
             // Evaluator factory would never be invoked for this test (no segments).
             evaluator_factory: Arc::new(|_, _| unreachable!()),
-            num_partitions: 1,
+            target_partitions: 1,
             force_strategy: None,
             force_pushdown: None,
+            query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
         }
     }
 

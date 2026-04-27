@@ -133,6 +133,11 @@ pub struct RgEvalContext {
     pub rg_num_rows: i64,
     pub min_doc: i32,
     pub max_doc: i32,
+    /// Candidate-stage leaf-reorder cost for `ResolvedNode::Predicate`.
+    /// Plumbed from `DatafusionQueryConfig`; read on the hot path.
+    pub cost_predicate: u32,
+    /// Candidate-stage leaf-reorder cost for `ResolvedNode::Collector`.
+    pub cost_collector: u32,
 }
 
 /// Candidate-stage output of a `TreeEvaluator`. `candidates` is a superset
@@ -223,6 +228,10 @@ pub struct TreeBitsetSource {
     pub evaluator: Arc<dyn TreeEvaluator>,
     pub leaves: Arc<dyn LeafBitmapSource>,
     pub page_pruner: Arc<PagePruner>,
+    /// Pre-extracted from `DatafusionQueryConfig` at source-construction
+    /// time so `prefetch_rg` doesn't need an `Arc` deref on the hot path.
+    pub cost_predicate: u32,
+    pub cost_collector: u32,
 }
 
 impl RowGroupBitsetSource for TreeBitsetSource {
@@ -239,6 +248,8 @@ impl RowGroupBitsetSource for TreeBitsetSource {
             rg_num_rows: rg.num_rows,
             min_doc,
             max_doc,
+            cost_predicate: self.cost_predicate,
+            cost_collector: self.cost_collector,
         };
         let prefetch = self
             .evaluator
@@ -397,6 +408,8 @@ mod tests {
             evaluator: Arc::new(NoopTreeEvaluator),
             leaves: Arc::new(NoopLeaves),
             page_pruner: empty_pruner(),
+            cost_predicate: 1,
+            cost_collector: 10,
         };
         assert!(!source.needs_row_mask());
     }

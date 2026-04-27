@@ -216,6 +216,10 @@ pub struct IndexedExec {
     pub(crate) stream_metrics: StreamMetrics,
     pub(crate) force_pushdown: Option<bool>,
     pub(crate) force_strategy: Option<FilterStrategy>,
+    /// Query-scoped tunables. Shared by Arc across IndexedExec instances
+    /// from the same query; read once per RG into local fields inside
+    /// `IndexedStream` so the hot path never touches the Arc.
+    pub(crate) query_config: Arc<crate::datafusion_query_config::DatafusionQueryConfig>,
 }
 
 impl std::fmt::Debug for IndexedExec {
@@ -298,6 +302,9 @@ impl ExecutionPlan for IndexedExec {
             self.stream_metrics.clone(),
             self.force_pushdown,
             self.force_strategy,
+            self.query_config.min_skip_run_default,
+            self.query_config.min_skip_run_selectivity_threshold,
+            self.query_config.indexed_pushdown_filters,
         )))
     }
 }
@@ -335,6 +342,16 @@ struct IndexedStream {
     metrics: StreamMetrics,
     force_pushdown: Option<bool>,
     force_strategy: Option<FilterStrategy>,
+    /// Baseline `min_skip_run` used when neither selectivity nor
+    /// `force_strategy` drives the choice. Extracted once from
+    /// `DatafusionQueryConfig` so the hot path reads a local `usize`.
+    min_skip_run_default: usize,
+    /// Below this candidate selectivity, pin `min_skip_run = 1`
+    /// (row-granular selection). Same hot-path discipline as above.
+    min_skip_run_selectivity_threshold: f64,
+    /// Whether to ask parquet to apply residual predicates during decode.
+    /// `force_pushdown` still takes priority when set.
+    indexed_pushdown_filters: bool,
     evaluator: Arc<dyn RowGroupBitsetSource>,
 }
 
@@ -354,6 +371,9 @@ impl IndexedStream {
         metrics: StreamMetrics,
         force_pushdown: Option<bool>,
         force_strategy: Option<FilterStrategy>,
+        min_skip_run_default: usize,
+        min_skip_run_selectivity_threshold: f64,
+        indexed_pushdown_filters: bool,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
         Self {
@@ -380,6 +400,9 @@ impl IndexedStream {
             metrics,
             force_pushdown,
             force_strategy,
+            min_skip_run_default,
+            min_skip_run_selectivity_threshold,
+            indexed_pushdown_filters,
             evaluator,
         }
     }
@@ -409,7 +432,7 @@ impl IndexedStream {
         // selectivity), pushdown would double-evaluate the predicate
         // (FilterExec re-runs it because we report `Inexact`), so we
         // disable it. Tests can override via `force_pushdown`.
-        let push = self.force_pushdown.unwrap_or(true);
+        let push = self.force_pushdown.unwrap_or(self.indexed_pushdown_filters);
         parquet_bridge::create_row_selection_stream(&self.bridge_config(), rg.index, selection, push)
     }
 
@@ -597,17 +620,16 @@ impl Stream for IndexedStream {
                     //   higher selectivity noisy short gaps would explode
                     //   the selector Vec, so absorb anything smaller than
                     //   the default block size.
-                    const DEFAULT_MIN_SKIP_RUN: usize = 1024;
                     let selectivity =
                         candidates.len() as f64 / rg.num_rows as f64;
                     let min_skip_run = match self.force_strategy {
                         Some(FilterStrategy::RowSelection) => 1,
                         Some(FilterStrategy::BooleanMask) => rg.num_rows as usize + 1,
                         None => {
-                            if selectivity < 0.03 {
+                            if selectivity < self.min_skip_run_selectivity_threshold {
                                 1
                             } else {
-                                DEFAULT_MIN_SKIP_RUN
+                                self.min_skip_run_default
                             }
                         }
                     };

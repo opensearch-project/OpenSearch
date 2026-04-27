@@ -167,9 +167,10 @@ async fn run_two_segment_query(
         store,
         store_url,
         evaluator_factory: factory,
-        num_partitions,
+        target_partitions: num_partitions,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 
     let ctx = SessionContext::new();
@@ -368,9 +369,10 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         store,
         store_url,
         evaluator_factory: factory,
-        num_partitions,
+        target_partitions: num_partitions,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 
     let ctx = SessionContext::new();
@@ -696,6 +698,8 @@ async fn run_wide_segments(
                         crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps,
                     ),
                     page_pruner: pruner,
+                    cost_predicate: 1,
+                    cost_collector: 10,
                 },
             );
             Ok(eval)
@@ -711,9 +715,10 @@ async fn run_wide_segments(
         store,
         store_url,
         evaluator_factory: factory,
-        num_partitions,
+        target_partitions: num_partitions,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 
     let ctx = SessionContext::new();

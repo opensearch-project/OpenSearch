@@ -63,6 +63,7 @@ pub async fn execute_indexed_query(
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
+    query_config: Arc<crate::datafusion_query_config::DatafusionQueryConfig>,
 ) -> Result<i64, DataFusionError> {
     use datafusion::execution::cache::cache_manager::CacheManagerConfig;
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
@@ -96,9 +97,12 @@ pub async fn execute_indexed_query(
         .map_err(|e| DataFusionError::Execution(format!("runtime env: {}", e)))?;
 
     let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = false;
+    config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
+    // Indexed path fans out via IndexedExec partitions (derived from
+    // num_partitions), not DataFusion's. But DF wants a sane value here
+    // for any post-scan operators it may add.
     config.options_mut().execution.target_partitions = num_partitions.max(1);
-    config.options_mut().execution.batch_size = 8192;
+    config.options_mut().execution.batch_size = query_config.batch_size;
     let state = SessionStateBuilder::new()
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
@@ -209,6 +213,8 @@ pub async fn execute_indexed_query(
                 extraction.predicates.into_iter().map(Arc::new).collect(),
             );
             let schema_for_pruner = schema.clone();
+            let cost_predicate = query_config.cost_predicate;
+            let cost_collector = query_config.cost_collector;
 
             Arc::new(move |segment: &SegmentFileInfo, chunk| {
                 // Build one collector per Collector leaf for this chunk.
@@ -242,6 +248,8 @@ pub async fn execute_indexed_query(
                     evaluator: Arc::new(BitmapTreeEvaluator),
                     leaves: Arc::new(CollectorLeafBitmaps),
                     page_pruner: pruner,
+                    cost_predicate,
+                    cost_collector,
                 });
                 Ok(eval)
             })
@@ -258,9 +266,10 @@ pub async fn execute_indexed_query(
         store: Arc::clone(&store),
         store_url,
         evaluator_factory: factory,
-        num_partitions: num_partitions.max(1),
-        force_strategy: None,
-        force_pushdown: None,
+        target_partitions: num_partitions.max(1),
+        force_strategy: query_config.force_strategy,
+        force_pushdown: query_config.force_pushdown,
+        query_config: Arc::clone(&query_config),
     }));
     ctx.register_table(&table_name, provider)?;
 

@@ -171,7 +171,7 @@ fn prefetch_node(
     match node {
         ResolvedNode::And(children) => {
             let mut indices: Vec<usize> = (0..children.len()).collect();
-            indices.sort_by_key(|&i| subtree_cost(&children[i]));
+            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx));
 
             let mut result_bitmap: Option<RoaringBitmap> = None;
             for &i in &indices {
@@ -217,7 +217,7 @@ fn prefetch_node(
             let mut indices: Vec<usize> = (0..children.len()).collect();
 
             // sort the children by cost to prune children better
-            indices.sort_by_key(|&i| subtree_cost(&children[i]));
+            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx));
             let total_docs = (ctx.max_doc - ctx.min_doc) as u64;
 
             let mut result_bitmap = RoaringBitmap::new();
@@ -404,8 +404,6 @@ fn predicate_page_bitmap(
 ///   workload-dependent (Lucene posting iteration is fast for narrow
 ///   queries, slower for wide ones) so "10" is a conservative default.
 ///   Tune (or make config-driven) if profiling shows it matters.
-const COST_PREDICATE: u32 = 1;
-const COST_COLLECTOR: u32 = 10;
 
 /// Recursively compute the accumulated cost of a subtree for
 /// candidate-stage ordering. Sum-of-leaves, not a tree-size metric: a
@@ -417,13 +415,13 @@ const COST_COLLECTOR: u32 = 10;
 ///
 /// Unlike a static tier, this model sees *inside* nested subtrees and
 /// orders them meaningfully against each other and against leaves.
-fn subtree_cost(node: &ResolvedNode) -> u32 {
+fn subtree_cost(node: &ResolvedNode, ctx: &RgEvalContext) -> u32 {
     match node {
-        ResolvedNode::Predicate { .. } => COST_PREDICATE,
-        ResolvedNode::Collector { .. } => COST_COLLECTOR,
-        ResolvedNode::Not(child) => subtree_cost(child),
+        ResolvedNode::Predicate { .. } => ctx.cost_predicate,
+        ResolvedNode::Collector { .. } => ctx.cost_collector,
+        ResolvedNode::Not(child) => subtree_cost(child, ctx),
         ResolvedNode::And(children) | ResolvedNode::Or(children) => {
-            children.iter().map(subtree_cost).sum()
+            children.iter().map(|c| subtree_cost(c, ctx)).sum()
         }
     }
 }
@@ -691,6 +689,8 @@ mod tests {
             rg_num_rows: 16,
             min_doc: 0,
             max_doc: 16,
+            cost_predicate: 1,
+            cost_collector: 10,
         }
     }
 
@@ -1159,25 +1159,31 @@ mod tests {
 
     #[test]
     fn subtree_cost_leaf_nodes() {
-        assert_eq!(subtree_cost(&test_predicate_node()), COST_PREDICATE);
-        assert_eq!(subtree_cost(&collector_leaf(0)), COST_COLLECTOR);
+        let ctx = test_ctx();
+        assert_eq!(subtree_cost(&test_predicate_node(), &ctx), ctx.cost_predicate);
+        assert_eq!(subtree_cost(&collector_leaf(0), &ctx), ctx.cost_collector);
     }
 
     #[test]
     fn subtree_cost_not_passes_through() {
+        let ctx = test_ctx();
         let wrapped = ResolvedNode::Not(Box::new(test_predicate_node()));
-        assert_eq!(subtree_cost(&wrapped), COST_PREDICATE);
+        assert_eq!(subtree_cost(&wrapped, &ctx), ctx.cost_predicate);
     }
 
     #[test]
     fn subtree_cost_sums_children() {
+        let ctx = test_ctx();
         // AND(Predicate, Predicate, Collector) = 1 + 1 + 10 = 12
         let tree = ResolvedNode::And(vec![
             test_predicate_node(),
             test_predicate_node(),
             collector_leaf(0),
         ]);
-        assert_eq!(subtree_cost(&tree), 2 * COST_PREDICATE + COST_COLLECTOR);
+        assert_eq!(
+            subtree_cost(&tree, &ctx),
+            2 * ctx.cost_predicate + ctx.cost_collector
+        );
     }
 
     #[test]
@@ -1192,12 +1198,13 @@ mod tests {
             test_predicate_node(),
         ]);
         let single_collector = collector_leaf(0);
+        let ctx = test_ctx();
         assert!(
-            subtree_cost(&nested) < subtree_cost(&single_collector),
+            subtree_cost(&nested, &ctx) < subtree_cost(&single_collector, &ctx),
             "predicate-heavy nested should cost less than single collector \
              (got nested={}, collector={})",
-            subtree_cost(&nested),
-            subtree_cost(&single_collector),
+            subtree_cost(&nested, &ctx),
+            subtree_cost(&single_collector, &ctx),
         );
     }
 
@@ -1207,6 +1214,7 @@ mod tests {
         // higher than a single Collector (cost 10).
         let nested = ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]);
         let single_collector = collector_leaf(0);
-        assert!(subtree_cost(&nested) > subtree_cost(&single_collector));
+        let ctx = test_ctx();
+        assert!(subtree_cost(&nested, &ctx) > subtree_cost(&single_collector, &ctx));
     }
 }

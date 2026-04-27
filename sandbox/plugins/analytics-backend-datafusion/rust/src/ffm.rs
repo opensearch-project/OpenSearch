@@ -105,12 +105,24 @@ pub unsafe extern "C" fn df_execute_query(
     plan_len: i64,
     runtime_ptr: i64,
     context_id: i64,
+    // Pointer to a `WireDatafusionQueryConfig`. `0` = use defaults.
+    query_config_ptr: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
     let table_name = str_from_raw(table_name_ptr, table_name_len).map_err(|e| format!("df_execute_query: {}", e))?;
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     mgr.io_runtime
-        .block_on(api::execute_query(shard_view_ptr, table_name, plan_bytes, runtime_ptr, &mgr, context_id))
+        .block_on(api::execute_query(
+            shard_view_ptr,
+            table_name,
+            plan_bytes,
+            runtime_ptr,
+            &mgr,
+            context_id,
+            query_config,
+        ))
         .map_err(|e| e.to_string())
 }
 

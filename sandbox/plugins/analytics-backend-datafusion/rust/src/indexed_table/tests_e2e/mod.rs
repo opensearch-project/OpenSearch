@@ -224,6 +224,8 @@ async fn run_tree(tree: BoolNode, predicates: Vec<ResolvedPredicate>) -> Vec<(St
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(CollectorLeafBitmaps),
                 page_pruner: pruner,
+                cost_predicate: 1,
+                cost_collector: 10,
             });
             Ok(eval)
         })
@@ -239,13 +241,14 @@ async fn run_tree(tree: BoolNode, predicates: Vec<ResolvedPredicate>) -> Vec<(St
         store,
         store_url,
         evaluator_factory: factory,
-        num_partitions: 1,
+        target_partitions: 1,
         // Force BooleanMask so batches contain the entire RG and batch_offset
         // equals the row-index-within-RG. Phase 2 bitmap_to_batch_mask
         // relies on this alignment. RowSelection would still work for Path B
         // (no Phase-2 mask), but Path C tree eval requires BooleanMask today.
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 
     let ctx = SessionContext::new();
