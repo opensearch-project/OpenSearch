@@ -23,9 +23,8 @@ use super::*;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn simple_and_of_collector_and_predicate() {
     // Tree: AND(apple, price > 80)
-    let tree = BoolNode::And(vec![index_leaf(1), predicate_leaf(0)]);
-    let preds = vec![pred_int("price", Operator::Gt, 80)];
-    let rows = run_tree(tree, preds).await;
+    let tree = BoolNode::And(vec![index_leaf(1), pred_int("price", Operator::Gt, 80)]);
+    let rows = run_tree(tree).await;
 
     // Expected: apple rows with price > 80: rows 4,5,6 → prices 90,95,200
     let mut got: Vec<(String, i32)> = rows.iter().map(|r| (r.0.clone(), r.1)).collect();
@@ -46,10 +45,9 @@ async fn simple_and_of_collector_and_predicate() {
 async fn or_with_nested_and() {
     let tree = BoolNode::Or(vec![
         index_leaf(0),
-        BoolNode::And(vec![index_leaf(1), predicate_leaf(0)]),
+        BoolNode::And(vec![index_leaf(1), pred_int("price", Operator::Lt, 100)]),
     ]);
-    let preds = vec![pred_int("price", Operator::Lt, 100)];
-    let rows = run_tree(tree, preds).await;
+    let rows = run_tree(tree).await;
 
     // amazon rows: 0,1,2,3,12 (5)
     // apple AND price<100: 4 (90), 5 (95), 7 (60), 13 (45) → 4
@@ -76,11 +74,10 @@ async fn or_with_nested_and() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn not_collector_with_predicate() {
     let tree = BoolNode::And(vec![
-        predicate_leaf(0),
+        pred_str("category", Operator::Eq, "electronics"),
         BoolNode::Not(Box::new(index_leaf(2))),
     ]);
-    let preds = vec![pred_str("category", Operator::Eq, "electronics")];
-    let rows = run_tree(tree, preds).await;
+    let rows = run_tree(tree).await;
 
     // electronics AND not archived: rows 0,3,4,7,8,10,14,15
     let mut got: Vec<i32> = rows.iter().map(|r| r.1).collect();
@@ -108,17 +105,13 @@ async fn complex_tree_3_levels_3_collectors_2_predicates() {
             index_leaf(0), // brand=amazon
             BoolNode::And(vec![
                 index_leaf(1),       // brand=apple
-                predicate_leaf(0),    // price < 100
+                pred_int("price", Operator::Lt, 100),    // price < 100
             ]),
         ]),
         BoolNode::Not(Box::new(index_leaf(2))), // NOT status=archived
-        predicate_leaf(1),                        // category=electronics
+        pred_str("category", Operator::Eq, "electronics"),                        // category=electronics
     ]);
-    let preds = vec![
-        pred_int("price", Operator::Lt, 100),
-        pred_str("category", Operator::Eq, "electronics"),
-    ];
-    let rows = run_tree(tree, preds).await;
+    let rows = run_tree(tree).await;
 
     // Compute expected in Rust — straightforward boolean eval over the data
     let expected = expected_for_complex_tree();
@@ -156,7 +149,7 @@ async fn not_and_de_morgan() {
         index_leaf(0), // amazon
         index_leaf(2), // archived
     ])));
-    let rows = run_tree(tree, vec![]).await;
+    let rows = run_tree(tree).await;
 
     // All rows NOT (amazon AND archived):
     //   amazon AND archived: rows 1,12 → exclude these
@@ -175,7 +168,7 @@ async fn not_and_de_morgan() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn bare_not_returns_complement() {
     let tree = BoolNode::Not(Box::new(index_leaf(0))); // NOT amazon
-    let rows = run_tree(tree, vec![]).await;
+    let rows = run_tree(tree).await;
     // 16 docs, 5 are amazon → 11 expected.
     assert_eq!(rows.len(), 11);
     for r in &rows {
@@ -195,7 +188,7 @@ async fn negated_leaf_intersected_with_positive_leaf() {
         index_leaf(0),                           // amazon
         BoolNode::Not(Box::new(index_leaf(2))), // NOT archived
     ]);
-    let rows = run_tree(tree, vec![]).await;
+    let rows = run_tree(tree).await;
     // amazon AND active: rows 0,2,3
     let mut prices: Vec<i32> = rows.iter().map(|r| r.1).collect();
     prices.sort();
@@ -230,6 +223,16 @@ enum LeafId {
     PriceEq150,
     CategoryElectronics,
     CategoryBooks,
+    // Parameterized comparison leaves — cover arbitrary thresholds.
+    PriceLt(i32),
+    PriceGt(i32),
+    PriceEq(i32),
+    /// Evaluated as a parquet predicate (not via Collector bitset).
+    StatusEq(&'static str),
+    // Richer operators — exercise expressions our old converter rejected.
+    PriceIn(&'static [i32]),
+    /// `price + offset > threshold`.
+    PricePlusGt { offset: i32, threshold: i32 },
 }
 
 /// Matchers the reference_evaluator uses.
@@ -246,27 +249,87 @@ impl LeafId {
             LeafId::PriceEq150 => PRICES[row] == 150,
             LeafId::CategoryElectronics => CATEGORIES[row] == "electronics",
             LeafId::CategoryBooks => CATEGORIES[row] == "books",
+            LeafId::PriceLt(v) => PRICES[row] < v,
+            LeafId::PriceGt(v) => PRICES[row] > v,
+            LeafId::PriceEq(v) => PRICES[row] == v,
+            LeafId::StatusEq(v) => STATUSES[row] == v,
+            LeafId::PriceIn(list) => list.contains(&PRICES[row]),
+            LeafId::PricePlusGt { offset, threshold } => PRICES[row] + offset > threshold,
         }
     }
 
-    fn is_predicate(self) -> bool {
-        !matches!(
-            self,
-            LeafId::BrandAmazon | LeafId::BrandApple | LeafId::StatusArchived
-        )
-    }
-
-    fn as_predicate(self) -> Option<ResolvedPredicate> {
+    /// Structured description of a Predicate leaf, used only by the
+    /// reference evaluator (separate from engine-tree lowering). Engine
+    /// lowering uses [`as_bool_node`] which produces a
+    /// `BoolNode::Predicate(PhysicalExpr)` directly.
+    fn as_reference_predicate(self) -> Option<ReferencePred> {
         Some(match self {
-            LeafId::PriceLt100 => pred_int("price", Operator::Lt, 100),
-            LeafId::PriceLt50 => pred_int("price", Operator::Lt, 50),
-            LeafId::PriceGt100 => pred_int("price", Operator::Gt, 100),
-            LeafId::PriceGe150 => pred_int("price", Operator::GtEq, 150),
-            LeafId::PriceEq150 => pred_int("price", Operator::Eq, 150),
-            LeafId::CategoryElectronics => pred_str("category", Operator::Eq, "electronics"),
-            LeafId::CategoryBooks => pred_str("category", Operator::Eq, "books"),
+            LeafId::PriceLt100 => ReferencePred::Int("price", Operator::Lt, 100),
+            LeafId::PriceLt50 => ReferencePred::Int("price", Operator::Lt, 50),
+            LeafId::PriceGt100 => ReferencePred::Int("price", Operator::Gt, 100),
+            LeafId::PriceGe150 => ReferencePred::Int("price", Operator::GtEq, 150),
+            LeafId::PriceEq150 => ReferencePred::Int("price", Operator::Eq, 150),
+            LeafId::CategoryElectronics => ReferencePred::Str("category", Operator::Eq, "electronics"),
+            LeafId::CategoryBooks => ReferencePred::Str("category", Operator::Eq, "books"),
+            LeafId::PriceLt(v) => ReferencePred::Int("price", Operator::Lt, v),
+            LeafId::PriceGt(v) => ReferencePred::Int("price", Operator::Gt, v),
+            LeafId::PriceEq(v) => ReferencePred::Int("price", Operator::Eq, v),
+            LeafId::StatusEq(v) => ReferencePred::Str("status", Operator::Eq, v),
             _ => return None,
         })
+    }
+
+    /// Engine-tree leaf for this LeafId.
+    fn as_bool_node(self) -> BoolNode {
+        // Collector leaves first.
+        if let Some(provider_id) = self.as_collector_provider_id() {
+            return BoolNode::Collector {
+                query_bytes: Arc::from(&[provider_id][..]),
+            };
+        }
+        // Simple comparison leaves via ReferencePred.
+        if let Some(rp) = self.as_reference_predicate() {
+            return match rp {
+                ReferencePred::Int(col, op, v) => pred_int(col, op, v),
+                ReferencePred::Str(col, op, v) => pred_str(col, op, v),
+            };
+        }
+        // Richer operators built directly as PhysicalExpr.
+        use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
+        use datafusion::physical_expr::PhysicalExpr;
+        let schema = build_fixture_schema();
+        let price_idx = schema.index_of("price").unwrap();
+        let price: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new("price", price_idx));
+        match self {
+            LeafId::PriceIn(list) => {
+                let literals: Vec<Arc<dyn PhysicalExpr>> = list
+                    .iter()
+                    .map(|v| {
+                        let l: Arc<dyn PhysicalExpr> =
+                            Arc::new(Literal::new(ScalarValue::Int32(Some(*v))));
+                        l
+                    })
+                    .collect();
+                let in_expr = datafusion::physical_expr::expressions::in_list(
+                    price,
+                    literals,
+                    &false,
+                    &schema,
+                )
+                .unwrap();
+                BoolNode::Predicate(in_expr)
+            }
+            LeafId::PricePlusGt { offset, threshold } => {
+                let off: Arc<dyn PhysicalExpr> =
+                    Arc::new(Literal::new(ScalarValue::Int32(Some(offset))));
+                let sum: Arc<dyn PhysicalExpr> =
+                    Arc::new(BinaryExpr::new(price, Operator::Plus, off));
+                let thr: Arc<dyn PhysicalExpr> =
+                    Arc::new(Literal::new(ScalarValue::Int32(Some(threshold))));
+                BoolNode::Predicate(Arc::new(BinaryExpr::new(sum, Operator::Gt, thr)))
+            }
+            _ => unreachable!("handled above"),
+        }
     }
 
     fn as_collector_provider_id(self) -> Option<u8> {
@@ -277,6 +340,14 @@ impl LeafId {
             _ => return None,
         })
     }
+}
+
+/// Reference-evaluator's view of a Predicate — plain data for direct
+/// comparison against fixture rows, no PhysicalExpr machinery.
+#[derive(Debug, Clone, Copy)]
+enum ReferencePred {
+    Int(&'static str, Operator, i32),
+    Str(&'static str, Operator, &'static str),
 }
 
 /// A compact tree representation for the reference_evaluator; mirrored to `BoolNode` for
@@ -300,22 +371,14 @@ fn reference_evaluator(tree: &T, row: usize) -> bool {
     }
 }
 
-/// Lower `T` to `BoolNode` + collect predicate leaves into a sidecar Vec.
-/// Collector leaves get `collector_idx = 0` here; `wire_collector_indices`
-/// will assign real indices during `run_tree`.
-fn to_engine_tree(tree: &T, preds: &mut Vec<ResolvedPredicate>) -> BoolNode {
+/// Lower `T` to `BoolNode`. `Predicate` leaves are materialized to
+/// `BoolNode::Predicate(PhysicalExpr)` directly via [`LeafId::as_bool_node`].
+fn to_engine_tree(tree: &T) -> BoolNode {
     match tree {
-        T::Leaf(l) if l.is_predicate() => {
-            let idx = preds.len() as u16;
-            preds.push(l.as_predicate().unwrap());
-            BoolNode::Predicate { predicate_id: idx }
-        }
-        T::Leaf(l) => BoolNode::Collector {
-            query_bytes: Arc::from(&[l.as_collector_provider_id().unwrap()][..]),
-        },
-        T::And(children) => BoolNode::And(children.iter().map(|c| to_engine_tree(c, preds)).collect()),
-        T::Or(children) => BoolNode::Or(children.iter().map(|c| to_engine_tree(c, preds)).collect()),
-        T::Not(inner) => BoolNode::Not(Box::new(to_engine_tree(inner, preds))),
+        T::Leaf(l) => l.as_bool_node(),
+        T::And(children) => BoolNode::And(children.iter().map(to_engine_tree).collect()),
+        T::Or(children) => BoolNode::Or(children.iter().map(to_engine_tree).collect()),
+        T::Not(inner) => BoolNode::Not(Box::new(to_engine_tree(inner))),
     }
 }
 
@@ -323,9 +386,8 @@ fn to_engine_tree(tree: &T, preds: &mut Vec<ResolvedPredicate>) -> BoolNode {
 async fn assert_engine_matches_reference(name: &str, tree: T) {
     let expected: Vec<usize> = (0..16).filter(|&r| reference_evaluator(&tree, r)).collect();
 
-    let mut preds = Vec::new();
-    let bool_tree = to_engine_tree(&tree, &mut preds);
-    let rows = run_tree(bool_tree, preds).await;
+    let bool_tree = to_engine_tree(&tree);
+    let rows = run_tree(bool_tree).await;
 
     // Map returned rows back to fixture row indices by matching (brand,price,status,category).
     let mut actual: Vec<usize> = Vec::with_capacity(rows.len());
@@ -935,4 +997,276 @@ reference_test!(
         or_(vec![l(PriceLt100), l(PriceGe150), l(PriceEq150)]),
         and_(vec![l(BrandAmazon), l(StatusArchived)]),
     ])
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// OR-heavy trees — OR inside AND with predicates on different columns,
+// OR of Collector + predicate, OR of AND-branches. All via the reference
+// framework so expected rows are computed row-by-row, not hand-crafted.
+// ─────────────────────────────────────────────────────────────────────
+
+// price > 40 AND (price < 60 OR price > 190)  — same-column OR.
+reference_test!(
+    or_of_predicates_same_column,
+    and_(vec![
+        l(LeafId::PriceGt(40)),
+        or_(vec![l(LeafId::PriceLt(60)), l(LeafId::PriceGt(190))]),
+    ])
+);
+
+// brand=apple AND (price > 100 OR status=archived) — multi-column OR,
+// StatusEq as predicate leaf (not the backend collector).
+reference_test!(
+    or_of_predicates_different_columns,
+    and_(vec![
+        l(BrandApple),
+        or_(vec![l(LeafId::PriceGt(100)), l(LeafId::StatusEq("archived"))]),
+    ])
+);
+
+// brand=apple AND (price > 150 OR status=archived)
+reference_test!(
+    and_collector_or_of_different_columns,
+    and_(vec![
+        l(BrandApple),
+        or_(vec![l(LeafId::PriceGt(150)), l(LeafId::StatusEq("archived"))]),
+    ])
+);
+
+// brand=amazon OR price > 190 — Collector OR'd with predicate.
+reference_test!(
+    or_of_collector_and_predicate,
+    or_(vec![l(BrandAmazon), l(LeafId::PriceGt(190))])
+);
+
+// brand=apple OR (price < 40 OR status=archived)
+reference_test!(
+    or_collector_with_nested_multi_column_or,
+    or_(vec![
+        l(BrandApple),
+        or_(vec![l(LeafId::PriceLt(40)), l(LeafId::StatusEq("archived"))]),
+    ])
+);
+
+// (apple AND price<70 AND status=active) OR (amazon AND price>=100)
+reference_test!(
+    or_of_and_branches_with_multi_column_filters,
+    or_(vec![
+        and_(vec![
+            l(BrandApple),
+            l(LeafId::PriceLt(70)),
+            l(LeafId::StatusEq("active")),
+        ]),
+        and_(vec![l(BrandAmazon), l(LeafId::PriceGt(100))]),
+    ])
+);
+
+// apple AND ((price>100 AND status=active) OR (price<50 OR status=archived))
+reference_test!(
+    deeply_nested_and_or_with_mixed_columns,
+    and_(vec![
+        l(BrandApple),
+        or_(vec![
+            and_(vec![l(LeafId::PriceGt(100)), l(LeafId::StatusEq("active"))]),
+            or_(vec![l(LeafId::PriceLt(50)), l(LeafId::StatusEq("archived"))]),
+        ]),
+    ])
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// Richer operators — DataFusion PhysicalExpr refinement handles these
+// shapes that the old six-op whitelist rejected.
+// ─────────────────────────────────────────────────────────────────────
+
+// apple AND price IN (50, 95, 200)
+reference_test!(
+    in_list_under_collector,
+    and_(vec![l(BrandApple), l(LeafId::PriceIn(&[50, 95, 200]))])
+);
+
+// apple OR price IN (40, 300) — IN standalone under OR.
+reference_test!(
+    in_list_or_with_collector,
+    or_(vec![l(BrandApple), l(LeafId::PriceIn(&[40, 300]))])
+);
+
+// apple AND (price + 10) > 100 — arithmetic the old converter rejected.
+reference_test!(
+    arithmetic_predicate_under_collector,
+    and_(vec![
+        l(BrandApple),
+        l(LeafId::PricePlusGt { offset: 10, threshold: 100 }),
+    ])
+);
+
+// apple AND NOT (price IN (95, 200))
+reference_test!(
+    not_of_in_list_under_collector,
+    and_(vec![
+        l(BrandApple),
+        not_(l(LeafId::PriceIn(&[95, 200]))),
+    ])
+);
+
+// apple AND (price IN (60, 200) OR (price + 10) > 200) — mixed.
+reference_test!(
+    mixed_in_list_and_arithmetic_under_collector,
+    and_(vec![
+        l(BrandApple),
+        or_(vec![
+            l(LeafId::PriceIn(&[60, 200])),
+            l(LeafId::PricePlusGt { offset: 10, threshold: 200 }),
+        ]),
+    ])
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// NOT coverage across operator types. Exercises:
+//   - the `try_negate_cmp_expr` op-flip fast-path for simple comparisons;
+//   - De Morgan push-down through AND/OR (in BoolNode::push_not_down);
+//   - the NotExpr wrapper fallback for non-invertible shapes (IN,
+//     arithmetic, string equality).
+// Every test is self-verifying via reference_test!.
+// ─────────────────────────────────────────────────────────────────────
+
+// NOT(price > 100)  ≡  price <= 100  — fast-path op-flip.
+reference_test!(not_of_gt_flips_to_lte, not_(l(LeafId::PriceGt(100))));
+
+// NOT(NOT(price > 100))  ≡  price > 100  — double negation cancels.
+reference_test!(not_not_cancels, not_(not_(l(LeafId::PriceGt(100)))));
+
+// NOT(price > 40 AND price < 100)  ≡  price <= 40 OR price >= 100.
+reference_test!(
+    not_of_and_same_col_de_morgan,
+    not_(and_(vec![l(LeafId::PriceGt(40)), l(LeafId::PriceLt(100))]))
+);
+
+// NOT(price = 50 OR price = 95)  ≡  price != 50 AND price != 95.
+reference_test!(
+    not_of_or_same_col_de_morgan,
+    not_(or_(vec![l(LeafId::PriceEq(50)), l(LeafId::PriceEq(95))]))
+);
+
+// NOT(price IN (50, 95)) — non-invertible leaf; goes through NotExpr wrapper
+// at refinement time. Reference evaluator still correct.
+reference_test!(not_of_in_list, not_(l(LeafId::PriceIn(&[50, 95]))));
+
+// NOT((price + 10) > 100) — NOT over arithmetic; NotExpr wrapper path.
+reference_test!(
+    not_of_arithmetic,
+    not_(l(LeafId::PricePlusGt { offset: 10, threshold: 100 }))
+);
+
+// NOT(status = "archived") — NOT over string predicate (not the Collector
+// one). Reference walks STATUSES row-by-row.
+reference_test!(not_of_status_eq, not_(l(LeafId::StatusEq("archived"))));
+
+// ─────────────────────────────────────────────────────────────────────
+// OR coverage — chained ORs, both-narrow ORs, Collector OR predicate.
+// ─────────────────────────────────────────────────────────────────────
+
+// price = 50 OR price = 95 OR price = 200 — chained same-column OR
+// (PruningPredicate expands this into a union of three stats checks).
+reference_test!(
+    chained_same_col_or,
+    or_(vec![
+        l(LeafId::PriceEq(50)),
+        l(LeafId::PriceEq(95)),
+        l(LeafId::PriceEq(200)),
+    ])
+);
+
+// price > 200 OR status = "nope" — both branches narrow/empty.
+reference_test!(
+    or_of_narrow_branches,
+    or_(vec![l(LeafId::PriceGt(200)), l(LeafId::StatusEq("nope"))])
+);
+
+// brand = apple OR price IN (30, 40, 300) — Collector OR'd with IN.
+reference_test!(
+    collector_or_in_list,
+    or_(vec![l(BrandApple), l(LeafId::PriceIn(&[30, 40, 300]))])
+);
+
+// price > 100 OR (price + 10) < 50  — OR with arithmetic branch.
+reference_test!(
+    or_with_arithmetic_branch,
+    or_(vec![
+        l(LeafId::PriceGt(100)),
+        l(LeafId::PricePlusGt { offset: 10, threshold: 50 }),
+        // Note: PricePlusGt { offset, threshold } means price+offset > threshold.
+        // So (price + 10) < 50 doesn't exist as a single LeafId; this is
+        // (price > 100) OR (price + 10 > 50) instead. Still a valid tree.
+    ])
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// AND coverage — multi-way AND across columns, mixed operator shapes.
+// ─────────────────────────────────────────────────────────────────────
+
+// 3-way AND: price > 40 AND price < 100 AND category = electronics.
+reference_test!(
+    three_way_and_mixed_cols,
+    and_(vec![
+        l(LeafId::PriceGt(40)),
+        l(LeafId::PriceLt(100)),
+        l(CategoryElectronics),
+    ])
+);
+
+// AND of three new-operator types: IN, arithmetic, status predicate.
+reference_test!(
+    three_way_and_mixed_new_operators,
+    and_(vec![
+        l(LeafId::PriceIn(&[50, 90, 200])),
+        l(LeafId::PricePlusGt { offset: 10, threshold: 50 }),
+        l(LeafId::StatusEq("active")),
+    ])
+);
+
+// Collector AND IN AND NOT IN — same column, both polarities.
+reference_test!(
+    collector_and_in_and_not_in,
+    and_(vec![
+        l(BrandApple),
+        l(LeafId::PriceIn(&[45, 60, 90, 95, 200])), // all apple prices
+        not_(l(LeafId::PriceIn(&[90, 95]))),         // exclude two
+    ])
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// Cross-operator combos — union of different tree shapes.
+// ─────────────────────────────────────────────────────────────────────
+
+// OR of two AND-branches, each mixing Collector + different predicate shapes.
+//   (apple AND price > 100) OR (amazon AND price IN (30, 50))
+reference_test!(
+    or_of_collector_and_branches_mixed_shapes,
+    or_(vec![
+        and_(vec![l(BrandApple), l(LeafId::PriceGt(100))]),
+        and_(vec![l(BrandAmazon), l(LeafId::PriceIn(&[30, 50]))]),
+    ])
+);
+
+// Collector AND (NOT string-predicate OR comparison).
+//   apple AND (price > 150 OR NOT status = "active")
+reference_test!(
+    collector_and_or_of_not_and_cmp,
+    and_(vec![
+        l(BrandApple),
+        or_(vec![
+            l(LeafId::PriceGt(150)),
+            not_(l(LeafId::StatusEq("active"))),
+        ]),
+    ])
+);
+
+// NOT over a mixed tree — OR of (AND with Collector) and IN-list.
+//   NOT((apple AND price > 150) OR price IN (30, 50))
+reference_test!(
+    not_over_mixed_tree,
+    not_(or_(vec![
+        and_(vec![l(BrandApple), l(LeafId::PriceGt(150))]),
+        l(LeafId::PriceIn(&[30, 50])),
+    ]))
 );

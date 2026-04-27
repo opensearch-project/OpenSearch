@@ -44,8 +44,8 @@
 //!
 //! # Modules
 //!
-//! - `index` — `ShardSearcher` + `RowGroupDocsCollector` traits, `BitsetMode`
-//! - `bool_tree` — `BoolNode`, `ResolvedNode`, `ResolvedPredicate`, De Morgan's normalize
+//! - `index` — `ShardSearcher` + `RowGroupDocsCollector` trait
+//! - `bool_tree` — `BoolNode`, `ResolvedNode`, De Morgan's normalize
 //! - `substrait_to_tree` — `index_filter` UDF, `expr_to_bool_tree`, `classify_filter`
 //! - `eval` — `RowGroupBitsetSource` trait + concrete evaluators
 //! - `stream` — unified `IndexedExec` + `IndexedStream`

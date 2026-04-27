@@ -181,31 +181,55 @@ fn reference_evaluator_null(tree: &NT, row: usize) -> Option<bool> {
 /// Lower `NT` to `BoolNode`. Collector leaves embed their DFS index as a
 /// single byte in `query_bytes`; `wire_null` uses that byte to look up
 /// the matching-set for the leaf.
-fn to_engine_tree_null(tree: &NT, preds: &mut Vec<ResolvedPredicate>, coll_seq: &mut u8) -> BoolNode {
+fn to_engine_tree_null(tree: &NT, coll_seq: &mut u8) -> BoolNode {
+    fn null_schema() -> SchemaRef {
+        Arc::new(Schema::new(vec![
+            Field::new("all_null_col", DataType::Int32, true),
+            Field::new("mostly_null_col", DataType::Int32, true),
+            Field::new("half_null_col", DataType::Int32, true),
+            Field::new("tag", DataType::Utf8, false),
+        ]))
+    }
+    fn pred_int_local(col: &str, op: Operator, v: i32) -> BoolNode {
+        let schema = null_schema();
+        let col_idx = schema.index_of(col).expect("null column");
+        let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+            Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+        let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+            Arc::new(datafusion::physical_expr::expressions::Literal::new(
+                ScalarValue::Int32(Some(v)),
+            ));
+        BoolNode::Predicate(Arc::new(
+            datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
+        ))
+    }
+    fn pred_str_local(col: &str, op: Operator, v: &str) -> BoolNode {
+        let schema = null_schema();
+        let col_idx = schema.index_of(col).expect("null column");
+        let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+            Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+        let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+            Arc::new(datafusion::physical_expr::expressions::Literal::new(
+                ScalarValue::Utf8(Some(v.to_string())),
+            ));
+        BoolNode::Predicate(Arc::new(
+            datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
+        ))
+    }
     match tree {
         NT::Leaf(NullLeaf::Collector(_)) => {
             let tag = *coll_seq;
             *coll_seq += 1;
             BoolNode::Collector { query_bytes: Arc::from(&[tag][..]) }
         }
-        NT::Leaf(NullLeaf::AllNullGe(v)) => {
-            push_pred(preds, pred_int("all_null_col", Operator::GtEq, *v))
-        }
-        NT::Leaf(NullLeaf::MostlyNullGe(v)) => {
-            push_pred(preds, pred_int("mostly_null_col", Operator::GtEq, *v))
-        }
-        NT::Leaf(NullLeaf::HalfNullGe(v)) => {
-            push_pred(preds, pred_int("half_null_col", Operator::GtEq, *v))
-        }
-        NT::Leaf(NullLeaf::MostlyNullEq(v)) => {
-            push_pred(preds, pred_int("mostly_null_col", Operator::Eq, *v))
-        }
-        NT::Leaf(NullLeaf::TagEq(s)) => push_pred(preds, pred_str("tag", Operator::Eq, s)),
-        NT::Not(inner) => BoolNode::Not(Box::new(to_engine_tree_null(inner, preds, coll_seq))),
-        NT::And(cs) => {
-            BoolNode::And(cs.iter().map(|c| to_engine_tree_null(c, preds, coll_seq)).collect())
-        }
-        NT::Or(cs) => BoolNode::Or(cs.iter().map(|c| to_engine_tree_null(c, preds, coll_seq)).collect()),
+        NT::Leaf(NullLeaf::AllNullGe(v)) => pred_int_local("all_null_col", Operator::GtEq, *v),
+        NT::Leaf(NullLeaf::MostlyNullGe(v)) => pred_int_local("mostly_null_col", Operator::GtEq, *v),
+        NT::Leaf(NullLeaf::HalfNullGe(v)) => pred_int_local("half_null_col", Operator::GtEq, *v),
+        NT::Leaf(NullLeaf::MostlyNullEq(v)) => pred_int_local("mostly_null_col", Operator::Eq, *v),
+        NT::Leaf(NullLeaf::TagEq(s)) => pred_str_local("tag", Operator::Eq, s),
+        NT::Not(inner) => BoolNode::Not(Box::new(to_engine_tree_null(inner, coll_seq))),
+        NT::And(cs) => BoolNode::And(cs.iter().map(|c| to_engine_tree_null(c, coll_seq)).collect()),
+        NT::Or(cs) => BoolNode::Or(cs.iter().map(|c| to_engine_tree_null(c, coll_seq)).collect()),
     }
 }
 
@@ -231,7 +255,7 @@ fn wire_null_rec(
             let set = &matching_sets[tag];
             out.push(Arc::new(RgScopedCollector { matching_rows: set.clone() }));
         }
-        BoolNode::Predicate { .. } => {}
+        BoolNode::Predicate(_) => {}
     }
 }
 
@@ -252,9 +276,8 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
     let mut matching_sets = Vec::new();
     collect_matching_sets(&tree, &mut matching_sets);
 
-    let mut preds = Vec::new();
     let mut seq = 0u8;
-    let bt = to_engine_tree_null(&tree, &mut preds, &mut seq).push_not_down();
+    let bt = to_engine_tree_null(&tree, &mut seq).push_not_down();
     let collectors = wire_null(&bt, &matching_sets);
 
     let size = std::fs::metadata(&f.path).unwrap().len();
@@ -281,7 +304,6 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
     };
 
     let tree = Arc::new(bt);
-    let predicates: Arc<Vec<Arc<ResolvedPredicate>>> = Arc::new(preds.into_iter().map(Arc::new).collect());
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
         .into_iter()
         .enumerate()
@@ -289,12 +311,11 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         .collect();
     let factory: super::super::table_provider::EvaluatorFactory = {
         let per_leaf = per_leaf.clone();
-        let predicates = Arc::clone(&predicates);
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
         Arc::new(move |segment, _chunk| {
-            let resolved = tree.resolve(&per_leaf, &predicates)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata), &[]));
+            let resolved = tree.resolve(&per_leaf)?;
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -302,6 +323,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
+                pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
             });
             Ok(eval)
         })

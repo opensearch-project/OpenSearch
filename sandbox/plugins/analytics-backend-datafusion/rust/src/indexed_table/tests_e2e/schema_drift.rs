@@ -71,7 +71,7 @@ fn build_missing_col_fixture() -> MissingColFixture {
 
 /// Run a tree whose predicates may reference `missing_col` (not in parquet
 /// schema). Returns the row count the engine emits.
-async fn run_missing_col_tree(tree_bool: BoolNode, predicates: Vec<ResolvedPredicate>) -> usize {
+async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
     let f = missing_col_fixture();
     let size = std::fs::metadata(&f.path).unwrap().len();
     let file = std::fs::File::open(&f.path).unwrap();
@@ -96,14 +96,12 @@ async fn run_missing_col_tree(tree_bool: BoolNode, predicates: Vec<ResolvedPredi
     };
 
     let tree = Arc::new(tree_bool);
-    let predicates: Arc<Vec<Arc<ResolvedPredicate>>> = Arc::new(predicates.into_iter().map(Arc::new).collect());
     let factory: super::super::table_provider::EvaluatorFactory = {
-        let predicates = Arc::clone(&predicates);
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
         Arc::new(move |segment, _chunk| {
-            let resolved = tree.resolve(&[], &predicates)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata), &[]));
+            let resolved = tree.resolve(&[])?;
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -111,6 +109,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode, predicates: Vec<ResolvedPredi
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
+                pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
             });
             Ok(eval)
         })
@@ -138,77 +137,101 @@ async fn run_missing_col_tree(tree_bool: BoolNode, predicates: Vec<ResolvedPredi
     count
 }
 
-fn only_pred(p: ResolvedPredicate) -> (BoolNode, Vec<ResolvedPredicate>) {
-    (BoolNode::Predicate { predicate_id: 0 }, vec![p])
+/// Local schema that *includes* missing_col — used for building
+/// PhysicalExprs that reference a column absent from the parquet file.
+/// The evaluator's refinement stage handles the missing column (emits
+/// UNKNOWN) per its normal semantics.
+fn schema_with_missing() -> SchemaRef {
+    Arc::new(Schema::new(vec![
+        Field::new("name", DataType::Utf8, false),
+        Field::new("score", DataType::Int32, false),
+        Field::new("missing_col", DataType::Int32, true),
+    ]))
 }
-fn not_pred(p: ResolvedPredicate) -> (BoolNode, Vec<ResolvedPredicate>) {
-    (
-        BoolNode::Not(Box::new(BoolNode::Predicate { predicate_id: 0 })),
-        vec![p],
-    )
+
+fn pred_missing_int(col: &str, op: Operator, v: i32) -> BoolNode {
+    let schema = schema_with_missing();
+    let col_idx = schema.index_of(col).expect("column in local schema");
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Literal::new(
+            ScalarValue::Int32(Some(v)),
+        ));
+    BoolNode::Predicate(Arc::new(
+        datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
+    ))
+}
+
+fn pred_missing_str(col: &str, op: Operator, v: &str) -> BoolNode {
+    let schema = schema_with_missing();
+    let col_idx = schema.index_of(col).expect("column in local schema");
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Literal::new(
+            ScalarValue::Utf8(Some(v.to_string())),
+        ));
+    BoolNode::Predicate(Arc::new(
+        datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
+    ))
+}
+
+fn only_pred(p: BoolNode) -> BoolNode {
+    p
+}
+fn not_pred(p: BoolNode) -> BoolNode {
+    BoolNode::Not(Box::new(p))
 }
 
 // 1. Predicate on missing column -> all UNKNOWN -> 0 rows.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn missing_col_predicate_returns_zero_rows() {
-    let (tree, preds) = only_pred(pred_int("missing_col", Operator::GtEq, 0));
-    assert_eq!(run_missing_col_tree(tree, preds).await, 0);
+    let tree = only_pred(pred_missing_int("missing_col", Operator::GtEq, 0));
+    assert_eq!(run_missing_col_tree(tree).await, 0);
 }
 
 // 2. NOT(missing-col predicate) -> UNKNOWN -> 0 rows.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn missing_col_not_predicate_returns_zero_rows() {
-    let (tree, preds) = not_pred(pred_int("missing_col", Operator::GtEq, 0));
-    assert_eq!(run_missing_col_tree(tree, preds).await, 0);
+    let tree = not_pred(pred_missing_int("missing_col", Operator::GtEq, 0));
+    assert_eq!(run_missing_col_tree(tree).await, 0);
 }
 
 // 3. AND(existing, missing): all rows UNKNOWN via missing branch -> 0.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn missing_col_and_with_existing_returns_zero() {
-    let preds = vec![
-        pred_str("name", Operator::Eq, "foo"),   // matches half the rows
-        pred_int("missing_col", Operator::GtEq, 0), // always UNKNOWN
-    ];
     let tree = BoolNode::And(vec![
-        BoolNode::Predicate { predicate_id: 0 },
-        BoolNode::Predicate { predicate_id: 1 },
+        pred_missing_str("name", Operator::Eq, "foo"),
+        pred_missing_int("missing_col", Operator::GtEq, 0),
     ]);
-    assert_eq!(run_missing_col_tree(tree, preds).await, 0);
+    assert_eq!(run_missing_col_tree(tree).await, 0);
 }
 
 // 4. OR(existing, missing): existing branch dominates. Expected = name='foo'
 // row count (half of MISSING_N).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn missing_col_or_with_existing_keeps_existing() {
-    let preds = vec![
-        pred_str("name", Operator::Eq, "foo"),
-        pred_int("missing_col", Operator::GtEq, 0),
-    ];
     let tree = BoolNode::Or(vec![
-        BoolNode::Predicate { predicate_id: 0 },
-        BoolNode::Predicate { predicate_id: 1 },
+        pred_missing_str("name", Operator::Eq, "foo"),
+        pred_missing_int("missing_col", Operator::GtEq, 0),
     ]);
     let expected = missing_col_fixture().name.iter().filter(|n| **n == "foo").count();
-    assert_eq!(run_missing_col_tree(tree, preds).await, expected);
+    assert_eq!(run_missing_col_tree(tree).await, expected);
 }
 
 // 5. Nested: (name='foo' AND score<500) OR (missing_col=42). The missing_col
 // branch never matches; result = (name='foo' AND score<500) rows.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn missing_col_nested_or_kept_existing_only() {
-    let preds = vec![
-        pred_str("name", Operator::Eq, "foo"),
-        pred_int("score", Operator::Lt, 500),
-        pred_int("missing_col", Operator::Eq, 42),
-    ];
     let tree = BoolNode::Or(vec![
         BoolNode::And(vec![
-            BoolNode::Predicate { predicate_id: 0 },
-            BoolNode::Predicate { predicate_id: 1 },
+            pred_missing_str("name", Operator::Eq, "foo"),
+            pred_missing_int("score", Operator::Lt, 500),
         ]),
-        BoolNode::Predicate { predicate_id: 2 },
+        pred_missing_int("missing_col", Operator::Eq, 42),
     ]);
     let f = missing_col_fixture();
     let expected = (0..MISSING_N).filter(|&i| f.name[i] == "foo" && f.score[i] < 500).count();
-    assert_eq!(run_missing_col_tree(tree, preds).await, expected);
+    assert_eq!(run_missing_col_tree(tree).await, expected);
 }

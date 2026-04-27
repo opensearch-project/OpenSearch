@@ -61,10 +61,11 @@
 use std::sync::Arc;
 
 use datafusion::arrow::array::{Array, BooleanArray};
-use datafusion::arrow::compute::kernels::cmp::{eq, gt, gt_eq, lt, lt_eq, neq};
 use datafusion::arrow::compute::{and_kleene as and, not, or_kleene as or};
 use datafusion::arrow::record_batch::RecordBatch;
+#[cfg(test)]
 use datafusion::common::ScalarValue;
+#[cfg(test)]
 use datafusion::logical_expr::Operator;
 use roaring::RoaringBitmap;
 
@@ -86,6 +87,10 @@ impl TreeEvaluator for BitmapTreeEvaluator {
         ctx: &RgEvalContext,
         leaves: &dyn LeafBitmapSource,
         page_pruner: &PagePruner,
+        pruning_predicates: &std::collections::HashMap<
+            usize,
+            Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+        >,
     ) -> Result<TreePrefetch, String> {
         let mut per_leaf = Vec::new();
         let mut dfs_counter = 0usize;
@@ -97,6 +102,7 @@ impl TreeEvaluator for BitmapTreeEvaluator {
             ctx,
             leaves,
             page_pruner,
+            pruning_predicates,
             &mut dfs_counter,
             &mut per_leaf,
             /* under_all_and_path */ true,
@@ -122,8 +128,8 @@ impl TreeEvaluator for BitmapTreeEvaluator {
     }
 }
 
-// Candidate stage: - Filters the parquet data with candidate superset [ page pruning + lucene bitset ]
-//                    [ either via filter exec or filter pushdown ] tree walker
+// Candidate stage: Filters the parquet data with candidate superset [ page pruning + lucene bitset ]
+//                   [ either via filter exec or filter pushdown ] tree walker
 //
 // Walks the resolved tree to produce the top-level superset RoaringBitmap
 // plus the per-leaf bitmap side-table.
@@ -164,6 +170,10 @@ fn prefetch_node(
     ctx: &RgEvalContext,
     leaves: &dyn LeafBitmapSource,
     page_pruner: &PagePruner,
+    pruning_predicates: &std::collections::HashMap<
+        usize,
+        Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+    >,
     dfs: &mut usize,
     out: &mut Vec<(usize, RoaringBitmap)>,
     under_all_and_path: bool,
@@ -180,6 +190,7 @@ fn prefetch_node(
                     ctx,
                     leaves,
                     page_pruner,
+                    pruning_predicates,
                     dfs,
                     out,
                     under_all_and_path, // AND preserves the all-AND path
@@ -227,6 +238,7 @@ fn prefetch_node(
                     ctx,
                     leaves,
                     page_pruner,
+                    pruning_predicates,
                     dfs,
                     out,
                     // OR breaks all-AND propagation for its subtree.
@@ -259,6 +271,7 @@ fn prefetch_node(
                 ctx,
                 leaves,
                 page_pruner,
+                pruning_predicates,
                 dfs,
                 out,
                 /* under_all_and_path */ false,
@@ -294,16 +307,15 @@ fn prefetch_node(
             out.push((key, bm.clone()));
             Ok(bm)
         }
-        ResolvedNode::Predicate { pred } => {
+        ResolvedNode::Predicate(expr) => {
             let leaf_idx = *dfs;
             *dfs += 1;
             let _ = leaf_idx; // predicate leaves don't need per-leaf storage
             Ok(predicate_page_bitmap(
-                &pred.column,
-                &pred.op,
-                &pred.value,
+                expr,
                 ctx,
                 page_pruner,
+                pruning_predicates,
             ))
         }
     }
@@ -346,7 +358,7 @@ fn collect_collector_leaves(
             let bm = leaves.leaf_bitmap(node, leaf_idx, ctx)?;
             out.push((key, bm));
         }
-        ResolvedNode::Predicate { .. } => {
+        ResolvedNode::Predicate(_) => {
             *dfs += 1;
         }
     }
@@ -366,29 +378,58 @@ fn skip_dfs(node: &ResolvedNode, dfs: &mut usize) {
             }
         }
         ResolvedNode::Not(child) => skip_dfs(child, dfs),
-        ResolvedNode::Collector { .. } | ResolvedNode::Predicate { .. } => *dfs += 1,
+        ResolvedNode::Collector { .. } | ResolvedNode::Predicate(_) => *dfs += 1,
     }
 }
 
 fn predicate_page_bitmap(
-    column: &str,
-    op: &Operator,
-    value: &ScalarValue,
+    expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
     ctx: &RgEvalContext,
     page_pruner: &PagePruner,
+    pruning_predicates: &std::collections::HashMap<
+        usize,
+        Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+    >,
 ) -> RoaringBitmap {
-    let candidates = page_pruner.candidate_row_ids_for_filter(
-        column,
-        op,
-        value,
-        ctx.rg_idx,
-        ctx.rg_first_row,
-        ctx.rg_num_rows,
-    );
+    // Identity key: same Arc used at build time is the same Arc we see here.
+    let key = Arc::as_ptr(expr) as *const () as usize;
+    let pruning_predicate = match pruning_predicates.get(&key) {
+        Some(pp) => pp,
+        // No pruning predicate available (schema mismatch at build time, or
+        // `always_true`): conservative fallback is "every row in scope is a
+        // candidate" — return a full-range bitmap so AND/OR with other
+        // leaves combines correctly.
+        None => {
+            let mut bm = RoaringBitmap::new();
+            bm.insert_range(0u32..((ctx.max_doc - ctx.min_doc) as u32));
+            return bm;
+        }
+    };
+    // Evaluate page pruning for this single conjunct.
+    let selection = page_pruner.prune_rg(pruning_predicate, ctx.rg_idx);
     let mut bm = RoaringBitmap::new();
-    for doc_id in candidates {
-        if doc_id >= ctx.min_doc as i64 && doc_id < ctx.max_doc as i64 {
-            bm.insert((doc_id - ctx.min_doc as i64) as u32);
+    match selection {
+        Some(sel) => {
+            // The selection is RG-relative. Translate to min_doc-relative
+            // space (the bitmap the tree evaluator walks over).
+            let rg_offset = (ctx.rg_first_row as i32 - ctx.min_doc) as i64;
+            let mut rg_pos: i64 = 0;
+            for s in sel.iter() {
+                if !s.skip {
+                    for i in 0..s.row_count as i64 {
+                        let rel = rg_pos + i + rg_offset;
+                        if rel >= 0 && rel < (ctx.max_doc - ctx.min_doc) as i64 {
+                            bm.insert(rel as u32);
+                        }
+                    }
+                }
+                rg_pos += s.row_count as i64;
+            }
+        }
+        None => {
+            // No pruning applicable (no page index or column missing) —
+            // conservative: every row in scope is a candidate.
+            bm.insert_range(0u32..((ctx.max_doc - ctx.min_doc) as u32));
         }
     }
     bm
@@ -417,7 +458,7 @@ fn predicate_page_bitmap(
 /// orders them meaningfully against each other and against leaves.
 fn subtree_cost(node: &ResolvedNode, ctx: &RgEvalContext) -> u32 {
     match node {
-        ResolvedNode::Predicate { .. } => ctx.cost_predicate,
+        ResolvedNode::Predicate(_) => ctx.cost_predicate,
         ResolvedNode::Collector { .. } => ctx.cost_collector,
         ResolvedNode::Not(child) => subtree_cost(child, ctx),
         ResolvedNode::And(children) | ResolvedNode::Or(children) => {
@@ -431,7 +472,7 @@ fn subtree_cost(node: &ResolvedNode, ctx: &RgEvalContext) -> u32 {
 /// universe subtraction. See the `Not` arm in `prefetch_node` for why.
 fn subtree_has_predicate(node: &ResolvedNode) -> bool {
     match node {
-        ResolvedNode::Predicate { .. } => true,
+        ResolvedNode::Predicate(_) => true,
         ResolvedNode::Collector { .. } => false,
         ResolvedNode::And(cs) | ResolvedNode::Or(cs) => cs.iter().any(subtree_has_predicate),
         ResolvedNode::Not(c) => subtree_has_predicate(c),
@@ -518,9 +559,7 @@ fn on_batch_node(
                 batch_len,
             ))
         }
-        ResolvedNode::Predicate { pred } => {
-            predicate_to_batch_mask(batch, &pred.column, &pred.op, &pred.value)
-        }
+        ResolvedNode::Predicate(expr) => predicate_to_batch_mask(batch, expr),
     }
 }
 
@@ -562,37 +601,111 @@ fn bitmap_to_batch_mask(
     BooleanArray::new(builder.finish(), None)
 }
 
-// Use arrow kernels to evaluate the parquet predicates expressions to return the resultant bitmap
+// Evaluate an arbitrary boolean `PhysicalExpr` against a batch; return
+// the resulting per-row mask. Uses DataFusion's expression evaluator —
+// handles all operators, IN, IS NULL, LIKE, arithmetic, CAST, UDFs etc.
+//
+// Fast-path for `col OP literal` comparisons: skip the expression walk
+// and dispatch directly to the arrow kernel. This is the dominant shape
+// in production (Predicate leaves are almost always simple comparisons)
+// and the kernel call is 3–5x cheaper than going through
+// `BinaryExpr::evaluate` + column/literal dispatch.
 fn predicate_to_batch_mask(
     batch: &RecordBatch,
-    column: &str,
-    op: &Operator,
-    value: &ScalarValue,
+    expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
 ) -> Result<BooleanArray, String> {
-    // Column absent from this batch's schema: the parquet segment doesn't
-    // carry that column at all (common when a mapping added the field after
-    // the segment was written). SQL semantics: every row is UNKNOWN. Return
-    // an all-NULL BooleanArray so the NULL-aware Arrow AND/OR (SQL 3VL)
-    // kernels combine it correctly, and `filter_record_batch` drops the
-    // UNKNOWN rows.
-    let col = match batch.column_by_name(column) {
-        Some(c) => c,
-        None => {
+    use datafusion::arrow::compute::kernels::cmp::{eq, gt, gt_eq, lt, lt_eq, neq};
+    use datafusion::logical_expr::{ColumnarValue, Operator};
+    use datafusion::physical_expr::expressions::{
+        BinaryExpr, Column as PhysColumn, Literal,
+    };
+
+    // Fast-path: detect `col OP literal` and call the kernel directly.
+    if let Some(bin) = expr.as_any().downcast_ref::<BinaryExpr>() {
+        if let (Some(col), Some(lit)) = (
+            bin.left().as_any().downcast_ref::<PhysColumn>(),
+            bin.right().as_any().downcast_ref::<Literal>(),
+        ) {
+            match batch.column_by_name(col.name()) {
+                None => {
+                    // Column absent from batch schema: SQL UNKNOWN.
+                    let nulls: Vec<Option<bool>> =
+                        (0..batch.num_rows()).map(|_| None).collect();
+                    return Ok(BooleanArray::from(nulls));
+                }
+                Some(col_arr) => {
+                    let scalar = lit.value().to_scalar().map_err(|e| e.to_string())?;
+                    let kernel_result = match *bin.op() {
+                        Operator::Eq => eq(col_arr, &scalar),
+                        Operator::NotEq => neq(col_arr, &scalar),
+                        Operator::Lt => lt(col_arr, &scalar),
+                        Operator::LtEq => lt_eq(col_arr, &scalar),
+                        Operator::Gt => gt(col_arr, &scalar),
+                        Operator::GtEq => gt_eq(col_arr, &scalar),
+                        _ => {
+                            // Non-comparison op (And/Or/Plus/...) — fall
+                            // through to the general evaluator path.
+                            return evaluate_via_df(batch, expr);
+                        }
+                    };
+                    return kernel_result.map_err(|e| e.to_string());
+                }
+            }
+        }
+    }
+    evaluate_via_df(batch, expr)
+}
+
+/// General-case evaluator — `expr.evaluate(batch)` with schema-drift
+/// safety check. Used for non-`col OP literal` shapes (IN, IS NULL,
+/// arithmetic, NOT-wrapped, …).
+fn evaluate_via_df(
+    batch: &RecordBatch,
+    expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+) -> Result<BooleanArray, String> {
+    use datafusion::logical_expr::ColumnarValue;
+
+    // Schema drift: if the expression references any column not present
+    // in this batch's schema, SQL semantics demand UNKNOWN for every
+    // row. Return an all-NULL BooleanArray so kleene AND/OR combine
+    // correctly and `filter_record_batch` drops the UNKNOWN rows.
+    let batch_schema = batch.schema();
+    let referenced = datafusion::physical_expr::utils::collect_columns(expr);
+    for col in &referenced {
+        if batch_schema.index_of(col.name()).is_err() {
             let nulls: Vec<Option<bool>> = (0..batch.num_rows()).map(|_| None).collect();
             return Ok(BooleanArray::from(nulls));
         }
-    };
-    let scalar_value = value
-        .to_scalar()
-        .map_err(|e| format!("to_scalar {}: {}", column, e))?;
-    match op {
-        Operator::Eq => eq(col, &scalar_value).map_err(|e| e.to_string()),
-        Operator::NotEq => neq(col, &scalar_value).map_err(|e| e.to_string()),
-        Operator::Lt => lt(col, &scalar_value).map_err(|e| e.to_string()),
-        Operator::LtEq => lt_eq(col, &scalar_value).map_err(|e| e.to_string()),
-        Operator::Gt => gt(col, &scalar_value).map_err(|e| e.to_string()),
-        Operator::GtEq => gt_eq(col, &scalar_value).map_err(|e| e.to_string()),
-        _ => Err(format!("unsupported predicate op {:?}", op)),
+    }
+
+    let result = expr
+        .evaluate(batch)
+        .map_err(|e| format!("expr.evaluate: {}", e))?;
+    match result {
+        ColumnarValue::Array(arr) => {
+            use datafusion::arrow::array::AsArray;
+            if arr.data_type() == &datafusion::arrow::datatypes::DataType::Boolean {
+                Ok(arr.as_boolean().clone())
+            } else {
+                Err(format!(
+                    "predicate evaluation produced non-boolean array: {:?}",
+                    arr.data_type()
+                ))
+            }
+        }
+        ColumnarValue::Scalar(sv) => match sv {
+            datafusion::common::ScalarValue::Boolean(Some(b)) => {
+                Ok(BooleanArray::from(vec![b; batch.num_rows()]))
+            }
+            datafusion::common::ScalarValue::Boolean(None) => {
+                let nulls: Vec<Option<bool>> = (0..batch.num_rows()).map(|_| None).collect();
+                Ok(BooleanArray::from(nulls))
+            }
+            other => Err(format!(
+                "predicate evaluation produced non-boolean scalar: {:?}",
+                other
+            )),
+        },
     }
 }
 
@@ -662,7 +775,7 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::indexed_table::bool_tree::{ResolvedNode, ResolvedPredicate};
+    use crate::indexed_table::bool_tree::ResolvedNode;
     use datafusion::arrow::array::Int32Array;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::parquet::arrow::arrow_reader::{RowSelection, RowSelector};
@@ -717,7 +830,7 @@ mod tests {
             ArrowReaderOptions::new().with_page_index(true),
         )
         .unwrap();
-        PagePruner::new(meta.schema(), meta.metadata().clone(), &[])
+        PagePruner::new(meta.schema(), meta.metadata().clone())
     }
 
     fn collector_leaf(idx: usize) -> ResolvedNode {
@@ -752,7 +865,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
         assert_eq!(result.per_leaf.len(), 2);
@@ -766,7 +879,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
             .unwrap();
         assert_eq!(result.candidates, bm(&[1, 2, 3]));
     }
@@ -779,7 +892,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
             .unwrap();
         // Universe is [0, 16). Minus {0,1,2} = {3..15}
         let expected: RoaringBitmap = (3u32..16).collect();
@@ -794,7 +907,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let state = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
             .unwrap();
 
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
@@ -1059,7 +1172,7 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1099,7 +1212,7 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
             .unwrap();
         // OR contributes {5} from standalone_leaf → non-empty candidates.
         assert!(!result.candidates.is_empty());
@@ -1137,7 +1250,7 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new())
             .unwrap();
         // NOT inverts empty AND → universe.
         assert_eq!(result.candidates.len(), 16);
@@ -1148,13 +1261,12 @@ mod tests {
     // ── subtree_cost ─────────────────────────────────────────────────
 
     fn test_predicate_node() -> ResolvedNode {
-        ResolvedNode::Predicate {
-            pred: Arc::new(ResolvedPredicate {
-                column: "x".into(),
-                op: Operator::Eq,
-                value: ScalarValue::Int32(Some(0)),
-            }),
-        }
+        use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
+        let left: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+            std::sync::Arc::new(PhysColumn::new("x", 0));
+        let right: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+            std::sync::Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
+        ResolvedNode::Predicate(std::sync::Arc::new(BinaryExpr::new(left, Operator::Eq, right)))
     }
 
     #[test]

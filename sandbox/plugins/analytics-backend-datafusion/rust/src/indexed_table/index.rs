@@ -77,30 +77,3 @@ pub trait ShardSearcher: Send + Sync + Debug {
         doc_max: i32,
     ) -> Result<Arc<dyn RowGroupDocsCollector>, String>;
 }
-
-/// How the bitset relates to the parquet (non-indexed) filter candidates.
-///
-/// Used by `SingleCollectorEvaluator` to decide whether to intersect (AND) or
-/// union (OR) the collector's bitset with the page pruner's candidate rows.
-/// In Path C (tree), the tree structure itself determines combining, so this
-/// is not consulted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BitsetMode {
-    /// Intersect bitset with page pruner ranges (default).
-    /// Emitted by `classify_filter` for `AND(Collector, predicates)` shapes.
-    And,
-    /// Union bitset with page pruner candidate rows.
-    ///
-    /// Not currently emitted by `classify_filter` — reserved for a future
-    /// Path B extension that handles `OR(Collector, predicates)` without
-    /// falling through to Path C's full tree evaluator. The branch is wired
-    /// end-to-end in `SingleCollectorEvaluator` and unit-tested so it stays
-    /// working when a classifier update starts emitting it.
-    Or,
-}
-
-impl Default for BitsetMode {
-    fn default() -> Self {
-        BitsetMode::And
-    }
-}

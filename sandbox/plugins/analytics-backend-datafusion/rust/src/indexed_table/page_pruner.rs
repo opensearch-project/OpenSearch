@@ -8,493 +8,408 @@
 
 //! Page-level pruning using parquet page statistics.
 //!
-//! Filters row IDs based on page min/max statistics before reading data.
-//! This intersects (AND mode) or unions (OR mode) backend's doc IDs with page
-//! ranges that could contain matching values, eliminating rows that can't
-//! satisfy the filter.
+//! Thin wrapper around DataFusion's [`PruningPredicate`] and a
+//! **multi-column** per-RG page-stats adapter. Replaces the previous
+//! homegrown per-filter range-intersection logic, which silently dropped
+//! unsupported expression shapes and could mis-prune `OR(...)` inside a
+//! conjunct.
 //!
-//! Ported verbatim from PR #21164.
+//! # Correctness
+//!
+//! `PruningPredicate` rewrites the full boolean tree homomorphically:
+//! - `a = v` → `a_min ≤ v AND a_max ≥ v` (page could contain `v`).
+//! - `AND(x, y)` → `AND(rewrite(x), rewrite(y))`.
+//! - `OR(x, y)` → `OR(rewrite(x), rewrite(y))`.
+//! - `NOT(x)` → `NOT(rewrite(x))` (via its own rules).
+//! - `IN`, `LIKE`, `IS NULL`, etc. handled by `PruningPredicate`'s own
+//!   rewriters.
+//! - Anything it can't translate becomes `Literal(true)`. Safe
+//!   conservative fallback: can't prune → assume page matches.
+//!
+//! Crucially, the rewrite preserves boolean structure, so
+//! `OR(a=5, b=10)` correctly prunes a page where `a` is entirely
+//! outside `{5}` AND `b` is entirely outside `{10}`. The per-page stats
+//! adapter below answers stats queries for any column in the file.
+//!
+//! # Per-RG cost
+//!
+//! One `PruningPredicate::prune` call per RG. Internally evaluates the
+//! rewritten expression against per-page min/max/null-count arrays;
+//! each array is read once per column per predicate. `PruningPredicate`
+//! itself is built once per query at [`build_pruning_predicate`].
 
-use std::ops::Range;
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, Int32Array, Int64Array};
+use datafusion::arrow::array::{ArrayRef, BooleanArray, Int64Array};
 use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::common::ScalarValue;
-use datafusion::logical_expr::{Expr, Operator};
+use datafusion::common::{Column, ScalarValue};
+use datafusion::logical_expr::Operator;
 use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
+use datafusion::parquet::arrow::arrow_reader::{RowSelection, RowSelector};
 use datafusion::parquet::file::metadata::ParquetMetaData;
+use datafusion::physical_expr::expressions::{BinaryExpr, Literal};
+#[cfg(test)]
+use datafusion::physical_expr::expressions::Column as PhysColumn;
+use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistics};
 
-#[derive(Debug, Clone)]
-struct ParsedFilter {
-    col_name: String,
-    op: Operator,
-    value: ScalarValue,
-}
-
-/// Per-row-group page pruner using page statistics.
+/// Per-row-group page pruner. Owns schema + metadata references; the
+/// pruning expression itself lives in a [`PruningPredicate`] built once
+/// per query by [`build_pruning_predicate`].
 pub struct PagePruner {
-    filters: Vec<ParsedFilter>,
     schema: SchemaRef,
     metadata: Arc<ParquetMetaData>,
 }
 
 impl PagePruner {
-    pub fn new(schema: &SchemaRef, metadata: Arc<ParquetMetaData>, filters: &[Expr]) -> Self {
-        let parsed = filters.iter().filter_map(Self::parse_filter).collect();
+    pub fn new(schema: &SchemaRef, metadata: Arc<ParquetMetaData>) -> Self {
         Self {
-            filters: parsed,
             schema: schema.clone(),
             metadata,
         }
     }
 
-    fn parse_filter(filter: &Expr) -> Option<ParsedFilter> {
-        if let Expr::BinaryExpr(binary) = filter {
-            match (binary.left.as_ref(), binary.right.as_ref()) {
-                (Expr::Column(col), Expr::Literal(val, _)) => Some(ParsedFilter {
-                    col_name: col.name.clone(),
-                    op: binary.op,
-                    value: val.clone(),
-                }),
-                (Expr::Literal(val, _), Expr::Column(col)) => {
-                    let flipped_op = match &binary.op {
-                        Operator::Lt => Operator::Gt,
-                        Operator::LtEq => Operator::GtEq,
-                        Operator::Gt => Operator::Lt,
-                        Operator::GtEq => Operator::LtEq,
-                        other => *other,
-                    };
-                    Some(ParsedFilter {
-                        col_name: col.name.clone(),
-                        op: flipped_op,
-                        value: val.clone(),
-                    })
-                }
-                _ => None,
+    /// Prune an RG to a [`RowSelection`] using an arbitrary boolean
+    /// predicate (wrapped as a [`PruningPredicate`]).
+    ///
+    /// Returns:
+    /// - `Some(selection)` — per-page keep/skip over the RG. An empty
+    ///   selection means no page can match; a single whole-RG `select`
+    ///   means every page is kept.
+    /// - `None` — pruning isn't applicable (no page index on the RG,
+    ///   evaluation error, etc.). Caller treats as "scan the whole RG."
+    pub fn prune_rg(
+        &self,
+        pruning_predicate: &PruningPredicate,
+        rg_idx: usize,
+    ) -> Option<RowSelection> {
+        let stats = MultiColumnPagesPruningStats::try_new(
+            rg_idx,
+            &self.schema,
+            &self.metadata,
+        )?;
+        let keep = match pruning_predicate.prune(&stats) {
+            Ok(k) => k,
+            Err(e) => {
+                log::debug!(
+                    "page pruning skipped for rg {}: {}",
+                    rg_idx,
+                    e
+                );
+                return None;
             }
-        } else {
-            None
-        }
-    }
-
-    /// Compute page ranges that could match the filters for a row group.
-    ///
-    /// `None` if page stats are unavailable (caller should assume all rows).
-    /// `Some(vec![])` if no pages match (caller can skip entirely).
-    ///
-    /// # Selectivity ordering
-    ///
-    /// Filters are evaluated in input order to produce their individual
-    /// candidate range sets. Those sets are then intersected in order of
-    /// **ascending total rows covered** — i.e. most-selective first — so the
-    /// accumulated intersection shrinks as fast as possible, and the
-    /// short-circuit on empty triggers earlier.
-    ///
-    /// Rationale: `intersect_ranges` is O(|existing| + |merged|). Starting
-    /// with the smallest `merged` keeps `existing` small across the loop.
-    /// For a query like `rare_col = V AND common_col > 0`, this cuts the
-    /// combined work relative to naive input-order iteration.
-    fn compute_page_ranges(&self, rg_idx: usize, rg_first_row: i64) -> Option<Vec<Range<i64>>> {
-        let (column_index, offset_index) = match (
-            self.metadata.column_index(),
-            self.metadata.offset_index(),
-        ) {
-            (Some(ci), Some(oi)) => (ci, oi),
-            _ => return None,
         };
-
-        let parquet_schema = self.metadata.file_metadata().schema_descr();
-        let rg = self.metadata.row_group(rg_idx);
-        let rg_num_rows = rg.num_rows();
-
-        // Phase 1: compute per-filter candidate ranges.
-        // Each entry is (total_rows_covered, merged_ranges). Filters for
-        // which stats aren't available are skipped (conservative: they don't
-        // constrain the result).
-        //
-        // # AND-group sharing
-        //
-        // Filters on the same column share parquet page-stats decoding
-        // (`StatisticsConverter::try_new`, `data_page_mins/maxes/row_counts`).
-        // We walk filters in input order but group by column so that
-        // consecutive filters on `col_a` hit the parquet decoder once, not N
-        // times. Ordering across different columns is preserved (same result
-        // as before, just faster on queries like
-        // `col_a > 10 AND col_a < 20 AND col_b = 5`).
-        let mut per_filter: Vec<(i64, Vec<Range<i64>>)> = Vec::with_capacity(self.filters.len());
-
-        // Indices into self.filters grouped by col_name, groups in first-seen order.
-        let mut col_order: Vec<&str> = Vec::new();
-        let mut groups: std::collections::HashMap<&str, Vec<usize>> =
-            std::collections::HashMap::new();
-        for (i, f) in self.filters.iter().enumerate() {
-            groups
-                .entry(f.col_name.as_str())
-                .and_modify(|v| v.push(i))
-                .or_insert_with(|| {
-                    col_order.push(f.col_name.as_str());
-                    vec![i]
-                });
-        }
-
-        for col_name in col_order {
-            let converter = match StatisticsConverter::try_new(
-                col_name,
-                &self.schema,
-                parquet_schema,
-            ) {
-                Ok(c) => c,
-                Err(_) => continue,
-            };
-
-            let (mins, maxes) = match (
-                converter.data_page_mins(column_index, offset_index, [&rg_idx]),
-                converter.data_page_maxes(column_index, offset_index, [&rg_idx]),
-            ) {
-                (Ok(m), Ok(x)) => (m, x),
-                _ => continue,
-            };
-
-            let row_counts = match converter.data_page_row_counts(
-                offset_index,
-                self.metadata.row_groups(),
-                [&rg_idx],
-            ) {
-                Ok(Some(rc)) => rc,
-                _ => continue,
-            };
-
-            let num_pages = mins.len();
-
-            // Evaluate each filter on this column against the shared mins/maxes/row_counts.
-            for &filter_idx in &groups[col_name] {
-                let filter = &self.filters[filter_idx];
-                let mut page_start = rg_first_row;
-                let mut filter_ranges: Vec<Range<i64>> = Vec::new();
-
-                for page_idx in 0..num_pages {
-                    let page_rows = if page_idx < row_counts.len() {
-                        row_counts.value(page_idx) as i64
-                    } else {
-                        rg_num_rows / num_pages as i64
-                    };
-
-                    if Self::page_matches(&mins, &maxes, page_idx, &filter.op, &filter.value) {
-                        filter_ranges.push(page_start..page_start + page_rows);
-                    }
-                    page_start += page_rows;
-                }
-
-                filter_ranges.sort_by_key(|r| r.start);
-                let merged = Self::merge_ranges(filter_ranges);
-
-                // Empty candidate set from this filter alone → nothing matches.
-                if merged.is_empty() {
-                    return Some(vec![]);
-                }
-
-                let total: i64 = merged.iter().map(|r| r.end - r.start).sum();
-                per_filter.push((total, merged));
-            }
-        }
-
-        if per_filter.is_empty() {
+        if keep.len() != stats.page_row_counts.len() {
+            log::debug!(
+                "page pruning skipped for rg {}: keep len {} != page count {}",
+                rg_idx,
+                keep.len(),
+                stats.page_row_counts.len()
+            );
             return None;
         }
-
-        // Phase 2: intersect in ascending-rows-covered order (most selective first).
-        per_filter.sort_by_key(|(total, _)| *total);
-
-        let mut iter = per_filter.into_iter();
-        let mut combined = iter.next().map(|(_, r)| r).unwrap_or_default();
-        for (_, merged) in iter {
-            combined = Self::intersect_ranges(&combined, &merged);
-            if combined.is_empty() {
-                return Some(vec![]);
-            }
-        }
-
-        Some(combined)
-    }
-
-    /// Compute page ranges for a single filter on a row group.
-    fn compute_page_ranges_for_filter(
-        &self,
-        col_name: &str,
-        op: &Operator,
-        value: &ScalarValue,
-        rg_idx: usize,
-        rg_first_row: i64,
-    ) -> Option<Vec<Range<i64>>> {
-        let (column_index, offset_index) = match (
-            self.metadata.column_index(),
-            self.metadata.offset_index(),
-        ) {
-            (Some(ci), Some(oi)) => (ci, oi),
-            _ => return None,
-        };
-
-        let parquet_schema = self.metadata.file_metadata().schema_descr();
-        let rg = self.metadata.row_group(rg_idx);
-        let rg_num_rows = rg.num_rows();
-
-        let converter = match StatisticsConverter::try_new(col_name, &self.schema, parquet_schema)
-        {
-            Ok(c) => c,
-            Err(_) => return None,
-        };
-
-        let (mins, maxes) = match (
-            converter.data_page_mins(column_index, offset_index, [&rg_idx]),
-            converter.data_page_maxes(column_index, offset_index, [&rg_idx]),
-        ) {
-            (Ok(m), Ok(x)) => (m, x),
-            _ => return None,
-        };
-
-        let row_counts = match converter.data_page_row_counts(
-            offset_index,
-            self.metadata.row_groups(),
-            [&rg_idx],
-        ) {
-            Ok(Some(rc)) => rc,
-            _ => return None,
-        };
-
-        let num_pages = mins.len();
-        let mut page_start = rg_first_row;
-        let mut filter_ranges: Vec<Range<i64>> = Vec::new();
-
-        for page_idx in 0..num_pages {
-            let page_rows = if page_idx < row_counts.len() {
-                row_counts.value(page_idx) as i64
-            } else {
-                rg_num_rows / num_pages as i64
-            };
-
-            if Self::page_matches(&mins, &maxes, page_idx, op, value) {
-                filter_ranges.push(page_start..page_start + page_rows);
-            }
-            page_start += page_rows;
-        }
-
-        filter_ranges.sort_by_key(|r| r.start);
-        Some(Self::merge_ranges(filter_ranges))
-    }
-
-    /// Row IDs within pages that match the filters (OR-mode entry point).
-    /// Only used for single collector
-    pub fn candidate_row_ids(&self, rg_idx: usize, rg_first_row: i64, rg_num_rows: i64) -> Vec<i64> {
-        // Case 1: no filters. Nothing is ruled out. Everything in the RG is a candidate → emit every row ID in the RG.
-        if self.filters.is_empty() {
-            return (rg_first_row..rg_first_row + rg_num_rows).collect();
-        }
-
-        // Case 2: filters exist, page ranges computed. compute_page_ranges returns the
-        // AND-intersection of all page ranges that survived pruning, expressed as a set of Range<i64> (absolute row IDs).
-        let ranges = match self.compute_page_ranges(rg_idx, rg_first_row) {
-            Some(r) if r.is_empty() => return vec![],
-            Some(r) => r,
-            None => return (rg_first_row..rg_first_row + rg_num_rows).collect(),
-        };
-
-        //Case 3: expand the ranges. Each Range<i64> covers absolute row IDs.
-        // The .max(rg_first_row) and .min(rg_first_row + rg_num_rows) clip the range to this RG's
-        // bounds — defensive in case a page range overhangs an RG boundary.
-        // Then materialize into individual IDs.
-        let mut ids = Vec::new();
-        for range in &ranges {
-            let start = range.start.max(rg_first_row);
-            let end = range.end.min(rg_first_row + rg_num_rows);
-            for id in start..end {
-                ids.push(id);
-            }
-        }
-        ids
-    }
-
-    /// Row IDs within pages matching a specific filter (Phase 1 predicate prefetch).
-    pub fn candidate_row_ids_for_filter(
-        &self,
-        col_name: &str,
-        op: &Operator,
-        value: &ScalarValue,
-        rg_idx: usize,
-        rg_first_row: i64,
-        rg_num_rows: i64,
-    ) -> Vec<i64> {
-        let ranges =
-            match self.compute_page_ranges_for_filter(col_name, op, value, rg_idx, rg_first_row) {
-                Some(r) if r.is_empty() => return vec![],
-                Some(r) => r,
-                None => return (rg_first_row..rg_first_row + rg_num_rows).collect(),
-            };
-
-        let mut ids = Vec::new();
-        for range in &ranges {
-            let start = range.start.max(rg_first_row);
-            let end = range.end.min(rg_first_row + rg_num_rows);
-            for id in start..end {
-                ids.push(id);
-            }
-        }
-        ids
-    }
-
-    /// Intersect row IDs with page ranges (AND mode).
-    pub fn filter_row_ids(&self, rg_idx: usize, row_ids: &[i64], rg_first_row: i64) -> Vec<i64> {
-        if self.filters.is_empty() || row_ids.is_empty() {
-            return row_ids.to_vec();
-        }
-
-        match self.compute_page_ranges(rg_idx, rg_first_row) {
-            None => row_ids.to_vec(),
-            Some(ranges) if ranges.is_empty() => vec![],
-            Some(ranges) => Self::filter_by_ranges(row_ids, &ranges),
-        }
-    }
-
-    fn merge_ranges(ranges: Vec<Range<i64>>) -> Vec<Range<i64>> {
-        let mut merged: Vec<Range<i64>> = Vec::new();
-        for range in ranges {
-            if let Some(last) = merged.last_mut() {
-                if range.start <= last.end {
-                    last.end = last.end.max(range.end);
-                    continue;
-                }
-            }
-            merged.push(range);
-        }
-        merged
-    }
-
-    fn intersect_ranges(a: &[Range<i64>], b: &[Range<i64>]) -> Vec<Range<i64>> {
-        let mut result = Vec::new();
-        let (mut i, mut j) = (0, 0);
-        while i < a.len() && j < b.len() {
-            let start = a[i].start.max(b[j].start);
-            let end = a[i].end.min(b[j].end);
-            if start < end {
-                result.push(start..end);
-            }
-            if a[i].end < b[j].end {
-                i += 1;
-            } else {
-                j += 1;
-            }
-        }
-        result
-    }
-
-    fn filter_by_ranges(row_ids: &[i64], ranges: &[Range<i64>]) -> Vec<i64> {
-        let mut result = Vec::with_capacity(row_ids.len());
-        let mut range_idx = 0;
-        for &row_id in row_ids {
-            while range_idx < ranges.len() && ranges[range_idx].end <= row_id {
-                range_idx += 1;
-            }
-            if range_idx >= ranges.len() {
-                break;
-            }
-            if row_id >= ranges[range_idx].start && row_id < ranges[range_idx].end {
-                result.push(row_id);
-            }
-        }
-        result
-    }
-
-    /// Whether the page `[mins[page_idx], maxes[page_idx]]` interval could
-    /// satisfy `col op value`.
-    ///
-    /// # Supported types
-    ///
-    /// Only `Int32Array` and `Int64Array` are decoded today; other array
-    /// types (Utf8, Float, Date, Timestamp, Decimal, ...) fall through to
-    /// the conservative `true` return, which keeps the page in the
-    /// candidate set rather than pruning it. Result: correctness-safe
-    /// (never drops data that might match) but page pruning is effectively
-    /// a no-op on those columns. Extend this method to cover the column
-    /// types a deployment uses most before relying on page pruning to
-    /// skip large amounts of data.
-    fn page_matches(
-        mins: &Arc<dyn Array>,
-        maxes: &Arc<dyn Array>,
-        page_idx: usize,
-        op: &Operator,
-        value: &ScalarValue,
-    ) -> bool {
-        if let (Some(min_arr), Some(max_arr)) = (
-            mins.as_any().downcast_ref::<Int32Array>(),
-            maxes.as_any().downcast_ref::<Int32Array>(),
-        ) {
-            let filter_val = match value {
-                ScalarValue::Int32(Some(v)) => *v,
-                ScalarValue::Int64(Some(v)) => *v as i32,
-                _ => return true,
-            };
-            if min_arr.is_null(page_idx) || max_arr.is_null(page_idx) {
-                return true;
-            }
-            let (min, max) = (min_arr.value(page_idx), max_arr.value(page_idx));
-            return Self::compare(min, max, filter_val, op);
-        }
-
-        if let (Some(min_arr), Some(max_arr)) = (
-            mins.as_any().downcast_ref::<Int64Array>(),
-            maxes.as_any().downcast_ref::<Int64Array>(),
-        ) {
-            let filter_val = match value {
-                ScalarValue::Int64(Some(v)) => *v,
-                ScalarValue::Int32(Some(v)) => *v as i64,
-                _ => return true,
-            };
-            if min_arr.is_null(page_idx) || max_arr.is_null(page_idx) {
-                return true;
-            }
-            let (min, max) = (min_arr.value(page_idx), max_arr.value(page_idx));
-            return Self::compare(min, max, filter_val, op);
-        }
-
-        true
-    }
-
-    fn compare<T: Ord + PartialEq + Copy>(min: T, max: T, val: T, op: &Operator) -> bool {
-        match op {
-            Operator::Lt => min < val,
-            Operator::LtEq => min <= val,
-            Operator::Gt => max > val,
-            Operator::GtEq => max >= val,
-            Operator::Eq => min <= val && val <= max,
-            // A page CANNOT contain a non-`val` value only when every value
-            // in the page equals `val` (min == max == val). Otherwise the
-            // page could match. Conservative: prune only when min == max == val.
-            Operator::NotEq => !(min == val && max == val),
-            _ => true,
-        }
+        Some(to_row_selection(keep, &stats.page_row_counts))
     }
 }
+
+/// Build an [`PruningPredicate`] from an arbitrary physical boolean
+/// expression. Returns `None` for always-true predicates (nothing to
+/// prune) or translation failures (safe fallback: no pruning).
+///
+/// Use for the multi-filter tree path's whole residual subtree or for
+/// the single-collector path's residual (non-Collector portion).
+pub fn build_pruning_predicate(
+    expr: &Arc<dyn PhysicalExpr>,
+    schema: SchemaRef,
+) -> Option<Arc<PruningPredicate>> {
+    let pruning_predicate = match PruningPredicate::try_new(Arc::clone(expr), schema) {
+        Ok(pp) => pp,
+        Err(e) => {
+            log::debug!(
+                "PruningPredicate::try_new failed for {:?}: {}",
+                expr,
+                e
+            );
+            return None;
+        }
+    };
+    if pruning_predicate.always_true() {
+        log::trace!("PruningPredicate collapsed to always_true for {:?}", expr);
+        return None;
+    }
+    Some(Arc::new(pruning_predicate))
+}
+
+/// Lower our `BoolNode` tree to an `Arc<dyn PhysicalExpr>` for
+/// [`PruningPredicate`]. Every `Collector` leaf is replaced with
+/// `Literal(true)` — Collectors constrain only the backend's bitset
+/// view of the data, not the parquet page contents, so for page
+/// pruning they're always-true placeholders.
+///
+/// NOT handling: DataFusion's `PruningPredicate` only rewrites `NotExpr`
+/// when it wraps a bare `Column`; `NOT(OR(...))`, `NOT(a > 5)` etc.
+/// fall through to `Literal(true)`, collapsing the whole predicate to
+/// always-true. We preempt that by pushing NOT down De Morgan-style
+/// and, at the leaves, flipping the comparison operator when the leaf
+/// is a recognizable `BinaryExpr(col, op, literal)`. For leaves we
+/// can't invert, the NOT becomes `NotExpr` — DataFusion will replace
+/// that with `Literal(true)` later and the surrounding expression
+/// degrades gracefully.
+pub fn bool_tree_to_pruning_expr(
+    tree: &crate::indexed_table::bool_tree::BoolNode,
+    _schema: &SchemaRef,
+) -> Option<Arc<dyn PhysicalExpr>> {
+    use crate::indexed_table::bool_tree::BoolNode;
+    use datafusion::physical_expr::expressions::NotExpr;
+
+    fn lit_true() -> Arc<dyn PhysicalExpr> {
+        Arc::new(Literal::new(ScalarValue::Boolean(Some(true))))
+    }
+
+    fn fold_and_or(op: Operator, mut exprs: Vec<Arc<dyn PhysicalExpr>>) -> Arc<dyn PhysicalExpr> {
+        let mut acc = exprs.remove(0);
+        for e in exprs {
+            acc = Arc::new(BinaryExpr::new(acc, op, e));
+        }
+        acc
+    }
+
+    fn negate_op(op: Operator) -> Option<Operator> {
+        Some(match op {
+            Operator::Eq => Operator::NotEq,
+            Operator::NotEq => Operator::Eq,
+            Operator::Lt => Operator::GtEq,
+            Operator::LtEq => Operator::Gt,
+            Operator::Gt => Operator::LtEq,
+            Operator::GtEq => Operator::Lt,
+            _ => return None,
+        })
+    }
+
+    /// Negate a `PhysicalExpr` cheaply when it's a recognizable
+    /// comparison (`col op literal`), otherwise wrap with `NotExpr`.
+    fn negate_expr(expr: &Arc<dyn PhysicalExpr>) -> Arc<dyn PhysicalExpr> {
+        if let Some(bin) = expr
+            .as_any()
+            .downcast_ref::<BinaryExpr>()
+        {
+            if let Some(flipped) = negate_op(*bin.op()) {
+                return Arc::new(BinaryExpr::new(
+                    Arc::clone(bin.left()),
+                    flipped,
+                    Arc::clone(bin.right()),
+                ));
+            }
+        }
+        Arc::new(NotExpr::new(Arc::clone(expr)))
+    }
+
+    /// Walk the `BoolNode`. The `negate` flag tracks whether an odd
+    /// number of NOTs surround this node; we push it through
+    /// AND/OR/Predicate/Collector by flipping structure. This keeps
+    /// the output mostly `NotExpr`-free so `PruningPredicate::try_new`
+    /// can actually rewrite the result.
+    fn walk(
+        node: &crate::indexed_table::bool_tree::BoolNode,
+        negate: bool,
+    ) -> Arc<dyn PhysicalExpr> {
+        match node {
+            // NOT(Collector) is also `true` (Collector is conservative
+            // `true` at the page-prune layer; NOT of that is still
+            // conservative `true`).
+            BoolNode::Collector { .. } => lit_true(),
+            BoolNode::Predicate(expr) => {
+                if negate {
+                    negate_expr(expr)
+                } else {
+                    Arc::clone(expr)
+                }
+            }
+            BoolNode::Not(child) => walk(child, !negate),
+            BoolNode::And(children) => {
+                let op = if negate { Operator::Or } else { Operator::And };
+                let exprs: Vec<_> = children.iter().map(|c| walk(c, negate)).collect();
+                fold_and_or(op, exprs)
+            }
+            BoolNode::Or(children) => {
+                let op = if negate { Operator::And } else { Operator::Or };
+                let exprs: Vec<_> = children.iter().map(|c| walk(c, negate)).collect();
+                fold_and_or(op, exprs)
+            }
+        }
+    }
+
+    Some(walk(tree, false))
+}
+
+/// Convert a per-page keep/skip decision + per-page row counts into a
+/// compacted `RowSelection`. Adjacent runs of the same decision are
+/// merged.
+fn to_row_selection(keep: Vec<bool>, row_counts: &[usize]) -> RowSelection {
+    let mut out: Vec<RowSelector> = Vec::with_capacity(keep.len());
+    for (k, rc) in keep.into_iter().zip(row_counts.iter().copied()) {
+        let selector = if k {
+            RowSelector::select(rc)
+        } else {
+            RowSelector::skip(rc)
+        };
+        match out.last_mut() {
+            Some(last) if last.skip == selector.skip => {
+                last.row_count += selector.row_count;
+            }
+            _ => out.push(selector),
+        }
+    }
+    RowSelection::from(out)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MultiColumnPagesPruningStats
+//
+// Exposes one `PruningStatistics` value that can answer min/max/nulls
+// for *any* column in the file. `PruningPredicate` calls
+// `stats.min_values(col)` with the column name it needs; we build the
+// right `StatisticsConverter` on demand.
+//
+// Page-row-count is shared across all columns in an RG (parquet
+// guarantees page alignment across columns). We derive it once from
+// the first column's offset index and cache for subsequent calls.
+// ═══════════════════════════════════════════════════════════════════════
+struct MultiColumnPagesPruningStats<'a> {
+    row_group_index: usize,
+    schema: &'a SchemaRef,
+    parquet_metadata: &'a ParquetMetaData,
+    /// Per-page row counts, stable across columns in the same RG.
+    page_row_counts: Vec<usize>,
+}
+
+impl<'a> MultiColumnPagesPruningStats<'a> {
+    fn try_new(
+        row_group_index: usize,
+        schema: &'a SchemaRef,
+        parquet_metadata: &'a ParquetMetaData,
+    ) -> Option<Self> {
+        parquet_metadata.column_index()?;
+        let offset_index = parquet_metadata.offset_index()?;
+        let rg_offsets = offset_index.get(row_group_index)?;
+        // All columns in an RG share page boundaries — any column's
+        // offset index is enough to compute per-page row counts.
+        let first_col_offsets = rg_offsets.first()?.page_locations();
+        if first_col_offsets.is_empty() {
+            return None;
+        }
+        let rg_meta = parquet_metadata.row_groups().get(row_group_index)?;
+        let num_rows_in_rg = rg_meta.num_rows() as usize;
+        let mut page_row_counts = Vec::with_capacity(first_col_offsets.len());
+        for pair in first_col_offsets.windows(2) {
+            let start = pair[0].first_row_index as usize;
+            let end = pair[1].first_row_index as usize;
+            page_row_counts.push(end - start);
+        }
+        let last_start = first_col_offsets.last()?.first_row_index as usize;
+        page_row_counts.push(num_rows_in_rg - last_start);
+        Some(Self {
+            row_group_index,
+            schema,
+            parquet_metadata,
+            page_row_counts,
+        })
+    }
+
+    fn converter_for(&self, column: &Column) -> Option<StatisticsConverter<'a>> {
+        StatisticsConverter::try_new(
+            column.name(),
+            self.schema,
+            self.parquet_metadata.file_metadata().schema_descr(),
+        )
+        .ok()
+    }
+}
+
+impl PruningStatistics for MultiColumnPagesPruningStats<'_> {
+    fn min_values(&self, column: &Column) -> Option<ArrayRef> {
+        let conv = self.converter_for(column)?;
+        conv.data_page_mins(
+            self.parquet_metadata.column_index()?,
+            self.parquet_metadata.offset_index()?,
+            [&self.row_group_index],
+        )
+        .ok()
+    }
+
+    fn max_values(&self, column: &Column) -> Option<ArrayRef> {
+        let conv = self.converter_for(column)?;
+        conv.data_page_maxes(
+            self.parquet_metadata.column_index()?,
+            self.parquet_metadata.offset_index()?,
+            [&self.row_group_index],
+        )
+        .ok()
+    }
+
+    fn num_containers(&self) -> usize {
+        self.page_row_counts.len()
+    }
+
+    fn null_counts(&self, column: &Column) -> Option<ArrayRef> {
+        let conv = self.converter_for(column)?;
+        conv.data_page_null_counts(
+            self.parquet_metadata.column_index()?,
+            self.parquet_metadata.offset_index()?,
+            [&self.row_group_index],
+        )
+        .ok()
+        .map(|a| Arc::new(a) as ArrayRef)
+    }
+
+    fn row_counts(&self, _column: &Column) -> Option<ArrayRef> {
+        let arr = Int64Array::from_iter_values(self.page_row_counts.iter().map(|c| *c as i64));
+        Some(Arc::new(arr) as ArrayRef)
+    }
+
+    fn contained(
+        &self,
+        _column: &Column,
+        _values: &std::collections::HashSet<ScalarValue>,
+    ) -> Option<BooleanArray> {
+        // Optional bloom-filter-style hook. Not implemented; bounds
+        // pruning is sufficient for our expressions.
+        None
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Test helpers kept pub so tests_e2e can reach them without contortion.
+// ─────────────────────────────────────────────────────────────────────
+
+/// Marker type kept for backward-compat with the old
+/// `build_single_column_pruning_predicates` signature (now unused).
+/// Removed when callers migrate.
+#[allow(dead_code)]
+type _PhantomUnused = HashMap<usize, Arc<PruningPredicate>>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::array::Int32Array;
+    use datafusion::arrow::array::{Int32Array, RecordBatch};
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
-    use datafusion::arrow::record_batch::RecordBatch;
-    use datafusion::logical_expr::{col, lit};
+    use datafusion::logical_expr::Operator;
     use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
     use datafusion::parquet::arrow::ArrowWriter;
     use datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
     use std::sync::Arc;
     use tempfile::NamedTempFile;
 
-    /// 32-row fixture with price [0..32) and qty [100..132), small RG (all 32
-    /// rows) but multiple pages per RG so page-level stats have granularity.
-    fn two_col_pruner(filters: Vec<Expr>) -> (PagePruner, SchemaRef, Arc<ParquetMetaData>) {
+    /// 32-row parquet with two int columns, one RG, four data pages of 8
+    /// rows each. Page-level stats enabled.
+    fn two_col_fixture() -> (PagePruner, SchemaRef, Arc<ParquetMetaData>) {
         let schema = Arc::new(Schema::new(vec![
             Field::new("price", DataType::Int32, false),
             Field::new("qty", DataType::Int32, false),
         ]));
+        // prices: 0..32 (pages: 0..8, 8..16, 16..24, 24..32)
+        // qtys:   100..132 (pages: 100..108, 108..116, 116..124, 124..132)
         let prices: Vec<i32> = (0..32).collect();
         let qtys: Vec<i32> = (100..132).collect();
         let batch = RecordBatch::try_new(
@@ -506,6 +421,7 @@ mod tests {
         let props = WriterProperties::builder()
             .set_max_row_group_size(32)
             .set_data_page_row_count_limit(8)
+            .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)
             .build();
         let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
@@ -517,64 +433,446 @@ mod tests {
         )
         .unwrap();
         let arc_meta = meta.metadata().clone();
-        let pruner = PagePruner::new(&schema, Arc::clone(&arc_meta), &filters);
+        let pruner = PagePruner::new(&schema, Arc::clone(&arc_meta));
         (pruner, schema, arc_meta)
     }
 
-    fn row_ids_0_to(n: i64) -> Vec<i64> {
-        (0..n).collect()
+    fn count_rows_kept(sel: &RowSelection) -> usize {
+        sel.iter().filter(|s| !s.skip).map(|s| s.row_count).sum()
+    }
+
+    fn col(name: &str, idx: usize) -> Arc<dyn PhysicalExpr> {
+        Arc::new(PhysColumn::new(name, idx))
+    }
+    fn lit_int(v: i32) -> Arc<dyn PhysicalExpr> {
+        Arc::new(Literal::new(ScalarValue::Int32(Some(v))))
+    }
+    fn bin(
+        l: Arc<dyn PhysicalExpr>,
+        op: Operator,
+        r: Arc<dyn PhysicalExpr>,
+    ) -> Arc<dyn PhysicalExpr> {
+        Arc::new(BinaryExpr::new(l, op, r))
     }
 
     #[test]
-    fn page_pruner_order_invariant_across_columns() {
-        // Filter order shouldn't change the output of filter_row_ids for
-        // AND semantics. This exercises optimization A (selectivity ordering):
-        // the phase-2 sort must be deterministic given the same input set.
-        let f_price = col("price").gt(lit(20i32));
-        let f_qty = col("qty").lt(lit(120i32));
-        let (p1, _, _) = two_col_pruner(vec![f_price.clone(), f_qty.clone()]);
-        let (p2, _, _) = two_col_pruner(vec![f_qty, f_price]);
-
-        let ids = row_ids_0_to(32);
-        let out1 = p1.filter_row_ids(0, &ids, 0);
-        let out2 = p2.filter_row_ids(0, &ids, 0);
-        assert_eq!(out1, out2, "filter order must not change result");
-        // Sanity: result should be non-empty (page stats allow some match) and
-        // bounded by the rg_num_rows.
-        assert!(out1.len() <= 32);
+    fn single_col_eq_prunes_to_overlapping_page() {
+        // price = 5: only page 0 (0..8) overlaps.
+        let (pruner, schema, _) = two_col_fixture();
+        let expr = bin(col("price", 0), Operator::Eq, lit_int(5));
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 8);
     }
 
     #[test]
-    fn page_pruner_multi_filter_same_column_intersects() {
-        // Optimization B (AND-group sharing): two filters on the same column
-        // share parquet stats decoding. The result must still be the
-        // intersection of both range constraints (no rows can bypass either
-        // filter).
-        //
-        // price > 10 AND price < 20 — page pruning may or may not eliminate
-        // pages depending on how parquet actually laid out the pages (affected
-        // by writer version + data layout). What we CAN assert is:
-        //   1. The output is a subset of the input.
-        //   2. Passing the same filters twice in a different order yields
-        //      the same result (which would break if the group-sharing
-        //      logic treated col_order inconsistently).
-        let f1 = col("price").gt(lit(10i32));
-        let f2 = col("price").lt(lit(20i32));
-        let (p_a, _, _) = two_col_pruner(vec![f1.clone(), f2.clone()]);
-        let (p_b, _, _) = two_col_pruner(vec![f2, f1]);
-        let ids = row_ids_0_to(32);
-        let out_a = p_a.filter_row_ids(0, &ids, 0);
-        let out_b = p_b.filter_row_ids(0, &ids, 0);
-        assert_eq!(out_a, out_b, "filter order must not change result");
-        assert!(out_a.len() <= ids.len(), "output is a subset of input");
+    fn multi_col_and_intersects_pages() {
+        // price > 20 AND qty < 110: price>20 keeps pages 2,3 (16..32);
+        // qty<110 keeps page 0 (100..108). Intersection is empty.
+        let (pruner, schema, _) = two_col_fixture();
+        let p_gt_20 = bin(col("price", 0), Operator::Gt, lit_int(20));
+        let q_lt_110 = bin(col("qty", 1), Operator::Lt, lit_int(110));
+        let expr = bin(p_gt_20, Operator::And, q_lt_110);
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 0, "AND of disjoint page sets prunes everything");
     }
 
     #[test]
-    fn page_pruner_no_filters_returns_input_unchanged() {
-        // filter_row_ids is a no-op when there are no filters.
-        let (p, _, _) = two_col_pruner(vec![]);
-        let ids = vec![1, 5, 10, 20, 31];
-        let out = p.filter_row_ids(0, &ids, 0);
-        assert_eq!(out, ids);
+    fn multi_col_or_unions_pages() {
+        // price < 5 OR qty > 125: price<5 keeps page 0 (0..8);
+        // qty>125 keeps page 3 (124..132). Union keeps pages 0 and 3.
+        let (pruner, schema, _) = two_col_fixture();
+        let p_lt_5 = bin(col("price", 0), Operator::Lt, lit_int(5));
+        let q_gt_125 = bin(col("qty", 1), Operator::Gt, lit_int(125));
+        let expr = bin(p_lt_5, Operator::Or, q_gt_125);
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        // Keep 2 pages × 8 rows = 16.
+        assert_eq!(count_rows_kept(&sel), 16);
+    }
+
+    #[test]
+    fn multi_col_or_both_miss_prunes_everything() {
+        // price < -1 OR qty > 999: neither can hold on any page.
+        let (pruner, schema, _) = two_col_fixture();
+        let p = bin(col("price", 0), Operator::Lt, lit_int(-1));
+        let q = bin(col("qty", 1), Operator::Gt, lit_int(999));
+        let expr = bin(p, Operator::Or, q);
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 0, "OR of unreachable ranges prunes everything");
+    }
+
+    #[test]
+    fn nested_and_of_or_of_different_columns() {
+        // (price < 5 OR qty > 125) AND price > 24
+        // Left side keeps pages 0, 3; right side keeps page 3 (24..32).
+        // Intersection: page 3 only → 8 rows.
+        let (pruner, schema, _) = two_col_fixture();
+        let left = bin(
+            bin(col("price", 0), Operator::Lt, lit_int(5)),
+            Operator::Or,
+            bin(col("qty", 1), Operator::Gt, lit_int(125)),
+        );
+        let right = bin(col("price", 0), Operator::Gt, lit_int(24));
+        let expr = bin(left, Operator::And, right);
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 8);
+    }
+
+    // Helper: build a `BoolNode::Predicate(expr)` from a (col, op, value).
+    fn pred_leaf(
+        col_name: &str,
+        op: Operator,
+        v: i32,
+        schema: &SchemaRef,
+    ) -> crate::indexed_table::bool_tree::BoolNode {
+        let col_idx = schema.index_of(col_name).unwrap();
+        let left: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new(col_name, col_idx));
+        let right: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(v))));
+        crate::indexed_table::bool_tree::BoolNode::Predicate(Arc::new(BinaryExpr::new(
+            left, op, right,
+        )))
+    }
+
+    #[test]
+    fn not_of_or_of_different_columns() {
+        // NOT(price < 5 OR qty > 125)  ≡  price >= 5 AND qty <= 125.
+        // Regression: ensure `bool_tree_to_pruning_expr` pushes NOT down
+        // so DataFusion can rewrite the resulting leaf comparisons.
+        let (pruner, schema, _) = two_col_fixture();
+        use crate::indexed_table::bool_tree::BoolNode;
+        let tree = BoolNode::Not(Box::new(BoolNode::Or(vec![
+            pred_leaf("price", Operator::Lt, 5, &schema),
+            pred_leaf("qty", Operator::Gt, 125, &schema),
+        ])));
+        let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
+        let pp = build_pruning_predicate(&expr, schema)
+            .expect("NOT push-down should leave a prunable expression");
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 32);
+    }
+
+    #[test]
+    fn not_push_down_eliminates_pages() {
+        // NOT(price >= 10) ≡ price < 10. Page 0 always; page 1 maybe.
+        let (pruner, schema, _) = two_col_fixture();
+        use crate::indexed_table::bool_tree::BoolNode;
+        let tree = BoolNode::Not(Box::new(pred_leaf(
+            "price",
+            Operator::GtEq,
+            10,
+            &schema,
+        )));
+        let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        let kept = count_rows_kept(&sel);
+        assert!(kept >= 8 && kept <= 16, "expected 8–16 rows kept, got {}", kept);
+    }
+
+    #[test]
+    fn not_of_not_cancels_to_identity() {
+        // NOT(NOT(price = 5)) ≡ price = 5 — only page 0 matches.
+        let (pruner, schema, _) = two_col_fixture();
+        use crate::indexed_table::bool_tree::BoolNode;
+        let tree = BoolNode::Not(Box::new(BoolNode::Not(Box::new(pred_leaf(
+            "price",
+            Operator::Eq,
+            5,
+            &schema,
+        )))));
+        let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 8, "double NOT cancels");
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // IN / NOT IN — DataFusion expands to OR / AND of equalities and
+    // prunes homomorphically. Our substrait path doesn't emit IN today
+    // but `build_pruning_predicate` accepts arbitrary PhysicalExprs, so
+    // we cover it here for future callers and as a regression fence.
+    // ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn in_list_prunes_via_or_of_eq() {
+        // price IN (5, 15). price=5 → page 0, price=15 → page 1.
+        // Pages 2, 3 skipped.
+        let (pruner, schema, _) = two_col_fixture();
+        let c = col("price", 0);
+        let list = vec![lit_int(5), lit_int(15)];
+        let expr =
+            datafusion::physical_expr::expressions::in_list(c, list, &false, &schema).unwrap();
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        // Pages 0 and 1 survive, 2 and 3 pruned.
+        assert_eq!(count_rows_kept(&sel), 16);
+    }
+
+    #[test]
+    fn not_in_list_prunes_via_and_of_neq() {
+        // price NOT IN (-100, -200) — all pages match (nothing in RG is
+        // < 0), so every page kept.
+        let (pruner, schema, _) = two_col_fixture();
+        let c = col("price", 0);
+        let list = vec![lit_int(-100), lit_int(-200)];
+        let expr =
+            datafusion::physical_expr::expressions::in_list(c, list, &true, &schema).unwrap();
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 32);
+    }
+
+    #[test]
+    fn in_list_empty_match_prunes_everything() {
+        // price IN (-10, -20, -30) — nothing in RG matches, all pages
+        // prunable.
+        let (pruner, schema, _) = two_col_fixture();
+        let c = col("price", 0);
+        let list = vec![lit_int(-10), lit_int(-20), lit_int(-30)];
+        let expr =
+            datafusion::physical_expr::expressions::in_list(c, list, &false, &schema).unwrap();
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 0);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // IS NULL / IS NOT NULL — DataFusion uses null-count stats.
+    // Requires a schema with nullable columns to emit useful pruning.
+    // Our fixture columns are non-nullable, so null_counts are always
+    // 0. We test these for safety (no crash, consistent result); real
+    // pruning would need a nullable-column fixture.
+    // ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn is_null_over_non_nullable_column_keeps_nothing() {
+        // Fixture columns are non-nullable; IS NULL can never be true,
+        // so all pages get pruned.
+        use datafusion::physical_expr::expressions::IsNullExpr;
+        let (pruner, schema, _) = two_col_fixture();
+        let expr: Arc<dyn PhysicalExpr> = Arc::new(IsNullExpr::new(col("price", 0)));
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 0);
+    }
+
+    #[test]
+    fn is_not_null_over_non_nullable_column_keeps_everything() {
+        use datafusion::physical_expr::expressions::IsNotNullExpr;
+        let (pruner, schema, _) = two_col_fixture();
+        let expr: Arc<dyn PhysicalExpr> = Arc::new(IsNotNullExpr::new(col("price", 0)));
+        let pp = build_pruning_predicate(&expr, schema);
+        // May be always-true (no pruning possible) → None, or may prune
+        // to keep everything → Some with 32 rows. Both are correct.
+        match pp {
+            None => {}
+            Some(pp) => {
+                let sel = pruner.prune_rg(&pp, 0).unwrap();
+                assert_eq!(count_rows_kept(&sel), 32);
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // All six comparison operators, to pin down the supported surface.
+    // ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn all_six_comparison_ops_prune_correctly() {
+        let (pruner, schema, _) = two_col_fixture();
+        // Helper: build a comparison, evaluate, return rows kept.
+        let run = |op: Operator, v: i32| -> usize {
+            let expr = bin(col("price", 0), op, lit_int(v));
+            let pp = build_pruning_predicate(&expr, schema.clone()).unwrap();
+            let sel = pruner.prune_rg(&pp, 0).unwrap();
+            count_rows_kept(&sel)
+        };
+        // price = 5 → page 0 only (8 rows).
+        assert_eq!(run(Operator::Eq, 5), 8);
+        // price != 5 → likely all pages (not prunable: every page has
+        // values != 5). 32 rows.
+        assert_eq!(run(Operator::NotEq, 5), 32);
+        // price < 10 → pages 0, 1 (max of page 1 is 15, min is 8 < 10).
+        // Actually: page 0 (0..7) certainly has < 10, page 1 (8..15)
+        // has 8,9 < 10, so both survive. 16 rows.
+        assert_eq!(run(Operator::Lt, 10), 16);
+        // price <= 7 → page 0 only (max 7 ≤ 7; page 1 min 8 > 7). 8 rows.
+        assert_eq!(run(Operator::LtEq, 7), 8);
+        // price > 24 → page 3 (24..31, max 31 > 24). 8 rows.
+        assert_eq!(run(Operator::Gt, 24), 8);
+        // price >= 24 → page 3 (24..31). 8 rows.
+        assert_eq!(run(Operator::GtEq, 24), 8);
+    }
+    #[test]
+    fn always_true_predicate_yields_none() {
+        let (_, schema, _) = two_col_fixture();
+        // A predicate that's structurally unusable for pruning — e.g.,
+        // `Literal(true)` alone — becomes always-true after rewrite.
+        let expr: Arc<dyn PhysicalExpr> =
+            Arc::new(Literal::new(ScalarValue::Boolean(Some(true))));
+        let pp = build_pruning_predicate(&expr, schema);
+        assert!(pp.is_none());
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Row-selection shape (adjacent merging, whole-RG, empty).
+    // ─────────────────────────────────────────────────────────────────
+
+    /// Count the number of selector runs in the selection — useful to
+    /// verify `to_row_selection` merges adjacent same-decision pages.
+    fn run_count(sel: &RowSelection) -> usize {
+        sel.iter().count()
+    }
+
+    #[test]
+    fn selection_merges_adjacent_same_decision_pages() {
+        // price > -1: every page qualifies (`price_min < -1` is false
+        // for all 4 pages). After merging, one run of `select(32)`.
+        let (pruner, schema, _) = two_col_fixture();
+        let expr = bin(col("price", 0), Operator::Gt, lit_int(-1));
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(run_count(&sel), 1, "all-select should coalesce");
+        assert_eq!(count_rows_kept(&sel), 32);
+    }
+
+    #[test]
+    fn selection_empty_when_no_page_survives() {
+        // price < -100: no page could match.
+        let (pruner, schema, _) = two_col_fixture();
+        let expr = bin(col("price", 0), Operator::Lt, lit_int(-100));
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 0);
+        assert_eq!(run_count(&sel), 1, "single skip run covers the whole RG");
+    }
+
+    #[test]
+    fn selection_alternating_pages_keeps_run_granularity() {
+        // price IN (5, 20) — picks pages 0 (contains 5) and 2 (contains
+        // 20), skips pages 1 and 3. Two alternating patterns → four
+        // runs: select/skip/select/skip.
+        let (pruner, schema, _) = two_col_fixture();
+        let c = col("price", 0);
+        let list = vec![lit_int(5), lit_int(20)];
+        let expr =
+            datafusion::physical_expr::expressions::in_list(c, list, &false, &schema).unwrap();
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        assert_eq!(count_rows_kept(&sel), 16, "2 pages × 8 rows");
+        assert_eq!(run_count(&sel), 4, "expected select/skip/select/skip");
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // bool_tree_to_pruning_expr lowering.
+    // ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn lowering_pure_collector_tree_yields_always_true() {
+        // Tree with only Collectors → lowering produces Literal(true),
+        // which `build_pruning_predicate` rejects.
+        let (_, schema, _) = two_col_fixture();
+        use crate::indexed_table::bool_tree::BoolNode;
+        let tree = BoolNode::And(vec![
+            BoolNode::Collector { query_bytes: Arc::from(&[0u8][..]) },
+            BoolNode::Collector { query_bytes: Arc::from(&[1u8][..]) },
+        ]);
+        let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
+        assert!(build_pruning_predicate(&expr, schema).is_none());
+    }
+
+    #[test]
+    fn lowering_collector_mixed_with_predicate_keeps_predicate() {
+        // AND(Collector, price > 20) → lowers to AND(true, price > 20)
+        // → prunes on `price > 20` only.
+        let (pruner, schema, _) = two_col_fixture();
+        use crate::indexed_table::bool_tree::BoolNode;
+        let tree = BoolNode::And(vec![
+            BoolNode::Collector { query_bytes: Arc::from(&[0u8][..]) },
+            pred_leaf("price", Operator::Gt, 20, &schema),
+        ]);
+        let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
+        let pp = build_pruning_predicate(&expr, schema)
+            .expect("non-Collector subtree should still be prunable");
+        let sel = pruner.prune_rg(&pp, 0).unwrap();
+        // price > 20 → pages 2 (16..23 — max 23 > 20) + 3 (24..31).
+        assert!(count_rows_kept(&sel) > 0);
+        assert!(count_rows_kept(&sel) <= 16);
+    }
+
+    #[test]
+    fn lowering_predicate_on_missing_column_falls_back() {
+        // Predicate referencing a column not in schema — handled by
+        // DataFusion: either try_new fails or the expression prunes as
+        // always-true. Both outcomes preserve correctness.
+        let (_, schema, _) = two_col_fixture();
+        use crate::indexed_table::bool_tree::BoolNode;
+        let missing_col: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new("missing", 99));
+        let lit5: Arc<dyn PhysicalExpr> =
+            Arc::new(Literal::new(ScalarValue::Int32(Some(5))));
+        let missing_pred = BoolNode::Predicate(Arc::new(
+            BinaryExpr::new(missing_col, Operator::Eq, lit5),
+        ));
+        let tree = BoolNode::Or(vec![
+            missing_pred,
+            pred_leaf("price", Operator::Gt, 20, &schema),
+        ]);
+        let expr = bool_tree_to_pruning_expr(&tree, &schema).unwrap();
+        // Either succeeds (pruning applied) or returns None (scan all).
+        // Both are safe.
+        let _ = build_pruning_predicate(&expr, schema);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Multi-RG: the pruner is stateless per RG; repeated calls on
+    // different RGs of the same metadata handle each correctly.
+    // ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn multi_rg_fixture_prunes_each_rg_independently() {
+        // Build a 2-RG parquet so we can exercise rg_idx=0 and rg_idx=1
+        // with the same `PagePruner`.
+        use datafusion::arrow::array::{Int32Array, RecordBatch};
+        use datafusion::arrow::datatypes::{DataType, Field, Schema};
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("price", DataType::Int32, false),
+        ]));
+        let batch1 = RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int32Array::from((0..32).collect::<Vec<i32>>()))],
+        ).unwrap();
+        let batch2 = RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int32Array::from((100..132).collect::<Vec<i32>>()))],
+        ).unwrap();
+        let tmp = NamedTempFile::new().unwrap();
+        let props = WriterProperties::builder()
+            .set_max_row_group_size(32)
+            .set_data_page_row_count_limit(8)
+            .set_write_batch_size(8)
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .build();
+        let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
+        w.write(&batch1).unwrap();
+        w.flush().unwrap();
+        w.write(&batch2).unwrap();
+        w.close().unwrap();
+        let meta = ArrowReaderMetadata::load(
+            &tmp.reopen().unwrap(),
+            ArrowReaderOptions::new().with_page_index(true),
+        ).unwrap();
+        assert_eq!(meta.metadata().num_row_groups(), 2);
+        let pruner = PagePruner::new(&schema, meta.metadata().clone());
+        // price > 50: RG0 (0..31) → nothing, RG1 (100..131) → all.
+        let expr = bin(col("price", 0), Operator::Gt, lit_int(50));
+        let pp = build_pruning_predicate(&expr, schema).unwrap();
+        let sel0 = pruner.prune_rg(&pp, 0).unwrap();
+        let sel1 = pruner.prune_rg(&pp, 1).unwrap();
+        assert_eq!(count_rows_kept(&sel0), 0, "RG0 fully pruned");
+        assert_eq!(count_rows_kept(&sel1), 32, "RG1 fully kept");
     }
 }

@@ -262,7 +262,29 @@ impl PositionMap {
     }
 }
 
-/// Build a `BooleanArray` aligned to the rows parquet will actually deliver,
+/// Expand a `RowSelection` to a `RoaringBitmap` of RG-relative row
+/// positions that were selected.
+///
+/// Used when a caller receives a `RowSelection` (e.g. from page pruning)
+/// and needs to AND/OR it with another bitmap. The bitmap contains one
+/// bit per `select`ed row. `skip` runs contribute nothing.
+pub fn row_selection_to_bitmap(selection: &RowSelection) -> RoaringBitmap {
+    let mut out = RoaringBitmap::new();
+    let mut rg_pos: u32 = 0;
+    for s in selection.iter() {
+        if s.skip {
+            rg_pos = rg_pos.saturating_add(s.row_count as u32);
+        } else {
+            let end = rg_pos.saturating_add(s.row_count as u32);
+            // RoaringBitmap's insert_range handles runs efficiently.
+            out.insert_range(rg_pos..end);
+            rg_pos = end;
+        }
+    }
+    out
+}
+
+
 /// given the `RowSelection` we handed it.
 ///
 /// Length of the returned mask = `PositionMap::delivered_count`. Bit at

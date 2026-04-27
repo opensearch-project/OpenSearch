@@ -171,12 +171,23 @@ pub trait TreeEvaluator: Send + Sync {
     /// Candidate stage: walk the tree for one row group and produce a
     /// superset RoaringBitmap of candidate doc IDs plus the per-leaf
     /// bitmap side-table that the refinement stage will read.
+    ///
+    /// `pruning_predicates` maps each `Predicate(expr)` leaf (keyed by
+    /// its
+    /// `Arc::as_ptr` identity) to a pre-built `PruningPredicate`. Empty
+    /// map = no page-level predicate pruning; each Predicate leaf falls
+    /// back to "every row is a candidate" (safe, identity for the
+    /// candidate stage).
     fn prefetch(
         &self,
         tree: &ResolvedNode,
         ctx: &RgEvalContext,
         leaves: &dyn LeafBitmapSource,
         page_pruner: &PagePruner,
+        pruning_predicates: &std::collections::HashMap<
+            usize,
+            Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+        >,
     ) -> Result<TreePrefetch, String>;
 
     /// Refinement stage: produce the exact per-row `BooleanArray` for one
@@ -232,6 +243,17 @@ pub struct TreeBitsetSource {
     /// time so `prefetch_rg` doesn't need an `Arc` deref on the hot path.
     pub cost_predicate: u32,
     pub cost_collector: u32,
+    /// Per-predicate `PruningPredicate` cache, keyed by
+    /// `Arc::as_ptr(resolved_predicate) as usize`. Built once per query at
+    /// dispatch time by the caller. Empty = page-level predicate pruning
+    /// disabled (the tree path still works, each Predicate leaf falls
+    /// back to "every row is a candidate").
+    pub pruning_predicates: Arc<
+        std::collections::HashMap<
+            usize,
+            Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+        >,
+    >,
 }
 
 impl RowGroupBitsetSource for TreeBitsetSource {
@@ -253,7 +275,13 @@ impl RowGroupBitsetSource for TreeBitsetSource {
         };
         let prefetch = self
             .evaluator
-            .prefetch(&self.tree, &ctx, &*self.leaves, &self.page_pruner)?;
+            .prefetch(
+                &self.tree,
+                &ctx,
+                &*self.leaves,
+                &self.page_pruner,
+                &self.pruning_predicates,
+            )?;
         if prefetch.candidates.is_empty() {
             return Ok(None);
         }
@@ -336,7 +364,7 @@ mod tests {
             ArrowReaderOptions::new().with_page_index(true),
         )
         .unwrap();
-        Arc::new(PagePruner::new(meta.schema(), meta.metadata().clone(), &[]))
+        Arc::new(PagePruner::new(meta.schema(), meta.metadata().clone()))
     }
 
     /// Leaf source that returns empty bitmaps — enough to compose a
@@ -364,6 +392,10 @@ mod tests {
             _ctx: &RgEvalContext,
             _leaves: &dyn LeafBitmapSource,
             _page_pruner: &PagePruner,
+            _pruning_predicates: &std::collections::HashMap<
+                usize,
+                Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+            >,
         ) -> Result<TreePrefetch, String> {
             Ok(TreePrefetch {
                 candidates: roaring::RoaringBitmap::new(),
@@ -410,6 +442,7 @@ mod tests {
             page_pruner: empty_pruner(),
             cost_predicate: 1,
             cost_collector: 10,
+            pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
         };
         assert!(!source.needs_row_mask());
     }

@@ -17,8 +17,11 @@
 //!   literal argument → `BoolNode::Collector { query_bytes }`. Those bytes
 //!   are the serialized backend query payload; they're handed to a Java
 //!   factory at query-resolve time to create a provider.
-//! - Any other comparison (`=`, `>`, `<`, etc.) → `BoolNode::Predicate`
-//!   — details stashed in a side vec, referenced by index.
+//! - **Anything else** → lowered to [`Arc<dyn PhysicalExpr>`] via
+//!   DataFusion's `create_physical_expr`, wrapped in
+//!   [`BoolNode::Predicate`]. Comparisons, `IS NULL`, `IN`, `BETWEEN`,
+//!   arithmetic, casts, UDFs — any boolean-valued DataFusion expression
+//!   is accepted.
 //!
 //! **The substrait plan is the wire format.** Java never serializes an
 //! `IndexFilterTree`; it rewrites `column = 'value'` on indexed columns to
@@ -28,14 +31,18 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::datatypes::DataType;
-use datafusion::common::ScalarValue;
+use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef};
+use datafusion::common::{DFSchema, ScalarValue};
+use datafusion::execution::context::ExecutionProps;
 use datafusion::logical_expr::{
     ColumnarValue, Expr, LogicalPlan, Operator, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl,
     Signature, TypeSignature, Volatility,
 };
+use datafusion::physical_expr::create_physical_expr;
+#[cfg(test)]
+use datafusion::physical_expr::PhysicalExpr;
 
-use super::bool_tree::{BoolNode, ResolvedPredicate};
+use super::bool_tree::BoolNode;
 
 /// The UDF name Calcite emits for indexed-column filter markers.
 pub const COLLECTOR_FUNCTION_NAME: &str = "index_filter";
@@ -55,10 +62,11 @@ pub enum FilterClass {
     Tree,
 }
 
-/// Result of `expr_to_bool_tree`.
+/// Result of `expr_to_bool_tree` — just the tree. No sidecar list needed
+/// now that `Predicate` leaves carry `Arc<dyn PhysicalExpr>` directly.
+#[derive(Debug)]
 pub struct ExtractionResult {
     pub tree: BoolNode,
-    pub predicates: Vec<ResolvedPredicate>,
 }
 
 /// Extract the filter expression from a DataFusion logical plan.
@@ -79,82 +87,59 @@ pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
     }
 }
 
-/// Convert a DataFusion filter `Expr` to a `BoolNode` tree plus the list of
-/// predicates referenced by `PredicateLeaf` nodes.
-pub fn expr_to_bool_tree(expr: &Expr) -> Result<ExtractionResult, String> {
-    let mut predicates = Vec::new();
-    let tree = convert_expr(expr, &mut predicates)?;
-    Ok(ExtractionResult { tree, predicates })
+/// Convert a DataFusion filter `Expr` to a `BoolNode` tree.
+///
+/// `schema` is used to lower non-combinator subexpressions to
+/// `Arc<dyn PhysicalExpr>` via `create_physical_expr`. The expression at
+/// those leaves must be boolean-valued; anything else is rejected.
+pub fn expr_to_bool_tree(expr: &Expr, schema: &SchemaRef) -> Result<ExtractionResult, String> {
+    let df_schema =
+        DFSchema::try_from(schema.as_ref().clone()).map_err(|e| format!("DFSchema: {}", e))?;
+    let props = ExecutionProps::new();
+    let tree = convert_expr(expr, schema, &df_schema, &props)?;
+    Ok(ExtractionResult { tree })
 }
 
-fn convert_expr(expr: &Expr, predicates: &mut Vec<ResolvedPredicate>) -> Result<BoolNode, String> {
+fn convert_expr(
+    expr: &Expr,
+    schema: &Schema,
+    df_schema: &DFSchema,
+    props: &ExecutionProps,
+) -> Result<BoolNode, String> {
     match expr {
-        Expr::BinaryExpr(bin) => match bin.op {
-            Operator::And => {
-                let left = convert_expr(&bin.left, predicates)?;
-                let right = convert_expr(&bin.right, predicates)?;
-                Ok(BoolNode::And(vec![left, right]))
-            }
-            Operator::Or => {
-                let left = convert_expr(&bin.left, predicates)?;
-                let right = convert_expr(&bin.right, predicates)?;
-                Ok(BoolNode::Or(vec![left, right]))
-            }
-            Operator::Eq
-            | Operator::NotEq
-            | Operator::Lt
-            | Operator::LtEq
-            | Operator::Gt
-            | Operator::GtEq => convert_comparison(&bin.left, bin.op, &bin.right, predicates),
-            _ => Err(format!("unsupported binary operator: {:?}", bin.op)),
-        },
+        Expr::BinaryExpr(bin) if bin.op == Operator::And => {
+            let left = convert_expr(&bin.left, schema, df_schema, props)?;
+            let right = convert_expr(&bin.right, schema, df_schema, props)?;
+            Ok(BoolNode::And(vec![left, right]))
+        }
+        Expr::BinaryExpr(bin) if bin.op == Operator::Or => {
+            let left = convert_expr(&bin.left, schema, df_schema, props)?;
+            let right = convert_expr(&bin.right, schema, df_schema, props)?;
+            Ok(BoolNode::Or(vec![left, right]))
+        }
         Expr::Not(inner) => {
-            let child = convert_expr(inner, predicates)?;
+            let child = convert_expr(inner, schema, df_schema, props)?;
             Ok(BoolNode::Not(Box::new(child)))
         }
         Expr::ScalarFunction(func) if func.name() == COLLECTOR_FUNCTION_NAME => {
             convert_collector_function(&func.args)
         }
-        _ => Err(format!("unsupported expression: {:?}", expr)),
-    }
-}
-
-/// Column op Literal  →  Predicate leaf + ResolvedPredicate.
-/// Literal op Column  →  flipped-operator form of the above.
-fn convert_comparison(
-    left: &Expr,
-    op: Operator,
-    right: &Expr,
-    predicates: &mut Vec<ResolvedPredicate>,
-) -> Result<BoolNode, String> {
-    let (column, resolved_op, value) = match (left, right) {
-        (Expr::Column(col), Expr::Literal(v, _)) => (col.name().to_string(), op, v.clone()),
-        (Expr::Literal(v, _), Expr::Column(col)) => {
-            (col.name().to_string(), flip_operator(op), v.clone())
+        // Anything else — comparison, IS NULL, IN, BETWEEN, arithmetic,
+        // CAST, UDF — gets lowered to a DataFusion PhysicalExpr. We
+        // require boolean return type so the tree evaluator can
+        // interpret the result as a per-row mask.
+        other => {
+            let phys = create_physical_expr(other, df_schema, props)
+                .map_err(|e| format!("create_physical_expr for {:?}: {}", other, e))?;
+            let return_type = phys.data_type(schema).map_err(|e| format!("data_type: {}", e))?;
+            if return_type != DataType::Boolean {
+                return Err(format!(
+                    "indexed-query expression must be boolean-valued, got {:?}: {:?}",
+                    return_type, other
+                ));
+            }
+            Ok(BoolNode::Predicate(phys))
         }
-        _ => {
-            return Err(format!(
-                "comparison must be column op literal or literal op column, got {:?} {:?} {:?}",
-                left, op, right
-            ));
-        }
-    };
-    let id = predicates.len() as u16;
-    predicates.push(ResolvedPredicate {
-        column,
-        op: resolved_op,
-        value,
-    });
-    Ok(BoolNode::Predicate { predicate_id: id })
-}
-
-fn flip_operator(op: Operator) -> Operator {
-    match op {
-        Operator::Lt => Operator::Gt,
-        Operator::LtEq => Operator::GtEq,
-        Operator::Gt => Operator::Lt,
-        Operator::GtEq => Operator::LtEq,
-        other => other,
     }
 }
 
@@ -311,46 +296,96 @@ impl ScalarUDFImpl for IndexFilterUdf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use datafusion::arrow::datatypes::{Field, Schema};
     use datafusion::logical_expr::{col, lit};
     use std::sync::Arc;
+
+    fn test_schema() -> SchemaRef {
+        Arc::new(Schema::new(vec![
+            Field::new("price", DataType::Int32, false),
+            Field::new("qty", DataType::Int32, false),
+            Field::new("active", DataType::Boolean, false),
+        ]))
+    }
 
     // ── expr_to_bool_tree ────────────────────────────────────────────
 
     #[test]
     fn simple_predicate() {
         let expr = col("price").gt(lit(100i32));
-        let r = expr_to_bool_tree(&expr).unwrap();
-        assert!(matches!(r.tree, BoolNode::Predicate { predicate_id: 0 }));
-        assert_eq!(r.predicates.len(), 1);
-        assert_eq!(r.predicates[0].column, "price");
-        assert_eq!(r.predicates[0].op, Operator::Gt);
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
+        assert!(matches!(r.tree, BoolNode::Predicate(_)));
     }
 
     #[test]
-    fn literal_op_column_flips_operator() {
+    fn literal_op_column_works() {
+        // 100 < price — valid boolean expression, lowered as-is.
         let expr = Expr::BinaryExpr(datafusion::logical_expr::BinaryExpr::new(
             Box::new(lit(100i32)),
             Operator::Lt,
             Box::new(col("price")),
         ));
-        let r = expr_to_bool_tree(&expr).unwrap();
-        // 100 < price → price > 100
-        assert_eq!(r.predicates[0].op, Operator::Gt);
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
+        assert!(matches!(r.tree, BoolNode::Predicate(_)));
     }
 
     #[test]
     fn and_of_predicates() {
         let expr = col("price").gt(lit(100i32)).and(col("qty").lt(lit(50i32)));
-        let r = expr_to_bool_tree(&expr).unwrap();
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
         assert!(matches!(r.tree, BoolNode::And(_)));
-        assert_eq!(r.predicates.len(), 2);
     }
 
     #[test]
     fn not_predicate() {
         let expr = Expr::Not(Box::new(col("active").eq(lit(true))));
-        let r = expr_to_bool_tree(&expr).unwrap();
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
         assert!(matches!(r.tree, BoolNode::Not(_)));
+    }
+
+    #[test]
+    fn in_list_expression_is_accepted() {
+        let expr = col("price").in_list(vec![lit(5i32), lit(10i32), lit(15i32)], false);
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
+        assert!(matches!(r.tree, BoolNode::Predicate(_)));
+    }
+
+    #[test]
+    fn is_null_expression_is_accepted() {
+        let expr = Expr::IsNull(Box::new(col("price")));
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
+        assert!(matches!(r.tree, BoolNode::Predicate(_)));
+    }
+
+    #[test]
+    fn between_expression_is_accepted() {
+        // price BETWEEN 10 AND 50
+        let expr = col("price").between(lit(10i32), lit(50i32));
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
+        // BETWEEN may desugar into And internally or stay as-is; either
+        // shape is accepted so long as the result is boolean-valued.
+        match r.tree {
+            BoolNode::Predicate(_) | BoolNode::And(_) => {}
+            other => panic!("expected Predicate or And, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn arithmetic_comparison_is_accepted() {
+        // (price + 10) > 100 — our old converter would reject this.
+        let expr = (col("price") + lit(10i32)).gt(lit(100i32));
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
+        assert!(matches!(r.tree, BoolNode::Predicate(_)));
+    }
+
+    #[test]
+    fn non_boolean_expression_is_rejected() {
+        // `price + 10` on its own is Int32, not Boolean → must error.
+        let expr = col("price") + lit(10i32);
+        let r = expr_to_bool_tree(&expr, &test_schema());
+        assert!(r.is_err());
+        let e = r.unwrap_err();
+        assert!(e.contains("boolean"), "got: {}", e);
     }
 
     #[test]
@@ -360,34 +395,32 @@ mod tests {
             udf,
             vec![lit(ScalarValue::Binary(Some(b"hello-query".to_vec())))],
         ));
-        let r = expr_to_bool_tree(&expr).unwrap();
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
         match r.tree {
             BoolNode::Collector { query_bytes } => {
                 assert_eq!(&*query_bytes, b"hello-query");
             }
             _ => panic!("expected Collector"),
         }
-        assert!(r.predicates.is_empty());
     }
 
     #[test]
     fn mixed_tree() {
         // AND(collector(bytes), OR(price > 100, qty < 50))
         let udf = Arc::new(create_index_filter_udf());
-        let collector =
+        let collector_expr =
             Expr::ScalarFunction(datafusion::logical_expr::expr::ScalarFunction::new_udf(
                 udf,
                 vec![lit(ScalarValue::Binary(Some(b"mixed".to_vec())))],
             ));
         let or_branch = col("price").gt(lit(100i32)).or(col("qty").lt(lit(50i32)));
         let expr = Expr::BinaryExpr(datafusion::logical_expr::BinaryExpr::new(
-            Box::new(collector),
+            Box::new(collector_expr),
             Operator::And,
             Box::new(or_branch),
         ));
-        let r = expr_to_bool_tree(&expr).unwrap();
+        let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
         assert!(matches!(r.tree, BoolNode::And(_)));
-        assert_eq!(r.predicates.len(), 2);
     }
 
     // ── classify_filter ──────────────────────────────────────────────
@@ -397,15 +430,24 @@ mod tests {
             query_bytes: Arc::from(tag),
         }
     }
-    fn predicate(id: u16) -> BoolNode {
-        BoolNode::Predicate { predicate_id: id }
+    fn dummy_predicate() -> BoolNode {
+        // A stand-in Predicate leaf — classify only cares about shape,
+        // not expression contents. Build a minimal boolean PhysicalExpr.
+        use datafusion::physical_expr::expressions::{Column as PhysColumn, Literal};
+        let schema = test_schema();
+        let col_idx = schema.index_of("price").unwrap();
+        let left: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new("price", col_idx));
+        let right: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
+        BoolNode::Predicate(Arc::new(
+            datafusion::physical_expr::expressions::BinaryExpr::new(left, Operator::Eq, right),
+        ))
     }
 
     #[test]
     fn classify_no_collectors_is_none() {
-        assert_eq!(classify_filter(&predicate(0)), FilterClass::None);
+        assert_eq!(classify_filter(&dummy_predicate()), FilterClass::None);
         assert_eq!(
-            classify_filter(&BoolNode::And(vec![predicate(0), predicate(1)])),
+            classify_filter(&BoolNode::And(vec![dummy_predicate(), dummy_predicate()])),
             FilterClass::None
         );
     }
@@ -417,19 +459,19 @@ mod tests {
 
     #[test]
     fn classify_and_of_collector_and_predicates_is_single() {
-        let tree = BoolNode::And(vec![collector(b"x"), predicate(0), predicate(1)]);
+        let tree = BoolNode::And(vec![collector(b"x"), dummy_predicate(), dummy_predicate()]);
         assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
     }
 
     #[test]
     fn classify_and_with_two_collectors_is_tree() {
-        let tree = BoolNode::And(vec![collector(b"x"), collector(b"y"), predicate(0)]);
+        let tree = BoolNode::And(vec![collector(b"x"), collector(b"y"), dummy_predicate()]);
         assert_eq!(classify_filter(&tree), FilterClass::Tree);
     }
 
     #[test]
     fn classify_or_containing_collector_is_tree() {
-        let tree = BoolNode::Or(vec![collector(b"x"), predicate(0)]);
+        let tree = BoolNode::Or(vec![collector(b"x"), dummy_predicate()]);
         assert_eq!(classify_filter(&tree), FilterClass::Tree);
     }
 
@@ -442,8 +484,8 @@ mod tests {
     #[test]
     fn classify_and_with_nested_collector_is_tree() {
         let tree = BoolNode::And(vec![
-            BoolNode::Or(vec![collector(b"x"), predicate(0)]),
-            predicate(1),
+            BoolNode::Or(vec![collector(b"x"), dummy_predicate()]),
+            dummy_predicate(),
         ]);
         assert_eq!(classify_filter(&tree), FilterClass::Tree);
     }

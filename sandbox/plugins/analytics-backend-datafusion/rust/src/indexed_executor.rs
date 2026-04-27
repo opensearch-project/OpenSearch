@@ -34,12 +34,12 @@ use substrait::proto::Plan;
 use crate::api::DataFusionRuntime;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
-use crate::indexed_table::bool_tree::ResolvedPredicate;
+use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::{CollectorLeafBitmaps, BitmapTreeEvaluator};
 use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
 use crate::indexed_table::eval::{RowGroupBitsetSource, TreeBitsetSource};
 use crate::indexed_table::ffm_callbacks::{create_provider, FfmSegmentCollector, ProviderHandle};
-use crate::indexed_table::index::{BitsetMode, RowGroupDocsCollector};
+use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
 use crate::indexed_table::segment_info::build_segments;
 use crate::indexed_table::substrait_to_tree::{
@@ -139,7 +139,7 @@ pub async fn execute_indexed_query(
     let extraction = match filter_expr {
         None => None,
         Some(ref expr) => Some(
-            expr_to_bool_tree(expr)
+            expr_to_bool_tree(expr, &schema)
                 .map_err(|e| DataFusionError::Execution(format!("expr_to_bool_tree: {}", e)))?,
         ),
     };
@@ -155,8 +155,8 @@ pub async fn execute_indexed_query(
             ));
         }
         FilterClass::SingleCollector => {
-            // One Collector leaf: create provider once, use it to create per-chunk collectors.
-            let bytes = single_collector_bytes(&extraction.as_ref().unwrap().tree)
+            let extraction = extraction.as_ref().unwrap();
+            let bytes = single_collector_bytes(&extraction.tree)
                 .ok_or_else(|| {
                     DataFusionError::Internal(
                         "SingleCollector classified but leaf extraction failed".into(),
@@ -167,6 +167,22 @@ pub async fn execute_indexed_query(
                     .map_err(|e| DataFusionError::External(e.into()))?,
             );
             let schema_for_pruner = schema.clone();
+            // Build the non-Collector pruning expression for the residual
+            // (everything under the top-level AND except the Collector
+            // leaf) and wrap as a single PruningPredicate. DataFusion
+            // rewrites it homomorphically — AND/OR/NOT/IN all handled.
+            let residual_pruning_predicate: Option<Arc<
+                datafusion::physical_optimizer::pruning::PruningPredicate,
+            >> = crate::indexed_table::page_pruner::bool_tree_to_pruning_expr(
+                &extraction.tree,
+                &schema_for_pruner,
+            )
+            .and_then(|expr| {
+                crate::indexed_table::page_pruner::build_pruning_predicate(
+                    &expr,
+                    Arc::clone(&schema_for_pruner),
+                )
+            });
 
             Arc::new(move |segment: &SegmentFileInfo, chunk| {
                 let collector = FfmSegmentCollector::create(
@@ -178,13 +194,12 @@ pub async fn execute_indexed_query(
                 let pruner = Arc::new(PagePruner::new(
                     &schema_for_pruner,
                     Arc::clone(&segment.metadata),
-                    &[],
                 ));
                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                     SingleCollectorEvaluator::new(
                         Arc::new(collector) as Arc<dyn RowGroupDocsCollector>,
                         pruner,
-                        BitsetMode::And,
+                        residual_pruning_predicate.clone(),
                     ),
                 );
                 Ok(eval)
@@ -206,15 +221,36 @@ pub async fn execute_indexed_query(
                 ));
             }
             let tree = Arc::new(tree);
-            // Wrap each ResolvedPredicate in an Arc once per query so the
-            // per-chunk `tree.resolve()` can clone predicates cheaply instead
-            // of deep-copying String + ScalarValue per Predicate leaf per chunk.
-            let predicates: Arc<Vec<Arc<ResolvedPredicate>>> = Arc::new(
-                extraction.predicates.into_iter().map(Arc::new).collect(),
-            );
             let schema_for_pruner = schema.clone();
             let cost_predicate = query_config.cost_predicate;
             let cost_collector = query_config.cost_collector;
+
+            // Build one `PruningPredicate` per unique `Predicate` leaf
+            // in the tree. Key = `Arc::as_ptr(expr) as usize` — the
+            // same `Arc<PhysicalExpr>` reaches the tree walker at
+            // candidate stage. Predicates that fail to translate or
+            // resolve to always-true are omitted; the walker's
+            // fallback treats missing entries as "no pruning for this
+            // leaf" (safe: universe bitmap).
+            let mut leaf_exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
+            collect_predicate_exprs(&tree, &mut leaf_exprs);
+            let pruning_predicates: Arc<
+                std::collections::HashMap<
+                    usize,
+                    Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
+                >,
+            > = Arc::new(
+                leaf_exprs
+                    .iter()
+                    .filter_map(|expr| {
+                        crate::indexed_table::page_pruner::build_pruning_predicate(
+                            expr,
+                            Arc::clone(&schema_for_pruner),
+                        )
+                        .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+                    })
+                    .collect(),
+            );
 
             Arc::new(move |segment: &SegmentFileInfo, chunk| {
                 // Build one collector per Collector leaf for this chunk.
@@ -234,13 +270,12 @@ pub async fn execute_indexed_query(
                     ));
                 }
 
-                let resolved = tree.resolve(&per_leaf, &predicates)?;
+                let resolved = tree.resolve(&per_leaf)?;
                 let resolved = Arc::new(resolved);
 
                 let pruner = Arc::new(PagePruner::new(
                     &schema_for_pruner,
                     Arc::clone(&segment.metadata),
-                    &[],
                 ));
 
                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
@@ -250,6 +285,7 @@ pub async fn execute_indexed_query(
                     page_pruner: pruner,
                     cost_predicate,
                     cost_collector,
+                    pruning_predicates: Arc::clone(&pruning_predicates),
                 });
                 Ok(eval)
             })
@@ -288,6 +324,21 @@ pub async fn execute_indexed_query(
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
+
+/// Collect all `Predicate(expr)` leaves in DFS order. Used by the
+/// dispatcher to build a per-leaf `PruningPredicate` cache keyed by
+/// `Arc::as_ptr` identity.
+fn collect_predicate_exprs(
+    tree: &BoolNode,
+    out: &mut Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+) {
+    match tree {
+        BoolNode::And(c) | BoolNode::Or(c) => c.iter().for_each(|ch| collect_predicate_exprs(ch, out)),
+        BoolNode::Not(inner) => collect_predicate_exprs(inner, out),
+        BoolNode::Collector { .. } => {}
+        BoolNode::Predicate(expr) => out.push(Arc::clone(expr)),
+    }
+}
 /// For a tree classified as `SingleCollector`, walk it to find the single
 /// Collector leaf and return its query bytes.
 fn single_collector_bytes(

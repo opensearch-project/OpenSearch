@@ -203,10 +203,48 @@ fn reference_evaluator_large(tree: &LT, row: usize) -> Option<bool> {
     }
 }
 
-/// Lower `LT` to `BoolNode` + ResolvedPredicate sidecar. Collector leaves
-/// encode the brand/status tag into `query_bytes`; `wire_large` walks the
-/// tree in DFS order and builds the matching mock collectors.
-fn to_engine_tree_large(tree: &LT, preds: &mut Vec<ResolvedPredicate>) -> BoolNode {
+fn large_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
+        Field::new("brand", DataType::Utf8, false),
+        Field::new("price", DataType::Int32, false),
+        Field::new("status", DataType::Utf8, false),
+        Field::new("category", DataType::Utf8, false),
+        Field::new("qty", DataType::Int32, true),
+    ]))
+}
+
+fn pred_large_int(col: &str, op: Operator, v: i32) -> BoolNode {
+    let schema = large_schema();
+    let col_idx = schema.index_of(col).expect("large column");
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Literal::new(
+            ScalarValue::Int32(Some(v)),
+        ));
+    BoolNode::Predicate(Arc::new(
+        datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
+    ))
+}
+
+fn pred_large_str(col: &str, op: Operator, v: &str) -> BoolNode {
+    let schema = large_schema();
+    let col_idx = schema.index_of(col).expect("large column");
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Literal::new(
+            ScalarValue::Utf8(Some(v.to_string())),
+        ));
+    BoolNode::Predicate(Arc::new(
+        datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
+    ))
+}
+
+/// Lower `LT` to `BoolNode`. Collector leaves encode the brand/status tag
+/// into `query_bytes`; `wire_large` walks the tree in DFS order and
+/// builds the matching mock collectors.
+fn to_engine_tree_large(tree: &LT) -> BoolNode {
     match tree {
         LT::Leaf(l) => match l {
             LLeaf::LBrand(b) => BoolNode::Collector {
@@ -225,16 +263,16 @@ fn to_engine_tree_large(tree: &LT, preds: &mut Vec<ResolvedPredicate>) -> BoolNo
                     _ => panic!("unknown status {}", s),
                 }][..]),
             },
-            LLeaf::LPriceGe(v) => push_pred(preds, pred_int("price", Operator::GtEq, *v)),
-            LLeaf::LPriceLt(v) => push_pred(preds, pred_int("price", Operator::Lt, *v)),
-            LLeaf::LPriceEq(v) => push_pred(preds, pred_int("price", Operator::Eq, *v)),
-            LLeaf::LQtyGe(v) => push_pred(preds, pred_int("qty", Operator::GtEq, *v)),
-            LLeaf::LQtyEq(v) => push_pred(preds, pred_int("qty", Operator::Eq, *v)),
-            LLeaf::LCategory(c) => push_pred(preds, pred_str("category", Operator::Eq, c)),
+            LLeaf::LPriceGe(v) => pred_large_int("price", Operator::GtEq, *v),
+            LLeaf::LPriceLt(v) => pred_large_int("price", Operator::Lt, *v),
+            LLeaf::LPriceEq(v) => pred_large_int("price", Operator::Eq, *v),
+            LLeaf::LQtyGe(v) => pred_large_int("qty", Operator::GtEq, *v),
+            LLeaf::LQtyEq(v) => pred_large_int("qty", Operator::Eq, *v),
+            LLeaf::LCategory(c) => pred_large_str("category", Operator::Eq, c),
         },
-        LT::Not(inner) => BoolNode::Not(Box::new(to_engine_tree_large(inner, preds))),
-        LT::And(cs) => BoolNode::And(cs.iter().map(|c| to_engine_tree_large(c, preds)).collect()),
-        LT::Or(cs) => BoolNode::Or(cs.iter().map(|c| to_engine_tree_large(c, preds)).collect()),
+        LT::Not(inner) => BoolNode::Not(Box::new(to_engine_tree_large(inner))),
+        LT::And(cs) => BoolNode::And(cs.iter().map(to_engine_tree_large).collect()),
+        LT::Or(cs) => BoolNode::Or(cs.iter().map(to_engine_tree_large).collect()),
     }
 }
 
@@ -255,7 +293,7 @@ fn wire_large_rec(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>
             let tag = query_bytes.first().copied().expect("empty tag bytes");
             out.push(large_collector_for(tag));
         }
-        BoolNode::Predicate { .. } => {}
+        BoolNode::Predicate(_) => {}
     }
 }
 
@@ -297,10 +335,10 @@ async fn assert_engine_matches_reference_large(name: &str, tree: LT) {
         .collect();
 
     // Lower + run
-    let mut preds = Vec::new();
-    let bt = to_engine_tree_large(&tree, &mut preds).push_not_down();
+    
+    let bt = to_engine_tree_large(&tree).push_not_down();
     let collectors = wire_large(&bt);
-    let rows = run_large(bt, preds, collectors).await;
+    let rows = run_large(bt, collectors).await;
 
     // Map engine rows back to fixture indices by a tuple key. Duplicates are
     // fine because rows are unique enough across columns.
@@ -339,7 +377,6 @@ async fn assert_engine_matches_reference_large(name: &str, tree: LT) {
 /// Build the provider + stream against the cached 10k fixture.
 async fn run_large(
     tree: BoolNode,
-    predicates: Vec<ResolvedPredicate>,
     collectors: Vec<Arc<dyn RowGroupDocsCollector>>,
 ) -> Vec<(String, i32, String, String, Option<i32>)> {
     let f = large_fixture();
@@ -367,21 +404,17 @@ async fn run_large(
         metadata: Arc::clone(&parquet_meta),
     };
 
-    let tree = Arc::new(tree);
-    let predicates: Arc<Vec<Arc<ResolvedPredicate>>> = Arc::new(predicates.into_iter().map(Arc::new).collect());
-    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
+    let tree = Arc::new(tree);    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
         .into_iter()
         .enumerate()
         .map(|(i, c)| (i as i32, c))
         .collect();
     let factory: super::super::table_provider::EvaluatorFactory = {
-        let per_leaf = per_leaf.clone();
-        let predicates = Arc::clone(&predicates);
-        let tree = Arc::clone(&tree);
+        let per_leaf = per_leaf.clone();        let tree = Arc::clone(&tree);
         let schema = schema.clone();
         Arc::new(move |segment, _chunk| {
-            let resolved = tree.resolve(&per_leaf, &predicates)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata), &[]));
+            let resolved = tree.resolve(&per_leaf)?;
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -389,6 +422,7 @@ async fn run_large(
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
+                pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
             });
             Ok(eval)
         })
@@ -744,10 +778,10 @@ async fn assert_large_multipartition(name: &str, tree: LT, partitions: usize) {
         .filter(|&r| reference_evaluator_large(&tree, r) == Some(true))
         .collect();
 
-    let mut preds = Vec::new();
-    let bt = to_engine_tree_large(&tree, &mut preds).push_not_down();
+    
+    let bt = to_engine_tree_large(&tree).push_not_down();
     let collectors = wire_large(&bt);
-    let rows = run_large_partitioned(bt, preds, collectors, partitions).await;
+    let rows = run_large_partitioned(bt, collectors, partitions).await;
     assert_eq!(
         rows.len(),
         expected.len(),
@@ -761,7 +795,6 @@ async fn assert_large_multipartition(name: &str, tree: LT, partitions: usize) {
 
 async fn run_large_partitioned(
     tree: BoolNode,
-    predicates: Vec<ResolvedPredicate>,
     collectors: Vec<Arc<dyn RowGroupDocsCollector>>,
     partitions: usize,
 ) -> Vec<(String, i32, String, String, Option<i32>)> {
@@ -789,21 +822,17 @@ async fn run_large_partitioned(
         metadata: Arc::clone(&parquet_meta),
     };
 
-    let tree = Arc::new(tree);
-    let predicates: Arc<Vec<Arc<ResolvedPredicate>>> = Arc::new(predicates.into_iter().map(Arc::new).collect());
-    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
+    let tree = Arc::new(tree);    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
         .into_iter()
         .enumerate()
         .map(|(i, c)| (i as i32, c))
         .collect();
     let factory: super::super::table_provider::EvaluatorFactory = {
-        let per_leaf = per_leaf.clone();
-        let predicates = Arc::clone(&predicates);
-        let tree = Arc::clone(&tree);
+        let per_leaf = per_leaf.clone();        let tree = Arc::clone(&tree);
         let schema = schema.clone();
         Arc::new(move |segment, _chunk| {
-            let resolved = tree.resolve(&per_leaf, &predicates)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata), &[]));
+            let resolved = tree.resolve(&per_leaf)?;
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -811,6 +840,7 @@ async fn run_large_partitioned(
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
+                pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
             });
             Ok(eval)
         })

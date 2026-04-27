@@ -28,27 +28,38 @@ use datafusion::arrow::record_batch::RecordBatch;
 use roaring::RoaringBitmap;
 
 use super::{PrefetchedRg, RowGroupBitsetSource};
-use crate::indexed_table::index::{BitsetMode, RowGroupDocsCollector};
+use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
+use crate::indexed_table::row_selection::row_selection_to_bitmap;
 use crate::indexed_table::stream::RowGroupInfo;
+use datafusion::physical_optimizer::pruning::PruningPredicate;
 
 /// Evaluator holding one collector and applying per-RG page pruning.
+///
+/// Always AND-intersects the collector bitmap with page pruning. The
+/// `BitsetMode::Or` branch that previously existed was never emitted by
+/// the classifier (reserved for a future `OR(Collector, predicates)`
+/// extension) and has been removed; an OR-between-Collector-and-predicates
+/// shape routes to the multi-filter tree path today.
 pub struct SingleCollectorEvaluator {
     collector: Arc<dyn RowGroupDocsCollector>,
     page_pruner: Arc<PagePruner>,
-    bitset_mode: BitsetMode,
+    /// Residual pruning predicate: the non-Collector portion of the
+    /// top-level AND, translated to a `PruningPredicate`. `None` means
+    /// no residual predicate applies (nothing to prune with).
+    pruning_predicate: Option<Arc<PruningPredicate>>,
 }
 
 impl SingleCollectorEvaluator {
     pub fn new(
         collector: Arc<dyn RowGroupDocsCollector>,
         page_pruner: Arc<PagePruner>,
-        bitset_mode: BitsetMode,
+        pruning_predicate: Option<Arc<PruningPredicate>>,
     ) -> Self {
         Self {
             collector,
             page_pruner,
-            bitset_mode,
+            pruning_predicate,
         }
     }
 }
@@ -62,14 +73,10 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
     ) -> Result<Option<PrefetchedRg>, String> {
         let t = std::time::Instant::now();
 
-        // Collect bitset from backend
+        // Collect bitset from backend → RG-relative RoaringBitmap.
         let bitset = self.collector.collect_packed_u64_bitset(min_doc, max_doc)?;
 
-        // Expand bitset -> doc IDs. Iterate only set bits via trailing_zeros
-        // rather than scanning all 64 bits of each word — for sparse bitsets
-        // (typical when backend selectivity is low) this visits O(set_bits)
-        // iterations instead of O(span).
-        let mut raw_ids: Vec<i64> = Vec::new();
+        let mut candidates = RoaringBitmap::new();
         for (word_idx, &word) in bitset.iter().enumerate() {
             if word == 0 {
                 continue;
@@ -80,38 +87,27 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 let bit = w.trailing_zeros() as i64;
                 let doc_id = base + bit;
                 if doc_id < max_doc as i64 {
-                    raw_ids.push(doc_id);
+                    let rel = doc_id - rg.first_row;
+                    if rel >= 0 && rel <= u32::MAX as i64 {
+                        candidates.insert(rel as u32);
+                    }
                 }
                 w &= w - 1; // clear lowest set bit
             }
         }
 
-        // Apply page pruning
-        let final_ids = match self.bitset_mode {
-            BitsetMode::And => {
-                self.page_pruner
-                    .filter_row_ids(rg.index, &raw_ids, rg.first_row)
+        // Apply page-level pruning if we have a residual predicate.
+        if let Some(ref pp) = self.pruning_predicate {
+            if let Some(sel) = self.page_pruner.prune_rg(pp, rg.index) {
+                let allowed = row_selection_to_bitmap(&sel);
+                candidates &= allowed;
             }
-            BitsetMode::Or => {
-                let candidates =
-                    self.page_pruner
-                        .candidate_row_ids(rg.index, rg.first_row, rg.num_rows);
-                sorted_union(&raw_ids, &candidates)
-            }
-        };
-
-        if final_ids.is_empty() {
-            return Ok(None);
+            // `None` → no pruning available for this RG → keep candidates
+            // unchanged (conservative).
         }
 
-        // Convert RG-absolute doc IDs to RG-relative positions and pack into
-        // a RoaringBitmap.
-        let mut candidates = RoaringBitmap::new();
-        for &id in &final_ids {
-            let rel = id - rg.first_row;
-            if rel >= 0 && rel <= u32::MAX as i64 {
-                candidates.insert(rel as u32);
-            }
+        if candidates.is_empty() {
+            return Ok(None);
         }
 
         Ok(Some(PrefetchedRg::without_context(
@@ -135,31 +131,6 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
     }
 }
 
-/// Merge two sorted `Vec<i64>` into one sorted `Vec<i64>` with duplicates removed.
-fn sorted_union(a: &[i64], b: &[i64]) -> Vec<i64> {
-    let mut out = Vec::with_capacity(a.len() + b.len());
-    let (mut i, mut j) = (0, 0);
-    while i < a.len() && j < b.len() {
-        match a[i].cmp(&b[j]) {
-            std::cmp::Ordering::Less => {
-                out.push(a[i]);
-                i += 1;
-            }
-            std::cmp::Ordering::Greater => {
-                out.push(b[j]);
-                j += 1;
-            }
-            std::cmp::Ordering::Equal => {
-                out.push(a[i]);
-                i += 1;
-                j += 1;
-            }
-        }
-    }
-    out.extend_from_slice(&a[i..]);
-    out.extend_from_slice(&b[j..]);
-    out
-}
 
 
 #[cfg(test)]
@@ -212,7 +183,7 @@ mod tests {
         let file = tmp.reopen().unwrap();
         let options = ArrowReaderOptions::new().with_page_index(true);
         let meta = ArrowReaderMetadata::load(&file, options).unwrap();
-        let pruner = PagePruner::new(meta.schema(), meta.metadata().clone(), &[]);
+        let pruner = PagePruner::new(meta.schema(), meta.metadata().clone());
         Arc::new(pruner)
     }
 
@@ -222,7 +193,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, BitsetMode::And);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
 
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("has matches");
@@ -234,7 +205,7 @@ mod tests {
     fn on_batch_mask_returns_none_for_path_b() {
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, BitsetMode::And);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
@@ -256,7 +227,7 @@ mod tests {
         // (it's the only post-decode filter we have on this path).
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, BitsetMode::And);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
         assert!(eval.needs_row_mask());
     }
 
@@ -264,29 +235,27 @@ mod tests {
     fn empty_match_returns_none() {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, BitsetMode::And);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         assert!(eval.prefetch_rg(&rg, 0, 8).unwrap().is_none());
     }
 
     #[test]
-    fn path_b_or_mode_unions_collector_with_pruner_candidates() {
-        // BitsetMode::Or is not yet emitted by classify_filter (reserved for
-        // future OR(Collector, predicates) extension), but the branch is
-        // wired and we exercise it here so a refactor can't silently break it.
-        //
-        // With `minimal_page_pruner` (no filters), candidate_row_ids returns
-        // every row in the RG: [0, 1, ..., 7]. The collector contributes
-        // {0, 3, 7}. Their union is {0..=7}. Offsets should be 0..=7.
+    fn empty_pruning_predicates_leave_collector_unchanged() {
+        // With no pruning predicates, the evaluator is a pass-through for
+        // the collector bitmap: every doc the collector returns remains a
+        // candidate. (Contrast with the old BitsetMode::Or path, which
+        // would have unioned with page-pruner-derived "anything-allowed"
+        // row IDs — semantics that were never wired up in production.)
         let collector = Arc::new(StubCollector { docs: vec![0, 3, 7] })
             as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(collector, pruner, BitsetMode::Or);
+        let eval = SingleCollectorEvaluator::new(collector, pruner, None);
 
         let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
         let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("has matches");
         let got: Vec<u32> = prefetched.candidates.iter().collect();
-        assert_eq!(got, (0u32..8).collect::<Vec<_>>());
+        assert_eq!(got, vec![0u32, 3, 7]);
     }
 
     // Keep the `fmt` import used

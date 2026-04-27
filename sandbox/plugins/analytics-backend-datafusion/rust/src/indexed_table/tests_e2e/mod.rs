@@ -29,7 +29,7 @@ use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderO
 use futures::StreamExt;
 use tempfile::NamedTempFile;
 
-use super::bool_tree::{BoolNode, ResolvedPredicate};
+use super::bool_tree::BoolNode;
 use super::eval::bitmap_tree::{CollectorLeafBitmaps, BitmapTreeEvaluator};
 use super::eval::{RowGroupBitsetSource, TreeBitsetSource};
 use super::index::RowGroupDocsCollector;
@@ -167,7 +167,7 @@ fn status_eq(value: &str) -> Arc<dyn RowGroupDocsCollector> {
 
 // ── Test runner: build provider + execute + collect rows ───────────
 
-async fn run_tree(tree: BoolNode, predicates: Vec<ResolvedPredicate>) -> Vec<(String, i32, String, String)> {
+async fn run_tree(tree: BoolNode) -> Vec<(String, i32, String, String)> {
     let tmp = write_fixture_parquet();
     let path = tmp.path().to_path_buf();
     let size = std::fs::metadata(&path).unwrap().len();
@@ -208,17 +208,13 @@ async fn run_tree(tree: BoolNode, predicates: Vec<ResolvedPredicate>) -> Vec<(St
         .map(|(i, c)| (i as i32, c))
         .collect();
     let tree = Arc::new(tree);
-    let predicates: Arc<Vec<Arc<ResolvedPredicate>>> =
-        Arc::new(predicates.into_iter().map(Arc::new).collect());
-
     let factory: super::table_provider::EvaluatorFactory = {
         let per_leaf = per_leaf.clone();
-        let predicates = Arc::clone(&predicates);
         let tree = Arc::clone(&tree);
         let schema = schema.clone();
         Arc::new(move |segment, _chunk| {
-            let resolved = tree.resolve(&per_leaf, &predicates)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata), &[]));
+            let resolved = tree.resolve(&per_leaf)?;
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -226,6 +222,7 @@ async fn run_tree(tree: BoolNode, predicates: Vec<ResolvedPredicate>) -> Vec<(St
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
+                pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
             });
             Ok(eval)
         })
@@ -284,30 +281,35 @@ async fn run_tree(tree: BoolNode, predicates: Vec<ResolvedPredicate>) -> Vec<(St
 fn index_leaf(tag: u8) -> BoolNode {
     BoolNode::Collector { query_bytes: Arc::from(&[tag][..]) }
 }
-fn predicate_leaf(id: u16) -> BoolNode {
-    BoolNode::Predicate { predicate_id: id }
-}
-fn pred_int(col: &str, op: Operator, v: i32) -> ResolvedPredicate {
-    ResolvedPredicate {
-        column: col.into(),
-        op,
-        value: ScalarValue::Int32(Some(v)),
-    }
-}
-fn pred_str(col: &str, op: Operator, v: &str) -> ResolvedPredicate {
-    ResolvedPredicate {
-        column: col.into(),
-        op,
-        value: ScalarValue::Utf8(Some(v.into())),
-    }
+
+/// Build a `BoolNode::Predicate(expr)` for `col op <int value>`.
+fn pred_int(col: &str, op: Operator, v: i32) -> BoolNode {
+    let schema = build_fixture_schema();
+    let col_idx = schema.index_of(col).expect("column in fixture schema");
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Literal::new(
+            ScalarValue::Int32(Some(v)),
+        ));
+    BoolNode::Predicate(Arc::new(
+        datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
+    ))
 }
 
-/// Push a ResolvedPredicate to the sidecar and return a Predicate leaf
-/// pointing at it by index. Used by submodule tree lowerers.
-fn push_pred(preds: &mut Vec<ResolvedPredicate>, p: ResolvedPredicate) -> BoolNode {
-    let id = preds.len() as u16;
-    preds.push(p);
-    BoolNode::Predicate { predicate_id: id }
+/// Build a `BoolNode::Predicate(expr)` for `col op <string value>`.
+fn pred_str(col: &str, op: Operator, v: &str) -> BoolNode {
+    let schema = build_fixture_schema();
+    let col_idx = schema.index_of(col).expect("column in fixture schema");
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        Arc::new(datafusion::physical_expr::expressions::Literal::new(
+            ScalarValue::Utf8(Some(v.to_string())),
+        ));
+    BoolNode::Predicate(Arc::new(
+        datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
+    ))
 }
 
 /// Walk `tree` in DFS order and return one collector per Collector leaf,
@@ -332,7 +334,7 @@ fn wire(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>) {
             };
             out.push(c);
         }
-        BoolNode::Predicate { .. } => {}
+        BoolNode::Predicate(_) => {}
     }
 }
 
