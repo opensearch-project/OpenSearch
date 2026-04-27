@@ -322,13 +322,14 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             {
                 // tag::create-index-request-mappings
                 request.mapping(// <1>
-                        "{\n" +
-                        "  \"properties\": {\n" +
-                        "    \"message\": {\n" +
-                        "      \"type\": \"text\"\n" +
-                        "    }\n" +
-                        "  }\n" +
-                        "}", // <2>
+                        """
+                        {
+                          "properties": {
+                            "message": {
+                              "type": "text"
+                            }
+                          }
+                        }""", // <2>
                         MediaTypeRegistry.JSON);
                 // end::create-index-request-mappings
                 CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
@@ -394,20 +395,21 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
             request = new CreateIndexRequest("twitter6");
             // tag::create-index-whole-source
-            request.source("{\n" +
-                    "    \"settings\" : {\n" +
-                    "        \"number_of_shards\" : 1,\n" +
-                    "        \"number_of_replicas\" : 0\n" +
-                    "    },\n" +
-                    "    \"mappings\" : {\n" +
-                    "        \"properties\" : {\n" +
-                    "            \"message\" : { \"type\" : \"text\" }\n" +
-                    "        }\n" +
-                    "    },\n" +
-                    "    \"aliases\" : {\n" +
-                    "        \"twitter_alias\" : {}\n" +
-                    "    }\n" +
-                    "}", MediaTypeRegistry.JSON); // <1>
+            request.source("""
+                    {
+                        "settings" : {
+                            "number_of_shards" : 1,
+                            "number_of_replicas" : 0
+                        },
+                        "mappings" : {
+                            "properties" : {
+                                "message" : { "type" : "text" }
+                            }
+                        },
+                        "aliases" : {
+                            "twitter_alias" : {}
+                        }
+                    }""", MediaTypeRegistry.JSON); // <1>
             // end::create-index-whole-source
 
             // tag::create-index-execute
@@ -473,13 +475,14 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             {
                 // tag::put-mapping-request-source
                 request.source(
-                    "{\n" +
-                    "  \"properties\": {\n" +
-                    "    \"message\": {\n" +
-                    "      \"type\": \"text\"\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", // <1>
+                    """
+                    {
+                      "properties": {
+                        "message": {
+                          "type": "text"
+                        }
+                      }
+                    }""", // <1>
                     MediaTypeRegistry.JSON);
                 // end::put-mapping-request-source
                 AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
@@ -693,16 +696,17 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
             request.source(
-                "{\n"
-                    + "  \"properties\": {\n"
-                    + "    \"message\": {\n"
-                    + "      \"type\": \"text\"\n"
-                    + "    },\n"
-                    + "    \"timestamp\": {\n"
-                    + "      \"type\": \"date\"\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}", // <1>
+                """
+                    {
+                      "properties": {
+                        "message": {
+                          "type": "text"
+                        },
+                        "timestamp": {
+                          "type": "date"
+                        }
+                      }
+                    }""", // <1>
                 MediaTypeRegistry.JSON
             );
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
@@ -2009,7 +2013,11 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         {
             // tag::indices-put-settings-settings-source
             request.settings(
-                    "{\"index.number_of_replicas\": \"2\"}"
+                """
+                    {
+                      "index.number_of_replicas": "2"
+                    }
+                    """
                     , MediaTypeRegistry.JSON); // <1>
             // end::indices-put-settings-settings-source
         }
@@ -2084,13 +2092,14 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         {
             // tag::put-template-request-mappings-json
             request.mapping(// <1>
-                "{\n" +
-                    "  \"properties\": {\n" +
-                    "    \"message\": {\n" +
-                    "      \"type\": \"text\"\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}",
+                """
+                {
+                  "properties": {
+                    "message": {
+                      "type": "text"
+                    }
+                  }
+                }""",
                 MediaTypeRegistry.JSON);
             // end::put-template-request-mappings-json
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2146,27 +2155,28 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::put-template-request-version
 
         // tag::put-template-whole-source
-        request.source("{\n" +
-            "  \"index_patterns\": [\n" +
-            "    \"log-*\",\n" +
-            "    \"pattern-1\"\n" +
-            "  ],\n" +
-            "  \"order\": 1,\n" +
-            "  \"settings\": {\n" +
-            "    \"number_of_shards\": 1\n" +
-            "  },\n" +
-            "  \"mappings\": {\n" +
-            "    \"properties\": {\n" +
-            "      \"message\": {\n" +
-            "        \"type\": \"text\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  },\n" +
-            "  \"aliases\": {\n" +
-            "    \"alias-1\": {},\n" +
-            "    \"{index}-alias\": {}\n" +
-            "  }\n" +
-            "}", MediaTypeRegistry.JSON); // <1>
+        request.source("""
+            {
+              "index_patterns": [
+                "log-*",
+                "pattern-1"
+              ],
+              "order": 1,
+              "settings": {
+                "number_of_shards": 1
+              },
+              "mappings": {
+                "properties": {
+                  "message": {
+                    "type": "text"
+                  }
+                }
+              },
+              "aliases": {
+                "alias-1": {},
+                "{index}-alias": {}
+              }
+            }""", MediaTypeRegistry.JSON); // <1>
         // end::put-template-whole-source
 
         // tag::put-template-request-create
@@ -2366,13 +2376,14 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
         {
             // tag::put-index-template-v2-request-mappings-json
-            String mappingJson = "{\n" +
-                "  \"properties\": {\n" +
-                "    \"message\": {\n" +
-                "      \"type\": \"text\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}"; // <1>
+            String mappingJson = """
+                {
+                  "properties": {
+                    "message": {
+                      "type": "text"
+                    }
+                  }
+                }"""; // <1>
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
             Template template = new Template(null, new CompressedXContent(mappingJson), null); // <2>

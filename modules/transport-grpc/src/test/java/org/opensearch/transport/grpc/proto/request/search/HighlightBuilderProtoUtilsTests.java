@@ -403,4 +403,166 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("match_all", field.highlightQuery().getName());
         assertEquals(250, (int) field.noMatchSize());
     }
+
+    public void testFromProto_WithFieldOrder() {
+        HighlightField fieldProto = HighlightField.newBuilder().setOrder(HighlighterOrder.HIGHLIGHTER_ORDER_SCORE).build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        HighlightBuilder.Field field = fields.get(0);
+        assertEquals(HighlightBuilder.Order.SCORE, field.order());
+    }
+
+    public void testFromProto_WithFieldPhraseLimit() {
+        HighlightField fieldProto = HighlightField.newBuilder().setPhraseLimit(512).build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        HighlightBuilder.Field field = fields.get(0);
+        assertEquals(512, (int) field.phraseLimit());
+    }
+
+    public void testFromProto_WithFieldRequireFieldMatch() {
+        HighlightField fieldProto = HighlightField.newBuilder().setRequireFieldMatch(false).build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        HighlightBuilder.Field field = fields.get(0);
+        assertFalse(field.requireFieldMatch());
+    }
+
+    public void testFromProto_WithFieldTagsSchemaStyled() {
+        HighlightField fieldProto = HighlightField.newBuilder().setTagsSchema(HighlighterTagsSchema.HIGHLIGHTER_TAGS_SCHEMA_STYLED).build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        // The tags schema should have been applied - verify the field was created
+        HighlightBuilder.Field field = fields.get(0);
+        assertEquals("title", field.name());
+        // Verify styled tags were applied
+        String[] preTags = field.preTags();
+        assertNotNull(preTags);
+        assertArrayEquals(HighlightBuilder.DEFAULT_STYLED_PRE_TAG, preTags);
+        String[] postTags = field.postTags();
+        assertNotNull(postTags);
+        assertArrayEquals(HighlightBuilder.DEFAULT_STYLED_POST_TAGS, postTags);
+    }
+
+    public void testFromProto_WithFieldTagsSchemaDefault() {
+        HighlightField fieldProto = HighlightField.newBuilder()
+            .setTagsSchema(HighlighterTagsSchema.HIGHLIGHTER_TAGS_SCHEMA_DEFAULT)
+            .build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        // The tags schema should have been applied - verify the field was created
+        HighlightBuilder.Field field = fields.get(0);
+        assertEquals("title", field.name());
+        // Verify default tags were applied
+        String[] preTags = field.preTags();
+        assertNotNull(preTags);
+        assertArrayEquals(HighlightBuilder.DEFAULT_PRE_TAGS, preTags);
+        String[] postTags = field.postTags();
+        assertNotNull(postTags);
+        assertArrayEquals(HighlightBuilder.DEFAULT_POST_TAGS, postTags);
+    }
+
+    public void testFromProto_WithFieldForceSource() {
+        HighlightField fieldProto = HighlightField.newBuilder().setForceSource(true).build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("content", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        HighlightBuilder.Field field = fields.get(0);
+        assertTrue(field.forceSource());
+    }
+
+    public void testFromProto_WithAllFieldSettings() {
+        // Test with all field settings combined (excluding tagsSchema to test explicit pre/post tags)
+        HighlightField fieldProto = HighlightField.newBuilder()
+            .setFragmentSize(150)
+            .setNumberOfFragments(3)
+            .setFragmentOffset(10)
+            .setOrder(HighlighterOrder.HIGHLIGHTER_ORDER_SCORE)
+            .setPhraseLimit(256)
+            .setRequireFieldMatch(true)
+            .setForceSource(true)
+            .setNoMatchSize(100)
+            .setType(HighlighterType.newBuilder().setBuiltin(BuiltinHighlighterType.BUILTIN_HIGHLIGHTER_TYPE_FVH).build())
+            .setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_WORD)
+            .setBoundaryMaxScan(30)
+            .setBoundaryChars(".,!?")
+            .setBoundaryScannerLocale("en-US")
+            .setFragmenter(HighlighterFragmenter.HIGHLIGHTER_FRAGMENTER_SPAN)
+            .setHighlightFilter(true)
+            .setMaxAnalyzerOffset(1000)
+            .addPreTags("<mark>")
+            .addPostTags("</mark>")
+            .addMatchedFields("title")
+            .addMatchedFields("title.raw")
+            .build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        HighlightBuilder.Field field = fields.get(0);
+        assertEquals("title", field.name());
+        assertEquals(150, (int) field.fragmentSize());
+        assertEquals(3, (int) field.numOfFragments());
+        // fragmentOffset is package-private, can't verify directly
+        assertEquals(HighlightBuilder.Order.SCORE, field.order());
+        assertEquals(256, (int) field.phraseLimit());
+        assertTrue(field.requireFieldMatch());
+        assertTrue(field.forceSource());
+        assertEquals(100, (int) field.noMatchSize());
+        assertEquals("fvh", field.highlighterType());
+        assertEquals(HighlightBuilder.BoundaryScannerType.WORD, field.boundaryScannerType());
+        assertEquals(30, (int) field.boundaryMaxScan());
+        assertEquals("span", field.fragmenter());
+        assertTrue(field.highlightFilter());
+        assertEquals(1000, (int) field.maxAnalyzerOffset());
+
+        String[] preTags = field.preTags();
+        assertEquals(1, preTags.length);
+        assertEquals("<mark>", preTags[0]);
+
+        String[] postTags = field.postTags();
+        assertEquals(1, postTags.length);
+        assertEquals("</mark>", postTags[0]);
+
+        // matchedFields is package-private, can't verify directly
+    }
 }

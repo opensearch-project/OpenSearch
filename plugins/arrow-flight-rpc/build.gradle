@@ -35,7 +35,7 @@ dependencies {
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // arrow flight dependencies.
@@ -57,7 +57,6 @@ dependencies {
   runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-netty:${versions.grpc}"
-  implementation "com.google.errorprone:error_prone_annotations:2.31.0"
 
   runtimeOnly "com.google.code.findbugs:jsr305:3.0.2"
   annotationProcessor 'org.immutables:value:2.10.1'
@@ -214,6 +213,8 @@ tasks.named('thirdPartyAudit').configure {
     'io.netty.pkitesting.CertificateBuilder$Algorithm',
     'io.netty.pkitesting.X509Bundle',
 
+    'io.netty.internal.tcnative.SSLCredential',
+
     'com.google.protobuf.util.Timestamps'
   )
   ignoreViolations(
@@ -228,7 +229,6 @@ tasks.named('thirdPartyAudit').configure {
     'io.netty.buffer.FreeChunkEvent',
     'io.netty.buffer.PooledByteBufAllocator',
     'io.netty.buffer.ReallocateBufferEvent',
-    'io.netty.buffer.ReturnChunkEvent',
 
     // Guava internal classes
     'com.google.common.cache.Striped64',

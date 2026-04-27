@@ -88,12 +88,12 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   api "joda-time:joda-time:${versions.joda}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
-  runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
 
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
@@ -467,6 +467,7 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSLCredential',
 
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
@@ -518,7 +519,6 @@ thirdPartyAudit {
     'org.conscrypt.Conscrypt',
     'org.conscrypt.HandshakeListener',
 
-    'org.slf4j.ext.EventData',
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
 
@@ -570,7 +570,6 @@ thirdPartyAudit {
     'io.netty.buffer.FreeBufferEvent',
     'io.netty.buffer.FreeChunkEvent',
     'io.netty.buffer.PooledByteBufAllocator',
-    'io.netty.buffer.ReallocateBufferEvent',
-    'io.netty.buffer.ReturnChunkEvent'
+    'io.netty.buffer.ReallocateBufferEvent'
   )
 }

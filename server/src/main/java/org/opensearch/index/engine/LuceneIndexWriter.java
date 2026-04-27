@@ -12,10 +12,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.mapper.ParseContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -131,7 +133,7 @@ public class LuceneIndexWriter implements DocumentIndexWriter {
     }
 
     @Override
-    public long addDocuments(Iterable<ParseContext.Document> docs, Term uid) throws IOException {
+    public long addDocuments(final List<ParseContext.Document> docs, Term uid) throws IOException {
         return indexWriter.addDocuments(docs);
     }
 
@@ -143,7 +145,7 @@ public class LuceneIndexWriter implements DocumentIndexWriter {
     @Override
     public void softUpdateDocuments(
         Term uid,
-        Iterable<ParseContext.Document> docs,
+        List<ParseContext.Document> docs,
         long version,
         long seqNo,
         long primaryTerm,
@@ -224,5 +226,9 @@ public class LuceneIndexWriter implements DocumentIndexWriter {
     @Override
     public Releasable obtainWriteLockOnAllMap() {
         return () -> {};
+    }
+
+    public boolean validateImmutableFieldNotUpdated(ParseContext.Document previousDocument, BytesRef currentUID) {
+        return false;
     }
 }

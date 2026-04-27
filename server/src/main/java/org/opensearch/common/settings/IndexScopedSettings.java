@@ -41,7 +41,6 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
@@ -51,7 +50,6 @@ import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.SearchSlowLog;
 import org.opensearch.index.TieredMergePolicyProvider;
-import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.fielddata.IndexFieldDataService;
@@ -60,7 +58,9 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.search.streaming.FlushModeResolver;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -104,6 +104,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING,
+                IndexMetadata.INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING,
                 IndexMetadata.INDEX_READ_ONLY_SETTING,
                 IndexMetadata.INDEX_BLOCKS_READ_SETTING,
                 IndexMetadata.INDEX_BLOCKS_WRITE_SETTING,
@@ -116,6 +117,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_HIDDEN_SETTING,
                 IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
                 IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING,
+                IndexMetadata.INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -145,6 +147,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSortConfig.INDEX_SORT_MISSING_SETTING,
                 IndexSortConfig.INDEX_SORT_MODE_SETTING,
                 IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
+                IndexSettings.INDEX_TRANSLOG_READ_FORWARD_SETTING,
                 IndexSettings.INDEX_WARMER_ENABLED_SETTING,
                 IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
                 IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING,
@@ -170,6 +173,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_SLICES_PER_SCROLL,
                 IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
+                FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING,
@@ -202,7 +206,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
-                BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
+                MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING,
+                IndicesBitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_COMPOSITE_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_FACTORY_SETTING,
@@ -286,6 +291,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING,
                 IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING,
                 IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_MAPPER_SETTINGS,
+                IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING,
+                IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,
@@ -296,6 +304,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Setting for derived source feature
                 IndexSettings.INDEX_DERIVED_SOURCE_SETTING,
                 IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING,
+                IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING,
+                IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING,
+
+                // Writable warm / tiering settings - always registered so nodes can parse
+                // index metadata even when the feature flag is disabled
+                IndexModule.INDEX_STORE_LOCALITY_SETTING,
+                IndexModule.INDEX_TIERING_STATE,
+                IndexModule.IS_WARM_INDEX_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -319,11 +335,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * is ready for production release, the feature flag can be removed, and the
      * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
      */
-    public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
-        FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG,
-        // TODO: Create a separate feature flag for hot tiering index state.
-        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE, IndexModule.IS_WARM_INDEX_SETTING)
-    );
+    public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of();
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 

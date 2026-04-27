@@ -61,9 +61,10 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
     void build(
         final Map<String, TokenizerFactory> tokenizers,
         final Map<String, CharFilterFactory> charFilters,
-        final Map<String, TokenFilterFactory> tokenFilters
+        final Map<String, TokenFilterFactory> tokenFilters,
+        final Map<String, Analyzer> analyzersBuiltSoFar
     ) {
-        customAnalyzer = create(name(), analyzerSettings, tokenizers, charFilters, tokenFilters);
+        customAnalyzer = create(name(), analyzerSettings, tokenizers, charFilters, tokenFilters, analyzersBuiltSoFar);
     }
 
     /**
@@ -75,12 +76,20 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
         Settings analyzerSettings,
         Map<String, TokenizerFactory> tokenizers,
         Map<String, CharFilterFactory> charFilters,
-        Map<String, TokenFilterFactory> tokenFilters
+        Map<String, TokenFilterFactory> tokenFilters,
+        Map<String, Analyzer> analyzersBuiltSoFar
     ) {
         int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
         int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
-        AnalyzerComponents components = createComponents(name, analyzerSettings, tokenizers, charFilters, tokenFilters);
+        AnalyzerComponents components = createComponents(
+            name,
+            analyzerSettings,
+            tokenizers,
+            charFilters,
+            tokenFilters,
+            analyzersBuiltSoFar
+        );
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME)) {
             return new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap);
         } else {

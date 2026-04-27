@@ -66,8 +66,8 @@ public class GeoPointProtoUtils {
             point.resetLat(latLon.getLat());
             point.resetLon(latLon.getLon());
 
-        } else if (geoLocation.hasDoubleArray()) {
-            org.opensearch.protobufs.DoubleArray doubleArray = geoLocation.getDoubleArray();
+        } else if (geoLocation.hasCoords()) {
+            org.opensearch.protobufs.DoubleArray doubleArray = geoLocation.getCoords();
             int count = doubleArray.getDoubleArrayCount();
             if (count < 2) {
                 throw new IllegalArgumentException("[geo_point] field type should have at least two dimensions");

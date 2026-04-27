@@ -205,6 +205,13 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         );
     }
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        throw new MapperParsingException(
+            "Field [" + name() + "] is a metadata field and cannot be added inside" + " a document. Use the index API request parameters."
+        );
+    }
+
     /**
      * Called before {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
      */

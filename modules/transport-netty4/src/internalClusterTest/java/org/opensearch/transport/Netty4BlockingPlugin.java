@@ -16,7 +16,10 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.HttpServerTransport.Dispatcher;
+import org.opensearch.http.netty4.Netty4Http3ServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -39,6 +42,39 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.ReferenceCountUtil;
 
 public class Netty4BlockingPlugin extends Netty4ModulePlugin {
+
+    public class SecureNetty4BlockingHttpServerTransport extends Netty4Http3ServerTransport {
+        public SecureNetty4BlockingHttpServerTransport(
+            Settings settings,
+            NetworkService networkService,
+            BigArrays bigArrays,
+            ThreadPool threadPool,
+            NamedXContentRegistry xContentRegistry,
+            Dispatcher dispatcher,
+            ClusterSettings clusterSettings,
+            SharedGroupFactory sharedGroupFactory,
+            SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
+            Tracer tracer
+        ) {
+            super(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry,
+                dispatcher,
+                clusterSettings,
+                sharedGroupFactory,
+                secureHttpTransportSettingsProvider,
+                tracer
+            );
+        }
+
+        @Override
+        protected ChannelInboundHandlerAdapter createHeaderVerifier() {
+            return new ExampleBlockingNetty4HeaderVerifier();
+        }
+    }
 
     public class Netty4BlockingHttpServerTransport extends Netty4HttpServerTransport {
 
@@ -70,6 +106,37 @@ public class Netty4BlockingPlugin extends Netty4ModulePlugin {
         protected ChannelInboundHandlerAdapter createHeaderVerifier() {
             return new ExampleBlockingNetty4HeaderVerifier();
         }
+    }
+
+    @Override
+    public Map<String, Supplier<HttpServerTransport>> getSecureHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.singletonMap(
+            NETTY_SECURE_HTTP_TRANSPORT_NAME,
+            () -> new SecureNetty4BlockingHttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry,
+                dispatcher,
+                clusterSettings,
+                getSharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
+                tracer
+            )
+        );
     }
 
     @Override

@@ -17,16 +17,21 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
@@ -134,8 +139,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         if (shouldSync(didRefresh, true) && isReadyForUpload()) {
             try {
                 segmentTracker.updateLocalRefreshTimeAndSeqNo();
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-                    Collection<String> localSegmentsPostRefresh = segmentInfosGatedCloseable.get().files(true);
+                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+                    Collection<String> localSegmentsPostRefresh = catalogSnapshotRef.get().getFiles(true);
                     updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
                 }
             } catch (Throwable t) {
@@ -203,8 +208,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true iff all the local files are uploaded to remote store.
      */
     boolean isRemoteSegmentStoreInSync() {
-        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-            return segmentInfosGatedCloseable.get().files(true).stream().allMatch(this::skipUpload);
+        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+            return catalogSnapshotRef.get().getFiles(true).stream().allMatch(this::skipUpload);
         } catch (Throwable throwable) {
             logger.error("Throwable thrown during isRemoteSegmentStoreInSync", throwable);
         }
@@ -221,8 +226,14 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
             // if following condition does not exist. The segments created as part of translog replay will not be present
             // in the remote store.
-            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
+            return indexShard.state() != IndexShardState.STARTED
+                || !(indexShard.getIndexer() instanceof EngineBackedIndexer indexer && indexer.getEngine() instanceof InternalEngine);
         }
+
+        // Extract crypto metadata once at start of sync
+        IndexMetadata indexMetadata = indexShard.indexSettings().getIndexMetadata();
+        CryptoMetadata cryptoMetadata = resolveCryptoMetadata(indexMetadata);
+
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
@@ -235,13 +246,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
-                if (isRefreshAfterCommit()) {
+                // Also trigger cleanup if the uploaded segments map exceeds the configured threshold,
+                // to prevent unbounded memory growth when flushes do not happen.
+                if (isRefreshAfterCommit() || uploadedSegmentsMapExceedsThreshold()) {
                     remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
                 }
 
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-                    SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
-                    final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(segmentInfos);
+                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+                    CatalogSnapshot catalogSnapshot = catalogSnapshotRef.get();
+                    final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(catalogSnapshot);
                     if (checkpoint.getPrimaryTerm() != indexShard.getOperationPrimaryTerm()) {
                         throw new IllegalStateException(
                             String.format(
@@ -254,8 +267,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     }
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
-                    long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
-                    Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
+                    long lastRefreshedCheckpoint = indexShard.getIndexer().lastRefreshedCheckpoint();
+                    Collection<String> localSegmentsPostRefresh = catalogSnapshot.getFiles(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
@@ -268,7 +281,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                             try {
                                 logger.debug("New segments upload successful");
                                 // Start metadata file upload
-                                uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                uploadMetadata(localSegmentsPostRefresh, catalogSnapshot, checkpoint);
                                 logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
@@ -296,8 +309,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         }
                     }, latch);
 
-                    // Start the segments files upload
-                    uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener);
+                    // Start the segments files upload with crypto
+                    uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener, cryptoMetadata);
                     if (latch.await(
                         remoteStoreSettings.getClusterRemoteSegmentTransferTimeout().millis(),
                         TimeUnit.MILLISECONDS
@@ -324,16 +337,31 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     }
 
     /**
+     * Extracts CryptoMetadata if configured.
+     *
+     * @param indexMetadata Index metadata containing crypto settings
+     * @return CryptoMetadata if encryption is configured, null otherwise
+     */
+    private CryptoMetadata resolveCryptoMetadata(IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
+            return null;
+        }
+        return CryptoMetadata.fromIndexSettings(indexMetadata.getSettings());
+    }
+
+    /**
      * Uploads new segment files to the remote store.
      *
      * @param localSegmentsPostRefresh collection of segment files present after refresh
      * @param localSegmentsSizeMap map of segment file names to their sizes
      * @param segmentUploadsCompletedListener listener to be notified when upload completes
+     * @param cryptoMetadata  CryptoMetadata for index-level encryption
      */
     private void uploadNewSegments(
         Collection<String> localSegmentsPostRefresh,
         Map<String, Long> localSegmentsSizeMap,
-        ActionListener<Void> segmentUploadsCompletedListener
+        ActionListener<Void> segmentUploadsCompletedListener,
+        CryptoMetadata cryptoMetadata
     ) {
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
         Function<Map<String, Long>, UploadListener> uploadListenerFunction = (Map<String, Long> sizeMap) -> createUploadListener(
@@ -345,7 +373,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             localSegmentsSizeMap,
             segmentUploadsCompletedListener,
             uploadListenerFunction,
-            isLowPriorityUpload()
+            isLowPriorityUpload(),
+            cryptoMetadata
         );
     }
 
@@ -382,7 +411,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
         // Set the minimum sequence number for keeping translog
-        indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        indexShard.getIndexer().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
@@ -424,23 +453,31 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return false;
     }
 
-    void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
-        throws IOException {
-        final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
-        SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
-        Map<String, String> userData = segmentInfosSnapshot.getUserData();
+    private boolean uploadedSegmentsMapExceedsThreshold() {
+        int threshold = indexShard.getRemoteStoreSettings().getUploadedSegmentsCleanupThreshold();
+        return threshold != -1 && remoteDirectory.getSegmentsUploadedToRemoteStoreSize() > threshold;
+    }
+
+    void uploadMetadata(
+        Collection<String> localSegmentsPostRefresh,
+        CatalogSnapshot catalogSnapshot,
+        ReplicationCheckpoint replicationCheckpoint
+    ) throws IOException {
+        final long maxSeqNo = indexShard.getIndexer().currentOngoingRefreshCheckpoint();
+        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.cloneNoAcquire();
+        Map<String, String> userData = new HashMap<>(catalogSnapshotCloned.getUserData());
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
-        segmentInfosSnapshot.setUserData(userData, false);
+        catalogSnapshotCloned.setUserData(userData, false);
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
+        Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
             long translogFileGeneration = translogGeneration.translogFileGeneration;
             remoteDirectory.uploadMetadata(
                 localSegmentsPostRefresh,
-                segmentInfosSnapshot,
+                catalogSnapshotCloned,
                 storeDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,
@@ -474,6 +511,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     private String getChecksumOfLocalFile(String file) throws IOException {
         if (!localSegmentChecksumMap.containsKey(file)) {
+            if (indexShard.indexSettings().isPluggableDataFormatEnabled()) {
+                DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
+                if (dfasd == null) {
+                    throw new IllegalStateException("DataFormatAwareStoreDirectory expected when pluggable data format is enabled");
+                }
+                String checksum = dfasd.calculateUploadChecksum(file);
+                localSegmentChecksumMap.put(file, checksum);
+                return checksum;
+            }
             try (IndexInput indexInput = storeDirectory.openInput(file, IOContext.READONCE)) {
                 String checksum = Long.toString(CodecUtil.retrieveChecksum(indexInput));
                 localSegmentChecksumMap.put(file, checksum);
@@ -550,8 +596,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             if (indexShard.state() != null) {
                 sb.append(" indexShardState=").append(indexShard.state());
             }
-            if (indexShard.getEngineOrNull() != null) {
-                sb.append(" engineType=").append(indexShard.getEngine().getClass().getSimpleName());
+            if (indexShard.getIndexerOrNull() != null) {
+                sb.append(" engineType=").append(indexShard.getIndexer().getClass().getSimpleName());
             }
             if (indexShard.recoveryState() != null) {
                 sb.append(" recoverySourceType=").append(indexShard.recoveryState().getRecoverySource().getType());

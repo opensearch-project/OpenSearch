@@ -48,7 +48,11 @@ public class KeyStoreUtils {
     }
 
     public static KeyStore createServerKeyStore() throws Exception {
-        var serverCred = generateCert();
+        return createServerKeyStore(Algorithm.rsa2048);
+    }
+
+    public static KeyStore createServerKeyStore(Algorithm algorithm) throws Exception {
+        var serverCred = generateCert(algorithm);
         var keyStore = KeyStore.getInstance(FipsMode.CHECK.isFipsEnabled() ? "BCFKS" : "JKS");
         keyStore.load(null, null);
         keyStore.setKeyEntry(
@@ -60,7 +64,7 @@ public class KeyStoreUtils {
         return keyStore;
     }
 
-    private static X509Bundle generateCert() throws Exception {
+    private static X509Bundle generateCert(Algorithm algorithm) throws Exception {
         final Locale locale = Locale.getDefault();
         try {
             Locale.setDefault(LocaleUtil.EN_Locale);
@@ -68,7 +72,7 @@ public class KeyStoreUtils {
             // reference: https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4943
             return new CertificateBuilder().subject("CN=Test CA Certificate")
                 .setIsCertificateAuthority(true)
-                .algorithm(Algorithm.rsa2048)
+                .algorithm(algorithm)
                 .provider(new BouncyCastleFipsProvider())
                 .buildSelfSigned();
         } finally {

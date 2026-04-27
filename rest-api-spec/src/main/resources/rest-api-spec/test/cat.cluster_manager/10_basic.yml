@@ -4,10 +4,6 @@ setup:
 
 ---
 "Help":
-  - skip:
-      version: " - 1.4.99"
-      reason: "path _cat/cluster_manager is introduced in 2.0.0"
-
   - do:
       cat.cluster_manager:
         help: true
@@ -25,10 +21,6 @@ setup:
 
 ---
 "Test cat cluster_manager output":
-  - skip:
-      version: " - 1.4.99"
-      reason: "path _cat/cluster_manager is introduced in 2.0.0"
-
   - do:
       cat.cluster_manager: {}
       allowed_warnings:

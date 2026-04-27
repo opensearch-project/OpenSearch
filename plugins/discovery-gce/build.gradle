@@ -92,6 +92,12 @@ thirdPartyAudit {
     'javax.servlet.ServletContextListener',
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
-    'org.apache.log.Logger'
+    'org.apache.log.Logger',
+    'org.slf4j.ILoggerFactory',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.Marker',
+    'org.slf4j.MarkerFactory',
+    'org.slf4j.spi.LocationAwareLogger'
   )
 }

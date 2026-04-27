@@ -63,7 +63,6 @@ dependencies {
 
   runtimeOnly "com.google.guava:guava:${guava_version}"
   runtimeOnly "com.google.guava:failureaccess:1.0.2"
-  compileOnly "com.google.errorprone:error_prone_annotations:2.38.0"
 
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
@@ -75,21 +74,21 @@ dependencies {
   runtimeOnly "com.google.protobuf:protobuf-java:${versions.protobuf}"
   runtimeOnly "com.google.code.gson:gson:${versions.gson}"
   runtimeOnly "com.google.api.grpc:proto-google-common-protos:2.60.0"
-  runtimeOnly "com.google.api.grpc:proto-google-iam-v1:1.57.0"
-  implementation "com.google.auth:google-auth-library-credentials:1.38.0"
-  implementation "com.google.auth:google-auth-library-oauth2-http:1.38.0"
+  runtimeOnly "com.google.api.grpc:proto-google-iam-v1:1.58.2"
+  implementation "com.google.auth:google-auth-library-credentials:1.41.0"
+  implementation "com.google.auth:google-auth-library-oauth2-http:1.41.0"
   runtimeOnly "com.google.oauth-client:google-oauth-client:1.39.0" // 1.39.0 in bom
   implementation "com.google.api-client:google-api-client:2.7.2"
-  implementation "com.google.http-client:google-http-client:2.0.2"
-  runtimeOnly "com.google.http-client:google-http-client-gson:2.0.2"
-  runtimeOnly "com.google.http-client:google-http-client-appengine:2.0.2"
-  runtimeOnly "com.google.http-client:google-http-client-jackson2:2.0.2"
+  implementation "com.google.http-client:google-http-client:2.0.3"
+  runtimeOnly "com.google.http-client:google-http-client-gson:2.0.3"
+  runtimeOnly "com.google.http-client:google-http-client-appengine:2.0.3"
+  runtimeOnly "com.google.http-client:google-http-client-jackson2:2.0.3"
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.2 in bom
   runtimeOnly "io.opencensus:opencensus-api:0.31.1"
   runtimeOnly "io.opencensus:opencensus-contrib-http-util:0.31.1"
   implementation "com.google.apis:google-api-services-storage:v1-rev20250718-2.0.0"
 
-  implementation "org.checkerframework:checker-qual:3.49.0"
+  implementation "org.checkerframework:checker-qual:3.52.1"
 
   runtimeOnly "io.opentelemetry:opentelemetry-api:1.47.0"
   runtimeOnly "io.opentelemetry:opentelemetry-context:1.47.0"
@@ -337,14 +336,15 @@ task createServiceAccountFile() {
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 
     serviceAccountFile.parentFile.mkdirs()
-    serviceAccountFile.setText("{\n" +
-      '  "type": "service_account",\n' +
-      '  "project_id": "integration_test",\n' +
-      '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
-      '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
-      '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
-      '  "client_id": "123456789101112130594"\n' +
-      '}', 'UTF-8')
+    serviceAccountFile.setText("""
+      {
+        "type": "service_account",
+        "project_id": "integration_test",
+        "private_key_id": "${UUID.randomUUID().toString()}",
+        "private_key": "-----BEGIN PRIVATE KEY-----\n${encodedKey}\n-----END PRIVATE KEY-----\n",
+        "client_email": "integration_test@appspot.gserviceaccount.com",
+        "client_id": "123456789101112130594"
+      }""", 'UTF-8')
   }
 }
 

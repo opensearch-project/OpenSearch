@@ -79,7 +79,6 @@ import static org.opensearch.gateway.remote.model.RemoteGlobalMetadata.GLOBAL_ME
 import static org.opensearch.gateway.remote.model.RemoteGlobalMetadata.GLOBAL_METADATA_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteGlobalMetadataTests.getGlobalMetadata;
 import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS;
-import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettingsTests.getHashesOfConsistentSettings;
 import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata.SETTING_METADATA;
 import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadataTests.getSettings;
@@ -357,10 +356,15 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         RemoteHashesOfConsistentSettings hashesOfConsistentSettingsForDownload = new RemoteHashesOfConsistentSettings(
             fileName,
             CLUSTER_UUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
-            HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(hashesOfConsistentSettings, fileName, compressor).streamInput()
+            hashesOfConsistentSettingsForDownload.hashesOfConsistentSettingsFormat.serialize(
+                hashesOfConsistentSettings,
+                fileName,
+                compressor
+            ).streamInput()
         );
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);

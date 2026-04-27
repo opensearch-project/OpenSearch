@@ -81,8 +81,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.lucene.util.CombinedBitSet;
-import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.metrics.InternalSum;
@@ -91,6 +91,8 @@ import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -257,7 +259,9 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
             }
         };
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
-        BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
+        ThreadPool tp = new TestThreadPool("test");
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, tp);
+        BitsetFilterCache cache = new BitsetFilterCache(settings, indicesCache, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
         if (sparse) {
@@ -316,61 +320,29 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
-        IOUtils.close(reader, w, dir);
+        IOUtils.close(reader, w, dir, indicesCache);
+        ThreadPool.terminate(tp, 10, java.util.concurrent.TimeUnit.SECONDS);
     }
 
-    public void testSlicesInternal() throws Exception {
+    public void testSlicesWithMaxTargetSliceSupplier() throws Exception {
         final List<LeafReaderContext> leaves = getLeaves(10);
-        try (
-            final Directory directory = newDirectory();
-            IndexWriter iw = new IndexWriter(
-                directory,
-                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
-            )
-        ) {
-            Document document = new Document();
-            document.add(new StringField("field1", "value1", Field.Store.NO));
-            document.add(new StringField("field2", "value1", Field.Store.NO));
-            iw.addDocument(document);
-            iw.commit();
-            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                SearchContext searchContext = mock(SearchContext.class);
-                IndexShard indexShard = mock(IndexShard.class);
-                when(searchContext.indexShard()).thenReturn(indexShard);
-                when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
-                ContextIndexSearcher searcher = new ContextIndexSearcher(
-                    directoryReader,
-                    IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(),
-                    IndexSearcher.getDefaultQueryCachingPolicy(),
-                    true,
-                    null,
-                    searchContext
-                );
-                // Case 1: Verify the slice count when lucene default slice computation is used
-                IndexSearcher.LeafSlice[] slices = searcher.slicesInternal(
-                    leaves,
-                    SearchService.CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE
-                );
-                int expectedSliceCount = 2;
-                // 2 slices will be created since max segment per slice of 5 will be reached
-                assertEquals(expectedSliceCount, slices.length);
-                for (int i = 0; i < expectedSliceCount; ++i) {
-                    assertEquals(5, slices[i].partitions.length);
-                }
-
-                // Case 2: Verify the slice count when custom max slice computation is used
-                expectedSliceCount = 4;
-                slices = searcher.slicesInternal(leaves, expectedSliceCount);
-
-                // 4 slices will be created with 3 leaves in first&last slices and 2 leaves in other slices
-                assertEquals(expectedSliceCount, slices.length);
-                assertEquals(3, slices[0].partitions.length);
-                assertEquals(2, slices[1].partitions.length);
-                assertEquals(2, slices[2].partitions.length);
-                assertEquals(3, slices[3].partitions.length);
-            }
+        int expectedSliceCount = 4;
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, expectedSliceCount);
+        assertEquals(expectedSliceCount, slices.length);
+        int totalPartitions = 0;
+        for (IndexSearcher.LeafSlice slice : slices) {
+            totalPartitions += slice.partitions.length;
         }
+        assertEquals(3, slices[0].partitions.length);
+        assertEquals(3, slices[1].partitions.length);
+        assertEquals(2, slices[2].partitions.length);
+        assertEquals(2, slices[3].partitions.length);
+        assertEquals(10, totalPartitions);
+        expectedSliceCount = 2;
+        slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, expectedSliceCount);
+        assertEquals(expectedSliceCount, slices.length);
+        assertEquals(5, slices[0].partitions.length);
+        assertEquals(5, slices[1].partitions.length);
     }
 
     public void testGetSlicesWithNonNullExecutorButCSDisabled() throws Exception {
@@ -423,9 +395,9 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 // 4 slices will be created with 3 leaves in first&last slices and 2 leaves in other slices
                 assertEquals(expectedSliceCount, slices.length);
                 assertEquals(3, slices[0].partitions.length);
-                assertEquals(2, slices[1].partitions.length);
+                assertEquals(3, slices[1].partitions.length);
                 assertEquals(2, slices[2].partitions.length);
-                assertEquals(3, slices[3].partitions.length);
+                assertEquals(2, slices[3].partitions.length);
             }
         }
     }

@@ -351,7 +351,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             GetRequest getRequest = new GetRequest("index", "id");
-            getRequest.fetchSourceContext(new FetchSourceContext(false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY));
+            getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
             GetResponse getResponse = execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync);
             assertEquals("index", getResponse.getIndex());
             assertEquals("id", getResponse.getId());
@@ -484,7 +484,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "id");
-            getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY));
+            getRequest.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             GetSourceResponse response = execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync);
             Map<String, Object> expectedResponse = new HashMap<>();
             expectedResponse.put("field1", "value1");
@@ -509,7 +509,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             GetSourceRequest getRequest = new GetSourceRequest("index", "id");
-            getRequest.fetchSourceContext(new FetchSourceContext(false));
+            getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
             OpenSearchException exception = expectThrows(
                 OpenSearchException.class,
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync)

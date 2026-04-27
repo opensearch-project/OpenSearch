@@ -439,6 +439,50 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         assertTrue("Expected error message for nonexistent rule ID", exception.getMessage().contains("no such index"));
     }
 
+    public void testScrollRequestsAreAlsoTagged() throws Exception {
+        String workloadGroupId = "wlm_auto_tag_scroll";
+        String ruleId = "wlm_auto_tag_scroll_rule";
+        String indexName = "scroll_tagged_index";
+
+        setWlmMode("enabled");
+
+        WorkloadGroup workloadGroup = createWorkloadGroup("scroll_tagging_group", workloadGroupId);
+        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        createRule(ruleId, "scroll tagging rule", indexName, featureType, workloadGroupId);
+
+        indexDocument(indexName);
+
+        assertBusy(() -> {
+            int completionsBefore = getCompletions(workloadGroupId);
+
+            SearchResponse initial = client().prepareSearch(indexName)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setScroll(TimeValue.timeValueMinutes(1))
+                .setSize(1)
+                .get();
+            String scrollId = initial.getScrollId();
+            assertNotNull("scrollId must not be null", scrollId);
+
+            try {
+                int afterInitialSearch = getCompletions(workloadGroupId);
+                assertTrue("Expected completions to increase after initial search with scroll", afterInitialSearch > completionsBefore);
+
+                SearchResponse scrollResp = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+                String nextScrollId = scrollResp.getScrollId();
+                if (nextScrollId != null && !nextScrollId.isEmpty()) {
+                    scrollId = nextScrollId;
+                }
+
+                int afterScroll = getCompletions(workloadGroupId);
+                assertTrue("Expected completions to increase after scroll request as well", afterScroll > afterInitialSearch);
+            } finally {
+                clearScroll(scrollId);
+            }
+        });
+    }
+
     // Helper functions
     private void createRule(String ruleId, String ruleName, String indexPattern, FeatureType featureType, String workloadGroupId)
         throws Exception {

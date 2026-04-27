@@ -551,13 +551,12 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             false
         );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
-        );
-        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
-        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
-        assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
+        // This should not throw an exception - shared transitive dependencies are allowed
+        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        // Verify the transitive URLs were correctly populated
+        Set<URL> deps = transitiveDeps.get("myplugin");
+        assertNotNull(deps);
+        assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dupJar.toUri().toURL()));
     }
 
     // Note: testing dup codebase with core is difficult because it requires a symlink, but we have mock filesystems and security manager
@@ -1185,14 +1184,17 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "other-plugin"
         );
 
-        List<String> basePluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "base-plugin");
-        assertThat(basePluginDependents, containsInAnyOrder("plugin1", "plugin2"));
+        Tuple<List<String>, List<String>> basePluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "base-plugin");
+        assertThat(basePluginDependents.v1(), containsInAnyOrder("plugin1", "plugin2"));
+        assertTrue(basePluginDependents.v2().isEmpty());
 
-        List<String> otherPluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "other-plugin");
-        assertThat(otherPluginDependents, containsInAnyOrder("plugin2", "plugin3"));
+        Tuple<List<String>, List<String>> otherPluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "other-plugin");
+        assertThat(otherPluginDependents.v1(), containsInAnyOrder("plugin2", "plugin3"));
+        assertTrue(otherPluginDependents.v2().isEmpty());
 
-        List<String> nonExistentDependents = PluginsService.findPluginsByDependency(pluginsDir, "non-existent");
-        assertTrue(nonExistentDependents.isEmpty());
+        Tuple<List<String>, List<String>> nonExistentDependents = PluginsService.findPluginsByDependency(pluginsDir, "non-existent");
+        assertTrue(nonExistentDependents.v1().isEmpty());
+        assertTrue(nonExistentDependents.v2().isEmpty());
     }
 
     private PluginInfo getPluginInfoWithWithSemverRange(String semverRange) {

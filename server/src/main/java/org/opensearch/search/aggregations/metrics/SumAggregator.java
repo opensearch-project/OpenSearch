@@ -241,6 +241,16 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     }
 
     @Override
+    public void doReset() {
+        if (sums != null) {
+            sums.fill(0, sums.size(), 0.0);
+        }
+        if (compensations != null) {
+            compensations.fill(0, compensations.size(), 0.0);
+        }
+    }
+
+    @Override
     public void doClose() {
         Releasables.close(sums, compensations);
     }

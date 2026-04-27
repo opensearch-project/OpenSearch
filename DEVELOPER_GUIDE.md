@@ -4,6 +4,7 @@
     - [Install Prerequisites](#install-prerequisites)
       - [JDK](#jdk)
       - [Custom Runtime JDK](#custom-runtime-jdk)
+      - [Rust and Protoc](#rust-and-protoc)
       - [Windows](#windows)
       - [Docker](#docker)
     - [Build](#build)
@@ -76,27 +77,35 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 #### JDK
 
-OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-24 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`.
-
-Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
-
+OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 21 is the minimum supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`.
 
 In addition, certain backward compatibility tests check out and compile the previous major version of OpenSearch, and therefore require installing [JDK 11](https://adoptium.net/temurin/releases/?version=11) and [JDK 17](https://adoptium.net/temurin/releases/?version=17) and setting the `JAVA11_HOME` and `JAVA17_HOME` environment variables. More to that, since 8.10 release, Gradle has deprecated the usage of the any JDKs below JDK-16. For smooth development experience, the recommendation is to install at least [JDK 17](https://adoptium.net/temurin/releases/?version=17) or [JDK 21](https://adoptium.net/temurin/releases/?version=21). If you still want to build with JDK-11 only, please add `-Dorg.gradle.warning.mode=none` when invoking any Gradle build task from command line, for example:
+
+Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
 
 ```
 ./gradlew check -Dorg.gradle.warning.mode=none
 ```
 
-By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml), and set to JDK 24 (non-LTS).
-
-```
-bundled_jdk_vendor = adoptium
-bundled_jdk = 24.0.1+9
-```
+By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml).
 
 #### Custom Runtime JDK
 
 Other kind of test tasks (integration, cluster, etc.) use the same runtime as `JAVA_HOME`. However, the build also supports compiling with one version of JDK, and testing on a different version. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-14`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
+
+#### Rust and Protoc
+
+Sandbox plugins such as `analytics-backend-datafusion` include a native Rust component that is compiled via Cargo during the Gradle build. Building the full project (including sandbox) requires:
+
+1. **Rust toolchain**: Install via [rustup](https://rustup.rs/):
+   ```
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
+   ```
+
+2. **Protocol Buffers compiler (`protoc`)**: Required by the [Substrait](https://substrait.io/) dependency used in DataFusion / analytics plugins.
+    - macOS: `brew install protobuf`
+    - Ubuntu/Debian: `apt-get install -y protobuf-compiler`
+    - Or download from [protobuf releases](https://github.com/protocolbuffers/protobuf/releases)
 
 #### Windows
 
@@ -236,7 +245,7 @@ Use `-Dtests.opensearch.` to pass additional settings to the running instance. F
 
 ### IntelliJ IDEA
 
-When importing into IntelliJ you will need to define an appropriate JDK. The convention is that **this SDK should be named "11"**, and the project import will detect it automatically. For more details on defining an SDK in IntelliJ please refer to [this documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk). Note that SDK definitions are global, so you can add the JDK from any project, or after project import. Importing with a missing JDK will still work, IntelliJ will report a problem and will refuse to build until resolved.
+When importing into IntelliJ you will need to define an appropriate JDK. For more details on defining an SDK in IntelliJ please refer to [this documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk). Note that SDK definitions are global, so you can add the JDK from any project, or after project import. Importing with a missing JDK will still work, IntelliJ will report a problem and will refuse to build until resolved.
 
 You can import the OpenSearch project into IntelliJ IDEA as follows.
 
@@ -259,7 +268,7 @@ Follow links in the [Java Tutorial](https://code.visualstudio.com/docs/java/java
 
 ### Eclipse
 
-When importing to Eclipse, you need to have [Eclipse Buildship](https://projects.eclipse.org/projects/tools.buildship) plugin installed and, preferably, have JDK 11 set as default JRE in **Preferences -> Java -> Installed JREs**. Once this is done, generate Eclipse projects using Gradle wrapper:
+When importing to Eclipse, you need to have [Eclipse Buildship](https://projects.eclipse.org/projects/tools.buildship) plugin installed and, have JDK 21 set as default JRE in **Preferences -> Java -> Installed JREs**. Once this is done, generate Eclipse projects using Gradle wrapper:
 
     ./gradlew eclipse
 
@@ -267,7 +276,7 @@ You can now import the OpenSearch project into Eclipse as follows.
 
 1. Select **File > Import -> Existing Gradle Project**
 2. In the subsequent dialog navigate to the root of `build.gradle` file
-3. In the subsequent dialog, if JDK 11 is not set as default JRE, please make sure to check **[Override workspace settings]**, keep **[Gradle Wrapper]** and provide the correct path to JDK11 using **[Java Home]** property under **[Advanced Options]**. Otherwise, you may run into cryptic import failures and only top level project is going to be imported.
+3. In the subsequent dialog, if JDK 21 is not set as default JRE, please make sure to check **[Override workspace settings]**, keep **[Gradle Wrapper]** and provide the correct path to JDK21 using **[Java Home]** property under **[Advanced Options]**. Otherwise, you may run into cryptic import failures and only top level project is going to be imported.
 4. In the subsequent dialog, you should see **[Gradle project structure]** populated, please click **[Finish]** to complete the import
 
 **Note:** it may look non-intuitive why one needs to use Gradle wrapper and then import existing Gradle project (in general, **File > Import -> Existing Gradle Project** should be enough). Practically, as it stands now, Eclipse Buildship plugin does not import OpenSearch project dependencies correctly but does work in conjunction with Gradle wrapper.
@@ -304,11 +313,11 @@ Another example is the `discovery-gce` plugin. It is *vital* to folks running in
 
 ### `sandbox`
 
-This is where the community can add experimental features in to OpenSearch. There are three directories inside the sandbox - `libs`, `modules` and `plugins` - which mirror the subdirectories in the project root and have the same guidelines for deciding on where a new feature goes. The artifacts from `libs` and `modules` will be automatically included in the **snapshot** distributions. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the corresponding subdirectory in the project root. **Note**: The sandbox code do not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
+This is where the community can add experimental features in to OpenSearch. There are three directories inside the sandbox - `libs`, `modules` and `plugins` - which mirror the subdirectories in the project root and have the same guidelines for deciding on where a new feature goes. The artifacts from `libs` and `modules` can be included in the **snapshot** distributions when sandbox is enabled. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the corresponding subdirectory in the project root. **Note**: The sandbox code do not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
 
-To exclude the modules from snapshot distributions, use the `sandbox.enabled` system property.
+To include sandbox modules in snapshot distributions, use the `sandbox.enabled` system property.
 
-    ./gradlew assemble -Dsandbox.enabled=false
+    ./gradlew assemble -Dsandbox.enabled=true
 
 ### `qa`
 
@@ -604,8 +613,7 @@ The User API consists of integration specifications (e.g., [Query Domain Specifi
 [`_cat`](https://opensearch.org/docs/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
 User API, therefore OpenSearch commits to using [semantic versioning](https://opensearch.org/blog/what-is-semver/) for all User facing APIs. To support this
 developers must leverage `Version` checks for any user facing endpoints or API specifications that change across minor versions. Developers must also inform
-users of any changes by adding the `>breaking` label on Pull Requests, adding an entry to the [CHANGELOG](https://github.com/opensearch-project/OpenSearch/blob/main/CHANGELOG.md)
-and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.
+users of any changes by adding the `>breaking` label on Pull Requests and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.
 
 #### Experimental Development
 

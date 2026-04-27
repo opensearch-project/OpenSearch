@@ -33,18 +33,22 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -95,7 +99,8 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 
 public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
-    private static final String DATE_FIELD = "date";
+    // @timestamp field name by default uses skip_list
+    private static final String DATE_FIELD = "@timestamp";
     private static final String INSTANT_FIELD = "instant";
     private static final String NUMERIC_FIELD = "numeric";
 
@@ -987,14 +992,23 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         final Consumer<AutoDateHistogramAggregationBuilder> configure,
         final Consumer<InternalAutoDateHistogram> verify
     ) throws IOException {
+        testSearchCase(query, dataset, false, configure, verify);
+    }
+
+    private void testSearchCase(
+        final Query query,
+        final List<ZonedDateTime> dataset,
+        final boolean enableSkiplist,
+        final Consumer<AutoDateHistogramAggregationBuilder> configure,
+        final Consumer<InternalAutoDateHistogram> verify
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                indexSampleData(dataset, indexWriter);
+                indexSampleData(dataset, indexWriter, enableSkiplist);
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
                 final AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
@@ -1019,17 +1033,32 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
     }
 
     private void indexSampleData(List<ZonedDateTime> dataset, RandomIndexWriter indexWriter) throws IOException {
+        indexSampleData(dataset, indexWriter, false);
+    }
+
+    private void indexSampleData(List<ZonedDateTime> dataset, RandomIndexWriter indexWriter, boolean enableSkiplist) throws IOException {
         final Document document = new Document();
         int i = 0;
         for (final ZonedDateTime date : dataset) {
             final long instant = date.toInstant().toEpochMilli();
-            document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+            if (enableSkiplist) {
+                document.add(SortedNumericDocValuesField.indexedField(DATE_FIELD, instant));
+            } else {
+                document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+            }
             document.add(new LongPoint(DATE_FIELD, instant));
             document.add(new LongPoint(INSTANT_FIELD, instant));
             document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
             indexWriter.addDocument(document);
             document.clear();
             i += 1;
+        }
+        // delete a doc to avoid approx optimization
+        if (enableSkiplist) {
+            document.add(new StringField("someField", "a", Field.Store.NO));
+            indexWriter.addDocument(document);
+            indexWriter.commit();
+            indexWriter.deleteDocuments(new TermQuery(new Term("someField", "a")));
         }
     }
 
@@ -1050,6 +1079,230 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             assertNull(old);
         });
         return map;
+    }
+
+    /**
+     * Test that verifies FromSingle.increaseRoundingIfNeeded() works correctly with skiplist collector.
+     * This test validates:
+     * 1. preparedRounding field update is visible to skiplist collector
+     * 2. New Rounding.Prepared instance is created on rounding change
+     * 3. owningBucketOrd is always 0 in FromSingle context
+     * 4. Bucket merging works correctly after rounding change
+     *
+     */
+    public void testSkiplistCollectorWithRoundingChange() throws IOException {
+        // Create a dataset that will trigger rounding changes
+        // Start with hourly data, then add data that spans months to force rounding increase
+        final List<ZonedDateTime> dataset = new ArrayList<>();
+
+        // Add hourly data for first day (24 docs)
+        ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        for (int hour = 0; hour < 24; hour++) {
+            dataset.add(start.plusHours(hour));
+        }
+
+        // Add data spanning several months to trigger rounding increase (30 docs)
+        for (int month = 0; month < 6; month++) {
+            for (int day = 0; day < 5; day++) {
+                dataset.add(start.plusMonths(month).plusDays(day * 6));
+            }
+        }
+
+        testSearchCase(DEFAULT_QUERY, dataset, true, aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD), histogram -> {
+            // Verify that aggregation completed successfully
+            assertTrue(AggregationInspectionHelper.hasValue(histogram));
+
+            // Verify buckets were created (exact count depends on rounding chosen)
+            assertFalse(histogram.getBuckets().isEmpty());
+            assertTrue(histogram.getBuckets().size() <= 10);
+
+            // Verify total doc count matches input
+            long totalDocs = histogram.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+            assertEquals(54, totalDocs); // 24 + 30 = 54 docs
+
+            // Verify buckets are in ascending order (requirement for histogram)
+            List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+            for (int i = 1; i < buckets.size(); i++) {
+                assertTrue(((ZonedDateTime) buckets.get(i - 1).getKey()).isBefore((ZonedDateTime) buckets.get(i).getKey()));
+            }
+        });
+    }
+
+    /**
+     * Test that verifies skiplist collector handles rounding changes correctly with sub-aggregations.
+     * This ensures that when rounding changes mid-collection, sub-aggregations still produce correct results.
+     *
+     */
+    public void testSkiplistCollectorRoundingChangeWithSubAggs() throws IOException {
+        // Create dataset that triggers rounding change
+        final List<ZonedDateTime> dataset = new ArrayList<>();
+        ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+
+        // Add data spanning months to trigger rounding increase
+        for (int month = 0; month < 12; month++) {
+            for (int day = 0; day < 3; day++) {
+                dataset.add(start.plusMonths(month).plusDays(day * 10));
+            }
+        }
+
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
+            true,
+            aggregation -> aggregation.setNumBuckets(8)
+                .field(DATE_FIELD)
+                .subAggregation(AggregationBuilders.stats("stats").field(DATE_FIELD)),
+            histogram -> {
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+
+                // Verify buckets were created
+                assertFalse(histogram.getBuckets().isEmpty());
+                assertTrue(histogram.getBuckets().size() <= 8);
+
+                // Verify sub-aggregations are present and valid
+                for (Histogram.Bucket bucket : histogram.getBuckets()) {
+                    InternalStats stats = bucket.getAggregations().get("stats");
+                    assertNotNull(stats);
+                    if (bucket.getDocCount() > 0) {
+                        assertTrue(AggregationInspectionHelper.hasValue(stats));
+                        assertTrue(stats.getCount() > 0);
+                    }
+                }
+
+                // Verify total doc count
+                long totalDocs = histogram.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+                assertEquals(36, totalDocs); // 12 months * 3 days = 36 docs
+            }
+        );
+    }
+
+    /**
+     * Test that verifies bucket merging works correctly after rounding change.
+     * This test creates a scenario where buckets must be merged when rounding increases.
+     *
+     */
+    public void testSkiplistCollectorBucketMergingAfterRoundingChange() throws IOException {
+        // Create dataset with fine-grained data that will be merged into coarser buckets
+        final List<ZonedDateTime> dataset = new ArrayList<>();
+        ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+
+        // Add hourly data for multiple days, then add data spanning years
+        // This forces rounding to increase from hours -> days -> months -> years
+        for (int day = 0; day < 5; day++) {
+            for (int hour = 0; hour < 24; hour++) {
+                dataset.add(start.plusDays(day).plusHours(hour));
+            }
+        }
+
+        // Add data spanning multiple years to force coarse rounding
+        for (int year = 0; year < 5; year++) {
+            for (int month = 0; month < 12; month += 3) {
+                dataset.add(start.plusYears(year).plusMonths(month));
+            }
+        }
+
+        testSearchCase(DEFAULT_QUERY, dataset, true, aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD), histogram -> {
+            assertTrue(AggregationInspectionHelper.hasValue(histogram));
+
+            // Verify buckets were created and merged appropriately
+            assertFalse(histogram.getBuckets().isEmpty());
+            assertTrue(histogram.getBuckets().size() <= 5);
+
+            // Verify total doc count is preserved after merging
+            long totalDocs = histogram.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+            assertEquals(140, totalDocs); // (5 days * 24 hours) + (5 years * 4 quarters) = 120 + 20 = 140
+
+            Map<String, Integer> expectedDocCount = new TreeMap<>();
+            expectedDocCount.put("2020-01-01T00:00:00.000Z", 124); // 5 * 24 hours + 4 quarters
+            expectedDocCount.put("2021-01-01T00:00:00.000Z", 4);
+            expectedDocCount.put("2022-01-01T00:00:00.000Z", 4);
+            expectedDocCount.put("2023-01-01T00:00:00.000Z", 4);
+            expectedDocCount.put("2024-01-01T00:00:00.000Z", 4);
+
+            assertThat(bucketCountsAsMap(histogram), equalTo(expectedDocCount));
+        });
+    }
+
+    /**
+     * Test that verifies skiplist and non-skiplist collectors produce identical results.
+     * Uses random number of documents (20-200) and random date distribution.
+     */
+    public void testSkiplistEquivalence() throws IOException {
+        // Generate random number of documents between 20 and 200
+        final int numDocs = randomIntBetween(20, 200);
+        final List<ZonedDateTime> dataset = new ArrayList<>(numDocs);
+
+        // Generate random dates spanning a year
+        final ZonedDateTime startDate = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        final long yearInMillis = 365L * 24 * 60 * 60 * 1000;
+
+        for (int i = 0; i < numDocs; i++) {
+            long randomOffset = randomLongBetween(0, yearInMillis);
+            dataset.add(startDate.plusSeconds(randomOffset / 1000));
+        }
+
+        // Sort dataset to ensure consistent ordering
+        dataset.sort(ZonedDateTime::compareTo);
+
+        // Test with random number of buckets
+        final int numBuckets = randomIntBetween(5, 20);
+
+        // Run aggregation without skiplist
+        final InternalAutoDateHistogram histogramWithoutSkiplist = runAggregation(dataset, false, numBuckets);
+
+        // Run aggregation with skiplist
+        final InternalAutoDateHistogram histogramWithSkiplist = runAggregation(dataset, true, numBuckets);
+
+        // Verify both produce identical results
+        assertEquals(
+            "Bucket count mismatch between skiplist and non-skiplist",
+            histogramWithoutSkiplist.getBuckets().size(),
+            histogramWithSkiplist.getBuckets().size()
+        );
+
+        // Verify each bucket matches
+        for (int i = 0; i < histogramWithoutSkiplist.getBuckets().size(); i++) {
+            InternalAutoDateHistogram.Bucket bucketWithout = histogramWithoutSkiplist.getBuckets().get(i);
+            InternalAutoDateHistogram.Bucket bucketWith = histogramWithSkiplist.getBuckets().get(i);
+
+            assertEquals("Bucket key mismatch at index " + i, bucketWithout.getKey(), bucketWith.getKey());
+
+            assertEquals(
+                "Doc count mismatch at index " + i + " for key " + bucketWithout.getKeyAsString(),
+                bucketWithout.getDocCount(),
+                bucketWith.getDocCount()
+            );
+        }
+
+        // Verify total doc counts match
+        long totalDocsWithout = histogramWithoutSkiplist.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+        long totalDocsWith = histogramWithSkiplist.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+
+        assertEquals("Total doc count mismatch", totalDocsWithout, totalDocsWith);
+        assertEquals("Total doc count should match input", numDocs, totalDocsWithout);
+    }
+
+    private InternalAutoDateHistogram runAggregation(List<ZonedDateTime> dataset, boolean enableSkiplist, int numBuckets)
+        throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                indexSampleData(dataset, indexWriter, enableSkiplist);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                final AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name")
+                    .setNumBuckets(numBuckets)
+                    .field(DATE_FIELD);
+
+                final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
+                MappedFieldType instantFieldType = new NumberFieldMapper.NumberFieldType(INSTANT_FIELD, NumberFieldMapper.NumberType.LONG);
+                MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
+
+                return searchAndReduce(indexSearcher, DEFAULT_QUERY, aggregationBuilder, fieldType, instantFieldType, numericFieldType);
+            }
+        }
     }
 
     @Override

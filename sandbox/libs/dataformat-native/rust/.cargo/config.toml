@@ -1,0 +1,2 @@
+[build]
+rustflags = ["--cfg", "tokio_unstable", "-C", "force-frame-pointers=yes", "-C", "symbol-mangling-version=v0"]

@@ -14,6 +14,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
@@ -161,6 +163,16 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().length()));
         final CountDownLatch latch = new CountDownLatch(1);
+
+        // Extract crypto metadata for merged segment upload
+        CryptoMetadata cryptoMetadata = null;
+        if (indexShard.indexSettings() != null) {
+            IndexMetadata indexMetadata = indexShard.indexSettings().getIndexMetadata();
+            if (indexMetadata != null) {
+                cryptoMetadata = CryptoMetadata.fromIndexSettings(indexMetadata.getSettings());
+            }
+        }
+
         getRemoteStoreUploaderService(indexShard).uploadSegments(segmentsToUpload, segmentsSizeMap, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
@@ -187,7 +199,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             public void onFailure(String file) {
                 logger.warn("Unable to upload segments during merge. Continuing.");
             }
-        }, true);
+        }, true, cryptoMetadata);
         try {
             long timeout = indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().seconds();
             if (latch.await(timeout, TimeUnit.SECONDS) == false) {

@@ -28,7 +28,7 @@ import java.util.Collections;
 /**
  * Service responsible for submitting metadata updates (for example, ingestion pause/resume state change updates).
  *
- * @opensearch.experimental
+ * @opensearch.internal
  */
 public class MetadataStreamingIngestionStateService {
     private static final Logger logger = LogManager.getLogger(MetadataStreamingIngestionStateService.class);

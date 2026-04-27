@@ -19,7 +19,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ErrorCause;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.StringArray;
-import org.opensearch.protobufs.StringOrStringArray;
 import org.opensearch.script.ScriptException;
 import org.opensearch.search.SearchParseException;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
@@ -158,8 +157,10 @@ public class OpenSearchExceptionProtoUtils {
 
         if (headers.isEmpty() == false) {
             for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-                Map.Entry<String, StringOrStringArray> protoEntry = headerToProto(entry.getKey(), entry.getValue());
-                errorCauseBuilder.putHeader(protoEntry.getKey(), protoEntry.getValue());
+                StringArray headerArray = headerToProto(entry.getKey(), entry.getValue());
+                if (headerArray != null) {
+                    errorCauseBuilder.putHeader(entry.getKey(), headerArray);
+                }
             }
         }
 
@@ -178,32 +179,21 @@ public class OpenSearchExceptionProtoUtils {
     }
 
     /**
-     * Converts a single entry of a {@code Map<String, List<String>>} into a protobuf {@code <String, StringOrStringArray> }
+     * Converts a list of header values into a protobuf StringArray.
      * Similar to {@link OpenSearchException#headerToXContent(XContentBuilder, String, List)}
      *
-     * @param key The key of the header entry
+     * @param key The key of the header entry (unused but kept for API compatibility)
      * @param values The list of values for the header entry
-     * @return A map entry containing the key and its corresponding StringOrStringArray value, or null if values is null or empty
+     * @return A StringArray containing the values, or null if values is null or empty
      * @throws IOException if there's an error during conversion
      */
-    public static Map.Entry<String, StringOrStringArray> headerToProto(String key, List<String> values) throws IOException {
+    public static StringArray headerToProto(String key, List<String> values) throws IOException {
         if (values != null && values.isEmpty() == false) {
-            if (values.size() == 1) {
-                return new AbstractMap.SimpleEntry<String, StringOrStringArray>(
-                    key,
-                    StringOrStringArray.newBuilder().setString(values.get(0)).build()
-                );
-            } else {
-                StringArray.Builder stringArrayBuilder = StringArray.newBuilder();
-                for (String val : values) {
-                    stringArrayBuilder.addStringArray(val);
-                }
-                StringOrStringArray stringOrStringArray = StringOrStringArray.newBuilder()
-                    .setStringArray(stringArrayBuilder.build())
-                    .build();
-
-                return new AbstractMap.SimpleEntry<String, StringOrStringArray>(key, stringOrStringArray);
+            StringArray.Builder stringArrayBuilder = StringArray.newBuilder();
+            for (String val : values) {
+                stringArrayBuilder.addStringArray(val);
             }
+            return stringArrayBuilder.build();
         }
         return null;
     }

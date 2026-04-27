@@ -9,7 +9,7 @@
 package org.opensearch.index;
 
 import org.opensearch.cluster.metadata.IngestionSource;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * A factory for creating {@link IngestionShardConsumer}.
@@ -17,7 +17,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * @param <T> the type of the {@link IngestionShardConsumer}
  * @param <P> the type of the {@link IngestionShardPointer}
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P extends IngestionShardPointer> {
     /**
      * Initialize the factory with the configuration parameters. This method is called once when the factory is created,

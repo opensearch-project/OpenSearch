@@ -13,11 +13,13 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.mapper.ParseContext;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -52,13 +54,13 @@ public interface DocumentIndexWriter extends Closeable, ReferenceManager.Refresh
 
     void deleteUnusedFiles() throws IOException;
 
-    long addDocuments(Iterable<ParseContext.Document> docs, Term uid) throws IOException;
+    long addDocuments(List<ParseContext.Document> docs, Term uid) throws IOException;
 
     long addDocument(ParseContext.Document doc, Term uid) throws IOException;
 
     void softUpdateDocuments(
         Term uid,
-        Iterable<ParseContext.Document> docs,
+        List<ParseContext.Document> docs,
         long version,
         long seqNo,
         long primaryTerm,
@@ -91,4 +93,6 @@ public interface DocumentIndexWriter extends Closeable, ReferenceManager.Refresh
     boolean isWriteLockedByCurrentThread();
 
     Releasable obtainWriteLockOnAllMap();
+
+    boolean validateImmutableFieldNotUpdated(ParseContext.Document previousDocument, BytesRef currentUID);
 }
