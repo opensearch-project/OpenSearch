@@ -26,6 +26,8 @@ _search request
 - **Match All Query** - Match all documents
 - **Range Query** - Numeric and date range queries with full date math support
 - **Bool Query** - Compound query with `must`, `should`, `must_not`, `filter` and `minimum_should_match`
+- **Prefix Query** - Prefix matching via Calcite LIKE with wildcard suffix
+- **Wildcard Query** - Wildcard pattern matching via Calcite LIKE
 
 ### Range Query Features
 - **Operators**: `gte`, `gt`, `lte`, `lt`
@@ -75,6 +77,63 @@ unsupported on this path.
   }
 }
 ```
+
+### Prefix Query
+Converts to Calcite LIKE expressions with wildcard suffix.
+
+**Supported parameters:**
+- `value` - The prefix string
+- `case_insensitive` - Case-insensitive matching (default: false)
+
+**Unsupported parameters (throw ConversionException):**
+- `boost` - Query boosting not supported
+- `rewrite` - Rewrite method not supported
+
+**Examples:**
+```json
+{"prefix": {"name": "lap"}}
+// Converts to: name LIKE 'lap%'
+
+{"prefix": {"name": {"value": "LAP", "case_insensitive": true}}}
+// Converts to: LOWER(name) LIKE 'lap%'
+```
+
+**Special character escaping:**
+- `%` → `\%` (SQL wildcard for any characters)
+- `_` → `\_` (SQL wildcard for single character)
+- `\` → `\\` (escape character)
+
+### Wildcard Query
+Converts to Calcite LIKE expressions with wildcard pattern translation.
+
+**Wildcard characters:**
+- `*` - Matches any character sequence (converts to SQL `%`)
+- `?` - Matches any single character (converts to SQL `_`)
+
+**Supported parameters:**
+- `value` - The wildcard pattern
+- `case_insensitive` - Case-insensitive matching (default: false)
+
+**Unsupported parameters (throw ConversionException):**
+- `boost` - Query boosting not supported
+- `rewrite` - Rewrite method not supported
+
+**Examples:**
+```json
+{"wildcard": {"name": "lap*"}}
+// Converts to: name LIKE 'lap%'
+
+{"wildcard": {"name": "l?ptop"}}
+// Converts to: name LIKE 'l_ptop'
+
+{"wildcard": {"name": {"value": "*BOOK*", "case_insensitive": true}}}
+// Converts to: LOWER(name) LIKE '%book%'
+```
+
+**Special character escaping:**
+- SQL special chars (`%`, `_`, `\`) are escaped before wildcard conversion
+- `*` → `%` (after escaping)
+- `?` → `_` (after escaping)
 
 ## Dependencies
 
