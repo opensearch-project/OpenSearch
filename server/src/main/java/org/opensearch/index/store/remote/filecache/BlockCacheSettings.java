@@ -73,19 +73,12 @@ public final class BlockCacheSettings {
      * format_cache.io_engine: auto
      * }</pre>
      */
-    public static final Setting<String> IO_ENGINE_SETTING = new Setting<>(
-        "format_cache.io_engine",
-        "auto",
-        value -> {
-            if (!Set.of("auto", "io_uring", "psync").contains(value)) {
-                throw new IllegalArgumentException(
-                    "[format_cache.io_engine] must be one of: auto, io_uring, psync; got: " + value
-                );
-            }
-            return value;
-        },
-        Setting.Property.NodeScope
-    );
+    public static final Setting<String> IO_ENGINE_SETTING = new Setting<>("format_cache.io_engine", "auto", value -> {
+        if (!Set.of("auto", "io_uring", "psync").contains(value)) {
+            throw new IllegalArgumentException("[format_cache.io_engine] must be one of: auto, io_uring, psync; got: " + value);
+        }
+        return value;
+    }, Setting.Property.NodeScope);
 
     private BlockCacheSettings() {}
 }
