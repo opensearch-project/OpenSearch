@@ -4857,6 +4857,63 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
+     * Verifies that the ReadOnlyEngine delegates throw {@link AlreadyClosedException} when
+     * {@code newEngineReference} is still null -- the window between ReadOnlyEngine installation
+     * and {@code newEngineReference.set(newEngine)} inside {@code resetEngineToGlobalCheckpoint}.
+     * Covers the defensive null-check branches in {@code acquireLastIndexCommit},
+     * {@code acquireSafeIndexCommit}, and {@code getSegmentInfosSnapshot}.
+     */
+    public void testDelegateThrowsAlreadyClosedBeforeNewEngineSet() throws Exception {
+        CountDownLatch creatingEngineLatch = new CountDownLatch(1);
+        CountDownLatch proceedWithCreationLatch = new CountDownLatch(1);
+        AtomicBoolean armed = new AtomicBoolean(false);
+        Settings segRepSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        IndexerFactory customFactory = new EngineBackedIndexerFactory(config -> {
+            if (armed.compareAndSet(true, false)) {
+                creatingEngineLatch.countDown();
+                try {
+                    proceedWithCreationLatch.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            return new InternalEngine(config);
+        });
+        IndexShard shard = newShard(false, segRepSettings, customFactory);
+        IndexShard primary = newStartedShard(true, segRepSettings);
+        recoverReplica(shard, primary, true, (a) -> null);
+        closeShards(primary);
+
+        final CountDownLatch engineResetLatch = new CountDownLatch(1);
+
+        shard.acquireAllReplicaOperationsPermits(
+            shard.getOperationPrimaryTerm(),
+            shard.getLastKnownGlobalCheckpoint(),
+            0L,
+            ActionListener.wrap(r -> {
+                try (Releasable dummy = r) {
+                    armed.set(true);
+                    shard.resetEngineToGlobalCheckpoint();
+                } finally {
+                    engineResetLatch.countDown();
+                }
+            }, Assert::assertNotNull),
+            TimeValue.timeValueMinutes(1L)
+        );
+
+        assertTrue("engine creation should start", creatingEngineLatch.await(30, TimeUnit.SECONDS));
+
+        // The ReadOnlyEngine is now the current engine, but newEngineReference is still null.
+        expectThrows(AlreadyClosedException.class, () -> shard.acquireLastIndexCommit(false));
+        expectThrows(AlreadyClosedException.class, shard::acquireSafeIndexCommit);
+        expectThrows(AlreadyClosedException.class, shard::getSegmentInfosSnapshot);
+
+        proceedWithCreationLatch.countDown();
+        assertTrue("engine reset should complete", engineResetLatch.await(30, TimeUnit.SECONDS));
+        closeShard(shard, false);
+    }
+
+    /**
      * This test simulates a scenario seen rarely in ConcurrentSeqNoVersioningIT. While engine is inside
      * resetEngineToGlobalCheckpoint snapshot metadata could fail
      */
