@@ -13,18 +13,25 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -111,6 +118,54 @@ public class CatalogSnapshotManager implements Closeable {
             shardPath,
             commitFileManager
         );
+    }
+
+    /**
+     * Applies the results of a completed merge to the latest catalog snapshot.
+     * Replaces the merged segments with the new merged segment and commits a new snapshot.
+     *
+     * @param mergeResult the result of the merge containing the merged writer file set
+     * @param oneMerge    the merge specification identifying which segments were merged
+     * @throws IOException if committing the new snapshot fails
+     */
+    public synchronized void applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) throws IOException {
+
+        List<Segment> segmentList = new ArrayList<>(latestCatalogSnapshot.getSegments());
+
+        Segment segmentToAdd = getSegment(mergeResult.getMergedWriterFileSet());
+        Set<Segment> segmentsToRemove = new HashSet<>(oneMerge.getSegmentsToMerge());
+
+        boolean inserted = false;
+        int newSegIdx = 0;
+        for (int segIdx = 0, cnt = segmentList.size(); segIdx < cnt; segIdx++) {
+            assert segIdx >= newSegIdx;
+            Segment currSegment = segmentList.get(segIdx);
+            if (segmentsToRemove.contains(currSegment)) {
+                if (!inserted) {
+                    segmentList.set(segIdx, segmentToAdd);
+                    inserted = true;
+                    newSegIdx++;
+                }
+            } else {
+                segmentList.set(newSegIdx, currSegment);
+                newSegIdx++;
+            }
+        }
+
+        // the rest of the segments in list are duplicates, so don't remove from map, only list!
+        segmentList.subList(newSegIdx, segmentList.size()).clear();
+
+        // Either we found place to insert segment, or, we did
+        // not, but only because all segments we merged became
+        // deleted while we are merging, in which case it should
+        // be the case that the new segment is also all deleted,
+        // we insert it at the beginning if it should not be dropped:
+        if (!inserted) {
+            segmentList.add(0, segmentToAdd);
+        }
+
+        // Commit new catalog snapshot
+        commitNewSnapshot(segmentList);
     }
 
     // ---- Refresh path ----
@@ -262,6 +317,25 @@ public class CatalogSnapshotManager implements Closeable {
                 }
             }
         }
+    }
+
+    /**
+     * Builds a {@link Segment} from a map of data format to writer file set entries.
+     *
+     * @param writerFileSetMap the map of data formats to their corresponding writer file sets
+     * @return the constructed segment
+     * @throws IllegalArgumentException if the map is empty
+     */
+    private Segment getSegment(Map<DataFormat, WriterFileSet> writerFileSetMap) {
+        if (writerFileSetMap.isEmpty()) {
+            throw new IllegalArgumentException("writerFileSetMap must not be empty");
+        }
+        long generation = writerFileSetMap.values().iterator().next().writerGeneration();
+        Segment.Builder segment = Segment.builder(generation);
+        for (Map.Entry<DataFormat, WriterFileSet> entry : writerFileSetMap.entrySet()) {
+            segment.addSearchableFiles(entry.getKey(), entry.getValue());
+        }
+        return segment.build();
     }
 
     /**
