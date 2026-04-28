@@ -113,6 +113,62 @@ test {
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Rust unit + fuzz tests for the opensearch-datafusion crate.
+// Run as part of `check` so `./gradlew check` (and CI) exercises the
+// randomized E2E suite alongside the Java tests.
+// ═══════════════════════════════════════════════════════════════════
+def rustWorkspaceDir = file("${project(':sandbox:libs:dataformat-native').projectDir}/rust")
+
+task cargoTest(type: Exec) {
+  description = 'Run Rust unit + fuzz tests for opensearch-datafusion crate'
+  group = 'verification'
+  workingDir rustWorkspaceDir
+
+  def cargoExecutable = 'cargo'
+  def possibleCargoPaths = [
+    System.getenv('HOME') + '/.cargo/bin/cargo',
+    '/usr/local/bin/cargo',
+    'cargo'
+  ]
+  for (String path : possibleCargoPaths) {
+    if (new File(path).exists()) { cargoExecutable = path; break }
+  }
+
+  commandLine cargoExecutable, 'test', '-p', 'opensearch-datafusion', '--lib'
+
+  // Seed forwarding for the randomized fuzz suite:
+  //
+  // 1. `-PindexedE2eSeed=<hex>` overrides everything (explicit).
+  // 2. Otherwise, tie the Rust fuzz seed to OpenSearch's build-wide
+  //    `tests.seed` (the same seed Lucene-style tests use; already
+  //    printed by `GlobalBuildInfoPlugin` as "Random Testing Seed").
+  //    When a CI run's Java tests fail with `-Dtests.seed=ABC123`, the
+  //    Rust fuzz seed is the same — one reproducer fits all.
+  // 3. If neither is set (rare; usually only on fresh local runs where
+  //    `tests.seed` isn't configured yet), let `master_seed()` on the
+  //    Rust side generate a fresh system-time seed and print the
+  //    reproducer.
+  def explicitSeed = project.hasProperty('indexedE2eSeed')
+    ? project.property('indexedE2eSeed').toString()
+    : System.getProperty('tests.seed')
+  if (explicitSeed != null && !explicitSeed.isEmpty()) {
+    environment 'INDEXED_E2E_SEED', explicitSeed
+  }
+
+  // Rebuild trigger: any Rust source in this crate.
+  inputs.files fileTree("${projectDir}/rust/src")
+  inputs.file "${projectDir}/rust/Cargo.toml"
+  // Marker file so gradle treats this task as cached when inputs don't change.
+  outputs.file "${projectDir}/rust/target/gradle-cargoTest.stamp"
+  doLast {
+    file("${projectDir}/rust/target").mkdirs()
+    file("${projectDir}/rust/target/gradle-cargoTest.stamp").text = new Date().toString()
+  }
+}
+
+check.dependsOn cargoTest
+
 internalClusterTest {
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'

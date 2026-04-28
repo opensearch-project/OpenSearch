@@ -44,6 +44,7 @@ roaring = "0.10"
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
+rand = "0.8"
 
 [[bench]]
 name = "query_bench"
