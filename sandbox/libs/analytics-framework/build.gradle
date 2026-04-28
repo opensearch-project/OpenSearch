@@ -26,6 +26,12 @@ dependencies {
   calciteCompile "com.google.guava:guava:${versions.guava}"
 
   compileOnly project(':server')
+  // Arrow — framework exposes Arrow types (VectorSchemaRoot, BufferAllocator, Schema) in
+  // public interfaces (ExchangeSink, LocalStageContext, LocalStageRequest). compileOnly so
+  // framework doesn't bundle arrow at runtime — each backend plugin that implements these
+  // interfaces declares its own runtime arrow dep (see analytics-backend-datafusion).
+  compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
   api "org.apache.calcite:calcite-core:${calciteVersion}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
   api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
@@ -65,6 +71,12 @@ dependencies {
 }
 
 testingConventions.enabled = false
+
+tasks.withType(JavaCompile).configureEach {
+  // Arrow's Schema.class references Jackson annotations not on framework's compile classpath
+  // — harmless warnings, but -Werror breaks the build
+  options.compilerArgs -= '-Werror'
+}
 
 // analytics-framework depends on server for SearchAnalyticsBackEndPlugin SPI
 tasks.named('forbiddenApisMain').configure {
@@ -290,6 +302,7 @@ tasks.named('thirdPartyAudit').configure {
     'org.pentaho.aggdes.model.StatisticsProvider',
     'org.pentaho.aggdes.model.Table'
   )
+
 
   // Guava internal Unsafe usage — standard for any module depending on Guava
   ignoreViolations(

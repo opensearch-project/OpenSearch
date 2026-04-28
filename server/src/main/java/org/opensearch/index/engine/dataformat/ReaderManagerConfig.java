@@ -21,10 +21,12 @@ import java.util.Optional;
  *
  * @param indexStoreProvider the store provider, or empty if not available
  * @param format the data format to create a reader manager for
+ * @param registry the data format registry it can use to wire any data format specific details.
  * @param shardPath the shard path for file storage
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record ReaderManagerConfig(Optional<IndexStoreProvider> indexStoreProvider, DataFormat format, ShardPath shardPath) {
+public record ReaderManagerConfig(Optional<IndexStoreProvider> indexStoreProvider, DataFormat format, DataFormatRegistry registry,
+    ShardPath shardPath) {
 }

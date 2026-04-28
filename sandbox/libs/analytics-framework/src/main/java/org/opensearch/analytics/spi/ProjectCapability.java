@@ -18,17 +18,17 @@ import java.util.Set;
  */
 public sealed interface ProjectCapability {
 
-    /** Standard scalar function (CAST, PLUS, UPPER, etc.) on a field type in given formats. */
-    record Scalar(ScalarFunction function, FieldType fieldType, Set<String> formats) implements ProjectCapability {
-        public Scalar {
-            formats = Set.copyOf(formats);
-        }
+    /** Standard scalar function (CAST, PLUS, UPPER, etc.) on field types in given formats.
+     *
+     * <p>{@code supportsLiteralEvaluation} indicates the backend can evaluate this function
+     * on literal values with no field access (e.g. {@code 42+1}).
+     */
+    record Scalar(ScalarFunction function, Set<FieldType> fieldTypes, Set<String> formats, boolean supportsLiteralEvaluation)
+        implements
+            ProjectCapability {
     }
 
     /** Opaque backend-specific operation (painless, highlight, suggest, etc.) in given formats. */
     record Opaque(String name, Set<String> formats) implements ProjectCapability {
-        public Opaque {
-            formats = Set.copyOf(formats);
-        }
     }
 }

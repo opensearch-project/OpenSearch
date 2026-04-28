@@ -19,3 +19,5 @@ internalClusterTest {
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 }
+
+tasks.named('missingJavadoc').configure { enabled = false }
