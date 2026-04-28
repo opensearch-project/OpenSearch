@@ -167,7 +167,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         when(textField.name()).thenReturn("content");
 
         long generation = 1L;
-        try (LuceneWriter luceneWriter = new LuceneWriter(generation, luceneDataFormat, tempBase, null, Codec.getDefault())) {
+        try (LuceneWriter luceneWriter = new LuceneWriter(generation, luceneDataFormat, tempBase, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);

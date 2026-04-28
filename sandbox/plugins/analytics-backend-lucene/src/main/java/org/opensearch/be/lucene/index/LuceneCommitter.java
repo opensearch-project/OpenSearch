@@ -15,8 +15,12 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MergeIndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SerialMergeScheduler;
+import org.apache.lucene.search.Sort;
+import org.opensearch.be.lucene.merge.RowIdRemappingSortField;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -85,7 +89,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         try {
             this.deletionPolicy = new LuceneCommitDeletionPolicy();
             IndexWriterConfig iwc = createIndexWriterConfig(committerConfig.engineConfig());
-            this.indexWriter = new IndexWriter(store.directory(), iwc);
+            this.indexWriter = new MergeIndexWriter(store.directory(), iwc);
         } catch (Exception e) {
             store.decRef();
             throw e;
@@ -209,6 +213,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             IndexWriterConfig iwc = new IndexWriterConfig();
             iwc.setIndexDeletionPolicy(deletionPolicy);
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            iwc.setMergeScheduler(new SerialMergeScheduler());
             return iwc;
         }
         // TODO:: Merge Config needs to be wired in
@@ -219,13 +224,24 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         }
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setUseCompoundFile(engineConfig.useCompoundFile());
-        if (engineConfig.getIndexSort() != null) {
+
+        // Determine if Lucene is a secondary format in a composite setup.
+        // When secondary, use RowIdRemappingSortField so MultiSorter can reorder documents
+        // by remapped ___row_id during merge. When primary (or standalone), use the
+        // engine config's IndexSort (which may be user-configured).
+        List<String> secondaryFormats = engineConfig.getIndexSettings().getSettings().getAsList("index.composite.secondary_data_formats");
+        boolean isSecondary = secondaryFormats.contains("lucene");
+
+        if (isSecondary) {
+            iwc.setIndexSort(new Sort(new RowIdRemappingSortField("___row_id")));
+        } else if (engineConfig.getIndexSort() != null) {
             iwc.setIndexSort(engineConfig.getIndexSort());
         }
         iwc.setCommitOnClose(false);
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
         iwc.setIndexDeletionPolicy(deletionPolicy);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMergeScheduler(new SerialMergeScheduler());
         return iwc;
     }
 

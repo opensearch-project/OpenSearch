@@ -23,10 +23,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
+import org.opensearch.be.lucene.merge.LuceneMerger;
+import org.opensearch.be.lucene.merge.RowIdRemappingSortField;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
@@ -79,6 +80,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final Path baseDirectory;
     private final Analyzer analyzer;
     private final Codec codec;
+    private final LuceneMerger luceneMerger;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
 
     /**
@@ -104,6 +106,18 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.analyzer = sharedWriter.getAnalyzer();
         this.codec = sharedWriter.getConfig().getCodec();
         this.fieldFactoryRegistry = new LuceneFieldFactoryRegistry();
+
+        // Extract the RowIdRemappingSortField from the writer's IndexSort for the merger
+        RowIdRemappingSortField rowIdSortField = null;
+        if (sharedWriter.getConfig().getIndexSort() != null) {
+            for (var sf : sharedWriter.getConfig().getIndexSort().getSort()) {
+                if (sf instanceof RowIdRemappingSortField rmsf) {
+                    rowIdSortField = rmsf;
+                    break;
+                }
+            }
+        }
+        this.luceneMerger = new LuceneMerger(sharedWriter, rowIdSortField, dataFormat, store.shardPath().resolveIndex());
 
         // Create the lucene subdirectory if it doesn't exist
         try {
@@ -153,7 +167,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     public Writer<LuceneDocumentInput> createWriter(long writerGeneration) {
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
-            return new LuceneWriter(writerGeneration, dataFormat, baseDirectory, analyzer, codec);
+            return new LuceneWriter(writerGeneration, dataFormat, baseDirectory, analyzer, codec, sharedWriter.getConfig().getIndexSort());
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + writerGeneration, e);
         }
@@ -279,8 +293,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     /** Returns {@code null} — merge scheduling is not yet implemented for the Lucene format. */
     @Override
     public Merger getMerger() {
-        // TODO: Implement merge support as ParquetMerger
-        return mergeInput -> new MergeResult(Map.of());
+        return this.luceneMerger;
     }
 
     /**
