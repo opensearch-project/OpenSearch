@@ -60,6 +60,7 @@ pub unsafe extern "C" fn df_create_global_runtime(
     spill_dir_len: i64,
     spill_limit: i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
     let spill_dir = str_from_raw(spill_dir_ptr, spill_dir_len).map_err(|e| format!("df_create_global_runtime: {}", e))?;
     api::create_global_runtime(memory_pool_limit, spill_dir, spill_limit)
         .map_err(|e| e.to_string())
@@ -67,6 +68,7 @@ pub unsafe extern "C" fn df_create_global_runtime(
 
 #[no_mangle]
 pub unsafe extern "C" fn df_close_global_runtime(ptr: i64) {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
     api::close_global_runtime(ptr);
 }
 
@@ -79,6 +81,7 @@ pub unsafe extern "C" fn df_create_reader(
     files_len_ptr: *const i64,
     files_count: i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
     let table_path = str_from_raw(table_path_ptr, table_path_len).map_err(|e| format!("df_create_reader: {}", e))?;
     let mut filenames = Vec::with_capacity(files_count as usize);
     for i in 0..files_count as usize {
@@ -92,6 +95,7 @@ pub unsafe extern "C" fn df_create_reader(
 
 #[no_mangle]
 pub unsafe extern "C" fn df_close_reader(ptr: i64) {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
     api::close_reader(ptr);
 }
 
@@ -106,6 +110,7 @@ pub unsafe extern "C" fn df_execute_query(
     runtime_ptr: i64,
     context_id: i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
     let mgr = get_rt_manager()?;
     let table_name = str_from_raw(table_name_ptr, table_name_len).map_err(|e| format!("df_execute_query: {}", e))?;
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
@@ -117,12 +122,14 @@ pub unsafe extern "C" fn df_execute_query(
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_get_schema(stream_ptr: i64) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
     api::stream_get_schema(stream_ptr).map_err(|e| e.to_string())
 }
 
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(api::stream_next(stream_ptr))
@@ -131,6 +138,7 @@ pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
 
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
     api::stream_close(stream_ptr);
 }
 
@@ -147,6 +155,7 @@ pub unsafe extern "C" fn df_sql_to_substrait(
     out_cap: i64,
     out_len: *mut i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
     let mgr = get_rt_manager()?;
     let table_name = str_from_raw(table_name_ptr, table_name_len).map_err(|e| format!("df_sql_to_substrait: table_name: {}", e))?;
     let sql = str_from_raw(sql_ptr, sql_len).map_err(|e| format!("df_sql_to_substrait: sql: {}", e))?;
@@ -291,4 +300,51 @@ pub unsafe extern "C" fn df_register_memtable(
     api::register_memtable(session_ptr, input_id, schema_ipc, array_slice, schema_slice)
         .map(|_| 0)
         .map_err(|e| e.to_string())
+
+// ── Heap tracking ───────────────────────────────────────────────────────────
+
+use native_bridge_common::heap_allocator;
+use datafusion::execution::memory_pool::MemoryPool;
+
+/// Cached heap handle. `OnceLock` avoids the `REGISTRY` mutex lock on every
+/// FFM call — `create_heap` is already idempotent internally, so the `OnceLock`
+/// is purely a performance optimization (lock-free read after first init).
+static DF_HEAP: std::sync::OnceLock<heap_allocator::PluginHeap> = std::sync::OnceLock::new();
+
+fn get_df_heap() -> heap_allocator::PluginHeap {
+    *DF_HEAP.get_or_init(|| heap_allocator::create_heap("datafusion"))
+}
+
+/// Initialize the datafusion plugin's mimalloc heap. Call once at plugin startup.
+#[no_mangle]
+pub extern "C" fn df_init_heap() {
+    get_df_heap();
+}
+
+/// Set the calling thread's active heap to datafusion's heap.
+#[no_mangle]
+pub extern "C" fn df_set_thread_heap() {
+    heap_allocator::set_thread_heap(get_df_heap());
+}
+
+/// Returns the DataFusion memory pool usage in bytes, or 0 if no runtime.
+#[no_mangle]
+pub unsafe extern "C" fn df_get_memory_pool_usage(runtime_ptr: i64) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
+    if runtime_ptr == 0 { return 0; }
+    let runtime = &*(runtime_ptr as *const api::DataFusionRuntime);
+    runtime.runtime_env.memory_pool.reserved() as i64
+}
+
+/// Test-only: allocate a buffer on datafusion's heap. Returns pointer as i64.
+#[no_mangle]
+pub extern "C" fn df_allocate_test_buffer(size: i64) -> i64 {
+    heap_allocator::test_allocate_buffer(get_df_heap(), size)
+}
+
+/// Test-only: free a test buffer. Safe to call from any thread — mimalloc resolves
+/// the owning heap from the pointer's segment metadata.
+#[no_mangle]
+pub extern "C" fn df_free_test_buffer(ptr: i64, _size: i64) {
+    heap_allocator::test_free_buffer(ptr);
 }

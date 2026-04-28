@@ -8,6 +8,7 @@
 use crate::executor::DedicatedExecutor;
 use crate::io::register_io_runtime;
 use log::info;
+use native_bridge_common::heap_allocator;
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
 
@@ -21,10 +22,16 @@ impl RuntimeManager {
     pub fn new(cpu_threads: usize) -> Self {
         let io_threads = cpu_threads * 2;
 
+        // Ensure the datafusion heap exists before spawning threads
+        let df_heap = heap_allocator::create_heap("datafusion");
+
         let io_runtime = Arc::new(
             Builder::new_multi_thread()
                 .worker_threads(io_threads)
                 .thread_name("datafusion-io")
+                .on_thread_start(move || {
+                    heap_allocator::set_thread_heap(df_heap);
+                })
                 .enable_all()
                 .build()
                 .expect("Failed to create IO runtime"),
@@ -39,6 +46,7 @@ impl RuntimeManager {
             .thread_name("datafusion-cpu")
             .enable_all()
             .on_thread_start(move || {
+                heap_allocator::set_thread_heap(df_heap);
                 register_io_runtime(Some(io_handle.clone()));
             });
 

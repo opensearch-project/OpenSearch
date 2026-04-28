@@ -15,6 +15,7 @@ use std::slice;
 use std::str;
 
 use native_bridge_common::ffm_safe;
+use native_bridge_common::heap_allocator;
 
 use crate::writer::NativeParquetWriter;
 
@@ -36,6 +37,7 @@ pub unsafe extern "C" fn parquet_create_writer(
     file_len: i64,
     schema_address: i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_parquet_heap());
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_create_writer: {}", e))?.to_string();
     NativeParquetWriter::create_writer(filename, schema_address)
         .map(|_| 0)
@@ -50,6 +52,7 @@ pub unsafe extern "C" fn parquet_write(
     array_address: i64,
     schema_address: i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_parquet_heap());
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_write: {}", e))?.to_string();
     NativeParquetWriter::write_data(filename, array_address, schema_address)
         .map(|_| 0)
@@ -69,6 +72,7 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     created_by_len_out: *mut i64,
     crc32_out: *mut i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_parquet_heap());
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_finalize_writer: {}", e))?.to_string();
     match NativeParquetWriter::finalize_writer(filename) {
         Ok(Some(result)) => {
@@ -99,6 +103,7 @@ pub unsafe extern "C" fn parquet_sync_to_disk(
     file_ptr: *const u8,
     file_len: i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_parquet_heap());
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_sync_to_disk: {}", e))?.to_string();
     NativeParquetWriter::sync_to_disk(filename)
         .map(|_| 0)
@@ -116,6 +121,7 @@ pub unsafe extern "C" fn parquet_get_file_metadata(
     created_by_buf_len: i64,
     created_by_len_out: *mut i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_parquet_heap());
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_get_file_metadata: {}", e))?.to_string();
     let fm = NativeParquetWriter::get_file_metadata(filename).map_err(|e| e.to_string())?;
     if !version_out.is_null() { *version_out = fm.version(); }
@@ -138,6 +144,43 @@ pub unsafe extern "C" fn parquet_get_filtered_native_bytes_used(
     prefix_ptr: *const u8,
     prefix_len: i64,
 ) -> i64 {
+    let _guard = heap_allocator::scoped_thread_heap(get_parquet_heap());
     let prefix = str_from_raw(prefix_ptr, prefix_len).unwrap_or("").to_string();
     NativeParquetWriter::get_filtered_writer_memory_usage(prefix).unwrap_or(0) as i64
+}
+
+// ── Heap tracking ───────────────────────────────────────────────────────────
+
+/// Cached heap handle. `OnceLock` avoids the `REGISTRY` mutex lock on every
+/// FFM call — `create_heap` is already idempotent internally, so the `OnceLock`
+/// is purely a performance optimization (lock-free read after first init).
+static PARQUET_HEAP: std::sync::OnceLock<heap_allocator::PluginHeap> = std::sync::OnceLock::new();
+
+fn get_parquet_heap() -> heap_allocator::PluginHeap {
+    *PARQUET_HEAP.get_or_init(|| heap_allocator::create_heap("parquet"))
+}
+
+/// Initialize the parquet plugin's mimalloc heap. Call once at plugin startup.
+#[no_mangle]
+pub extern "C" fn parquet_init_heap() {
+    get_parquet_heap();
+}
+
+/// Set the calling thread's active heap to parquet's heap.
+#[no_mangle]
+pub extern "C" fn parquet_set_thread_heap() {
+    heap_allocator::set_thread_heap(get_parquet_heap());
+}
+
+/// Test-only: allocate a buffer on parquet's heap. Returns pointer as i64.
+#[no_mangle]
+pub extern "C" fn parquet_allocate_test_buffer(size: i64) -> i64 {
+    heap_allocator::test_allocate_buffer(get_parquet_heap(), size)
+}
+
+/// Test-only: free a test buffer. Safe to call from any thread — mimalloc resolves
+/// the owning heap from the pointer's segment metadata.
+#[no_mangle]
+pub extern "C" fn parquet_free_test_buffer(ptr: i64, _size: i64) {
+    heap_allocator::test_free_buffer(ptr);
 }

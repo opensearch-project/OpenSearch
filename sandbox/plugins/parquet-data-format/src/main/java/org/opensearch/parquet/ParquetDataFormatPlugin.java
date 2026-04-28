@@ -26,6 +26,7 @@ import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.engine.ParquetDataFormat;
+import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 import org.opensearch.plugins.Plugin;
@@ -88,6 +89,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     ) {
         this.settings = clusterService.getSettings();
         this.threadPool = threadPool;
+        RustBridge.initHeap();
         return Collections.emptyList();
     }
 

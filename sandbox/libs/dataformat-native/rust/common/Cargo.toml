@@ -10,3 +10,5 @@ crate-type = ["rlib"]
 
 [dependencies]
 native-bridge-macros = { path = "../macros" }
+libmimalloc-sys = { workspace = true }
+serde_json = { workspace = true }

@@ -9,6 +9,7 @@
 //! Shared Rust utilities for OpenSearch sandbox native plugins.
 
 pub mod error;
+pub mod heap_allocator;
 pub mod logger;
 
 // Re-export the proc macro so plugins use `#[native_bridge_common::ffm_safe]`

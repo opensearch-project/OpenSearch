@@ -58,6 +58,10 @@ public final class NativeBridge {
     private static final MethodHandle SENDER_SEND;
     private static final MethodHandle SENDER_CLOSE;
     private static final MethodHandle REGISTER_MEMTABLE;
+private static final MethodHandle INIT_HEAP;
+    private static final MethodHandle GET_MEMORY_POOL_USAGE;
+    private static final MethodHandle DF_ALLOCATE_TEST_BUFFER;
+    private static final MethodHandle DF_FREE_TEST_BUFFER;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -202,6 +206,21 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
+INIT_HEAP = linker.downcallHandle(
+            lib.find("df_init_heap").orElseThrow(),
+            FunctionDescriptor.ofVoid()
+        );
+        GET_MEMORY_POOL_USAGE = linker.downcallHandle(
+            lib.find("df_get_memory_pool_usage").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        DF_ALLOCATE_TEST_BUFFER = linker.downcallHandle(
+            lib.find("df_allocate_test_buffer").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        DF_FREE_TEST_BUFFER = linker.downcallHandle(
+            lib.find("df_free_test_buffer").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
     }
 
@@ -313,6 +332,44 @@ public final class NativeBridge {
 
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
+    }
+
+    // ---- Heap tracking ----
+
+    /** Initializes the datafusion plugin's mimalloc heap. Call once at startup. */
+    public static void initHeap() {
+        try {
+            INIT_HEAP.invokeExact();
+        } catch (Throwable t) {
+            throw new RuntimeException("df initHeap failed", t);
+        }
+    }
+
+    /** Returns the DataFusion memory pool usage in bytes. */
+    public static long getMemoryPoolUsage(long runtimePtr) {
+        try {
+            return (long) GET_MEMORY_POOL_USAGE.invokeExact(runtimePtr);
+        } catch (Throwable t) {
+            throw new RuntimeException("getMemoryPoolUsage failed", t);
+        }
+    }
+
+    /** Allocates a test buffer on datafusion's heap. Returns native pointer. */
+    public static long allocateTestBuffer(long size) {
+        try {
+            return (long) DF_ALLOCATE_TEST_BUFFER.invokeExact(size);
+        } catch (Throwable t) {
+            throw new RuntimeException("df allocateTestBuffer failed", t);
+        }
+    }
+
+    /** Frees a test buffer. Safe to call from any thread. */
+    public static void freeTestBuffer(long ptr, long size) {
+        try {
+            DF_FREE_TEST_BUFFER.invokeExact(ptr, size);
+        } catch (Throwable t) {
+            throw new RuntimeException("df freeTestBuffer failed", t);
+        }
     }
 
     // ---- Stubs ----

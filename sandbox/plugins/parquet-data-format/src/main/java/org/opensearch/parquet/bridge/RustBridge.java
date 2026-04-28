@@ -27,6 +27,9 @@ public class RustBridge {
     private static final MethodHandle SYNC_TO_DISK;
     private static final MethodHandle GET_FILE_METADATA;
     private static final MethodHandle GET_FILTERED_BYTES;
+    private static final MethodHandle INIT_HEAP;
+    private static final MethodHandle ALLOCATE_TEST_BUFFER;
+    private static final MethodHandle FREE_TEST_BUFFER;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -79,6 +82,18 @@ public class RustBridge {
         GET_FILTERED_BYTES = linker.downcallHandle(
             lib.find("parquet_get_filtered_native_bytes_used").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+        INIT_HEAP = linker.downcallHandle(
+            lib.find("parquet_init_heap").orElseThrow(),
+            FunctionDescriptor.ofVoid()
+        );
+        ALLOCATE_TEST_BUFFER = linker.downcallHandle(
+            lib.find("parquet_allocate_test_buffer").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        FREE_TEST_BUFFER = linker.downcallHandle(
+            lib.find("parquet_free_test_buffer").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
     }
 
@@ -159,6 +174,33 @@ public class RustBridge {
         try (var call = new NativeCall()) {
             var p = call.str(pathPrefix);
             return call.invoke(GET_FILTERED_BYTES, p.segment(), p.len());
+        }
+    }
+
+    /** Initializes the parquet plugin's mimalloc heap. Call once at startup. */
+    public static void initHeap() {
+        try {
+            INIT_HEAP.invokeExact();
+        } catch (Throwable t) {
+            throw new RuntimeException("initHeap failed", t);
+        }
+    }
+
+    /** Allocates a test buffer on parquet's heap. Returns native pointer. */
+    public static long allocateTestBuffer(long size) {
+        try {
+            return (long) ALLOCATE_TEST_BUFFER.invokeExact(size);
+        } catch (Throwable t) {
+            throw new RuntimeException("allocateTestBuffer failed", t);
+        }
+    }
+
+    /** Frees a test buffer. Safe to call from any thread. */
+    public static void freeTestBuffer(long ptr, long size) {
+        try {
+            FREE_TEST_BUFFER.invokeExact(ptr, size);
+        } catch (Throwable t) {
+            throw new RuntimeException("freeTestBuffer failed", t);
         }
     }
 

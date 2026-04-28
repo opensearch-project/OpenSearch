@@ -14,15 +14,16 @@
 // No JNIEnv, no JClass, no classloader binding — just plain C ABI.
 //
 // This crate:
-//   1. Sets the global mimalloc allocator (shared across all plugin rlibs)
+//   1. Sets the global allocator to HeapRoutingAllocator (routes allocations
+//      to the active plugin heap via thread-local, without mi_heap_set_default)
 //   2. Pulls in plugin rlibs via extern crate (forces linker to include symbols)
 //   3. All #[no_mangle] extern "C" functions from the plugin crates are
 //      automatically available for dlsym/SymbolLookup
 // ═══════════════════════════════════════════════════════════════════════════════
 
-//TODO: AwaitsFix: Fix mimalloc lifecycle issue
-// #[global_allocator]
-// static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+#[global_allocator]
+static GLOBAL: native_bridge_common::heap_allocator::HeapRoutingAllocator =
+    native_bridge_common::heap_allocator::HeapRoutingAllocator;
 
 // Pull in plugin rlibs — forces linker to include all #[no_mangle] symbols.
 extern crate native_bridge_common;

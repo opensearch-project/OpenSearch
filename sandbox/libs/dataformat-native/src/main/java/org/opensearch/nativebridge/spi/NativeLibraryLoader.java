@@ -51,6 +51,11 @@ public final class NativeLibraryLoader {
         static final SymbolLookup LOOKUP;
         static final MethodHandle ERROR_MESSAGE;
         static final MethodHandle ERROR_FREE;
+        static final MethodHandle HEAP_COUNT;
+        static final MethodHandle HEAP_NAME;
+        static final MethodHandle HEAP_USED;
+        static final MethodHandle HEAP_COMMITTED;
+        static final MethodHandle GLOBAL_COMMITTED;
 
         static {
             LOOKUP = loadLibrary();
@@ -62,6 +67,26 @@ public final class NativeLibraryLoader {
             ERROR_FREE = linker.downcallHandle(
                 LOOKUP.find("native_error_free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+            );
+            HEAP_COUNT = linker.downcallHandle(
+                LOOKUP.find("native_heap_count").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT)
+            );
+            HEAP_NAME = linker.downcallHandle(
+                LOOKUP.find("native_heap_name").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
+            );
+            HEAP_USED = linker.downcallHandle(
+                LOOKUP.find("native_heap_used").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT)
+            );
+            HEAP_COMMITTED = linker.downcallHandle(
+                LOOKUP.find("native_heap_committed").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT)
+            );
+            GLOBAL_COMMITTED = linker.downcallHandle(
+                LOOKUP.find("native_global_committed").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG)
             );
             // Register the Rust→Java log callback
             LOOKUP.find("native_logger_init").ifPresent(sym -> RustLoggerBridge.register(linker, sym));
@@ -122,6 +147,64 @@ public final class NativeLibraryLoader {
             return result;
         }
         throw new IOException(readAndFreeError(-result));
+    }
+
+    // ---- Heap stats ----
+
+    /** Returns the number of registered plugin heaps. */
+    public static int heapCount() {
+        try {
+            return (int) Holder.HEAP_COUNT.invokeExact();
+        } catch (Throwable t) {
+            throw new RuntimeException("heapCount failed", t);
+        }
+    }
+
+    /** Returns the name of the plugin heap at the given index. */
+    public static String heapName(int index) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment buf = arena.allocate(256);
+            int len = (int) Holder.HEAP_NAME.invokeExact(index, buf, 256);
+            if (len < 0) return null;
+            return new String(buf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            throw new RuntimeException("heapName failed", t);
+        }
+    }
+
+    /** Returns used bytes for the plugin heap at the given index, or -1 if index is invalid. */
+    public static long heapUsed(int index) {
+        try {
+            long result = (long) Holder.HEAP_USED.invokeExact(index);
+            if (result < 0) throw new IllegalArgumentException("invalid heap index: " + index);
+            return result;
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new RuntimeException("heapUsed failed", t);
+        }
+    }
+
+    /** Returns committed bytes for the plugin heap at the given index, or -1 if index is invalid. */
+    public static long heapCommitted(int index) {
+        try {
+            long result = (long) Holder.HEAP_COMMITTED.invokeExact(index);
+            if (result < 0) throw new IllegalArgumentException("invalid heap index: " + index);
+            return result;
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new RuntimeException("heapCommitted failed", t);
+        }
+    }
+
+    /** Returns global mimalloc committed bytes across all heaps. */
+    public static long globalCommitted() {
+        try {
+            return (long) Holder.GLOBAL_COMMITTED.invokeExact();
+        } catch (Throwable t) {
+            throw new RuntimeException("globalCommitted failed", t);
+        }
     }
 
     // ---- Library loading ----

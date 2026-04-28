@@ -25,6 +25,7 @@ chrono = { workspace = true }
 mimalloc = { workspace = true }
 tempfile = { workspace = true }
 native-bridge-common = { workspace = true }
+libmimalloc-sys = { workspace = true }
 crc32fast = { workspace = true }
 
 [dev-dependencies]
