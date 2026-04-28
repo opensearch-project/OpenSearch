@@ -50,7 +50,7 @@ public class ArrowStreamSerializationTests extends OpenSearchTestCase {
     public void testInternalAggregationSerializationDeserialization() throws IOException {
         StringTerms original = createTestStringTerms();
 
-        try (VectorStreamOutput output = new VectorStreamOutput(allocator, null)) {
+        try (VectorStreamOutput output = VectorStreamOutput.create(allocator, null)) {
             output.writeNamedWriteable(original);
             VectorSchemaRoot unifiedRoot = output.getRoot();
 

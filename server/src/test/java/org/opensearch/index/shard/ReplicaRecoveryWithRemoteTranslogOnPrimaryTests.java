@@ -77,7 +77,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                 newIndexMetadata,
                 null,
                 null,
-                replica.getEngineFactory(),
+                replica.getIndexerFactory(),
                 replica.getEngineConfigFactory(),
                 replica.getGlobalCheckpointSyncer(),
                 replica.getRetentionLeaseSyncer(),
