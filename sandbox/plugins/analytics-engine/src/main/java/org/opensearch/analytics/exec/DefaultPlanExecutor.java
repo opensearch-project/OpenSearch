@@ -141,22 +141,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // walker has already cascaded cancellations by the time we see the failure.
         // Scheduler yields batches; we materialize rows at the API edge for callers
         // that still consume Iterable<Object[]>.
-        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.wrap(batches -> {
-            Iterable<Object[]> rows;
-            try {
-                rows = batchesToRows(batches);
-            } finally {
-                config.closeBufferAllocator();
-                taskManager.unregister(queryTask);
-            }
-            listener.onResponse(rows);
-        }, e -> {
+        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = buildBatchesListener(listener, () -> {
             try {
                 config.closeBufferAllocator();
             } finally {
                 taskManager.unregister(queryTask);
             }
-            listener.onFailure(e);
         });
 
         TimeValue taskTimeout = queryTask.getCancelAfterTimeInterval();
@@ -210,6 +200,24 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new AnalyticsQueryTask(id, type, action, queryId, parentTaskId, headers, cancelAfterTimeInterval);
         }
+    }
+
+    /**
+     * Builds the batches→rows {@link ActionListener} used by {@link #executeInternal}. {@code cleanup}
+     * runs exactly once before {@code downstream} is notified — on either response or failure paths.
+     * A cleanup failure on the response path is routed to {@code downstream.onFailure}; on the failure
+     * path it is attached as a suppressed exception. This eliminates the double-cleanup that the prior
+     * try/finally pattern produced when an exception in the success path was caught by
+     * {@link ActionListener#wrap} and re-routed to the failure callback.
+     *
+     * <p>Package-private for unit testing.
+     */
+    static ActionListener<Iterable<VectorSchemaRoot>> buildBatchesListener(
+        ActionListener<Iterable<Object[]>> downstream,
+        Runnable cleanup
+    ) {
+        ActionListener<Iterable<Object[]>> wrapped = ActionListener.runBefore(downstream, cleanup::run);
+        return ActionListener.wrap(batches -> wrapped.onResponse(batchesToRows(batches)), wrapped::onFailure);
     }
 
     /**
