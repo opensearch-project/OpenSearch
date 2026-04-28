@@ -97,6 +97,29 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
+        // Dispatch the entire query lifecycle (planning, scheduling, blocking wait)
+        // onto the SEARCH executor so the calling thread — which may be a transport
+        // thread — is freed immediately. The PlainActionFuture.actionGet() still
+        // blocks, but on a SEARCH pool thread rather than a transport thread.
+        // TODO: make fully async by having the front-end pass an ActionListener
+        // instead of expecting a synchronous return value.
+        PlainActionFuture<Iterable<Object[]>> outerFuture = new PlainActionFuture<>();
+        searchExecutor.execute(() -> {
+            try {
+                outerFuture.onResponse(executeInternal(logicalFragment));
+            } catch (Exception e) {
+                outerFuture.onFailure(e);
+            }
+        });
+        return outerFuture.actionGet();
+    }
+
+    /**
+     * Internal synchronous execution. Runs on the SEARCH thread pool, never on
+     * a transport thread. Plans the query, builds the DAG, schedules execution,
+     * and blocks until results are available.
+     */
+    private Iterable<Object[]> executeInternal(RelNode logicalFragment) {
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);
@@ -140,7 +163,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         }
 
         scheduler.execute(config, listener);
-        return future.actionGet();  // TODO: single blocking point — Should be async with Front-End passing listener.
+        return future.actionGet();
     }
 
     @Override

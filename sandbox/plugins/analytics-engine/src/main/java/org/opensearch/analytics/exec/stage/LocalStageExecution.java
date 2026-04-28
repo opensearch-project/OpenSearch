@@ -20,10 +20,6 @@ import org.opensearch.analytics.spi.ExchangeSink;
  * backend-provided {@link ExchangeSink} (from {@link org.opensearch.analytics.spi.ExchangeSinkProvider})
  * and routes all child stage output into it via {@link #inputSink(int)}.
  *
- * <p>This is a placeholder shape: the backend sink accepts batches but there is
- * no contract yet for draining its output downstream. The drain/output contract
- * will be re-introduced when a real backend implementation lands.
- *
  * <p>Lifecycle:
  * {@code CREATED → RUNNING → (SUCCEEDED | FAILED | CANCELLED)}
  *
@@ -71,11 +67,6 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
         if (transitionTo(State.RUNNING) == false) return;
         logger.info("[LocalStage] start() stageId={}", stage.getStageId());
         try {
-            // Closing the backend sink signals EOF to the native side and drains the
-            // output stream into `downstream`. Must NOT close `downstream` here —
-            // the walker hasn't read its buffered batches yet. Downstream closure
-            // happens implicitly when the completion listener's consumer finishes
-            // reading each batch.
             backendSink.close();
             if (transitionTo(State.SUCCEEDED)) {
                 logger.info("[LocalStage] SUCCEEDED stageId={}", stage.getStageId());

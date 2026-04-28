@@ -74,7 +74,7 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
     }
 
     @Override
-    public final void feed(VectorSchemaRoot batch) {
+    public void feed(VectorSchemaRoot batch) {
         synchronized (feedLock) {
             if (closed) {
                 batch.close();
