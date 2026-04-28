@@ -10,7 +10,6 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.Segment;
-
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
@@ -41,10 +40,7 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
      * @return list of writer file sets for the format across all segments
      */
     public List<WriterFileSet> getFilesForFormat(String formatName) {
-        return segments.stream()
-            .map(seg -> seg.dfGroupedSearchableFiles().get(formatName))
-            .filter(Objects::nonNull)
-            .toList();
+        return segments.stream().map(seg -> seg.dfGroupedSearchableFiles().get(formatName)).filter(Objects::nonNull).toList();
     }
 
     /**

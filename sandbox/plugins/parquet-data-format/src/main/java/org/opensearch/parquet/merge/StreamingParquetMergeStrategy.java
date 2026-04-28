@@ -52,9 +52,10 @@ public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
         }
 
         List<Path> filePaths = new ArrayList<>();
-        files.forEach(writerFileSet -> writerFileSet.files().forEach(
-            file -> filePaths.add(shardDataPath.resolve(writerFileSet.directory()).resolve(file))
-        ));
+        files.forEach(
+            writerFileSet -> writerFileSet.files()
+                .forEach(file -> filePaths.add(shardDataPath.resolve(writerFileSet.directory()).resolve(file)))
+        );
 
         String outputDirectory = shardDataPath.resolve(files.getFirst().directory()).toString();
         String mergedFilePath = getMergedFilePath(writerGeneration, outputDirectory);
