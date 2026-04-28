@@ -44,6 +44,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.addAll(FieldType.keyword());
         SUPPORTED_FIELD_TYPES.addAll(FieldType.date());
         SUPPORTED_FIELD_TYPES.add(FieldType.BOOLEAN);
+        SUPPORTED_FIELD_TYPES.add(FieldType.TEXT);
     }
 
     private static final Set<FilterOperator> STANDARD_FILTER_OPS = Set.of(
