@@ -25,6 +25,7 @@ import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -55,27 +56,65 @@ public class AnalyticsSearchService {
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
     }
 
-    /**
-     * Executes a plan fragment against the given shard and returns the collected results.
-     *
-     * @param request the fragment execution request
-     * @param shard   the already-resolved index shard
-     * @return a response containing field names and result rows
-     */
     public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard) {
         return executeFragment(request, shard, null);
     }
 
-    /**
-     * Executes a plan fragment against the given shard and returns the collected results,
-     * polling the shard task for cancellation between batches.
-     *
-     * @param request the fragment execution request
-     * @param shard   the already-resolved index shard
-     * @param task    the shard task to poll for cancellation (nullable)
-     * @return a response containing field names and result rows
-     */
     public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
+        ResolvedFragment resolved = resolveFragment(request, shard);
+        long startNanos = System.nanoTime();
+        try (FragmentResources ctx = startFragment(request, resolved)) {
+            FragmentExecutionResponse response = collectResponse(ctx.stream(), task);
+            long tookNanos = System.nanoTime() - startNanos;
+            listener.onFragmentSuccess(resolved.queryId, resolved.stageId, resolved.shardIdStr, tookNanos, response.getRows().size());
+            return response;
+        } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
+            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            throw e;
+        } catch (Exception e) {
+            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            throw new RuntimeException("Failed to execute fragment on " + shard.shardId(), e);
+        }
+    }
+
+    public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard) {
+        ResolvedFragment resolved = resolveFragment(request, shard);
+        try {
+            return startFragment(request, resolved);
+        } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
+            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            throw e;
+        } catch (Exception e) {
+            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            throw new RuntimeException("Failed to start streaming fragment on " + shard.shardId(), e);
+        }
+    }
+
+    private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved) throws IOException {
+        GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
+        SearchExecEngine<ExecutionContext, EngineResultStream> engine = null;
+        EngineResultStream stream = null;
+        try {
+            ExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan);
+            AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
+            engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx);
+            stream = engine.execute(ctx);
+            return new FragmentResources(gatedReader, engine, stream);
+        } catch (Exception e) {
+            try {
+                new FragmentResources(gatedReader, engine, stream).close();
+            } catch (Exception suppressed) {
+                e.addSuppressed(suppressed);
+            }
+            throw e;
+        }
+    }
+
+    private record ResolvedFragment(IndexReaderProvider readerProvider, FragmentExecutionRequest.PlanAlternative plan, String queryId,
+        int stageId, String shardIdStr) {
+    }
+
+    private ResolvedFragment resolveFragment(FragmentExecutionRequest request, IndexShard shard) {
         IndexReaderProvider readerProvider = shard.getReaderProvider();
         if (readerProvider == null) {
             throw new IllegalStateException("No ReaderProvider on " + shard.shardId());
@@ -100,58 +139,25 @@ public class AnalyticsSearchService {
         }
 
         String shardIdStr = shard.shardId().toString();
-        String queryId = request.getQueryId();
-        int stageId = request.getStageId();
-
-        listener.onPreFragmentExecution(queryId, stageId, shardIdStr);
-
-        long startNanos = System.nanoTime();
-        try (GatedCloseable<Reader> gatedReader = readerProvider.acquireReader()) {
-            SearchShardTask searchShardTask = null; // TODO: real task for cancellation
-            ExecutionContext ctx = new ExecutionContext(request.getShardId().getIndexName(), searchShardTask, gatedReader.get());
-            ctx.setFragmentBytes(selectedPlan.getFragmentBytes());
-
-            AnalyticsSearchBackendPlugin backend = backends.get(selectedPlan.getBackendId());
-
-            try (
-                SearchExecEngine<ExecutionContext, EngineResultStream> engine = backend.getSearchExecEngineProvider()
-                    .createSearchExecEngine(ctx)
-            ) {
-                try (EngineResultStream stream = engine.execute(ctx)) {
-                    FragmentExecutionResponse response = collectResponse(stream, task);
-                    long tookNanos = System.nanoTime() - startNanos;
-                    listener.onFragmentSuccess(queryId, stageId, shardIdStr, tookNanos, response.getRows().size());
-                    return response;
-                }
-            }
-        } catch (TaskCancelledException e) {
-            listener.onFragmentFailure(queryId, stageId, shardIdStr, e);
-            throw e; // do NOT wrap — preserve type
-        } catch (IllegalStateException | IllegalArgumentException e) {
-            listener.onFragmentFailure(queryId, stageId, shardIdStr, e);
-            throw e;
-        } catch (Exception e) {
-            listener.onFragmentFailure(queryId, stageId, shardIdStr, e);
-            throw new RuntimeException("Failed to execute fragment on " + shard.shardId(), e);
-        }
+        listener.onPreFragmentExecution(request.getQueryId(), request.getStageId(), shardIdStr);
+        return new ResolvedFragment(readerProvider, selectedPlan, request.getQueryId(), request.getStageId(), shardIdStr);
     }
 
-    /**
-     * Collects all batches from the result stream into a single {@link FragmentExecutionResponse}.
-     * Field names are captured from the first batch.
-     */
+    private static ExecutionContext buildContext(
+        FragmentExecutionRequest request,
+        Reader reader,
+        FragmentExecutionRequest.PlanAlternative plan
+    ) {
+        SearchShardTask searchShardTask = null; // TODO: real task for cancellation
+        ExecutionContext ctx = new ExecutionContext(request.getShardId().getIndexName(), searchShardTask, reader);
+        ctx.setFragmentBytes(plan.getFragmentBytes());
+        return ctx;
+    }
+
     FragmentExecutionResponse collectResponse(EngineResultStream stream) {
         return collectResponse(stream, null);
     }
 
-    /**
-     * Collects all batches from the result stream into a single {@link FragmentExecutionResponse}.
-     * Field names are captured from the first batch. Polls the shard task for cancellation
-     * at each batch boundary.
-     *
-     * @param stream the result stream to drain
-     * @param task   the shard task to poll for cancellation (nullable)
-     */
     FragmentExecutionResponse collectResponse(EngineResultStream stream, @Nullable AnalyticsShardTask task) {
         List<Object[]> rows = new ArrayList<>();
         List<String> fieldNames = null;
@@ -161,15 +167,19 @@ public class AnalyticsSearchService {
                 throw new TaskCancelledException("task cancelled: " + task.getReasonCancelled());
             }
             EngineResultBatch batch = it.next();
-            if (fieldNames == null) {
-                fieldNames = batch.getFieldNames();
-            }
-            for (int row = 0; row < batch.getRowCount(); row++) {
-                Object[] vals = new Object[fieldNames.size()];
-                for (int col = 0; col < fieldNames.size(); col++) {
-                    vals[col] = batch.getFieldValue(fieldNames.get(col), row);
+            try {
+                if (fieldNames == null) {
+                    fieldNames = batch.getFieldNames();
                 }
-                rows.add(vals);
+                for (int row = 0; row < batch.getRowCount(); row++) {
+                    Object[] vals = new Object[fieldNames.size()];
+                    for (int col = 0; col < fieldNames.size(); col++) {
+                        vals[col] = batch.getFieldValue(fieldNames.get(col), row);
+                    }
+                    rows.add(vals);
+                }
+            } finally {
+                batch.getArrowRoot().close();
             }
         }
         return new FragmentExecutionResponse(fieldNames != null ? fieldNames : List.of(), rows);

@@ -34,6 +34,7 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
 
     private final DatafusionContext datafusionContext;
     private final Supplier<BufferAllocator> allocatorFactory;
+    private BufferAllocator streamAllocator;
 
     /**
      * Creates an execution engine backed by the given DataFusion context.
@@ -57,12 +58,19 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
         DatafusionSearcher searcher = datafusionContext.getSearcher();
         searcher.search(datafusionContext);
         StreamHandle handle = datafusionContext.takeStreamHandle();
-        BufferAllocator allocator = allocatorFactory.get();
-        return new DatafusionResultStream(handle, allocator);
+        streamAllocator = allocatorFactory.get();
+        return new DatafusionResultStream(handle, streamAllocator);
     }
 
     @Override
     public void close() throws IOException {
-        datafusionContext.close();
+        try {
+            datafusionContext.close();
+        } finally {
+            if (streamAllocator != null) {
+                streamAllocator.close();
+                streamAllocator = null;
+            }
+        }
     }
 }

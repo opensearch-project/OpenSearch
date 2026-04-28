@@ -31,6 +31,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private ReaderHandle readerHandle;
     private NativeRuntimeHandle runtimeHandle;
     private RootAllocator testRootAllocator;
+    private final java.util.List<BufferAllocator> allocatorsToClose = new java.util.ArrayList<>();
 
     @Override
     public void setUp() throws Exception {
@@ -51,6 +52,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         readerHandle.close();
         runtimeHandle.close();
+        // Caller owns child allocators now (see DatafusionResultStream.close javadoc).
+        // Close them in reverse registration order so child-before-parent invariants hold.
+        for (int i = allocatorsToClose.size() - 1; i >= 0; i--) {
+            allocatorsToClose.get(i).close();
+        }
         testRootAllocator.close();
         super.tearDown();
     }
@@ -202,9 +208,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         );
         long streamPtr = future.join();
 
+        BufferAllocator failureAlloc = testRootAllocator.newChildAllocator("test-failure", 0, Long.MAX_VALUE);
+        allocatorsToClose.add(failureAlloc);
         DatafusionResultStream stream = new DatafusionResultStream(
             new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, tempRuntime),
-            testRootAllocator.newChildAllocator("test-failure", 0, Long.MAX_VALUE)
+            failureAlloc
         );
 
         // Close runtime — streamNext should now fail with IllegalStateException from NativeRuntimeHandle.get()
@@ -253,6 +261,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         );
         long streamPtr = future.join();
         BufferAllocator childAllocator = testRootAllocator.newChildAllocator("test-stream", 0, Long.MAX_VALUE);
+        allocatorsToClose.add(childAllocator);
         return new DatafusionResultStream(
             new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, runtimeHandle),
             childAllocator
