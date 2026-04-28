@@ -99,8 +99,15 @@ public class Composite912DocValuesFormat extends DocValuesFormat {
         // The FieldInfos attributes tell us the original format name and suffix.
         String perFieldSuffix = getPerFieldDocValuesSuffix(state.fieldInfos);
         if (perFieldSuffix != null) {
-            // Upgraded segment: create a SegmentReadState with the correct suffix
-            // so Lucene90DocValuesFormat opens the right files
+            // Fix Error 4: For upgraded segments, read the ORIGINAL field infos from the .cfs
+            // compound file. The base .dvm file was written with original field numbers, but
+            // state.fieldInfos may have different numbers due to soft delete updates adding
+            // __soft_deletes and renumbering fields. Using updated field infos causes
+            // Lucene90DocValuesProducer to fail with "Invalid field number".
+            //
+            // Note: This fix resolves Error 4 but Error 5 (softDeleteCount assertion) remains
+            // a blocker for segments with docValuesGen != -1. Those segments are skipped in
+            // rewriteSegmentInfos() and never reach this code path with Composite912Codec.
             SegmentReadState suffixedState = new SegmentReadState(
                 state.directory,
                 state.segmentInfo,

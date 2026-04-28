@@ -79,15 +79,21 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         this.delegate = producer;
         this.fields = new ArrayList<>();
 
+        // Fix Error 3: Star tree files are always written with empty suffix "".
+        // When segments have soft deletes (fieldInfosGen != -1), Lucene sets
+        // readState.segmentSuffix to the generation value (e.g., "1"), which would
+        // produce _0_1.cim instead of _0.cim. Hardcode empty suffix for star tree files.
+        String starTreeSuffix = "";
+
         String metaFileName = IndexFileNames.segmentFileName(
             readState.segmentInfo.name,
-            readState.segmentSuffix,
+            starTreeSuffix,
             Composite912DocValuesFormat.META_EXTENSION
         );
 
         String dataFileName = IndexFileNames.segmentFileName(
             readState.segmentInfo.name,
-            readState.segmentSuffix,
+            starTreeSuffix,
             Composite912DocValuesFormat.DATA_EXTENSION
         );
 
@@ -115,7 +121,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                 Composite912DocValuesFormat.VERSION_START,
                 Composite912DocValuesFormat.VERSION_CURRENT,
                 readState.segmentInfo.getId(),
-                readState.segmentSuffix
+                starTreeSuffix
             );
 
             // initialize meta input
@@ -127,7 +133,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                     Composite912DocValuesFormat.VERSION_START,
                     Composite912DocValuesFormat.VERSION_CURRENT,
                     readState.segmentInfo.getId(),
-                    readState.segmentSuffix
+                    starTreeSuffix
                 );
                 Map<String, DocValuesType> dimensionFieldTypeMap = new HashMap<>();
                 while (true) {
@@ -211,7 +217,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                     readState.segmentInfo,
                     fieldInfos,
                     readState.context,
-                    readState.segmentSuffix
+                    starTreeSuffix
                 );
 
                 // initialize star-tree doc values producer

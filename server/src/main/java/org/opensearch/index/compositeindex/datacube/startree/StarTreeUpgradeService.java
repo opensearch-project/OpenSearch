@@ -422,6 +422,26 @@ public class StarTreeUpgradeService {
 
         for (SegmentCommitInfo commitInfo : originalInfos) {
             if (upgradedSegmentNames.contains(commitInfo.info.name)) {
+                // Fix Error 5 (BLOCKER): Skip codec switch for segments with doc values updates
+                // (soft deletes). When docValuesGen != -1, the segment has generation-based update
+                // files with field numbers that don't match the base .dvm file. Switching the codec
+                // to Composite912Codec causes Lucene90DocValuesProducer to fail because it can't
+                // reconcile the original vs updated field infos, and SegmentDocValuesProducer fails
+                // to route __soft_deletes to the update-file producer. Star tree data IS built for
+                // these segments — it just won't be read via the native codec path until a background
+                // merge produces a clean native composite segment.
+                if (commitInfo.getDocValuesGen() != -1) {
+                    logger.info(
+                        "Skipping codec switch for segment {} — has doc values updates (docValuesGen={}). "
+                            + "Star tree data built but codec remains {}. Background merge will produce native composite segment.",
+                        commitInfo.info.name,
+                        commitInfo.getDocValuesGen(),
+                        commitInfo.info.getCodec().getName()
+                    );
+                    newSegmentInfos.add(commitInfo);
+                    continue;
+                }
+
                 SegmentInfo oldInfo = commitInfo.info;
 
                 // Create new SegmentInfo with Composite912Codec, copying all other fields.
@@ -470,6 +490,14 @@ public class StarTreeUpgradeService {
                     commitInfo.getDocValuesGen(),
                     commitInfo.getId()
                 );
+
+                // Fix Error 1: Copy generation-based update file sets from the original.
+                // Without this, SegmentCommitInfo.files() won't include generation-based files
+                // like _0_1.fnm, _0_1_Lucene90_0.dvd/dvm that exist when documents have been
+                // deleted (soft deletes). IndexWriter.filesExist() would fail with
+                // no_such_file_exception for these files.
+                newCommitInfo.setFieldInfosFiles(commitInfo.getFieldInfosFiles());
+                newCommitInfo.setDocValuesUpdatesFiles(commitInfo.getDocValuesUpdatesFiles());
 
                 newSegmentInfos.add(newCommitInfo);
 

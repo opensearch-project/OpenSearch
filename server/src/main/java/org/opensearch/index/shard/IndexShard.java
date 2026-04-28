@@ -2346,12 +2346,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // --- Swap 1: InternalEngine → ReadOnlyEngine ---
                 // Pattern: create ROE first, then swap reference, then close old engine.
                 // If ROE constructor throws, old engine is still current — no damage.
+                //
+                // Fix Error 2: Capture SeqNoStats/TranslogStats from the live engine BEFORE
+                // closing it. When these are null, ReadOnlyEngine tries to open the translog
+                // to compute them — which can hit an assertion if the translog has active state
+                // from delete operations. Passing pre-captured stats avoids translog access.
+                final SeqNoStats capturedSeqNoStats = seqNoStats();
+                final TranslogStats capturedTranslogStats = translogStats();
                 synchronized (engineMutex) {
                     Engine oldEngine = currentEngineReference.get();
                     ReadOnlyEngine roEngine = new ReadOnlyEngine(
                         newEngineConfig(replicationTracker), // uses stale codec — fine, ROE only reads
-                        null,  // seqNoStats — ROE will build from commit
-                        null,  // translogStats — ROE will build from commit
+                        capturedSeqNoStats,
+                        capturedTranslogStats,
                         false, // obtainLock=false so Phase 2 can acquire write lock
                         Function.identity(), // no reader wrapping needed
                         false  // requireCompleteHistory=false
