@@ -84,7 +84,7 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
         table = catalogReader.getTable(List.of("test_table"));
         assertNotNull("Table should be found in catalog", table);
 
-        planExecutor = (fragment, ctx) -> Collections.emptyList();
+        planExecutor = (fragment, ctx, l) -> l.onResponse(Collections.emptyList());
     }
 
     /**

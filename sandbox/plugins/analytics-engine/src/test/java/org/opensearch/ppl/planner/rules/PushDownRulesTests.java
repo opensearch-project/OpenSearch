@@ -86,7 +86,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
         table = catalogReader.getTable(List.of("test_table"));
         assertNotNull("Table should be found in catalog", table);
 
-        planExecutor = (fragment, ctx) -> Linq4j.emptyEnumerable();
+        planExecutor = (fragment, ctx, l) -> l.onResponse(Linq4j.emptyEnumerable());
     }
 
     // --- BoundaryTableScanRule tests (ConverterRule, uses VolcanoPlanner) ---
