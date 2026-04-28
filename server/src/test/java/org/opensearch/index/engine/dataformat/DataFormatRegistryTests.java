@@ -289,4 +289,29 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         expectThrows(UnsupportedOperationException.class, () -> formats.add(new MockDataFormat("new", 1L, Set.of())));
     }
+
+    public void testGetFormatDescriptorsByDataFormatReturnsDescriptors() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format);
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of("columnar"));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        Map<String, DataFormatDescriptor> descriptors = registry.getFormatDescriptors(indexSettings, format);
+        assertNotNull(descriptors);
+    }
+
+    public void testGetFormatDescriptorsByDataFormatReturnsEmptyForUnregisteredFormat() {
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+        MockDataFormat unregistered = new MockDataFormat("unknown", 1L, Set.of());
+
+        Map<String, DataFormatDescriptor> descriptors = registry.getFormatDescriptors(indexSettings, unregistered);
+        assertTrue(descriptors.isEmpty());
+    }
 }
