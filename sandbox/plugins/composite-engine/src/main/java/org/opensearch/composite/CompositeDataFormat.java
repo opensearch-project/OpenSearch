@@ -26,14 +26,17 @@ import java.util.Set;
 @ExperimentalApi
 public class CompositeDataFormat extends DataFormat {
 
+    private final DataFormat primaryDataFormat;
     private final List<DataFormat> dataFormats;
 
     /**
-     * Constructs a CompositeDataFormat from the given list of data formats.
+     * Constructs a CompositeDataFormat with a designated primary format and a list of all constituent formats.
      *
-     * @param dataFormats the constituent data formats
+     * @param primaryDataFormat the authoritative data format used for merge operations
+     * @param dataFormats       all constituent data formats (including the primary)
      */
-    public CompositeDataFormat(List<DataFormat> dataFormats) {
+    public CompositeDataFormat(DataFormat primaryDataFormat, List<DataFormat> dataFormats) {
+        this.primaryDataFormat = Objects.requireNonNull(primaryDataFormat, "primaryDataFormat must not be null");
         this.dataFormats = List.copyOf(Objects.requireNonNull(dataFormats, "dataFormats must not be null"));
     }
 
@@ -41,6 +44,7 @@ public class CompositeDataFormat extends DataFormat {
      * Constructs an empty CompositeDataFormat with no constituent formats.
      */
     public CompositeDataFormat() {
+        this.primaryDataFormat = null;
         this.dataFormats = List.of();
     }
 
@@ -51,6 +55,15 @@ public class CompositeDataFormat extends DataFormat {
      */
     public List<DataFormat> getDataFormats() {
         return dataFormats;
+    }
+
+    /**
+     * Returns the primary data format used for merge operations.
+     *
+     * @return the primary data format
+     */
+    public DataFormat getPrimaryDataFormat() {
+        return primaryDataFormat;
     }
 
     @Override
