@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.common.settings.Settings;
@@ -43,7 +42,9 @@ import java.util.stream.Collectors;
  * with the full mapping, and issues each PPL query via the transport action
  * using client().execute().
  */
-//@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: no backend registers scan capability for the 'hits' index fields (OpenSearchTableScanRule fails with 'No backend can scan all requested fields'); shard execution + Arrow Flight drain also not yet wired")
+// @AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: no backend registers scan capability for the 'hits' index fields
+// (OpenSearchTableScanRule fails with 'No backend can scan all requested fields'); shard execution + Arrow Flight drain also not yet
+// wired")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class ClickBenchUnifiedPipelineIT extends OpenSearchIntegTestCase {
 

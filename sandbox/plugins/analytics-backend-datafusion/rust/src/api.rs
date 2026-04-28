@@ -161,7 +161,7 @@ use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
-use datafusion::execution::{SessionState, SessionStateBuilder};
+use datafusion::execution::SessionStateBuilder;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::execution::RecordBatchStream;
 use datafusion::prelude::SessionConfig;

@@ -117,7 +117,6 @@ public final class DatafusionMemtableReduceSink implements ExchangeSink {
         }
         Throwable failure = null;
         long streamPtr = 0;
-        boolean transferred = false;
         try {
             long[] arrayPtrs = new long[arrays.size()];
             long[] schemaPtrs = new long[schemas.size()];
@@ -126,7 +125,6 @@ public final class DatafusionMemtableReduceSink implements ExchangeSink {
                 schemaPtrs[i] = schemas.get(i).memoryAddress();
             }
             NativeBridge.registerMemtable(session.getPointer(), INPUT_ID, schemaIpc, arrayPtrs, schemaPtrs);
-            transferred = true;
 
             streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
             try (StreamHandle outStream = new StreamHandle(streamPtr, runtimeHandle)) {
@@ -177,8 +175,6 @@ public final class DatafusionMemtableReduceSink implements ExchangeSink {
                 }
             }
         }
-        // Suppress unused-warning hint — `transferred` documents the lifecycle invariant.
-        assert transferred || failure != null;
         if (failure != null) {
             if (failure instanceof RuntimeException re) {
                 throw re;

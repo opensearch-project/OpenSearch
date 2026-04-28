@@ -122,14 +122,7 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
         long actual = ((Number) cell).longValue();
         long expected = (long) VALUE * NUM_SHARDS * DOCS_PER_SHARD;
         assertEquals(
-            "SUM(value) across "
-                + NUM_SHARDS
-                + " shards × "
-                + DOCS_PER_SHARD
-                + " docs × value="
-                + VALUE
-                + " = "
-                + expected,
+            "SUM(value) across " + NUM_SHARDS + " shards × " + DOCS_PER_SHARD + " docs × value=" + VALUE + " = " + expected,
             expected,
             actual
         );
