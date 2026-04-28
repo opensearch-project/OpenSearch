@@ -55,7 +55,7 @@ import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeDirectory extends FilterDirectory implements RemoteSyncAwareDirectory {
+public class CompositeDirectory extends FilterDirectory implements RemoteSyncListener {
     private static final Logger logger = LogManager.getLogger(CompositeDirectory.class);
     protected final Directory localDirectory;
     protected final RemoteSegmentStoreDirectory remoteDirectory;

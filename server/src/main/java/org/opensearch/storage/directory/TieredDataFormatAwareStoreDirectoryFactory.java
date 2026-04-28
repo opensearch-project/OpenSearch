@@ -12,10 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.FormatDirectoryFactory;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
@@ -124,11 +125,14 @@ public class TieredDataFormatAwareStoreDirectoryFactory implements DataFormatAwa
         // 2. Wrap in SubdirectoryAwareDirectory for path routing
         SubdirectoryAwareDirectory subdirAware = new SubdirectoryAwareDirectory(localDir, shardPath);
 
-        // 3. Ask each format plugin for a tiered directory
-        Map<DataFormat, Directory> tieredDirs = dataFormatRegistry.getTieredDirectories(subdirAware, remoteDirectory, indexSettings);
+        // 3. Get format directory factories and create directories for warm
+        Map<String, FormatDirectoryFactory> factories = dataFormatRegistry.getFormatDirectoryFactories(indexSettings);
         Map<String, Directory> formatDirectories = new HashMap<>();
-        for (Map.Entry<DataFormat, Directory> entry : tieredDirs.entrySet()) {
-            formatDirectories.put(entry.getKey().name(), entry.getValue());
+        for (Map.Entry<String, FormatDirectoryFactory> entry : factories.entrySet()) {
+            formatDirectories.put(
+                entry.getKey(),
+                entry.getValue().create(subdirAware, indexSettings, remoteDirectory, fileCache, threadPool)
+            );
         }
 
         // 4. Create TieredSubdirectoryAwareDirectory
@@ -144,6 +148,20 @@ public class TieredDataFormatAwareStoreDirectoryFactory implements DataFormatAwa
         logger.debug("Created warm+format directory stack for shard [{}] with format directories: {}", shardId, formatDirectories.keySet());
 
         // 5. Wrap in DataFormatAwareStoreDirectory (direct delegate — no double wrapping)
-        return DataFormatAwareStoreDirectory.withDirectoryDelegate(indexSettings, tieredSubdir, shardPath, dataFormatRegistry);
+        boolean success = false;
+        try {
+            DataFormatAwareStoreDirectory result = DataFormatAwareStoreDirectory.withDirectoryDelegate(
+                indexSettings,
+                tieredSubdir,
+                shardPath,
+                dataFormatRegistry
+            );
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(tieredSubdir);
+            }
+        }
     }
 }

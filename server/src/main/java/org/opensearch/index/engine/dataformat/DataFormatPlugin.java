@@ -8,11 +8,9 @@
 
 package org.opensearch.index.engine.dataformat;
 
-import org.apache.lucene.store.Directory;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.FormatChecksumStrategy;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -59,31 +57,22 @@ public interface DataFormatPlugin {
     }
 
     /**
-     * Creates a format-specific tiered directory for warm nodes.
+     * Returns format-specific directory factories keyed by file format name.
      *
-     * <p>Override this to provide a custom directory that handles file operations (openInput,
-     * fileLength, etc.) for this format's files on warm nodes. The returned directory should
-     * implement {@link org.opensearch.index.store.RemoteSyncAwareDirectory} if it needs
-     * afterSyncToRemote callbacks.
+     * <p>Override this to provide factories that create custom directories for this format's
+     * files. The map keys must match the file format names used in file paths (e.g., {@code "parquet"}
+     * for files like {@code "parquet/seg.parquet"}).
      *
-     * <p>Returning {@code null} (the default) means this format's files are handled by the
-     * standard TieredDirectory via FileCache and remote metadata.
+     * <p>Return an empty map if the format uses the default directory handling.
      *
-     * <p><b>Important:</b> The returned directory shares {@code localDirectory} with TieredDirectory.
-     * Its {@code close()} method must NOT close {@code localDirectory} (e.g., must not call
-     * {@code super.close()} if it extends FilterDirectory wrapping localDirectory). Only clean up
-     * format-specific resources. The shared localDirectory is closed separately by TieredDirectory.
-     *
-     * @param localDirectory    the subdirectory-aware local directory for reading files from disk
-     * @param remoteDirectory   the remote segment store directory for reading files from remote
-     * @param indexSettings     the index settings for this shard
-     * @return a format-specific directory, or {@code null} to use the default TieredDirectory
+     * @param indexSettings       the index settings for this shard
+     * @param dataFormatRegistry  the registry for looking up sub-format plugins
+     * @return map of file format name to directory factory, or empty map
      */
-    default Directory getTieredDirectory(
-        Directory localDirectory,
-        RemoteSegmentStoreDirectory remoteDirectory,
-        IndexSettings indexSettings
+    default Map<String, FormatDirectoryFactory> getFormatDirectoryFactories(
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
     ) {
-        return null;
+        return Map.of();
     }
 }

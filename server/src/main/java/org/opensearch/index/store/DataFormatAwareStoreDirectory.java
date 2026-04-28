@@ -65,7 +65,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @PublicApi(since = "3.0.0")
-public class DataFormatAwareStoreDirectory extends FilterDirectory implements RemoteSyncAwareDirectory {
+public class DataFormatAwareStoreDirectory extends FilterDirectory implements RemoteSyncListener {
 
     private static final Logger logger = LogManager.getLogger(DataFormatAwareStoreDirectory.class);
 
@@ -169,10 +169,10 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
     @Override
     public void afterSyncToRemote(String file) {
         Directory inner = getDelegate();
-        if (inner instanceof RemoteSyncAwareDirectory) {
-            ((RemoteSyncAwareDirectory) inner).afterSyncToRemote(file);
+        if (inner instanceof RemoteSyncListener) {
+            ((RemoteSyncListener) inner).afterSyncToRemote(file);
         }
-        // On hot: inner is SubdirectoryAwareDirectory → not RemoteSyncAwareDirectory → no-op
+        // On hot: inner is SubdirectoryAwareDirectory → not RemoteSyncListener → no-op
         // On warm: inner is TieredSubdirectoryAwareDirectory → implements it → delegates
     }
 

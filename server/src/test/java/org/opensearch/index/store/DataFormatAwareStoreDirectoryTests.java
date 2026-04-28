@@ -969,18 +969,18 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
 
     public void testAfterSyncToRemoteWithNonRemoteSyncAwareDelegate() {
         // Default constructor wraps delegate in SubdirectoryAwareDirectory which does NOT
-        // implement RemoteSyncAwareDirectory → afterSyncToRemote should be a no-op
+        // implement RemoteSyncListener → afterSyncToRemote should be a no-op
         dataFormatAwareStoreDirectory.afterSyncToRemote("_0.cfe");
-        // No exception = pass. The inner SubdirectoryAwareDirectory is not RemoteSyncAwareDirectory.
+        // No exception = pass. The inner SubdirectoryAwareDirectory is not RemoteSyncListener.
     }
 
     public void testAfterSyncToRemoteWithRemoteSyncAwareDelegate() {
-        // Create a DataFormatAwareStoreDirectory with a RemoteSyncAwareDirectory delegate
-        RemoteSyncAwareDirectory mockDelegate = mock(RemoteSyncAwareDirectory.class);
+        // Create a DataFormatAwareStoreDirectory with a RemoteSyncListener delegate
+        RemoteSyncListener mockDelegate = mock(RemoteSyncListener.class);
         org.apache.lucene.store.Directory mockDir = mock(org.apache.lucene.store.Directory.class);
 
-        // We need a Directory that is also RemoteSyncAwareDirectory — use the abstract helper
-        RemoteSyncAwareMockDirectory syncAwareDir = mock(RemoteSyncAwareMockDirectory.class);
+        // We need a Directory that is also RemoteSyncListener — use the abstract helper
+        RemoteSyncListenerMockDirectory syncAwareDir = mock(RemoteSyncListenerMockDirectory.class);
 
         PluginsService pluginsService = mock(PluginsService.class);
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
@@ -1034,7 +1034,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
     }
 
     /**
-     * Helper interface for mocking a Directory that also implements RemoteSyncAwareDirectory.
+     * Helper interface for mocking a Directory that also implements RemoteSyncListener.
      */
-    abstract static class RemoteSyncAwareMockDirectory extends org.apache.lucene.store.Directory implements RemoteSyncAwareDirectory {}
+    abstract static class RemoteSyncListenerMockDirectory extends org.apache.lucene.store.Directory implements RemoteSyncListener {}
 }

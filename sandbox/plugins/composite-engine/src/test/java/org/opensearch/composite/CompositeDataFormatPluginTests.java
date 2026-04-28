@@ -105,4 +105,88 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         );
         assertTrue(descriptors.isEmpty());
     }
+
+    public void testGetFormatDirectoryFactoriesReturnsEmptyWhenNoSubPlugins() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+
+        Settings settings = Settings.builder()
+            .put("index.composite.primary_data_format", "parquet")
+            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
+            .settings(settings)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        // No plugin registered for "parquet"
+        when(registry.getPlugin("parquet")).thenReturn(null);
+
+        Map<String, org.opensearch.index.engine.dataformat.FormatDirectoryFactory> factories = plugin.getFormatDirectoryFactories(
+            indexSettings,
+            registry
+        );
+        assertTrue("Should return empty when no sub-plugin found", factories.isEmpty());
+    }
+
+    public void testGetFormatDirectoryFactoriesCollectsFromSubPlugin() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+
+        Settings settings = Settings.builder()
+            .put("index.composite.primary_data_format", "parquet")
+            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
+            .settings(settings)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        // Mock a sub-plugin that provides a factory
+        org.opensearch.index.engine.dataformat.DataFormatPlugin subPlugin = mock(
+            org.opensearch.index.engine.dataformat.DataFormatPlugin.class
+        );
+        org.opensearch.index.engine.dataformat.FormatDirectoryFactory mockFactory = mock(
+            org.opensearch.index.engine.dataformat.FormatDirectoryFactory.class
+        );
+        when(subPlugin.getFormatDirectoryFactories(indexSettings, registry)).thenReturn(Map.of("parquet", mockFactory));
+        when(registry.getPlugin("parquet")).thenReturn(subPlugin);
+
+        Map<String, org.opensearch.index.engine.dataformat.FormatDirectoryFactory> factories = plugin.getFormatDirectoryFactories(
+            indexSettings,
+            registry
+        );
+        assertEquals(1, factories.size());
+        assertTrue(factories.containsKey("parquet"));
+        assertSame(mockFactory, factories.get("parquet"));
+    }
+
+    public void testGetFormatDirectoryFactoriesSkipsNullFormatName() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+
+        // Default primary is "lucene", no secondary — collectFactories should handle gracefully
+        Settings settings = Settings.builder()
+            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
+            .settings(settings)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        // "lucene" plugin not registered — should return empty, not NPE
+        when(registry.getPlugin("lucene")).thenReturn(null);
+
+        Map<String, org.opensearch.index.engine.dataformat.FormatDirectoryFactory> factories = plugin.getFormatDirectoryFactories(
+            indexSettings,
+            registry
+        );
+        assertTrue("Should return empty when sub-plugin not found", factories.isEmpty());
+    }
 }

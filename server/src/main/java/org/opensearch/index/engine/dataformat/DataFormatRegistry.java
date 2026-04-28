@@ -10,18 +10,15 @@ package org.opensearch.index.engine.dataformat;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.Directory;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.store.FormatChecksumStrategy;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -110,6 +107,22 @@ public class DataFormatRegistry {
     }
 
     /**
+     * Returns the plugin registered for the given format name, or {@code null} if not found.
+     * Used by composite plugins to look up sub-format plugins directly without going through
+     * the registry's top-level methods (which would cause infinite recursion).
+     *
+     * @param formatName the data format name (e.g., "parquet", "lucene")
+     * @return the plugin, or null if no plugin is registered for the format
+     */
+    public DataFormatPlugin getPlugin(String formatName) {
+        if (formatName == null) {
+            return null;
+        }
+        DataFormat format = dataFormats.get(formatName);
+        return format != null ? dataFormatPluginRegistry.get(format) : null;
+    }
+
+    /**
      * Returns all registered data formats that support a specific capability for a field type.
      *
      * @param fieldType the field type name
@@ -138,34 +151,25 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Asks each registered format plugin for a tiered directory and returns the non-null results.
-     * Called by TieredDataFormatAwareStoreDirectoryFactory at shard open time on warm nodes.
+     * Returns format-specific directory factories from the active format plugin.
+     * Called by directory factories at shard open time.
+     * Follows the same pattern as {@link #getFormatDescriptors(IndexSettings)}.
      *
-     * @param localDirectory    the subdirectory-aware local directory
-     * @param remoteDirectory   the remote segment store directory
-     * @param indexSettings     the index settings for this shard
-     * @return map of format name to tiered directory (only formats that provide one)
+     * @param indexSettings the index settings for this shard
+     * @return map of file format name to directory factory, or empty map
      */
-    public Map<DataFormat, Directory> getTieredDirectories(
-        Directory localDirectory,
-        RemoteSegmentStoreDirectory remoteDirectory,
-        IndexSettings indexSettings
-    ) {
-        Map<DataFormat, Directory> result = new HashMap<>();
-        String dataformatName = indexSettings.getSettings().get(PLUGGABLE_DATAFORMAT_SETTING);
-        if (dataformatName != null) {
+    public Map<String, FormatDirectoryFactory> getFormatDirectoryFactories(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
             DataFormat format = dataFormats.get(dataformatName);
             if (format != null) {
                 DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
                 if (plugin != null) {
-                    Directory dir = plugin.getTieredDirectory(localDirectory, remoteDirectory, indexSettings);
-                    if (dir != null) {
-                        result.put(format, dir);
-                    }
+                    return plugin.getFormatDirectoryFactories(indexSettings, this);
                 }
             }
         }
-        return Collections.unmodifiableMap(result);
+        return Map.of();
     }
 
     /**

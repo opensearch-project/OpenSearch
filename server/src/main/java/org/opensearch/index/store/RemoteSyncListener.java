@@ -11,13 +11,11 @@ package org.opensearch.index.store;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Interface for directories that need notification after files are synced to the remote store.
+ * Listener that receives notifications after files are synced to the remote store.
  *
- * <p>When a file is uploaded to the remote segment store, the uploader service walks the
- * {@link org.apache.lucene.store.FilterDirectory} chain to find a directory implementing this
- * interface and calls {@link #afterSyncToRemote(String)}. This allows each directory layer to
- * react to the sync event — for example, unpinning a file from the local cache so it becomes
- * eligible for eviction, or updating a file registry to reflect the new remote location.
+ * <p>Registered via {@code RemoteStoreUploaderService.addSyncListener()} at uploader
+ * construction time. When a file is uploaded to the remote segment store, the uploader
+ * calls {@link #afterSyncToRemote(String)} on all registered listeners.
  *
  * <p>Implemented by:
  * <ul>
@@ -28,8 +26,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
  *
  * @opensearch.experimental
  */
+@FunctionalInterface
 @ExperimentalApi
-public interface RemoteSyncAwareDirectory {
+public interface RemoteSyncListener {
 
     /**
      * Called after a file has been successfully uploaded to the remote store.

@@ -19,7 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.index.store.RemoteSyncAwareDirectory;
+import org.opensearch.index.store.RemoteSyncListener;
 import org.opensearch.index.store.SubdirectoryAwareDirectory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -399,7 +399,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * Format directory implements RemoteSyncAwareDirectory, afterSyncToRemote should call it.
+     * Format directory implements RemoteSyncListener, afterSyncToRemote should call it.
      */
     public void testAfterSyncToRemoteFormatFileWithRemoteSyncAware() {
         RemoteSyncAwareFormatDirectory syncAwareDir = mock(RemoteSyncAwareFormatDirectory.class);
@@ -421,19 +421,19 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * Format directory does NOT implement RemoteSyncAwareDirectory, afterSyncToRemote should
+     * Format directory does NOT implement RemoteSyncListener, afterSyncToRemote should
      * be a no-op for the format file (not fall through to TieredDirectory).
      */
     public void testAfterSyncToRemoteFormatFileWithoutRemoteSyncAware() throws IOException {
         directory = buildDirectoryWithParquetFormat();
         try {
-            // The non-closing format directory does NOT implement RemoteSyncAwareDirectory.
+            // The non-closing format directory does NOT implement RemoteSyncListener.
             // With the fix, afterSyncToRemote is a no-op for format files whose directory
             // doesn't support sync — it does NOT fall through to tieredDirectory.
             String parquetFile = "parquet/seg_nosync.parquet";
             writeParquetFileToDisk(parquetFile);
 
-            // Should complete without error — no-op for non-RemoteSyncAwareDirectory format dirs
+            // Should complete without error — no-op for non-RemoteSyncListener format dirs
             directory.afterSyncToRemote(parquetFile);
         } finally {
             directory.close();
@@ -642,7 +642,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * afterSyncToRemote for a format file whose directory is non-null but not RemoteSyncAwareDirectory
+     * afterSyncToRemote for a format file whose directory is non-null but not RemoteSyncListener
      * should be a no-op — must NOT fall through to tieredDirectory.
      */
     public void testAfterSyncToRemoteFormatFileNoopWhenNotRemoteSyncAware() throws IOException {
@@ -653,7 +653,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
             writeParquetFileToDisk(parquetFile);
 
             // With the fix, this is a no-op because the format directory exists but doesn't
-            // implement RemoteSyncAwareDirectory. Previously this would fall through to
+            // implement RemoteSyncListener. Previously this would fall through to
             // tieredDirectory.afterSyncToRemote and NPE on fileCache.decRef for uncached file.
             directory.afterSyncToRemote(parquetFile);
             // If we get here without NPE, the no-op path is working correctly.
@@ -663,11 +663,11 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Helper: interface combining Directory + RemoteSyncAwareDirectory for mocking
+    // Helper: interface combining Directory + RemoteSyncListener for mocking
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Helper interface for creating mocks that implement both Directory and RemoteSyncAwareDirectory.
+     * Helper interface for creating mocks that implement both Directory and RemoteSyncListener.
      */
-    abstract static class RemoteSyncAwareFormatDirectory extends Directory implements RemoteSyncAwareDirectory {}
+    abstract static class RemoteSyncAwareFormatDirectory extends Directory implements RemoteSyncListener {}
 }

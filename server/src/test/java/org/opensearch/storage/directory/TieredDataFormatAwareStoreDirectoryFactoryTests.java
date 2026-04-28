@@ -99,7 +99,7 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
         when(localDirectoryFactory.newDirectory(any(), any())).thenReturn(fsDir);
 
         dataFormatRegistry = mock(DataFormatRegistry.class);
-        when(dataFormatRegistry.getTieredDirectories(any(), any(), any())).thenReturn(new HashMap<>());
+        when(dataFormatRegistry.getFormatDirectoryFactories(any())).thenReturn(new HashMap<>());
         when(dataFormatRegistry.getFormatDescriptors(any())).thenReturn(new HashMap<>());
 
         remoteDirectory = createRealRemoteSegmentStoreDirectory(shardId);
@@ -186,7 +186,7 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
      * the factory still creates a valid directory stack with no format directories.
      */
     public void testEmptyFormatDirectoriesWhenNoPluginProvides() throws IOException {
-        when(dataFormatRegistry.getTieredDirectories(any(), any(), any())).thenReturn(Map.of());
+        when(dataFormatRegistry.getFormatDirectoryFactories(any())).thenReturn(Map.of());
 
         DataFormatAwareStoreDirectory result = factory.newDataFormatAwareStoreDirectory(
             indexSettings,

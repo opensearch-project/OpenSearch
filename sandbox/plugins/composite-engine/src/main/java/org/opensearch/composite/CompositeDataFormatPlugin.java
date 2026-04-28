@@ -18,6 +18,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.FormatDirectoryFactory;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.plugins.ExtensiblePlugin;
@@ -40,11 +41,6 @@ import java.util.function.Supplier;
  *   <li>{@code index.composite.primary_data_format} — designates the primary format (default {@code "lucene"})</li>
  *   <li>{@code index.composite.secondary_data_formats} — lists the secondary formats (default empty)</li>
  * </ul>
- * <p>
- * Format plugins (e.g., Parquet) extend this plugin by declaring
- * {@code extendedPlugins = ['composite-engine']} in their {@code build.gradle}
- * and implementing {@link DataFormatPlugin}. The {@link ExtensiblePlugin} SPI
- * discovers them automatically during node bootstrap.
  *
  * @opensearch.experimental
  */
@@ -77,7 +73,6 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Setting.Property.Final
     );
 
-    /** Creates a new composite engine plugin. */
     public CompositeDataFormatPlugin() {}
 
     @Override
@@ -122,5 +117,42 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             }
         }
         return Map.copyOf(descriptors);
+    }
+
+    /**
+     * Collects format directory factories from each sub-format plugin (primary + secondary).
+     * Calls each sub-format plugin directly via {@link DataFormatRegistry#getPlugin(String)}
+     * to avoid infinite recursion through the registry's top-level method.
+     */
+    @Override
+    public Map<String, FormatDirectoryFactory> getFormatDirectoryFactories(
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
+        Settings settings = indexSettings.getSettings();
+        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
+
+        Map<String, FormatDirectoryFactory> result = new HashMap<>();
+        collectFactories(primaryFormatName, indexSettings, dataFormatRegistry, result);
+        for (String secondaryName : secondaryFormatNames) {
+            collectFactories(secondaryName, indexSettings, dataFormatRegistry, result);
+        }
+        return Map.copyOf(result);
+    }
+
+    private void collectFactories(
+        String formatName,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry,
+        Map<String, FormatDirectoryFactory> result
+    ) {
+        if (formatName == null || formatName.isEmpty()) {
+            return;
+        }
+        DataFormatPlugin plugin = dataFormatRegistry.getPlugin(formatName);
+        if (plugin != null) {
+            result.putAll(plugin.getFormatDirectoryFactories(indexSettings, dataFormatRegistry));
+        }
     }
 }

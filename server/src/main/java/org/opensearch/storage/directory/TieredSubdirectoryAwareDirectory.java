@@ -18,7 +18,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
-import org.opensearch.index.store.RemoteSyncAwareDirectory;
+import org.opensearch.index.store.RemoteSyncListener;
 import org.opensearch.index.store.SubdirectoryAwareDirectory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
@@ -40,7 +40,7 @@ import java.util.function.Supplier;
  * and per-format directory routing.
  *
  * <p>This directory extends {@link FilterDirectory} wrapping a {@link SubdirectoryAwareDirectory}
- * and implements {@link RemoteSyncAwareDirectory} for remote sync notifications. It routes file
+ * and implements {@link RemoteSyncListener} for remote sync notifications. It routes file
  * operations based on data format:
  * <ul>
  *   <li>Files with a format-specific directory (e.g., parquet) are routed to that directory</li>
@@ -59,7 +59,7 @@ import java.util.function.Supplier;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements RemoteSyncAwareDirectory {
+public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements RemoteSyncListener {
 
     private static final Logger logger = LogManager.getLogger(TieredSubdirectoryAwareDirectory.class);
 
@@ -154,8 +154,8 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
     public void afterSyncToRemote(String file) {
         Directory formatDir = resolveFormatDirectory(file);
         if (formatDir != null) {
-            if (formatDir instanceof RemoteSyncAwareDirectory) {
-                ((RemoteSyncAwareDirectory) formatDir).afterSyncToRemote(file);
+            if (formatDir instanceof RemoteSyncListener) {
+                ((RemoteSyncListener) formatDir).afterSyncToRemote(file);
             }
             // else: format directory doesn't support sync notifications — no-op
         } else {

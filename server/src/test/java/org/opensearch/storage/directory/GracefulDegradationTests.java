@@ -89,7 +89,7 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
 
         // Simulate sandbox not loaded: DataFormatRegistry returns empty tiered directories
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.getTieredDirectories(any(), any(), any())).thenReturn(Map.of());
+        when(registry.getFormatDirectoryFactories(any())).thenReturn(Map.of());
         when(registry.getFormatDescriptors(any())).thenReturn(Map.of());
 
         FSDirectory fsDir = FSDirectory.open(shardPath.resolveIndex());

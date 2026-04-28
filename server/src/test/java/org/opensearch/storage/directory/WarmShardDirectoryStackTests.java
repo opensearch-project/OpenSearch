@@ -117,7 +117,7 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
         when(localDirFactory.newDirectory(any(), any())).thenReturn(fsDir);
 
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.getTieredDirectories(any(), any(), any())).thenReturn(new HashMap<>());
+        when(registry.getFormatDirectoryFactories(any())).thenReturn(new HashMap<>());
         when(registry.getFormatDescriptors(any())).thenReturn(new HashMap<>());
 
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir(shardPath.getShardId());
