@@ -172,7 +172,9 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RexNode condition = makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 0, "hello world");
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
 
-        PlannerContext context = buildContext("parquet", Map.of("message", Map.of("type", "keyword")));
+        // index=false strips the inverted index so no backend can satisfy the full-text predicate
+        // natively, forcing the "without delegation" code path under test.
+        PlannerContext context = buildContext("parquet", Map.of("message", Map.of("type", "keyword", "index", false)));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
         assertTrue(exception.getMessage().contains("No backend can evaluate filter predicate"));
