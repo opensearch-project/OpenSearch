@@ -10,6 +10,7 @@ package org.opensearch.action.admin.indices.scale.searchonly;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
@@ -230,7 +231,7 @@ public class TransportScaleIndexAction extends TransportClusterManagerNodeAction
         Exception failure,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.warn("Scale-down failed for index [{}], removing temporary block", index, failure);
+        logger.warn(() -> new ParameterizedMessage("Scale-down failed for index [{}], removing temporary block", index), failure);
         try {
             clusterService.submitStateUpdateTask(
                 "remove-block-index-after-scale-down-failure " + index,
