@@ -18,6 +18,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -28,6 +29,9 @@ import static org.mockito.Mockito.when;
  * sinks and transitions, failFromChild/cancel close the backend sink.
  */
 public class LocalStageExecutionTests extends OpenSearchTestCase {
+
+    /** Synchronous executor for deterministic test assertions. */
+    private static final Executor SYNC_EXECUTOR = Runnable::run;
 
     private BufferAllocator allocator;
 
@@ -46,7 +50,7 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
     public void testStartClosesBackendSinkAndTransitionsToSucceeded() {
         CapturingSink backend = new CapturingSink();
         CapturingSink downstream = new CapturingSink();
-        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, downstream);
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, downstream, SYNC_EXECUTOR);
 
         exec.start();
 
@@ -59,7 +63,7 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
 
     public void testInputSinkReturnsBackendSinkForAnyChildId() {
         CapturingSink backend = new CapturingSink();
-        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink());
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink(), SYNC_EXECUTOR);
 
         assertSame(backend, exec.inputSink(0));
         assertSame(backend, exec.inputSink(7));
@@ -68,12 +72,12 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
 
     public void testOutputSourceReturnsDownstreamWhenItImplementsExchangeSource() {
         RowProducingSink downstream = new RowProducingSink();
-        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), new CapturingSink(), downstream);
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), new CapturingSink(), downstream, SYNC_EXECUTOR);
         assertSame(downstream, exec.outputSource());
     }
 
     public void testOutputSourceThrowsWhenDownstreamDoesNotImplementExchangeSource() {
-        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), new CapturingSink(), new CapturingSink());
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), new CapturingSink(), new CapturingSink(), SYNC_EXECUTOR);
         expectThrows(UnsupportedOperationException.class, exec::outputSource);
     }
 
@@ -88,7 +92,7 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
                 throw boom;
             }
         };
-        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink());
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink(), SYNC_EXECUTOR);
 
         exec.start();
 
@@ -98,7 +102,7 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
 
     public void testStartIsNoopAfterTerminalTransition() {
         CapturingSink backend = new CapturingSink();
-        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink());
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink(), SYNC_EXECUTOR);
 
         exec.cancel("test cancellation");
         assertEquals(StageExecution.State.CANCELLED, exec.getState());
@@ -112,7 +116,7 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
 
     public void testFailFromChildClosesBackendSinkAndTransitions() {
         CapturingSink backend = new CapturingSink();
-        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink());
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink(), SYNC_EXECUTOR);
 
         Exception cause = new RuntimeException("child failed");
         boolean transitioned = exec.failFromChild(cause);
@@ -125,7 +129,7 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
 
     public void testCancelClosesBackendSink() {
         CapturingSink backend = new CapturingSink();
-        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink());
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink(), SYNC_EXECUTOR);
 
         exec.cancel("user requested");
 

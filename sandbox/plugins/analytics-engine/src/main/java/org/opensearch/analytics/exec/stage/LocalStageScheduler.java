@@ -50,7 +50,7 @@ final class LocalStageScheduler implements StageScheduler {
         } catch (Exception e) {
             throw new RuntimeException("Failed to create exchange sink for stageId=" + stage.getStageId(), e);
         }
-        return new LocalStageExecution(stage, backendSink, sink);
+        return new LocalStageExecution(stage, backendSink, sink, config.searchExecutor());
     }
 
     /** Picks the plan-alternative bytes bound to the stage's exchange sink provider. */
