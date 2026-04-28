@@ -32,7 +32,7 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
 
         assertEquals("name", info.getFieldName());
         assertEquals(List.of("parquet"), info.getDocValueFormats());
-        assertTrue("text field should not be marked as indexed by default", info.getIndexFormats().isEmpty());
+        assertEquals(List.of("lucene"), info.getIndexFormats());
     }
 
     public void testLongFieldGetsDocValuesInPrimaryFormat() {
@@ -42,12 +42,13 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
 
         assertEquals("age", info.getFieldName());
         assertEquals(List.of("parquet"), info.getDocValueFormats());
+        assertEquals(List.of("lucene"), info.getIndexFormats());
     }
 
-    public void testTextFieldWithDocValuesDisabledHasNoStorage() {
+    public void testFieldWithAllStorageDisabledHasNoStorage() {
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            () -> newResolver("parquet", Map.of("name", Map.of("type", "text", "doc_values", false)))
+            () -> newResolver("parquet", Map.of("name", Map.of("type", "text", "doc_values", false, "index", false)))
         );
         assertTrue("expected 'no storage' error, got: " + ex.getMessage(), ex.getMessage().contains("has no storage in any format"));
     }
