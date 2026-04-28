@@ -122,12 +122,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private Iterable<Object[]> executeInternal(RelNode logicalFragment) {
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
-        // Phase 4: generate plan alternatives per stage. Phase 5: convert each to backend bytes.
-        // Both must run before the scheduler picks `chosenBytes` for COORDINATOR_REDUCE / SHARD_FRAGMENT
-        // dispatch — otherwise plan alternatives stay empty and LocalStageScheduler asserts.
         PlanForker.forkAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
-        logger.info("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
+        logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
         // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.

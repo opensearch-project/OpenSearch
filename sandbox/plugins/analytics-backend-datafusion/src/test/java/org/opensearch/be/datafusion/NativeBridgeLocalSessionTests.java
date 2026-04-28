@@ -8,6 +8,12 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.c.ArrowArray;
+import org.apache.arrow.c.ArrowSchema;
+import org.apache.arrow.c.Data;
+import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.WriteChannel;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -81,6 +87,78 @@ public class NativeBridgeLocalSessionTests extends OpenSearchTestCase {
                 long senderPtr = NativeBridge.registerPartitionStream(session.getPointer(), "input-0", schemaIpc(schema));
                 assertTrue("sender ptr non-zero", senderPtr != 0);
                 NativeBridge.senderClose(senderPtr);
+            } finally {
+                session.close();
+            }
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    public void testRegisterMemtableAcceptsZeroBatches() throws Exception {
+        NativeRuntimeHandle runtimeHandle = createRuntime();
+        try {
+            DatafusionLocalSession session = new DatafusionLocalSession(runtimeHandle.get());
+            try {
+                Schema schema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+                NativeBridge.registerMemtable(session.getPointer(), "input-0", schemaIpc(schema), new long[0], new long[0]);
+            } finally {
+                session.close();
+            }
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    public void testRegisterMemtableImportsBatch() throws Exception {
+        NativeRuntimeHandle runtimeHandle = createRuntime();
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            DatafusionLocalSession session = new DatafusionLocalSession(runtimeHandle.get());
+            try {
+                Schema schema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+                VectorSchemaRoot vsr = VectorSchemaRoot.create(schema, alloc);
+                vsr.allocateNew();
+                BigIntVector col = (BigIntVector) vsr.getVector(0);
+                col.setSafe(0, 1L);
+                col.setSafe(1, 2L);
+                col.setValueCount(2);
+                vsr.setRowCount(2);
+                try (ArrowArray array = ArrowArray.allocateNew(alloc); ArrowSchema arrowSchema = ArrowSchema.allocateNew(alloc)) {
+                    Data.exportVectorSchemaRoot(alloc, vsr, null, array, arrowSchema);
+                    NativeBridge.registerMemtable(
+                        session.getPointer(),
+                        "input-0",
+                        schemaIpc(schema),
+                        new long[] { array.memoryAddress() },
+                        new long[] { arrowSchema.memoryAddress() }
+                    );
+                } finally {
+                    vsr.close();
+                }
+            } finally {
+                session.close();
+            }
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    public void testRegisterMemtableRejectsLengthMismatch() throws Exception {
+        NativeRuntimeHandle runtimeHandle = createRuntime();
+        try {
+            DatafusionLocalSession session = new DatafusionLocalSession(runtimeHandle.get());
+            try {
+                Schema schema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> NativeBridge.registerMemtable(
+                        session.getPointer(),
+                        "input-0",
+                        schemaIpc(schema),
+                        new long[] { 1L, 2L },
+                        new long[] { 1L }
+                    )
+                );
             } finally {
                 session.close();
             }

@@ -188,7 +188,7 @@ public final class NativeBridge {
         SENDER_CLOSE = linker.downcallHandle(lib.find("df_sender_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
         // i64 df_register_memtable(session_ptr, input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len,
-        //                          array_ptrs, schema_ptrs, n_batches)
+        // array_ptrs, schema_ptrs, n_batches)
         REGISTER_MEMTABLE = linker.downcallHandle(
             lib.find("df_register_memtable").orElseThrow(),
             FunctionDescriptor.of(
