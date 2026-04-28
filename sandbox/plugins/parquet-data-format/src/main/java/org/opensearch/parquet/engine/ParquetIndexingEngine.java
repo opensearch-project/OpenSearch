@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
@@ -136,7 +137,9 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        this.parquetMerger = new ParquetMergeExecutor(new StreamingParquetMergeStrategy());
+        this.parquetMerger = new ParquetMergeExecutor(
+            new StreamingParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath.getDataPath())
+        );
         pushSettingsToRust();
     }
 

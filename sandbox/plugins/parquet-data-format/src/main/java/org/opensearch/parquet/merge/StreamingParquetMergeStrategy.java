@@ -16,7 +16,6 @@ import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.parquet.bridge.RustBridge;
-import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 
 import java.nio.file.Files;
@@ -33,33 +32,45 @@ public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
 
     private static final Logger logger = LogManager.getLogger(StreamingParquetMergeStrategy.class);
 
+    private final DataFormat dataFormat;
+    private final String indexName;
+    private final Path shardDataPath;
+
+    public StreamingParquetMergeStrategy(DataFormat dataFormat, String indexName, Path shardDataPath) {
+        this.dataFormat = dataFormat;
+        this.indexName = indexName;
+        this.shardDataPath = shardDataPath;
+    }
+
     @Override
     public MergeResult mergeParquetFiles(MergeInput mergeInput) {
 
-        List<WriterFileSet> files = mergeInput.writerFiles();
+        List<WriterFileSet> files = mergeInput.getFilesForFormat(dataFormat.name());
         long writerGeneration = mergeInput.newWriterGeneration();
         if (files.isEmpty()) {
             throw new IllegalArgumentException("No files to merge");
         }
 
         List<Path> filePaths = new ArrayList<>();
-        files.forEach(writerFileSet -> writerFileSet.files().forEach(file -> filePaths.add(Path.of(writerFileSet.directory(), file))));
+        files.forEach(writerFileSet -> writerFileSet.files().forEach(
+            file -> filePaths.add(shardDataPath.resolve(writerFileSet.directory()).resolve(file))
+        ));
 
-        String outputDirectory = files.getFirst().directory();
+        String outputDirectory = shardDataPath.resolve(files.getFirst().directory()).toString();
         String mergedFilePath = getMergedFilePath(writerGeneration, outputDirectory);
         String mergedFileName = getMergedFileName(writerGeneration);
 
         try {
             // Merge files in Rust
-            RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath, mergeInput.indexName());
+            RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath, indexName);
 
             WriterFileSet mergedWriterFileSet = WriterFileSet.builder()
-                .directory(Path.of(outputDirectory))
+                .directory(Path.of(files.getFirst().directory()))
                 .addFile(mergedFileName)
                 .writerGeneration(writerGeneration)
                 .build();
 
-            Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(new ParquetDataFormat(), mergedWriterFileSet);
+            Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(dataFormat, mergedWriterFileSet);
 
             return new MergeResult(mergedWriterFileSetMap);
 

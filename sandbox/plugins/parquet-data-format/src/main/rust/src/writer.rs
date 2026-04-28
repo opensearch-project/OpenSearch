@@ -169,8 +169,10 @@ impl NativeParquetWriter {
 
                             Self::sort_and_rewrite_parquet(&temp_filename, &filename, index_name, &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first)?;
 
-                            if let Err(e) = std::fs::remove_file(&temp_filename) {
-                                log_error!("Failed to remove temp file {}: {}", temp_filename, e);
+                            if Path::new(&temp_filename).exists() {
+                                if let Err(e) = std::fs::remove_file(&temp_filename) {
+                                    log_error!("Failed to remove temp file {}: {}", temp_filename, e);
+                                }
                             }
 
                             // Compute CRC32 by reading the final sorted file

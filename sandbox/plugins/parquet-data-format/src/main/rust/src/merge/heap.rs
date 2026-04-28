@@ -76,7 +76,9 @@ pub fn cmp_sort_values(a: &[SortKey], b: &[SortKey], reverse_sorts: &[bool]) -> 
         let ord = av.cmp(bv);
         if ord != Ordering::Equal {
             let reverse = reverse_sorts.get(i).copied().unwrap_or(false);
-            return if reverse { ord.reverse() } else { ord };
+            let is_null_cmp = matches!(av, SortKey::NullFirst | SortKey::NullLast)
+                           || matches!(bv, SortKey::NullFirst | SortKey::NullLast);
+            return if reverse && !is_null_cmp { ord.reverse() } else { ord };
         }
     }
     Ordering::Equal

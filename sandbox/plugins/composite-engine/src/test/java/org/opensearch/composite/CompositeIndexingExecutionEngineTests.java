@@ -167,7 +167,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
 
     public void testGetMergerDelegatesToPrimary() {
         CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngine("lucene");
-        assertNull(engine.getMerger());
+        assertNotNull(engine.getMerger());
     }
 
     public void testGetNativeBytesUsedSumsAllEngines() {
