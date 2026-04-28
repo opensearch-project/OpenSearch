@@ -5441,7 +5441,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 public void close() throws IOException {
                     assert Thread.holdsLock(engineMutex);
 
-                    Indexer newEngine = newEngineReference.getAndSet(null);
+                    Indexer newEngine = newEngineReference.get();
                     if (newEngine == currentEngineReference.get()) {
                         // we successfully installed the new engine so do not close it.
                         newEngine = null;
