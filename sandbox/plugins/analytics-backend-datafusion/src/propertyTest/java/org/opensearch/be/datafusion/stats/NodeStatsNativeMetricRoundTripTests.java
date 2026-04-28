@@ -8,12 +8,11 @@
 
 package org.opensearch.be.datafusion.stats;
 
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.OperationType;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.plugin.stats.NativeExecutorsStats;
-import org.opensearch.plugin.stats.NativeExecutorsStats.OperationType;
-import org.opensearch.plugin.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.plugin.stats.NativeExecutorsStats.TaskMonitorStats;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;

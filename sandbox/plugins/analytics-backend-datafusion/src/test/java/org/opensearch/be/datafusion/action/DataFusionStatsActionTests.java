@@ -10,11 +10,12 @@ package org.opensearch.be.datafusion.action;
 
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
+import org.opensearch.be.datafusion.stats.DataFusionStats;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.plugin.stats.DataFusionStats;
-import org.opensearch.plugin.stats.NativeExecutorsStats;
-import org.opensearch.plugin.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.plugin.stats.NativeExecutorsStats.TaskMonitorStats;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest;
@@ -131,6 +132,7 @@ public class DataFusionStatsActionTests extends OpenSearchTestCase {
 
     // ---- Test: DataFusionPlugin.getRestHandlers() returns list containing DataFusionStatsAction (Requirement 1.2) ----
 
+    @SuppressForbidden(reason = "reflection needed to inject mock DataFusionService into plugin for testing")
     public void testPluginGetRestHandlersReturnsStatsAction() throws Exception {
         DataFusionPlugin plugin = new DataFusionPlugin();
 

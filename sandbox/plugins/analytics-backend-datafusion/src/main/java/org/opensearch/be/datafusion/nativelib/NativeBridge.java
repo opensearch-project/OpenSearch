@@ -9,11 +9,11 @@
 package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.be.datafusion.stats.DataFusionStats;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
-import org.opensearch.plugin.stats.DataFusionStats;
-import org.opensearch.plugin.stats.NativeExecutorsStats;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;

@@ -8,15 +8,14 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.plugin.stats.NativeExecutorsStats;
-import org.opensearch.plugin.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.plugin.stats.NativeExecutorsStats.TaskMonitorStats;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -53,8 +52,7 @@ public class StatsLayoutPropertyTests {
 
     @Provide
     Arbitrary<long[]> twentyEightLongs() {
-        return Arbitraries.longs().between(0, Long.MAX_VALUE / 2)
-            .array(long[].class).ofSize(FIELD_COUNT);
+        return Arbitraries.longs().between(0, Long.MAX_VALUE / 2).array(long[].class).ofSize(FIELD_COUNT);
     }
 
     @Provide
@@ -76,8 +74,7 @@ public class StatsLayoutPropertyTests {
     @Provide
     Arbitrary<RuntimeMetrics> runtimeMetrics() {
         Arbitrary<Long> nonNeg = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        return Combinators.combine(nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg)
-            .as(RuntimeMetrics::new);
+        return Combinators.combine(nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg).as(RuntimeMetrics::new);
     }
 
     @Provide
@@ -88,18 +85,21 @@ public class StatsLayoutPropertyTests {
 
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsWithCpu() {
-        return Combinators.combine(
-            runtimeMetrics(),
-            runtimeMetrics().map(rt -> {
-                if (rt.workersCount == 0) {
-                    return new RuntimeMetrics(1, rt.totalPollsCount, rt.totalBusyDurationMs,
-                        rt.totalOverflowCount, rt.globalQueueDepth, rt.blockingQueueDepth,
-                        rt.numAliveTasks, rt.spawnedTasksCount);
-                }
-                return rt;
-            }),
-            taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()
-        ).as((io, cpu, qe, sn, fp, ss) -> {
+        return Combinators.combine(runtimeMetrics(), runtimeMetrics().map(rt -> {
+            if (rt.workersCount == 0) {
+                return new RuntimeMetrics(
+                    1,
+                    rt.totalPollsCount,
+                    rt.totalBusyDurationMs,
+                    rt.totalOverflowCount,
+                    rt.globalQueueDepth,
+                    rt.blockingQueueDepth,
+                    rt.numAliveTasks,
+                    rt.spawnedTasksCount
+                );
+            }
+            return rt;
+        }), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, cpu, qe, sn, fp, ss) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
@@ -111,16 +111,15 @@ public class StatsLayoutPropertyTests {
 
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsNoCpu() {
-        return Combinators.combine(
-            runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()
-        ).as((io, qe, sn, fp, ss) -> {
-            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-            monitors.put("query_execution", qe);
-            monitors.put("stream_next", sn);
-            monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
-            return new NativeExecutorsStats(io, null, monitors);
-        });
+        return Combinators.combine(runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues())
+            .as((io, qe, sn, fp, ss) -> {
+                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+                monitors.put("query_execution", qe);
+                monitors.put("stream_next", sn);
+                monitors.put("fetch_phase", fp);
+                monitors.put("segment_stats", ss);
+                return new NativeExecutorsStats(io, null, monitors);
+            });
     }
 
     // ---- Property 1: Pack-then-decode round-trip (cpu workers > 0) ----
@@ -162,7 +161,7 @@ public class StatsLayoutPropertyTests {
             assertEquals(values[14], cpuRuntime.numAliveTasks);
             assertEquals(values[15], cpuRuntime.spawnedTasksCount);
 
-            String[] tmGroups = {"query_execution", "stream_next", "fetch_phase", "segment_stats"};
+            String[] tmGroups = { "query_execution", "stream_next", "fetch_phase", "segment_stats" };
             for (int g = 0; g < 4; g++) {
                 var tm = StatsLayout.readTaskMonitor(seg, tmGroups[g]);
                 int base = 16 + g * 3;
@@ -227,17 +226,34 @@ public class StatsLayoutPropertyTests {
             // Re-encode into new buffer
             var reencoded = arena.allocate(StatsLayout.LAYOUT);
             long[] decoded = {
-                ioRuntime.workersCount, ioRuntime.totalPollsCount, ioRuntime.totalBusyDurationMs,
-                ioRuntime.totalOverflowCount, ioRuntime.globalQueueDepth, ioRuntime.blockingQueueDepth,
-                ioRuntime.numAliveTasks, ioRuntime.spawnedTasksCount,
-                cpuRuntime.workersCount, cpuRuntime.totalPollsCount, cpuRuntime.totalBusyDurationMs,
-                cpuRuntime.totalOverflowCount, cpuRuntime.globalQueueDepth, cpuRuntime.blockingQueueDepth,
-                cpuRuntime.numAliveTasks, cpuRuntime.spawnedTasksCount,
-                qe.totalPollDurationMs, qe.totalScheduledDurationMs, qe.totalIdleDurationMs,
-                sn.totalPollDurationMs, sn.totalScheduledDurationMs, sn.totalIdleDurationMs,
-                fp.totalPollDurationMs, fp.totalScheduledDurationMs, fp.totalIdleDurationMs,
-                ss.totalPollDurationMs, ss.totalScheduledDurationMs, ss.totalIdleDurationMs
-            };
+                ioRuntime.workersCount,
+                ioRuntime.totalPollsCount,
+                ioRuntime.totalBusyDurationMs,
+                ioRuntime.totalOverflowCount,
+                ioRuntime.globalQueueDepth,
+                ioRuntime.blockingQueueDepth,
+                ioRuntime.numAliveTasks,
+                ioRuntime.spawnedTasksCount,
+                cpuRuntime.workersCount,
+                cpuRuntime.totalPollsCount,
+                cpuRuntime.totalBusyDurationMs,
+                cpuRuntime.totalOverflowCount,
+                cpuRuntime.globalQueueDepth,
+                cpuRuntime.blockingQueueDepth,
+                cpuRuntime.numAliveTasks,
+                cpuRuntime.spawnedTasksCount,
+                qe.totalPollDurationMs,
+                qe.totalScheduledDurationMs,
+                qe.totalIdleDurationMs,
+                sn.totalPollDurationMs,
+                sn.totalScheduledDurationMs,
+                sn.totalIdleDurationMs,
+                fp.totalPollDurationMs,
+                fp.totalScheduledDurationMs,
+                fp.totalIdleDurationMs,
+                ss.totalPollDurationMs,
+                ss.totalScheduledDurationMs,
+                ss.totalIdleDurationMs };
             for (int i = 0; i < FIELD_COUNT; i++) {
                 reencoded.setAtIndex(ValueLayout.JAVA_LONG, i, decoded[i]);
             }

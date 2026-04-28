@@ -8,7 +8,7 @@
 
 //! Per-operation task monitors.
 //!
-//! Each JNI operation type (`query_execution`, `stream_next`, `fetch_phase`,
+//! Each FFM operation type (`query_execution`, `stream_next`, `fetch_phase`,
 //! `segment_stats`) gets its own [`TaskMonitor`] for timing metrics.
 //!
 //! Monitors are initialized lazily on first access via `once_cell::sync::Lazy`.

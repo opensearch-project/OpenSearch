@@ -8,11 +8,10 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
-import org.opensearch.plugin.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 /**

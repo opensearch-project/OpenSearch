@@ -6,13 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.stats;
+package org.opensearch.be.datafusion.stats;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.plugin.stats.PluginStats;
 
 import java.io.IOException;
 import java.util.Objects;

@@ -8,12 +8,11 @@
 
 package org.opensearch.be.datafusion.stats;
 
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.OperationType;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.plugin.stats.NativeExecutorsStats;
-import org.opensearch.plugin.stats.NativeExecutorsStats.OperationType;
-import org.opensearch.plugin.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.plugin.stats.NativeExecutorsStats.TaskMonitorStats;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -32,13 +31,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 /**
  * Property-based tests for {@link NativeExecutorsStats} Writeable round-trip.
  *
- * <p>Verifies Property 2 from the stats-spi-migration design:
+ * <p>Verifies Property 2 from the stats-spi-refactor design:
  * For any valid {@code NativeExecutorsStats} object containing IO + optional CPU
  * {@code RuntimeMetrics} (8 fields each) and 4 {@code TaskMonitorStats} (3 fields each),
  * writing to {@code StreamOutput} and reading from {@code StreamInput} SHALL produce
  * an object where all field values are identical to the original.
  *
- * <p>Tag: Feature: stats-spi-migration, Property 2: NativeExecutorsStats Writeable Round-Trip
+ * <p>Tag: Feature: stats-spi-refactor, Property 2: NativeExecutorsStats Writeable round-trip
+ *
+ * <p><b>Validates: Requirements 6.6</b>
  */
 public class NativeExecutorsStatsTests {
 
@@ -112,7 +113,9 @@ public class NativeExecutorsStatsTests {
     /**
      * Property 2: Writeable round-trip preserves all fields (with CPU runtime present).
      *
-     * <p>Tag: Feature: stats-spi-migration, Property 2: NativeExecutorsStats Writeable Round-Trip
+     * <p>Tag: Feature: stats-spi-refactor, Property 2: NativeExecutorsStats Writeable round-trip
+     *
+     * <p><b>Validates: Requirements 6.6</b>
      */
     @Property(tries = 100)
     void writeableRoundTripPreservesAllFieldsWithCpu(@ForAll("nativeExecutorsStatsWithCpu") NativeExecutorsStats original)
@@ -137,7 +140,9 @@ public class NativeExecutorsStatsTests {
     /**
      * Property 2 (complement): Writeable round-trip preserves all fields (CPU runtime absent).
      *
-     * <p>Tag: Feature: stats-spi-migration, Property 2: NativeExecutorsStats Writeable Round-Trip
+     * <p>Tag: Feature: stats-spi-refactor, Property 2: NativeExecutorsStats Writeable round-trip
+     *
+     * <p><b>Validates: Requirements 6.6</b>
      */
     @Property(tries = 100)
     void writeableRoundTripPreservesAllFieldsNoCpu(@ForAll("nativeExecutorsStatsNoCpu") NativeExecutorsStats original) throws IOException {

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.stats;
+package org.opensearch.be.datafusion.stats;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -66,11 +66,7 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
      * @param cpuRuntime   the CPU runtime metrics (nullable)
      * @param taskMonitors per-operation task monitor metrics
      */
-    public NativeExecutorsStats(
-        RuntimeMetrics ioRuntime,
-        RuntimeMetrics cpuRuntime,
-        Map<String, TaskMonitorStats> taskMonitors
-    ) {
+    public NativeExecutorsStats(RuntimeMetrics ioRuntime, RuntimeMetrics cpuRuntime, Map<String, TaskMonitorStats> taskMonitors) {
         this.ioRuntime = Objects.requireNonNull(ioRuntime);
         this.cpuRuntime = cpuRuntime;
         this.taskMonitors = Objects.requireNonNull(taskMonitors);
@@ -197,9 +193,14 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
          * @param spawnedTasksCount   total tasks spawned since creation
          */
         public RuntimeMetrics(
-            long workersCount, long totalPollsCount, long totalBusyDurationMs,
-            long totalOverflowCount, long globalQueueDepth, long blockingQueueDepth,
-            long numAliveTasks, long spawnedTasksCount
+            long workersCount,
+            long totalPollsCount,
+            long totalBusyDurationMs,
+            long totalOverflowCount,
+            long globalQueueDepth,
+            long blockingQueueDepth,
+            long numAliveTasks,
+            long spawnedTasksCount
         ) {
             this.workersCount = workersCount;
             this.totalPollsCount = totalPollsCount;
@@ -274,9 +275,16 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 
         @Override
         public int hashCode() {
-            return Objects.hash(workersCount, totalPollsCount, totalBusyDurationMs,
-                totalOverflowCount, globalQueueDepth, blockingQueueDepth, numAliveTasks,
-                spawnedTasksCount);
+            return Objects.hash(
+                workersCount,
+                totalPollsCount,
+                totalBusyDurationMs,
+                totalOverflowCount,
+                globalQueueDepth,
+                blockingQueueDepth,
+                numAliveTasks,
+                spawnedTasksCount
+            );
         }
     }
 
@@ -298,9 +306,7 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
          * @param totalScheduledDurationMs total scheduled duration in milliseconds
          * @param totalIdleDurationMs      total idle duration in milliseconds
          */
-        public TaskMonitorStats(
-            long totalPollDurationMs, long totalScheduledDurationMs, long totalIdleDurationMs
-        ) {
+        public TaskMonitorStats(long totalPollDurationMs, long totalScheduledDurationMs, long totalIdleDurationMs) {
             this.totalPollDurationMs = totalPollDurationMs;
             this.totalScheduledDurationMs = totalScheduledDurationMs;
             this.totalIdleDurationMs = totalIdleDurationMs;

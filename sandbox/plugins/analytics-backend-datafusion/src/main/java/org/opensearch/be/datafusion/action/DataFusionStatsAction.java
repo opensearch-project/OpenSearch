@@ -9,9 +9,9 @@
 package org.opensearch.be.datafusion.action;
 
 import org.opensearch.be.datafusion.DataFusionService;
+import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.stats.DataFusionStats;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;

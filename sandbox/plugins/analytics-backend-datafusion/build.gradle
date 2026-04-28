@@ -45,8 +45,8 @@ dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
-  // Canonical stats SPI classes (PluginStats, DataFusionStats, NativeExecutorsStats, etc.)
-  implementation project(':libs:opensearch-plugin-stats-spi')
+  // Canonical stats SPI classes (PluginStats, BackendStatsProvider)
+  implementation project(':sandbox:libs:plugin-stats-spi')
 
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
@@ -263,9 +263,9 @@ configurations {
 }
 
 dependencies {
-  propertyTestImplementation 'net.jqwik:jqwik:1.9.2'
-  propertyTestImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.3'
-  propertyTestRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.3'
+  propertyTestImplementation "net.jqwik:jqwik:${versions.jqwik}"
+  propertyTestImplementation "org.junit.jupiter:junit-jupiter-api:${versions.junit_jupiter}"
+  propertyTestRuntimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit_platform}"
   // Jackson for JSON parsing in property tests
   propertyTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 }
@@ -295,3 +295,7 @@ tasks.named('thirdPartyAudit').configure {
         'org.apache.calcite.server.ServerDdlExecutor'
     )
 }
+
+// jqwik property tests don't ship with the randomized-testing framework that
+// forbiddenApis signatures reference — skip the check for this source set.
+tasks.matching { it.name == 'forbiddenApisPropertyTest' }.configureEach { enabled = false }

@@ -11,18 +11,18 @@ package org.opensearch.be.datafusion.stats;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.OperationType;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.stats.DataFusionStats;
-import org.opensearch.plugin.stats.NativeExecutorsStats;
-import org.opensearch.plugin.stats.NativeExecutorsStats.OperationType;
-import org.opensearch.plugin.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.plugin.stats.NativeExecutorsStats.TaskMonitorStats;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -126,7 +126,9 @@ public class DataFusionStatsPropertyTests {
     // ---- Property 1: Writeable round-trip preserves all field values ----
 
     /**
-     * Feature: ffm-stats-decode, Property 1: Writeable round-trip (CPU present).
+     * Feature: stats-spi-refactor, Property 1: DataFusionStats Writeable round-trip (CPU present).
+     *
+     * <p>Validates: Requirements 5.6
      */
     @Property(tries = 200)
     void writeableRoundTripCpuPresent(@ForAll("dataFusionStatsCpuPresent") DataFusionStats original) throws IOException {
@@ -135,7 +137,9 @@ public class DataFusionStatsPropertyTests {
     }
 
     /**
-     * Feature: ffm-stats-decode, Property 1: Writeable round-trip (CPU absent).
+     * Feature: stats-spi-refactor, Property 1: DataFusionStats Writeable round-trip (CPU absent).
+     *
+     * <p>Validates: Requirements 5.6
      */
     @Property(tries = 200)
     void writeableRoundTripCpuAbsent(@ForAll("dataFusionStatsCpuAbsent") DataFusionStats original) throws IOException {
@@ -144,7 +148,9 @@ public class DataFusionStatsPropertyTests {
     }
 
     /**
-     * Feature: ffm-stats-decode, Property 1: Writeable round-trip (null executors).
+     * Feature: stats-spi-refactor, Property 1: DataFusionStats Writeable round-trip (null executors).
+     *
+     * <p>Validates: Requirements 5.6
      */
     @Property(tries = 100)
     void writeableRoundTripNullExecutors(@ForAll("dataFusionStatsNullExecutors") DataFusionStats original) throws IOException {
@@ -223,6 +229,53 @@ public class DataFusionStatsPropertyTests {
             assertEquals(3, monitor.size());
             verifyTaskMonitorFields(nes.getTaskMonitors().get(opType.key()), monitor, opType.key());
         }
+    }
+
+    // ---- Property 3: toXContent determinism (merged from SPI module) ----
+
+    /**
+     * Feature: stats-spi-refactor, Property: DataFusionStats toXContent determinism (CPU present).
+     *
+     * <p>Validates: Requirements 10.3
+     */
+    @Property(tries = 100)
+    void toXContentDeterminismCpuPresent(@ForAll("dataFusionStatsCpuPresent") DataFusionStats stats) throws IOException {
+        byte[] first = renderJsonBytes(stats);
+        byte[] second = renderJsonBytes(stats);
+        assertTrue(Arrays.equals(first, second), "toXContent must produce byte-for-byte identical JSON on repeated calls (CPU present)");
+    }
+
+    /**
+     * Feature: stats-spi-refactor, Property: DataFusionStats toXContent determinism (CPU absent).
+     *
+     * <p>Validates: Requirements 10.3
+     */
+    @Property(tries = 100)
+    void toXContentDeterminismCpuAbsent(@ForAll("dataFusionStatsCpuAbsent") DataFusionStats stats) throws IOException {
+        byte[] first = renderJsonBytes(stats);
+        byte[] second = renderJsonBytes(stats);
+        assertTrue(Arrays.equals(first, second), "toXContent must produce byte-for-byte identical JSON on repeated calls (CPU absent)");
+    }
+
+    /**
+     * Feature: stats-spi-refactor, Property: DataFusionStats toXContent determinism (null executors).
+     *
+     * <p>Validates: Requirements 10.3
+     */
+    @Property(tries = 100)
+    void toXContentDeterminismNullExecutors(@ForAll("dataFusionStatsNullExecutors") DataFusionStats stats) throws IOException {
+        byte[] first = renderJsonBytes(stats);
+        byte[] second = renderJsonBytes(stats);
+        assertTrue(Arrays.equals(first, second), "toXContent must produce byte-for-byte identical JSON on repeated calls (null executors)");
+    }
+
+    /** Renders a {@link DataFusionStats} to JSON bytes via {@code toXContent}. */
+    private byte[] renderJsonBytes(DataFusionStats stats) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        return BytesReference.toBytes(BytesReference.bytes(builder));
     }
 
     // ---- Helper methods ----

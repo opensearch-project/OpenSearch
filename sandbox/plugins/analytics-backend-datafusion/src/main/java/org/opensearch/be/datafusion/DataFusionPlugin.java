@@ -11,7 +11,6 @@ package org.opensearch.be.datafusion;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
 import org.opensearch.be.datafusion.cache.CacheSettings;import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;

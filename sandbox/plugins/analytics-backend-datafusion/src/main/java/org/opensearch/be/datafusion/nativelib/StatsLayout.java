@@ -8,7 +8,7 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
-import org.opensearch.plugin.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemoryLayout.PathElement;
@@ -26,15 +26,19 @@ import java.lang.invoke.VarHandle;
 public final class StatsLayout {
 
     private static final String[] RUNTIME_FIELDS = {
-        "workers_count", "total_polls_count", "total_busy_duration_ms",
-        "total_overflow_count", "global_queue_depth", "blocking_queue_depth",
-        "num_alive_tasks", "spawned_tasks_count"
-    };
+        "workers_count",
+        "total_polls_count",
+        "total_busy_duration_ms",
+        "total_overflow_count",
+        "global_queue_depth",
+        "blocking_queue_depth",
+        "num_alive_tasks",
+        "spawned_tasks_count" };
 
     private static final String[] TASK_MONITOR_FIELDS = {
-        "total_poll_duration_ms", "total_scheduled_duration_ms",
-        "total_idle_duration_ms"
-    };
+        "total_poll_duration_ms",
+        "total_scheduled_duration_ms",
+        "total_idle_duration_ms" };
 
     /** The struct layout mirroring Rust's {@code DfStatsBuffer}. */
     public static final StructLayout LAYOUT = MemoryLayout.structLayout(
@@ -48,9 +52,7 @@ public final class StatsLayout {
 
     static {
         if (LAYOUT.byteSize() != 28 * Long.BYTES) {
-            throw new AssertionError(
-                "StatsLayout size mismatch: expected " + (28 * Long.BYTES) + " but got " + LAYOUT.byteSize()
-            );
+            throw new AssertionError("StatsLayout size mismatch: expected " + (28 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -169,24 +171,29 @@ public final class StatsLayout {
     }
 
     private static VarHandle handle(String group, String field) {
-        return LAYOUT.varHandle(
-            PathElement.groupElement(group),
-            PathElement.groupElement(field)
-        );
+        return LAYOUT.varHandle(PathElement.groupElement(group), PathElement.groupElement(field));
     }
 
     private static VarHandle[] runtimeHandles(String group) {
         return switch (group) {
             case "io_runtime" -> new VarHandle[] {
-                IO_WORKERS_COUNT, IO_TOTAL_POLLS_COUNT, IO_TOTAL_BUSY_DURATION_MS,
-                IO_TOTAL_OVERFLOW_COUNT, IO_GLOBAL_QUEUE_DEPTH, IO_BLOCKING_QUEUE_DEPTH,
-                IO_NUM_ALIVE_TASKS, IO_SPAWNED_TASKS_COUNT
-            };
+                IO_WORKERS_COUNT,
+                IO_TOTAL_POLLS_COUNT,
+                IO_TOTAL_BUSY_DURATION_MS,
+                IO_TOTAL_OVERFLOW_COUNT,
+                IO_GLOBAL_QUEUE_DEPTH,
+                IO_BLOCKING_QUEUE_DEPTH,
+                IO_NUM_ALIVE_TASKS,
+                IO_SPAWNED_TASKS_COUNT };
             case "cpu_runtime" -> new VarHandle[] {
-                CPU_WORKERS_COUNT, CPU_TOTAL_POLLS_COUNT, CPU_TOTAL_BUSY_DURATION_MS,
-                CPU_TOTAL_OVERFLOW_COUNT, CPU_GLOBAL_QUEUE_DEPTH, CPU_BLOCKING_QUEUE_DEPTH,
-                CPU_NUM_ALIVE_TASKS, CPU_SPAWNED_TASKS_COUNT
-            };
+                CPU_WORKERS_COUNT,
+                CPU_TOTAL_POLLS_COUNT,
+                CPU_TOTAL_BUSY_DURATION_MS,
+                CPU_TOTAL_OVERFLOW_COUNT,
+                CPU_GLOBAL_QUEUE_DEPTH,
+                CPU_BLOCKING_QUEUE_DEPTH,
+                CPU_NUM_ALIVE_TASKS,
+                CPU_SPAWNED_TASKS_COUNT };
             default -> throw new IllegalArgumentException("Unknown runtime group: " + group);
         };
     }
@@ -194,17 +201,15 @@ public final class StatsLayout {
     private static VarHandle[] taskMonitorHandles(String group) {
         return switch (group) {
             case "query_execution" -> new VarHandle[] {
-                QE_TOTAL_POLL_DURATION_MS, QE_TOTAL_SCHEDULED_DURATION_MS, QE_TOTAL_IDLE_DURATION_MS
-            };
-            case "stream_next" -> new VarHandle[] {
-                SN_TOTAL_POLL_DURATION_MS, SN_TOTAL_SCHEDULED_DURATION_MS, SN_TOTAL_IDLE_DURATION_MS
-            };
-            case "fetch_phase" -> new VarHandle[] {
-                FP_TOTAL_POLL_DURATION_MS, FP_TOTAL_SCHEDULED_DURATION_MS, FP_TOTAL_IDLE_DURATION_MS
-            };
+                QE_TOTAL_POLL_DURATION_MS,
+                QE_TOTAL_SCHEDULED_DURATION_MS,
+                QE_TOTAL_IDLE_DURATION_MS };
+            case "stream_next" -> new VarHandle[] { SN_TOTAL_POLL_DURATION_MS, SN_TOTAL_SCHEDULED_DURATION_MS, SN_TOTAL_IDLE_DURATION_MS };
+            case "fetch_phase" -> new VarHandle[] { FP_TOTAL_POLL_DURATION_MS, FP_TOTAL_SCHEDULED_DURATION_MS, FP_TOTAL_IDLE_DURATION_MS };
             case "segment_stats" -> new VarHandle[] {
-                SS_TOTAL_POLL_DURATION_MS, SS_TOTAL_SCHEDULED_DURATION_MS, SS_TOTAL_IDLE_DURATION_MS
-            };
+                SS_TOTAL_POLL_DURATION_MS,
+                SS_TOTAL_SCHEDULED_DURATION_MS,
+                SS_TOTAL_IDLE_DURATION_MS };
             default -> throw new IllegalArgumentException("Unknown task monitor group: " + group);
         };
     }
