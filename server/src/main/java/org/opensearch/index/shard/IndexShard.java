@@ -37,6 +37,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -4433,6 +4434,36 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
+        }
+
+        // After each internal refresh, update the LuceneFieldTracker with merged FieldInfos from
+        // the reader. This lets DocumentParser enforce the per-shard Lucene field-count limit for
+        // dynamic_properties without requiring access to the IndexWriter directly.
+        if (mapperService != null) {
+            internalRefreshListener.add(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() {}
+
+                @Override
+                public void afterRefresh(boolean didRefresh) {
+                    if (!didRefresh) return;
+                    // Use the engine directly (not IndexShard.acquireSearcher) so that we do NOT
+                    // go through IndexShard.wrapSearcher / nonClosingReaderWrapperSupplier.
+                    // Going through the shard-level wrapper would create entries in the
+                    // nonClosingReaderWrapperCache that callers do not expect.
+                    try (
+                        Engine.Searcher searcher = applyOnEngine(
+                            getIndexer(),
+                            engine -> engine.acquireSearcher("lucene_field_count", Engine.SearcherScope.INTERNAL)
+                        )
+                    ) {
+                        FieldInfos fieldInfos = FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
+                        mapperService.getLuceneFieldTracker().setFieldInfos(fieldInfos);
+                    } catch (AlreadyClosedException | IllegalIndexShardStateException e) {
+                        // Shard is closing or not yet readable — skip this refresh cycle.
+                    }
+                }
+            });
         }
 
         if (isRemoteStoreEnabled() || isMigratingToRemote()) {

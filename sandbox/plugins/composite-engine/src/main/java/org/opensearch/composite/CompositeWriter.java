@@ -104,8 +104,12 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
         if (state.get() != WriterState.ACTIVE) {
             throw new IllegalStateException("Cannot add document to writer in state " + state.get());
         }
+        // Row ID must be assigned before writing to any format — it's the cross-format correlation key
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, rowIdGenerator.nextRowId());
+        // Row ID must be non-negative and sequential within this writer
+        assert rowIdGenerator.currentRowId() >= 0 : "row ID must be non-negative but was: " + rowIdGenerator.currentRowId();
+
         // Write to primary first
-        doc.setRowId("__row_id__", rowIdGenerator.currentRowId());
         WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
         switch (primaryResult) {
             case WriteResult.Success s -> logger.trace("Successfully added document in primary format [{}]", primaryFormat.name());
@@ -143,12 +147,28 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
         FileInfos.Builder builder = FileInfos.builder();
         // Flush primary
         Optional<WriterFileSet> primaryWfs = primaryWriter.flush().getWriterFileSet(primaryFormat);
-        primaryWfs.ifPresent(writerFileSet -> builder.putWriterFileSet(primaryFormat, writerFileSet));
+        primaryWfs.ifPresent(writerFileSet -> {
+            // Primary format's WriterFileSet must have the same generation as this composite writer
+            assert writerFileSet.writerGeneration() == writerGeneration : "primary WriterFileSet generation ["
+                + writerFileSet.writerGeneration()
+                + "] must match composite writer generation ["
+                + writerGeneration
+                + "]";
+            builder.putWriterFileSet(primaryFormat, writerFileSet);
+        });
         // Flush secondaries
         for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
             FileInfos fileInfos = writer.flush();
             // Iterate all format entries in the returned FileInfos
             for (Map.Entry<DataFormat, WriterFileSet> fileEntry : fileInfos.writerFilesMap().entrySet()) {
+                // Secondary format's WriterFileSet must also match this writer's generation
+                assert fileEntry.getValue().writerGeneration() == writerGeneration : "secondary WriterFileSet generation ["
+                    + fileEntry.getValue().writerGeneration()
+                    + "] for format ["
+                    + fileEntry.getKey().name()
+                    + "] must match composite writer generation ["
+                    + writerGeneration
+                    + "]";
                 builder.putWriterFileSet(fileEntry.getKey(), fileEntry.getValue());
             }
         }

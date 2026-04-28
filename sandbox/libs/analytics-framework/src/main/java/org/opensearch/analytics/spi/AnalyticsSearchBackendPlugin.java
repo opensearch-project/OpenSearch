@@ -57,4 +57,16 @@ public interface AnalyticsSearchBackendPlugin {
     default FragmentConvertor getFragmentConvertor() {
         throw new UnsupportedOperationException("getFragmentConvertor not implemented for [" + name() + "]");
     }
+
+    /**
+     * Returns the exchange sink provider for this backend, or {@code null} if the backend
+     * cannot act as a coordinator-side executor (i.e., cannot accept Arrow Record Batches
+     * from data nodes and run computation over them).
+     *
+     * <p>Used by the planner to determine which backend handles the coordinator stage,
+     * and by the Scheduler to create the sink when the query executes.
+     */
+    default ExchangeSinkProvider getExchangeSinkProvider() {
+        return null;
+    }
 }

@@ -51,6 +51,8 @@ public class CapabilityRegistry {
     private final Map<FilterKey, Map<String, List<String>>> filterIndex = new HashMap<>();
     private final Map<AggregateKey, Map<String, List<String>>> aggregateIndex = new HashMap<>();
     private final Map<ScalarKey, Map<String, List<String>>> scalarIndex = new HashMap<>();
+    // Backends that declared supportsLiteralEvaluation=true for a (function, fieldType)
+    private final Map<ScalarKey, List<String>> literalScalarIndex = new HashMap<>();
     // Opaque operations keyed by name (e.g. "painless") rather than a typed key
     private final Map<String, Map<String, List<String>>> opaqueIndex = new HashMap<>();
 
@@ -96,12 +98,11 @@ public class CapabilityRegistry {
             }
             for (FilterCapability cap : caps.filterCapabilities()) {
                 switch (cap) {
-                    case FilterCapability.Standard standard -> addToFormatMap(
-                        filterIndex,
-                        new FilterKey(standard.operator(), standard.fieldType()),
-                        standard.formats(),
-                        name
-                    );
+                    case FilterCapability.Standard standard -> {
+                        for (FieldType fieldType : standard.fieldTypes()) {
+                            addToFormatMap(filterIndex, new FilterKey(standard.operator(), fieldType), standard.formats(), name);
+                        }
+                    }
                     case FilterCapability.FullText fullText -> {
                         addToFormatMap(filterIndex, new FilterKey(fullText.operator(), fullText.fieldType()), fullText.formats(), name);
                         fullTextParamIndex.put(
@@ -113,17 +114,22 @@ public class CapabilityRegistry {
                 filterCapableBackends.add(name);
             }
             for (AggregateCapability cap : caps.aggregateCapabilities()) {
-                addToFormatMap(aggregateIndex, new AggregateKey(cap.function(), cap.fieldType()), cap.formats(), name);
+                for (FieldType fieldType : cap.fieldTypes()) {
+                    addToFormatMap(aggregateIndex, new AggregateKey(cap.function(), fieldType), cap.formats(), name);
+                }
                 aggregateCapableBackends.add(name);
             }
             for (ProjectCapability cap : caps.projectCapabilities()) {
                 switch (cap) {
-                    case ProjectCapability.Scalar scalar -> addToFormatMap(
-                        scalarIndex,
-                        new ScalarKey(scalar.function(), scalar.fieldType()),
-                        scalar.formats(),
-                        name
-                    );
+                    case ProjectCapability.Scalar scalar -> {
+                        for (FieldType fieldType : scalar.fieldTypes()) {
+                            addToFormatMap(scalarIndex, new ScalarKey(scalar.function(), fieldType), scalar.formats(), name);
+                            if (scalar.supportsLiteralEvaluation()) {
+                                literalScalarIndex.computeIfAbsent(new ScalarKey(scalar.function(), fieldType), k -> new ArrayList<>())
+                                    .add(name);
+                            }
+                        }
+                    }
                     case ProjectCapability.Opaque opaque -> {
                         Map<String, List<String>> formatMap = opaqueIndex.computeIfAbsent(opaque.name(), k -> new HashMap<>());
                         for (String format : opaque.formats()) {
@@ -231,6 +237,11 @@ public class CapabilityRegistry {
 
     public List<String> scalarBackendsAnyFormat(ScalarFunction function, FieldType fieldType) {
         return allBackends(scalarIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of()));
+    }
+
+    /** Backends that declared {@code supportsLiteralEvaluation=true} for this (function, fieldType). */
+    public List<String> literalScalarBackends(ScalarFunction function, FieldType fieldType) {
+        return literalScalarIndex.getOrDefault(new ScalarKey(function, fieldType), List.of());
     }
 
     public List<String> opaqueBackendsAnyFormat(String name) {
