@@ -11,6 +11,7 @@ package org.opensearch.arrow.flight.bootstrap;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.PortsRange;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
@@ -20,6 +21,7 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoopGroup;
@@ -32,6 +34,9 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.NettyRuntime;
 
+import static java.util.Collections.emptyList;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
+
 /**
  * Configuration class for OpenSearch Flight server settings.
  * This class manages server-side configurations including port settings, Arrow memory settings,
@@ -43,6 +48,58 @@ public class ServerConfig {
      * Creates a new instance of the server configuration with default settings.
      */
     public ServerConfig() {}
+
+    /**
+     * The setting key for Flight transport configuration.
+     */
+    public static final String FLIGHT_TRANSPORT_SETTING_KEY = "transport-flight";
+
+    /**
+     * Setting for Arrow Flight host addresses.
+     */
+    public static final Setting<List<String>> SETTING_FLIGHT_HOST = Setting.listSetting(
+        "arrow.flight.host",
+        emptyList(),
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for Arrow Flight bind host addresses.
+     */
+    public static final Setting<List<String>> SETTING_FLIGHT_BIND_HOST = Setting.listSetting(
+        "arrow.flight.bind_host",
+        SETTING_FLIGHT_HOST,
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for Arrow Flight publish host addresses.
+     */
+    public static final Setting<List<String>> SETTING_FLIGHT_PUBLISH_HOST = Setting.listSetting(
+        "arrow.flight.publish_host",
+        SETTING_FLIGHT_HOST,
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for Arrow Flight publish port.
+     */
+    public static final Setting<Integer> SETTING_FLIGHT_PUBLISH_PORT = Setting.intSetting(
+        "arrow.flight.publish_port",
+        -1,
+        -1,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for Arrow Flight port range.
+     */
+    public static final Setting<PortsRange> SETTING_FLIGHT_PORTS = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(
+        FLIGHT_TRANSPORT_SETTING_KEY
+    );
 
     static final Setting<String> ARROW_ALLOCATION_MANAGER_TYPE = Setting.simpleString(
         "arrow.allocation.manager.type",

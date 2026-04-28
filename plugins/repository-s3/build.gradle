@@ -93,7 +93,7 @@ dependencies {
   api "joda-time:joda-time:${versions.joda}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
-  runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
 
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
@@ -467,6 +467,7 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSLCredential',
 
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',

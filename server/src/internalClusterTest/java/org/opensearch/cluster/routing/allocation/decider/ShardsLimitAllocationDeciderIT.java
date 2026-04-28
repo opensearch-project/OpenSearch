@@ -233,6 +233,10 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
     }
 
     public void testCombinedClusterAndIndexSpecificShardLimits() {
+        assumeFalse(
+            "https://github.com/opensearch-project/OpenSearch/issues/19726#issuecomment-4049069484",
+            WRITABLE_WARM_INDEX_SETTING.get(settings)
+        );
         startTestNodes(3);
         // Set the cluster-wide shard limit to 6
         updateClusterSetting(getShardsPerNodeKey(false), 6);

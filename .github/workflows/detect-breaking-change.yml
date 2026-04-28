@@ -15,12 +15,12 @@ jobs:
       with:
         cache-disabled: true
         arguments: japicmp
-        gradle-version: 9.1.0
+        gradle-version: 9.4.1
         build-root-directory: server
     - if: failure()
       run: cat server/build/reports/java-compatibility/report.txt
     - if: failure()
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: java-compatibility-report.html
         path: ${{ github.workspace }}/server/build/reports/java-compatibility/report.html

@@ -112,6 +112,7 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17154")
     public void testHighCPUInEnforcedMode() throws InterruptedException {
         Settings request = Settings.builder().put(WorkloadManagementSettings.WLM_MODE_SETTING.getKey(), ENABLED).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get());
@@ -129,6 +130,7 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         updateWorkloadGroupInClusterState(DELETE, workloadGroup);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17154")
     public void testHighCPUInMonitorMode() throws InterruptedException {
         WorkloadGroup workloadGroup = new WorkloadGroup(
             "name",
@@ -143,6 +145,7 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         updateWorkloadGroupInClusterState(DELETE, workloadGroup);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17154")
     public void testHighMemoryInEnforcedMode() throws InterruptedException {
         Settings request = Settings.builder().put(WorkloadManagementSettings.WLM_MODE_SETTING.getKey(), ENABLED).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get());
@@ -157,6 +160,7 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         updateWorkloadGroupInClusterState(DELETE, workloadGroup);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17154")
     public void testHighMemoryInMonitorMode() throws InterruptedException {
         WorkloadGroup workloadGroup = new WorkloadGroup(
             "name",

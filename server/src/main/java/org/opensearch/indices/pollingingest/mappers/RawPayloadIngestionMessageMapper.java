@@ -30,7 +30,6 @@ import static org.opensearch.indices.pollingingest.MessageProcessorRunnable.SOUR
  */
 public class RawPayloadIngestionMessageMapper implements IngestionMessageMapper {
 
-    private static final String OP_TYPE_INDEX = "index";
     private final int shardId;
 
     public RawPayloadIngestionMessageMapper(int shardId) {

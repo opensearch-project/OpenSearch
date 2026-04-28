@@ -8,7 +8,7 @@
 
 package org.opensearch.index;
 
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -160,7 +160,7 @@ public class CriteriaBasedMergePolicyTests extends OpenSearchTestCase {
             5,
             false,
             false,
-            new Lucene103Codec(),
+            new Lucene104Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),
