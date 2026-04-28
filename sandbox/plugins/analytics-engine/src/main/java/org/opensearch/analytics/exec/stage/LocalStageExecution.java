@@ -15,18 +15,10 @@ import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 
-import java.util.concurrent.Executor;
-
 /**
  * {@link StageExecution} implementation for COORDINATOR_REDUCE stages. Holds a
  * backend-provided {@link ExchangeSink} (from {@link org.opensearch.analytics.spi.ExchangeSinkProvider})
  * and routes all child stage output into it via {@link #inputSink(int)}.
- *
- * <p>The drain phase ({@link #start()}) is dispatched to a dedicated {@link Executor}
- * so that the potentially expensive native drain (sender close + output stream read)
- * does not block the state-listener thread that triggered the parent start. This
- * prevents a slow drain from starving the SEARCH thread pool of threads needed for
- * other concurrent queries' shard responses.
  *
  * <p>Lifecycle:
  * {@code CREATED → RUNNING → (SUCCEEDED | FAILED | CANCELLED)}
@@ -39,20 +31,11 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
 
     private final ExchangeSink backendSink;
     private final ExchangeSink downstream;
-    private final Executor drainExecutor;
 
-    /**
-     * @param stage        the DAG stage
-     * @param backendSink  the backend-provided sink (e.g. DatafusionReduceSink)
-     * @param downstream   the downstream sink that receives drained output
-     * @param drainExecutor executor to dispatch the drain phase onto; avoids blocking
-     *                      the state-listener thread that triggers {@link #start()}
-     */
-    public LocalStageExecution(Stage stage, ExchangeSink backendSink, ExchangeSink downstream, Executor drainExecutor) {
+    public LocalStageExecution(Stage stage, ExchangeSink backendSink, ExchangeSink downstream) {
         super(stage);
         this.backendSink = backendSink;
         this.downstream = downstream;
-        this.drainExecutor = drainExecutor;
         logger.info("[LocalStage] CREATED stageId={} childCount={}", stage.getStageId(), stage.getChildStages().size());
     }
 
@@ -82,26 +65,19 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     @Override
     public void start() {
         if (transitionTo(State.RUNNING) == false) return;
-        logger.info("[LocalStage] start() stageId={} — dispatching drain to executor", stage.getStageId());
-        drainExecutor.execute(() -> {
-            try {
-                // Closing the backend sink signals EOF to the native side and drains the
-                // output stream into `downstream`. Must NOT close `downstream` here —
-                // the walker hasn't read its buffered batches yet. Downstream closure
-                // happens implicitly when the completion listener's consumer finishes
-                // reading each batch.
-                backendSink.close();
-                if (transitionTo(State.SUCCEEDED)) {
-                    logger.info("[LocalStage] SUCCEEDED stageId={}", stage.getStageId());
-                }
-            } catch (Exception e) {
-                captureFailure(e);
-                if (transitionTo(State.FAILED)) {
-                    metrics.incrementTasksFailed();
-                    logger.info("[LocalStage] FAILED stageId={} cause={}", stage.getStageId(), e.getMessage());
-                }
+        logger.info("[LocalStage] start() stageId={}", stage.getStageId());
+        try {
+            backendSink.close();
+            if (transitionTo(State.SUCCEEDED)) {
+                logger.info("[LocalStage] SUCCEEDED stageId={}", stage.getStageId());
             }
-        });
+        } catch (Exception e) {
+            captureFailure(e);
+            if (transitionTo(State.FAILED)) {
+                metrics.incrementTasksFailed();
+                logger.info("[LocalStage] FAILED stageId={} cause={}", stage.getStageId(), e.getMessage());
+            }
+        }
     }
 
     @Override
