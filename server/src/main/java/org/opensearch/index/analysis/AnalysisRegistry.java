@@ -51,12 +51,17 @@ import org.opensearch.indices.analysis.PreBuiltAnalyzers;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -305,7 +310,7 @@ public final class AnalysisRegistry implements Closeable {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            });
+            }, null);
             tokenFilterFactories.add(tff);
         }
 
@@ -362,7 +367,107 @@ public final class AnalysisRegistry implements Closeable {
 
     private Map<String, AnalyzerProvider<?>> buildAnalyzerFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> analyzersSettings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
-        return buildMapping(Component.ANALYZER, indexSettings, analyzersSettings, analyzers, prebuiltAnalysis.analyzerProviderFactories);
+        final Map<String, Settings> filterSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER);
+
+        Map<String, Set<String>> dependencies = buildAnalyzerDependencies(analyzersSettings, filterSettings);
+        List<String> buildOrder = topologicalSortAnalyzers(dependencies);
+
+        Map<String, Settings> sortedAnalyzersSettings = new LinkedHashMap<>();
+        for (String analyzerName : buildOrder) {
+            sortedAnalyzersSettings.put(analyzerName, analyzersSettings.get(analyzerName));
+        }
+
+        return buildMapping(
+            Component.ANALYZER,
+            indexSettings,
+            sortedAnalyzersSettings,
+            analyzers,
+            prebuiltAnalysis.analyzerProviderFactories
+        );
+    }
+
+    private static Map<String, Set<String>> buildAnalyzerDependencies(
+        Map<String, Settings> analyzersSettings,
+        Map<String, Settings> filterSettings
+    ) {
+        Map<String, Set<String>> dependencies = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Settings> analyzerEntry : analyzersSettings.entrySet()) {
+            String analyzerName = analyzerEntry.getKey();
+            Settings analyzerSettings = analyzerEntry.getValue();
+
+            Set<String> analyzerDependencies = new LinkedHashSet<>();
+            for (String filterName : analyzerSettings.getAsList("filter")) {
+                Settings fs = filterSettings.get(filterName);
+                if (fs == null || fs.isEmpty()) {
+                    continue;
+                }
+
+                String type = fs.get("type");
+                if ("synonym".equals(type) || "synonym_graph".equals(type)) {
+                    String synonymAnalyzer = fs.get("synonym_analyzer");
+                    if (synonymAnalyzer != null
+                        && synonymAnalyzer.equals(analyzerName) == false
+                        && analyzersSettings.containsKey(synonymAnalyzer)) {
+                        analyzerDependencies.add(synonymAnalyzer);
+                    }
+                }
+            }
+
+            dependencies.put(analyzerName, analyzerDependencies);
+        }
+
+        return dependencies;
+    }
+
+    // kahn's algorithm topological sort
+    private static List<String> topologicalSortAnalyzers(Map<String, Set<String>> analyzerDependencies) {
+        Map<String, Integer> remainingDependencies = new LinkedHashMap<>(); // inDegree
+        Map<String, List<String>> dependentsByAnalyzer = new LinkedHashMap<>(); // reverseEdges
+
+        for (String analyzer : analyzerDependencies.keySet()) {
+            remainingDependencies.put(analyzer, 0);
+            dependentsByAnalyzer.put(analyzer, new ArrayList<>());
+        }
+
+        for (Map.Entry<String, Set<String>> entry : analyzerDependencies.entrySet()) {
+            String analyzer = entry.getKey();
+            for (String dependency : entry.getValue()) {
+                if (analyzerDependencies.containsKey(dependency)) {
+                    remainingDependencies.put(analyzer, remainingDependencies.get(analyzer) + 1);
+                    dependentsByAnalyzer.get(dependency).add(analyzer);
+                }
+            }
+        }
+
+        Deque<String> ready = new ArrayDeque<>(); // queue
+        for (Map.Entry<String, Integer> entry : remainingDependencies.entrySet()) {
+            if (entry.getValue() == 0) {
+                ready.addLast(entry.getKey());
+            }
+        }
+
+        List<String> buildOrder = new ArrayList<>();
+        while (ready.isEmpty() == false) {
+            String builtAnalyzer = ready.removeFirst();
+            buildOrder.add(builtAnalyzer);
+
+            for (String dependent : dependentsByAnalyzer.get(builtAnalyzer)) {
+                int remaining = remainingDependencies.get(dependent) - 1;
+                remainingDependencies.put(dependent, remaining);
+                if (remaining == 0) {
+                    ready.addLast(dependent);
+                }
+            }
+        }
+
+        if (buildOrder.size() != analyzerDependencies.size()) {
+            Set<String> cycle = new LinkedHashSet<>(analyzerDependencies.keySet());
+            cycle.removeAll(buildOrder);
+            throw new IllegalArgumentException("Circular analyzer dependency detected via synonym_analyzer: " + cycle);
+        }
+
+        return buildOrder;
     }
 
     private Map<String, AnalyzerProvider<?>> buildNormalizerFactories(IndexSettings indexSettings) throws IOException {
@@ -486,7 +591,7 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance
     ) throws IOException {
         Settings defaultSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, settings.getIndexVersionCreated()).build();
-        Map<String, T> factories = new HashMap<>();
+        Map<String, T> factories = new LinkedHashMap<>(); // keep insertion order
         for (Map.Entry<String, Settings> entry : settingsMap.entrySet()) {
             String name = entry.getKey();
             Settings currentSettings = entry.getValue();
@@ -637,20 +742,25 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
+        Map<String, Exception> buildErrors = new LinkedHashMap<>();
+        Map<String, Analyzer> analyzersBuiltSoFar = new HashMap<>();
         for (Map.Entry<String, AnalyzerProvider<?>> entry : analyzerProviders.entrySet()) {
-            analyzers.merge(
-                entry.getKey(),
-                produceAnalyzer(
+            try {
+                NamedAnalyzer namedAnalyzer = produceAnalyzer(
                     entry.getKey(),
                     entry.getValue(),
                     tokenFilterFactoryFactories,
                     charFilterFactoryFactories,
-                    tokenizerFactoryFactories
-                ),
-                (k, v) -> {
+                    tokenizerFactoryFactories,
+                    analyzersBuiltSoFar
+                );
+                analyzers.merge(entry.getKey(), namedAnalyzer, (k, v) -> {
                     throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
-                }
-            );
+                });
+                analyzersBuiltSoFar.put(entry.getKey(), namedAnalyzer);
+            } catch (Exception e) {
+                buildErrors.put(entry.getKey(), e);
+            }
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
             processNormalizerFactory(
@@ -707,6 +817,14 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
+
+        if (!buildErrors.isEmpty()) {
+            IllegalArgumentException aggregated = new IllegalArgumentException("Failed to build analyzers: " + buildErrors.keySet());
+            buildErrors.forEach(
+                (name, ex) -> aggregated.addSuppressed(new IllegalArgumentException("[" + name + "] " + ex.getMessage(), ex))
+            );
+            throw aggregated;
+        }
         return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
@@ -717,6 +835,17 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, CharFilterFactory> charFilters,
         Map<String, TokenizerFactory> tokenizers
     ) {
+        return produceAnalyzer(name, analyzerFactory, tokenFilters, charFilters, tokenizers, Collections.emptyMap());
+    }
+
+    private static NamedAnalyzer produceAnalyzer(
+        String name,
+        AnalyzerProvider<?> analyzerFactory,
+        Map<String, TokenFilterFactory> tokenFilters,
+        Map<String, CharFilterFactory> charFilters,
+        Map<String, TokenizerFactory> tokenizers,
+        Map<String, Analyzer> analyzersBuiltSoFar
+    ) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0
@@ -724,8 +853,8 @@ public final class AnalysisRegistry implements Closeable {
          * doesn't match here.
          */
         int overridePositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
-        if (analyzerFactory instanceof CustomAnalyzerProvider) {
-            ((CustomAnalyzerProvider) analyzerFactory).build(tokenizers, charFilters, tokenFilters);
+        if (analyzerFactory instanceof CustomAnalyzerProvider customAnalyzerProvider) {
+            customAnalyzerProvider.build(tokenizers, charFilters, tokenFilters, analyzersBuiltSoFar);
             /*
              * Custom analyzers already default to the correct, version
              * dependent positionIncrementGap and the user is be able to
@@ -740,9 +869,9 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
         }
         NamedAnalyzer analyzer;
-        if (analyzerF instanceof NamedAnalyzer) {
+        if (analyzerF instanceof NamedAnalyzer namedAnalyzer) {
             // if we got a named analyzer back, use it...
-            analyzer = (NamedAnalyzer) analyzerF;
+            analyzer = namedAnalyzer;
             if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
                 // unless the positionIncrementGap needs to be overridden
                 analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
@@ -766,8 +895,8 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalStateException("keyword tokenizer factory is null, normalizers require analysis-common module");
         }
 
-        if (normalizerFactory instanceof CustomNormalizerProvider) {
-            ((CustomNormalizerProvider) normalizerFactory).build(tokenizerFactory, charFilters, tokenFilters);
+        if (normalizerFactory instanceof CustomNormalizerProvider customNormalizerProvider) {
+            customNormalizerProvider.build(tokenizerFactory, charFilters, tokenFilters);
         }
         if (normalizers.containsKey(name)) {
             throw new IllegalStateException("already registered analyzer with name: " + name);

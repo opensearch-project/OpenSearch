@@ -9,18 +9,27 @@
 package org.opensearch.node;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
+
+import static org.opensearch.node.NodeResourceUsageStats.Fields.CPU_UTILIZATION_PERCENT;
+import static org.opensearch.node.NodeResourceUsageStats.Fields.IO_USAGE_STATS;
+import static org.opensearch.node.NodeResourceUsageStats.Fields.MEMORY_UTILIZATION_PERCENT;
+import static org.opensearch.node.NodeResourceUsageStats.Fields.TIMESTAMP;
 
 /**
  * This represents the resource usage stats of a node along with the timestamp at which the stats object was created
  * in the respective node
  */
-public class NodeResourceUsageStats implements Writeable {
+@ExperimentalApi
+public class NodeResourceUsageStats implements Writeable, ToXContentFragment {
     final String nodeId;
     long timestamp;
     double cpuUtilizationPercent;
@@ -106,5 +115,30 @@ public class NodeResourceUsageStats implements Writeable {
 
     public long getTimestamp() {
         return timestamp;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(nodeId);
+        builder.field(TIMESTAMP, timestamp);
+        builder.field(CPU_UTILIZATION_PERCENT, String.format(Locale.ROOT, "%.1f", cpuUtilizationPercent));
+        builder.field(MEMORY_UTILIZATION_PERCENT, String.format(Locale.ROOT, "%.1f", memoryUtilizationPercent));
+        if (ioUsageStats != null) {
+            builder.field(IO_USAGE_STATS, ioUsageStats);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    /**
+     * Fields used for statistics
+     *
+     * @opensearch.internal
+     */
+    static final class Fields {
+        static final String TIMESTAMP = "timestamp";
+        static final String CPU_UTILIZATION_PERCENT = "cpu_utilization_percent";
+        static final String MEMORY_UTILIZATION_PERCENT = "memory_utilization_percent";
+        static final String IO_USAGE_STATS = "io_usage_stats";
     }
 }

@@ -31,13 +31,14 @@
 import org.opensearch.gradle.info.BuildParams
 
 apply plugin: "opensearch.publish"
+apply from: "$rootDir/gradle/fips.gradle"
 
 dependencies {
   api project(':libs:opensearch-common')
-  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
-  api "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
-  runtimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
-  runtimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+  fipsOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  fipsOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
+  fipsOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
@@ -57,7 +58,5 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.test {
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
-    }
+    jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
 }

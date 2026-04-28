@@ -40,6 +40,9 @@ import org.gradle.api.Task;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.tasks.TaskState;
+import org.gradle.process.ExecOperations;
+
+import javax.inject.Inject;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -81,6 +84,13 @@ public class VagrantBasePlugin implements Plugin<Project> {
         private static final Pattern VAGRANT_VERSION = Pattern.compile("Vagrant (\\d+\\.\\d+\\.\\d+)");
         private static final Pattern VIRTUAL_BOX_VERSION = Pattern.compile("(\\d+\\.\\d+)");
 
+        private final ExecOperations execOperations;
+
+        @Inject
+        public VagrantSetupCheckerPlugin(ExecOperations execOperations) {
+            this.execOperations = execOperations;
+        }
+
         @Override
         public void apply(Project project) {
             if (project != project.getRootProject()) {
@@ -98,7 +108,7 @@ public class VagrantBasePlugin implements Plugin<Project> {
 
         void checkVersion(Project project, String tool, Pattern versionRegex, int... minVersion) {
             ByteArrayOutputStream pipe = new ByteArrayOutputStream();
-            project.exec(spec -> {
+            execOperations.exec(spec -> {
                 spec.setCommandLine(tool, "--version");
                 spec.setStandardOutput(pipe);
             });

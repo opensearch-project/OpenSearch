@@ -36,14 +36,21 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.Token;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -51,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -62,7 +70,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        return Collections.singletonList(new MapperExtrasModulePlugin());
+        return List.of(new MapperExtrasModulePlugin(), new MockDataFormatPlugin(), new MockCommitterEnginePlugin());
     }
 
     @Override
@@ -80,6 +88,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("skip_list", b -> b.field("skip_list", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
         checker.registerUpdateCheck(this::minimalMapping, b -> b.field("type", "token_count").field("analyzer", "standard"), m -> {
@@ -150,25 +159,75 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     }
 
     public void testParseNullValue() throws Exception {
-        DocumentMapper mapper = createIndexWithTokenCountField();
+        DocumentMapper mapper = createIndexWithTokenCountField(false);
         ParseContext.Document doc = parseDocument(mapper, createDocument(null));
         assertNull(doc.getField("test.tc"));
     }
 
     public void testParseEmptyValue() throws Exception {
-        DocumentMapper mapper = createIndexWithTokenCountField();
+        DocumentMapper mapper = createIndexWithTokenCountField(false);
         ParseContext.Document doc = parseDocument(mapper, createDocument(""));
         assertEquals(0, doc.getField("test.tc").numericValue());
     }
 
     public void testParseNotNullValue() throws Exception {
-        DocumentMapper mapper = createIndexWithTokenCountField();
+        DocumentMapper mapper = createIndexWithTokenCountField(false);
         ParseContext.Document doc = parseDocument(mapper, createDocument("three tokens string"));
         assertEquals(3, doc.getField("test.tc").numericValue());
+
+        IndexableField[] fields = doc.getFields("test.tc");
+        assertEquals(2, fields.length);
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.NONE, dvField.fieldType().docValuesSkipIndexType());
     }
 
-    private DocumentMapper createIndexWithTokenCountField() throws IOException {
+    public void testParseNotNullValue_withSkiplist() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountField(true);
+        ParseContext.Document doc = parseDocument(mapper, createDocument("three tokens string"));
+        assertEquals(3, doc.getField("test.tc").numericValue());
+
+        IndexableField[] fields = doc.getFields("test.tc");
+        assertEquals(2, fields.length);
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.RANGE, dvField.fieldType().docValuesSkipIndexType());
+    }
+
+    private DocumentMapper createIndexWithTokenCountField(boolean skiplist) throws IOException {
         return createDocumentMapper(mapping(b -> {
+            b.startObject("test");
+            {
+                b.field("type", "text");
+                b.startObject("fields");
+                {
+                    b.startObject("tc");
+                    {
+                        b.field("type", "token_count");
+                        b.field("analyzer", "standard");
+                        if (skiplist) {
+                            b.field("skip_list", "true");
+                        }
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+    }
+
+    private SourceToParse createDocument(String fieldValue) throws Exception {
+        return source(b -> b.field("test", fieldValue));
+    }
+
+    private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {
+        return mapper.parse(request).docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
+    }
+
+    private DocumentMapper createIndexWithTokenCountFieldPluggableDataFormat() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        return createDocumentMapper(pluggableSettings, mapping(b -> {
             b.startObject("test");
             {
                 b.field("type", "text");
@@ -187,11 +246,59 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         }));
     }
 
-    private SourceToParse createDocument(String fieldValue) throws Exception {
-        return source(b -> b.field("test", fieldValue));
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTokenCountValue() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountFieldPluggableDataFormat();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(createDocument("three tokens string"), docInput);
+
+        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("test.tc") && e.getValue().equals(3));
+        assertTrue("Expected token count of 3 for field test.tc", found);
     }
 
-    private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {
-        return mapper.parse(request).docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTokenCountNullSkipped() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountFieldPluggableDataFormat();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(createDocument(null), docInput);
+
+        boolean hasTokenCountField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("test.tc"));
+        assertFalse("Expected no token count field for null value", hasTokenCountField);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
+        // Scenario 1: token count value
+        {
+            DocumentMapper luceneMapper = createIndexWithTokenCountField(false);
+            ParseContext.Document luceneDoc = parseDocument(luceneMapper, createDocument("three tokens string"));
+            IndexableField luceneField = luceneDoc.getField("test.tc");
+
+            DocumentMapper pluggableMapper = createIndexWithTokenCountFieldPluggableDataFormat();
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
+            pluggableMapper.parse(createDocument("three tokens string"), docInput);
+
+            assertNotNull("Lucene path should produce field 'test.tc'", luceneField);
+            assertEquals(3, luceneField.numericValue());
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("test.tc") && e.getValue().equals(3));
+            assertTrue("Pluggable path should capture field 'test.tc' with value 3", pluggableFound);
+        }
+
+        // Scenario 2: null value — no field produced
+        {
+            DocumentMapper luceneMapper = createIndexWithTokenCountField(false);
+            ParseContext.Document luceneDoc = parseDocument(luceneMapper, createDocument(null));
+            IndexableField luceneField = luceneDoc.getField("test.tc");
+
+            DocumentMapper pluggableMapper = createIndexWithTokenCountFieldPluggableDataFormat();
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
+            pluggableMapper.parse(createDocument(null), docInput);
+
+            assertNull("Lucene path should produce no field 'test.tc'", luceneField);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("test.tc"));
+            assertFalse("Pluggable path should produce no field 'test.tc'", pluggableHasField);
+        }
     }
 }

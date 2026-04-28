@@ -8,9 +8,8 @@
 
 package org.opensearch.index;
 
-import org.opensearch.common.annotation.ExperimentalApi;
-
-import java.util.Map;
+import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * A factory for creating {@link IngestionShardConsumer}.
@@ -18,20 +17,20 @@ import java.util.Map;
  * @param <T> the type of the {@link IngestionShardConsumer}
  * @param <P> the type of the {@link IngestionShardPointer}
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P extends IngestionShardPointer> {
     /**
      * Initialize the factory with the configuration parameters. This method is called once when the factory is created,
-     * and the parameters are parsed from the {@link org.opensearch.cluster.metadata.IngestionSource} in
+     * and the required parameters are provided from the {@link org.opensearch.cluster.metadata.IngestionSource} in
      * {@link  org.opensearch.cluster.metadata.IndexMetadata}.
-     * @param params the configuration parameters to initialize the factory
+     * @param ingestionSource the ingestion source with configuration parameters to initialize the factory
      */
-    void initialize(Map<String, Object> params);
+    void initialize(IngestionSource ingestionSource);
 
     /**
      *  Create a consumer to ingest messages from a shard of the streams. When the ingestion engine created per shard,
      *  this method is called to create the consumer in the poller. Before the invocation of this method, the configuration
-     *  is passed to the factory through the {@link #initialize(Map)} method.
+     *  is passed to the factory through the {@link #initialize(IngestionSource)} method.
      *
      * @param clientId the client id assigned to the consumer
      * @param shardId the id of the shard

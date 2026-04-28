@@ -102,8 +102,8 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
             queryResult.terminatedEarly(false);
         }
 
-        if (queryCollectorContext instanceof RescoringQueryCollectorContext) {
-            return ((RescoringQueryCollectorContext) queryCollectorContext).shouldRescore();
+        if (queryCollectorContext instanceof RescoringQueryCollectorContext rescoringContext) {
+            return rescoringContext.shouldRescore();
         }
         return false;
     }

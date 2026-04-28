@@ -223,8 +223,8 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     }
 
     private static Query wrapWithBoost(Query query, float boost) {
-        if (query instanceof MatchNoDocsQuery) {
-            return query;
+        if (query instanceof MatchNoDocsQuery matchNoDocsQuery) {
+            return matchNoDocsQuery;
         }
         if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
             return new BoostQuery(query, boost);

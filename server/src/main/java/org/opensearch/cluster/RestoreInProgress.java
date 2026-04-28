@@ -447,11 +447,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         return TYPE;
     }
 
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
-    }
-
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(Custom.class, TYPE, in);
     }
@@ -536,5 +531,12 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
         builder.endArray();
         builder.endObject();
+    }
+
+    @Override
+    @Deprecated(forRemoval = true) // Implementation is identical to NamedDiffable
+    public Version getMinimalSupportedVersion() {
+        // TODO: Only including this method to work around bug in japicmp.
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 }

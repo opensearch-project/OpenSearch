@@ -36,9 +36,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -72,6 +74,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private final String prefix;
         private final List<IndexableField> fields;
         private Map<Object, IndexableField> keyedFields;
+        private Map<String, Object> groupingCriteriaParams;
+        private String groupingCriteria;
 
         private Document(String path, Document parent) {
             fields = new ArrayList<>();
@@ -112,6 +116,25 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
         public List<IndexableField> getFields() {
             return fields;
+        }
+
+        public void addGroupingCriteriaParams(final String fieldName, final Object value) {
+            if (groupingCriteriaParams != null) {
+                throw new IllegalArgumentException("grouping criteria params already set");
+            }
+            groupingCriteriaParams = Map.of(fieldName, value);
+        }
+
+        public Map<String, Object> getGroupingCriteriaParams() {
+            return groupingCriteriaParams;
+        }
+
+        public void setGroupingCriteria(String groupingCriteria) {
+            this.groupingCriteria = groupingCriteria;
+        }
+
+        public String getGroupingCriteria() {
+            return groupingCriteria;
         }
 
         public void addAll(List<? extends IndexableField> fields) {
@@ -243,6 +266,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         }
 
         @Override
+        public DocumentInput documentInput() {
+            return in.documentInput();
+        }
+
+        @Override
         protected void addDoc(Document doc) {
             in.addDoc(doc);
         }
@@ -300,6 +328,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         @Override
         public List<Mapper> getDynamicMappers() {
             return in.getDynamicMappers();
+        }
+
+        @Override
+        Mapper lookupDynamicPropertyMapper(String fullPath) {
+            return in.lookupDynamicPropertyMapper(fullPath);
+        }
+
+        @Override
+        void rememberDynamicPropertyMapper(String fullPath, Mapper mapper) {
+            in.rememberDynamicPropertyMapper(fullPath, mapper);
         }
 
         @Override
@@ -389,9 +427,14 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
         private final List<Mapper> dynamicMappers;
 
+        /** Reuse mappers built from dynamic_property for the same path within one document parse. */
+        private final Map<String, Mapper> dynamicPropertyMapperCache = new HashMap<>();
+
         private boolean docsReversed = false;
 
         private final Set<String> ignoredFields = new HashSet<>();
+
+        private DocumentInput documentInput;
 
         public InternalParseContext(
             IndexSettings indexSettings,
@@ -400,12 +443,24 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
             SourceToParse source,
             XContentParser parser
         ) {
+            this(indexSettings, docMapperParser, docMapper, source, parser, null);
+        }
+
+        public InternalParseContext(
+            IndexSettings indexSettings,
+            DocumentMapperParser docMapperParser,
+            DocumentMapper docMapper,
+            SourceToParse source,
+            XContentParser parser,
+            DocumentInput documentInput
+        ) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
             this.path = new ContentPath(0);
             this.parser = parser;
             this.document = new Document();
+            this.documentInput = documentInput;
             this.documents = new ArrayList<>();
             this.documents.add(document);
             this.version = null;
@@ -456,6 +511,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         @Override
         public Document doc() {
             return this.document;
+        }
+
+        @Override
+        public DocumentInput documentInput() {
+            return this.documentInput;
         }
 
         @Override
@@ -517,6 +577,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         @Override
         public List<Mapper> getDynamicMappers() {
             return dynamicMappers;
+        }
+
+        @Override
+        Mapper lookupDynamicPropertyMapper(String fullPath) {
+            return dynamicPropertyMapperCache.get(fullPath);
+        }
+
+        @Override
+        void rememberDynamicPropertyMapper(String fullPath, Mapper mapper) {
+            dynamicPropertyMapperCache.put(fullPath, mapper);
         }
 
         @Override
@@ -679,6 +749,15 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         return switchDoc(doc);
     }
 
+    public final ParseContext switchParser(final XContentParser parser) {
+        return new FilterParseContext(this) {
+            @Override
+            public XContentParser parser() {
+                return parser;
+            }
+        };
+    }
+
     /**
      * Return a new context that has the provided document as the current document.
      */
@@ -718,6 +797,9 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
     public abstract Document rootDoc();
 
     public abstract Document doc();
+
+    @ExperimentalApi
+    public abstract DocumentInput<?> documentInput();
 
     protected abstract void addDoc(Document doc);
 
@@ -787,6 +869,18 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
      * Get dynamic mappers created while parsing.
      */
     public abstract List<Mapper> getDynamicMappers();
+
+    /**
+     * Returns a cached mapper for a dynamic_property match, or null.
+     */
+    Mapper lookupDynamicPropertyMapper(String fullPath) {
+        return null;
+    }
+
+    /**
+     * Caches a mapper built for a dynamic_property field path for the rest of this parse.
+     */
+    void rememberDynamicPropertyMapper(String fullPath, Mapper mapper) {}
 
     public abstract void incrementFieldCurrentDepth();
 

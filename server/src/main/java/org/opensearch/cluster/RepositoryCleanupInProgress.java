@@ -31,8 +31,6 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -112,11 +110,6 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
     @Override
     public String toString() {
         return Strings.toString(MediaTypeRegistry.JSON, this);
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return LegacyESVersion.fromId(7040099);
     }
 
     @Override

@@ -37,6 +37,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.opensearch.index.query.ParsedQuery;
+import org.opensearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -67,7 +69,7 @@ public final class QueryRescorer implements Rescorer {
 
         final QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
 
-        org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.query()) {
+        org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.parsedQuery().query()) {
 
             @Override
             protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
@@ -120,7 +122,7 @@ public final class QueryRescorer implements Rescorer {
             prim = Explanation.noMatch("First pass did not match", sourceExplanation);
         }
         if (rescoreContext.isRescored(topLevelDocId)) {
-            Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
+            Explanation rescoreExplain = searcher.explain(rescore.parsedQuery().query(), topLevelDocId);
             // NOTE: we don't use Lucene's Rescorer.explain because we want to insert our own description with which ScoreMode was used.
             // Maybe we should add QueryRescorer.explainCombine to Lucene?
             if (rescoreExplain != null && rescoreExplain.isMatch()) {
@@ -190,7 +192,7 @@ public final class QueryRescorer implements Rescorer {
      * @opensearch.internal
      */
     public static class QueryRescoreContext extends RescoreContext {
-        private Query query;
+        private ParsedQuery parsedQuery;
         private float queryWeight = 1.0f;
         private float rescoreQueryWeight = 1.0f;
         private QueryRescoreMode scoreMode;
@@ -200,17 +202,22 @@ public final class QueryRescorer implements Rescorer {
             this.scoreMode = QueryRescoreMode.Total;
         }
 
-        public void setQuery(Query query) {
-            this.query = query;
+        public void setParsedQuery(ParsedQuery parsedQuery) {
+            this.parsedQuery = parsedQuery;
+        }
+
+        public ParsedQuery parsedQuery() {
+            return parsedQuery;
         }
 
         @Override
         public List<Query> getQueries() {
-            return Collections.singletonList(query);
+            return parsedQuery != null ? Collections.singletonList(parsedQuery.query()) : Collections.emptyList();
         }
 
-        public Query query() {
-            return query;
+        @Override
+        public List<ParsedQuery> getParsedQueries() {
+            return parsedQuery != null ? Collections.singletonList(parsedQuery) : Collections.emptyList();
         }
 
         public float queryWeight() {

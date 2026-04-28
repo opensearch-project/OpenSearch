@@ -52,6 +52,7 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -228,8 +229,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * Translate custom queries in queries that are supported by the unified highlighter.
      */
     private Collection<Query> rewriteCustomQuery(Query query) {
-        if (query instanceof MultiPhrasePrefixQuery) {
-            MultiPhrasePrefixQuery mpq = (MultiPhrasePrefixQuery) query;
+        if (query instanceof MultiPhrasePrefixQuery mpq) {
             Term[][] terms = mpq.getTerms();
             int[] positions = mpq.getPositions();
             SpanQuery[] positionSpanQueries = new SpanQuery[positions.length];
@@ -262,6 +262,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             // if original slop is 0 then require inOrder
             boolean inorder = (mpq.getSlop() == 0);
             return Collections.singletonList(new SpanNearQuery(positionSpanQueries, mpq.getSlop() + positionGaps, inorder));
+        } else if (query instanceof OpenSearchToParentBlockJoinQuery parentQuery) {
+            return Collections.singletonList(parentQuery.getChildQuery());
         } else {
             return null;
         }

@@ -21,7 +21,10 @@ import java.security.NoSuchAlgorithmException;
  * Helper class for creating default SSL engines
  */
 public class SslUtils {
-    private static final String[] DEFAULT_SSL_PROTOCOLS = { "TLSv1.3", "TLSv1.2", "TLSv1.1" };
+    /**
+     * Default support TLS protocols
+     */
+    public static final String[] DEFAULT_SSL_PROTOCOLS = { "TLSv1.3", "TLSv1.2", "TLSv1.1" };
 
     private SslUtils() {}
 

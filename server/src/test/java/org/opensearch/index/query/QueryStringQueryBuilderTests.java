@@ -786,6 +786,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertTrue(regexpQuery.toString().contains("/foo*bar/"));
     }
 
+    public void testRegexpQueryParserWithForceAnalyzer() throws Exception {
+        QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), TEXT_FIELD_NAME);
+        queryParser.setForceAnalyzer(new org.apache.lucene.analysis.standard.StandardAnalyzer());
+        Query query = queryParser.parse("/aBc.*/");
+        assertThat(query, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) query;
+        // Standard analyzer normalizes to lowercase, verifying the normalization path with currentFieldType.name() is hit
+        assertTrue(regexpQuery.toString().contains("abc.*"));
+    }
+
     public void testToQueryRegExpQueryTooComplex() throws Exception {
         QueryStringQueryBuilder queryBuilder = queryStringQuery("/[ac]*a[ac]{50,200}/").defaultField(TEXT_FIELD_NAME);
 
@@ -793,8 +803,14 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createShardContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing automaton"));
-        assertThat(e.getMessage(), containsString("would require more than 10000 effort"));
+        assertTrue(e.getMessage().contains("Determinizing automaton"));
+        assertTrue(e.getMessage().contains("would require more than 10000 effort"));
+
+        // TooComplexToDeterminizeException should be thrown even if lenient is true
+        QueryStringQueryBuilder lenientQueryBuilder = queryStringQuery("/[ac]*a[ac]{50,200}/").defaultField(TEXT_FIELD_NAME).lenient(true);
+        e = expectThrows(TooComplexToDeterminizeException.class, () -> lenientQueryBuilder.toQuery(createShardContext()));
+        assertTrue(e.getMessage().contains("Determinizing automaton"));
+        assertTrue(e.getMessage().contains("would require more than 10000 effort"));
     }
 
     /**

@@ -54,7 +54,7 @@ public class WorkloadGroupPersistenceService {
     /**
      *  max WorkloadGroup count setting name
      */
-    public static final String QUERY_GROUP_COUNT_SETTING_NAME = "node.workload_group.max_count";
+    public static final String WORKLOAD_GROUP_COUNT_SETTING_NAME = "node.workload_group.max_count";
     /**
      * default max workloadGroup count on any node at any given point in time
      */
@@ -67,7 +67,7 @@ public class WorkloadGroupPersistenceService {
      *  max WorkloadGroup count setting
      */
     public static final Setting<Integer> MAX_QUERY_GROUP_COUNT = Setting.intSetting(
-        QUERY_GROUP_COUNT_SETTING_NAME,
+        WORKLOAD_GROUP_COUNT_SETTING_NAME,
         DEFAULT_MAX_QUERY_GROUP_COUNT_VALUE,
         0,
         WorkloadGroupPersistenceService::validateMaxWorkloadGroupCount,
@@ -116,7 +116,7 @@ public class WorkloadGroupPersistenceService {
      */
     private static void validateMaxWorkloadGroupCount(int maxWorkloadGroupCount) {
         if (maxWorkloadGroupCount > DEFAULT_MAX_QUERY_GROUP_COUNT_VALUE || maxWorkloadGroupCount < MIN_QUERY_GROUP_COUNT_VALUE) {
-            throw new IllegalArgumentException(QUERY_GROUP_COUNT_SETTING_NAME + " should be in range [1-100].");
+            throw new IllegalArgumentException(WORKLOAD_GROUP_COUNT_SETTING_NAME + " should be in range [1-100].");
         }
     }
 
@@ -162,7 +162,7 @@ public class WorkloadGroupPersistenceService {
 
         // check if maxWorkloadGroupCount will breach
         if (existingWorkloadGroups.size() == maxWorkloadGroupCount) {
-            logger.warn("{} value exceeded its assigned limit of {}.", QUERY_GROUP_COUNT_SETTING_NAME, maxWorkloadGroupCount);
+            logger.warn("{} value exceeded its assigned limit of {}.", WORKLOAD_GROUP_COUNT_SETTING_NAME, maxWorkloadGroupCount);
             throw new IllegalStateException("Can't create more than " + maxWorkloadGroupCount + " WorkloadGroups in the system.");
         }
 
@@ -236,14 +236,18 @@ public class WorkloadGroupPersistenceService {
      */
     ClusterState deleteWorkloadGroupInClusterState(final String name, final ClusterState currentClusterState) {
         final Metadata metadata = currentClusterState.metadata();
-        final WorkloadGroup workloadGroupToRemove = metadata.workloadGroups()
+        final WorkloadGroup workloadGroupToRemove = getWorkloadGroup(name, metadata);
+
+        return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).remove(workloadGroupToRemove).build()).build();
+    }
+
+    private static WorkloadGroup getWorkloadGroup(String name, Metadata metadata) {
+        return metadata.workloadGroups()
             .values()
             .stream()
             .filter(workloadGroup -> workloadGroup.getName().equals(name))
             .findAny()
             .orElseThrow(() -> new ResourceNotFoundException("No WorkloadGroup exists with the provided name: " + name));
-
-        return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).remove(workloadGroupToRemove).build()).build();
     }
 
     /**

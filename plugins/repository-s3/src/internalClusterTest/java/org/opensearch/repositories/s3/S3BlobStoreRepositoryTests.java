@@ -31,6 +31,8 @@
 
 package org.opensearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -61,6 +63,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -74,6 +77,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import fixture.s3.S3HttpHandler;
@@ -84,6 +90,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+@ThreadLeakFilters(filters = EventLoopThreadFilter.class)
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
@@ -95,16 +102,16 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     @Override
     public void setUp() throws Exception {
         signerOverride = AwsRequestSigner.VERSION_FOUR_SIGNER.getName();
-        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
+        previousOpenSearchPathConf = AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
     }
 
     @Override
     public void tearDown() throws Exception {
         if (previousOpenSearchPathConf != null) {
-            SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
+            AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
         } else {
-            SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+            AccessController.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
         }
         super.tearDown();
     }
@@ -144,7 +151,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
-        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret");
+        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret_password");
 
         final Settings.Builder builder = Settings.builder()
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
@@ -234,9 +241,13 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
      * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
      */
     public static class TestS3RepositoryPlugin extends S3RepositoryPlugin {
-
         public TestS3RepositoryPlugin(final Settings settings, final Path configPath) {
-            super(settings, configPath);
+            super(
+                settings,
+                configPath,
+                new S3Service(configPath, Executors.newSingleThreadScheduledExecutor()),
+                new S3AsyncService(configPath, Executors.newSingleThreadScheduledExecutor())
+            );
         }
 
         @Override
@@ -244,6 +255,13 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             final List<Setting<?>> settings = new ArrayList<>(super.getSettings());
             settings.add(S3ClientSettings.DISABLE_CHUNKED_ENCODING);
             return settings;
+        }
+
+        @Override
+        public void close() throws IOException {
+            super.close();
+            Stream.of(service.getClientExecutorService(), s3AsyncService.getClientExecutorService())
+                .forEach(e -> assertTrue(ThreadPool.terminate(e, 5, TimeUnit.SECONDS)));
         }
 
         @Override

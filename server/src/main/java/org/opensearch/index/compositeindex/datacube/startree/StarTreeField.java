@@ -95,8 +95,8 @@ public class StarTreeField implements ToXContent {
             builder.startArray("ordered_dimensions");
             for (Dimension dimension : dimensionsOrder) {
                 // Handle dateDimension for later
-                if (dimension instanceof DateDimension) {
-                    dateDim = (DateDimension) dimension;
+                if (dimension instanceof DateDimension dateDimension) {
+                    dateDim = dateDimension;
                     continue;
                 }
                 dimension.toXContent(builder, params);

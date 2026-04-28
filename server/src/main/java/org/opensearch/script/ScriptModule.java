@@ -79,7 +79,8 @@ public class ScriptModule {
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
             ScriptedMetricAggContexts.ReduceScript.CONTEXT,
             IntervalFilterScript.CONTEXT,
-            DerivedFieldScript.CONTEXT
+            DerivedFieldScript.CONTEXT,
+            ContextAwareGroupingScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

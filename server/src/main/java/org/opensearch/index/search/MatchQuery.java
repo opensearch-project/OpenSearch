@@ -350,8 +350,7 @@ public class MatchQuery {
         float maxTermFrequency
     ) {
         Query booleanQuery = builder.createBooleanQuery(field, queryText, lowFreqOccur);
-        if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
-            BooleanQuery bq = (BooleanQuery) booleanQuery;
+        if (booleanQuery != null && booleanQuery instanceof BooleanQuery bq) {
             return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency);
         }
         return booleanQuery;
@@ -360,10 +359,10 @@ public class MatchQuery {
     private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
         ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency);
         for (BooleanClause clause : bq.clauses()) {
-            if ((clause.query() instanceof TermQuery) == false) {
+            if (!(clause.query() instanceof TermQuery termQuery)) {
                 return bq;
             }
-            query.add(((TermQuery) clause.query()).getTerm());
+            query.add(termQuery.getTerm());
         }
         return query;
     }

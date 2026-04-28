@@ -164,3 +164,9 @@ class org.opensearch.index.query.IntervalFilterScript$Interval {
 class org.opensearch.script.ScoreScript$ExplanationHolder {
   void set(String)
 }
+
+class org.opensearch.search.aggregations.metrics.ScriptedAvg {
+  (double,long)
+  double getSum()
+  long getCount()
+}

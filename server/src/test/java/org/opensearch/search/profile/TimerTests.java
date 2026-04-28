@@ -34,13 +34,14 @@ package org.opensearch.search.profile;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class TimerTests extends OpenSearchTestCase {
 
     public void testTimingInterval() {
         final AtomicLong nanoTimeCallCounter = new AtomicLong();
-        Timer t = new Timer() {
+        Timer t = new Timer("test") {
             long time = 50;
 
             @Override
@@ -63,7 +64,7 @@ public class TimerTests extends OpenSearchTestCase {
     }
 
     public void testExtrapolate() {
-        Timer t = new Timer() {
+        Timer t = new Timer("test") {
             long time = 50;
 
             @Override
@@ -82,6 +83,18 @@ public class TimerTests extends OpenSearchTestCase {
             // Make sure the cumulated timing is 42 times the number of calls as expected
             assertEquals(i * 42L, t.getApproximateTiming());
         }
+    }
+
+    public void testTimerBreakdownMap() {
+        Timer t = new Timer(123L, 2L, 1234L, 0L, 12345L, "test");
+        Map<String, Long> map = t.toBreakdownMap();
+        assertEquals(map.size(), 3);
+        assertEquals(map.get("test").longValue(), 123L);
+        assertEquals(map.get("test_count").longValue(), 2L);
+        assertEquals(map.get("test_start_time").longValue(), 12345L);
+
+        Timer t1 = new Timer(123L, 2L, 1234L, 0L, 12345L, "test1");
+        assertEquals(t1.getName(), "test1");
     }
 
 }

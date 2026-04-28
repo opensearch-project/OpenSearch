@@ -43,6 +43,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -84,9 +85,12 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.InternalEngineTests;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexingOperationListener;
@@ -96,9 +100,11 @@ import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
@@ -124,6 +130,7 @@ import org.opensearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -141,6 +148,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexModuleTests extends OpenSearchTestCase {
     private Index index;
@@ -168,10 +176,14 @@ public class IndexModuleTests extends OpenSearchTestCase {
     private ScriptService scriptService;
     private ClusterService clusterService;
     private RepositoriesService repositoriesService;
+    private ClusterMergeSchedulerConfig mockClusterMergeSchedulerConfig;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        mockClusterMergeSchedulerConfig = mock(ClusterMergeSchedulerConfig.class);
+        when(mockClusterMergeSchedulerConfig.getClusterMaxMergeCount()).thenReturn(9);
+        when(mockClusterMergeSchedulerConfig.getClusterMaxThreadCount()).thenReturn(4);
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -238,7 +250,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
                     threadPool,
                     indexSettings.getRemoteStoreTranslogRepository(),
                     new RemoteTranslogTransferTracker(shardRouting.shardId(), 10),
-                    DefaultRemoteStoreSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
                 );
             }
             return new InternalTranslogFactory();
@@ -256,7 +269,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             null,
             indicesQueryCache,
             mapperRegistry,
-            new IndicesFieldDataCache(settings, listener),
+            new IndicesFieldDataCache(settings, listener, clusterService, threadPool),
+            null,
             writableRegistry(),
             () -> false,
             null,
@@ -269,7 +283,9 @@ public class IndexModuleTests extends OpenSearchTestCase {
             DefaultRemoteStoreSettings.INSTANCE,
             s -> {},
             null,
-            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE
+            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE,
+            mockClusterMergeSchedulerConfig,
+            (DataFormatRegistry) null
         );
     }
 
@@ -289,7 +305,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
 
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
-        assertSame(indexService.getEngineFactory(), module.getEngineFactory());
+        assertSame(indexService.getIndexerFactory(), module.getIndexerFactory());
         indexService.close("simon says", false);
     }
 
@@ -313,7 +329,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         );
 
         final IndexService indexService = newIndexService(module);
-        assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
+        assertThat(indexService.getDirectoryFactory(), instanceOf(IndexStorePlugin.DirectoryFactory.class));
 
         indexService.close("simon says", false);
     }
@@ -649,6 +665,101 @@ public class IndexModuleTests extends OpenSearchTestCase {
         indexService.close("closing", false);
     }
 
+    public void testStoreFactory() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_STORE_FACTORY_SETTING.getKey(), "test_store")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final TestStoreFactory testStoreFactory = new TestStoreFactory();
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories = singletonMap("test_store", testStoreFactory);
+
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap(),
+            storeFactories,
+            null,
+            null,
+            Collections.emptyMap()
+        );
+
+        // Test that IndexService can be created successfully with valid store factory
+        final IndexService indexService = newIndexService(module);
+        assertNotNull(indexService);
+        indexService.close("closing", false);
+    }
+
+    public void testStoreFactoryWithEmptySetting() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_STORE_FACTORY_SETTING.getKey(), "")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final TestStoreFactory testStoreFactory = new TestStoreFactory();
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories = singletonMap("test_store", testStoreFactory);
+
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap(),
+            storeFactories,
+            null,
+            null,
+            Collections.emptyMap()
+        );
+
+        // Test that IndexService uses default store when setting is empty
+        final IndexService indexService = newIndexService(module);
+        assertNotNull(indexService);
+        indexService.close("closing", false);
+    }
+
+    public void testUnknownStoreFactory() {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_STORE_FACTORY_SETTING.getKey(), "unknown_store")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            null,
+            null,
+            Collections.emptyMap()
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
+        assertThat(exception.getMessage(), containsString("Unknown store factory [unknown_store]"));
+    }
+
     private ShardRouting createInitializedShardRouting() {
         ShardRouting shard = ShardRouting.newUnassigned(
             new ShardId("test", "_na_", 0),
@@ -728,6 +839,11 @@ public class IndexModuleTests extends OpenSearchTestCase {
         public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
             return new FsDirectoryFactory().newDirectory(indexSettings, shardPath);
         }
+
+        @Override
+        public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+            return null;
+        }
     }
 
     public static final class Wrapper implements CheckedFunction<DirectoryReader, DirectoryReader, IOException> {
@@ -735,5 +851,74 @@ public class IndexModuleTests extends OpenSearchTestCase {
         public DirectoryReader apply(DirectoryReader reader) {
             return null;
         }
+    }
+
+    public static final class TestStoreFactory implements IndexStorePlugin.StoreFactory {
+        @Override
+        public Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath,
+            IndexStorePlugin.DirectoryFactory directoryFactory
+        ) throws IOException {
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
+        }
+
+        @Override
+        public Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath
+        ) throws IOException {
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
+        }
+    }
+
+    @SuppressWarnings("removal")
+    public void testLegacyConstructors() throws IOException {
+        final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
+        IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            engineFactory,
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap()
+        );
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (a, b) -> new InternalTranslogFactory();
+        module.newIndexService(
+            CREATE_INDEX,
+            nodeEnvironment,
+            xContentRegistry(),
+            deleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            null,
+            indicesQueryCache,
+            mapperRegistry,
+            new IndicesFieldDataCache(settings, listener, clusterService, threadPool),
+            writableRegistry(),
+            () -> false,
+            null,
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, ""),
+            translogFactorySupplier,
+            () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            () -> Boolean.FALSE,
+            () -> Boolean.FALSE,
+            DefaultRecoverySettings.INSTANCE,
+            DefaultRemoteStoreSettings.INSTANCE,
+            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE
+        );
     }
 }

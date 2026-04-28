@@ -725,6 +725,11 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
+        public long getLowPriorityRemoteDownloadThrottleTimeInNanos() {
+            return 0;
+        }
+
+        @Override
         public String startVerification() {
             return null;
         }
@@ -760,7 +765,8 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             IndexShardSnapshotStatus snapshotStatus,
             Version repositoryMetaVersion,
             Map<String, Object> userMetadata,
-            ActionListener<String> listener
+            ActionListener<String> listener,
+            IndexMetadata indexMetadata
         ) {
 
         }
@@ -937,6 +943,26 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         @Override
         public BlobPath basePath() {
             return BlobPath.cleanPath();
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Native store tests — native store wiring is now handled by
+    // ExtensiblePlugin.loadExtensions in each repository plugin.
+    // RepositoriesService no longer participates in native store init.
+    // -----------------------------------------------------------------------
+
+    public void testGetNativeStoreDefaultIsEmpty() {
+        repositoriesService.registerInternalRepository("repo", TestRepository.TYPE);
+        final Repository repo = repositoriesService.repository("repo");
+        assertSame(NativeStoreRepository.EMPTY, repo.getNativeStore());
+    }
+
+    private static class NativeAwareTestRepository extends TestRepository {
+        private static final String TYPE = "native-aware";
+
+        NativeAwareTestRepository(RepositoryMetadata metadata) {
+            super(metadata);
         }
     }
 }

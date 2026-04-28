@@ -30,6 +30,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -87,6 +88,70 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
         clusterSettings.registerSetting(TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
         clusterSettings.registerSetting(DISK_CACHE_ENABLED_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE));
+    }
+
+    public void testComputeIfAbsentWhenTheQueryThrowsAnException() throws Exception {
+        int onHeapCacheSize = randomIntBetween(10, 30);
+        int keyValueSize = 50;
+
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        TieredSpilloverCache<String, String> tieredSpilloverCache = initializeTieredSpilloverCache(
+            keyValueSize,
+            randomIntBetween(1, 4),
+            removalListener,
+            Settings.builder()
+                .put(
+                    TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                        CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                    ).getKey(),
+                    onHeapCacheSize * keyValueSize + "b"
+                )
+                .build(),
+            0,
+            1
+        );
+        ICacheKey<String> key = getICacheKey(UUID.randomUUID().toString());
+        LoadAwareCacheLoader<ICacheKey<String>, String> tieredCacheLoader = new LoadAwareCacheLoader<>() {
+            boolean isLoaded = false;
+
+            @Override
+            public String load(ICacheKey<String> key) {
+                isLoaded = true;
+                throw new TaskCancelledException("Query cancelled!");
+            }
+
+            @Override
+            public boolean isLoaded() {
+                return isLoaded;
+            }
+        };
+        // With this call, we expect an exception from the underlying loader which eventually causes the below call to result into
+        // exception.
+        try {
+            tieredSpilloverCache.computeIfAbsent(key, tieredCacheLoader);
+        } catch (Exception ex) {
+            assertEquals(TaskCancelledException.class, ex.getCause().getClass());
+            assertEquals("Query cancelled!", ex.getCause().getMessage());
+        }
+        // We will call computeIfAbsent again with the same key, but this time the underlying loader should run fine and we should get back
+        // the response.
+        String expectedRespone = "Cool response!";
+        LoadAwareCacheLoader<ICacheKey<String>, String> tieredCacheLoaderWithNoException = new LoadAwareCacheLoader<>() {
+            boolean isLoaded = false;
+
+            @Override
+            public String load(ICacheKey<String> key) {
+                isLoaded = true;
+                return expectedRespone;
+            }
+
+            @Override
+            public boolean isLoaded() {
+                return isLoaded;
+            }
+        };
+        String value = tieredSpilloverCache.computeIfAbsent(key, tieredCacheLoaderWithNoException);
+        assertEquals(expectedRespone, value);
     }
 
     public void testComputeIfAbsentWithoutAnyOnHeapCacheEviction() throws Exception {
@@ -2598,17 +2663,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             }
         }
         return builder.build();
-    }
-
-    private TieredSpilloverCache<String, String> initializeTieredSpilloverCache(
-        int keyValueSize,
-        int diskCacheSize,
-        RemovalListener<ICacheKey<String>, String> removalListener,
-        Settings settings,
-        long diskDeliberateDelay
-
-    ) {
-        return initializeTieredSpilloverCache(keyValueSize, diskCacheSize, removalListener, settings, diskDeliberateDelay, null, 256);
     }
 
     private TieredSpilloverCache<String, String> initializeTieredSpilloverCache(

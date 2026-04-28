@@ -70,7 +70,12 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -89,14 +94,24 @@ import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.MatchQuery;
+import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1081,14 +1096,47 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
     }
 
-    public void testPossibleToDeriveSource_WhenStoredFieldDisabled() throws IOException {
-        TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false);
-        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    public void testDefaultStoredFieldForDerivedSource() throws IOException {
+        IndexMetadata build = IndexMetadata.builder("test_index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(build, Settings.EMPTY);
+        MapperRegistry mapperRegistry = new IndicesModule(
+            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+        ).getMapperRegistry();
+        ScriptModule scriptModule = new ScriptModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
+        );
+        ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
+        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
+        MapperService mapperService = new MapperService(
+            indexSettings,
+            createIndexAnalyzers(indexSettings),
+            xContentRegistry(),
+            similarityService,
+            mapperRegistry,
+            () -> {
+                throw new UnsupportedOperationException();
+            },
+            () -> true,
+            scriptService
+        );
+
+        merge(mapperService, fieldMapping(b -> b.field("type", "text").field("store", false)));
+        TextFieldMapper textFieldMapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertTrue(textFieldMapper.fieldType.stored());
     }
 
     public void testDerivedValueFetching_StoredField() throws IOException {
         try (Directory directory = newDirectory()) {
-            TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), true);
+            TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false);
             String value = "value";
             try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
                 iw.addDocument(createDocument("field", value, false, false));
@@ -1127,5 +1175,146 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
         }
         return doc;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTextValue() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(b -> b.field("type", "text")));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "hello world")), capturingDocInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = capturingDocInput.getCapturedFields();
+        assertTrue(captured.stream().anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("hello world")));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTextNullSkipped() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(b -> b.field("type", "text")));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), capturingDocInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = capturingDocInput.getCapturedFields();
+        assertTrue(captured.stream().noneMatch(e -> e.getKey().name().equals("field")));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTextWithExternalValue() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {
+            b.startObject("text_field");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("sub").field("type", "text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("text_field", "external_text")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("text_field.sub") && e.getValue().equals("external_text"));
+        assertTrue("Expected text sub-field captured with external value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatPhraseFieldMapperThrows() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text").field("index_phrases", true))
+        );
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        Mapper phraseMapper = null;
+        for (Mapper m : textMapper) {
+            if (m.name().endsWith("._index_phrase")) {
+                phraseMapper = m;
+                break;
+            }
+        }
+        assertNotNull("Expected phrase sub-mapper", phraseMapper);
+        assertTrue(phraseMapper instanceof FieldMapper);
+        FieldMapper phraseFieldMapper = (FieldMapper) phraseMapper;
+        expectThrows(UnsupportedOperationException.class, () -> phraseFieldMapper.parseCreateFieldForPluggableFormat(null));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatPrefixFieldMapperThrows() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text").field("index_prefixes", new java.util.HashMap<>()))
+        );
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        Mapper prefixMapper = null;
+        for (Mapper m : textMapper) {
+            if (m.name().endsWith("._index_prefix")) {
+                prefixMapper = m;
+                break;
+            }
+        }
+        assertNotNull("Expected prefix sub-mapper", prefixMapper);
+        assertTrue(prefixMapper instanceof FieldMapper);
+        FieldMapper prefixFieldMapper = (FieldMapper) prefixMapper;
+        expectThrows(UnsupportedOperationException.class, () -> prefixFieldMapper.parseCreateFieldForPluggableFormat(null));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: default text value
+        assertTextLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text")),
+            b -> b.field("field", "hello world"),
+            "field",
+            "hello world"
+        );
+
+        // Scenario 2: null value — no field produced
+        assertTextLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text")),
+            b -> b.nullField("field"),
+            "field",
+            null
+        );
+    }
+
+    private void assertTextLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        String expectedValue
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        if (expectedValue == null) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertEquals(expectedValue, luceneFields[0].stringValue());
+
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals(fieldName) && e.getValue().equals(expectedValue));
+            assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
+        }
     }
 }

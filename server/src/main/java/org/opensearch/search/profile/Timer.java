@@ -32,6 +32,11 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.annotation.PublicApi;
+
+import java.util.HashMap;
+import java.util.Map;
+
 /** Helps measure how much time is spent running some methods.
  *  The {@link #start()} and {@link #stop()} methods should typically be called
  *  in a try/finally clause with {@link #start()} being called right before the
@@ -46,18 +51,22 @@ package org.opensearch.search.profile;
  *  }
  *  </pre>
  *
- *  @opensearch.internal
+ *  @opensearch.api
  */
-public class Timer {
+@PublicApi(since = "3.2.0")
+public class Timer extends ProfileMetric {
+    public static final String TIMING_TYPE_COUNT_SUFFIX = "_count";
+    public static final String TIMING_TYPE_START_TIME_SUFFIX = "_start_time";
 
     private boolean doTiming;
     private long timing, count, lastCount, start, earliestTimerStartTime;
 
-    public Timer() {
-        this(0, 0, 0, 0, 0);
+    public Timer(String name) {
+        super(name);
     }
 
-    public Timer(long timing, long count, long lastCount, long start, long earliestTimerStartTime) {
+    public Timer(long timing, long count, long lastCount, long start, long earliestTimerStartTime, String name) {
+        super(name);
         this.timing = timing;
         this.count = count;
         this.lastCount = lastCount;
@@ -130,5 +139,14 @@ public class Timer {
             timing += (count - lastCount) * timing / lastCount;
         }
         return timing;
+    }
+
+    @Override
+    public Map<String, Long> toBreakdownMap() {
+        Map<String, Long> map = new HashMap<>();
+        map.put(getName(), getApproximateTiming());
+        map.put(getName() + TIMING_TYPE_COUNT_SUFFIX, getCount());
+        map.put(getName() + TIMING_TYPE_START_TIME_SUFFIX, getEarliestTimerStartTime());
+        return map;
     }
 }

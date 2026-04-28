@@ -11,6 +11,7 @@ package org.opensearch.arrow.flight.bootstrap;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.PortsRange;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
@@ -20,6 +21,7 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoopGroup;
@@ -30,17 +32,74 @@ import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.util.NettyRuntime;
+
+import static java.util.Collections.emptyList;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
 
 /**
  * Configuration class for OpenSearch Flight server settings.
  * This class manages server-side configurations including port settings, Arrow memory settings,
  * thread pool configurations, and SSL/TLS settings.
+ * @opensearch.internal
  */
 public class ServerConfig {
     /**
      * Creates a new instance of the server configuration with default settings.
      */
     public ServerConfig() {}
+
+    /**
+     * The setting key for Flight transport configuration.
+     */
+    public static final String FLIGHT_TRANSPORT_SETTING_KEY = "transport-flight";
+
+    /**
+     * Setting for Arrow Flight host addresses.
+     */
+    public static final Setting<List<String>> SETTING_FLIGHT_HOST = Setting.listSetting(
+        "arrow.flight.host",
+        emptyList(),
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for Arrow Flight bind host addresses.
+     */
+    public static final Setting<List<String>> SETTING_FLIGHT_BIND_HOST = Setting.listSetting(
+        "arrow.flight.bind_host",
+        SETTING_FLIGHT_HOST,
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for Arrow Flight publish host addresses.
+     */
+    public static final Setting<List<String>> SETTING_FLIGHT_PUBLISH_HOST = Setting.listSetting(
+        "arrow.flight.publish_host",
+        SETTING_FLIGHT_HOST,
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for Arrow Flight publish port.
+     */
+    public static final Setting<Integer> SETTING_FLIGHT_PUBLISH_PORT = Setting.intSetting(
+        "arrow.flight.publish_port",
+        -1,
+        -1,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for Arrow Flight port range.
+     */
+    public static final Setting<PortsRange> SETTING_FLIGHT_PORTS = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(
+        FLIGHT_TRANSPORT_SETTING_KEY
+    );
 
     static final Setting<String> ARROW_ALLOCATION_MANAGER_TYPE = Setting.simpleString(
         "arrow.allocation.manager.type",
@@ -86,16 +145,27 @@ public class ServerConfig {
         Setting.Property.NodeScope
     );
 
+    static final Setting<Integer> FLIGHT_EVENT_LOOP_THREADS = Setting.intSetting(
+        "flight.event_loop.threads",
+        Math.max(1, NettyRuntime.availableProcessors() * 2),
+        1,
+        Setting.Property.NodeScope
+    );
+
     static final Setting<Boolean> ARROW_SSL_ENABLE = Setting.boolSetting(
-        "arrow.ssl.enable",
+        "flight.ssl.enable",
         false, // TODO: get default from security enabled
         Setting.Property.NodeScope
     );
 
     /**
-     * The thread pool name for the Flight server.
+     * The thread pool name for the Flight producer handling
      */
     public static final String FLIGHT_SERVER_THREAD_POOL_NAME = "flight-server";
+    /**
+     * The thread pool name for the Flight grpc executor.
+     */
+    public static final String GRPC_EXECUTOR_THREAD_POOL_NAME = "flight-grpc";
 
     /**
      * The thread pool name for the Flight client.
@@ -107,6 +177,7 @@ public class ServerConfig {
     private static int threadPoolMin;
     private static int threadPoolMax;
     private static TimeValue keepAlive;
+    private static int eventLoopThreads;
 
     /**
      * Initializes the server configuration with the provided settings.
@@ -129,6 +200,7 @@ public class ServerConfig {
         threadPoolMin = FLIGHT_THREAD_POOL_MIN_SIZE.get(settings);
         threadPoolMax = FLIGHT_THREAD_POOL_MAX_SIZE.get(settings);
         keepAlive = FLIGHT_THREAD_POOL_KEEP_ALIVE.get(settings);
+        eventLoopThreads = FLIGHT_EVENT_LOOP_THREADS.get(settings);
     }
 
     /**
@@ -150,12 +222,30 @@ public class ServerConfig {
     }
 
     /**
+     * Gets the thread pool executor builder configured for the Flight server grpc executor.
+     *
+     * @return The configured ScalingExecutorBuilder instance
+     */
+    public static ScalingExecutorBuilder getGrpcExecutorBuilder() {
+        return new ScalingExecutorBuilder(GRPC_EXECUTOR_THREAD_POOL_NAME, threadPoolMin, threadPoolMax, keepAlive);
+    }
+
+    /**
      * Gets the thread pool executor builder configured for the Flight server.
      *
      * @return The configured ScalingExecutorBuilder instance
      */
     public static ScalingExecutorBuilder getClientExecutorBuilder() {
         return new ScalingExecutorBuilder(FLIGHT_CLIENT_THREAD_POOL_NAME, threadPoolMin, threadPoolMax, keepAlive);
+    }
+
+    /**
+     * Gets the configured number of event loop threads.
+     *
+     * @return The number of event loop threads
+     */
+    public static int getEventLoopThreads() {
+        return eventLoopThreads;
     }
 
     /**
@@ -170,7 +260,9 @@ public class ServerConfig {
                 ARROW_ENABLE_NULL_CHECK_FOR_GET,
                 ARROW_ENABLE_DEBUG_ALLOCATOR,
                 ARROW_ENABLE_UNSAFE_MEMORY_ACCESS,
-                ARROW_SSL_ENABLE
+                ARROW_SSL_ENABLE,
+                FLIGHT_EVENT_LOOP_THREADS,
+                FLIGHT_THREAD_POOL_MIN_SIZE
             )
         );
     }
@@ -182,11 +274,21 @@ public class ServerConfig {
             : new NioEventLoopGroup(eventLoopThreads, OpenSearchExecutors.daemonThreadFactory(name));
     }
 
-    static Class<? extends Channel> serverChannelType() {
+    /**
+     * Returns the appropriate server channel type based on platform availability.
+     *
+     * @return EpollServerSocketChannel if Epoll is available, otherwise NioServerSocketChannel
+     */
+    public static Class<? extends Channel> serverChannelType() {
         return Epoll.isAvailable() ? EpollServerSocketChannel.class : NioServerSocketChannel.class;
     }
 
-    static Class<? extends Channel> clientChannelType() {
+    /**
+     * Returns the appropriate client channel type based on platform availability.
+     *
+     * @return EpollSocketChannel if Epoll is available, otherwise NioSocketChannel
+     */
+    public static Class<? extends Channel> clientChannelType() {
         return Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class;
     }
 
@@ -194,7 +296,10 @@ public class ServerConfig {
 
         @SuppressForbidden(reason = "required for netty allocator configuration")
         public static void init(Settings settings) {
-            checkSystemProperty("io.netty.allocator.numDirectArenas", "1");
+            int numArenas = Integer.parseInt(System.getProperty("io.netty.allocator.numDirectArenas"));
+            if (numArenas <= 0) {
+                throw new IllegalStateException("io.netty.allocator.numDirectArenas must be > 0");
+            }
             checkSystemProperty("io.netty.noUnsafe", "false");
             checkSystemProperty("io.netty.tryUnsafe", "true");
             checkSystemProperty("io.netty.tryReflectionSetAccessible", "true");

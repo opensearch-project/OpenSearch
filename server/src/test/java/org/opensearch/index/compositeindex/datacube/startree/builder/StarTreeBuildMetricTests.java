@@ -10,7 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -49,6 +49,7 @@ import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -640,7 +641,7 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
             7,
             false,
             false,
-            new Lucene101Codec(),
+            new Lucene104Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),
@@ -924,7 +925,7 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
             7,
             false,
             false,
-            new Lucene101Codec(),
+            new Lucene104Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),
@@ -1021,7 +1022,7 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
                 long dimValue = dimValueToDocIdEntry.getKey();
                 int docId = dimValueToDocIdEntry.getValue();
                 if (map.get(dimValue) != null) {
-                    assertEquals(map.get(dimValue), resultStarTreeDocuments.get(docId).metrics[0]);
+                    assertEquals(map.get(dimValue), ((CompensatedSum) resultStarTreeDocuments.get(docId).metrics[0]).value(), 0);
                 }
             }
         }
@@ -1032,7 +1033,7 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
             assertEquals(expectedStarTreeDocument.dimensions[0], resultStarTreeDocument.dimensions[0]);
             assertEquals(expectedStarTreeDocument.dimensions[1], resultStarTreeDocument.dimensions[1]);
             assertEquals(expectedStarTreeDocument.dimensions[2], resultStarTreeDocument.dimensions[2]);
-            assertEquals(expectedStarTreeDocument.metrics[0], resultStarTreeDocument.metrics[0]);
+            assertEquals(expectedStarTreeDocument.metrics[0], ((CompensatedSum) resultStarTreeDocument.metrics[0]).value());
             assertEquals(expectedStarTreeDocument.metrics[1], resultStarTreeDocument.metrics[1]);
         }
 

@@ -441,9 +441,9 @@ public final class Script implements ToXContentObject, Writeable {
     @SuppressWarnings("unchecked")
     public static Script parse(Object config) {
         Objects.requireNonNull(config, "Script must not be null");
-        if (config instanceof String) {
-            return new Script((String) config);
-        } else if (config instanceof Map) {
+        if (config instanceof String str) {
+            return new Script(str);
+        } else if (config instanceof Map<?, ?>) {
             Map<String, Object> configMap = (Map<String, Object>) config;
             String script = null;
             ScriptType type = null;
@@ -460,13 +460,13 @@ public final class Script implements ToXContentObject, Writeable {
                         throw new OpenSearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
                 } else if (Script.PARAMS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
-                    if (parameterValue instanceof Map || parameterValue == null) {
+                    if (parameterValue instanceof Map<?, ?> || parameterValue == null) {
                         params = (Map<String, Object>) parameterValue;
                     } else {
                         throw new OpenSearchParseException("Value must be of type Map: [" + parameterName + "]");
                     }
                 } else if (Script.OPTIONS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
-                    if (parameterValue instanceof Map || parameterValue == null) {
+                    if (parameterValue instanceof Map<?, ?> || parameterValue == null) {
                         options = (Map<String, String>) parameterValue;
                     } else {
                         throw new OpenSearchParseException("Value must be of type Map: [" + parameterName + "]");

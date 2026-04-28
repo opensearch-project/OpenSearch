@@ -105,6 +105,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -1769,7 +1770,12 @@ public final class InternalTestCluster extends TestCluster {
                 throw new AssertionError("Tried to stop the only cluster-manager eligible shared node");
             }
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
+            FileCache fileCache = nodeAndClient.node().fileCache();
             stopNodesAndClient(nodeAndClient);
+            // Clear file cache to avoid file leaks during node stop
+            if (fileCache != null && WARM_NODE_PREDICATE.test(nodeAndClient)) {
+                fileCache.clear();
+            }
         }
     }
 
@@ -1975,6 +1981,12 @@ public final class InternalTestCluster extends TestCluster {
     private void restartNode(NodeAndClient nodeAndClient, RestartCallback callback) throws Exception {
         assert Thread.holdsLock(this);
         logger.info("Restarting node [{}] ", nodeAndClient.name);
+
+        FileCache fileCache = nodeAndClient.node().fileCache();
+        // Close IndexInput reference file to avoid file leaks during node restart
+        if (fileCache != null && WARM_NODE_PREDICATE.test(nodeAndClient)) {
+            fileCache.closeIndexInputReferences();
+        }
 
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
@@ -2635,7 +2647,11 @@ public final class InternalTestCluster extends TestCluster {
                 final String name = nodeAndClient.name;
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
-                assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
+                try {
+                    assertBusy(() -> assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L)));
+                } catch (Exception e) {
+                    throw new AssertionError("Exception during check for request breaker reset to 0", e);
+                }
 
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of

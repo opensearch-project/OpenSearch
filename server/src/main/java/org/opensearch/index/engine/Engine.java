@@ -79,12 +79,16 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
@@ -148,7 +152,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final CounterMetric totalUnreferencedFileCleanUpsPerformed = new CounterMetric();
-    private final CountDownLatch closedLatch = new CountDownLatch(1);
+    protected final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -213,13 +217,17 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return new MergeStats();
     }
 
+    public MergedSegmentTransferTracker getMergedSegmentTransferTracker() {
+        return engineConfig.getMergedSegmentTransferTracker();
+    }
+
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
 
     /**
      * Reads the current stored history ID from commit data.
      */
-    String loadHistoryUUID(Map<String, String> commitData) {
+    protected String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -267,7 +275,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
             }
         }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+        return new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(sizeInBytes).build();
     }
 
     /**
@@ -301,7 +309,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * Get max sequence number from segments that are referenced by given SegmentInfos
      */
     public long getMaxSeqNoFromSegmentInfos(SegmentInfos segmentInfos) throws IOException {
-        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null)) {
+        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null, null)) {
             final IndexSearcher searcher = new IndexSearcher(innerReader);
             return getMaxSeqNoFromSearcher(searcher);
         }
@@ -327,7 +335,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
             searcher.getIndexReader(),
             uidTerm,
-            true
+            true,
+            null
         );
         assert docIdAndVersion != null;
         return docIdAndVersion.seqNo;
@@ -336,10 +345,12 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
-     * is enabled
+     * is enabled.
+     * This class has been deprecated. See IndexingThrottler.java
      *
      * @opensearch.internal
      */
+    @Deprecated
     protected static final class IndexThrottle {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
@@ -561,7 +572,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             return operationType;
         }
 
-        void setTranslogLocation(Translog.Location translogLocation) {
+        public void setTranslogLocation(Translog.Location translogLocation) {
             if (freeze.get() == null) {
                 this.translogLocation = translogLocation;
             } else {
@@ -569,7 +580,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
 
-        void setTook(long took) {
+        public void setTook(long took) {
             if (freeze.get() == null) {
                 this.took = took;
             } else {
@@ -577,7 +588,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
 
-        void freeze() {
+        public void freeze() {
             freeze.set(true);
         }
 
@@ -678,11 +689,11 @@ public abstract class Engine implements LifecycleAware, Closeable {
     @PublicApi(since = "1.0.0")
     public static class NoOpResult extends Result {
 
-        NoOpResult(long term, long seqNo) {
+        public NoOpResult(long term, long seqNo) {
             super(Operation.TYPE.NO_OP, 0, term, seqNo);
         }
 
-        NoOpResult(long term, long seqNo, Exception failure) {
+        public NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo);
         }
 
@@ -696,7 +707,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         final Engine.Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true, null);
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             // TODO: A better exception goes here
@@ -1353,15 +1364,14 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * commit.
      */
     private void cleanUpUnreferencedFiles() {
-        try (
-            IndexWriter writer = new IndexWriter(
-                store.directory(),
-                new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                    .setCommitOnClose(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-            )
-        ) {
+        IndexWriterConfig iwc = new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setCommitOnClose(false)
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        if (store.shouldSetParentField()) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
             // do nothing except increasing metric count and close this will kick off IndexFileDeleter which will
             // remove all unreferenced files
             totalUnreferencedFileCleanUpsPerformed.inc();
@@ -1468,8 +1478,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
 
         public DirectoryReader getDirectoryReader() {
-            if (getIndexReader() instanceof DirectoryReader) {
-                return (DirectoryReader) getIndexReader();
+            if (getIndexReader() instanceof DirectoryReader directoryReader) {
+                return directoryReader;
             }
             throw new IllegalStateException("Can't use " + getIndexReader().getClass() + " as a directory reader");
         }
@@ -1551,7 +1561,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
             }
 
-            boolean isFromTranslog() {
+            public boolean isFromTranslog() {
                 return this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_RESET;
             }
         }
@@ -1592,6 +1602,85 @@ public abstract class Engine implements LifecycleAware, Closeable {
         abstract String id();
 
         public abstract TYPE operationType();
+    }
+
+    /**
+     * Prepares an index operation by parsing the source document and creating an Engine.Index operation.
+     *
+     * @param docMapper the document mapper instance
+     * @param source the source to parse
+     * @param seqNo the sequence number
+     * @param primaryTerm the primary term
+     * @param version the version
+     * @param versionType the version type
+     * @param origin the operation origin
+     * @param autoGeneratedIdTimestamp the timestamp for auto-generated IDs
+     * @param isRetry whether this is a retry
+     * @param ifSeqNo the ifSeqNo
+     * @param ifPrimaryTerm the ifPrimaryTerm
+     * @return the prepared index operation
+     */
+    public Engine.Index prepareIndex(
+        DocumentMapperForType docMapper,
+        SourceToParse source,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long autoGeneratedIdTimestamp,
+        boolean isRetry,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        long startTime = System.nanoTime();
+        ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
+        if (docMapper.getMapping() != null) {
+            doc.addDynamicMappingsUpdate(docMapper.getMapping());
+        }
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
+        return new Engine.Index(
+            uid,
+            doc,
+            seqNo,
+            primaryTerm,
+            version,
+            versionType,
+            origin,
+            startTime,
+            autoGeneratedIdTimestamp,
+            isRetry,
+            ifSeqNo,
+            ifPrimaryTerm
+        );
+    }
+
+    /**
+     * Prepares a delete operation by creating an Engine.Delete operation.
+     *
+     * @param id the document id
+     * @param seqNo the sequence number
+     * @param primaryTerm the primary term
+     * @param version the version
+     * @param versionType the version type
+     * @param origin the operation origin
+     * @param ifSeqNo the ifSeqNo
+     * @param ifPrimaryTerm the ifPrimaryTerm
+     * @return the prepared delete operation
+     */
+    public Engine.Delete prepareDelete(
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        long startTime = System.nanoTime();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
     /**
@@ -2028,7 +2117,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         awaitPendingClose();
     }
 
-    private void awaitPendingClose() {
+    protected void awaitPendingClose() {
         try {
             closedLatch.await();
         } catch (InterruptedException e) {

@@ -32,9 +32,6 @@
 
 package org.opensearch;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
@@ -48,6 +45,8 @@ import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.tools.jackson.core.InputCoercionException;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -76,57 +75,76 @@ import static org.opensearch.OpenSearchException.getExceptionSimpleClassName;
 public final class ExceptionsHelper {
     private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
 
+    /**
+     * Shared error message constants for consistent error handling across HTTP and gRPC protocols.
+     * These constants ensure that both REST API and gRPC API return identical error messages
+     * for the same types of exceptions.
+     */
+    public static final class ErrorMessages {
+        /** Error message for invalid argument exceptions */
+        public static final String INVALID_ARGUMENT = "Invalid argument";
+
+        /** Error message for JSON parsing failures */
+        public static final String JSON_PARSE_FAILED = "Failed to parse JSON";
+
+        /** Error message for rate limiting / rejected execution */
+        public static final String TOO_MANY_REQUESTS = "Too many requests";
+
+        /** Error message for JSON type coercion failures */
+        public static final String JSON_COERCION_FAILED = "Incompatible JSON value";
+
+        /** Error message for content format issues */
+        public static final String INVALID_CONTENT_FORMAT = "Invalid content format";
+
+        /** Error message for compression format issues */
+        public static final String INVALID_COMPRESSION_FORMAT = "Invalid compression format";
+
+        /** Generic fallback error message for unknown exceptions */
+        public static final String INTERNAL_FAILURE = "Internal failure";
+
+        private ErrorMessages() {
+            // Utility class, no instances
+        }
+    }
+
     // utility class: no ctor
     private ExceptionsHelper() {}
 
     public static RuntimeException convertToRuntime(Exception e) {
-        if (e instanceof RuntimeException) {
-            return (RuntimeException) e;
-        }
-        return new OpenSearchException(e);
+        return switch (e) {
+            case RuntimeException re -> re;
+            default -> new OpenSearchException(e);
+        };
     }
 
     public static OpenSearchException convertToOpenSearchException(Exception e) {
-        if (e instanceof OpenSearchException) {
-            return (OpenSearchException) e;
-        }
-        return new OpenSearchException(e);
+        return switch (e) {
+            case OpenSearchException oe -> oe;
+            default -> new OpenSearchException(e);
+        };
     }
 
     public static RestStatus status(Throwable t) {
-        if (t != null) {
-            if (t instanceof OpenSearchException) {
-                return ((OpenSearchException) t).status();
-            } else if (t instanceof IllegalArgumentException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof InputCoercionException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof JsonParseException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof OpenSearchRejectedExecutionException) {
-                return RestStatus.TOO_MANY_REQUESTS;
-            } else if (t instanceof NotXContentException) {
-                return RestStatus.BAD_REQUEST;
-            }
-        }
-        return RestStatus.INTERNAL_SERVER_ERROR;
+        return switch (t) {
+            case OpenSearchException ose -> ose.status();
+            case IllegalArgumentException ignored -> RestStatus.BAD_REQUEST;
+            case InputCoercionException ignored -> RestStatus.BAD_REQUEST;
+            case JsonParseException ignored -> RestStatus.BAD_REQUEST;
+            case NotXContentException ignored -> RestStatus.BAD_REQUEST;
+            case OpenSearchRejectedExecutionException ignored -> RestStatus.TOO_MANY_REQUESTS;
+            case null, default -> RestStatus.INTERNAL_SERVER_ERROR;
+        };
     }
 
     public static String summaryMessage(Throwable t) {
-        if (t != null) {
-            if (t instanceof OpenSearchException) {
-                return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
-            } else if (t instanceof IllegalArgumentException) {
-                return "Invalid argument";
-            } else if (t instanceof InputCoercionException) {
-                return "Incompatible JSON value";
-            } else if (t instanceof JsonParseException) {
-                return "Failed to parse JSON";
-            } else if (t instanceof OpenSearchRejectedExecutionException) {
-                return "Too many requests";
-            }
-        }
-        return "Internal failure";
+        return switch (t) {
+            case OpenSearchException ose -> getExceptionSimpleClassName(t) + "[" + ose.getMessage() + "]";
+            case IllegalArgumentException ignored -> ErrorMessages.INVALID_ARGUMENT;
+            case InputCoercionException ignored -> ErrorMessages.JSON_COERCION_FAILED;
+            case JsonParseException ignored -> ErrorMessages.JSON_PARSE_FAILED;
+            case OpenSearchRejectedExecutionException ignored -> ErrorMessages.TOO_MANY_REQUESTS;
+            case null, default -> "Internal failure";
+        };
     }
 
     public static Throwable unwrapCause(Throwable t) {
@@ -147,6 +165,25 @@ public final class ExceptionsHelper {
             result = result.getCause();
         }
         return result;
+    }
+
+    /**
+     * Unwraps exception causes up to 10 levels looking for the first OpenSearchException.
+     * This method is used by both HTTP and gRPC error handling to ensure consistent exception
+     * unwrapping behavior across protocols.
+     *
+     * @param e The exception to unwrap
+     * @return The first OpenSearchException found in the cause chain, or the original exception if none found
+     */
+    public static Throwable unwrapToOpenSearchException(Throwable e) {
+        Throwable t = e;
+        for (int counter = 0; counter < 10 && t != null; counter++) {
+            if (t instanceof OpenSearchException) {
+                break;
+            }
+            t = t.getCause();
+        }
+        return t != null ? t : e;
     }
 
     /**
@@ -280,8 +317,8 @@ public final class ExceptionsHelper {
      */
     public static boolean reThrowIfNotNull(@Nullable Throwable e) {
         if (e != null) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
+            if (e instanceof RuntimeException re) {
+                throw re;
             } else {
                 throw new RuntimeException(e);
             }
@@ -404,8 +441,8 @@ public final class ExceptionsHelper {
             // which does not include the cluster alias.
             String indexName = failure.index();
             if (indexName == null) {
-                if (cause instanceof OpenSearchException) {
-                    final Index index = ((OpenSearchException) cause).getIndex();
+                if (cause instanceof OpenSearchException ose) {
+                    final Index index = ose.getIndex();
                     if (index != null) {
                         indexName = index.getName();
                     }

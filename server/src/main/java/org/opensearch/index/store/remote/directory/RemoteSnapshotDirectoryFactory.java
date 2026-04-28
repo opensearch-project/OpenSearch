@@ -10,6 +10,7 @@ package org.opensearch.index.store.remote.directory;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.LockFactory;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
@@ -58,6 +59,11 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
     }
 
     @Override
+    public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        return null;
+    }
+
+    @Override
     public Directory newDirectory(IndexSettings indexSettings, ShardPath localShardPath) throws IOException {
         final String repositoryName = IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY.get(indexSettings.getSettings());
         final Repository repository = repositoriesService.get().repository(repositoryName);
@@ -101,7 +107,7 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
             assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot
                 : "indexShardSnapshot should be an instance of BlobStoreIndexShardSnapshot";
             final BlobStoreIndexShardSnapshot snapshot = (BlobStoreIndexShardSnapshot) indexShardSnapshot;
-            TransferManager transferManager = new TransferManager(blobContainer::readBlob, remoteStoreFileCache);
+            TransferManager transferManager = new TransferManager(blobContainer::readBlob, remoteStoreFileCache, threadPool);
             return new RemoteSnapshotDirectory(snapshot, localStoreDir, transferManager);
         });
     }

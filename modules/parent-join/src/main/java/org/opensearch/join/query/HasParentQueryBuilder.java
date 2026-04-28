@@ -31,6 +31,7 @@
 
 package org.opensearch.join.query;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
@@ -48,6 +49,7 @@ import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
@@ -331,4 +333,9 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         }
     }
 
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        query.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST));
+    }
 }

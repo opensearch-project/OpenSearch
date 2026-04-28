@@ -33,6 +33,7 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -113,6 +114,7 @@ import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -206,6 +208,7 @@ import static org.hamcrest.Matchers.hasItem;
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
@@ -298,8 +301,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
-
-    public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -696,25 +697,35 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
-                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
-                // StatusData instances to Strings as otherwise their toString output is useless
+                /* ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
+                 * StatusData instances to Strings as otherwise their toString output is useless
+                 *
+                 * Filter out known Log4j 2.25+ initialization message about default root logger
+                 */
+                List<StatusData> filteredStatusData = statusData.stream()
+                    .filter(
+                        status -> status.getMessage()
+                            .getFormattedMessage()
+                            .contains("No Root logger was configured, creating default ERROR-level Root logger") == false
+                    )
+                    .toList();
 
-                final Function<StatusData, String> statusToString = (statusData) -> {
+                final Function<StatusData, String> statusToString = (sd) -> {
                     try (final StringWriter sw = new StringWriter(); final PrintWriter pw = new PrintWriter(sw)) {
 
-                        pw.print(statusData.getLevel());
+                        pw.print(sd.getLevel());
                         pw.print(":");
-                        pw.print(statusData.getMessage().getFormattedMessage());
+                        pw.print(sd.getMessage().getFormattedMessage());
 
-                        if (statusData.getStackTraceElement() != null) {
-                            final var messageSource = statusData.getStackTraceElement();
+                        if (sd.getStackTraceElement() != null) {
+                            final var messageSource = sd.getStackTraceElement();
                             pw.println("Source:");
                             pw.println(messageSource.getFileName() + "@" + messageSource.getLineNumber());
                         }
 
-                        if (statusData.getThrowable() != null) {
+                        if (sd.getThrowable() != null) {
                             pw.println("Throwable:");
-                            statusData.getThrowable().printStackTrace(pw);
+                            sd.getThrowable().printStackTrace(pw);
                         }
                         return sw.toString();
                     } catch (IOException ioe) {
@@ -723,8 +734,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
                 };
 
                 assertThat(
-                    statusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
-                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
+                    filteredStatusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
+                    filteredStatusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     empty()
                 );
             } finally {
@@ -1479,7 +1490,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         throws IOException {
         XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(parser.contentType());
         if (prettyPrint) {
-            xContentBuilder.prettyPrint();
+            xContentBuilder = xContentBuilder.prettyPrint();
         }
         Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
         if (token == Token.START_ARRAY) {
@@ -1812,7 +1823,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return FipsMode.CHECK.isFipsEnabled();
     }
 
     /**

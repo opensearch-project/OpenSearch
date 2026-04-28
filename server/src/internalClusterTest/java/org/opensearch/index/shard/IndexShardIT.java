@@ -74,10 +74,10 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.flush.FlushStats;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -88,6 +88,8 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -475,7 +477,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             .put("index.number_of_shards", 1)
             .put("index.translog.generation_threshold_size", generationThreshold + "b")
             .build();
-        createIndex("test", settings, MapperService.SINGLE_MAPPING_NAME);
+        createIndexWithSimpleMappings("test", settings);
         ensureGreen("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -702,7 +704,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             indexService.cache(),
             indexService.mapperService(),
             indexService.similarityService(),
-            shard.getEngineFactory(),
+            shard.getIndexerFactory(),
             shard.getEngineConfigFactory(),
             indexService.getIndexEventListener(),
             wrapper,
@@ -729,7 +731,10 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             OpenSearchTestCase::randomBoolean,
             () -> indexService.getIndexSettings().getRefreshInterval(),
             indexService.getRefreshMutex(),
-            clusterService.getClusterApplierService()
+            clusterService.getClusterApplierService(),
+            MergedSegmentPublisher.EMPTY,
+            ReferencedSegmentsPublisher.EMPTY,
+            null // TODO
         );
     }
 
@@ -809,7 +814,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             .put("index.translog.flush_threshold_size", "512mb") // do not flush
             .put("index.soft_deletes.enabled", true)
             .build();
-        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        IndexService indexService = createIndexWithSimpleMappings("index", settings, "title", "type=keyword");
         int numOps = between(1, 10);
         for (int i = 0; i < numOps; i++) {
             if (randomBoolean()) {
@@ -849,7 +854,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 
         for (IndexShard indexShard : indexService) {
-            assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+            assertThat(((EngineBackedIndexer) (indexShard.getIndexer())).getEngine(), instanceOf(NoOpEngine.class));
         }
     }
 

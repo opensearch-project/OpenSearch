@@ -35,7 +35,6 @@ package org.opensearch.index.mapper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -56,7 +55,6 @@ import java.util.Collections;
 
 import org.mockito.Mockito;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.mapper.ObjectMapper.Nested.isParent;
 import static org.hamcrest.Matchers.containsString;
 
@@ -543,33 +541,23 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
         Settings settings = Settings.builder()
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
             .build();
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> createIndex("invalid", settings).mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping))
-        );
-        assertEquals(
-            "star tree index is under an experimental feature and can be activated only by enabling opensearch.experimental.feature.composite_index.star_tree.enabled feature flag in the JVM options",
-            ex.getMessage()
-        );
+        DocumentMapper documentMapper = createIndex("test", settings).mapperService()
+            .documentMapperParser()
+            .parse("tweet", new CompressedXContent(mapping));
 
-        FeatureFlags.TestUtils.with(STAR_TREE_INDEX, () -> {
-            DocumentMapper documentMapper = createIndex("test", settings).mapperService()
-                .documentMapperParser()
-                .parse("tweet", new CompressedXContent(mapping));
-
-            Mapper mapper = documentMapper.root().getMapper("startree");
-            assertTrue(mapper instanceof StarTreeMapper);
-            StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
-            assertEquals("star_tree", starTreeMapper.fieldType().typeName());
-            // Check that field in properties was parsed correctly as well
-            mapper = documentMapper.root().getMapper("@timestamp");
-            assertNotNull(mapper);
-            assertEquals("date", mapper.typeName());
-        });
+        Mapper mapper = documentMapper.root().getMapper("startree");
+        assertTrue(mapper instanceof StarTreeMapper);
+        StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
+        assertEquals("star_tree", starTreeMapper.fieldType().typeName());
+        // Check that field in properties was parsed correctly as well
+        mapper = documentMapper.root().getMapper("@timestamp");
+        assertNotNull(mapper);
+        assertEquals("date", mapper.typeName());
     }
 
     public void testNestedIsParent() throws Exception {
@@ -613,6 +601,424 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         assertFalse(isParent(documentMapper.objectMappers().get("a.b2.c"), documentMapper.objectMappers().get("a"), mapperService));
         assertFalse(isParent(documentMapper.objectMappers().get("a.b2"), documentMapper.objectMappers().get("a"), mapperService));
         assertFalse(isParent(documentMapper.objectMappers().get("a.b2.c"), documentMapper.objectMappers().get("a.b2"), mapperService));
+    }
+
+    public void testDeriveSourceMapperValidation() throws IOException {
+        // Test 1: Validate basic derive source mapping
+        String basicMapping = """
+            {
+                "properties": {
+                    "numeric_field": {
+                        "type": "long"
+                    },
+                    "keyword_field": {
+                        "type": "keyword"
+                    }
+                }
+            }""";
+
+        // Should succeed with derive source enabled and doc values enabled (default)
+        DocumentMapperParser basicMapperParser = createIndex(
+            "test_derive_1",
+            Settings.builder().put("index.derived_source.enabled", true).build()
+        ).mapperService().documentMapperParser();
+
+        // This should go through without issue
+        basicMapperParser.parse("type", new CompressedXContent(basicMapping));
+
+        // Test 2: Validate mapping with doc values disabled
+        String docValuesDisabledMapping = """
+            {
+                "properties": {
+                    "numeric_field": {
+                        "type": "long",
+                        "doc_values": false
+                    }
+                }
+            }""";
+
+        final DocumentMapperParser docValuesDisabledMapperParser = createIndex(
+            "test_derive_2",
+            Settings.builder().put("index.derived_source.enabled", true).build()
+        ).mapperService().documentMapperParser();
+
+        // Should fail because doc values and stored are both disabled
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> docValuesDisabledMapperParser.parse("type", new CompressedXContent(docValuesDisabledMapping))
+        );
+
+        // Test 3: Validate mapping with stored enabled but doc values disabled
+        String storedEnabledMapping = """
+            {
+                "properties": {
+                    "numeric_field": {
+                        "type": "long",
+                        "doc_values": false,
+                        "store": true
+                    }
+                }
+            }""";
+
+        // Should succeed because stored is enabled
+        DocumentMapperParser storedEnabledMapperParser = createIndex(
+            "test_derive_3",
+            Settings.builder().put("index.derived_source.enabled", true).build()
+        ).mapperService().documentMapperParser();
+        storedEnabledMapperParser.parse("type", new CompressedXContent(storedEnabledMapping));
+
+        // Test 4: Validate keyword field with normalizer
+        String normalizerMapping = """
+            {
+                "properties": {
+                    "keyword_field": {
+                        "type": "keyword",
+                        "normalizer": "lowercase"
+                    }
+                }
+            }""";
+
+        // Should fail because normalizer is not supported with derive source
+        DocumentMapperParser normalizerMapperParser = createIndex(
+            "test_derive_4",
+            Settings.builder()
+                .put("index.derived_source.enabled", true)
+                .put("analysis.normalizer.lowercase.type", "custom")
+                .putList("analysis.normalizer.lowercase.filter", "lowercase")
+                .build()
+        ).mapperService().documentMapperParser();
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> normalizerMapperParser.parse("type", new CompressedXContent(normalizerMapping))
+        );
+
+        // Test 5: Validate keyword field with ignore_above
+        String ignoreAboveMapping = """
+            {
+                "properties": {
+                    "keyword_field": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                    }
+                }
+            }""";
+
+        // Should fail because ignore_above is not supported with derive source
+        DocumentMapperParser ignoreAboveMapperParser = createIndex(
+            "test_derive_5",
+            Settings.builder().put("index.derived_source.enabled", true).build()
+        ).mapperService().documentMapperParser();
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> ignoreAboveMapperParser.parse("type", new CompressedXContent(ignoreAboveMapping))
+        );
+
+        // Test 6: Validate object field with nested enabled
+        String nestedMapping = """
+            {
+                "properties": {
+                    "nested_field": {
+                        "type": "nested",
+                        "properties": {
+                            "inner_field": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        // Should fail because nested fields are not supported with derive source
+        DocumentMapperParser nestedMapperParser = createIndex(
+            "test_derive_6",
+            Settings.builder().put("index.derived_source.enabled", true).build()
+        ).mapperService().documentMapperParser();
+        expectThrows(UnsupportedOperationException.class, () -> nestedMapperParser.parse("type", new CompressedXContent(nestedMapping)));
+
+        // Test 7: Validate field with copy_to
+        String copyToMapping = """
+            {
+                "properties": {
+                    "field1": {
+                        "type": "keyword",
+                        "copy_to": "field2"
+                    },
+                    "field2": {
+                        "type": "keyword"
+                    }
+                }
+            }""";
+
+        // Should fail because copy_to is not supported with derive source
+        DocumentMapperParser copyToMapperParser = createIndex(
+            "test_derive_7",
+            Settings.builder().put("index.derived_source.enabled", true).build()
+        ).mapperService().documentMapperParser();
+        expectThrows(UnsupportedOperationException.class, () -> copyToMapperParser.parse("type", new CompressedXContent(copyToMapping)));
+
+        // Test 8: Validate multiple field types
+        String multiTypeMapping = """
+            {
+                "properties": {
+                    "keyword_field": {
+                        "type": "keyword"
+                    },
+                    "numeric_field": {
+                        "type": "long"
+                    },
+                    "date_field": {
+                        "type": "date"
+                    },
+                    "date_nanos_field": {
+                        "type": "date_nanos"
+                    },
+                    "boolean_field": {
+                        "type": "boolean"
+                    },
+                    "ip_field": {
+                        "type": "ip"
+                    },
+                    "constant_keyword": {
+                        "type": "constant_keyword",
+                        "value": "1"
+                    },
+                    "geo_point_field": {
+                        "type": "geo_point"
+                    },
+                    "text_field": {
+                        "type": "text",
+                        "store": true
+                    },
+                    "wildcard_field": {
+                        "type": "wildcard",
+                        "doc_values": true
+                    }
+                }
+            }""";
+
+        // Should succeed because all field types support derive source
+        DocumentMapperParser multiTypeMapperParser = createIndex(
+            "test_derive_8",
+            Settings.builder().put("index.derived_source.enabled", true).build()
+        ).mapperService().documentMapperParser();
+        multiTypeMapperParser.parse("type", new CompressedXContent(multiTypeMapping));
+
+        // Test 9: Validate with both doc_values and stored disabled
+        String bothDisabledMapping = """
+            {
+                "properties": {
+                    "keyword_field": {
+                        "type": "keyword",
+                        "doc_values": false,
+                        "store": false
+                    }
+                }
+            }""";
+
+        // Should fail because both doc_values and stored are disabled
+        DocumentMapperParser bothDisabledMapperParser = createIndex(
+            "test_derive_9",
+            Settings.builder().put("index.derived_source.enabled", true).build()
+        ).mapperService().documentMapperParser();
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> bothDisabledMapperParser.parse("type", new CompressedXContent(bothDisabledMapping))
+        );
+
+        // Test 10: Validate for the field type, for which derived source is not implemented
+        String unsupportedFieldType = """
+            {
+                "properties": {
+                    "geo_shape_field": {
+                        "type": "geo_shape",
+                        "doc_values": true
+                    }
+                }
+            }""";
+
+        // Should fail because for geo_shape, derived source feature is not implemented for it
+        DocumentMapperParser unsupportedFieldMapperParser = createIndex(
+            "test_derive_10",
+            Settings.builder().put("index.derived_source.enabled", true).build()
+        ).mapperService().documentMapperParser();
+        expectThrows(
+            MapperParsingException.class,
+            () -> unsupportedFieldMapperParser.parse("type", new CompressedXContent(unsupportedFieldType))
+        );
+    }
+
+    public void testValidateDisableObjectsImmutability() throws Exception {
+        // Test that disable_objects cannot be changed after index creation
+        String initialMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("_doc", new CompressedXContent(initialMapping), MergeReason.MAPPING_UPDATE);
+
+        // Try to change disable_objects from true to false
+        String updateMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperException e = expectThrows(MapperException.class, () -> {
+            mapperService.merge("_doc", new CompressedXContent(updateMapping), MergeReason.MAPPING_UPDATE);
+        });
+
+        assertThat(e.getMessage(), containsString("Cannot update parameter [disable_objects] from [true] to [false]"));
+        assertThat(e.getMessage(), containsString("for object mapping [metrics]"));
+        assertThat(e.getMessage(), containsString("The disable_objects setting is immutable after index creation"));
+    }
+
+    public void testValidateNestedObjectRejection() throws Exception {
+        // Test that nested objects cannot be added when disable_objects is enabled
+        String initialMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("_doc", new CompressedXContent(initialMapping), MergeReason.MAPPING_UPDATE);
+
+        // Try to add a nested object when disable_objects is true
+        String updateMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .startObject("properties")
+            .startObject("cpu")
+            .field("type", "object")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperException e = expectThrows(MapperException.class, () -> {
+            mapperService.merge("_doc", new CompressedXContent(updateMapping), MergeReason.MAPPING_UPDATE);
+        });
+
+        // Test the specific validation lines: newMapper.name() and name() interpolation
+        assertThat(e.getMessage(), containsString("Field mapping conflict: Cannot add nested object field [metrics.cpu]"));
+        assertThat(e.getMessage(), containsString("when disable_objects is enabled for [metrics]"));
+        assertThat(e.getMessage(), containsString("all fields must use flat field notation"));
+    }
+
+    public void testValidateFlatFieldCompatibility() throws Exception {
+        // Test that nested objects are rejected during initial mapping creation when disable_objects is true
+        String mappingWithNestedObject = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .startObject("properties")
+            .startObject("cpu")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("usage")
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService = createIndex("test").mapperService();
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+            mapperService.merge("_doc", new CompressedXContent(mappingWithNestedObject), MergeReason.MAPPING_UPDATE);
+        });
+
+        // Test the specific validation lines: childMapper.name() and name() interpolation
+        assertThat(e.getMessage(), containsString("Field mapping conflict: Cannot add nested object field [metrics.cpu]"));
+        assertThat(e.getMessage(), containsString("when disable_objects is enabled for [metrics]"));
+        assertThat(e.getMessage(), containsString("all fields must use flat field notation"));
+
+        // Test that validation only triggers for ObjectMapper instances, not FieldMapper instances
+        String mappingWithFieldMappers = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("allowed_container")
+            .field("type", "object")
+            .field("disable_objects", true)
+            .startObject("properties")
+            .startObject("text_field")  // FieldMapper, not ObjectMapper - should be allowed
+            .field("type", "text")
+            .endObject()
+            .startObject("keyword_field")  // Another FieldMapper - should be allowed
+            .field("type", "keyword")
+            .endObject()
+            .startObject("number_field")  // Another FieldMapper - should be allowed
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService2 = createIndex("test2").mapperService();
+
+        // This should NOT throw an exception because the child mappers are FieldMappers, not ObjectMappers
+        mapperService2.merge("_doc", new CompressedXContent(mappingWithFieldMappers), MergeReason.MAPPING_UPDATE);
+
+        // Test with deeply nested structure to ensure the name interpolation works correctly
+        String deeplyNestedMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("level1")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("level2")
+            .field("type", "object")
+            .field("disable_objects", true)  // disable_objects at level2
+            .startObject("properties")
+            .startObject("level3_object")  // This should be rejected
+            .field("type", "object")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperService mapperService3 = createIndex("test3").mapperService();
+
+        MapperParsingException e2 = expectThrows(MapperParsingException.class, () -> {
+            mapperService3.merge("_doc", new CompressedXContent(deeplyNestedMapping), MergeReason.MAPPING_UPDATE);
+        });
+
+        assertThat(e2.getMessage(), containsString("Cannot add nested object field [level1.level2.level3_object]"));
+        assertThat(e2.getMessage(), containsString("when disable_objects is enabled for [level2]"));
     }
 
     @Override

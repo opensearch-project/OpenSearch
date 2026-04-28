@@ -201,11 +201,9 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object other) {
-        if (!(other instanceof SliceBuilder)) {
+        if (!(other instanceof SliceBuilder o)) {
             return false;
         }
-
-        SliceBuilder o = (SliceBuilder) other;
         return ((field == null && o.field == null) || field.equals(o.field)) && id == o.id && o.max == max;
     }
 

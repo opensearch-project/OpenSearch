@@ -10,12 +10,14 @@ package org.opensearch.plugin.kafka;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.common.settings.Settings;
@@ -34,6 +36,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -186,22 +190,16 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         produceData("2", "name2", "20");
         internalCluster().startClusterManagerOnlyNode();
         final String nodeA = internalCluster().startDataOnlyNode();
-        final String nodeB = internalCluster().startDataOnlyNode();
 
         createIndexWithDefaultSettings(1, 1);
+        ensureYellowAndNoInitializingShards(indexName);
+        waitForSearchableDocs(2, Arrays.asList(nodeA));
+        final String nodeB = internalCluster().startDataOnlyNode();
         ensureGreen(indexName);
-        waitForSearchableDocs(2, Arrays.asList(nodeA, nodeB));
+        assertTrue(nodeA.equals(primaryNodeName(indexName)));
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 1);
 
         // verify ingestion state is persisted
         produceData("3", "name3", "30");
@@ -214,25 +212,16 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         client().admin().cluster().prepareReroute().add(new AllocateReplicaAllocationCommand(indexName, 0, nodeC)).get();
         ensureGreen(indexName);
         assertTrue(nodeC.equals(replicaNodeName(indexName)));
-        assertEquals(2, getSearchableDocCount(nodeB));
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+            return ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
+        assertEquals(2, getSearchableDocCount(nodeB));
 
         // resume ingestion
-        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(
-                    state -> state.isPollerPaused() == false
-                        && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
-                );
-        });
+        resumeIngestionAndWait(indexName, 1);
         waitForSearchableDocs(4, Arrays.asList(nodeB, nodeC));
     }
 
@@ -248,9 +237,9 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(1, ingestionState.getSuccessfulShards());
         assertEquals(1, ingestionState.getTotalShards());
         assertEquals(1, ingestionState.getShardStates().length);
-        assertEquals(0, ingestionState.getShardStates()[0].shardId());
-        assertEquals("POLLING", ingestionState.getShardStates()[0].pollerState());
-        assertEquals("DROP", ingestionState.getShardStates()[0].errorPolicy());
+        assertEquals(0, ingestionState.getShardStates()[0].getShardId());
+        assertEquals("POLLING", ingestionState.getShardStates()[0].getPollerState());
+        assertEquals("DROP", ingestionState.getShardStates()[0].getErrorPolicy());
         assertFalse(ingestionState.getShardStates()[0].isPollerPaused());
 
         GetIngestionStateResponse ingestionStateForInvalidShard = getIngestionState(new String[] { indexName }, new int[] { 1 });
@@ -286,8 +275,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(3, responsePage1.getSuccessfulShards());
         assertEquals(3, responsePage1.getShardStates().length);
         assertTrue(Arrays.stream(responsePage1.getShardStates()).allMatch(shardIngestionState -> {
-            boolean shardsMatch = Set.of(0, 1, 2).contains(shardIngestionState.shardId());
-            boolean indexMatch = "index1".equalsIgnoreCase(shardIngestionState.index());
+            boolean shardsMatch = Set.of(0, 1, 2).contains(shardIngestionState.getShardId());
+            boolean indexMatch = "index1".equalsIgnoreCase(shardIngestionState.getIndex());
             return indexMatch && shardsMatch;
         }));
 
@@ -297,9 +286,9 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(3, responsePage2.getSuccessfulShards());
         assertEquals(3, responsePage2.getShardStates().length);
         assertTrue(Arrays.stream(responsePage2.getShardStates()).allMatch(shardIngestionState -> {
-            boolean matchIndex1 = Set.of(3, 4).contains(shardIngestionState.shardId())
-                && "index1".equalsIgnoreCase(shardIngestionState.index());
-            boolean matchIndex2 = shardIngestionState.shardId() == 0 && "index2".equalsIgnoreCase(shardIngestionState.index());
+            boolean matchIndex1 = Set.of(3, 4).contains(shardIngestionState.getShardId())
+                && "index1".equalsIgnoreCase(shardIngestionState.getIndex());
+            boolean matchIndex2 = shardIngestionState.getShardId() == 0 && "index2".equalsIgnoreCase(shardIngestionState.getIndex());
             return matchIndex1 || matchIndex2;
         }));
 
@@ -309,8 +298,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(3, responsePage3.getSuccessfulShards());
         assertEquals(3, responsePage3.getShardStates().length);
         assertTrue(Arrays.stream(responsePage3.getShardStates()).allMatch(shardIngestionState -> {
-            boolean shardsMatch = Set.of(1, 2, 3).contains(shardIngestionState.shardId());
-            boolean indexMatch = "index2".equalsIgnoreCase(shardIngestionState.index());
+            boolean shardsMatch = Set.of(1, 2, 3).contains(shardIngestionState.getShardId());
+            boolean indexMatch = "index2".equalsIgnoreCase(shardIngestionState.getIndex());
             return indexMatch && shardsMatch;
         }));
 
@@ -320,8 +309,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(1, responsePage4.getSuccessfulShards());
         assertEquals(1, responsePage4.getShardStates().length);
         assertTrue(Arrays.stream(responsePage4.getShardStates()).allMatch(shardIngestionState -> {
-            boolean shardsMatch = shardIngestionState.shardId() == 4;
-            boolean indexMatch = "index2".equalsIgnoreCase(shardIngestionState.index());
+            boolean shardsMatch = shardIngestionState.getShardId() == 4;
+            boolean indexMatch = "index2".equalsIgnoreCase(shardIngestionState.getIndex());
             return indexMatch && shardsMatch;
         }));
     }
@@ -467,7 +456,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return ingestionState.getFailedShards() == 0
                 && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isWriteBlockEnabled() && state.pollerState().equalsIgnoreCase("paused"));
+                    .allMatch(state -> state.isWriteBlockEnabled() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         // verify write block state in poller is persisted
@@ -484,7 +473,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(state -> state.isWriteBlockEnabled() && state.pollerState().equalsIgnoreCase("paused"));
+                .allMatch(state -> state.isWriteBlockEnabled() && state.getPollerState().equalsIgnoreCase("paused"));
         });
         assertEquals(2, getSearchableDocCount(nodeB));
 
@@ -498,9 +487,379 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(4, Arrays.asList(nodeB, nodeC));
     }
 
+    public void testOffsetUpdateOnBlockErrorPolicy() throws Exception {
+        // setup nodes and index using block strategy
+        // produce one invalid message to block the processor
+        produceData("1", "name1", "21");
+        produceData("{\"_op_type\":\"invalid\",\"_source\":{\"name\":\"name4\", \"age\": 25}}");
+        produceData("2", "name2", "22");
+        produceData("3", "name3", "24");
+        produceData("4", "name4", "24");
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.error_strategy", "block")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.internal_queue_size", "1000")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        // expect only 1 document to be successfully indexed
+        waitForSearchableDocs(1, Arrays.asList(nodeA, nodeB));
+
+        // pause ingestion
+        pauseIngestionAndWait(indexName, 1);
+        // revalidate that only 1 document is visible
+        waitForSearchableDocs(1, Arrays.asList(nodeA, nodeB));
+
+        // update offset to skip past the invalid message
+        resumeIngestionWithResetAndWait(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "2", 1);
+
+        // validate remaining messages are successfully indexed
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertThat(stats.getConsumerStats().totalPolledCount(), is(3L));
+        assertThat(stats.getConsumerStats().totalPollerMessageFailureCount(), is(0L));
+    }
+
+    public void testConsumerResetByTimestamp() throws Exception {
+        produceData("1", "name1", "21", 100, "index");
+        produceData("2", "name2", "22", 105, "index");
+        produceData("3", "name3", "24", 110, "index");
+        produceData("4", "name4", "24", 120, "index");
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.error_strategy", "drop")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.internal_queue_size", "1000")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
+
+        // expect error response since ingestion not yet paused
+        ResumeIngestionResponse resumeResponse = resumeIngestion(
+            indexName,
+            0,
+            ResumeIngestionRequest.ResetSettings.ResetMode.TIMESTAMP,
+            "100"
+        );
+        assertTrue(resumeResponse.isAcknowledged());
+        assertFalse(resumeResponse.isShardsAcknowledged());
+        assertEquals(1, resumeResponse.getShardFailures().length);
+
+        // pause ingestion
+        pauseIngestionAndWait(indexName, 1);
+
+        // reset consumer by a timestamp after first message was produced
+        resumeIngestionWithResetAndWait(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.TIMESTAMP, "102", 1);
+
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats.getConsumerStats().totalPolledCount() == 3;
+        });
+    }
+
+    public void testRemoteSnapshotRestore() throws Exception {
+        String snapshotRepositoryName = "test-snapshot-repo";
+        String snapshotName = "snapshot-1";
+
+        // Step 1: Setup index and data
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+        createIndexWithDefaultSettings(1, 1);
+        ensureGreen(indexName);
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        refresh(indexName);
+        waitForSearchableDocs(2, Arrays.asList(nodeA, nodeB));
+
+        // Step 2: Register snapshot repository
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepositoryName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", false))
+        );
+
+        // Step 3: Take snapshot
+        flush(indexName);
+        CreateSnapshotResponse snapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepositoryName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertTrue(snapshotResponse.getSnapshotInfo().successfulShards() > 0);
+
+        // validate total polled count is 2
+        PollingIngestStats stats1 = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertEquals(2, stats1.getConsumerStats().totalPolledCount());
+
+        // Step 4: Delete Index
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+        waitForState(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setIndices(indexName).get().getState();
+            return state.getRoutingTable().hasIndex(indexName) == false && state.getMetadata().hasIndex(indexName) == false;
+        });
+        produceData("3", "name3", "24");
+        produceData("4", "name4", "20");
+
+        // Step 5: Restore Index from Snapshot
+        client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepositoryName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        ensureGreen(indexName);
+
+        // Step 6: Verify index is restored and resumes ingestion from the 3rd message
+        refresh(indexName);
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
+        assertHitCount(client().prepareSearch(indexName).get(), 4);
+
+        // after index is restored, it should resume ingestion from batchStartPointer available in the latest commit
+        PollingIngestStats stats2 = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertEquals(3, stats2.getConsumerStats().totalPolledCount());
+        assertEquals(0, stats2.getMessageProcessorStats().totalVersionConflictsCount());
+    }
+
+    public void testIndexRelocation() throws Exception {
+        // Step 1: Create 2 nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        // Step 2: Create index on nodeA
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.auto.offset.reset", "earliest")
+                .put("index.routing.allocation.require._name", nodeA)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+        ensureGreen(indexName);
+        assertTrue(nodeA.equals(primaryNodeName(indexName)));
+
+        // Step 3: Write documents and verify
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        refresh(indexName);
+        waitForSearchableDocs(2, List.of(nodeA));
+        flush(indexName);
+
+        // Step 4: Relocate index to nodeB
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", nodeB))
+                .get()
+        );
+
+        // Step 5: Wait for relocation to complete
+        waitForState(() -> nodeB.equals(primaryNodeName(indexName)));
+
+        // Step 6: Ensure index is searchable on nodeB and can resume ingestion
+        ensureGreen(indexName);
+        refresh(indexName);
+        waitForSearchableDocs(2, List.of(nodeB));
+        produceData("3", "name3", "24");
+        produceData("4", "name4", "20");
+        waitForSearchableDocs(4, List.of(nodeB));
+    }
+
+    public void testKafkaConnectionLost() throws Exception {
+        // Step 1: Create 2 nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        // Step 2: Create index
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.auto.offset.reset", "earliest")
+                .put("index.routing.allocation.require._name", nodeA)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+        ensureGreen(indexName);
+        assertTrue(nodeA.equals(primaryNodeName(indexName)));
+
+        // Step 3: Write documents and verify
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        refresh(indexName);
+        waitForSearchableDocs(2, List.of(nodeA));
+        flush(indexName);
+
+        // Step 4: Stop kafka and relocate index to nodeB
+        kafka.stop();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", nodeB))
+                .get()
+        );
+
+        // Step 5: Wait for relocation to complete
+        waitForState(() -> nodeB.equals(primaryNodeName(indexName)));
+
+        // Step 6: Ensure index is searchable on nodeB even though kafka is down
+        ensureGreen(indexName);
+        waitForSearchableDocs(2, List.of(nodeB));
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats.getConsumerStats().totalConsumerErrorCount() > 0;
+        });
+    }
+
     private void verifyRemoteStoreEnabled(String node) {
         GetSettingsResponse settingsResponse = client(node).admin().indices().prepareGetSettings(indexName).get();
         String remoteStoreEnabled = settingsResponse.getIndexToSettings().get(indexName).get("index.remote_store.enabled");
         assertEquals("Remote store should be enabled", "true", remoteStoreEnabled);
+    }
+
+    public void testBatchStartPointerOnReplicaPromotion() throws Exception {
+        // Step 1: Publish 10 messages
+        for (int i = 1; i <= 10; i++) {
+            produceDataWithExternalVersion(String.valueOf(i), 1, "name" + i, "25", defaultMessageTimestamp, "index");
+        }
+
+        // Step 2: Start nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Step 3: Create index with 1 replica
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureYellowAndNoInitializingShards(indexName);
+
+        // Step 4: Add second node and verify green status
+        final String nodeB = internalCluster().startDataOnlyNode();
+        ensureGreen(indexName);
+
+        // Step 5: Verify nodeA has the primary shard
+        assertTrue(nodeA.equals(primaryNodeName(indexName)));
+        assertTrue(nodeB.equals(replicaNodeName(indexName)));
+        verifyRemoteStoreEnabled(nodeA);
+        verifyRemoteStoreEnabled(nodeB);
+
+        // Step 6: Wait for 10 messages to be searchable on both nodes
+        waitForSearchableDocs(10, Arrays.asList(nodeA, nodeB));
+
+        // Step 7: Flush to persist data
+        flush(indexName);
+
+        // Step 8: Bring down nodeA (primary) and wait for nodeB to become primary
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+        ensureYellowAndNoInitializingShards(indexName);
+        assertTrue(nodeB.equals(primaryNodeName(indexName)));
+
+        // Step 9: Publish 1 new message
+        produceDataWithExternalVersion("11", 1, "name11", "25", defaultMessageTimestamp, "index");
+
+        // Step 10: Wait for 11 messages to be visible on nodeB
+        waitForSearchableDocs(11, Arrays.asList(nodeB));
+
+        // Step 11: Validate version conflict count is exactly 1
+        PollingIngestStats finalStats = client(nodeB).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(finalStats);
+
+        assertEquals(1L, finalStats.getMessageProcessorStats().totalVersionConflictsCount());
+        assertEquals(2L, finalStats.getMessageProcessorStats().totalProcessedCount());
+    }
+
+    public void testPeriodicFlush() throws Exception {
+        // Publish 10 messages
+        for (int i = 1; i <= 10; i++) {
+            produceData(String.valueOf(i), "name" + i, "25");
+        }
+
+        // Start nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Create index with 5 second periodic flush interval
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("index.periodic_flush_interval", "5s")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        verifyRemoteStoreEnabled(nodeA);
+
+        waitForSearchableDocs(10, Arrays.asList(nodeA));
+        waitForState(() -> getPeriodicFlushCount(nodeA, indexName) >= 1);
     }
 }

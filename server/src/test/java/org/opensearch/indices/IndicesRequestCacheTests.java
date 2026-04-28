@@ -88,6 +88,8 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardNotFoundException;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.Node;
 import org.opensearch.test.ClusterServiceUtils;
@@ -1422,7 +1424,9 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             localNode,
             null,
             DiscoveryNodes.builder().add(localNode).build(),
-            new MergedSegmentWarmerFactory(null, null, null)
+            new MergedSegmentWarmerFactory(null, null, null),
+            MergedSegmentPublisher.EMPTY,
+            ReferencedSegmentsPublisher.EMPTY
         );
 
         // Verify that the new shard requestStats entries are empty.

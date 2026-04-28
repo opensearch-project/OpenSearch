@@ -156,7 +156,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
 
-            assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
+            assertEquals(InternalEngine.class, getEngine(nextPrimary).getClass());
             assertDocCounts(nextPrimary, totalDocs, totalDocs);
 
             // refresh and push segments to our other replica.
@@ -193,7 +193,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         CountDownLatch latch = new CountDownLatch(1);
         shards.promoteReplicaToPrimary(replicaShard, (shard, listener) -> {
             try {
-                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaShard.getEngine());
+                assertAtMostOneLuceneDocumentPerSequenceNumber(getEngine(replicaShard));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -626,6 +626,33 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 assertEquals(IndexShardSnapshotStatus.Stage.DONE, stage);
             });
         }
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18255")
+    public void testMergedSegmentReplication() throws Exception {
+        // TODO: wait for remote store to support merged segment warmer
+        super.testMergedSegmentReplication();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/19436")
+    public void testMergedSegmentReplicationWithException() throws Exception {
+        // TODO: wait for remote store to support merged segment warmer
+        super.testMergedSegmentReplicationWithException();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18255")
+    public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
+        // TODO: wait for remote store to support merged segment warmer
+        super.testMergedSegmentReplicationWithZeroReplica();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18720")
+    public void testCleanupRedundantPendingMergeSegment() throws Exception {
+        super.testCleanupRedundantPendingMergeSegment();
     }
 
     private RemoteStoreReplicationSource getRemoteStoreReplicationSource(IndexShard shard, Runnable postGetFilesRunnable) {

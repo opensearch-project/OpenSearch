@@ -1,0 +1,140 @@
+---
+"Index documents with setting dynamic parameter to false_allow_templates in the mapping of the index":
+  - skip:
+      version: " - 3.2.99"
+      reason: "introduced in 3.3.0"
+
+  - do:
+      indices.create:
+        index:    test_1
+        body:
+          mappings:
+            dynamic: false_allow_templates
+            dynamic_templates: [
+              {
+                dates: {
+                  "match": "date_*",
+                  "match_mapping_type": "date",
+                  "mapping": {
+                    "type": "date"
+                  }
+                }
+              },
+              {
+                strings: {
+                  "match": "stringField*",
+                  "match_mapping_type": "string",
+                  "mapping": {
+                    "type": "keyword"
+                  }
+                }
+              },
+              {
+                object: {
+                  "match": "objectField*",
+                  "match_mapping_type": "object",
+                  "mapping": {
+                    "type": "object",
+                    "properties": {
+                      "bar1": {
+                        "type": "keyword"
+                      },
+                      "bar2": {
+                        "type": "text"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                boolean: {
+                  "match": "booleanField*",
+                  "match_mapping_type": "boolean",
+                  "mapping": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              {
+                long: {
+                  "match": "longField*",
+                  "match_mapping_type": "long",
+                  "mapping": {
+                    "type": "long"
+                  }
+                }
+              },
+              {
+                double: {
+                  "match": "doubleField*",
+                  "match_mapping_type": "double",
+                  "mapping": {
+                    "type": "double"
+                  }
+                }
+              },
+              {
+                array: {
+                  "match": "arrayField*",
+                  "mapping": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            ]
+            properties:
+              url:
+                type: keyword
+
+  - do:
+      index:
+        index:   test_1
+        id:      1
+        body:    {
+          url: "https://example.com",
+          date_timestamp: "2024-06-25T05:11:51.243Z",
+          stringField: "bar",
+          objectField: {
+            bar1: "bar1",
+            bar2: "bar2"
+          },
+          booleanField: true,
+          longField: 123456789,
+          doubleField: 123.456,
+          arrayField: ["item1", "item2", "item3"],
+          author: "John Doe"
+        }
+
+  - do:
+      get:
+        index: test_1
+        id: 1
+  - match:
+      _source:
+        url: "https://example.com"
+        date_timestamp: "2024-06-25T05:11:51.243Z"
+        stringField: "bar"
+        objectField:
+          bar1: "bar1"
+          bar2: "bar2"
+        booleanField: true
+        longField: 123456789
+        doubleField: 123.456
+        arrayField: ["item1", "item2", "item3"]
+        author: "John Doe"
+
+  - do:
+      indices.get_mapping:
+        index: test_1
+
+  - match: {test_1.mappings.dynamic:     false_allow_templates}
+  - match: {test_1.mappings.properties.url.type:     keyword}
+  - match: {test_1.mappings.properties.date_timestamp.type:     date}
+  - match: {test_1.mappings.properties.stringField.type:     keyword}
+  - match: {test_1.mappings.properties.objectField.properties.bar1.type:     keyword}
+  - match: {test_1.mappings.properties.objectField.properties.bar2.type:     text}
+  - match: {test_1.mappings.properties.booleanField.type:     boolean}
+  - match: {test_1.mappings.properties.longField.type:     long}
+  - match: {test_1.mappings.properties.doubleField.type:     double}
+  - match: {test_1.mappings.properties.arrayField.type:     keyword}
+  - match: {test_1.mappings.properties.author:     null}

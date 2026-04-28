@@ -37,10 +37,12 @@ import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestOperationsListenerSupport;
 import org.opensearch.action.search.SearchRequestStats;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -53,14 +55,38 @@ import static org.mockito.Mockito.when;
 
 public class SearchStatsTests extends OpenSearchTestCase implements SearchRequestOperationsListenerSupport {
 
-    // https://github.com/elastic/elasticsearch/issues/7644
-    public void testShardLevelSearchGroupStats() throws Exception {
+    public void testShardLevelSearchGroupStats() {
         // let's create two dummy search stats with groups
         Map<String, Stats> groupStats1 = new HashMap<>();
         Map<String, Stats> groupStats2 = new HashMap<>();
-        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
-        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats1);
-        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats2);
+        Stats.Builder defaultStats = new Stats.Builder().queryCount(1)
+            .queryTimeInMillis(1)
+            .queryCurrent(1)
+            .queryFailed(1)
+            .concurrentQueryCount(1)
+            .concurrentQueryTimeInMillis(1)
+            .concurrentQueryCurrent(1)
+            .queryConcurrency(1)
+            .fetchCount(1)
+            .fetchTimeInMillis(1)
+            .fetchCurrent(1)
+            .scrollCount(1)
+            .scrollTimeInMillis(1)
+            .scrollCurrent(1)
+            .suggestCount(1)
+            .suggestTimeInMillis(1)
+            .suggestCurrent(1)
+            .pitCount(1)
+            .pitTimeInMillis(1)
+            .pitCurrent(1)
+            .searchIdleReactivateCount(1)
+            .starTreeQueryCount(1)
+            .starTreeQueryTimeInMillis(1)
+            .starTreeQueryCurrent(1)
+            .starTreeQueryFailed(1);
+        groupStats2.put("group1", defaultStats.build());
+        SearchStats searchStats1 = new SearchStats(defaultStats.build(), 0, groupStats1);
+        SearchStats searchStats2 = new SearchStats(defaultStats.build(), 0, groupStats2);
 
         // adding these two search stats and checking group stats are correct
         searchStats1.add(searchStats2);
@@ -114,9 +140,14 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         assertEquals(equalTo, stats.getQueryCount());
         assertEquals(equalTo, stats.getQueryTimeInMillis());
         assertEquals(equalTo, stats.getQueryCurrent());
+        assertEquals(equalTo, stats.getQueryFailedCount());
         assertEquals(equalTo, stats.getConcurrentQueryCount());
         assertEquals(equalTo, stats.getConcurrentQueryTimeInMillis());
         assertEquals(equalTo, stats.getConcurrentQueryCurrent());
+        assertEquals(equalTo, stats.getStarTreeQueryCount());
+        assertEquals(equalTo, stats.getStarTreeQueryTimeInMillis());
+        assertEquals(equalTo, stats.getStarTreeQueryCurrent());
+        assertEquals(equalTo, stats.getStarTreeQueryFailed());
         assertEquals(equalTo, stats.getFetchCount());
         assertEquals(equalTo, stats.getFetchTimeInMillis());
         assertEquals(equalTo, stats.getFetchCurrent());
@@ -132,5 +163,46 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         assertEquals(equalTo, stats.getSearchIdleReactivateCount());
         // avg_concurrency is not summed up across stats
         assertEquals(1, stats.getConcurrentAvgSliceCount(), 0);
+    }
+
+    public void testNegativeRequestStats() throws Exception {
+        SearchStats searchStats = new SearchStats(new Stats(), 0, new HashMap<>());
+
+        long paramValue = randomIntBetween(2, 50);
+
+        // Testing for request stats
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
+        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            SearchPhase mockSearchPhase = mock(SearchPhase.class);
+            when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+            when(mockSearchPhase.getStartTimeInNanos()).thenReturn(System.nanoTime() - TimeUnit.SECONDS.toNanos(paramValue));
+            when(mockSearchPhase.getSearchPhaseNameOptional()).thenReturn(Optional.ofNullable(searchPhaseName));
+            for (int iterator = 0; iterator < paramValue; iterator++) {
+                onPhaseStart(testRequestStats, ctx);
+                onPhaseEnd(testRequestStats, ctx);
+                onPhaseEnd(testRequestStats, ctx); // call onPhaseEnd() twice to make 'current' negative
+            }
+        }
+        searchStats.setSearchRequestStats(testRequestStats);
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            Assert.assertNotNull(searchStats.getTotal().getRequestStatsLongHolder());
+            assertEquals(
+                -1 * paramValue,    // current is negative, equals -1 * paramValue (num loop iterations)
+                searchStats.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).current
+            );
+            assertEquals(
+                2 * paramValue,
+                searchStats.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).total
+            );
+            assertThat(
+                searchStats.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).timeInMillis,
+                greaterThanOrEqualTo(paramValue)
+            );
+        }
+
+        // Ensure writeTo() does not throw error with negative 'current'
+        searchStats.writeTo(new BytesStreamOutput(10));
     }
 }

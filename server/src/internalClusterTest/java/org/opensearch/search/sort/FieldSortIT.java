@@ -47,6 +47,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -934,7 +935,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         indexRandomForConcurrentSearch("test");
 
         // DOUBLE
-        logger.info("--> sort with no missing (same as missing _last)");
+        logger.info("--> sort with no missing");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC))
@@ -944,7 +945,6 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
 
         logger.info("--> sort with missing _last");
         searchResponse = client().prepareSearch()
@@ -983,7 +983,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         // FLOAT
-        logger.info("--> sort with no missing (same as missing _last)");
+        logger.info("--> sort with no missing");
         searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("d_value").order(SortOrder.ASC))
@@ -993,7 +993,6 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
 
         logger.info("--> sort with missing _last");
         searchResponse = client().prepareSearch()
@@ -1032,7 +1031,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         // UNSIGNED_LONG
-        logger.info("--> sort with no missing (same as missing _last)");
+        logger.info("--> sort with no missing");
         searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("u_value").order(SortOrder.ASC))
@@ -1042,7 +1041,6 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
 
         logger.info("--> sort with missing _last");
         searchResponse = client().prepareSearch()
@@ -1138,7 +1136,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         indexRandomForConcurrentSearch("test");
 
         // LONG
-        logger.info("--> sort with no missing (same as missing _last)");
+        logger.info("--> sort with no missing");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("l_value").order(SortOrder.ASC))
@@ -1177,7 +1175,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         // FLOAT
-        logger.info("--> sort with no missing (same as missing _last)");
+        logger.info("--> sort with no missing");
         searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("d_value").order(SortOrder.ASC))
@@ -1187,7 +1185,6 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
 
         logger.info("--> sort with missing _last");
         searchResponse = client().prepareSearch()
@@ -1214,7 +1211,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         // UNSIGNED_LONG
-        logger.info("--> sort with no missing (same as missing _last)");
+        logger.info("--> sort with no missing");
         searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("u_value").order(SortOrder.ASC))
@@ -1225,7 +1222,6 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
-        assertThat(searchResponse.getHits().getAt(2).getId(), is(oneOf("2", "3")));
 
         logger.info("--> sort with missing _last");
         searchResponse = client().prepareSearch()
@@ -1254,6 +1250,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
     }
 
+    @SuppressForbidden(reason = "WTF?")
     public void testSortMissingStrings() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(

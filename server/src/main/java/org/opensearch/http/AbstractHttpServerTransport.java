@@ -168,7 +168,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
+        return new HttpStats.Builder().serverOpen(httpChannels.size()).totalOpen(totalChannelsAccepted.get()).build();
     }
 
     protected void bindServer() {

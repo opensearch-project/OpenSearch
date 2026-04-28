@@ -32,22 +32,28 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.script.ScriptService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.opensearch.index.IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING;
 
 /**
  * The foundation OpenSearch mapper
@@ -298,5 +304,34 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     protected static boolean hasIndexCreated(Settings settings) {
         return settings.hasValue(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+    }
+
+    /**
+     * Checks if the optimised index feature is enabled for the given settings.
+     * Requires both the {@link FeatureFlags#PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG} feature flag
+     *
+     * @param settings the index settings to check
+     * @return {@code true} if the pluggable dataformat feature flag and the optimised index setting are both enabled
+     */
+    public static boolean isPluggableDataFormatEnabled(Settings settings) {
+        return FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+            && PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(settings);
+    }
+
+    /**
+     * Method to determine, if it is possible to derive source for this field using field mapping parameters
+     */
+    public void canDeriveSource() {
+        throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
+    }
+
+    /**
+     * Method used for deriving source and building it to XContentBuilder object
+     * @param builder - builder to store the derived source filed
+     * @param leafReader - leafReader to read data from
+     * @param docId - docId for which we want to derive the source
+     */
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
     }
 }

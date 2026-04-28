@@ -58,6 +58,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.indices.IndicesModule;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -68,6 +69,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.Version.MASK;
 import static org.opensearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -122,7 +124,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", numShard)
                     .put("index.number_of_replicas", numberOfReplicas)
                     .build()
@@ -250,7 +252,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata1 = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 4)
                     .put("index.number_of_replicas", numberOfReplicas)
                     .build()
@@ -280,7 +282,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
                 Settings.builder()
                     .put("index.number_of_replicas", numberOfReplicas)
                     .put("index.number_of_shards", 4)
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .build()
             )
             .creationDate(metadata1.getCreationDate())
@@ -318,7 +320,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 32)
                     .put("index.number_of_replicas", numberOfReplicas)
                     .build()
@@ -367,7 +369,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 10)
                     .put("index.number_of_replicas", numberOfReplicas)
                     .build()
@@ -387,7 +389,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata split = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 2)
                     .put("index.number_of_replicas", 0)
                     .build()
@@ -399,7 +401,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata shrink = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 32)
                     .put("index.number_of_replicas", 0)
                     .build()
@@ -426,7 +428,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 2)
                     .put("index.number_of_replicas", 0)
                     .build()
@@ -461,7 +463,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
 
     public void testIndexFormat() {
         Settings defaultSettings = Settings.builder()
-            .put("index.version.created", 1)
+            .put("index.version.created", 1 ^ MASK)
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 1)
             .build();
@@ -606,4 +608,274 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertThat(indexMetadataAfterDiffApplied.getVersion(), equalTo(nextIndexMetadata.getVersion()));
     }
 
+    /**
+     * Test validation for remote store segment path prefix setting
+     */
+    public void testRemoteStoreSegmentPathPrefixValidation() {
+        // Test empty value (should be allowed)
+        final Settings emptySettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "")
+            .build();
+
+        IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(emptySettings);
+
+        final Settings whitespaceSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "   ")
+            .build();
+
+        IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(whitespaceSettings);
+
+        final Settings validSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer-node-1")
+            .build();
+
+        String value = IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(validSettings);
+        assertEquals("writer-node-1", value);
+
+        final Settings disabledSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), false)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer-node-1")
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(disabledSettings);
+        });
+        assertTrue(e.getMessage().contains("can only be set when"));
+
+        final Settings noRemoteStoreSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer-node-1")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(noRemoteStoreSettings); }
+        );
+        assertTrue(e.getMessage().contains("can only be set when"));
+
+        final Settings invalidPathSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer/node")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(invalidPathSettings); }
+        );
+        assertTrue(e.getMessage().contains("cannot contain path separators"));
+
+        final Settings backslashSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer\\node")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(backslashSettings); }
+        );
+        assertTrue(e.getMessage().contains("cannot contain path separators"));
+
+        final Settings colonSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer:node")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(colonSettings); }
+        );
+        assertTrue(e.getMessage().contains("cannot contain path separators"));
+    }
+
+    /**
+     * Test validation for pull-based ingestion all-active settings.
+     */
+    public void testAllActivePullBasedIngestionSettings() {
+        // all-active ingestion enabled with default (document) replication mode
+        final Settings settings1 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), true)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
+            .build();
+
+        boolean isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings1);
+        assertTrue(isAllActiveIngestionEnabled);
+
+        // all-active ingestion disabled in segment replication mode
+        final Settings settings2 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), false)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .build();
+
+        isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings2);
+        assertFalse(isAllActiveIngestionEnabled);
+
+        // all-active ingestion disabled in document replication mode
+        final Settings settings3 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), false)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
+            .build();
+
+        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> {
+            IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings3);
+        });
+        assertTrue(e1.getMessage().contains("is not supported in pull-based ingestion"));
+
+        // all-active ingestion enabled in segment replication mode
+        final Settings settings4 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), true)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .build();
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> {
+            IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings4);
+        });
+        assertTrue(e2.getMessage().contains("is not supported in pull-based ingestion"));
+
+        // all-active ingestion validations do not apply when pull-based ingestion is not enabled
+        final Settings settings5 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .build();
+
+        isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings5);
+        assertTrue(isAllActiveIngestionEnabled);
+
+        // all-active ingestion validations do not apply when pull-based ingestion is not enabled
+        final Settings settings6 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), false)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
+            .build();
+
+        isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings6);
+        assertFalse(isAllActiveIngestionEnabled);
+    }
+
+    public void testPrimaryTermsMapXContentRoundTrip() throws IOException {
+        int numShards = randomFrom(2, 4, 8);
+        IndexMetadata.Builder builder = IndexMetadata.builder("test-primary-terms-map")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", numShards)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .setRoutingNumShards(numShards * 2);
+
+        // Set distinct primary terms per shard
+        for (int i = 0; i < numShards; i++) {
+            builder.primaryTerm(i, randomLongBetween(1, 100));
+        }
+        IndexMetadata metadata = builder.build();
+
+        // XContent round-trip
+        final XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
+        xContentBuilder.startObject();
+        IndexMetadata.FORMAT.toXContent(xContentBuilder, metadata);
+        xContentBuilder.endObject();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(xContentBuilder));
+        IndexMetadata fromXContent = IndexMetadata.fromXContent(parser);
+
+        assertEquals(metadata, fromXContent);
+        for (int i = 0; i < numShards; i++) {
+            assertEquals(metadata.primaryTerm(i), fromXContent.primaryTerm(i));
+        }
+    }
+
+    public void testPrimaryTermsMapStreamRoundTrip() throws IOException {
+        int numShards = randomFrom(2, 4, 8);
+        IndexMetadata.Builder builder = IndexMetadata.builder("test-primary-terms-map-stream")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", numShards)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .setRoutingNumShards(numShards * 2);
+
+        for (int i = 0; i < numShards; i++) {
+            builder.primaryTerm(i, randomLongBetween(1, 100));
+        }
+        IndexMetadata metadata = builder.build();
+
+        // Stream round-trip
+        final BytesStreamOutput out = new BytesStreamOutput();
+        metadata.writeTo(out);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+            IndexMetadata deserialized = IndexMetadata.readFrom(in);
+            assertEquals(metadata, deserialized);
+            for (int i = 0; i < numShards; i++) {
+                assertEquals(metadata.primaryTerm(i), deserialized.primaryTerm(i));
+            }
+        }
+    }
+
+    public void testPrimaryTermsMapDiffRoundTrip() throws IOException {
+        int numShards = 4;
+        IndexMetadata.Builder beforeBuilder = IndexMetadata.builder("test-diff")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", numShards)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .setRoutingNumShards(numShards * 2);
+        for (int i = 0; i < numShards; i++) {
+            beforeBuilder.primaryTerm(i, 1);
+        }
+        IndexMetadata before = beforeBuilder.build();
+
+        // Bump primary term on shard 2
+        IndexMetadata.Builder afterBuilder = IndexMetadata.builder(before);
+        afterBuilder.primaryTerm(2, 5);
+        afterBuilder.version(before.getVersion() + 1);
+        IndexMetadata after = afterBuilder.build();
+
+        Diff<IndexMetadata> diff = new IndexMetadata.IndexMetadataDiff(before, after);
+
+        // Serialize and deserialize the diff
+        final BytesStreamOutput out = new BytesStreamOutput();
+        diff.writeTo(out);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+            Diff<IndexMetadata> deserializedDiff = IndexMetadata.readDiffFrom(in);
+            IndexMetadata applied = deserializedDiff.apply(before);
+            assertEquals(after, applied);
+            assertEquals(5, applied.primaryTerm(2));
+            assertEquals(1, applied.primaryTerm(0));
+        }
+    }
+
+    public void testLegacyCreatedVersion() {
+        Index index = new Index("test-index", UUIDs.randomBase64UUID());
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, "7090199")
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        try {
+            IndexMetadata.builder(index.getName())
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .version(1)
+                .system(false)
+                .build();
+            fail("Should not be able to create index with legacy created version");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getCause() instanceof Version.UnsupportedVersionException);
+            Version.UnsupportedVersionException versionException = (Version.UnsupportedVersionException) e.getCause();
+            assertEquals("ES 7.9.1", versionException.getVersionString());
+        }
+    }
 }

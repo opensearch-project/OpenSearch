@@ -40,25 +40,36 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -244,6 +255,201 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 equalTo(List.of("2020-01-01T00:00Z"))
             );
         });
+    }
+
+    public void testSkiplistWithSingleValueDates() throws IOException {
+        // Create index settings with an index sort.
+        Settings settings = getSettingsWithIndexSort();
+
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+
+        MappedFieldType fieldType = new DateFieldMapper.DateFieldType(AGGREGABLE_DATE);
+        IndexNumericFieldData fieldData = (IndexNumericFieldData) fieldType.fielddataBuilder("index", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null);
+        SortField sortField = fieldData.sortField(null, MultiValueMode.MIN, null, false);
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = newIndexWriterConfig();
+            config.setMergePolicy(NoMergePolicy.INSTANCE);
+            config.setIndexSort(new Sort(sortField));
+            String filterField = "type";
+            indexDocsForSkiplist(directory, config, filterField, null);
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                    .calendarInterval(DateHistogramInterval.YEAR);
+
+                Query query = LongPoint.newExactQuery(filterField, 2);
+
+                InternalDateHistogram histogram = searchAndReduce(
+                    indexSettings,
+                    indexSearcher,
+                    query,
+                    aggregationBuilder,
+                    1000,
+                    false,
+                    fieldType
+                );
+                assertEquals(3, histogram.getBuckets().size()); // 2015, 2016, 2017 (only type 2 docs)
+
+                assertEquals("2015-01-01T00:00:00.000Z", histogram.getBuckets().get(0).getKeyAsString());
+                assertEquals(3, histogram.getBuckets().get(0).getDocCount());
+
+                assertEquals("2016-01-01T00:00:00.000Z", histogram.getBuckets().get(1).getKeyAsString());
+                assertEquals(1, histogram.getBuckets().get(1).getDocCount());
+
+                assertEquals("2017-01-01T00:00:00.000Z", histogram.getBuckets().get(2).getKeyAsString());
+                assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+            }
+        }
+
+    }
+
+    public void testSkiplistWithSingleValueDatesAndSubAggs() throws IOException {
+        // Create index settings with an index sort.
+        Settings settings = getSettingsWithIndexSort();
+
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+
+        MappedFieldType dateType = new DateFieldMapper.DateFieldType(AGGREGABLE_DATE);
+        String categoryField = "category";
+        NumberFieldMapper.NumberFieldType categoryType = new NumberFieldMapper.NumberFieldType(
+            categoryField,
+            NumberFieldMapper.NumberType.LONG
+        );
+
+        IndexNumericFieldData fieldData = (IndexNumericFieldData) dateType.fielddataBuilder("index", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null);
+        SortField sortField = fieldData.sortField(null, MultiValueMode.MIN, null, false);
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = newIndexWriterConfig();
+            config.setMergePolicy(NoMergePolicy.INSTANCE);
+            config.setIndexSort(new Sort(sortField));
+            String filterField = "type";
+            indexDocsForSkiplist(directory, config, filterField, categoryField);
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                // Create date histogram with terms sub-aggregation
+                DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                    .calendarInterval(DateHistogramInterval.YEAR)
+                    .subAggregation(new MaxAggregationBuilder(categoryField).field(categoryField));
+
+                Query query = LongPoint.newExactQuery(filterField, 2);
+
+                InternalDateHistogram histogram = searchAndReduce(
+                    indexSettings,
+                    indexSearcher,
+                    query,
+                    aggregationBuilder,
+                    1000,
+                    false,
+                    dateType,
+                    categoryType
+                );
+
+                assertEquals(3, histogram.getBuckets().size()); // 2015, 2016, 2017 (only type 2 docs)
+
+                // Verify first bucket (2015) with sub-aggregations
+                InternalDateHistogram.Bucket bucket2015 = (InternalDateHistogram.Bucket) histogram.getBuckets().get(0);
+                assertEquals("2015-01-01T00:00:00.000Z", bucket2015.getKeyAsString());
+                assertEquals(3, bucket2015.getDocCount());
+
+                // Assert sub-aggregation values for 2015 bucket (docs 5,6,7 with categories 1,0,1)
+                assertNotNull("Sub-aggregation should exist for 2015 bucket", bucket2015.getAggregations());
+                org.opensearch.search.aggregations.metrics.InternalMax maxAgg2015 = bucket2015.getAggregations().get(categoryField);
+                assertNotNull("Max sub-agg should exist", maxAgg2015);
+                assertEquals("Max category value for 2015 bucket should be 1", 1.0, maxAgg2015.getValue(), 0.0);
+
+                // Verify second bucket (2016)
+                InternalDateHistogram.Bucket bucket2016 = (InternalDateHistogram.Bucket) histogram.getBuckets().get(1);
+                assertEquals("2016-01-01T00:00:00.000Z", bucket2016.getKeyAsString());
+                assertEquals(1, bucket2016.getDocCount());
+
+                // Assert sub-aggregation values for 2016 bucket (doc 8 with category 0)
+                assertNotNull("Sub-aggregation should exist for 2016 bucket", bucket2016.getAggregations());
+                org.opensearch.search.aggregations.metrics.InternalMax maxAgg2016 = bucket2016.getAggregations().get(categoryField);
+                assertNotNull("Max sub-agg should exist", maxAgg2016);
+                assertEquals("Max category value for 2016 bucket should be 0", 0.0, maxAgg2016.getValue(), 0.0);
+
+                // Verify third bucket (2017)
+                InternalDateHistogram.Bucket bucket2017 = (InternalDateHistogram.Bucket) histogram.getBuckets().get(2);
+                assertEquals("2017-01-01T00:00:00.000Z", bucket2017.getKeyAsString());
+                assertEquals(1, bucket2017.getDocCount());
+
+                // Assert sub-aggregation values for 2017 bucket (doc 9 with category 1)
+                assertNotNull("Sub-aggregation should exist for 2017 bucket", bucket2017.getAggregations());
+                org.opensearch.search.aggregations.metrics.InternalMax maxAgg2017 = bucket2017.getAggregations().get(categoryField);
+                assertNotNull("Max sub-agg should exist", maxAgg2017);
+                assertEquals("Max category value for 2017 bucket should be 1", 1.0, maxAgg2017.getValue(), 0.0);
+            }
+        }
+    }
+
+    private static void indexDocsForSkiplist(Directory directory, IndexWriterConfig config, String filterField, String categoryField)
+        throws IOException {
+        try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
+
+            // First commit - 5 dates with type 1
+            for (int i = 0; i < 5; i++) {
+                Document doc = new Document();
+                long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
+                    .toInstant()
+                    .toEpochMilli();
+                doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
+                doc.add(new LongPoint(filterField, 1));
+                if (categoryField != null) {
+                    doc.add(new NumericDocValuesField(categoryField, i % 2));
+                }
+                indexWriter.addDocument(doc);
+            }
+            indexWriter.commit();
+
+            // Second commit - 3 more dates with type 2, skiplist
+            for (int i = 5; i < 8; i++) {
+                Document doc = new Document();
+                long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
+                    .toInstant()
+                    .toEpochMilli();
+                doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
+                doc.add(new LongPoint(filterField, 2));
+                if (categoryField != null) {
+                    doc.add(new NumericDocValuesField(categoryField, i % 2));
+                }
+                indexWriter.addDocument(doc);
+            }
+            indexWriter.commit();
+
+            // Third commit - 2 more dates with type 2
+            for (int i = 8; i < 10; i++) {
+                Document doc = new Document();
+                long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
+                    .toInstant()
+                    .toEpochMilli();
+                doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
+                doc.add(new LongPoint(filterField, 2));
+                if (categoryField != null) {
+                    doc.add(new NumericDocValuesField(categoryField, i % 2));
+                }
+                indexWriter.addDocument(doc);
+            }
+            indexWriter.commit();
+        }
+    }
+
+    private static Settings getSettingsWithIndexSort() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .putList("index.sort.field", AGGREGABLE_DATE)
+            .build();
     }
 
     public void testNoDocsDeprecatedInterval() throws IOException {

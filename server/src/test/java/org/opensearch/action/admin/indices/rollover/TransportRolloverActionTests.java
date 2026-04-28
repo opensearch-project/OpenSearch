@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
@@ -50,6 +51,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -58,6 +60,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -145,7 +148,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
         Map<String, Boolean> results = evaluateConditions(
             conditions,
-            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)),
+            new DocsStats.Builder().count(matchMaxDocs).deleted(0L).totalSizeInBytes(ByteSizeUnit.MB.toBytes(120)).build(),
             metadata
         );
         assertThat(results.size(), equalTo(3));
@@ -153,7 +156,11 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             assertThat(matched, equalTo(true));
         }
 
-        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metadata);
+        results = evaluateConditions(
+            conditions,
+            new DocsStats.Builder().count(notMatchMaxDocs).deleted(0).totalSizeInBytes(notMatchMaxSize.getBytes()).build(),
+            metadata
+        );
         assertThat(results.size(), equalTo(3));
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
@@ -208,7 +215,12 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        Map<String, Boolean> results = evaluateConditions(conditions, new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), null);
+
+        Map<String, Boolean> results = evaluateConditions(
+            conditions,
+            new DocsStats.Builder().count(matchMaxDocs).deleted(0L).totalSizeInBytes(ByteSizeUnit.MB.toBytes(120)).build(),
+            null
+        );
         assertThat(results.size(), equalTo(3));
         results.forEach((k, v) -> assertFalse(v));
 
@@ -326,12 +338,75 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         assertThat(response.getConditionStatus().get("[max_docs: 300]"), is(true));
     }
 
+    public void testResolveIndices() {
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("logs-index-000002")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
+            .build();
+
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(stateBefore);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        MetadataCreateIndexService createIndexService = mock(MetadataCreateIndexService.class);
+        MetadataIndexAliasesService metadataIndexAliasesService = mock(MetadataIndexAliasesService.class);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        MetadataRolloverService metadataRolloverService = new MetadataRolloverService(
+            threadPool,
+            createIndexService,
+            metadataIndexAliasesService,
+            indexNameExpressionResolver
+        );
+
+        TransportRolloverAction action = new TransportRolloverAction(
+            mock(TransportService.class),
+            clusterService,
+            threadPool,
+            mock(ActionFilters.class),
+            indexNameExpressionResolver,
+            metadataRolloverService,
+            mock(Client.class)
+        );
+
+        {
+            ResolvedIndices resolvedIndices = action.resolveIndices(new RolloverRequest("logs-alias", null));
+            assertEquals(
+                ResolvedIndices.of("logs-alias")
+                    .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of("logs-index-000003")),
+                resolvedIndices
+            );
+        }
+
+        {
+            ResolvedIndices resolvedIndices = action.resolveIndices(new RolloverRequest("logs-alias", "explicit-index"));
+            assertEquals(
+                ResolvedIndices.of("logs-alias")
+                    .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of("explicit-index")),
+                resolvedIndices
+            );
+        }
+    }
+
     private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {
         final CommonStats primaryStats = mock(CommonStats.class);
-        when(primaryStats.getDocs()).thenReturn(new DocsStats(primariesDocs, 0, between(1, 10000)));
+        when(primaryStats.getDocs()).thenReturn(
+            new DocsStats.Builder().count(primariesDocs).deleted(0).totalSizeInBytes(between(1, 10000)).build()
+        );
 
         final CommonStats totalStats = mock(CommonStats.class);
-        when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0, between(1, 10000)));
+        when(totalStats.getDocs()).thenReturn(
+            new DocsStats.Builder().count(totalDocs).deleted(0).totalSizeInBytes(between(1, 10000)).build()
+        );
 
         final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
         when(response.getPrimaries()).thenReturn(primaryStats);
@@ -360,10 +435,14 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
 
     private IndexStats createIndexStats(long primaries, long total) {
         final CommonStats primariesCommonStats = mock(CommonStats.class);
-        when(primariesCommonStats.getDocs()).thenReturn(new DocsStats(primaries, 0, between(1, 10000)));
+        when(primariesCommonStats.getDocs()).thenReturn(
+            new DocsStats.Builder().count(primaries).deleted(0).totalSizeInBytes(between(1, 10000)).build()
+        );
 
         final CommonStats totalCommonStats = mock(CommonStats.class);
-        when(totalCommonStats.getDocs()).thenReturn(new DocsStats(total, 0, between(1, 10000)));
+        when(totalCommonStats.getDocs()).thenReturn(
+            new DocsStats.Builder().count(total).deleted(0).totalSizeInBytes(between(1, 10000)).build()
+        );
 
         IndexStats indexStats = mock(IndexStats.class);
         when(indexStats.getPrimaries()).thenReturn(primariesCommonStats);
@@ -422,7 +501,16 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
                 stats.get = new GetStats();
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, null));
+                shardStats.add(
+                    new ShardStats.Builder().shardRouting(shardRouting)
+                        .shardPath(new ShardPath(false, path, path, shardId))
+                        .commonStats(stats)
+                        .commitStats(null)
+                        .seqNoStats(null)
+                        .retentionLeaseStats(null)
+                        .pollingIngestStats(null)
+                        .build()
+                );
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(

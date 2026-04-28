@@ -13,20 +13,28 @@ import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
+import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import static org.opensearch.rule.attribute_extractor.AttributeExtractor.LogicalOperator.OR;
 
 public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     InMemoryRuleProcessingService sut;
 
     public void setUp() throws Exception {
         super.setUp();
-        sut = new InMemoryRuleProcessingService(WLMFeatureType.WLM, DefaultAttributeValueStore::new);
+        AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
+            WLMFeatureType.WLM,
+            DefaultAttributeValueStore::new
+        );
+        sut = new InMemoryRuleProcessingService(attributeValueStoreFactory, WLMFeatureType.WLM.getOrderedAttributes());
     }
 
     public void testAdd() {
@@ -44,6 +52,16 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         sut.remove(rule);
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test"));
+        Optional<String> label = sut.evaluateLabel(extractors);
+        assertFalse(label.isPresent());
+    }
+
+    public void testAddThenRemoveWithWildcard() {
+        Rule rule = getRule(Set.of("test-*"), "test_id");
+        sut.add(rule);
+        sut.remove(rule);
+
+        List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test-index"));
         Optional<String> label = sut.evaluateLabel(extractors);
         assertFalse(label.isPresent());
     }
@@ -97,6 +115,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
 
     private static Rule getRule(Set<String> attributeValues, String label) {
         return new Rule(
+            randomAlphaOfLength(5),
             "test description",
             Map.of(TestAttribute.TEST_ATTRIBUTE, attributeValues),
             WLMFeatureType.WLM,
@@ -106,7 +125,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     private static List<AttributeExtractor<String>> getAttributeExtractors(List<String> extractedAttributes) {
-        List<AttributeExtractor<String>> extractors = List.of(new AttributeExtractor<String>() {
+        List<AttributeExtractor<String>> extractors = new ArrayList<>();
+        extractors.add(new AttributeExtractor<String>() {
             @Override
             public Attribute getAttribute() {
                 return TestAttribute.TEST_ATTRIBUTE;
@@ -116,6 +136,11 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
             public Iterable<String> extract() {
                 return extractedAttributes;
             }
+
+            @Override
+            public LogicalOperator getLogicalOperator() {
+                return OR;
+            }
         });
         return extractors;
     }
@@ -124,7 +149,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         WLM;
 
         static {
-            WLM.registerFeatureType();
+            AutoTaggingRegistry.registerFeatureType(WLM);
         }
 
         @Override
@@ -133,13 +158,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Map<String, Attribute> getAllowedAttributesRegistry() {
-            return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
-        }
-
-        @Override
-        public void registerFeatureType() {
-            AutoTaggingRegistry.registerFeatureType(WLM);
+        public Map<Attribute, Integer> getOrderedAttributes() {
+            return Map.of(TestAttribute.TEST_ATTRIBUTE, 1);
         }
     }
 

@@ -32,9 +32,6 @@
 
 package org.opensearch;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.commons.codec.DecoderException;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.action.OriginalIndices;
@@ -49,6 +46,8 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.jackson.core.InputCoercionException;
+import org.opensearch.tools.jackson.core.JsonParseException;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -111,18 +110,15 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
 
     public void testStatus() {
         assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new InputCoercionException(null, "illegal", null, null)), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new InputCoercionException("illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new JsonParseException("illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testSummaryMessage() {
         assertThat(ExceptionsHelper.summaryMessage(new IllegalArgumentException("illegal")), equalTo("Invalid argument"));
-        assertThat(
-            ExceptionsHelper.summaryMessage(new InputCoercionException(null, "illegal", null, null)),
-            equalTo("Incompatible JSON value")
-        );
-        assertThat(ExceptionsHelper.summaryMessage(new JsonParseException(null, "illegal")), equalTo("Failed to parse JSON"));
+        assertThat(ExceptionsHelper.summaryMessage(new InputCoercionException("illegal")), equalTo("Incompatible JSON value"));
+        assertThat(ExceptionsHelper.summaryMessage(new JsonParseException("illegal")), equalTo("Failed to parse JSON"));
         assertThat(ExceptionsHelper.summaryMessage(new OpenSearchRejectedExecutionException("rejected")), equalTo("Too many requests"));
     }
 
@@ -263,5 +259,29 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
         e1.initCause(e2);
         ExceptionsHelper.unwrap(e1, IOException.class);
         ExceptionsHelper.unwrapCorruption(e1);
+    }
+
+    public void testUnwrapToOpenSearchException() {
+        // Test with OpenSearchException directly - should return the same exception
+        OpenSearchException directException = new OpenSearchException("direct error");
+        assertSame(directException, ExceptionsHelper.unwrapToOpenSearchException(directException));
+
+        // Test with nested OpenSearchException - should unwrap to it
+        OpenSearchException nestedOpenSearchException = new OpenSearchException("nested error");
+        RuntimeException wrapper = new RuntimeException("wrapper", nestedOpenSearchException);
+        assertSame(nestedOpenSearchException, ExceptionsHelper.unwrapToOpenSearchException(wrapper));
+
+        // Test with non-OpenSearchException - should return original
+        IllegalArgumentException nonOpenSearchException = new IllegalArgumentException("not opensearch");
+        assertSame(nonOpenSearchException, ExceptionsHelper.unwrapToOpenSearchException(nonOpenSearchException));
+
+        // Test with multiple levels of nesting
+        OpenSearchException deepNested = new OpenSearchException("deep error");
+        RuntimeException level1 = new RuntimeException("level 1", deepNested);
+        RuntimeException level2 = new RuntimeException("level 2", level1);
+        assertSame(deepNested, ExceptionsHelper.unwrapToOpenSearchException(level2));
+
+        // Test with null - should return null
+        assertThat(ExceptionsHelper.unwrapToOpenSearchException(null), nullValue());
     }
 }

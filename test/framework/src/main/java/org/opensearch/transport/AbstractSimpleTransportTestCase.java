@@ -40,7 +40,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListenerResponseHandler;
@@ -2074,7 +2073,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 logger.debug((Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
-                assertNotNull(unwrap);
+                assertNotNull("Expected an IOException somewhere in causal chain: " + exp, unwrap);
                 assertEquals(IOException.class, unwrap.getClass());
                 assertEquals("forced failure", unwrap.getMessage());
             }
@@ -2178,6 +2177,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
             try (TransportService service = buildService("TS_TPC", Version.CURRENT, null, Settings.EMPTY, true, false)) {
                 IOUtils.close(service.openConnection(first, builder.build()));
@@ -2199,7 +2199,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
 
     public void testHandshakeWithIncompatVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        Version version = LegacyESVersion.fromString("6.0.0");
+        Version version = Version.fromString("6.0.0");
         try (MockTransportService service = buildService("TS_C", version, Settings.EMPTY)) {
             service.start();
             service.acceptIncomingRequests();
@@ -2214,6 +2214,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             expectThrows(ConnectTransportException.class, () -> serviceA.openConnection(node, builder.build()));
         }
     }
@@ -2225,14 +2226,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             service.start();
             service.acceptIncomingRequests();
             TransportAddress address = service.boundAddress().publishAddress();
-            DiscoveryNode node = new DiscoveryNode(
-                "TS_TPC",
-                "TS_TPC",
-                address,
-                emptyMap(),
-                emptySet(),
-                LegacyESVersion.fromString("2.0.0")
-            );
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), Version.fromString("2.0.0"));
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,
@@ -2242,6 +2236,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             try (Transport.Connection connection = serviceA.openConnection(node, builder.build())) {
                 assertEquals(version, connection.getVersion());
             }
@@ -2313,6 +2308,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
             ConnectTransportException ex = expectThrows(
                 ConnectTransportException.class,
@@ -2355,6 +2351,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
             ConnectTransportException ex = expectThrows(
                 ConnectTransportException.class,
@@ -2478,6 +2475,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE
         );
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
+
         try (Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build())) {
             serviceC.close();
             serviceB.sendRequest(
@@ -2549,6 +2548,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE
         );
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
 
         try (Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build())) {
             serviceB.sendRequest(
@@ -2629,6 +2629,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE
         );
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
         try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
@@ -2750,6 +2751,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE
         );
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
         try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
@@ -3035,6 +3037,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             final ConnectTransportException e = expectThrows(
                 ConnectTransportException.class,
                 () -> service.openConnection(nodeA, builder.build())

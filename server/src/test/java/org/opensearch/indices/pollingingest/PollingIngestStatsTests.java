@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.pollingingest;
 
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -47,8 +48,20 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
             + stats.getConsumerStats().totalPollerMessageFailureCount()
             + ",\"total_poller_message_dropped_count\":"
             + stats.getConsumerStats().totalPollerMessageDroppedCount()
+            + ",\"total_duplicate_message_skipped_count\":"
+            + stats.getConsumerStats().totalDuplicateMessageSkippedCount()
             + ",\"lag_in_millis\":"
             + stats.getConsumerStats().lagInMillis()
+            + ",\"pointer_based_lag\":"
+            + stats.getConsumerStats().pointerBasedLag()
+            + "},\"pipeline_stats\":{\"total_execution_count\":"
+            + stats.getPipelineStats().totalExecutionCount()
+            + ",\"total_execution_time_in_millis\":"
+            + stats.getPipelineStats().totalExecutionTimeInMillis()
+            + ",\"total_failed_count\":"
+            + stats.getPipelineStats().totalFailedCount()
+            + ",\"total_dropped_count\":"
+            + stats.getPipelineStats().totalDroppedCount()
             + "}}}";
 
         assertEquals(expected, builder.toString());
@@ -67,12 +80,80 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Test serialization to a pre-3.7.0 node — pipeline stats should be omitted.
+     */
+    public void testSerializationToOlderNode() throws IOException {
+        PollingIngestStats original = createTestInstance();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(Version.V_3_5_0);
+            original.writeTo(output);
+
+            try (StreamInput input = output.bytes().streamInput()) {
+                input.setVersion(Version.V_3_5_0);
+                PollingIngestStats deserialized = new PollingIngestStats(input);
+
+                // Message processor and consumer stats should match
+                assertEquals(original.getMessageProcessorStats(), deserialized.getMessageProcessorStats());
+                assertEquals(original.getConsumerStats(), deserialized.getConsumerStats());
+
+                // Pipeline stats should be zeroed out (not serialized to older nodes)
+                assertEquals(0, deserialized.getPipelineStats().totalExecutionCount());
+                assertEquals(0, deserialized.getPipelineStats().totalExecutionTimeInMillis());
+                assertEquals(0, deserialized.getPipelineStats().totalFailedCount());
+                assertEquals(0, deserialized.getPipelineStats().totalDroppedCount());
+            }
+        }
+    }
+
+    /**
+     * Test deserialization from a pre-3.7.0 node — pipeline stats should default to zero.
+     */
+    public void testDeserializationFromOlderNode() throws IOException {
+        // Simulate a pre-3.6.0 node writing stats without pipeline fields
+        PollingIngestStats original = createTestInstance();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(Version.V_3_6_0);
+            original.writeTo(output);
+
+            // Read back as a 3.6.0 node
+            try (StreamInput input = output.bytes().streamInput()) {
+                input.setVersion(Version.V_3_6_0);
+                PollingIngestStats deserialized = new PollingIngestStats(input);
+
+                assertEquals(original.getMessageProcessorStats(), deserialized.getMessageProcessorStats());
+                assertEquals(0, deserialized.getPipelineStats().totalExecutionCount());
+            }
+        }
+    }
+
     private PollingIngestStats createTestInstance() {
-        return PollingIngestStats.builder()
-            .setTotalProcessedCount(randomNonNegativeLong())
-            .setTotalInvalidMessageCount(randomNonNegativeLong())
-            .setTotalPolledCount(randomNonNegativeLong())
-            .setLagInMillis(randomNonNegativeLong())
-            .build();
+        return new PollingIngestStats(
+            new PollingIngestStats.MessageProcessorStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            new PollingIngestStats.ConsumerStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            new PollingIngestStats.PipelineStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            )
+        );
     }
 }

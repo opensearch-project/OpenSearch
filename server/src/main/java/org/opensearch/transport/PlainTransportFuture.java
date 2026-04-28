@@ -67,8 +67,8 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof OpenSearchException) {
-                throw (OpenSearchException) e.getCause();
+            if (e.getCause() instanceof OpenSearchException openSearchException) {
+                throw openSearchException;
             } else {
                 throw new TransportException("Failed execution", e);
             }
@@ -84,8 +84,8 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
         } catch (InterruptedException e) {
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof OpenSearchException) {
-                throw (OpenSearchException) e.getCause();
+            if (e.getCause() instanceof OpenSearchException openSearchException) {
+                throw openSearchException;
             } else {
                 throw new TransportException("Failed execution", e);
             }

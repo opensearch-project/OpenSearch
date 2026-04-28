@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
@@ -21,7 +22,7 @@ public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
         params.put("topic", "test-topic");
         params.put("bootstrap_servers", "localhost:9092");
 
-        factory.initialize(params);
+        factory.initialize(new IngestionSource.Builder("KAFKA").setParams(params).build());
 
         KafkaSourceConfig config = factory.config;
         Assert.assertNotNull("Config should be initialized", config);

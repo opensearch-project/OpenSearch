@@ -40,6 +40,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -75,6 +76,7 @@ import static org.hamcrest.Matchers.is;
  https://github.com/opensearch-project/OpenSearch/pull/15521 for context
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@SuppressForbidden(reason = "Pending fix: https://github.com/opensearch-project/OpenSearch/issues/18972")
 public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
     private TestLogsAppender testLogsAppender;
@@ -131,17 +133,19 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        // create an index
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .get();
+        // create an index only if it doesn't exist
+        if (!client().admin().indices().prepareExists(indexName).get().isExists()) {
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get();
+        }
     }
 
     @After
@@ -329,6 +333,10 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
         logger.info("-> restarting stopped node");
         internalCluster().startNode(Settings.builder().put("node.name", clusterManager).put(cmNodeSettings).build());
+
+        // Wait for cluster to stabilize before checking node count
+        ensureGreen();
+
         response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
     }

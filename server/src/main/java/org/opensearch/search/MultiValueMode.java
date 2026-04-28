@@ -1244,8 +1244,8 @@ public enum MultiValueMode implements Writeable {
      */
     public NumericDocValues select(final SortedNumericUnsignedLongValues values) {
         SortedNumericDocValues sortedNumericDocValues = null;
-        if (values instanceof LongToSortedNumericUnsignedLongValues) {
-            sortedNumericDocValues = ((LongToSortedNumericUnsignedLongValues) values).getNumericUnsignedLongValues();
+        if (values instanceof LongToSortedNumericUnsignedLongValues longValues) {
+            sortedNumericDocValues = longValues.getNumericUnsignedLongValues();
         }
 
         final NumericDocValues singleton = DocValues.unwrapSingleton(sortedNumericDocValues);

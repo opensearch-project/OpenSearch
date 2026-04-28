@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -31,7 +31,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite101.Composite101Codec;
+import org.opensearch.index.codec.composite.composite104.Composite104Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
@@ -40,12 +40,11 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +52,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
@@ -61,6 +59,8 @@ import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.min;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode.BREADTH_FIRST;
+import static org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode.DEPTH_FIRST;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 public class NumericTermsAggregatorTests extends AggregatorTestCase {
@@ -73,16 +73,6 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
     );
     private static final MappedFieldType SIZE_FIELD_NAME = new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.FLOAT);
 
-    @Before
-    public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        fflock.close();
-    }
-
     protected Codec getCodec() {
         final Logger testLogger = LogManager.getLogger(NumericTermsAggregatorTests.class);
         MapperService mapperService;
@@ -91,7 +81,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        return new Composite104Codec(Lucene104Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
     public void testStarTreeNumericTerms() throws IOException {
@@ -205,42 +195,45 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         CompositeIndexFieldInfo starTree,
         LinkedHashMap<Dimension, MappedFieldType> supportedDimensions
     ) throws IOException {
-        InternalTerms starTreeAggregation = searchAndReduceStarTree(
-            createIndexSettings(),
-            indexSearcher,
-            query,
-            queryBuilder,
-            termsAggregationBuilder,
-            starTree,
-            supportedDimensions,
-            null,
-            DEFAULT_MAX_BUCKETS,
-            false,
-            null,
-            true,
-            STATUS_FIELD_TYPE,
-            SIZE_FIELD_NAME
-        );
+        for (Aggregator.SubAggCollectionMode collectionMode : List.of(DEPTH_FIRST, BREADTH_FIRST)) {
+            termsAggregationBuilder.collectMode(collectionMode);
+            InternalTerms starTreeAggregation = searchAndReduceStarTree(
+                createIndexSettings(),
+                indexSearcher,
+                query,
+                queryBuilder,
+                termsAggregationBuilder,
+                starTree,
+                supportedDimensions,
+                null,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                null,
+                true,
+                STATUS_FIELD_TYPE,
+                SIZE_FIELD_NAME
+            );
 
-        InternalTerms defaultAggregation = searchAndReduceStarTree(
-            createIndexSettings(),
-            indexSearcher,
-            query,
-            queryBuilder,
-            termsAggregationBuilder,
-            null,
-            null,
-            null,
-            DEFAULT_MAX_BUCKETS,
-            false,
-            null,
-            false,
-            STATUS_FIELD_TYPE,
-            SIZE_FIELD_NAME
-        );
+            InternalTerms defaultAggregation = searchAndReduceStarTree(
+                createIndexSettings(),
+                indexSearcher,
+                query,
+                queryBuilder,
+                termsAggregationBuilder,
+                null,
+                null,
+                null,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                null,
+                false,
+                STATUS_FIELD_TYPE,
+                SIZE_FIELD_NAME
+            );
 
-        assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
-        assertEquals(defaultAggregation.getBuckets(), starTreeAggregation.getBuckets());
+            assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
+            assertEquals(defaultAggregation.getBuckets(), starTreeAggregation.getBuckets());
+        }
     }
 
     public static XContentBuilder getExpandedMapping(int maxLeafDocs, boolean skipStarNodeCreationForStatusDimension) throws IOException {

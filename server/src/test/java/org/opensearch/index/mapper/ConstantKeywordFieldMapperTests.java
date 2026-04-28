@@ -19,12 +19,15 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -44,7 +47,7 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, MockDataFormatPlugin.class, MockCommitterEnginePlugin.class);
     }
 
     @Before
@@ -156,12 +159,41 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
     }
 
     private ConstantKeywordFieldMapper getMapper(FieldMapper.CopyTo copyTo) {
-        indexService = createIndex("test-index", Settings.EMPTY, "constant_keyword", "field", "type=constant_keyword,value=default_value");
+        indexService = createIndexWithSimpleMappings("test-index", Settings.EMPTY, "field", "type=constant_keyword,value=default_value");
         ConstantKeywordFieldMapper mapper = (ConstantKeywordFieldMapper) indexService.mapperService()
             .documentMapper()
             .mappers()
             .getMapper(FIELD_NAME);
         mapper.copyTo = copyTo;
         return mapper;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatConstantKeywordValidates() throws Exception {
+        indexService = createIndexWithSimpleMappings(
+            "test-pluggable",
+            Settings.builder().put("index.pluggable.dataformat.enabled", true).build(),
+            "field",
+            "type=constant_keyword,value=foo"
+        );
+        ConstantKeywordFieldMapper mapper = (ConstantKeywordFieldMapper) indexService.mapperService()
+            .documentMapper()
+            .mappers()
+            .getMapper(FIELD_NAME);
+        // parseCreateFieldForPluggableFormat just validates, doesn't addField
+        // calling directly since it's protected and same package
+        // valid value should not throw
+        assertNotNull(mapper);
+        // Test via document parse — valid value should succeed
+        indexService.mapperService()
+            .documentMapper()
+            .parse(
+                new SourceToParse(
+                    "test-pluggable",
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "foo").endObject()),
+                    MediaTypeRegistry.JSON
+                )
+            );
     }
 }

@@ -45,6 +45,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -54,10 +55,13 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -72,11 +76,15 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationContext;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.deciders.ConcurrentSearchDecision;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.deciders.ConcurrentSearchVisitor;
+import org.opensearch.search.deciders.IntraSegmentSearchDecider;
+import org.opensearch.search.deciders.IntraSegmentSearchVisitor;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.FetchSearchResult;
@@ -100,6 +108,8 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -118,14 +128,21 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.search.SearchService.AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD;
+import static org.opensearch.search.SearchService.BUCKET_SELECTION_STRATEGY_FACTOR_SETTING;
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT;
 import static org.opensearch.search.SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
+import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT;
+import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO;
+import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT;
 
 /**
  * The main search context used during search phase
@@ -209,10 +226,18 @@ final class DefaultSearchContext extends SearchContext {
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
     private final String concurrentSearchMode;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
+    private final SetOnce<Boolean> requestShouldUseIntraSegmentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
+    private final long termsAggregationMaxPrecomputeCardinality;
+    private final CardinalityAggregationContext cardinalityAggregationContext;
+    private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
+
+    private boolean isStreamSearch;
+    private StreamSearchChannelListener listener;
+    private final SetOnce<FlushMode> cachedFlushMode = new SetOnce<>();
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -228,7 +253,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean validate,
         Executor executor,
         Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        boolean isStreamSearch
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -273,8 +299,47 @@ final class DefaultSearchContext extends SearchContext {
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
         this.filterRewriteSegmentThreshold = evaluateAggRewriteFilterSegThreshold();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
+        this.termsAggregationMaxPrecomputeCardinality = evaluateTermsAggregationMaxPrecomputeCardinality();
+        this.cardinalityAggregationContext = evaluateCardinalityAggregationContext();
+        this.bucketSelectionStrategyFactor = evaluateBucketSelectionStrategyFactor();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
+        this.isStreamSearch = isStreamSearch;
+    }
+
+    DefaultSearchContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTarget shardTarget,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        LongSupplier relativeTimeSupplier,
+        TimeValue timeout,
+        FetchPhase fetchPhase,
+        boolean lowLevelCancellation,
+        Version minNodeVersion,
+        boolean validate,
+        Executor executor,
+        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+    ) throws IOException {
+        this(
+            readerContext,
+            request,
+            shardTarget,
+            clusterService,
+            bigArrays,
+            relativeTimeSupplier,
+            timeout,
+            fetchPhase,
+            lowLevelCancellation,
+            minNodeVersion,
+            validate,
+            executor,
+            requestToAggReduceContextBuilder,
+            concurrentSearchDeciderFactories,
+            false
+        );
     }
 
     @Override
@@ -980,13 +1045,23 @@ final class DefaultSearchContext extends SearchContext {
                     logger.debug("request has supported aggregations, using concurrent search");
                 }
                 return true;
-
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("request does not have aggregations, not using concurrent search");
+            } else if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT.equals(getPartitionStrategy()) == false
+                && request().source() != null
+                && request().source().query() != null
+                && request().source().query().supportsIntraSegmentSearch()) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
+                            "request query supports intra-segment search, using concurrent search with partition strategy: {}",
+                            getPartitionStrategy()
+                        );
+                    }
+                    return true;
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("request does not have aggregations, not using concurrent search");
+                    }
+                    return false;
                 }
-                return false;
-            }
 
         } else {
             if (logger.isDebugEnabled()) {
@@ -1149,6 +1224,16 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean getStarTreeIndexEnabled() {
+        return indexService.getIndexSettings()
+            .getSettings()
+            .getAsBoolean(
+                StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey(),
+                clusterService.getClusterSettings().get(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING)
+            );
+    }
+
+    @Override
     public int maxAggRewriteFilters() {
         return maxAggRewriteFilters;
     }
@@ -1178,6 +1263,21 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public long termsAggregationMaxPrecomputeCardinality() {
+        return termsAggregationMaxPrecomputeCardinality;
+    }
+
+    @Override
+    public CardinalityAggregationContext cardinalityAggregationContext() {
+        return cardinalityAggregationContext;
+    }
+
+    @Override
+    public int bucketSelectionStrategyFactor() {
+        return bucketSelectionStrategyFactor;
+    }
+
+    @Override
     public boolean keywordIndexOrDocValuesEnabled() {
         return keywordIndexOrDocValuesEnabled;
     }
@@ -1189,10 +1289,145 @@ final class DefaultSearchContext extends SearchContext {
         return 0;
     }
 
+    private long evaluateTermsAggregationMaxPrecomputeCardinality() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(SearchService.TERMS_AGGREGATION_MAX_PRECOMPUTE_CARDINALITY);
+        }
+        return 30_000L;
+    }
+
+    private CardinalityAggregationContext evaluateCardinalityAggregationContext() {
+        if (clusterService != null) {
+            boolean hybridCollectorEnabled = clusterService.getClusterSettings()
+                .get(CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED);
+            ByteSizeValue memoryThreshold = clusterService.getClusterSettings()
+                .get(CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD);
+            return CardinalityAggregationContext.from(hybridCollectorEnabled, memoryThreshold);
+        }
+        return new CardinalityAggregationContext(false, Runtime.getRuntime().maxMemory() / 100);
+    }
+
+    private int evaluateBucketSelectionStrategyFactor() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(BUCKET_SELECTION_STRATEGY_FACTOR_SETTING);
+        }
+        return SearchService.DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR;
+    }
+
     public boolean evaluateKeywordIndexOrDocValuesEnabled() {
         if (clusterService != null) {
             return clusterService.getClusterSettings().get(KEYWORD_INDEX_OR_DOC_VALUES_ENABLED);
         }
         return false;
+    }
+
+    public void setStreamChannelListener(StreamSearchChannelListener listener) {
+        assert isStreamSearch() : "Stream search not enabled";
+        this.listener = listener;
+    }
+
+    public StreamSearchChannelListener getStreamChannelListener() {
+        assert isStreamSearch() : "Stream search not enabled";
+        return listener;
+    }
+
+    public boolean isStreamSearch() {
+        return isStreamSearch;
+    }
+
+    /**
+     * Disables streaming for this search context.
+     * Used when streaming cost analysis determines traditional processing is more efficient.
+     */
+    @Override
+    public FlushMode getFlushMode() {
+        return cachedFlushMode.get();
+    }
+
+    @Override
+    public boolean setFlushModeIfAbsent(FlushMode flushMode) {
+        return cachedFlushMode.trySet(flushMode);
+    }
+
+    @Override
+    public long getStreamingMaxEstimatedBucketCount() {
+        return clusterService.getClusterSettings().get(STREAMING_MAX_ESTIMATED_BUCKET_COUNT);
+    }
+
+    @Override
+    public double getStreamingMinCardinalityRatio() {
+        return clusterService.getClusterSettings().get(STREAMING_MIN_CARDINALITY_RATIO);
+    }
+
+    @Override
+    public long getStreamingMinEstimatedBucketCount() {
+        return clusterService.getClusterSettings().get(STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
+    }
+
+    /**
+     * Returns the partition strategy for this search context.
+     */
+    @Override
+    public String getPartitionStrategy() {
+        return indexService.getIndexSettings()
+            .getSettings()
+            .get(
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(),
+                clusterService.getClusterSettings().get(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY)
+            );
+    }
+
+    /**
+     * Returns the minimum segment size required for balanced partitioning.
+     */
+    @Override
+    public int getPartitionMinSegmentSize() {
+        return indexService.getIndexSettings()
+            .getSettings()
+            .getAsInt(
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getKey(),
+                clusterService.getClusterSettings().get(CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE)
+            );
+    }
+
+    /**
+     * Returns intra-segment search status for the search context.
+     */
+    @Override
+    public boolean shouldUseIntraSegmentSearch() {
+        return Boolean.TRUE.equals(requestShouldUseIntraSegmentSearch.get());
+    }
+
+    /**
+     * Evaluate if request should use intra-segment search based on partition strategy and query/aggregation analysis.
+     */
+    public void evaluateRequestShouldUseIntraSegmentSearch() {
+        String partitionStrategy = getPartitionStrategy();
+        if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT.equals(partitionStrategy) || shouldUseConcurrentSearch() == false) {
+            requestShouldUseIntraSegmentSearch.set(false);
+            return;
+        }
+        // StarTree precomputes aggregations at index time - intra-segment adds no benefit
+        if (aggregations() != null && StarTreeQueryHelper.getSupportedStarTree(getQueryShardContext()) != null) {
+            logger.debug("partition strategy decision: StarTree detected, disabling intra-segment");
+            requestShouldUseIntraSegmentSearch.set(false);
+            return;
+        }
+        IntraSegmentSearchDecider decider = new IntraSegmentSearchDecider();
+        if (request().source() != null && request().source().query() != null) {
+            IntraSegmentSearchVisitor visitor = new IntraSegmentSearchVisitor(decider);
+            request().source().query().visit(visitor);
+        }
+        if (aggregations() != null && aggregations().factories() != null) {
+            decider.evaluateForAggregations(aggregations().factories());
+        }
+        boolean result = decider.shouldUseIntraSegmentSearch();
+        logger.debug(
+            "partition strategy decision: strategy={}, useIntraSegment={}, reason={}",
+            partitionStrategy,
+            result,
+            decider.getReason()
+        );
+        requestShouldUseIntraSegmentSearch.set(result);
     }
 }

@@ -9,7 +9,6 @@
 package org.opensearch.rule.action;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.rule.GetRuleResponse;
 
 /**
  * Action type for getting Rules
@@ -18,7 +17,7 @@ import org.opensearch.rule.GetRuleResponse;
 public class GetRuleAction extends ActionType<GetRuleResponse> {
 
     /**
-     * An instance of GetWlmRuleAction
+     * An instance of GetRuleAction
      */
     public static final GetRuleAction INSTANCE = new GetRuleAction();
 

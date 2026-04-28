@@ -1,0 +1,36 @@
+setup:
+  - skip:
+      version: " - 3.3.99"
+      reason: "Error trace support was added in 3.4"
+---
+"Returns a detailed error stack trace when requested":
+
+  - do:
+      mget:
+        error_trace: true
+        index: index_does_not_exist_321
+        body:
+          ids: [ 1 ]
+
+  - match: { docs.0.error.type: index_not_found_exception }
+  - match: { docs.0.error.reason: "no such index [index_does_not_exist_321]" }
+  - match: { docs.0.error.stack_trace: "/.*\\[index_does_not_exist_321\\].*IndexNotFoundException.*/" }
+  - match: { docs.0.error.root_cause.0.type: index_not_found_exception }
+  - match: { docs.0.error.root_cause.0.reason: "no such index [index_does_not_exist_321]" }
+  - match: { docs.0.error.root_cause.0.stack_trace: "/.*\\[index_does_not_exist_321\\].*IndexNotFoundException.*/" }
+---
+"Skips a detailed error stack trace when requested":
+
+  - do:
+      mget:
+        error_trace: false
+        index: index_does_not_exist_321
+        body:
+          ids: [ 1 ]
+
+  - match: { docs.0.error.type: index_not_found_exception }
+  - match: { docs.0.error.reason: "no such index [index_does_not_exist_321]" }
+  - match: { docs.0.error.stack_trace: null }
+  - match: { docs.0.error.root_cause.0.type: index_not_found_exception }
+  - match: { docs.0.error.root_cause.0.reason: "no such index [index_does_not_exist_321]" }
+  - match: { docs.0.error.root_cause.0.stack_trace: null }

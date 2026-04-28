@@ -34,6 +34,7 @@ package org.opensearch.index;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActiveShardCount;
@@ -54,6 +55,7 @@ import org.opensearch.index.shard.IndexShard.AsyncShardRefreshTask;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -61,17 +63,24 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.shard.IndexShardTestCase.getEngine;
 import static org.opensearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.awaitility.Awaitility.await;
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
@@ -79,6 +88,11 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(InternalSettingsPlugin.class);
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {
@@ -144,9 +158,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         // now close the index
         final Index index = indexService.index();
         assertAcked(client().admin().indices().prepareClose(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-
-        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        final IndexService closedIndexService = getIndexService(index);
         assertNotSame(indexService, closedIndexService);
         assertFalse(task.mustReschedule());
         assertFalse(task.isClosed());
@@ -154,8 +166,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         // now reopen the index
         assertAcked(client().admin().indices().prepareOpen(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        indexService = getIndexService(index);
         assertNotSame(closedIndexService, indexService);
 
         task = new IndexService.BaseAsyncTask(indexService, TimeValue.timeValueMillis(100000)) {
@@ -234,9 +245,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         // now close the index
         final Index index = indexService.index();
         assertAcked(client().admin().indices().prepareClose(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-
-        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        final IndexService closedIndexService = getIndexService(index);
         assertNotSame(indexService, closedIndexService);
         assertNotSame(refreshTask, closedIndexService.getRefreshTask());
         assertFalse(closedIndexService.getRefreshTask().mustReschedule());
@@ -245,8 +254,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         // now reopen the index
         assertAcked(client().admin().indices().prepareOpen(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        indexService = getIndexService(index);
         assertNotSame(closedIndexService, indexService);
         refreshTask = indexService.getRefreshTask();
         assertTrue(indexService.getRefreshTask().mustReschedule());
@@ -272,9 +280,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         // now close the index
         final Index index = indexService.index();
         assertAcked(client().admin().indices().prepareClose(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-
-        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        final IndexService closedIndexService = getIndexService(index);
         assertNotSame(indexService, closedIndexService);
         assertNotSame(fsyncTask, closedIndexService.getFsyncTask());
         assertFalse(closedIndexService.getFsyncTask().mustReschedule());
@@ -283,8 +289,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         // now reopen the index
         assertAcked(client().admin().indices().prepareOpen(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        indexService = getIndexService(index);
         assertNotSame(closedIndexService, indexService);
         fsyncTask = indexService.getFsyncTask();
         assertTrue(indexService.getRefreshTask().mustReschedule());
@@ -451,16 +456,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(translog.totalOperations(), equalTo(translogOps));
         assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(translogOps));
         assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
-
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+        indexService = getIndexService(indexService.index());
         assertTrue(indexService.getTrimTranslogTask().mustReschedule());
 
         final Engine readOnlyEngine = getEngine(indexService.getShard(0));
         assertBusy(() -> assertTrue(isTranslogEmpty(readOnlyEngine)));
 
         assertAcked(client().admin().indices().prepareOpen("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
-
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+        indexService = getIndexService(indexService.index());
         translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
         assertThat(translog.totalOperations(), equalTo(0));
         assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(0));
@@ -535,64 +538,41 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexSort() {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "0ms") // disable
-            .putList("index.sort.field", "sortfield")
-            .build();
-        try {
-            // Integer index sort should be remained to int sort type
-            IndexService index = createIndex("test", settings, createTestMapping("integer"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.INT);
-
-            // Long index sort should be remained to long sort type
-            index = createIndex("test", settings, createTestMapping("long"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.LONG);
-
-            // Float index sort should be remained to float sort type
-            index = createIndex("test", settings, createTestMapping("float"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.FLOAT);
-
-            // Double index sort should be remained to double sort type
-            index = createIndex("test", settings, createTestMapping("double"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.DOUBLE);
-
-            // String index sort should be remained to string sort type
-            index = createIndex("test", settings, createTestMapping("string"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.STRING);
-        } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse value [0ms] for setting [index.translog.sync_interval], must be >= [100ms]", ex.getMessage());
-        }
+        runSortFieldTest(Settings.builder(), SortField.Type.INT);
     }
 
     public void testIndexSortBackwardCompatible() {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "0ms") // disable
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_2_6_1)
-            .putList("index.sort.field", "sortfield")
-            .build();
-        try {
-            // Integer index sort should be converted to long sort type
-            IndexService index = createIndex("test", settings, createTestMapping("integer"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.LONG);
+        runSortFieldTest(
+            Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_2_6_1),
+            SortField.Type.LONG
+        );
+    }
 
-            // Long index sort should be remained to long sort type
-            index = createIndex("test", settings, createTestMapping("long"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.LONG);
-
-            // Float index sort should be remained to float sort type
-            index = createIndex("test", settings, createTestMapping("float"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.FLOAT);
-
-            // Double index sort should be remained to double sort type
-            index = createIndex("test", settings, createTestMapping("double"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.DOUBLE);
-
-            // String index sort should be remained to string sort type
-            index = createIndex("test", settings, createTestMapping("string"));
-            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.STRING);
-        } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse value [0ms] for setting [index.translog.sync_interval], must be >= [100ms]", ex.getMessage());
-        }
+    private void runSortFieldTest(Settings.Builder settingsBuilder, SortField.Type expectedIntType) {
+        String[] sortFieldNames = new String[] { "int-sortfield", "long-sortfield", "double-sortfield", "float-sortfield" };
+        Settings settings = settingsBuilder.putList("index.sort.field", sortFieldNames).build();
+        IndexService index = createIndexWithSimpleMappings(
+            "sort-field-test-index",
+            settings,
+            "int-sortfield",
+            "type=integer",
+            "long-sortfield",
+            "type=long",
+            "double-sortfield",
+            "type=double",
+            "float-sortfield",
+            "type=float"
+        );
+        SortField[] sortFields = index.getIndexSortSupplier().get().getSort();
+        Map<String, SortField.Type> map = Arrays.stream(sortFields)
+            .filter(s -> s instanceof SortedNumericSortField)
+            .map(s -> (SortedNumericSortField) s)
+            .collect(Collectors.toMap(SortField::getField, SortedNumericSortField::getNumericType));
+        assertThat(map.keySet(), containsInAnyOrder(sortFieldNames));
+        assertThat(map.get("int-sortfield"), equalTo(expectedIntType));
+        assertThat(map.get("long-sortfield"), equalTo(SortField.Type.LONG));
+        assertThat(map.get("float-sortfield"), equalTo(SortField.Type.FLOAT));
+        assertThat(map.get("double-sortfield"), equalTo(SortField.Type.DOUBLE));
     }
 
     public void testReplicationTask() throws Exception {
@@ -620,6 +600,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         task = indexService.getReplicationTask();
         assertTrue(task.isScheduled());
         assertTrue(task.mustReschedule());
+        assertTrue(task.shouldRun());
         assertEquals(5000, task.getInterval().millis());
 
         // test we can update the interval
@@ -635,7 +616,107 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(task.isClosed());
         assertTrue(updatedTask.isScheduled());
         assertTrue(updatedTask.mustReschedule());
+        assertTrue(updatedTask.shouldRun());
         assertEquals(1000, updatedTask.getInterval().millis());
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), "true"))
+            .get();
+
+        updatedTask = indexService.getReplicationTask();
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertFalse(updatedTask.shouldRun());
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), "false"))
+            .get();
+
+        updatedTask = indexService.getReplicationTask();
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertTrue(updatedTask.shouldRun());
+    }
+
+    public void testPublishReferencedSegmentsTask() throws Exception {
+        // create with docrep - task should not schedule
+        IndexService indexService = createIndex(
+            "docrep_index",
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build()
+        );
+        final Index index = indexService.index();
+        ensureGreen(index.getName());
+        IndexService.AsyncPublishReferencedSegmentsTask task = indexService.getPublishReferencedSegmentsTask();
+        assertFalse(task.isScheduled());
+        assertFalse(task.mustReschedule());
+        assertFalse(task.shouldRun());
+
+        // create for segrep - task should schedule
+        indexService = createIndex(
+            "segrep_index",
+            Settings.builder()
+                .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+                .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), "5s")
+                .build()
+        );
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            )
+            .get();
+
+        final Index srIndex = indexService.index();
+        ensureGreen(srIndex.getName());
+        task = indexService.getPublishReferencedSegmentsTask();
+        assertTrue(task.isScheduled());
+        assertTrue(task.mustReschedule());
+        assertEquals(5000, task.getInterval().millis());
+        assertTrue(task.shouldRun());
+
+        // test update the refresh interval, AsyncPublishReferencedSegmentsTask should not be updated
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "5s"))
+            .get();
+
+        IndexService.AsyncPublishReferencedSegmentsTask updatedTask = indexService.getPublishReferencedSegmentsTask();
+        assertSame(task, updatedTask);
+        assertTrue(task.isScheduled());
+        assertTrue(task.mustReschedule());
+        assertEquals(5000, task.getInterval().millis());
+        assertTrue(task.shouldRun());
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().putNull(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey())
+            )
+            .get();
+
+        // test we can update the publishReferencedSegmentsInterval
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), "1s"))
+            .get();
+
+        updatedTask = indexService.getPublishReferencedSegmentsTask();
+        assertNotSame(task, updatedTask);
+        assertFalse(task.isScheduled());
+        assertTrue(task.isClosed());
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertEquals(1000, updatedTask.getInterval().millis());
+        assertFalse(task.shouldRun());
     }
 
     public void testBaseAsyncTaskWithFixedIntervalDisabled() throws Exception {
@@ -691,14 +772,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             }
         ) {
             // In zero state, we have a random sleep duration
-            long sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            long sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             task.run();
             latch.await();
             // Since we have refresh taking up 2s, then the next refresh should have sleep duration of 3s. Here we check
             // the sleep duration to be non-zero since the sleep duration is calculated dynamically.
-            sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             assertEquals(0, latch.getCount());
             indexService.close("test", false);
             assertBusy(() -> { assertEquals(TimeValue.ZERO, task.getSleepDuration()); });
@@ -726,14 +807,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             }
         ) {
             // In zero state, we have a random sleep duration
-            long sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            long sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             task.run();
             latch.await();
             indexService.close("test", false);
             // Since we have refresh taking up 2s and refresh interval as 1s, then the next refresh should happen immediately.
-            sleepDurationMs = task.getSleepDuration().millis();
-            assertEquals(0, sleepDurationMs);
+            sleepDurationNanos = task.getSleepDuration().nanos();
+            assertEquals(0, sleepDurationNanos);
             assertEquals(0, latch.getCount());
         }
     }
@@ -841,17 +922,10 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         // OS test case fails if test leaves behind transient cluster setting so need to clear it.
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("*")).get();
-
     }
 
-    private static String createTestMapping(String type) {
-        return "  \"properties\": {\n"
-            + "    \"test\": {\n"
-            + "      \"type\": \"text\"\n"
-            + "    },\n"
-            + "    \"sortfield\": {\n"
-            + "      \"type\": \" + type + \"\n"
-            + "    }\n"
-            + "  }";
+    private IndexService getIndexService(Index index) {
+        return await().atMost(10, TimeUnit.SECONDS)
+            .until(() -> getInstanceFromNode(IndicesService.class).indexService(index), notNullValue());
     }
 }

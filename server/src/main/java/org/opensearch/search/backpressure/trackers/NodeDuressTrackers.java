@@ -9,9 +9,11 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.common.util.Streak;
+import org.opensearch.common.util.TimeBasedExpiryTracker;
 import org.opensearch.wlm.ResourceType;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
@@ -22,9 +24,19 @@ import java.util.function.IntSupplier;
  */
 public class NodeDuressTrackers {
     private final Map<ResourceType, NodeDuressTracker> duressTrackers;
+    private final Map<ResourceType, Boolean> resourceDuressCache = new ConcurrentHashMap<>();
+    private final BooleanSupplier nodeDuressCacheExpiryChecker;
 
     public NodeDuressTrackers(Map<ResourceType, NodeDuressTracker> duressTrackers) {
+        this(duressTrackers, new TimeBasedExpiryTracker(System::nanoTime));
+    }
+
+    public NodeDuressTrackers(Map<ResourceType, NodeDuressTracker> duressTrackers, BooleanSupplier nodeDuressCacheExpiryChecker) {
         this.duressTrackers = duressTrackers;
+        for (ResourceType resourceType : ResourceType.values()) {
+            resourceDuressCache.put(resourceType, false);
+        }
+        this.nodeDuressCacheExpiryChecker = nodeDuressCacheExpiryChecker;
     }
 
     /**
@@ -32,7 +44,8 @@ public class NodeDuressTrackers {
      * @return Boolean
      */
     public boolean isResourceInDuress(ResourceType resourceType) {
-        return duressTrackers.get(resourceType).test();
+        updateCache();
+        return resourceDuressCache.get(resourceType);
     }
 
     /**
@@ -46,6 +59,13 @@ public class NodeDuressTrackers {
             }
         }
         return false;
+    }
+
+    private void updateCache() {
+        if (nodeDuressCacheExpiryChecker.getAsBoolean()) {
+            for (ResourceType resourceType : ResourceType.values())
+                resourceDuressCache.put(resourceType, duressTrackers.get(resourceType).test());
+        }
     }
 
     /**

@@ -32,6 +32,7 @@
 package org.opensearch.transport.nativeprotocol;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -52,7 +53,8 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-abstract class NativeOutboundMessage extends NetworkMessage {
+@ExperimentalApi
+public abstract class NativeOutboundMessage extends NetworkMessage {
 
     private final Writeable message;
 
@@ -61,7 +63,7 @@ abstract class NativeOutboundMessage extends NetworkMessage {
         this.message = message;
     }
 
-    BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
+    public BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
 
@@ -94,12 +96,11 @@ abstract class NativeOutboundMessage extends NetworkMessage {
 
     protected BytesReference writeMessage(CompressibleBytesOutputStream stream) throws IOException {
         final BytesReference zeroCopyBuffer;
-        if (message instanceof BytesTransportRequest) {
-            BytesTransportRequest bRequest = (BytesTransportRequest) message;
-            bRequest.writeThin(stream);
-            zeroCopyBuffer = bRequest.bytes();
-        } else if (message instanceof RemoteTransportException) {
-            stream.writeException((RemoteTransportException) message);
+        if (message instanceof BytesTransportRequest bytesTransportRequest) {
+            bytesTransportRequest.writeThin(stream);
+            zeroCopyBuffer = bytesTransportRequest.bytes();
+        } else if (message instanceof RemoteTransportException remoteTransportException) {
+            stream.writeException(remoteTransportException);
             zeroCopyBuffer = BytesArray.EMPTY;
         } else {
             message.writeTo(stream);
@@ -169,11 +170,11 @@ abstract class NativeOutboundMessage extends NetworkMessage {
      *
      * @opensearch.internal
      */
-    static class Response extends NativeOutboundMessage {
+    public static class Response extends NativeOutboundMessage {
 
         private final Set<String> features;
 
-        Response(
+        public Response(
             ThreadContext threadContext,
             Set<String> features,
             Writeable message,

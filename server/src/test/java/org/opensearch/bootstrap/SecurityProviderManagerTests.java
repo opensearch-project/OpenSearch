@@ -1,0 +1,131 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.bootstrap;
+
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+
+import javax.crypto.Cipher;
+
+import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
+import java.security.Security;
+import java.util.Arrays;
+
+public class SecurityProviderManagerTests extends OpenSearchTestCase {
+
+    protected static final String BC_FIPS = "BCFIPS";
+    protected static final String SUN_JCE = "SunJCE";
+    protected static final String AES = "AES";
+    protected static final String RC_4 = "RC4";
+    protected static final String TRIPLE_DES = "DESedeWrap";
+    protected static final String DES = "DES";
+    protected static final String PBE = "PBE";
+    protected static final String BLOWFISH = "Blowfish";
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        addSunJceProvider();
+    }
+
+    public void testCipherRC4() throws Exception {
+        // given
+        var cipher = Cipher.getInstance(RC_4);
+        assertEquals(RC_4, cipher.getAlgorithm());
+        assertEquals(SUN_JCE, cipher.getProvider().getName());
+
+        // when
+        SecurityProviderManager.removeNonCompliantFipsProviders();
+
+        // then
+        expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(RC_4));
+    }
+
+    public void testCipherAES() throws Exception {
+        // given
+        var cipher = Cipher.getInstance(AES);
+        assertEquals(AES, cipher.getAlgorithm());
+        assertEquals(SUN_JCE, cipher.getProvider().getName());
+
+        // when
+        SecurityProviderManager.removeNonCompliantFipsProviders();
+
+        // then
+        expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(AES));
+    }
+
+    public void testCipher3Des() throws Exception {
+        // given
+        var cipher = Cipher.getInstance(TRIPLE_DES);
+        assertEquals(TRIPLE_DES, cipher.getAlgorithm());
+        assertEquals(SUN_JCE, cipher.getProvider().getName());
+
+        // when
+        SecurityProviderManager.removeNonCompliantFipsProviders();
+
+        // then
+        expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(TRIPLE_DES));
+    }
+
+    public void testCipherDes() throws Exception {
+        // given
+        var cipher = Cipher.getInstance(DES);
+        assertEquals(DES, cipher.getAlgorithm());
+        assertEquals(SUN_JCE, cipher.getProvider().getName());
+
+        // when
+        SecurityProviderManager.removeNonCompliantFipsProviders();
+
+        // then
+        expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(DES));
+    }
+
+    public void testCipherPBE() throws Exception {
+        // given
+        var cipher = Cipher.getInstance(PBE);
+        assertEquals(PBE, cipher.getAlgorithm());
+        assertEquals(SUN_JCE, cipher.getProvider().getName());
+
+        // when
+        SecurityProviderManager.removeNonCompliantFipsProviders();
+
+        // then
+        expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(PBE));
+    }
+
+    public void testCipherBlowfish() throws Exception {
+        // given
+        var cipher = Cipher.getInstance(BLOWFISH);
+        assertEquals(BLOWFISH, cipher.getAlgorithm());
+        assertEquals(SUN_JCE, cipher.getProvider().getName());
+
+        // when
+        SecurityProviderManager.removeNonCompliantFipsProviders();
+
+        // then
+        expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(BLOWFISH));
+    }
+
+    public void testGetPosition() {
+        assertTrue(SUN_JCE + " is installed", SecurityProviderManager.getPosition(SUN_JCE) > 0);
+        SecurityProviderManager.removeNonCompliantFipsProviders();
+        assertTrue(SUN_JCE + " is uninstalled", SecurityProviderManager.getPosition(SUN_JCE) < 0);
+    }
+
+    protected static void addSunJceProvider() throws Exception {
+        if (Arrays.stream(Security.getProviders()).noneMatch(provider -> SUN_JCE.equals(provider.getName()))) {
+            var sunJceClass = Class.forName("com.sun.crypto.provider.SunJCE");
+            var originalSunProvider = (Provider) sunJceClass.getConstructor().newInstance();
+            Security.addProvider(originalSunProvider);
+        }
+    }
+
+}

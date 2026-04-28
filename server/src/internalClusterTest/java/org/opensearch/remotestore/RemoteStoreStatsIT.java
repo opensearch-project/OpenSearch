@@ -680,7 +680,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         ensureGreen(INDEX_NAME);
         long currentTimeNs = System.nanoTime();
         while (currentTimeNs == System.nanoTime()) {
-            Thread.sleep(10);
+            Thread.yield();
         }
 
         for (int i = 0; i < numOfShards; i++) {

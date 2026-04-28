@@ -117,6 +117,7 @@ public class AggregatorBaseTests extends OpenSearchSingleNodeTestCase {
             indexed,
             false,
             true,
+            true,
             false,
             null,
             Collections.emptyMap()
@@ -144,7 +145,7 @@ public class AggregatorBaseTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testShortcutIsApplicable() throws IOException {
-        IndexService indexService = createIndex("index", Settings.EMPTY, "type", "bytes", "type=keyword");
+        IndexService indexService = createIndexWithSimpleMappings("index", Settings.EMPTY, "bytes", "type=keyword");
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);

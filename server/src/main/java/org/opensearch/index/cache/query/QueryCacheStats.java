@@ -60,6 +60,19 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
 
     public QueryCacheStats() {}
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new QueryCacheStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private QueryCacheStats(Builder builder) {
+        this.ramBytesUsed = builder.ramBytesUsed;
+        this.hitCount = builder.hitCount;
+        this.missCount = builder.missCount;
+        this.cacheCount = builder.cacheCount;
+        this.cacheSize = builder.cacheSize;
+    }
+
     public QueryCacheStats(StreamInput in) throws IOException {
         ramBytesUsed = in.readLong();
         hitCount = in.readLong();
@@ -68,6 +81,11 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
         cacheSize = in.readLong();
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public QueryCacheStats(long ramBytesUsed, long hitCount, long missCount, long cacheCount, long cacheSize) {
         this.ramBytesUsed = ramBytesUsed;
         this.hitCount = hitCount;
@@ -135,6 +153,53 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
      */
     public long getEvictions() {
         return cacheCount - cacheSize;
+    }
+
+    /**
+     * Builder for the {@link QueryCacheStats} class.
+     * Provides a fluent API for constructing a QueryCacheStats object.
+     */
+    public static class Builder {
+        private long ramBytesUsed = 0;
+        private long hitCount = 0;
+        private long missCount = 0;
+        private long cacheCount = 0;
+        private long cacheSize = 0;
+
+        public Builder() {}
+
+        public Builder ramBytesUsed(long used) {
+            this.ramBytesUsed = used;
+            return this;
+        }
+
+        public Builder hitCount(long count) {
+            this.hitCount = count;
+            return this;
+        }
+
+        public Builder missCount(long count) {
+            this.missCount = count;
+            return this;
+        }
+
+        public Builder cacheCount(long count) {
+            this.cacheCount = count;
+            return this;
+        }
+
+        public Builder cacheSize(long size) {
+            this.cacheSize = size;
+            return this;
+        }
+
+        /**
+         * Creates a {@link QueryCacheStats} object from the builder's current state.
+         * @return A new QueryCacheStats instance.
+         */
+        public QueryCacheStats build() {
+            return new QueryCacheStats(this);
+        }
     }
 
     @Override

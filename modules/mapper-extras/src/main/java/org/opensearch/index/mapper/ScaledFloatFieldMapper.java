@@ -32,8 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
@@ -63,9 +61,9 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -119,7 +117,13 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
             m -> toType(m).nullValue
         ).acceptsNull();
-
+        private final Parameter<Boolean> skiplist = new Parameter<>(
+            "skip_list",
+            false,
+            () -> false,
+            (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
+            m -> toType(m).skiplist
+        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, Settings settings) {
@@ -149,7 +153,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue);
+            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, skiplist);
         }
 
         @Override
@@ -159,6 +163,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
+                skiplist.getValue(),
                 meta.getValue(),
                 scalingFactor.getValue(),
                 nullValue.getValue()
@@ -183,23 +188,27 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         private final double scalingFactor;
         private final Double nullValue;
+        private final boolean skiplist;
 
         public ScaledFloatFieldType(
             String name,
             boolean indexed,
             boolean stored,
             boolean hasDocValues,
+            boolean skiplist,
             Map<String, String> meta,
             double scalingFactor,
             Double nullValue
         ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.skiplist = skiplist;
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, false, true, Collections.emptyMap(), scalingFactor, null);
+            // TODO: enable skiplist by default
+            this(name, true, false, true, false, Collections.emptyMap(), scalingFactor, null);
         }
 
         @Override
@@ -214,6 +223,23 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             } else {
                 LongPoint.encodeDimension(Math.round(scale(value)), point, 0);
             }
+            return point;
+        }
+
+        @Override
+        public byte[] encodePoint(Object value, boolean roundUp) {
+            long scaledValue = Math.round(scale(value));
+            if (roundUp) {
+                if (scaledValue < Long.MAX_VALUE) {
+                    scaledValue = scaledValue + 1;
+                }
+            } else {
+                if (scaledValue > Long.MIN_VALUE) {
+                    scaledValue = scaledValue - 1;
+                }
+            }
+            byte[] point = new byte[Long.BYTES];
+            LongPoint.encodeDimension(scaledValue, point, 0);
             return point;
         }
 
@@ -262,21 +288,22 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexedAndNoDocValues();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = scale(lowerTerm);
-                if (includeLower == false) {
-                    dValue = Math.nextUp(dValue);
-                }
-                lo = Math.round(Math.ceil(dValue));
+                lo = Math.round(scale(lowerTerm));
             }
             Long hi = null;
             if (upperTerm != null) {
-                double dValue = scale(upperTerm);
-                if (includeUpper == false) {
-                    dValue = Math.nextDown(dValue);
-                }
-                hi = Math.round(Math.floor(dValue));
+                hi = Math.round(scale(upperTerm));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), isSearchable(), context);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(
+                name(),
+                lo,
+                hi,
+                includeLower,
+                includeUpper,
+                hasDocValues(),
+                isSearchable(),
+                context
+            );
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -343,15 +370,16 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         /**
          * Parses input value and multiplies it with the scaling factor.
-         * Uses the round-trip of creating a {@link BigDecimal} from the stringified {@code double}
-         * input to ensure intuitively exact floating point operations.
-         * (e.g. for a scaling factor of 100, JVM behaviour results in {@code 79.99D * 100 ==> 7998.99..} compared to
-         * {@code scale(79.99) ==> 7999})
+         * Note: Uses direct floating-point multiplication for consistency
+         * between indexing and querying. While this may result in
+         * floating-point imprecision (e.g., 79.99 * 100 = 7998.999...),
+         * the consistent behavior ensures search queries work correctly.
+         *
          * @param input Input value to parse floating point num from
          * @return Scaled value
          */
         private double scale(Object input) {
-            return new BigDecimal(Double.toString(parse(input))).multiply(BigDecimal.valueOf(scalingFactor)).doubleValue();
+            return parse(input) * scalingFactor;
         }
 
         @Override
@@ -366,9 +394,9 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
+    private final boolean skiplist;
     private final Double nullValue;
     private final double scalingFactor;
-
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
 
@@ -383,6 +411,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
+        this.skiplist = builder.skiplist.getValue();
         this.scalingFactor = builder.scalingFactor.getValue();
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
@@ -395,8 +424,9 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         return coerce.value();
     }
 
-    boolean ignoreMalformed() {
-        return ignoreMalformed.value();
+    @Override
+    protected Explicit<Boolean> ignoreMalformed() {
+        return ignoreMalformed;
     }
 
     @Override
@@ -421,7 +451,36 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        Long scaledValue = parseScaledValue(context);
+        if (scaledValue == null) {
+            return;
+        }
 
+        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(
+            fieldType().name(),
+            scaledValue,
+            indexed,
+            hasDocValues,
+            skiplist,
+            stored
+        );
+        context.doc().addAll(fields);
+
+        if (hasDocValues == false && (indexed || stored)) {
+            createFieldNamesField(context);
+        }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Long scaledValue = parseScaledValue(context);
+        if (scaledValue == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), scaledValue);
+    }
+
+    private Long parseScaledValue(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
@@ -436,7 +495,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 numericValue = parse(parser, coerce.value());
             } catch (IllegalArgumentException | JsonParseException e) {
                 if (ignoreMalformed.value()) {
-                    return;
+                    return null;
                 } else {
                     throw e;
                 }
@@ -449,7 +508,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         if (value == null) {
-            return;
+            return null;
         }
 
         if (numericValue == null) {
@@ -459,20 +518,13 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         double doubleValue = numericValue.doubleValue();
         if (Double.isFinite(doubleValue) == false) {
             if (ignoreMalformed.value()) {
-                return;
+                return null;
             } else {
                 // since we encode to a long, we have no way to carry NaNs and infinities
                 throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
             }
         }
-        long scaledValue = Math.round(doubleValue * scalingFactor);
-
-        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
-        context.doc().addAll(fields);
-
-        if (hasDocValues == false && (indexed || stored)) {
-            createFieldNamesField(context);
-        }
+        return Math.round(doubleValue * scalingFactor);
     }
 
     static Double parse(Object value) {
@@ -489,10 +541,10 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     private static double objectToDouble(Object value) {
         double doubleValue;
 
-        if (value instanceof Number) {
-            doubleValue = ((Number) value).doubleValue();
-        } else if (value instanceof BytesRef) {
-            doubleValue = Double.parseDouble(((BytesRef) value).utf8ToString());
+        if (value instanceof Number number) {
+            doubleValue = number.doubleValue();
+        } else if (value instanceof BytesRef bytesRef) {
+            doubleValue = Double.parseDouble(bytesRef.utf8ToString());
         } else {
             doubleValue = Double.parseDouble(value.toString());
         }

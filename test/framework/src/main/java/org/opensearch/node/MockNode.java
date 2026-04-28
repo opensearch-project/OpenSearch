@@ -37,6 +37,7 @@ import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -52,6 +53,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -74,6 +76,7 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -171,7 +174,8 @@ public class MockNode extends Node {
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -186,7 +190,8 @@ public class MockNode extends Node {
                 circuitBreakerService,
                 indexSearcherExecutor,
                 taskResourceTrackingService,
-                concurrentSearchDeciderFactories
+                concurrentSearchDeciderFactories,
+                pluginProfilers
             );
         }
         return new MockSearchService(
@@ -215,6 +220,7 @@ public class MockNode extends Node {
     protected TransportService newTransportService(
         Settings settings,
         Transport transport,
+        @Nullable Transport streamTransport,
         ThreadPool threadPool,
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
@@ -230,6 +236,7 @@ public class MockNode extends Node {
             return super.newTransportService(
                 settings,
                 transport,
+                streamTransport,
                 threadPool,
                 interceptor,
                 localNodeFactory,
@@ -241,6 +248,7 @@ public class MockNode extends Node {
             return new MockTransportService(
                 settings,
                 transport,
+                streamTransport,
                 threadPool,
                 interceptor,
                 localNodeFactory,

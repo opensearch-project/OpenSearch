@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -29,6 +30,7 @@ import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogReader;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.threadpool.ThreadPool;
@@ -41,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,8 +52,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
-import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 
 /**
@@ -110,8 +111,39 @@ public class TranslogTransferManager {
         return this.shardId;
     }
 
-    public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
-        throws IOException {
+    /**
+     * Reads the latest N translog metadata files from remote store using filename parsing.
+     *
+     * @param count Number of metadata files to read
+     * @return Map of filename to parsed TranslogTransferMetadata
+     * @throws IOException if the fetch or parsing fails
+     */
+    public Map<String, TranslogTransferMetadata> readLatestNMetadataFiles(int count) throws IOException {
+        List<BlobMetadata> metadataFiles = transferService.listAllInSortedOrder(
+            remoteMetadataTransferPath,
+            TranslogTransferMetadata.METADATA_PREFIX,
+            count
+        );
+
+        Map<String, TranslogTransferMetadata> result = new LinkedHashMap<>();
+        for (BlobMetadata metadata : metadataFiles) {
+            String fileName = metadata.name();
+            try {
+                TranslogTransferMetadata meta = readMetadata(fileName);
+                result.put(fileName, meta);
+            } catch (Exception e) {
+                logger.error("Failed to read translog metadata file ", e);
+            }
+        }
+
+        return result;
+    }
+
+    public boolean transferSnapshot(
+        TransferSnapshot transferSnapshot,
+        TranslogTransferListener translogTransferListener,
+        CryptoMetadata cryptoMetadata
+    ) throws IOException {
         List<Exception> exceptionList = new ArrayList<>(transferSnapshot.getTranslogTransferMetadata().getCount());
         Set<TransferFileSnapshot> toUpload = new HashSet<>(transferSnapshot.getTranslogTransferMetadata().getCount());
         long metadataBytesToUpload;
@@ -164,7 +196,7 @@ public class TranslogTransferManager {
             // TODO: Ideally each file's upload start time should be when it is actually picked for upload
             // https://github.com/opensearch-project/OpenSearch/issues/9729
             fileTransferTracker.recordFileTransferStartTime(uploadStartTime);
-            transferService.uploadBlobs(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH);
+            transferService.uploadBlobs(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH, cryptoMetadata);
 
             try {
                 if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
@@ -186,7 +218,7 @@ public class TranslogTransferManager {
                 remoteTranslogTransferTracker.addUploadBytesStarted(metadataBytesToUpload);
                 metadataUploadStartTime = System.nanoTime();
                 try {
-                    transferService.uploadBlob(tlogMetadata, remoteMetadataTransferPath, WritePriority.HIGH);
+                    transferService.uploadBlob(tlogMetadata, remoteMetadataTransferPath, WritePriority.HIGH, cryptoMetadata);
                 } catch (Exception exception) {
                     remoteTranslogTransferTracker.addUploadTimeInMillis((System.nanoTime() - metadataUploadStartTime) / 1_000_000L);
                     remoteTranslogTransferTracker.addUploadBytesFailed(metadataBytesToUpload);
@@ -392,8 +424,8 @@ public class TranslogTransferManager {
                     exceptionSetOnce.set(e);
                 }
             }, e -> {
-                if (e instanceof RuntimeException) {
-                    throw (RuntimeException) e;
+                if (e instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
                 }
                 logger.error(() -> new ParameterizedMessage("Exception while listing metadata files"), e);
                 exceptionSetOnce.set((IOException) e);
@@ -443,10 +475,8 @@ public class TranslogTransferManager {
     }
 
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {
-        Map<String, String> generationPrimaryTermMap = transferSnapshot.getTranslogFileSnapshots().stream().map(s -> {
-            assert s instanceof TranslogFileSnapshot;
-            return (TranslogFileSnapshot) s;
-        })
+        Map<String, String> generationPrimaryTermMap = transferSnapshot.getTranslogFileSnapshots()
+            .stream()
             .collect(
                 Collectors.toMap(
                     snapshot -> String.valueOf(snapshot.getGeneration()),

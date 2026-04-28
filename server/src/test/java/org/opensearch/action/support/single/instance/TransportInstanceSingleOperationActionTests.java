@@ -43,6 +43,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -369,5 +370,30 @@ public class TransportInstanceSingleOperationActionTests extends OpenSearchTestC
                 fail("expected and IllegalStateException");
             }
         }
+    }
+
+    public void testResolveIndices() {
+        Request request = new Request().index("test");
+        request.shardId = new ShardId("test", "_na_", 0);
+        setState(clusterService, ClusterStateCreationUtils.state("test", true, ShardRoutingState.STARTED));
+        ResolvedIndices resolvedIndices = action.resolveIndices(request);
+        assertEquals(ResolvedIndices.of("test"), resolvedIndices);
+    }
+
+    public void testResolveIndices_concreteIndex() {
+        Request request = new Request().index("test");
+        request.concreteIndex("concrete_value");
+        request.shardId = new ShardId("test", "_na_", 0);
+        setState(clusterService, ClusterStateCreationUtils.state("test", true, ShardRoutingState.STARTED));
+        ResolvedIndices resolvedIndices = action.resolveIndices(request);
+        assertEquals(ResolvedIndices.of("concrete_value"), resolvedIndices);
+    }
+
+    public void testResolveIndices_nonExisting() {
+        Request request = new Request().index("test_non_existing");
+        request.shardId = new ShardId("test_non_existing", "_na_", 0);
+        setState(clusterService, ClusterStateCreationUtils.state("test", true, ShardRoutingState.STARTED));
+        ResolvedIndices resolvedIndices = action.resolveIndices(request);
+        assertEquals(ResolvedIndices.of("test_non_existing"), resolvedIndices);
     }
 }

@@ -35,6 +35,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.delete.DeleteRequest;
@@ -45,6 +46,7 @@ import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata.State;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver.ExpressionResolver;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
@@ -816,6 +818,27 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertThat(infe.getMessage(), is("no such index [testZZZ]"));
     }
 
+    /**
+     * Same as testConcreteIndicesIgnoreIndicesOneMissingIndex() but using the concreteResolvedIndices() method.
+     * This should keep the name of the missing index and defer the throwing of the exception to the point
+     * when ResolvedIndices.Local.Concrete.concreteIndices() is called.
+     */
+    public void testConcreteResolvedIndicesIgnoreIndicesOneMissingIndex() {
+        Metadata.Builder mdBuilder = Metadata.builder().put(indexBuilder("testXXX")).put(indexBuilder("kuku"));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.strictExpandOpen(),
+            false
+        );
+
+        ResolvedIndices.Local.Concrete concreteResolvedIndices = indexNameExpressionResolver.concreteResolvedIndices(context, "testZZZ");
+        assertEquals(concreteResolvedIndices.names(), Set.of("testZZZ"));
+
+        IndexNotFoundException infe = expectThrows(IndexNotFoundException.class, () -> concreteResolvedIndices.concreteIndices());
+        assertThat(infe.getMessage(), is("no such index [testZZZ]"));
+    }
+
     public void testConcreteIndicesIgnoreIndicesOneMissingIndexOtherFound() {
         Metadata.Builder mdBuilder = Metadata.builder().put(indexBuilder("testXXX")).put(indexBuilder("kuku"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
@@ -1577,6 +1600,7 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
             indexNameExpressionResolver.resolveExpressions(state, "test-*", "alias-*")
         );
         assertEquals(new HashSet<>(Arrays.asList("test-1", "alias-1")), indexNameExpressionResolver.resolveExpressions(state, "*-1"));
+        expectThrows(InvalidIndexNameException.class, () -> indexNameExpressionResolver.resolveExpressions(state, "_invalid_index_name"));
     }
 
     public void testFilteringAliases() {
@@ -2088,6 +2112,42 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertEquals("Invalid index name [_foo], must not start with '_'.", iine.getMessage());
     }
 
+    public void testInvalidEmptyIndex() {
+        Metadata.Builder mdBuilder = Metadata.builder().put(indexBuilder("test"));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.lenientExpandOpen(),
+            false
+        );
+
+        IndexNotFoundException indexNotFoundException = expectThrows(
+            IndexNotFoundException.class,
+            () -> indexNameExpressionResolver.concreteIndexNames(context, "")
+        );
+        assertEquals("no such index []", indexNotFoundException.getMessage());
+    }
+
+    public void testIgnoreAliasesOnNonWildcardValue() {
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder("my_index").state(State.OPEN).putAlias(AliasMetadata.builder("my_alias")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        // when ignoreAliases is set, and an alias is specified in the index expression without using a wildcard,
+        // an exception is expected.
+        IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, true, true, false, true, false, true, false);
+
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "my_alias*", "-my_alias")
+        );
+
+        assertEquals(
+            "The provided expression [my_alias] matches an alias, specify the corresponding concrete indices instead.",
+            illegalArgumentException.getMessage()
+        );
+    }
+
     public void testIgnoreThrottled() {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(
@@ -2267,8 +2327,13 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
             assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+            assertThat(
+                Arrays.stream(result).map(Index::getName).collect(Collectors.toList()),
+                containsInAnyOrder(
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2)
+                )
+            );
         }
         {
             // Ignore data streams
@@ -2278,6 +2343,16 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream")
             );
             assertThat(e.getMessage(), equalTo("no such index [my-data-stream]"));
+        }
+        {
+            // Ignore data streams; use different overload
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            ResolvedIndices.Local.Concrete concreteResolvedIndices = indexNameExpressionResolver.concreteResolvedIndices(
+                state,
+                indicesOptions,
+                "my-data-stream"
+            );
+            assertThat(concreteResolvedIndices.resolutionErrors().getFirst().getMessage(), equalTo("no such index [my-data-stream]"));
         }
         {
             // Ignore data streams and allow no indices
@@ -2518,6 +2593,101 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
 
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-*");
         assertThat(names, empty());
+    }
+
+    public void testConcreteResolvedIndicesWithWildcards() {
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder("index_a1").putAlias(AliasMetadata.builder("alias_a")))
+            .put(indexBuilder("index_a2").putAlias(AliasMetadata.builder("alias_a")))
+            .put(indexBuilder("index_b1"))
+            .put(indexBuilder("index_b2"));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.lenientExpandOpen(),
+            false
+        );
+
+        ResolvedIndices.Local.Concrete concreteResolvedIndices = indexNameExpressionResolver.concreteResolvedIndices(
+            context,
+            "alias_a",
+            "index_b*",
+            "index_c*",
+            "index_d"
+        );
+
+        // We test the following semantics:
+        // - Of course, the concrete indices will contain all existing indices that are matched.
+        // - For the names() property we include:
+        // - resolved index patterns
+        // - names of existing indices
+        // - names of non-existing indices
+        assertThat(concreteResolvedIndices.names(), containsInAnyOrder("alias_a", "index_b1", "index_b2", "index_d"));
+        assertThat(concreteResolvedIndices.namesOfConcreteIndices(), containsInAnyOrder("index_a1", "index_a2", "index_b1", "index_b2"));
+    }
+
+    public void testConcreteResolvedIndicesWithErrors() {
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder("index_a1").putAlias(AliasMetadata.builder("alias_a")))
+            .put(indexBuilder("index_a2").putAlias(AliasMetadata.builder("alias_a")))
+            .put(indexBuilder("index_closed").state(IndexMetadata.State.CLOSE))
+            .put(indexBuilder("index_b1").putAlias(AliasMetadata.builder("alias_b")))
+            .put(indexBuilder("index_c1"));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.strictSingleIndexNoExpandForbidClosed(),
+            false
+        );
+
+        ResolvedIndices.Local.Concrete concreteResolvedIndices = indexNameExpressionResolver.concreteResolvedIndices(
+            context,
+            "baz*",
+            "alias_a",
+            "index_closed",
+            "alias_b",
+            "index_c1"
+        );
+        assertThat(concreteResolvedIndices.names(), containsInAnyOrder("index_closed", "index_c1", "baz*", "alias_b", "alias_a"));
+        assertThat(concreteResolvedIndices.withoutResolutionErrors().namesOfConcreteIndices(), containsInAnyOrder("index_b1", "index_c1"));
+        assertThat(
+            concreteResolvedIndices.resolutionErrors().stream().map(Throwable::getMessage).toList(),
+            containsInAnyOrder(
+                "no such index [baz*]",
+                "alias [alias_a] has more than one index associated with it [index_a1, index_a2], can't execute a single index op",
+                "closed"
+            )
+        );
+    }
+
+    public void testConcreteResolvedIndicesWithIndicesRequestParam() {
+        Metadata.Builder mdBuilder = Metadata.builder().put(indexBuilder("index_b1")).put(indexBuilder("index_b2"));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        ResolvedIndices.Local.Concrete concreteResolvedIndices = indexNameExpressionResolver.concreteResolvedIndices(
+            state,
+            new OriginalIndices(new String[] { "index_b*", "index_d" }, IndicesOptions.lenientExpandOpen()),
+            0
+        );
+
+        assertThat(concreteResolvedIndices.names(), containsInAnyOrder("index_b1", "index_b2", "index_d"));
+        assertThat(concreteResolvedIndices.namesOfConcreteIndices(), containsInAnyOrder("index_b1", "index_b2"));
+    }
+
+    static class FakeExpressionResolver implements IndexNameExpressionResolver.ExpressionResolver {
+        @Override
+        public List<String> resolve(IndexNameExpressionResolver.Context context, List<String> expressions) {
+            throw new UnsupportedOperationException("resolve operation not supported on FakeExpressionResolver");
+        }
+    }
+
+    public void testAddCustomResolver() {
+        FakeExpressionResolver customResolver = new FakeExpressionResolver();
+        List<ExpressionResolver> customResolvers = Collections.singletonList(customResolver);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, customResolvers);
+        assertEquals(indexNameExpressionResolver.getExpressionResolvers().get(0), customResolver);
     }
 
     private ClusterState systemIndexTestClusterState() {

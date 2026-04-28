@@ -112,11 +112,6 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
-    }
-
-    @Override
     public EnumSet<Metadata.XContentContext> context() {
         return Metadata.API_AND_GATEWAY;
     }
@@ -491,6 +486,13 @@ public final class IndexGraveyard implements Metadata.Custom {
                 return new Tombstone(index, deleteDateInMillis);
             }
         }
+    }
+
+    @Override
+    @Deprecated(forRemoval = true) // Implementation is identical to NamedDiffable
+    public Version getMinimalSupportedVersion() {
+        // TODO: Only including this method to work around bug in japicmp.
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
 }

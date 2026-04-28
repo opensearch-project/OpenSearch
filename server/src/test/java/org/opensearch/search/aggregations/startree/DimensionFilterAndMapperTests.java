@@ -8,6 +8,7 @@
 
 package org.opensearch.search.aggregations.startree;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -18,7 +19,9 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfig
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
+import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.StarTreeMapper;
@@ -38,6 +41,8 @@ import org.opensearch.search.startree.filter.provider.StarTreeFilterProvider;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -47,10 +52,35 @@ import static org.mockito.Mockito.when;
 
 public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
 
-    public void testKeywordOrdinalMapping() throws IOException {
-        DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            new KeywordFieldMapper.KeywordFieldType("keyword")
+    public void testIpMapping() throws Exception {
+        MappedFieldType mappedFieldType = new IpFieldMapper.IpFieldType("ip_field");
+        BytesRef ipAsBytes = new BytesRef(InetAddressPoint.encode(InetAddress.getByName("192.168.1.1")));
+        testOrdinalMapping(mappedFieldType, ipAsBytes);
+    }
+
+    public void testRawValuesIpParsing() throws UnknownHostException {
+        SearchContext searchContext = mock(SearchContext.class);
+        MappedFieldType mappedFieldType = new IpFieldMapper.IpFieldType("ip_field");
+        DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType, searchContext);
+
+        assertThrows(IllegalArgumentException.class, () -> dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(1.0f)));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of("not.a.valid.ip"))
         );
+        DimensionFilter df = dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(InetAddress.getByName("192.168.1.1")));
+        assertEquals("ip_field", df.getMatchingDimension());
+    }
+
+    public void testKeywordOrdinalMapping() throws IOException {
+        MappedFieldType mappedFieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
+        BytesRef bytesRef = new BytesRef(new byte[] { 17, 29 });
+        testOrdinalMapping(mappedFieldType, bytesRef);
+    }
+
+    private void testOrdinalMapping(final MappedFieldType mappedFieldType, final BytesRef bytesRef) throws IOException {
+        SearchContext searchContext = mock(SearchContext.class);
+        DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType, searchContext);
         StarTreeValues starTreeValues = mock(StarTreeValues.class);
         SortedSetStarTreeValuesIterator sortedSetStarTreeValuesIterator = mock(SortedSetStarTreeValuesIterator.class);
         TermsEnum termsEnum = mock(TermsEnum.class);
@@ -59,7 +89,6 @@ public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
         Optional<Long> matchingOrdinal;
 
         // Case Exact Match and found
-        BytesRef bytesRef = new BytesRef(new byte[] { 17, 29 });
         when(sortedSetStarTreeValuesIterator.lookupTerm(bytesRef)).thenReturn(1L);
         matchingOrdinal = dimensionFilterMapper.getMatchingOrdinal("field", bytesRef, starTreeValues, MatchType.EXACT);
         assertTrue(matchingOrdinal.isPresent());
@@ -149,10 +178,10 @@ public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
         when(searchContext.mapperService()).thenReturn(mapperService);
 
         // Null returned when mapper doesn't exist
-        assertNull(DimensionFilterMapper.Factory.fromMappedFieldType(new WildcardFieldMapper.WildcardFieldType("field")));
+        assertNull(DimensionFilterMapper.Factory.fromMappedFieldType(new WildcardFieldMapper.WildcardFieldType("field"), searchContext));
 
         // Null returned for no mapped field type
-        assertNull(DimensionFilterMapper.Factory.fromMappedFieldType(null));
+        assertNull(DimensionFilterMapper.Factory.fromMappedFieldType(null, searchContext));
 
         // Provider for null Query builder
         assertEquals(StarTreeFilterProvider.MATCH_ALL_PROVIDER, StarTreeFilterProvider.SingletonFactory.getProvider(null));

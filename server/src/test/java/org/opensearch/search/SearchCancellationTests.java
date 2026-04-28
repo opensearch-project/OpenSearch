@@ -201,6 +201,7 @@ public class SearchCancellationTests extends OpenSearchTestCase {
         );
 
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
+        assertNull(searcher.getIndexReader().leaves().get(0).reader().getPointValues(null));
         Terms terms = searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME);
         TermsEnum termsIterator = terms.iterator();
         TermsEnum termsIntersect = terms.intersect(automaton, null);

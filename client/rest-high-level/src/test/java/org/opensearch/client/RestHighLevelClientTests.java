@@ -32,8 +32,6 @@
 
 package org.opensearch.client;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
@@ -86,6 +84,7 @@ import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.opensearch.tools.jackson.core.JsonParseException;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -882,7 +881,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "cluster.delete_weighted_routing",
             "cluster.put_decommission_awareness",
             "cluster.get_decommission_awareness",
-            "cluster.delete_decommission_awareness", };
+            "cluster.delete_decommission_awareness",
+            "wlm_stats_list" };
         List<String> booleanReturnMethods = Arrays.asList("security.enable_user", "security.disable_user", "security.change_password");
         Set<String> deprecatedMethods = new HashSet<>();
         deprecatedMethods.add("indices.force_merge");

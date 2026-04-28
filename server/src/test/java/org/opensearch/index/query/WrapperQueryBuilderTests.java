@@ -93,7 +93,8 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
     @Override
     protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder innerQuery = queryBuilder.rewrite(createShardContext());
+        // Must rewrite recursively so innerQuery matches query
+        QueryBuilder innerQuery = Rewriteable.rewrite(queryBuilder, createShardContext());
         Query expected = rewrite(innerQuery.toQuery(context));
         assertEquals(rewrite(query), expected);
     }
@@ -120,7 +121,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" + "  \"wrapper\" : {\n" + "    \"query\" : \"e30=\"\n" + "  }\n" + "}";
+        String json = """
+            {
+              "wrapper" : {
+                "query" : "e30="
+              }
+            }""";
 
         WrapperQueryBuilder parsed = (WrapperQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

@@ -42,6 +42,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.index.BucketedCompositeDirectory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -64,12 +65,18 @@ public final class CorruptionUtils {
 
     public static void corruptIndex(Random random, Path indexPath, boolean corruptSegments) throws IOException {
         // corrupt files
+        // TODO: Till the time we remove sub directories during refresh, we also filter out tem directories files here as
+        // them will not make sense.
         final Path[] filesToCorrupt = Files.walk(indexPath).filter(p -> {
             final String name = p.getFileName().toString();
             boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
             return Files.isRegularFile(p)
                 && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
+                && !p.toAbsolutePath().getParent().toString().contains(BucketedCompositeDirectory.CHILD_DIRECTORY_PREFIX) // Skip child
+                                                                                                                          // level
+                                                                                                                          // directories
                 && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
+
                 && (corruptSegments ? segmentFile : segmentFile == false);
         }).toArray(Path[]::new);
         corruptFile(random, filesToCorrupt);

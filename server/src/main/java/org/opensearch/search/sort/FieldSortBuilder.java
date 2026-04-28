@@ -427,20 +427,19 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
         final SortField field;
         boolean isNanosecond = false;
         if (numericType != null) {
-            if (fieldData instanceof IndexNumericFieldData == false) {
+            if (!(fieldData instanceof IndexNumericFieldData numericFieldData)) {
                 throw new QueryShardException(
                     context,
                     "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName()
                 );
             }
-            IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
             isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
             field = fieldData.sortField(missing, localSortMode(), nested, reverse);
-            if (fieldData instanceof IndexNumericFieldData) {
-                isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
+            if (fieldData instanceof IndexNumericFieldData numericFieldData) {
+                isNanosecond = numericFieldData.getNumericType() == NumericType.DATE_NANOSECONDS;
             }
         }
         DocValueFormat format = fieldType.docValueFormat(null, null);
@@ -476,8 +475,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
         }
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
         final DateMathParser dateMathParser;
-        if (docValueFormat instanceof DocValueFormat.DateTime) {
-            dateMathParser = ((DocValueFormat.DateTime) docValueFormat).getDateMathParser();
+        if (docValueFormat instanceof DocValueFormat.DateTime dateTime) {
+            dateMathParser = dateTime.getDateMathParser();
         } else {
             dateMathParser = null;
         }
@@ -520,13 +519,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
         }
         if (numericType != null) {
-            if (fieldData instanceof IndexNumericFieldData == false) {
+            if (!(fieldData instanceof IndexNumericFieldData numericFieldData)) {
                 throw new QueryShardException(
                     context,
                     "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName()
                 );
             }
-            IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             return numericFieldData.newBucketedSort(
                 resolvedType,
@@ -609,7 +607,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
         if (source == null || source.sorts() == null || source.sorts().isEmpty()) {
             return null;
         }
-        return source.sorts().get(0) instanceof FieldSortBuilder ? (FieldSortBuilder) source.sorts().get(0) : null;
+        return source.sorts().get(0) instanceof FieldSortBuilder fieldSortBuilder ? fieldSortBuilder : null;
     }
 
     /**
@@ -680,8 +678,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
         if (PointValues.size(reader, fieldName) == 0) {
             return null;
         }
-        if (fieldType.unwrap() instanceof NumberFieldType) {
-            NumberFieldType numberFieldType = (NumberFieldType) fieldType;
+        if (fieldType.unwrap() instanceof NumberFieldType numberFieldType) {
             Number minPoint = numberFieldType.parsePoint(PointValues.getMinPackedValue(reader, fieldName));
             Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(reader, fieldName));
             switch (IndexSortConfig.getSortFieldType(sortField)) {
@@ -701,8 +698,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
                 default:
                     return null;
             }
-        } else if (fieldType.unwrap() instanceof DateFieldType) {
-            DateFieldType dateFieldType = (DateFieldType) fieldType;
+        } else if (fieldType.unwrap() instanceof DateFieldType dateFieldType) {
             Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
             Long min = dateConverter.apply(PointValues.getMinPackedValue(reader, fieldName));
             Long max = dateConverter.apply(PointValues.getMaxPackedValue(reader, fieldName));

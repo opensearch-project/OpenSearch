@@ -156,11 +156,15 @@ public class Cache<K, V> {
         return this.expireAfterWriteNanos;
     }
 
-    void setMaximumWeight(long maximumWeight) {
+    public void setMaximumWeight(long maximumWeight) {
         if (maximumWeight < 0) {
             throw new IllegalArgumentException("maximumWeight < 0");
         }
         this.maximumWeight = maximumWeight;
+    }
+
+    public long getMaximumWeight() {
+        return maximumWeight;
     }
 
     void setWeigher(ToLongBiFunction<K, V> weigher) {
@@ -786,7 +790,7 @@ public class Cache<K, V> {
             misses += segments[i].segmentStats.misses.longValue();
             evictions += segments[i].segmentStats.evictions.longValue();
         }
-        return new CacheStats(hits, misses, evictions);
+        return new CacheStats.Builder().hits(hits).misses(misses).evictions(evictions).build();
     }
 
     /**
@@ -800,6 +804,22 @@ public class Cache<K, V> {
         private long misses;
         private long evictions;
 
+        /**
+         * Private constructor that takes a builder.
+         * This is the sole entry point for creating a new CacheStats object.
+         * @param builder The builder instance containing all the values.
+         */
+        private CacheStats(Builder builder) {
+            this.hits = builder.hits;
+            this.misses = builder.misses;
+            this.evictions = builder.evictions;
+        }
+
+        /**
+         * This constructor will be deprecated starting in version 3.4.0.
+         * Use {@link CacheStats} instead.
+         */
+        @Deprecated
         public CacheStats(long hits, long misses, long evictions) {
             this.hits = hits;
             this.misses = misses;
@@ -816,6 +836,41 @@ public class Cache<K, V> {
 
         public long getEvictions() {
             return evictions;
+        }
+
+        /**
+         * Builder for the {@link CacheStats} class.
+         * Provides a fluent API for constructing a CacheStats object.
+         */
+        public static class Builder {
+            private long hits = 0;
+            private long misses = 0;
+            private long evictions = 0;
+
+            public Builder() {}
+
+            public Builder hits(long hits) {
+                this.hits = hits;
+                return this;
+            }
+
+            public Builder misses(long misses) {
+                this.misses = misses;
+                return this;
+            }
+
+            public Builder evictions(long evictions) {
+                this.evictions = evictions;
+                return this;
+            }
+
+            /**
+             * Creates a {@link CacheStats} object from the builder's current state.
+             * @return A new CacheStats instance.
+             */
+            public CacheStats build() {
+                return new CacheStats(this);
+            }
         }
     }
 

@@ -128,8 +128,8 @@ public class SplitResponseProcessor extends AbstractProcessor implements SearchR
                 Map<String, Object> sourceAsMap = typeAndSourceMap.v2();
                 if (sourceAsMap.containsKey(splitField)) {
                     Object val = sourceAsMap.get(splitField);
-                    if (val instanceof String) {
-                        Object[] strings = ((String) val).split(separator, preserveTrailing ? -1 : 0);
+                    if (val instanceof String str) {
+                        Object[] strings = str.split(separator, preserveTrailing ? -1 : 0);
                         sourceAsMap.put(targetField, Arrays.asList(strings));
                     }
                     XContentBuilder builder = XContentBuilder.builder(typeAndSourceMap.v1().xContent());

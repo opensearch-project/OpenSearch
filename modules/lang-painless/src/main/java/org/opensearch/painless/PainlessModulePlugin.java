@@ -59,6 +59,7 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.script.ContextAwareGroupingScript;
 import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.IngestScript;
 import org.opensearch.script.ScoreScript;
@@ -119,6 +120,9 @@ public final class PainlessModulePlugin extends Plugin implements ScriptPlugin, 
         List<Allowlist> derived = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
         derived.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.derived.txt"));
         map.put(DerivedFieldScript.CONTEXT, derived);
+
+        // Only basic painless support for ContextAwareGrouping script
+        map.put(ContextAwareGroupingScript.CONTEXT, new ArrayList<>(Allowlist.BASE_ALLOWLISTS));
 
         allowlists = map;
     }

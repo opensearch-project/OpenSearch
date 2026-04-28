@@ -269,6 +269,11 @@ public enum MissingValues {
                 return "anon ValuesSource.Bytes.WithOrdinals of [" + super.toString() + "]";
             }
 
+            @Override
+            public String getIndexFieldName() {
+                return valuesSource.getIndexFieldName();
+            }
+
         };
     }
 

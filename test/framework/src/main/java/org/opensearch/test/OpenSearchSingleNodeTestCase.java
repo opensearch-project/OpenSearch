@@ -339,17 +339,15 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
      * Create a new index on the singleton node with the provided index settings.
      */
     protected IndexService createIndex(String index, Settings settings) {
-        return createIndex(index, settings, null, (XContentBuilder) null);
+        return createIndex(index, settings, null);
     }
 
     /**
-     * Create a new index on the singleton node with the provided index settings.
-     * @deprecated types are being removed
+     * Create a new index on the singleton node with the provided index settings and mappings.
      */
-    @Deprecated
-    protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+    protected IndexService createIndex(String index, Settings settings, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
-        if (type != null && mappings != null) {
+        if (mappings != null) {
             createIndexRequestBuilder.setMapping(mappings);
         }
         return createIndex(index, createIndexRequestBuilder);
@@ -357,13 +355,40 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     /**
      * Create a new index on the singleton node with the provided index settings.
-     * @deprecated types are being removed
+     * @deprecated types have been removed
+     */
+    @Deprecated
+    protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+        return createIndex(index, settings, mappings);
+    }
+
+    /**
+     * Create a new index on the singleton node with the provided index settings.
+     * @deprecated types have been removed
      */
     @Deprecated
     protected IndexService createIndex(String index, Settings settings, String type, String... mappings) {
+        return createIndexWithSimpleMappings(index, settings, mappings);
+    }
+
+    /**
+     * Creates an index with mappings provided in the format expected by {@link org.opensearch.action.admin.indices.create.CreateIndexRequest#simpleMapping(String...)}
+     */
+    protected IndexService createIndexWithSimpleMappings(String index, Settings settings, String... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (mappings != null) {
             createIndexRequestBuilder.setMapping(mappings);
+        }
+        return createIndex(index, createIndexRequestBuilder);
+    }
+
+    /**
+     * Create a new index on the singleton node with the provided index settings and mappings source.
+     */
+    protected IndexService createIndexWithMappingSource(String index, Settings settings, String mappingSource) {
+        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        if (mappingSource != null) {
+            createIndexRequestBuilder.setMapping(mappingSource);
         }
         return createIndex(index, createIndexRequestBuilder);
     }

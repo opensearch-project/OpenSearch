@@ -54,6 +54,7 @@ import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -87,14 +88,18 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
+import org.opensearch.index.BucketedCompositeDirectory;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -123,6 +128,7 @@ import java.util.zip.Checksum;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.store.FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING;
 import static org.opensearch.index.store.Store.MetadataSnapshot.loadMetadata;
 
 /**
@@ -177,6 +183,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
     private final ShardPath shardPath;
+    private final boolean isParentFieldEnabledVersion;
+    private final boolean isIndexSortEnabled;
+    private final IndexStorePlugin.DirectoryFactory directoryFactory;
 
     // used to ref count files when a new Reader is opened for PIT/Scroll queries
     // prevents segment files deletion until the PIT/Scroll expires or is discarded
@@ -190,7 +199,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     };
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null, null);
     }
 
     public Store(
@@ -201,6 +210,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         OnClose onClose,
         ShardPath shardPath
     ) {
+        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, null);
+    }
+
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        ShardPath shardPath,
+        IndexStorePlugin.DirectoryFactory directoryFactory
+    ) {
         super(shardId, indexSettings);
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
@@ -209,6 +230,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.shardLock = shardLock;
         this.onClose = onClose;
         this.shardPath = shardPath;
+        this.isIndexSortEnabled = indexSettings.getIndexSortConfig().hasIndexSort();
+        this.isParentFieldEnabledVersion = indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0);
+        this.directoryFactory = directoryFactory;
+
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
@@ -219,8 +244,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return directory;
     }
 
+    public Directory newTempDirectory(String pathString) throws IOException {
+        return directoryFactory.newFSDirectory(
+            shardPath.resolveIndex().resolve(pathString),
+            this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING),
+            this.indexSettings
+        );
+    }
+
     public ShardPath shardPath() {
         return shardPath;
+    }
+
+    public boolean shouldSetParentField() {
+        return indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0) && this.isIndexSortEnabled;
     }
 
     /**
@@ -231,11 +268,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
         failIfCorrupted();
         try {
-            if (indexSettings.isRemoteSnapshot() && indexSettings.getExtendedCompatibilitySnapshotVersion() != null) {
-                return readSegmentInfosExtendedCompatibility(directory(), indexSettings.getExtendedCompatibilitySnapshotVersion());
-            } else {
-                return readSegmentsInfo(null, directory());
-            }
+            return readSegmentsInfo(null, directory());
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -245,7 +278,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns the segments info for the given commit or for the latest commit if the given commit is <code>null</code>.
      * This method will throw an exception if the index is older than the standard backwards compatibility
-     * policy ( current major - 1). See also {@link #readSegmentInfosExtendedCompatibility(Directory, org.opensearch.Version)}.
+     * policy ( current major - 1).
      *
      * @throws IOException if the index is corrupted or the segments file is not present
      */
@@ -260,27 +293,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up
         } catch (Exception ex) {
             throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);
-        }
-    }
-
-    /**
-     * Returns the segments info for the latest commit in the given directory. Unlike
-     * {@link #readSegmentsInfo(IndexCommit, Directory)}, this method supports reading
-     * older Lucene indices on a best-effort basis.
-     *
-     * @throws IOException if the index is corrupted or the segments file is not present
-     */
-    private static SegmentInfos readSegmentInfosExtendedCompatibility(Directory directory, org.opensearch.Version minimumVersion)
-        throws IOException {
-        try {
-            return Lucene.readSegmentInfos(directory, minimumVersion);
-        } catch (EOFException eof) {
-            // TODO this should be caught by lucene - EOF is almost certainly an index corruption
-            throw new CorruptIndexException("Read past EOF while reading segment infos", "<latest-commit>", eof);
-        } catch (IOException exception) {
-            throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up
-        } catch (Exception ex) {
-            throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "<latest-commit>", ex);
         }
     }
 
@@ -390,6 +402,31 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * Segment Replication method - Fetch a map of StoreFileMetadata for segments from a {@link CatalogSnapshot},
+     * ignoring Segment_N files. Dispatches to the appropriate metadata loading strategy based on the snapshot type.
+     *
+     * @param catalogSnapshot {@link CatalogSnapshot} from which to compute metadata.
+     * @return {@link Map} map file name to {@link StoreFileMetadata}.
+     * @throws IOException in case of I/O error during metadata computation.
+     */
+    // TODO: Remove the SegmentInfosCatalogSnapshot instanceof check once loadMetadata(CatalogSnapshot, ...) is fully implemented.
+    public Map<String, StoreFileMetadata> getSegmentMetadataMap(CatalogSnapshot catalogSnapshot) throws IOException {
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
+        failIfCorrupted();
+
+        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot segmentInfosCatalogSnapshot) {
+            return getSegmentMetadataMap(segmentInfosCatalogSnapshot.getSegmentInfos());
+        }
+
+        try {
+            return loadMetadata(catalogSnapshot, directory, logger, true).fileMetadata;
+        } catch (NoSuchFileException | CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        }
+    }
+
+    /**
      * Segment Replication method
      * Returns a diff between the Maps of StoreFileMetadata that can be used for getting list of files to copy over to a replica for segment replication. The returned diff will hold a list of files that are:
      * <ul>
@@ -454,16 +491,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 String origFile = entry.getValue();
                 // first, go and delete the existing ones
                 try {
-                    directory.deleteFile(origFile);
+                    directory().deleteFile(origFile);
                 } catch (FileNotFoundException | NoSuchFileException e) {} catch (Exception ex) {
                     logger.debug(() -> new ParameterizedMessage("failed to delete file [{}]", origFile), ex);
                 }
                 // now, rename the files... and fail it it won't work
-                directory.rename(tempFile, origFile);
+                directory().rename(tempFile, origFile);
                 final String remove = tempFileMap.remove(tempFile);
                 assert remove != null;
             }
-            directory.syncMetaData();
+            directory().syncMetaData();
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -490,7 +527,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public StoreStats stats(long reservedBytes) throws IOException {
         ensureOpen();
-        return new StoreStats(directory.estimateSize(), reservedBytes);
+        return new StoreStats.Builder().sizeInBytes(directory.estimateSize()).reservedSize(reservedBytes).build();
     }
 
     /**
@@ -562,7 +599,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         // Leverage try-with-resources to close the shard lock for us
         try (Closeable c = shardLock) {
             try {
-                directory.innerClose(); // this closes the distributorDirectory as well
+                directory.innerClose(); // this closes the entire directory chain including DataFormatAwareStoreDirectory
             } finally {
                 onClose.accept(shardLock);
             }
@@ -638,8 +675,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public static void verify(IndexOutput output) throws IOException {
-        if (output instanceof VerifyingIndexOutput) {
-            ((VerifyingIndexOutput) output).verify();
+        if (output instanceof VerifyingIndexOutput verifyingOutput) {
+            verifyingOutput.verify();
         }
     }
 
@@ -649,8 +686,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public static void verify(IndexInput input) throws IOException {
-        if (input instanceof VerifyingIndexInput) {
-            ((VerifyingIndexInput) input).verify();
+        if (input instanceof VerifyingIndexInput verifyingInput) {
+            verifyingInput.verify();
         }
     }
 
@@ -744,8 +781,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     input.readBytes(buffer, 0, buffer.length);
                     StreamInput in = StreamInput.wrap(buffer);
                     Exception t = in.readException();
-                    if (t instanceof CorruptIndexException) {
-                        ex.add((CorruptIndexException) t);
+                    if (t instanceof CorruptIndexException corruptException) {
+                        ex.add(corruptException);
                     } else {
                         ex.add(new CorruptIndexException(t.getMessage(), "preexisting_corruption", t));
                     }
@@ -965,13 +1002,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
             long fileSize = from.fileLength(src);
-            beforeDownload(fileSize);
+            boolean isCopyingFromRemoteDirectory = !((from instanceof FSDirectory)
+                && ((((FSDirectory) from).getDirectory().toString().contains(BucketedCompositeDirectory.CHILD_DIRECTORY_PREFIX))));
+            if (isCopyingFromRemoteDirectory) {
+                // Update the stats only when we are copying from remote to local directory. As this function gets called
+                // from addIndexes as well when data from child level writer is synced from parent level writer.
+                beforeDownload(fileSize);
+            }
+
             boolean success = false;
             long startTime = System.currentTimeMillis();
             try {
                 super.copyFrom(from, src, dest, context);
                 success = true;
-                afterDownload(fileSize, startTime);
+                if (isCopyingFromRemoteDirectory) {
+                    afterDownload(fileSize, startTime);
+                }
             } finally {
                 if (!success) {
                     downloadFailed(fileSize, startTime);
@@ -1101,21 +1147,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Metadata that is currently loaded
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
-        static class LoadedMetadata {
-            final Map<String, StoreFileMetadata> fileMetadata;
-            final Map<String, String> userData;
-            final long numDocs;
+        @PublicApi(since = "3.2.0")
+        public static class LoadedMetadata {
+            public final Map<String, StoreFileMetadata> fileMetadata;
+            public final Map<String, String> userData;
+            public final long numDocs;
 
-            LoadedMetadata(Map<String, StoreFileMetadata> fileMetadata, Map<String, String> userData, long numDocs) {
+            public LoadedMetadata(Map<String, StoreFileMetadata> fileMetadata, Map<String, String> userData, long numDocs) {
                 this.fileMetadata = fileMetadata;
                 this.userData = userData;
                 this.numDocs = numDocs;
             }
         }
 
-        static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
+        public static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 return loadMetadata(segmentCommitInfos, directory, logger);
@@ -1146,11 +1193,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         }
 
-        static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger) throws IOException {
+        public static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger) throws IOException {
             return loadMetadata(segmentInfos, directory, logger, false);
         }
 
-        static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger, boolean ignoreSegmentsFile)
+        public static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger, boolean ignoreSegmentsFile)
             throws IOException {
             long numDocs = Lucene.getNumDocs(segmentInfos);
             Map<String, String> commitUserDataBuilder = new HashMap<>();
@@ -1191,6 +1238,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
             }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
+        }
+
+        public static LoadedMetadata loadMetadata(
+            CatalogSnapshot catalogSnapshot,
+            Directory directory,
+            Logger logger,
+            boolean ignoreSegmentsFile
+        ) throws IOException {
+            // TODO: Implement format-aware loadMetadata equivalent to the SegmentInfos version
+            throw new UnsupportedOperationException("loadMetadata for CatalogSnapshot is not yet implemented");
         }
 
         private static void checksumFromLuceneFile(
@@ -1753,8 +1810,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * A listener that is executed once the store is closed and all references to it are released
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "3.2.0")
     public interface OnClose extends Consumer<ShardLock> {
         OnClose EMPTY = new OnClose() {
             /**
@@ -1944,23 +2002,27 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return userData;
     }
 
-    private static IndexWriter newAppendingIndexWriter(final Directory dir, final IndexCommit commit) throws IOException {
+    private IndexWriter newAppendingIndexWriter(final Directory dir, final IndexCommit commit) throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig().setIndexCommit(commit).setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         return new IndexWriter(dir, iwc);
     }
 
-    private static IndexWriter newEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
+    private IndexWriter newEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE)
             .setIndexCreatedVersionMajor(luceneVersion.major);
         return new IndexWriter(dir, iwc);
     }
 
-    private static IndexWriterConfig newIndexWriterConfig() {
-        return new IndexWriterConfig(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+    private IndexWriterConfig newIndexWriterConfig() {
+        final IndexWriterConfig iwc = new IndexWriterConfig(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setCommitOnClose(false)
             // we don't want merges to happen here - we call maybe merge on the engine
             // later once we stared it up otherwise we would need to wait for it here
             // we also don't specify a codec here and merges should use the engines for this index
             .setMergePolicy(NoMergePolicy.INSTANCE);
+        if (this.isIndexSortEnabled && this.isParentFieldEnabledVersion) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        return iwc;
     }
 }

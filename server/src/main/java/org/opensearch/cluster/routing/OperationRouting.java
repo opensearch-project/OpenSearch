@@ -35,6 +35,7 @@ package org.opensearch.cluster.routing;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.VirtualShardRoutingHelper;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -446,10 +447,8 @@ public class OperationRouting {
                 isFailOpenEnabled,
                 routingHash
             );
-        } else if (ignoreAwarenessAttributes()) {
-            return indexShard.activeInitializingShardsIt(routingHash);
         } else {
-            return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, routingHash);
+            return indexShard.activeInitializingShardsIt(routingHash);
         }
     }
 
@@ -500,12 +499,26 @@ public class OperationRouting {
         return clusterState.getRoutingTable().shardRoutingTable(index, shardId);
     }
 
+    public ShardId shardWithRecoveringChild(ClusterState clusterState, String index, String id, String routing, Index shardIndex) {
+        int shardId = generateShardId(indexMetadata(clusterState, index), id, routing, true);
+        return new ShardId(shardIndex, shardId);
+    }
+
     public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
         return new ShardId(indexMetadata.getIndex(), generateShardId(indexMetadata, id, routing));
     }
 
     public static int generateShardId(IndexMetadata indexMetadata, @Nullable String id, @Nullable String routing) {
+        return generateShardId(indexMetadata, id, routing, false);
+    }
+
+    public static int generateShardId(
+        IndexMetadata indexMetadata,
+        @Nullable String id,
+        @Nullable String routing,
+        boolean includeInProgressChild
+    ) {
         final String effectiveRouting;
         final int partitionOffset;
 
@@ -523,15 +536,33 @@ public class OperationRouting {
             partitionOffset = 0;
         }
 
-        return calculateScaledShardId(indexMetadata, effectiveRouting, partitionOffset);
+        int numVirtualShards = indexMetadata.getNumberOfVirtualShards();
+        if (numVirtualShards != -1) {
+            final int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
+            int vShardId = Math.floorMod(hash, numVirtualShards);
+            return VirtualShardRoutingHelper.resolvePhysicalShardId(indexMetadata, vShardId);
+        }
+
+        return calculateShardIdOfChild(indexMetadata, effectiveRouting, partitionOffset, includeInProgressChild);
     }
 
     private static int calculateScaledShardId(IndexMetadata indexMetadata, String effectiveRouting, int partitionOffset) {
+        return calculateShardIdOfChild(indexMetadata, effectiveRouting, partitionOffset, false);
+    }
+
+    private static int calculateShardIdOfChild(
+        IndexMetadata indexMetadata,
+        String effectiveRouting,
+        int partitionOffset,
+        boolean includeInProgressChild
+    ) {
         final int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
 
         // we don't use IMD#getNumberOfShards since the index might have been shrunk such that we need to use the size
         // of original index to hash documents
-        return Math.floorMod(hash, indexMetadata.getRoutingNumShards()) / indexMetadata.getRoutingFactor();
+        int rootShardId = Math.floorMod(hash, indexMetadata.getRoutingNumShards()) / indexMetadata.getRoutingFactor();
+
+        return indexMetadata.getSplitShardsMetadata().getShardIdOfHash(rootShardId, hash, includeInProgressChild);
     }
 
     private void checkPreferenceBasedRoutingAllowed(Preference preference, @Nullable WeightedRoutingMetadata weightedRoutingMetadata) {

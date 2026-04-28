@@ -14,7 +14,7 @@ import org.opensearch.wlm.WorkloadGroupTask;
 import java.util.List;
 
 /**
- * class to help make cpu usage calculations for the query group
+ * class to help make cpu usage calculations for the workload group
  */
 public class CpuUsageCalculator extends ResourceUsageCalculator {
     // This value should be initialised at the start time of the process and be used throughout the codebase

@@ -9,6 +9,7 @@
 package org.opensearch.rule;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.rule.action.GetRuleRequest;
 
 /**
  * This interface is responsible for creating query objects which storage layer can use
@@ -23,4 +24,11 @@ public interface RuleQueryMapper<T> {
      * @return
      */
     T from(GetRuleRequest request);
+
+    /**
+     * This method returns the cardinality query for the rule, this query should
+     * be constructed in such a way that it can be used to calculate the cardinality of the rules
+     * @return
+     */
+    T getCardinalityQuery();
 }

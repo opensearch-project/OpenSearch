@@ -133,8 +133,8 @@ public class BytesRestResponse extends RestResponse {
             this.content = BytesReference.bytes(builder);
             this.contentType = builder.contentType().mediaType();
         }
-        if (e instanceof OpenSearchException) {
-            copyHeaders(((OpenSearchException) e));
+        if (e instanceof OpenSearchException openSearchException) {
+            copyHeaders(openSearchException);
         }
     }
 

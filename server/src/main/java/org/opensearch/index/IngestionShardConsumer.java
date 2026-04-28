@@ -8,7 +8,7 @@
 
 package org.opensearch.index;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.Closeable;
 import java.util.List;
@@ -18,7 +18,7 @@ import java.util.List;
  * @param <T> the type of the pointer to the message
  * @param <M> the type of the message
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface IngestionShardConsumer<T extends IngestionShardPointer, M extends Message> extends Closeable {
 
     /**
@@ -26,7 +26,7 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @param <T> the type of the pointer to the message
      * @param <M> the type of the message
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     class ReadResult<T, M> {
         T pointer;
         M message;
@@ -109,4 +109,11 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @return the shard id
      */
     int getShardId();
+
+    /**
+     * Returns the pointer based lag for the current shard consumer.
+     * @param expectedStartPointer the ingestion start point on first time shard initialization.
+     * @return pointer based lag if available, else 0.
+     */
+    long getPointerBasedLag(IngestionShardPointer expectedStartPointer);
 }

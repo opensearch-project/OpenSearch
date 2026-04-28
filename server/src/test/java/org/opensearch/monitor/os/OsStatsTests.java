@@ -64,8 +64,7 @@ public class OsStatsTests extends OpenSearchTestCase {
             Long.toString(randomNonNegativeLong()),
             Long.toString(randomNonNegativeLong())
         );
-        OsStats osStats = new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
-
+        OsStats osStats = new OsStats.Builder().timestamp(System.currentTimeMillis()).cpu(cpu).mem(mem).swap(swap).cgroup(cgroup).build();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             osStats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {

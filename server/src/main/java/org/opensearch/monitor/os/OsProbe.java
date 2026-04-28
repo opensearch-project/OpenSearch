@@ -89,12 +89,12 @@ public class OsProbe {
     private static final Method getSystemCpuLoad;
 
     static {
-        getFreePhysicalMemorySize = getMethod("getFreePhysicalMemorySize");
-        getTotalPhysicalMemorySize = getMethod("getTotalPhysicalMemorySize");
+        getFreePhysicalMemorySize = getMethod("getFreeMemorySize");
+        getTotalPhysicalMemorySize = getMethod("getTotalMemorySize");
         getFreeSwapSpaceSize = getMethod("getFreeSwapSpaceSize");
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
-        getSystemCpuLoad = getMethod("getSystemCpuLoad");
+        getSystemCpuLoad = getMethod("getCpuLoad");
     }
 
     /**
@@ -693,7 +693,7 @@ public class OsProbe {
         final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = Constants.LINUX ? getCgroup() : null;
-        return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
+        return new OsStats.Builder().timestamp(System.currentTimeMillis()).cpu(cpu).mem(mem).swap(swap).cgroup(cgroup).build();
     }
 
     /**

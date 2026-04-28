@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -49,9 +50,11 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -129,6 +132,29 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
 
+    /**
+     * Alias write index policy for controlling how writeIndex attribute is handled during restore
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "3.3.0")
+    public enum AliasWriteIndexPolicy {
+        PRESERVE,
+        STRIP_WRITE_INDEX;
+
+        public static AliasWriteIndexPolicy fromString(String value) {
+            try {
+                return valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Unknown alias_write_index_policy [" + value + "]. Valid values are: " + Arrays.toString(values())
+                );
+            }
+        }
+    }
+
+    private AliasWriteIndexPolicy aliasWriteIndexPolicy = AliasWriteIndexPolicy.PRESERVE;
+
     public RestoreSnapshotRequest() {}
 
     /**
@@ -172,6 +198,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             renameAliasReplacement = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+            aliasWriteIndexPolicy = in.readEnum(AliasWriteIndexPolicy.class);
+        }
     }
 
     @Override
@@ -205,6 +234,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalString(renameAliasReplacement);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+            out.writeEnum(aliasWriteIndexPolicy);
+        }
     }
 
     @Override
@@ -227,6 +259,17 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         }
         if (ignoreIndexSettings == null) {
             validationException = addValidationError("ignoreIndexSettings are missing", validationException);
+        }
+        if (Strings.isNullOrEmpty(renameReplacement) == false
+            && renameReplacement.getBytes(StandardCharsets.UTF_8).length > MetadataCreateIndexService.MAX_INDEX_NAME_BYTES) {
+            validationException = addValidationError(
+                String.format(
+                    Locale.ROOT,
+                    "rename_replacement string size exceeds max allowed size of %s bytes",
+                    MetadataCreateIndexService.MAX_INDEX_NAME_BYTES
+                ),
+                validationException
+            );
         }
         return validationException;
     }
@@ -641,6 +684,26 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     }
 
     /**
+     * Sets alias write index policy for controlling how writeIndex attribute is handled during restore
+     *
+     * @param policy the policy to apply
+     * @return this request
+     */
+    public RestoreSnapshotRequest aliasWriteIndexPolicy(AliasWriteIndexPolicy policy) {
+        this.aliasWriteIndexPolicy = Objects.requireNonNull(policy);
+        return this;
+    }
+
+    /**
+     * Returns alias write index policy
+     *
+     * @return alias write index policy
+     */
+    public AliasWriteIndexPolicy aliasWriteIndexPolicy() {
+        return aliasWriteIndexPolicy;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -729,6 +792,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 } else {
                     throw new IllegalArgumentException("malformed source_remote_translog_repository");
                 }
+            } else if ("alias_write_index_policy".equals(name)) {
+                aliasWriteIndexPolicy(AliasWriteIndexPolicy.fromString((String) entry.getValue()));
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -786,6 +851,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (sourceRemoteTranslogRepository != null) {
             builder.field("source_remote_translog_repository", sourceRemoteTranslogRepository);
         }
+        builder.field("alias_write_index_policy", aliasWriteIndexPolicy.name().toLowerCase(Locale.ROOT));
         builder.endObject();
         return builder;
     }
@@ -817,7 +883,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Objects.equals(snapshotUuid, that.snapshotUuid)
             && Objects.equals(storageType, that.storageType)
             && Objects.equals(sourceRemoteStoreRepository, that.sourceRemoteStoreRepository)
-            && Objects.equals(sourceRemoteTranslogRepository, that.sourceRemoteTranslogRepository);
+            && Objects.equals(sourceRemoteTranslogRepository, that.sourceRemoteTranslogRepository)
+            && aliasWriteIndexPolicy == that.aliasWriteIndexPolicy;
         return equals;
     }
 
@@ -840,7 +907,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             snapshotUuid,
             storageType,
             sourceRemoteStoreRepository,
-            sourceRemoteTranslogRepository
+            sourceRemoteTranslogRepository,
+            aliasWriteIndexPolicy
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

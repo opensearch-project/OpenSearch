@@ -32,11 +32,19 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -44,6 +52,8 @@ import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.approximate.ApproximateMatchAllQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
+import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -62,6 +72,7 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -151,7 +162,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         Map<String, BoolQueryBuilder> alternateVersions = new HashMap<>();
         BoolQueryBuilder tempQueryBuilder = createTestQueryBuilder();
         BoolQueryBuilder expectedQuery = new BoolQueryBuilder();
-        String contentString = "{\n" + "    \"bool\" : {\n";
+        String contentString = """
+            {
+                "bool" : {
+            """;
         if (tempQueryBuilder.must().size() > 0) {
             QueryBuilder must = tempQueryBuilder.must().get(0);
             contentString += "\"must\": " + must.toString() + ",";
@@ -173,7 +187,9 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             expectedQuery.filter(filter);
         }
         contentString = contentString.substring(0, contentString.length() - 1);
-        contentString += "    }    \n" + "}";
+        contentString += """
+                }
+            }""";
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
     }
@@ -238,55 +254,55 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     public void testFromJson() throws IOException {
-        String query = "{"
-            + "\"bool\" : {"
-            + "  \"must\" : [ {"
-            + "    \"term\" : {"
-            + "      \"user\" : {"
-            + "        \"value\" : \"foobar\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  } ],"
-            + "  \"filter\" : [ {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"tech\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  } ],"
-            + "  \"must_not\" : [ {"
-            + "    \"range\" : {"
-            + "      \"age\" : {"
-            + "        \"from\" : 10,"
-            + "        \"to\" : 20,"
-            + "        \"include_lower\" : true,"
-            + "        \"include_upper\" : true,"
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  } ],"
-            + "  \"should\" : [ {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"wow\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  }, {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"opensearch\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  } ],"
-            + "  \"adjust_pure_negative\" : true,"
-            + "  \"minimum_should_match\" : \"23\","
-            + "  \"boost\" : 42.0"
-            + "}"
-            + "}";
+        String query = """
+            {"bool" : {
+              "must" : [ {
+                "term" : {
+                  "user" : {
+                    "value" : "foobar",
+                    "boost" : 1.0
+                  }
+                }
+              } ],
+              "filter" : [ {
+                "term" : {
+                  "tag" : {
+                    "value" : "tech",
+                    "boost" : 1.0
+                  }
+                }
+              } ],
+              "must_not" : [ {
+                "range" : {
+                  "age" : {
+                    "from" : 10,
+                    "to" : 20,
+                    "include_lower" : true,
+                    "include_upper" : true,
+                    "boost" : 1.0
+                  }
+                }
+              } ],
+              "should" : [ {
+                "term" : {
+                  "tag" : {
+                    "value" : "wow",
+                    "boost" : 1.0
+                  }
+                }
+              }, {
+                "term" : {
+                  "tag" : {
+                    "value" : "opensearch",
+                    "boost" : 1.0
+                  }
+                }
+              } ],
+              "adjust_pure_negative" : true,
+              "minimum_should_match" : "23",
+              "boost" : 42.0
+            }
+            }""";
 
         BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
@@ -297,37 +313,43 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     public void testMinimumShouldMatchNumber() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : 1 } }";
+        String query = """
+            {"bool" : {"must" : { "term" : { "field" : "value" } }, "minimum_should_match" : 1 } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertEquals("1", builder.minimumShouldMatch());
     }
 
     public void testMinimumShouldMatchNull() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : null } }";
+        String query = """
+            {"bool" : {"must" : { "term" : { "field" : "value" } }, "minimum_should_match" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertEquals(null, builder.minimumShouldMatch());
     }
 
     public void testMustNull() throws IOException {
-        String query = "{\"bool\" : {\"must\" : null } }";
+        String query = """
+            {"bool" : {"must" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.must().isEmpty());
     }
 
     public void testMustNotNull() throws IOException {
-        String query = "{\"bool\" : {\"must_not\" : null } }";
+        String query = """
+            {"bool" : {"must_not" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.mustNot().isEmpty());
     }
 
     public void testShouldNull() throws IOException {
-        String query = "{\"bool\" : {\"should\" : null } }";
+        String query = """
+            {"bool" : {"should" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.should().isEmpty());
     }
 
     public void testFilterNull() throws IOException {
-        String query = "{\"bool\" : {\"filter\" : null } }";
+        String query = """
+            {"bool" : {"filter" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.filter().isEmpty());
     }
@@ -338,7 +360,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
      */
     public void testFilter() throws IOException {
         // Test for non null filter
-        String query = "{\"bool\" : {\"filter\" : null } }";
+        String query = """
+            {"bool" : {"filter" : null } }""";
         QueryBuilder filter = QueryBuilders.matchAllQuery();
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertFalse(builder.filter(filter).filter().isEmpty());
@@ -353,7 +376,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
      * test that unknown query names in the clauses throw an error
      */
     public void testUnknownQueryName() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"unknown_query\" : { } } } }";
+        String query = """
+            {"bool" : {"must" : { "unknown_query" : { } } } }""";
 
         XContentParseException ex = expectThrows(XContentParseException.class, () -> parseQuery(query));
         assertEquals("[1:41] [bool] failed to parse field [must]", ex.getMessage());
@@ -363,7 +387,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     public void testDeprecation() throws IOException {
-        String query = "{\"bool\" : {\"mustNot\" : { \"match_all\" : { } } } }";
+        String query = """
+            {"bool" : {"mustNot" : { "match_all" : { } } } }""";
         QueryBuilder q = parseQuery(query);
         QueryBuilder expected = new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder());
         assertEquals(expected, q);
@@ -503,5 +528,113 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         assertEquals(0, set.size());
 
+    }
+
+    public void testMultipleComplementAwareOnSameFieldNotRewritten() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        addDocument(w, INT_FIELD_NAME, 1);
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        BoolQueryBuilder qb = new BoolQueryBuilder();
+        // Test a field with two ranges is not rewritten
+        QueryBuilder rq1of2 = new RangeQueryBuilder(INT_FIELD_NAME).gt(10).lt(20);
+        QueryBuilder rq2of2 = new RangeQueryBuilder(INT_FIELD_NAME).gt(30).lt(40);
+        qb.mustNot(rq1of2);
+        qb.mustNot(rq2of2);
+        BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
+
+        assertTrue(rewritten.mustNot().contains(rq1of2));
+        assertTrue(rewritten.mustNot().contains(rq2of2));
+        assertEquals(0, rewritten.should().size());
+
+        // Similarly 1 range query and 1 match query on the same field shouldn't be rewritten
+        qb = new BoolQueryBuilder();
+        qb.mustNot(rq1of2);
+        QueryBuilder matchQuery = new MatchQueryBuilder(INT_FIELD_NAME, 200);
+        qb.mustNot(matchQuery);
+        rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
+        assertTrue(rewritten.mustNot().contains(rq1of2));
+        assertTrue(rewritten.mustNot().contains(matchQuery));
+        assertEquals(0, rewritten.should().size());
+
+        IOUtils.close(w, reader, dir);
+    }
+
+    public void testMustNotRewriteDisabledWithoutLeafReaders() throws Exception {
+        // If we don't have access the LeafReaderContexts, don't perform the must_not rewrite
+        int from = 10;
+        int to = 20;
+
+        BoolQueryBuilder qb = new BoolQueryBuilder();
+        QueryBuilder rq = getRangeQueryBuilder(INT_FIELD_NAME, from, to, true, true);
+        qb.mustNot(rq);
+
+        // Context has no searcher available --> no leaf readers available
+        BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext());
+        assertTrue(rewritten.mustNot().contains(rq));
+    }
+
+    public void testMustNotRewriteDisabledWithoutExactlyOneValuePerDoc() throws Exception {
+        // If the PointValues returned don't show exactly 1 value per doc, don't perform the must_not rewrite
+        int from = 10;
+        int to = 20;
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        addDocument(w, INT_FIELD_NAME, 1, 2, 3); // This doc will have 3 values, so the rewrite shouldn't happen
+        addDocument(w, INT_FIELD_NAME, 1);
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        BoolQueryBuilder qb = new BoolQueryBuilder();
+        QueryBuilder rq = getRangeQueryBuilder(INT_FIELD_NAME, from, to, true, true);
+        qb.mustNot(rq);
+
+        BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
+        assertTrue(rewritten.mustNot().contains(rq));
+
+        IOUtils.close(w, reader, dir);
+    }
+
+    private QueryBuilder getRangeQueryBuilder(String fieldName, Integer lower, Integer upper, boolean includeLower, boolean includeUpper) {
+        RangeQueryBuilder rq = new RangeQueryBuilder(fieldName);
+        if (lower != null) {
+            if (includeLower) {
+                rq.gte(lower);
+            } else {
+                rq.gt(lower);
+            }
+        }
+        if (upper != null) {
+            if (includeUpper) {
+                rq.lte(upper);
+            } else {
+                rq.lt(upper);
+            }
+        }
+        return rq;
+    }
+
+    private void addDocument(IndexWriter w, String fieldName, int... values) throws Exception {
+        Document d = new Document();
+        for (int value : values) {
+            d.add(new IntPoint(fieldName, value));
+        }
+        w.addDocument(d);
+        w.commit();
+    }
+
+    static IndexSearcher getIndexSearcher(DirectoryReader reader) throws Exception {
+        SearchContext searchContext = mock(SearchContext.class);
+        return new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true,
+            null,
+            searchContext
+        );
     }
 }

@@ -82,12 +82,11 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
 
-        if (val instanceof List) {
-            List<?> list = (List<?>) val;
+        if (val instanceof List<?> list) {
             List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
-                if (value instanceof String) {
-                    newList.add(process((String) value));
+                if (value instanceof String stringValue) {
+                    newList.add(process(stringValue));
                 } else {
                     throw new IllegalArgumentException(
                         "value ["
@@ -104,8 +103,8 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
             }
             newValue = newList;
         } else {
-            if (val instanceof String) {
-                newValue = process((String) val);
+            if (val instanceof String stringVal) {
+                newValue = process(stringVal);
             } else {
                 throw new IllegalArgumentException(
                     "field [" + field + "] of type [" + val.getClass().getName() + "] cannot be cast to [" + String.class.getName() + "]"

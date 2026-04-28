@@ -44,6 +44,8 @@ import java.nio.file.Path
 plugins {
   id 'base'
 }
+
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -91,7 +93,7 @@ tasks.withType(NoticeTask).configureEach {
  *****************************************************************************/
 String distOutputs = 'build/outputs/dist'
 String systemdOutputs = 'build/outputs/systemd'
-String transportOutputs = 'build/outputs/transport-only'
+String integTestOutputs = 'build/outputs/integ-test'
 String externalTestOutputs = 'build/outputs/external-test'
 
 def processOutputsTaskProvider = tasks.register("processOutputs", Sync) {
@@ -106,10 +108,9 @@ def processExternalTestOutputsTaskProvider = tasks.register("processExternalTest
   into externalTestOutputs
 }
 
-// Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
-// All transport modules are included so that they may be randomized for testing
-def processTransportOutputsTaskProvider = tasks.register("processTransportOutputs", Sync) {
-  into transportOutputs
+// Copy all modules to integ test build to ensure integ test and min distro behavior is the same since modules are mandatory
+def processIntegTestModulesOutputsTaskProvider = tasks.register("processIntegTestOutputs", Sync) {
+  into integTestOutputs
 }
 
 // these are dummy tasks that can be used to depend on the relevant sub output dir
@@ -129,9 +130,9 @@ def buildSystemdModuleTaskProvider = tasks.register("buildSystemdModule") {
   dependsOn "processSystemdOutputs"
   outputs.dir "${systemdOutputs}/modules"
 }
-def buildTransportModulesTaskProvider = tasks.register("buildTransportModules") {
-  dependsOn processTransportOutputsTaskProvider
-  outputs.dir "${transportOutputs}/modules"
+def buildIntegTestModulesTaskProvider = tasks.register("buildIntegTestModules") {
+  dependsOn processIntegTestModulesOutputsTaskProvider
+  outputs.dir "${integTestOutputs}/modules"
 }
 def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModules") {
   dependsOn "processExternalTestOutputs"
@@ -230,9 +231,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   copyModule(processOutputsTaskProvider, module)
-  if (module.name.startsWith('transport-')) {
-    copyModule(processTransportOutputsTaskProvider, module)
-  }
+  copyModule(processIntegTestModulesOutputsTaskProvider, module)
 
   copyLog4jProperties(buildLog4jConfigTaskProvider, module)
 
@@ -242,8 +241,8 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // copy all sandbox modules if the distribution is a snapshot
 if (VersionProperties.isOpenSearchSnapshot()) {
   Properties sysProps = System.getProperties();
-  // setting this property to false will exclude the sandbox modules from the distribution
-  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "true");
+  // setting this property to true will include the sandbox modules in the distribution
+  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "false");
   if(sysProps != null && enableSandbox == "true") {
     tasks.withType(NoticeTask).configureEach {
       project(':sandbox:libs').subprojects.each { Project lib ->
@@ -312,7 +311,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsUpgradeCli'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsFipsInstallerCli', 'bcFips'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -321,6 +320,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
           attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
         }
+      }
+    }
+    create('agent') {
+      canBeConsumed = false
+      canBeResolved = true
+      attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-dist'))
       }
     }
   }
@@ -333,7 +339,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
-    libsUpgradeCli project(path: ':distribution:tools:upgrade-cli')
+    libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
+
+    bcFips libs.bundles.bouncycastle
+
+    agent project(path: ':libs:agent-sm:agent', configuration: 'agentDist')
   }
 
   project.ext {
@@ -345,21 +355,25 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
+        if ( BuildParams.isInFipsJvm() ) {
+          from(configurations.bcFips)
+        }
         into('tools/plugin-cli') {
           from(configurations.libsPluginCli)
         }
         into('tools/keystore-cli') {
           from(configurations.libsKeystoreCli)
         }
-        into('tools/upgrade-cli') {
-          from(configurations.libsUpgradeCli)
+        // Add FIPS installer CLI
+        into('tools/fips-demo-installer-cli') {
+          from(configurations.libsFipsInstallerCli)
         }
       }
     }
 
     agentFiles = {
       copySpec {
-        from(project(':libs:agent-sm:agent').prepareAgent) {
+        from(configurations.agent) {
           include '**/*.jar'
           exclude '**/*-javadoc.jar'
           exclude '**/*-sources.jar'
@@ -401,8 +415,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    transportModulesFiles = copySpec {
-      from buildTransportModulesTaskProvider
+    integTestModulesFiles = copySpec {
+      from buildIntegTestModulesTaskProvider
     }
 
     configFiles = { distributionType, java ->

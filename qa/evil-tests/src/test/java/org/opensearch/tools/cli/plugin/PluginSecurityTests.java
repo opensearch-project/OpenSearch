@@ -32,57 +32,50 @@
 
 package org.opensearch.tools.cli.plugin;
 
+import org.opensearch.secure_sm.policy.PolicyInitializationException;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.net.SocketPermission;
 import java.nio.file.Path;
 import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /** Tests plugin manager security check */
-@SuppressWarnings("removal")
 public class PluginSecurityTests extends OpenSearchTestCase {
 
     /** Test that we can parse the set of permissions correctly for a simple policy */
     public void testParsePermissions() throws Exception {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
         Path scratch = createTempDir();
         Path testFile = this.getDataPath("simple-plugin-security.policy");
         Set<String> actual = PluginSecurity.parsePermissions(testFile, scratch);
-        assertThat(actual, contains(PluginSecurity.formatPermission(new RuntimePermission("queuePrintJob"))));
+        assertThat(actual, contains(PluginSecurity.formatPermission(new SocketPermission("*", "connect"))));
     }
 
     /** Test that we can parse the set of permissions correctly for a complex policy */
     public void testParseTwoPermissions() throws Exception {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
         Path scratch = createTempDir();
         Path testFile = this.getDataPath("complex-plugin-security.policy");
         Set<String> actual = PluginSecurity.parsePermissions(testFile, scratch);
         assertThat(actual, containsInAnyOrder(
-            PluginSecurity.formatPermission(new RuntimePermission("getClassLoader")),
-            PluginSecurity.formatPermission(new RuntimePermission("closeClassLoader"))));
+            PluginSecurity.formatPermission(new SocketPermission("*", "connect,resolve")),
+            PluginSecurity.formatPermission(new SocketPermission("opensearch.org", "connect"))));
     }
 
     /** Test that we can format some simple permissions properly */
     public void testFormatSimplePermission() throws Exception {
         assertEquals(
-                "java.lang.RuntimePermission queuePrintJob",
-                PluginSecurity.formatPermission(new RuntimePermission("queuePrintJob")));
+                "java.net.SocketPermission * connect,resolve",
+                PluginSecurity.formatPermission(new SocketPermission("*", "connect,resolve")));
     }
 
     /** Test that we can format an unresolved permission properly */
     public void testFormatUnresolvedPermission() throws Exception {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
         Path scratch = createTempDir();
         Path testFile = this.getDataPath("unresolved-plugin-security.policy");
-        Set<String> permissions = PluginSecurity.parsePermissions(testFile, scratch);
-        assertThat(permissions, contains("org.fake.FakePermission fakeName"));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> PluginSecurity.parsePermissions(testFile, scratch));
+        assertThat(ex.getCause(), instanceOf(PolicyInitializationException.class));
     }
 }

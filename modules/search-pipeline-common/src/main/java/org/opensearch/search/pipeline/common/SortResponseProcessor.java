@@ -151,7 +151,7 @@ public class SortResponseProcessor extends AbstractProcessor implements SearchRe
                 Map<String, Object> sourceAsMap = typeAndSourceMap.v2();
                 if (sourceAsMap.containsKey(sortField)) {
                     Object val = sourceAsMap.get(sortField);
-                    if (val instanceof List) {
+                    if (val instanceof List<?>) {
                         @SuppressWarnings("unchecked")
                         List<Object> listVal = (List<Object>) val;
                         sourceAsMap.put(targetField, getSortedValues(listVal));
@@ -174,7 +174,7 @@ public class SortResponseProcessor extends AbstractProcessor implements SearchRe
 
     @SuppressWarnings("unchecked")
     private Comparable<Object> downcastToComparable(Object obj) {
-        if (obj instanceof Comparable) {
+        if (obj instanceof Comparable<?>) {
             return (Comparable<Object>) obj;
         } else if (obj == null) {
             throw new IllegalArgumentException("field [" + sortField + "] contains a null value.]");

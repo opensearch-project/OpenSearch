@@ -31,7 +31,11 @@
 
 package org.apache.lucene.search.grouping;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -61,11 +65,41 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     protected Scorable scorer;
 
     private int totalHitCount;
+    private final FieldDoc after;
+    private FieldComparator<?> afterComparator;
+    private LeafFieldComparator leafComparator;
+    private final int reverseMul;
 
     CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN) {
         super(groupSelector, sort, topN);
         this.collapseField = collapseField;
         this.sort = sort;
+        this.after = null;
+        this.reverseMul = 1;
+    }
+
+    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN, FieldDoc after) {
+        super(groupSelector, sort, topN);
+        this.collapseField = collapseField;
+        this.sort = sort;
+        this.after = after;
+
+        if (after != null) {
+            // we should have only one sort field which is the collapse field
+            if (sort.getSort().length != 1 || !sort.getSort()[0].getField().equals(collapseField)) {
+                throw new IllegalArgumentException("The after parameter can only be used when the sort is based on the collapse field");
+            }
+            SortField field = sort.getSort()[0];
+            afterComparator = field.getComparator(1, Pruning.NONE);
+
+            @SuppressWarnings("unchecked")
+            FieldComparator<Object> comparator = (FieldComparator<Object>) afterComparator;
+            comparator.setTopValue(after.fields[0]);
+
+            reverseMul = field.getReverse() ? -1 : 1;
+        } else {
+            reverseMul = 1;
+        }
     }
 
     /**
@@ -76,7 +110,9 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     public CollapseTopFieldDocs getTopDocs() throws IOException {
         Collection<SearchGroup<T>> groups = super.getTopGroups(0);
         if (groups == null) {
-            TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+            // For search_after, use totalHitCount to preserve hit information
+            // For non-search_after, totalHitCount equals 0 when no matches, so behavior unchanged
+            TotalHits totalHits = new TotalHits(totalHitCount, TotalHits.Relation.EQUAL_TO);
             return new CollapseTopFieldDocs(collapseField, totalHits, new ScoreDoc[0], sort.getSort(), new Object[0]);
         }
         FieldDoc[] docs = new FieldDoc[groups.size()];
@@ -123,8 +159,32 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
 
     @Override
     public void collect(int doc) throws IOException {
+        if (after != null && !isAfterDoc(doc)) {
+            totalHitCount++;
+            return;
+        }
+
         super.collect(doc);
         totalHitCount++;
+    }
+
+    private boolean isAfterDoc(int doc) throws IOException {
+        if (leafComparator == null) return true;
+
+        int cmp = reverseMul * leafComparator.compareTop(doc);
+        if (cmp != 0) {
+            return cmp < 0;
+        }
+
+        return doc > after.doc;
+    }
+
+    @Override
+    protected void doSetNextReader(LeafReaderContext readerContext) throws IOException {
+        super.doSetNextReader(readerContext);
+        if (after != null) {
+            leafComparator = afterComparator.getLeafComparator(readerContext);
+        }
     }
 
     /**
@@ -151,6 +211,31 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     }
 
     /**
+     * Create a collapsing top docs collector on a {@link org.apache.lucene.index.NumericDocValues} field.
+     * It accepts also {@link org.apache.lucene.index.SortedNumericDocValues} field but
+     * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
+     * field.
+     *
+     * @param collapseField     The sort field used to group documents.
+     * @param collapseFieldType The {@link MappedFieldType} for this sort field.
+     * @param sort              The {@link Sort} used to sort the collapsed hits.
+     *                          The collapsing keeps only the top sorted document per collapsed key.
+     *                          This must be non-null, ie, if you want to groupSort by relevance
+     *                          use Sort.RELEVANCE.
+     * @param topN              How many top groups to keep.
+     * @param after             The last sort value of the previous page. Pass null if this is the first page.
+     */
+    public static CollapsingTopDocsCollector<?> createNumeric(
+        String collapseField,
+        MappedFieldType collapseFieldType,
+        Sort sort,
+        int topN,
+        FieldDoc after
+    ) {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseFieldType), collapseField, sort, topN, after);
+    }
+
+    /**
      * Create a collapsing top docs collector on a {@link org.apache.lucene.index.SortedDocValues} field.
      * It accepts also {@link org.apache.lucene.index.SortedSetDocValues} field but
      * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
@@ -170,5 +255,29 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         int topN
     ) {
         return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType), collapseField, sort, topN);
+    }
+
+    /**
+     * Create a collapsing top docs collector on a {@link org.apache.lucene.index.SortedDocValues} field.
+     * It accepts also {@link org.apache.lucene.index.SortedSetDocValues} field but
+     * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
+     * field.
+     *
+     * @param collapseField     The sort field used to group documents.
+     * @param collapseFieldType The {@link MappedFieldType} for this sort field.
+     * @param sort              The {@link Sort} used to sort the collapsed hits. The collapsing keeps only the top sorted
+     *                          document per collapsed key.
+     *                          This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
+     * @param topN              How many top groups to keep.
+     * @param after             The last sort value of the previous page. Pass null if this is the first page.
+     */
+    public static CollapsingTopDocsCollector<?> createKeyword(
+        String collapseField,
+        MappedFieldType collapseFieldType,
+        Sort sort,
+        int topN,
+        FieldDoc after
+    ) {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType), collapseField, sort, topN, after);
     }
 }

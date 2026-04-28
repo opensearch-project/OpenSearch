@@ -34,6 +34,7 @@ package org.opensearch.gateway;
 
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -74,6 +75,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
         return internalCluster().client(name);
     }
 
+    @SuppressForbidden(reason = "Sleeping longer than timeout")
     public void testRecoverAfterNodes() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start node (1)");

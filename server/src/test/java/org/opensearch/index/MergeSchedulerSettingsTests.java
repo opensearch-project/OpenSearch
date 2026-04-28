@@ -157,6 +157,7 @@ public class MergeSchedulerSettingsTests extends OpenSearchTestCase {
         return newIndexMeta("index", builder.build());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/19866")
     public void testMaxThreadAndMergeCount() {
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,

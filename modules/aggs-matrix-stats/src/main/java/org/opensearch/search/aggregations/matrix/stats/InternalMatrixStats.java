@@ -52,6 +52,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     private final RunningStats stats;
     /** final result */
     private final MatrixStatsResults results;
+    private final String[] fieldNames;
 
     /** per shard ctor */
     InternalMatrixStats(
@@ -59,12 +60,14 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         long count,
         RunningStats multiFieldStatsResults,
         MatrixStatsResults results,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        String[] fieldNames
     ) {
         super(name, metadata);
         assert count >= 0;
         this.stats = multiFieldStatsResults;
         this.results = results;
+        this.fieldNames = fieldNames;
     }
 
     /**
@@ -74,12 +77,20 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         super(in);
         stats = in.readOptionalWriteable(RunningStats::new);
         results = in.readOptionalWriteable(MatrixStatsResults::new);
+        if (in.getVersion().onOrAfter(RunningStats.ARRAY_IMPL_VERSION)) {
+            fieldNames = in.readOptionalStringArray();
+        } else {
+            fieldNames = null;
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(stats);
         out.writeOptionalWriteable(results);
+        if (out.getVersion().onOrAfter(RunningStats.ARRAY_IMPL_VERSION)) {
+            out.writeOptionalStringArray(fieldNames);
+        }
     }
 
     @Override
@@ -257,19 +268,19 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
         // return empty result iff all stats are null
         if (aggs.isEmpty()) {
-            return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(), getMetadata());
+            return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(fieldNames), getMetadata(), fieldNames);
         }
 
-        RunningStats runningStats = new RunningStats();
+        RunningStats runningStats = new RunningStats(fieldNames);
         for (InternalAggregation agg : aggs) {
             runningStats.merge(((InternalMatrixStats) agg).stats);
         }
 
         if (reduceContext.isFinalReduce()) {
             MatrixStatsResults results = new MatrixStatsResults(runningStats);
-            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, getMetadata());
+            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, getMetadata(), fieldNames);
         }
-        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
+        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata(), fieldNames);
     }
 
     @Override

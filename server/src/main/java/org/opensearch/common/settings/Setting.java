@@ -177,7 +177,15 @@ public class Setting<T> implements ToXContentObject {
          * Mark this setting as immutable on snapshot restore
          * i.e. the setting will not be allowed to be removed or modified during restore
          */
-        UnmodifiableOnRestore
+        UnmodifiableOnRestore,
+
+        /**
+         * Marks a setting as sensitive. Can only be applied to dynamic settings.
+         * The Sensitive property has default enforcement but enables plugins to implement
+         * different policies for these settings. In practice the security plugin will
+         * require higher privileges for modifying sensitive settings.
+         */
+        Sensitive
     }
 
     private final Key key;
@@ -216,6 +224,9 @@ public class Setting<T> implements ToXContentObject {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             } else if (propertiesAsSet.contains(Property.UnmodifiableOnRestore) && propertiesAsSet.contains(Property.Dynamic)) {
                 throw new IllegalArgumentException("UnmodifiableOnRestore setting [" + key + "] cannot be dynamic");
+            }
+            if (propertiesAsSet.contains(Property.Sensitive) && propertiesAsSet.contains(Property.Dynamic) == false) {
+                throw new IllegalArgumentException("sensitive setting [" + key + "] must be dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
@@ -361,6 +372,14 @@ public class Setting<T> implements ToXContentObject {
         return properties.contains(Property.UnmodifiableOnRestore);
     }
 
+    /**
+     * Returns <code>true</code> if this setting is sensitive, meaning it requires security admin
+     * privileges to be updated dynamically. Otherwise <code>false</code>.
+     */
+    public final boolean isSensitive() {
+        return properties.contains(Property.Sensitive);
+    }
+
     public final boolean isInternalIndex() {
         return properties.contains(Property.InternalIndex);
     }
@@ -501,9 +520,8 @@ public class Setting<T> implements ToXContentObject {
                     map = new HashMap<>();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        if (setting instanceof AffixSetting) {
+                        if (setting instanceof AffixSetting<?> as) {
                             // Collect all possible concrete settings
-                            AffixSetting<?> as = ((AffixSetting<?>) setting);
                             for (String ns : as.getNamespaces(settings)) {
                                 Setting<?> s = as.getConcreteSettingForNamespace(ns);
                                 map.put(s, s.get(settings, false));

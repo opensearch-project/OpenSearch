@@ -10,21 +10,12 @@ package org.opensearch.search.pipeline;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
-import org.opensearch.action.search.MockSearchPhaseContext;
 import org.opensearch.action.search.PutSearchPipelineRequest;
-import org.opensearch.action.search.QueryPhaseResultConsumer;
-import org.opensearch.action.search.SearchPhaseContext;
-import org.opensearch.action.search.SearchPhaseController;
-import org.opensearch.action.search.SearchPhaseName;
-import org.opensearch.action.search.SearchPhaseResults;
-import org.opensearch.action.search.SearchProgressListener;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
@@ -33,35 +24,24 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.metrics.OperationStats;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
-import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.MockLogAppender;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.junit.Before;
@@ -76,11 +56,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.opensearch.search.pipeline.SearchPipelineService.ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SearchPipelineServiceTests extends OpenSearchTestCase {
+public class SearchPipelineServiceTests extends SearchPipelineTestCase {
 
     private static final SearchPipelinePlugin DUMMY_PLUGIN = new SearchPipelinePlugin() {
         @Override
@@ -100,35 +81,23 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
 
-    private IndexNameExpressionResolver indexNameExpressionResolver;
-
     @Before
-    public void setup() {
+    public void setup() throws Exception {
+        super.setUp();
         threadPool = mock(ThreadPool.class);
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
-        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
     }
 
-    private static IndexMetadata.Builder indexBuilder(String index) {
-        return indexBuilder(index, Settings.EMPTY);
-    }
-
-    private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
-        return IndexMetadata.builder(index).settings(addAdditionalSettings(additionalSettings));
-    }
-
-    private static Settings.Builder addAdditionalSettings(Settings additionalSettings) {
-        return settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(additionalSettings);
-    }
-
     public void testSearchPipelinePlugin() {
         Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         SearchPipelineService searchPipelineService = new SearchPipelineService(
-            mock(ClusterService.class),
+            clusterService,
             threadPool,
             null,
             null,
@@ -138,6 +107,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             List.of(DUMMY_PLUGIN),
             client
         );
+
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories = searchPipelineService
             .getRequestProcessorFactories();
         assertEquals(1, requestProcessorFactories.size());
@@ -146,6 +116,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             .getResponseProcessorFactories();
         assertEquals(1, responseProcessorFactories.size());
         assertTrue(responseProcessorFactories.containsKey("bar"));
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseInjectorProcessorFactories = searchPipelineService
+            .getSearchPhaseResultsProcessorFactories();
+        assertEquals(1, phaseInjectorProcessorFactories.size());
+        assertTrue(phaseInjectorProcessorFactories.containsKey("zoe"));
     }
 
     public void testSearchPipelinePluginDuplicate() {
@@ -169,8 +143,12 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     public void testResolveSearchPipelineDoesNotExist() {
         Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         SearchPipelineService searchPipelineService = new SearchPipelineService(
-            mock(ClusterService.class),
+            clusterService,
             threadPool,
             null,
             null,
@@ -190,32 +168,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     public void testResolveIndexDefaultPipeline() throws Exception {
         SearchPipelineService service = createWithProcessors();
-
-        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
-            Map.of(
-                "p1",
-                new PipelineConfiguration(
-                    "p1",
-                    new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
-                    MediaTypeRegistry.JSON
-                )
-            )
-        );
-        Settings defaultPipelineSetting = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            .put(IndexSettings.DEFAULT_SEARCH_PIPELINE.getKey(), "p1")
-            .build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("my_index").settings(defaultPipelineSetting).build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
-        ClusterState previousState = clusterState;
-        clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder().put(indexMetadata, false).putCustom(SearchPipelineMetadata.TYPE, metadata))
-            .build();
-
-        ClusterChangedEvent cce = new ClusterChangedEvent("", clusterState, previousState);
-        service.applyClusterState(cce);
+        setUpForResolvePipeline(service);
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
         PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, indexNameExpressionResolver));
@@ -223,192 +176,122 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals(10, pipelinedRequest.source().size());
 
         // Bypass the default pipeline
-        searchRequest.pipeline("_none");
+        searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5)).pipeline("_none");
         pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
         assertEquals("_none", pipelinedRequest.getPipeline().getId());
         assertEquals(5, pipelinedRequest.source().size());
+        assertTrue(pipelinedRequest.getSystemGeneratedPipelineHolder().isNoOp());
     }
 
-    private static class FakeRequestProcessor extends AbstractProcessor implements SearchRequestProcessor {
-        private final Consumer<SearchRequest> executor;
+    public void testResolveSystemGeneratedSearchPipeline_whenHappyCase_thenSuccess() throws Exception {
+        SearchPipelineService service = createWithSystemGeneratedProcessors();
+        setUpForResolvePipeline(service);
+        enabledAllSystemGeneratedFactories(service);
 
-        private final String type;
-
-        public FakeRequestProcessor(String type, String tag, String description, boolean ignoreFailure, Consumer<SearchRequest> executor) {
-            super(tag, description, ignoreFailure);
-            this.executor = executor;
-            this.type = type;
-        }
-
-        @Override
-        public SearchRequest processRequest(SearchRequest request) throws Exception {
-            executor.accept(request);
-            return request;
-        }
-
-        /*
-         * Gets the type of processor
-         */
-        @Override
-        public String getType() {
-            return this.type;
-        }
+        SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        // user defined pipeline is resolved
+        assertEquals("p1", pipelinedRequest.getPipeline().getId());
+        // system generated pipelines are resolved
+        SearchRequestProcessor systemGeneratedRequestProcessorPre = pipelinedRequest.getSystemGeneratedPipelineHolder()
+            .prePipeline()
+            .getSearchRequestProcessors()
+            .getFirst();
+        SearchRequestProcessor systemGeneratedRequestProcessorPost = pipelinedRequest.getSystemGeneratedPipelineHolder()
+            .postPipeline()
+            .getSearchRequestProcessors()
+            .getFirst();
+        SearchResponseProcessor systemGeneratedResponseProcessorPre = pipelinedRequest.getSystemGeneratedPipelineHolder()
+            .prePipeline()
+            .getSearchResponseProcessors()
+            .getFirst();
+        SearchResponseProcessor systemGeneratedResponseProcessorPost = pipelinedRequest.getSystemGeneratedPipelineHolder()
+            .postPipeline()
+            .getSearchResponseProcessors()
+            .getFirst();
+        SearchPhaseResultsProcessor systemGeneratedPhaseProcessorPre = pipelinedRequest.getSystemGeneratedPipelineHolder()
+            .prePipeline()
+            .getSearchPhaseResultsProcessors()
+            .getFirst();
+        SearchPhaseResultsProcessor systemGeneratedPhaseProcessorPost = pipelinedRequest.getSystemGeneratedPipelineHolder()
+            .postPipeline()
+            .getSearchPhaseResultsProcessors()
+            .getFirst();
+        assertTrue(systemGeneratedRequestProcessorPre instanceof FakeSystemGeneratedRequestPreProcessor);
+        assertTrue(systemGeneratedRequestProcessorPost instanceof FakeSystemGeneratedRequestPostProcessor);
+        assertTrue(systemGeneratedResponseProcessorPre instanceof FakeSystemGeneratedResponsePreProcessor);
+        assertTrue(systemGeneratedResponseProcessorPost instanceof FakeSystemGeneratedResponsePostProcessor);
+        assertTrue(systemGeneratedPhaseProcessorPre instanceof FakeSystemGeneratedSearchPhaseResultsPreProcessor);
+        assertTrue(systemGeneratedPhaseProcessorPost instanceof FakeSystemGeneratedSearchPhaseResultsPostProcessor);
     }
 
-    private static class FakeResponseProcessor extends AbstractProcessor implements SearchResponseProcessor {
-        private final Consumer<SearchResponse> executor;
-        private String type;
-
-        public FakeResponseProcessor(
-            String type,
-            String tag,
-            String description,
-            boolean ignoreFailure,
-            Consumer<SearchResponse> executor
-        ) {
-            super(tag, description, ignoreFailure);
-            this.executor = executor;
-            this.type = type;
-        }
-
-        @Override
-        public SearchResponse processResponse(SearchRequest request, SearchResponse response) throws Exception {
-            executor.accept(response);
-            return response;
-        }
-
-        /**
-         * Gets the type of processor
-         */
-        @Override
-        public String getType() {
-            return this.type;
-        }
-    }
-
-    private static class FakeSearchPhaseResultsProcessor extends AbstractProcessor implements SearchPhaseResultsProcessor {
-        private Consumer<SearchPhaseResult> querySearchResultConsumer;
-
-        private String type;
-
-        public FakeSearchPhaseResultsProcessor(
-            String type,
-            String tag,
-            String description,
-            boolean ignoreFailure,
-            Consumer<SearchPhaseResult> querySearchResultConsumer
-        ) {
-            super(tag, description, ignoreFailure);
-            this.querySearchResultConsumer = querySearchResultConsumer;
-            this.type = type;
-        }
-
-        @Override
-        public <Result extends SearchPhaseResult> void process(
-            SearchPhaseResults<Result> searchPhaseResult,
-            SearchPhaseContext searchPhaseContext
-        ) {
-            List<Result> resultAtomicArray = searchPhaseResult.getAtomicArray().asList();
-            // updating the maxScore
-            resultAtomicArray.forEach(querySearchResultConsumer);
-        }
-
-        @Override
-        public SearchPhaseName getBeforePhase() {
-            return SearchPhaseName.QUERY;
-        }
-
-        @Override
-        public SearchPhaseName getAfterPhase() {
-            return SearchPhaseName.FETCH;
-        }
-
-        /**
-         * Gets the type of processor
-         */
-        @Override
-        public String getType() {
-            return this.type;
-        }
-    }
-
-    private SearchPipelineService createWithProcessors() {
+    public void testResolveSystemGeneratedSearchPipeline_whenMoreThanOneProcessorPerStage_thenException() throws Exception {
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessors = new HashMap<>();
-        requestProcessors.put("scale_request_size", (processorFactories, tag, description, ignoreFailure, config, ctx) -> {
-            float scale = ((Number) config.remove("scale")).floatValue();
-            return new FakeRequestProcessor(
-                "scale_request_size",
-                tag,
-                description,
-                ignoreFailure,
-                req -> req.source().size((int) (req.source().size() * scale))
-            );
-        });
-        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessors = new HashMap<>();
-        responseProcessors.put("fixed_score", (processorFactories, tag, description, ignoreFailure, config, ctx) -> {
-            float score = ((Number) config.remove("score")).floatValue();
-            return new FakeResponseProcessor(
-                "fixed_score",
-                tag,
-                description,
-                ignoreFailure,
-                rsp -> rsp.getHits().forEach(h -> h.score(score))
-            );
-        });
+        requestProcessors.put("scale_request_size", new ScaleRequestSizeFactory());
 
-        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> searchPhaseProcessors = new HashMap<>();
-        searchPhaseProcessors.put("max_score", (processorFactories, tag, description, ignoreFailure, config, context) -> {
-            final float finalScore = config.containsKey("score") ? ((Number) config.remove("score")).floatValue() : 100f;
-            final Consumer<SearchPhaseResult> querySearchResultConsumer = (result) -> result.queryResult().topDocs().maxScore = finalScore;
-            return new FakeSearchPhaseResultsProcessor("max_score", tag, description, ignoreFailure, querySearchResultConsumer);
-        });
+        Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<SearchRequestProcessor>> systemGeneratedRequestProcessors =
+            new HashMap<>();
+        systemGeneratedRequestProcessors.put("system_scale_request_size", new SystemGeneratedScaleRequestSizePreFactory());
+        // Add the factory again to generate two processors in the same execution stage
+        systemGeneratedRequestProcessors.put("system_scale_request_size_1", new SystemGeneratedScaleRequestSizePreFactory());
 
-        return createWithProcessors(requestProcessors, responseProcessors, searchPhaseProcessors);
+        SearchPipelineService service = createWithProcessors(
+            requestProcessors,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            systemGeneratedRequestProcessors,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+        setUpForResolvePipeline(service);
+        enabledAllSystemGeneratedFactories(service);
+
+        SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> service.resolvePipeline(searchRequest, indexNameExpressionResolver)
+        );
+
+        String expectedError =
+            "Cannot support more than one system generated SEARCH_REQUEST processor to be executed PRE_USER_DEFINED. Now we have [system_scale_request_size_pre,system_scale_request_size_pre].";
+        assertEquals(expectedError, exception.getMessage());
+    }
+
+    public void testResolveSystemGeneratedSearchPipeline_whenNotMeetCondition_thenNoGeneration() throws Exception {
+        SearchPipelineService service = createWithSystemGeneratedProcessors();
+        setUpForResolvePipeline(service);
+        enabledAllSystemGeneratedFactories(service);
+
+        // set a large size to not meet the condition to generate the system generated request processor
+        SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(20));
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+
+        // verify the system generated request processor is not generated
+        assertTrue(
+            "Should not systematically generate the search request processor",
+            pipelinedRequest.getSystemGeneratedPipelineHolder().prePipeline().getSearchRequestProcessors().isEmpty()
+        );
+    }
+
+    public void testResolveSystemGeneratedSearchPipeline_whenDisableSystemGeneratedFactories_thenNoGeneration() throws Exception {
+        SearchPipelineService service = createWithSystemGeneratedProcessors();
+        setUpForResolvePipeline(service);
+
+        // set a large size to not meet the condition to generate the system generated request processor
+        SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+
+        // verify no system generated processors
+        assertTrue(
+            "Should not systematically generate the search processors",
+            pipelinedRequest.getSystemGeneratedPipelineHolder().isNoOp()
+        );
     }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
-    }
-
-    private SearchPipelineService createWithProcessors(
-        Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessors,
-        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessors,
-        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseProcessors
-    ) {
-        Client client = mock(Client.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
-        when(threadPool.generic()).thenReturn(executorService);
-        when(threadPool.executor(anyString())).thenReturn(executorService);
-        return new SearchPipelineService(
-            mock(ClusterService.class),
-            threadPool,
-            null,
-            null,
-            null,
-            null,
-            this.writableRegistry(),
-            Collections.singletonList(new SearchPipelinePlugin() {
-                @Override
-                public Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessors(Parameters parameters) {
-                    return requestProcessors;
-                }
-
-                @Override
-                public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Parameters parameters) {
-                    return responseProcessors;
-                }
-
-                @Override
-                public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(Parameters parameters) {
-                    return phaseProcessors;
-                }
-
-            }),
-            client
-        );
     }
 
     public void testUpdatePipelines() {
@@ -597,219 +480,6 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchPipelineService.innerDelete(deleteAllRequest, clusterState);
     }
 
-    public void testTransformRequest() throws Exception {
-        SearchPipelineService searchPipelineService = createWithProcessors();
-
-        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
-            Map.of(
-                "p1",
-                new PipelineConfiguration(
-                    "p1",
-                    new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
-                    MediaTypeRegistry.JSON
-                )
-            )
-        );
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
-        ClusterState previousState = clusterState;
-
-        Metadata.Builder mdBuilder = Metadata.builder()
-            .putCustom(SearchPipelineMetadata.TYPE, metadata)
-            .put(indexBuilder("my-index").putAlias(AliasMetadata.builder("barbaz")));
-
-        clusterState = ClusterState.builder(clusterState).metadata(mdBuilder).build();
-
-        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
-
-        int size = 10;
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar")).size(size);
-        SearchRequest request = new SearchRequest("my-index").source(sourceBuilder).pipeline("p1");
-
-        PipelinedRequest pipelinedRequest = syncTransformRequest(
-            searchPipelineService.resolvePipeline(request, indexNameExpressionResolver)
-        );
-
-        assertEquals(2 * size, pipelinedRequest.source().size());
-        assertEquals(size, request.source().size());
-
-        // This request doesn't specify a pipeline, it doesn't get transformed.
-        request = new SearchRequest("my-index").source(sourceBuilder);
-        pipelinedRequest = searchPipelineService.resolvePipeline(request, indexNameExpressionResolver);
-        assertEquals(size, pipelinedRequest.source().size());
-    }
-
-    public void testTransformResponse() throws Exception {
-        SearchPipelineService searchPipelineService = createWithProcessors();
-
-        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
-            Map.of(
-                "p1",
-                new PipelineConfiguration(
-                    "p1",
-                    new BytesArray("{\"response_processors\" : [ { \"fixed_score\": { \"score\" : 2 } } ] }"),
-                    MediaTypeRegistry.JSON
-                )
-            )
-        );
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
-        ClusterState previousState = clusterState;
-        clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder().putCustom(SearchPipelineMetadata.TYPE, metadata))
-            .build();
-        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
-
-        int size = 10;
-        SearchHit[] hits = new SearchHit[size];
-        for (int i = 0; i < size; i++) {
-            hits[i] = new SearchHit(i, "doc" + i, Collections.emptyMap(), Collections.emptyMap());
-            hits[i].score(i);
-        }
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(size * 2, TotalHits.Relation.EQUAL_TO), size);
-        SearchResponseSections searchResponseSections = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-        SearchResponse searchResponse = new SearchResponse(searchResponseSections, null, 1, 1, 0, 10, null, null);
-
-        // First try without specifying a pipeline, which should be a no-op.
-        SearchRequest searchRequest = new SearchRequest();
-        searchRequest.source(createDefaultSearchSourceBuilder());
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
-        SearchResponse notTransformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
-        assertSame(searchResponse, notTransformedResponse);
-
-        // Now apply a pipeline
-        searchRequest = new SearchRequest().pipeline("p1");
-        searchRequest.source(createDefaultSearchSourceBuilder());
-        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
-        SearchResponse transformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
-        assertEquals(size, transformedResponse.getHits().getHits().length);
-        for (int i = 0; i < size; i++) {
-            assertEquals(2.0, transformedResponse.getHits().getHits()[i].getScore(), 0.0001f);
-        }
-    }
-
-    /**
-     * Helper to synchronously apply a response pipeline, returning the transformed response.
-     */
-    private static SearchResponse syncTransformResponse(PipelinedRequest pipelinedRequest, SearchResponse searchResponse) throws Exception {
-        SearchResponse[] responseBox = new SearchResponse[1];
-        Exception[] exceptionBox = new Exception[1];
-        ActionListener<SearchResponse> responseListener = pipelinedRequest.transformResponseListener(ActionListener.wrap(r -> {
-            responseBox[0] = r;
-        }, e -> { exceptionBox[0] = e; }));
-        responseListener.onResponse(searchResponse);
-
-        if (exceptionBox[0] != null) {
-            throw exceptionBox[0];
-        }
-        return responseBox[0];
-    }
-
-    /**
-     * Helper to synchronously apply a request pipeline, returning the transformed request.
-     */
-    private static PipelinedRequest syncTransformRequest(PipelinedRequest request) throws Exception {
-        PipelinedRequest[] requestBox = new PipelinedRequest[1];
-        Exception[] exceptionBox = new Exception[1];
-
-        request.transformRequest(ActionListener.wrap(r -> requestBox[0] = (PipelinedRequest) r, e -> exceptionBox[0] = e));
-        if (exceptionBox[0] != null) {
-            throw exceptionBox[0];
-        }
-        return requestBox[0];
-    }
-
-    /**
-     * Helper to synchronously apply a request pipeline and response pipeline, returning the transformed response.
-     */
-    private static SearchResponse syncExecutePipeline(PipelinedRequest request, SearchResponse response) throws Exception {
-        return syncTransformResponse(syncTransformRequest(request), response);
-    }
-
-    public void testTransformSearchPhase() {
-        SearchPipelineService searchPipelineService = createWithProcessors();
-        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
-            Map.of(
-                "p1",
-                new PipelineConfiguration(
-                    "p1",
-                    new BytesArray("{\"phase_results_processors\" : [ { \"max_score\" : { } } ]}"),
-                    MediaTypeRegistry.JSON
-                )
-            )
-        );
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
-        ClusterState previousState = clusterState;
-        clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder().putCustom(SearchPipelineMetadata.TYPE, metadata))
-            .build();
-        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(),
-            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
-        );
-        SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(10);
-        QueryPhaseResultConsumer searchPhaseResults = new QueryPhaseResultConsumer(
-            searchPhaseContext.getRequest(),
-            OpenSearchExecutors.newDirectExecutorService(),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            SearchProgressListener.NOOP,
-            writableRegistry(),
-            2,
-            exc -> {}
-        );
-
-        final QuerySearchResult querySearchResult = new QuerySearchResult();
-        querySearchResult.setShardIndex(1);
-        querySearchResult.topDocs(new TopDocsAndMaxScore(new TopDocs(null, new ScoreDoc[1]), 1f), null);
-        searchPhaseResults.consumeResult(querySearchResult, () -> {});
-
-        // First try without specifying a pipeline, which should be a no-op.
-        SearchRequest searchRequest = new SearchRequest();
-        searchRequest.source(createDefaultSearchSourceBuilder());
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
-        AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResults = searchPhaseResults.getAtomicArray();
-        pipelinedRequest.transformSearchPhaseResults(
-            searchPhaseResults,
-            searchPhaseContext,
-            SearchPhaseName.QUERY.getName(),
-            SearchPhaseName.FETCH.getName()
-        );
-        assertSame(searchPhaseResults.getAtomicArray(), notTransformedSearchPhaseResults);
-
-        // Now set the pipeline as p1
-        searchRequest = new SearchRequest().pipeline("p1");
-        searchRequest.source(createDefaultSearchSourceBuilder());
-        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
-
-        pipelinedRequest.transformSearchPhaseResults(
-            searchPhaseResults,
-            searchPhaseContext,
-            SearchPhaseName.QUERY.getName(),
-            SearchPhaseName.FETCH.getName()
-        );
-
-        List<SearchPhaseResult> resultAtomicArray = searchPhaseResults.getAtomicArray().asList();
-        assertEquals(1, resultAtomicArray.size());
-        // updating the maxScore
-        for (SearchPhaseResult result : resultAtomicArray) {
-            assertEquals(100f, result.queryResult().topDocs().maxScore, 0);
-        }
-
-        // Check Processor doesn't run for between other phases
-        searchRequest = new SearchRequest().pipeline("p1");
-        searchRequest.source(createDefaultSearchSourceBuilder());
-        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
-        AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResult = searchPhaseResults.getAtomicArray();
-        pipelinedRequest.transformSearchPhaseResults(
-            searchPhaseResults,
-            searchPhaseContext,
-            SearchPhaseName.DFS_QUERY.getName(),
-            SearchPhaseName.QUERY.getName()
-        );
-
-        assertSame(searchPhaseResults.getAtomicArray(), notTransformedSearchPhaseResult);
-    }
-
     public void testGetPipelines() {
         //
         assertEquals(0, SearchPipelineService.innerGetPipelines(null, "p1").size());
@@ -879,6 +549,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         ProcessorInfo reqProcessor = new ProcessorInfo("scale_request_size");
         ProcessorInfo rspProcessor = new ProcessorInfo("fixed_score");
+        ProcessorInfo searchPhaseProcessor = new ProcessorInfo("max_score");
         DiscoveryNode n1 = new DiscoveryNode("n1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode n2 = new DiscoveryNode("n2", buildNewFakeTransportAddress(), Version.CURRENT);
         PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
@@ -901,7 +572,14 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         );
 
         SearchPipelineInfo completePipelineInfo = new SearchPipelineInfo(
-            Map.of(Pipeline.REQUEST_PROCESSORS_KEY, List.of(reqProcessor), Pipeline.RESPONSE_PROCESSORS_KEY, List.of(rspProcessor))
+            Map.of(
+                Pipeline.REQUEST_PROCESSORS_KEY,
+                List.of(reqProcessor),
+                Pipeline.RESPONSE_PROCESSORS_KEY,
+                List.of(rspProcessor),
+                Pipeline.PHASE_PROCESSORS_KEY,
+                List.of(searchPhaseProcessor)
+            )
         );
         SearchPipelineInfo incompletePipelineInfo = new SearchPipelineInfo(Map.of(Pipeline.REQUEST_PROCESSORS_KEY, List.of(reqProcessor)));
         // One node is missing a processor
@@ -1056,6 +734,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchPipelineInfo info = searchPipelineService.info();
         assertTrue(info.containsProcessor(Pipeline.REQUEST_PROCESSORS_KEY, "scale_request_size"));
         assertTrue(info.containsProcessor(Pipeline.RESPONSE_PROCESSORS_KEY, "fixed_score"));
+        assertTrue(info.containsProcessor(Pipeline.PHASE_PROCESSORS_KEY, "max_score"));
     }
 
     public void testExceptionOnPipelineCreation() {
@@ -1655,7 +1334,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals(10, pipelinedRequest.source().size());
 
         // Bypass the default pipeline
-        searchRequest.pipeline("_none");
+        searchRequest = new SearchRequest("bar").source(SearchSourceBuilder.searchSource().size(5)).pipeline("_none");
         pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
         assertEquals("_none", pipelinedRequest.getPipeline().getId());
         assertEquals(5, pipelinedRequest.source().size());
@@ -1954,10 +1633,6 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals("fixed_score", executionDetails.get(0).getProcessorName());
     }
 
-    private SearchSourceBuilder createDefaultSearchSourceBuilder() {
-        return SearchSourceBuilder.searchSource().size(10);
-    }
-
     private SearchResponse createDefaultSearchResponse() {
         SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f);
 
@@ -1966,4 +1641,25 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         return new SearchResponse(sections, null, 0, 0, 0, 0, null, null);
     }
 
+    public void testIsSystemGeneratedFactoryEnabled_whenAllEnabled_thenTrue() throws Exception {
+        SearchPipelineService service = createWithSystemGeneratedProcessors();
+        enabledAllSystemGeneratedFactories(service);
+
+        assertTrue(service.isSystemGeneratedFactoryEnabled("dummy_factory"));
+    }
+
+    public void testIsSystemGeneratedFactoryEnabled_whenEnabled_thenTrue() {
+        SearchPipelineService service = createWithSystemGeneratedProcessors();
+        service.getClusterService()
+            .getClusterSettings()
+            .applySettings(Settings.builder().putList(ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING.getKey(), "dummy_factory").build());
+
+        assertTrue(service.isSystemGeneratedFactoryEnabled("dummy_factory"));
+    }
+
+    public void testIsSystemGeneratedFactoryEnabled_whenNotEnabled_thenFalse() {
+        SearchPipelineService service = createWithSystemGeneratedProcessors();
+
+        assertFalse(service.isSystemGeneratedFactoryEnabled("dummy_factory"));
+    }
 }

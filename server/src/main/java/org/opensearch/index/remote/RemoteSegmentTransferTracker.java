@@ -371,29 +371,28 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     }
 
     public RemoteSegmentTransferTracker.Stats stats() {
-        return new RemoteSegmentTransferTracker.Stats(
-            shardId,
-            localRefreshClockTimeMs,
-            remoteRefreshClockTimeMs,
-            getTimeMsLag(),
-            localRefreshSeqNo,
-            remoteRefreshSeqNo,
-            uploadBytesStarted.get(),
-            uploadBytesSucceeded.get(),
-            uploadBytesFailed.get(),
-            totalUploadsStarted.get(),
-            totalUploadsSucceeded.get(),
-            totalUploadsFailed.get(),
-            rejectionCount.get(),
-            failures.length(),
-            lastSuccessfulRemoteRefreshBytes,
-            uploadBytesMovingAverageReference.get().getAverage(),
-            uploadBytesPerSecMovingAverageReference.get().getAverage(),
-            uploadTimeMsMovingAverageReference.get().getAverage(),
-            getBytesLag(),
-            totalUploadTimeInMillis.get(),
-            directoryFileTransferTracker.stats()
-        );
+        return new Stats.Builder().shardId(shardId)
+            .localRefreshClockTimeMs(localRefreshClockTimeMs)
+            .remoteRefreshClockTimeMs(remoteRefreshClockTimeMs)
+            .refreshTimeLagMs(getTimeMsLag())
+            .localRefreshNumber(localRefreshSeqNo)
+            .remoteRefreshNumber(remoteRefreshSeqNo)
+            .uploadBytesStarted(uploadBytesStarted.get())
+            .uploadBytesSucceeded(uploadBytesSucceeded.get())
+            .uploadBytesFailed(uploadBytesFailed.get())
+            .totalUploadsStarted(totalUploadsStarted.get())
+            .totalUploadsSucceeded(totalUploadsSucceeded.get())
+            .totalUploadsFailed(totalUploadsFailed.get())
+            .rejectionCount(rejectionCount.get())
+            .consecutiveFailuresCount(failures.length())
+            .lastSuccessfulRemoteRefreshBytes(lastSuccessfulRemoteRefreshBytes)
+            .uploadBytesMovingAverage(uploadBytesMovingAverageReference.get().getAverage())
+            .uploadBytesPerSecMovingAverage(uploadBytesPerSecMovingAverageReference.get().getAverage())
+            .uploadTimeMovingAverage(uploadTimeMsMovingAverageReference.get().getAverage())
+            .bytesLag(getBytesLag())
+            .totalUploadTimeInMs(totalUploadTimeInMillis.get())
+            .directoryFileTransferTrackerStats(directoryFileTransferTracker.stats())
+            .build();
     }
 
     /**
@@ -426,6 +425,35 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         public final long bytesLag;
         public final DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats;
 
+        private Stats(Builder builder) {
+            this.shardId = builder.shardId;
+            this.localRefreshClockTimeMs = builder.localRefreshClockTimeMs;
+            this.remoteRefreshClockTimeMs = builder.remoteRefreshClockTimeMs;
+            this.refreshTimeLagMs = builder.refreshTimeLagMs;
+            this.localRefreshNumber = builder.localRefreshNumber;
+            this.remoteRefreshNumber = builder.remoteRefreshNumber;
+            this.uploadBytesStarted = builder.uploadBytesStarted;
+            this.uploadBytesFailed = builder.uploadBytesFailed;
+            this.uploadBytesSucceeded = builder.uploadBytesSucceeded;
+            this.totalUploadsStarted = builder.totalUploadsStarted;
+            this.totalUploadsFailed = builder.totalUploadsFailed;
+            this.totalUploadsSucceeded = builder.totalUploadsSucceeded;
+            this.rejectionCount = builder.rejectionCount;
+            this.consecutiveFailuresCount = builder.consecutiveFailuresCount;
+            this.lastSuccessfulRemoteRefreshBytes = builder.lastSuccessfulRemoteRefreshBytes;
+            this.uploadBytesMovingAverage = builder.uploadBytesMovingAverage;
+            this.uploadBytesPerSecMovingAverage = builder.uploadBytesPerSecMovingAverage;
+            this.totalUploadTimeInMs = builder.totalUploadTimeInMs;
+            this.uploadTimeMovingAverage = builder.uploadTimeMovingAverage;
+            this.bytesLag = builder.bytesLag;
+            this.directoryFileTransferTrackerStats = builder.directoryFileTransferTrackerStats;
+        }
+
+        /**
+         * This constructor will be deprecated starting in version 3.4.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
         public Stats(
             ShardId shardId,
             long localRefreshClockTimeMs,
@@ -497,6 +525,149 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
                 this.directoryFileTransferTrackerStats = in.readOptionalWriteable(DirectoryFileTransferTracker.Stats::new);
             } catch (IOException e) {
                 throw e;
+            }
+        }
+
+        /**
+         * Builder for the {@link Stats} class.
+         * Provides a fluent API for constructing a Stats object.
+         */
+        public static class Builder {
+            private ShardId shardId = null;
+            private long localRefreshClockTimeMs = 0;
+            private long remoteRefreshClockTimeMs = 0;
+            private long refreshTimeLagMs = 0;
+            private long localRefreshNumber = 0;
+            private long remoteRefreshNumber = 0;
+            private long uploadBytesStarted = 0;
+            private long uploadBytesFailed = 0;
+            private long uploadBytesSucceeded = 0;
+            private long totalUploadsStarted = 0;
+            private long totalUploadsFailed = 0;
+            private long totalUploadsSucceeded = 0;
+            private long rejectionCount = 0;
+            private long consecutiveFailuresCount = 0;
+            private long lastSuccessfulRemoteRefreshBytes = 0;
+            private double uploadBytesMovingAverage = 0;
+            private double uploadBytesPerSecMovingAverage = 0;
+            private long totalUploadTimeInMs = 0;
+            private double uploadTimeMovingAverage = 0;
+            private long bytesLag = 0;
+            private DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats = null;
+
+            public Builder() {}
+
+            public Builder shardId(ShardId shardId) {
+                this.shardId = shardId;
+                return this;
+            }
+
+            public Builder localRefreshClockTimeMs(long time) {
+                this.localRefreshClockTimeMs = time;
+                return this;
+            }
+
+            public Builder remoteRefreshClockTimeMs(long time) {
+                this.remoteRefreshClockTimeMs = time;
+                return this;
+            }
+
+            public Builder refreshTimeLagMs(long time) {
+                this.refreshTimeLagMs = time;
+                return this;
+            }
+
+            public Builder localRefreshNumber(long number) {
+                this.localRefreshNumber = number;
+                return this;
+            }
+
+            public Builder remoteRefreshNumber(long number) {
+                this.remoteRefreshNumber = number;
+                return this;
+            }
+
+            public Builder uploadBytesStarted(long started) {
+                this.uploadBytesStarted = started;
+                return this;
+            }
+
+            public Builder uploadBytesFailed(long failed) {
+                this.uploadBytesFailed = failed;
+                return this;
+            }
+
+            public Builder uploadBytesSucceeded(long succeeded) {
+                this.uploadBytesSucceeded = succeeded;
+                return this;
+            }
+
+            public Builder totalUploadsStarted(long started) {
+                this.totalUploadsStarted = started;
+                return this;
+            }
+
+            public Builder totalUploadsFailed(long failed) {
+                this.totalUploadsFailed = failed;
+                return this;
+            }
+
+            public Builder totalUploadsSucceeded(long succeeded) {
+                this.totalUploadsSucceeded = succeeded;
+                return this;
+            }
+
+            public Builder rejectionCount(long count) {
+                this.rejectionCount = count;
+                return this;
+            }
+
+            public Builder consecutiveFailuresCount(long count) {
+                this.consecutiveFailuresCount = count;
+                return this;
+            }
+
+            public Builder lastSuccessfulRemoteRefreshBytes(long bytes) {
+                this.lastSuccessfulRemoteRefreshBytes = bytes;
+                return this;
+            }
+
+            public Builder uploadBytesMovingAverage(double average) {
+                this.uploadBytesMovingAverage = average;
+                return this;
+            }
+
+            public Builder uploadBytesPerSecMovingAverage(double average) {
+                this.uploadBytesPerSecMovingAverage = average;
+                return this;
+            }
+
+            public Builder totalUploadTimeInMs(long time) {
+                this.totalUploadTimeInMs = time;
+                return this;
+            }
+
+            public Builder uploadTimeMovingAverage(double average) {
+                this.uploadTimeMovingAverage = average;
+                return this;
+            }
+
+            public Builder bytesLag(long lag) {
+                this.bytesLag = lag;
+                return this;
+            }
+
+            public Builder directoryFileTransferTrackerStats(DirectoryFileTransferTracker.Stats stats) {
+                this.directoryFileTransferTrackerStats = stats;
+                return this;
+            }
+
+            /**
+             * Creates a {@link Stats} object from the builder's current state.
+             * @return A new Stats instance.
+             */
+            public Stats build() {
+                return new Stats(this);
             }
         }
 

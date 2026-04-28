@@ -105,7 +105,7 @@
       indices.simulate_index_template:
         name: will_not_match
 
-  - match: {body: null}
+  - match: { $body: {} }
 
 ---
 "Simulate index matches overlapping legacy and composable templates":

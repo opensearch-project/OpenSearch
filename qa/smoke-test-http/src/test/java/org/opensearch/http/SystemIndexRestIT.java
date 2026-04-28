@@ -127,25 +127,26 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         // create template
         {
             Request templateRequest = new Request("POST", "_component_template/error_mapping_test_template");
-            String jsonBody = "{\n" +
-                "  \"template\": {\n" +
-                "    \"mappings\": {\n" +
-                "      \"properties\": {\n" +
-                "        \"error\" : {\n" +
-                "          \"type\": \"nested\",\n" +
-                "          \"properties\": {\n" +
-                "            \"message\": {\n" +
-                "              \"type\": \"text\"\n" +
-                "            },\n" +
-                "            \"status\": {\n" +
-                "              \"type\": \"integer\"\n" +
-                "            }\n" +
-                "          }\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+            String jsonBody = """
+                {
+                  "template": {
+                    "mappings": {
+                      "properties": {
+                        "error" : {
+                          "type": "nested",
+                          "properties": {
+                            "message": {
+                              "type": "text"
+                            },
+                            "status": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }""";
 
             templateRequest.setJsonEntity(jsonBody);
             Response resp = getRestClient().performRequest(templateRequest);
@@ -156,19 +157,20 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         // apply template to indices
         {
             Request applyTemplateRequest = new Request("POST", "_index_template/match_all_test_template");
-            String jsonBody = "{\n" +
-                "  \"index_patterns\": [\n" +
-                "    \"*system-idx*\"\n" +
-                "  ],\n" +
-                "  \"template\": {\n" +
-                "    \"settings\": {}\n" +
-                "  },\n" +
-                "  \"priority\": 10,\n" +
-                "  \"composed_of\": [\n" +
-                "    \"error_mapping_test_template\"\n" +
-                "  ],\n" +
-                "  \"version\": 1\n" +
-                "}";
+            String jsonBody = """
+                {
+                  "index_patterns": [
+                    "*system-idx*"
+                  ],
+                  "template": {
+                    "settings": {}
+                  },
+                  "priority": 10,
+                  "composed_of": [
+                    "error_mapping_test_template"
+                  ],
+                  "version": 1
+                }""";
 
             applyTemplateRequest.setJsonEntity(jsonBody);
             Response resp = getRestClient().performRequest(applyTemplateRequest);
@@ -178,15 +180,16 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         // create system index - success
         {
             Request indexRequest = new Request("PUT", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
-            String jsonBody = "{\n" +
-                "  \"mappings\": {\n" +
-                "    \"properties\": {\n" +
-                "      \"error\": {\n" +
-                "        \"type\": \"text\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+            String jsonBody = """
+                {
+                  "mappings": {
+                    "properties": {
+                      "error": {
+                        "type": "text"
+                      }
+                    }
+                  }
+                }""";
             indexRequest.setJsonEntity(jsonBody);
             Response resp = getRestClient().performRequest(indexRequest);
             assertThat(resp.getStatusLine().getStatusCode(), equalTo(200));

@@ -91,10 +91,13 @@ final class PointTreeTraversal {
 
         switch (r) {
             case CELL_INSIDE_QUERY:
-                collector.countNode((int) pointTree.size());
                 if (collector.hasSubAgg()) {
+                    // counter for top level agg is handled by sub agg collect
                     pointTree.visitDocIDs(visitor);
                 } else {
+                    // count node should be invoked only in absence of
+                    // sub agg to not include the delete documents
+                    collector.countNode((int) pointTree.size());
                     collector.visitInner();
                 }
                 break;
@@ -128,9 +131,10 @@ final class PointTreeTraversal {
             @Override
             public void visit(int docID, byte[] packedValue) throws IOException {
                 visitPoints(packedValue, () -> {
-                    collector.count();
                     if (collector.hasSubAgg()) {
                         collector.collectDocId(docID);
+                    } else {
+                        collector.count();
                     }
                 });
             }
@@ -140,9 +144,10 @@ final class PointTreeTraversal {
                 visitPoints(packedValue, () -> {
                     // note: iterator can only iterate once
                     for (int doc = iterator.nextDoc(); doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                        collector.count();
                         if (collector.hasSubAgg()) {
                             collector.collectDocId(doc);
+                        } else {
+                            collector.count();
                         }
                     }
                 });

@@ -32,7 +32,7 @@ subprojects {
     apply plugin:'base'
 
     tasks.register('tar', Tar) {
-        from('.')
+        from('build.gradle')
         destinationDirectory.set(file('build/distributions'))
         archiveBaseName.set("opensearch")
         archiveVersion.set("8.0.1-SNAPSHOT")

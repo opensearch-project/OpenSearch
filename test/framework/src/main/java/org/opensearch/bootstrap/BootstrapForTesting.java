@@ -46,6 +46,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
 import org.junit.Assert;
@@ -85,6 +86,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
  * mode (e.g. assign permissions and install security manager the same way)
  */
 @SuppressWarnings("removal")
+@SuppressForbidden(reason = "https://github.com/opensearch-project/OpenSearch/issues/19640")
 public class BootstrapForTesting {
     private static final String[] TEST_RUNNER_PACKAGES = new String[] {
         // gradle worker
@@ -135,6 +137,10 @@ public class BootstrapForTesting {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
+        if (FipsMode.CHECK.isFipsEnabled()) {
+            SecurityProviderManager.removeNonCompliantFipsProviders();
+            FipsTrustStoreValidator.validate();
+        }
 
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
@@ -144,6 +150,26 @@ public class BootstrapForTesting {
                 Security.addClasspathPermissions(perms);
                 // java.io.tmpdir
                 FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete", false);
+                String jacocoDir = System.getProperty("jacoco.dir");
+                if (jacocoDir != null) {
+                    FilePermissionUtils.addDirectoryPath(
+                        perms,
+                        "jacoco.dir",
+                        PathUtils.get(jacocoDir),
+                        "read,readlink,write,delete",
+                        false
+                    );
+                }
+                String testclustersDir = System.getProperty("testclusters.dir");
+                if (testclustersDir != null) {
+                    FilePermissionUtils.addDirectoryPath(
+                        perms,
+                        "testclusters.dir",
+                        PathUtils.get(testclustersDir),
+                        "read,readlink,write,delete",
+                        false
+                    );
+                }
                 // custom test config file
                 String testConfigFile = System.getProperty("tests.config");
                 if (Strings.hasLength(testConfigFile)) {
@@ -172,6 +198,7 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases, "opensearch-nio", "org.opensearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
+                    addClassCodebase(codebases, "opensearch-ssl-config", "org.opensearch.common.ssl.SslKeyConfig");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 // Allow modules to define own test policy in ad-hoc fashion (if needed) that is not really applicable to other modules

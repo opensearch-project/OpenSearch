@@ -33,7 +33,6 @@
 package org.opensearch.index.seqno;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -286,10 +285,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         // the primary calculates the non-expired retention leases and syncs them to replicas
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
         final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
-        final Set<String> leaseIdsForCurrentPeers = routingTable.assignedShards()
-            .stream()
-            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
-            .collect(Collectors.toSet());
+        final Set<String> leaseIdsForCurrentPeers;
+        if (indexSettings.isRemoteStoreEnabled()) {
+            leaseIdsForCurrentPeers = Collections.singleton(getPeerRecoveryRetentionLeaseId(routingTable.primaryShard().currentNodeId()));
+        } else {
+            leaseIdsForCurrentPeers = routingTable.assignedShards()
+                .stream()
+                .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                .collect(Collectors.toSet());
+        }
         final boolean allShardsStarted = routingTable.allShardsStarted();
         final long minimumReasonableRetainedSeqNo = allShardsStarted ? 0L : getMinimumReasonableRetainedSeqNo();
         final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases.leases()
@@ -1828,8 +1832,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
         assert primaryMode == false;
         if (primaryContext.checkpoints.containsKey(shardAllocationId) == false) {
-            // can happen if the old primary was on an old version
-            assert indexSettings.getIndexVersionCreated().before(LegacyESVersion.fromId(7000099));
             throw new IllegalStateException("primary context [" + primaryContext + "] does not contain " + shardAllocationId);
         }
         final Runnable runAfter = getClusterManagerUpdateOperationFromCurrentState();

@@ -118,4 +118,13 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
         visitor.accept(this);
     };
 
+    /**
+     * Indicates whether this query benefits from intra-segment search.
+     * Override to return {@code true} for compute-heavy queries that parallelize well
+     * Default is {@code false} - queries must explicitly opt-in.
+     */
+    default boolean supportsIntraSegmentSearch() {
+        return false;
+    }
+
 }

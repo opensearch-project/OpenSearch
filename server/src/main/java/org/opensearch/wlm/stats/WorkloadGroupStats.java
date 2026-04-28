@@ -87,7 +87,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
     }
 
     /**
-     * This is a stats holder object which will hold the data for a query group at a point in time
+     * This is a stats holder object which will hold the data for a workload group at a point in time
      * the instance will only be created on demand through stats api
      */
     public static class WorkloadGroupStatsHolder implements ToXContentObject, Writeable {
@@ -124,6 +124,22 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             this.failures = in.readVLong();
             this.cancellations = in.readVLong();
             this.resourceStats = in.readMap((i) -> ResourceType.fromName(i.readString()), ResourceStats::new);
+        }
+
+        public long getCompletions() {
+            return completions;
+        }
+
+        public long getRejections() {
+            return rejections;
+        }
+
+        public long getCancellations() {
+            return cancellations;
+        }
+
+        public Map<ResourceType, ResourceStats> getResourceStats() {
+            return resourceStats;
         }
 
         /**
@@ -225,6 +241,18 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             this.currentUsage = in.readDouble();
             this.cancellations = in.readVLong();
             this.rejections = in.readVLong();
+        }
+
+        public double getCurrentUsage() {
+            return currentUsage;
+        }
+
+        public long getCancellations() {
+            return cancellations;
+        }
+
+        public long getRejections() {
+            return rejections;
         }
 
         /**

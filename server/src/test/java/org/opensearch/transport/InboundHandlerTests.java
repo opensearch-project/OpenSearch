@@ -71,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.Version.MASK;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.instanceOf;
@@ -302,7 +303,7 @@ public abstract class InboundHandlerTests extends OpenSearchTestCase {
             final AtomicBoolean isClosed = new AtomicBoolean();
             channel.addCloseListener(ActionListener.wrap(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
-            final Version remoteVersion = Version.fromId(randomIntBetween(0, version.minimumCompatibilityVersion().id - 1));
+            final Version remoteVersion = Version.fromId(randomIntBetween(MASK, version.minimumCompatibilityVersion().id - 1));
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(
                 TransportProtocol.NATIVE,

@@ -85,6 +85,18 @@ public interface TcpChannel extends CloseableChannel {
     void sendMessage(BytesReference reference, ActionListener<Void> listener);
 
     /**
+     * Sends a tcp message to the channel. The listener will be executed once the send process has been
+     * completed.
+     *
+     * @param requestId request Id
+     * @param reference to send to channel
+     * @param listener to execute upon send completion
+     */
+    default void sendMessage(long requestId, BytesReference reference, ActionListener<Void> listener) {
+        sendMessage(reference, listener);
+    }
+
+    /**
      * Adds a listener that will be executed when the channel is connected. If the channel is still
      * unconnected when this listener is added, the listener will be executed by the thread that eventually
      * finishes the channel connection. If the channel is already connected when the listener is added the

@@ -74,9 +74,9 @@ import java.util.regex.Pattern;
 
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_PORT_DEFAULTS;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORT;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
+import static org.opensearch.transport.AuxTransport.AUX_PORT_DEFAULTS;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -129,7 +129,9 @@ import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TY
  */
 @SuppressWarnings("removal")
 final class Security {
-    private static final Pattern CODEBASE_JAR_WITH_CLASSIFIER = Pattern.compile("^(.+)-\\d+\\.\\d+[^-]*.*?[-]?([^-]+)?\\.jar$");
+    private static final Pattern CODEBASE_JAR_WITH_CLASSIFIER = Pattern.compile(
+        "^(.+)-\\d+\\.\\d+[^-]*.*?[-]?((?:linux-|windows-|osx-)?[^-]+)?\\.jar$"
+    );
 
     /** no instantiation */
     private Security() {}
@@ -263,7 +265,7 @@ final class Security {
                         jarsWithPossibleClassifiers.put(codebase, matcher.group(2));
                     } else {
                         String property = "codebase." + name;
-                        String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                        String aliasProperty = "codebase." + disambiguateAlias(name);
                         addCodebaseToSystemProperties(propertiesSet, url, property, aliasProperty);
                     }
                 }
@@ -518,5 +520,22 @@ final class Security {
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
         }
+    }
+
+    /**
+     * Disambiguates conflicting aliases for the artifacts that known to have different groups and
+     * major versions but the same artifact name. Examples are:
+     *    jackson-core-2.21.2.jar -> coming from com.fasterxml.jackson.core
+     *    jackson-core-3.1.0.jar -> coming from tools.jackson.core
+     * @param name artifact name
+     * @return disambiguated alias
+     */
+    private static String disambiguateAlias(final String name) {
+        String disambiguated = name;
+        // Disambiguate Jackson 2.x / 3.x artifacts
+        if (disambiguated.matches("^jackson-(.+)-[3].\\d+.*\\.jar$") == true) {
+            disambiguated = disambiguated.replaceAll("^jackson-", "jackson3-");
+        }
+        return disambiguated.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
     }
 }

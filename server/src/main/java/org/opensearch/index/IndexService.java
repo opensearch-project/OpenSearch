@@ -48,6 +48,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -77,12 +78,16 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SearchIndexNameMatcher;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -93,17 +98,23 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
+import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -153,6 +164,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
     private final IndexStorePlugin.CompositeDirectoryFactory compositeDirectoryFactory;
+    private final DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory;
     private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
@@ -161,7 +173,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NamedXContentRegistry xContentRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
-    private final EngineFactory engineFactory;
+    private final IndexerFactory indexerFactory;
     private final EngineConfigFactory engineConfigFactory;
     private final IndexWarmer warmer;
     private volatile Map<Integer, IndexShard> shards = emptyMap();
@@ -176,6 +188,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
     private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
     private volatile AsyncReplicationTask asyncReplicationTask;
+    private volatile AsyncPublishReferencedSegmentsTask asyncPublishReferencedSegmentsTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -202,7 +215,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Object refreshMutex = new Object();
     private volatile TimeValue refreshInterval;
     private volatile boolean shardLevelRefreshEnabled;
+    private final IndexStorePlugin.StoreFactory storeFactory;
+    private final DataFormatRegistry dataFormatRegistry;
 
+    @InternalApi
     public IndexService(
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,
@@ -211,7 +227,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
         IndexAnalyzers indexAnalyzers,
-        EngineFactory engineFactory,
+        IndexerFactory indexerFactory,
         EngineConfigFactory engineConfigFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -223,10 +239,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.DirectoryFactory directoryFactory,
         IndexStorePlugin.CompositeDirectoryFactory compositeDirectoryFactory,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.StoreFactory storeFactory,
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
         List<SearchOperationListener> searchOperationListeners,
         List<IndexingOperationListener> indexingOperationListeners,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -245,9 +263,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        DataFormatRegistry dataFormatRegistry,
+        DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory
     ) {
         super(indexSettings);
+        this.storeFactory = storeFactory;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
         this.xContentRegistry = xContentRegistry;
@@ -269,7 +291,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 idFieldDataEnabled,
                 scriptService
             );
-            this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
+            this.indexFieldData = new IndexFieldDataService(
+                indexSettings,
+                indicesFieldDataCache,
+                circuitBreakerService,
+                mapperService,
+                threadPool
+            );
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.
@@ -284,8 +312,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
-            this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
+            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this));
+            this.warmer = new IndexWarmer(
+                threadPool,
+                indexFieldData,
+                indicesBitsetFilterCache != null ? indicesBitsetFilterCache.createListener(threadPool) : null
+            );
             this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
@@ -307,9 +339,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.nodeEnv = nodeEnv;
         this.directoryFactory = directoryFactory;
         this.compositeDirectoryFactory = compositeDirectoryFactory;
+        this.dataFormatAwareStoreDirectoryFactory = dataFormatAwareStoreDirectoryFactory;
         this.remoteDirectoryFactory = remoteDirectoryFactory;
         this.recoveryStateFactory = recoveryStateFactory;
-        this.engineFactory = Objects.requireNonNull(engineFactory);
+        this.indexerFactory = Objects.requireNonNull(indexerFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.readerWrapper = wrapperFactory.apply(this);
@@ -327,6 +360,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
         this.asyncReplicationTask = new AsyncReplicationTask(this);
+        this.asyncPublishReferencedSegmentsTask = new AsyncPublishReferencedSegmentsTask(this);
+
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
@@ -335,6 +370,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
+        if (clusterMergeSchedulerConfig != null) {
+            indexSettings.setDefaultMaxThreadAndMergeCount(
+                clusterMergeSchedulerConfig.getClusterMaxThreadCount(),
+                clusterMergeSchedulerConfig.getClusterMaxMergeCount()
+            );
+            indexSettings.setDefaultAutoThrottleEnabled(clusterMergeSchedulerConfig.getClusterMergeAutoThrottleEnabled());
+        }
         updateFsyncTaskIfNecessary();
         synchronized (refreshMutex) {
             if (shardLevelRefreshEnabled == false) {
@@ -342,8 +384,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 startIndexLevelRefreshTask();
             }
         }
+        this.dataFormatRegistry = dataFormatRegistry;
     }
 
+    @InternalApi
     public IndexService(
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,
@@ -352,7 +396,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
         IndexAnalyzers indexAnalyzers,
-        EngineFactory engineFactory,
+        IndexerFactory indexerFactory,
         EngineConfigFactory engineConfigFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -363,6 +407,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         QueryCache queryCache,
         IndexStorePlugin.DirectoryFactory directoryFactory,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.StoreFactory storeFactory,
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
@@ -381,7 +426,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         boolean shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnce
+        Supplier<Integer> clusterDefaultMaxMergeAtOnce,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
     ) {
         this(
             indexSettings,
@@ -391,7 +437,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             similarityService,
             shardStoreDeleter,
             indexAnalyzers,
-            engineFactory,
+            indexerFactory,
             engineConfigFactory,
             circuitBreakerService,
             bigArrays,
@@ -403,10 +449,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             directoryFactory,
             null,
             remoteDirectoryFactory,
+            storeFactory,
             eventListener,
             wrapperFactory,
             mapperRegistry,
             indicesFieldDataCache,
+            null,
             searchOperationListeners,
             indexingOperationListeners,
             namedWriteableRegistry,
@@ -425,7 +473,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             s -> {},
             (shardId) -> ReplicationStats.empty(),
-            clusterDefaultMaxMergeAtOnce
+            clusterDefaultMaxMergeAtOnce,
+            clusterMergeSchedulerConfig,
+            null,
+            null
         );
     }
 
@@ -437,6 +488,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     // visible for tests
     AsyncReplicationTask getReplicationTask() {
         return asyncReplicationTask;
+    }
+
+    // visible for tests
+    AsyncPublishReferencedSegmentsTask getPublishReferencedSegmentsTask() {
+        return asyncPublishReferencedSegmentsTask;
     }
 
     /**
@@ -586,6 +642,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    @Deprecated(forRemoval = true)
     public synchronized IndexShard createShard(
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
@@ -597,6 +654,36 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Nullable DiscoveryNode sourceNode,
         DiscoveryNodes discoveryNodes,
         MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+    ) throws IOException {
+        return createShard(
+            routing,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            checkpointPublisher,
+            remoteStoreStatsTrackerFactory,
+            repositoriesService,
+            targetNode,
+            sourceNode,
+            discoveryNodes,
+            mergedSegmentWarmerFactory,
+            null,
+            null
+        );
+    }
+
+    public synchronized IndexShard createShard(
+        final ShardRouting routing,
+        final Consumer<ShardId> globalCheckpointSyncer,
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final RepositoriesService repositoriesService,
+        final DiscoveryNode targetNode,
+        @Nullable DiscoveryNode sourceNode,
+        DiscoveryNodes discoveryNodes,
+        MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        MergedSegmentPublisher mergedSegmentPublisher,
+        ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -628,7 +715,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             Store remoteStore = null;
             Directory remoteDirectory = null;
             boolean seedRemote = false;
-            if (targetNode.isRemoteStoreNode()) {
+            if (targetNode.isRemoteSegmentStoreNode()) {
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
@@ -644,7 +731,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
                         this.indexSettings.getUUID(),
                         shardId,
-                        this.indexSettings.getRemoteStorePathStrategy()
+                        this.indexSettings.getRemoteStorePathStrategy(),
+                        this.indexSettings.getRemoteStoreSegmentPathPrefix(),
+                        RemoteStoreUtils.isServerSideEncryptionEnabledIndex(this.indexSettings.getIndexMetadata())
                     );
                 }
                 // When an instance of Store is created, a shardlock is created which is released on closing the instance of store.
@@ -661,7 +750,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         // Do nothing for shard lock on remote store
                     }
                 };
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, remoteStoreLock, Store.OnClose.EMPTY, path);
+                remoteStore = new Store(
+                    shardId,
+                    this.indexSettings,
+                    remoteDirectory,
+                    remoteStoreLock,
+                    Store.OnClose.EMPTY,
+                    path,
+                    directoryFactory
+                );
             } else {
                 // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
                 // Even though we have `RemoteStoreMigrationAllocationDecider` in place to prevent something like this from happening at the
@@ -679,17 +776,28 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isWarmIndex()) {
-                directory = compositeDirectoryFactory.newDirectory(this.indexSettings, path, directoryFactory, remoteDirectory, fileCache);
-            } else {
+                directory = compositeDirectoryFactory.newDirectory(
+                    this.indexSettings,
+                    path,
+                    directoryFactory,
+                    remoteDirectory,
+                    fileCache,
+                    threadPool
+                );
+            } else if (!this.indexSettings.isPluggableDataFormatEnabled()) {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
+            } else {
+                // Will be enabled in case of formatAware indices.
+                directory = createDataFormatAwareStoreDirectory(shardId, path);
             }
-            store = new Store(
+            store = storeFactory.newStore(
                 shardId,
                 this.indexSettings,
                 directory,
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
-                path
+                path,
+                directoryFactory
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -701,7 +809,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexCache,
                 mapperService,
                 similarityService,
-                engineFactory,
+                indexerFactory,
                 engineConfigFactory,
                 eventListener,
                 readerWrapper,
@@ -728,7 +836,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 fixedRefreshIntervalSchedulingEnabled,
                 this::getRefreshInterval,
                 refreshMutex,
-                clusterService.getClusterApplierService()
+                clusterService.getClusterApplierService(),
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null,
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null,
+                dataFormatRegistry
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -1135,6 +1246,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
             updateReplicationTask();
+            updatePublishReferencedSegmentsTask();
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
@@ -1148,11 +1260,49 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    private void updatePublishReferencedSegmentsTask() {
+        if (getIndexSettings().getPublishReferencedSegmentsInterval().equals(asyncPublishReferencedSegmentsTask.getInterval())) {
+            return;
+        }
+        try {
+            asyncPublishReferencedSegmentsTask.close();
+        } finally {
+            asyncPublishReferencedSegmentsTask = new AsyncPublishReferencedSegmentsTask(this);
+        }
+    }
+
     /**
      * Called whenever the cluster level {@code cluster.default.index.max_merge_at_once} changes.
      */
     public void onDefaultMaxMergeAtOnceChanged(int newDefaultMaxMergeAtOnce) {
         indexSettings.setDefaultMaxMergesAtOnce(newDefaultMaxMergeAtOnce);
+    }
+
+    /**
+     * Called when the cluster level settings: {@code cluster.default.index.merge.scheduler.max_merge_count} OR
+     * {@code cluster.default.index.merge.scheduler.max_thread_count} change.
+     */
+    public void onDefaultMaxMergeOrThreadCountUpdate(int maxThreadCount, int maxMergeCount) {
+        indexSettings.setDefaultMaxThreadAndMergeCount(maxThreadCount, maxMergeCount);
+    }
+
+    /**
+     * Called whenever the cluster level {@code cluster.default.index.merge.scheduler.auto_throttle} changes.
+     */
+    public void onDefaultAutoThrottleEnabledUpdate(boolean enabled) {
+        indexSettings.setDefaultAutoThrottleEnabled(enabled);
+    }
+
+    /**
+     * Called whenever the cluster level {@code cluster.merge.scheduler.max_force_merge_mb_per_sec} changes.
+     * The change is only applied if the index doesn't have its own explicit force merge MB per sec setting.
+     *
+     * @param maxForceMergeMBPerSec the updated cluster max force merge MB per second rate.
+     */
+    public void onClusterLevelForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
+        if (!MergeSchedulerConfig.MAX_FORCE_MERGE_MB_PER_SEC_SETTING.exists(indexSettings.getSettings())) {
+            indexSettings.getMergeSchedulerConfig().setMaxForceMergeMBPerSec(maxForceMergeMBPerSec);
+        }
     }
 
     /**
@@ -1188,6 +1338,26 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
         });
         rescheduleRefreshTasks();
+    }
+
+    /**
+     * Creates DataFormatAwareStoreDirectory using the factory if available, otherwise fallback to Store's internal creation.
+     * This method centralizes the directory creation logic and enables plugin-based format discovery.
+     */
+    private DataFormatAwareStoreDirectory createDataFormatAwareStoreDirectory(ShardId shardId, ShardPath shardPath) throws IOException {
+        if (dataFormatAwareStoreDirectoryFactory != null) {
+            logger.debug("Using DataFormatAwareStoreDirectoryFactory to create directory for shard path: {}", shardPath);
+            return dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
+                indexSettings,
+                shardId,
+                shardPath,
+                directoryFactory,
+                dataFormatRegistry
+            );
+        }
+
+        logger.debug("No DataFormatAwareStoreDirectoryFactory available, Store will handle internal creation for: {}", shardPath);
+        return null;
     }
 
     private void updateFsyncTaskIfNecessary() {
@@ -1240,8 +1410,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
     }
 
+    public final IndexerFactory getIndexerFactory() {
+        return indexerFactory;
+    }
+
     public final EngineFactory getEngineFactory() {
-        return engineFactory;
+        if (indexerFactory instanceof EngineBackedIndexerFactory) {
+            return ((EngineBackedIndexerFactory) indexerFactory).getEngineFactory();
+        }
+        throw new UnsupportedOperationException("Engine Factory doesn't exist for current index.");
     }
 
     final CheckedFunction<DirectoryReader, DirectoryReader, IOException> getReaderWrapper() {
@@ -1442,7 +1619,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected void runInternal() {
-            indexService.maybeSyncSegments(false);
+            if (shouldRun()) {
+                indexService.maybeSyncSegments(false);
+            }
         }
 
         @Override
@@ -1459,6 +1638,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         protected boolean mustReschedule() {
             return indexSettings.isSegRepEnabledOrRemoteNode() && super.mustReschedule();
         }
+
+        // visible for tests
+        protected boolean shouldRun() {
+            return false == indexSettings.getIndexMetadata()
+                .getSettings()
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+        }
     }
 
     private void maybeSyncSegments(boolean force) {
@@ -1471,6 +1657,60 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 } catch (IndexShardClosedException | AlreadyClosedException ex) {
                     // do nothing
                 }
+            }
+        }
+    }
+
+    /**
+     * Publish primary shard referenced segments in a defined interval.
+     *
+     * @opensearch.internal
+     */
+    final class AsyncPublishReferencedSegmentsTask extends BaseAsyncTask {
+
+        AsyncPublishReferencedSegmentsTask(IndexService indexService) {
+            super(indexService, indexService.getIndexSettings().getPublishReferencedSegmentsInterval());
+        }
+
+        @Override
+        protected void runInternal() {
+            if (shouldRun()) {
+                indexService.maybePublishReferencedSegments();
+            }
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "publish_primary_referenced_segments";
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return indexSettings.isSegRepEnabledOrRemoteNode() && super.mustReschedule();
+        }
+
+        // visible for tests
+        protected boolean shouldRun() {
+            return (indexSettings.isSegRepLocalEnabled() || indexSettings.isRemoteStoreEnabled())
+                && recoverySettings.isMergedSegmentReplicationWarmerEnabled();
+        }
+    }
+
+    private void maybePublishReferencedSegments() {
+        for (IndexShard shard : this.shards.values()) {
+            try {
+                // Only the primary shard publish referenced segments.
+                // The replicas cleans up the redundant pending merge segments according to the primary shard request.
+                if (shard.isPrimaryMode() && shard.routingEntry().active()) {
+                    shard.publishReferencedSegments();
+                }
+            } catch (IOException ex) {
+                logger.warn(() -> new ParameterizedMessage("failed to publish primary referenced segments"), ex);
             }
         }
     }

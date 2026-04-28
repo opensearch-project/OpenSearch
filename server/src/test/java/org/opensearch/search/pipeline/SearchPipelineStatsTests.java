@@ -24,6 +24,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 
 public class SearchPipelineStatsTests extends OpenSearchTestCase {
     public void testSerializationRoundtrip() throws IOException {
@@ -45,7 +48,6 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
             List.of(
                 new SearchPipelineStats.PerPipelineStats("p1", new OperationStats(9, 10, 11, 12), new OperationStats(13, 14, 15, 16)),
                 new SearchPipelineStats.PerPipelineStats("p2", new OperationStats(17, 18, 19, 20), new OperationStats(21, 22, 23, 24))
-
             ),
             Map.of(
                 "p1",
@@ -61,6 +63,26 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
                     ),
                     List.of()
                 )
+            ),
+            new SearchPipelineStats.FactoryDetailStats(
+                List.of(
+                    new SearchPipelineStats.FactoryStats(
+                        "reqFactory1",
+                        new OperationStats(1, 1, 0, 0, TimeUnit.MICROSECONDS),
+                        new OperationStats(1, 2, 0, 0, TimeUnit.MICROSECONDS)
+                    )
+                ),
+                List.of(
+                    new SearchPipelineStats.FactoryStats(
+                        "resFactory1",
+                        new OperationStats(1, 1, 0, 0, TimeUnit.MICROSECONDS),
+                        new OperationStats(1, 2, 0, 0, TimeUnit.MICROSECONDS)
+                    )
+                )
+            ),
+            new SearchPipelineStats.PipelineDetailStats(
+                List.of(new SearchPipelineStats.ProcessorStats("sysReq1", "sysReq1", new OperationStats(1, 1, 0, 0))),
+                List.of(new SearchPipelineStats.ProcessorStats("sysRes1", "sysRes1", new OperationStats(1, 1, 0, 0)))
             )
         );
     }
@@ -70,104 +92,7 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
         actualBuilder.startObject();
         createStats().toXContent(actualBuilder, null);
         actualBuilder.endObject();
-
-        String expected = "{"
-            + "  \"search_pipeline\" : {"
-            + "    \"total_request\" : {"
-            + "      \"count\" : 1,"
-            + "      \"time_in_millis\" : 2,"
-            + "      \"current\" : 3,"
-            + "      \"failed\" : 4"
-            + "    },"
-            + "    \"total_response\" : {"
-            + "      \"count\" : 5,"
-            + "      \"time_in_millis\" : 6,"
-            + "      \"current\" : 7,"
-            + "      \"failed\" : 8"
-            + "    },"
-            + "    \"pipelines\" : {"
-            + "      \"p1\" : {"
-            + "        \"request\" : {"
-            + "          \"count\" : 9,"
-            + "          \"time_in_millis\" : 10,"
-            + "          \"current\" : 11,"
-            + "          \"failed\" : 12"
-            + "        },"
-            + "        \"response\" : {"
-            + "          \"count\" : 13,"
-            + "          \"time_in_millis\" : 14,"
-            + "          \"current\" : 15,"
-            + "          \"failed\" : 16"
-            + "        },"
-            + "        \"request_processors\" : ["
-            + "          {"
-            + "            \"req1:a\" : {"
-            + "              \"type\" : \"req1\","
-            + "              \"stats\" : {"
-            + "                \"count\" : 25,"
-            + "                \"time_in_millis\" : 26,"
-            + "                \"current\" : 27,"
-            + "                \"failed\" : 28"
-            + "              }"
-            + "            }"
-            + "          }"
-            + "        ],"
-            + "        \"response_processors\" : ["
-            + "          {"
-            + "            \"rsp1:a\" : {"
-            + "              \"type\" : \"rsp1\","
-            + "              \"stats\" : {"
-            + "                \"count\" : 29,"
-            + "                \"time_in_millis\" : 30,"
-            + "                \"current\" : 31,"
-            + "                \"failed\" : 32"
-            + "              }"
-            + "            }"
-            + "          }"
-            + "        ]"
-            + "      },"
-            + "      \"p2\" : {"
-            + "        \"request\" : {"
-            + "          \"count\" : 17,"
-            + "          \"time_in_millis\" : 18,"
-            + "          \"current\" : 19,"
-            + "          \"failed\" : 20"
-            + "        },"
-            + "        \"response\" : {"
-            + "          \"count\" : 21,"
-            + "          \"time_in_millis\" : 22,"
-            + "          \"current\" : 23,"
-            + "          \"failed\" : 24"
-            + "        },"
-            + "        \"request_processors\" : ["
-            + "          {"
-            + "            \"req1:a\" : {"
-            + "              \"type\" : \"req1\","
-            + "              \"stats\" : {"
-            + "                \"count\" : 33,"
-            + "                \"time_in_millis\" : 34,"
-            + "                \"current\" : 35,"
-            + "                \"failed\" : 36"
-            + "              }"
-            + "            }"
-            + "          },"
-            + "          {"
-            + "            \"req2\" : {"
-            + "              \"type\" : \"req2\","
-            + "              \"stats\" : {"
-            + "                \"count\" : 37,"
-            + "                \"time_in_millis\" : 38,"
-            + "                \"current\" : 39,"
-            + "                \"failed\" : 40"
-            + "              }"
-            + "            }"
-            + "          }"
-            + "        ],"
-            + "        \"response_processors\" : [ ]"
-            + "      }"
-            + "    }"
-            + "  }"
-            + "}";
+        String expected = copyToStringFromClasspath("/org/opensearch/search/pipeline/expected-stats.json");
 
         XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
             this.xContentRegistry(),

@@ -37,6 +37,7 @@ import org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -441,7 +442,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermsQuery() {
-
+        List<String> values = Arrays.asList("foo", "bar");
+        Collections.shuffle(values, random());
         // 1.test isSearchable=true, hasDocValues=true, mappedFieldTypeName=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
@@ -461,7 +463,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 new TermInSetQuery(DOC_VALUES_REWRITE, "field" + VALUE_SUFFIX, docValueterms)
             );
 
-            assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            assertEquals(expected, ft.termsQuery(values, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         // test isSearchable=true, hasDocValues=true, mappedFieldTypeName!=null
@@ -484,7 +486,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 new TermInSetQuery(DOC_VALUES_REWRITE, "field" + VALUE_AND_PATH_SUFFIX, docValueterms)
             );
 
-            assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            assertEquals(expected, ft.termsQuery(values, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         // 2.test isSearchable=true, hasDocValues=false, mappedFieldTypeName=null
@@ -500,7 +502,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             indexTerms.add(new BytesRef("bar"));
             Query expected = new TermInSetQuery("field" + VALUE_SUFFIX, indexTerms);
 
-            assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            assertEquals(expected, ft.termsQuery(values, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
@@ -516,7 +518,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             indexTerms.add(new BytesRef("field.field1=bar"));
             Query expected = new TermInSetQuery("field" + VALUE_AND_PATH_SUFFIX, indexTerms);
 
-            assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), null));
+            assertEquals(expected, ft.termsQuery(values, null));
         }
 
         // 3.test isSearchable=false, hasDocValues=true, mappedFieldTypeName=null
@@ -536,7 +538,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             docValueterms.add(new BytesRef("field.bar"));
             Query expected = new TermInSetQuery(DOC_VALUES_REWRITE, "field" + VALUE_SUFFIX, docValueterms);
 
-            assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            assertEquals(expected, ft.termsQuery(values, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
@@ -553,7 +555,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             docValueTerms.add(new BytesRef("field.field.field1=bar"));
             Query expected = new TermInSetQuery(DOC_VALUES_REWRITE, "field" + VALUE_AND_PATH_SUFFIX, docValueTerms);
 
-            assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            assertEquals(expected, ft.termsQuery(values, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         // 4.test isSearchable=false, hasDocValues=false, mappedFieldTypeName=null
@@ -566,7 +568,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             );
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+                () -> ft.termsQuery(values, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
                 "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
@@ -584,7 +586,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             );
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+                () -> ft.termsQuery(values, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
                 "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values " + "enabled.",

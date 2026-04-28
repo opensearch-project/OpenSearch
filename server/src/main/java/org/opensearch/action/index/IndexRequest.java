@@ -33,7 +33,6 @@
 package org.opensearch.action.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
@@ -63,6 +62,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.Requests;
 
@@ -113,6 +113,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private BytesReference source;
+    private ExtraFieldValues extraFieldValues = ExtraFieldValues.EMPTY;
 
     private OpType opType = OpType.INDEX;
 
@@ -154,6 +155,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         id = in.readOptionalString();
         routing = in.readOptionalString();
         source = in.readBytesReference();
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            extraFieldValues = Objects.requireNonNullElse(in.readOptionalWriteable(ExtraFieldValues::new), ExtraFieldValues.EMPTY);
+        } else {
+            extraFieldValues = ExtraFieldValues.EMPTY;
+        }
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -498,6 +504,23 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
+     * Sets extra field values to be ingested outside of {@code _source}.
+     * <p>
+     * {@code null} clears the values and resets to {@link ExtraFieldValues#EMPTY}.
+     */
+    public IndexRequest extraFieldValues(ExtraFieldValues values) {
+        this.extraFieldValues = values == null ? ExtraFieldValues.EMPTY : values;
+        return this;
+    }
+
+    /**
+     * Returns the extra field values associated with this request, or {@link ExtraFieldValues#EMPTY} if none.
+     */
+    public ExtraFieldValues extraFieldValues() {
+        return extraFieldValues;
+    }
+
+    /**
      * Sets the type of operation to perform.
      */
     public IndexRequest opType(OpType opType) {
@@ -653,24 +676,20 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         routing(metadata.resolveWriteIndexRouting(routing, index));
     }
 
+    @Deprecated(forRemoval = true)
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
-        if (id == null && opType == OpType.CREATE && version.before(LegacyESVersion.fromId(7050099))) {
-            throw new IllegalArgumentException(
-                "optype create not supported for indexing requests without explicit id until all nodes " + "are on version 7.5.0 or higher"
-            );
-        }
+        // Do nothing.
+        // TODO: Remove in OpenSearch 4.0
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeTo(out);
         writeBody(out);
     }
 
     @Override
     public void writeThin(StreamOutput out) throws IOException {
-        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeThin(out);
         writeBody(out);
     }
@@ -682,6 +701,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeBytesReference(source);
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(extraFieldValues.isEmpty() ? null : extraFieldValues);
+        }
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());

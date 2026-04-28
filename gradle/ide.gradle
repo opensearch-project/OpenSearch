@@ -12,6 +12,8 @@
 import org.opensearch.gradle.info.BuildParams
 import org.jetbrains.gradle.ext.Remote
 import org.jetbrains.gradle.ext.JUnit
+import groovy.xml.XmlNodePrinter
+import groovy.xml.XmlParser
 
 buildscript {
   repositories {

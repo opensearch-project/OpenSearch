@@ -224,8 +224,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             indexShard().openEngineAndSkipTranslogRecovery();
             // upload to remote store in migration for primary shard
             if (indexShard.shouldSeedRemoteStore()) {
-                // This cleans up remote translog's 0 generation, as we don't want to get that uploaded
-                indexShard.sync();
+                logger.info("Remote Store seeding starting for {}", indexShard.shardId());
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> { indexShard.refresh("remote store migration"); });
                 indexShard.waitForRemoteStoreSync(this::setLastAccessTime);
                 logger.info("Remote Store is now seeded for {}", indexShard.shardId());

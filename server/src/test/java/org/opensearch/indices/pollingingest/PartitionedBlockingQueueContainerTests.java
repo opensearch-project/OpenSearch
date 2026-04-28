@@ -11,6 +11,8 @@ package org.opensearch.indices.pollingingest;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.engine.FakeIngestionSource;
+import org.opensearch.indices.pollingingest.mappers.DefaultIngestionMessageMapper;
+import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -34,6 +36,7 @@ public class PartitionedBlockingQueueContainerTests extends OpenSearchTestCase {
     private PartitionedBlockingQueueContainer blockingQueueContainer;
     private FakeIngestionSource.FakeIngestionConsumer fakeConsumer;
     private List<byte[]> messages;
+    private IngestionMessageMapper mapper;
 
     @Before
     public void setUp() throws Exception {
@@ -46,9 +49,12 @@ public class PartitionedBlockingQueueContainerTests extends OpenSearchTestCase {
         processorRunnable = new MessageProcessorRunnable(
             new ArrayBlockingQueue<>(5),
             processor,
-            new DropIngestionErrorStrategy("ingestion_source")
+            new DropIngestionErrorStrategy("ingestion_source"),
+            "test_index",
+            0
         );
         this.blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
+        this.mapper = new DefaultIngestionMessageMapper();
     }
 
     @After
@@ -81,7 +87,8 @@ public class PartitionedBlockingQueueContainerTests extends OpenSearchTestCase {
         for (IngestionShardConsumer.ReadResult<
             FakeIngestionSource.FakeIngestionShardPointer,
             FakeIngestionSource.FakeIngestionMessage> readResult : readResults) {
-            blockingQueueContainer.add(readResult);
+            ShardUpdateMessage shardUpdateMessage = mapper.mapAndProcess(readResult.getPointer(), readResult.getMessage());
+            blockingQueueContainer.add(shardUpdateMessage);
         }
 
         // verify ID is present on all messages

@@ -171,6 +171,15 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
+     * Returns the underlying Aggregator responsible for creating the bucket collector.
+     * For most aggregators, this is the aggregator itself.
+     * For wrappers like ProfilingAggregator, it's the delegate.
+     */
+    public Aggregator unwrapAggregator() {
+        return this;
+    }
+
+    /**
      * Compare two buckets by their ordinal.
      *
      * @opensearch.api
@@ -204,6 +213,17 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         assert parent() == null;
         this.internalAggregation.set(buildAggregations(new long[] { 0 })[0]);
         return internalAggregation.get();
+    }
+
+    /**
+     * For streaming aggregation, build the aggregation batch result and
+     * reset so this aggregator can continue with a clean state
+     */
+    public final InternalAggregation buildTopLevelBatch() throws IOException {
+        assert parent() == null;
+        InternalAggregation batch = buildAggregations(new long[] { 0 })[0];
+        reset();
+        return batch;
     }
 
     /**

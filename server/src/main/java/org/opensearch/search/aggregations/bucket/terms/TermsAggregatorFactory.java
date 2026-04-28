@@ -32,7 +32,11 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
@@ -52,13 +56,18 @@ import org.opensearch.search.aggregations.bucket.terms.NumericTermsAggregator.Re
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.FlushMode;
+import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -67,7 +76,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implements StreamingCostEstimable {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -118,11 +127,26 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
+                    if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
+                        return createStreamStringTermsAggregator(
+                            name,
+                            factories,
+                            valuesSource,
+                            order,
+                            format,
+                            bucketCountThresholds,
+                            context,
+                            parent,
+                            showTermDocCountError,
+                            computeSegmentTopN(context, bucketCountThresholds, order),
+                            metadata
+                        );
+                    }
                     execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
                 final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
                 if (subAggCollectMode == null) {
-                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), maxOrd);
+                    subAggCollectMode = pickSubAggCollectMode(factories, bucketCountThresholds.getShardSize(), maxOrd, context);
                 }
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
@@ -190,9 +214,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                             + "include/exclude clauses used to filter numeric fields"
                     );
                 }
-
                 if (subAggCollectMode == null) {
-                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), -1);
+                    subAggCollectMode = pickSubAggCollectMode(factories, bucketCountThresholds.getShardSize(), -1, context);
                 }
 
                 ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
@@ -213,6 +236,24 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         longFilter = includeExclude.convertToLongFilter(format);
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
+                }
+                if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
+                    return createStreamNumericTermsAggregator(
+                        name,
+                        factories,
+                        numericValuesSource,
+                        format,
+                        order,
+                        bucketCountThresholds,
+                        context,
+                        parent,
+                        longFilter,
+                        includeExclude,
+                        showTermDocCountError,
+                        cardinality,
+                        computeSegmentTopN(context, bucketCountThresholds, order),
+                        metadata
+                    );
                 }
                 return new NumericTermsAggregator(
                     name,
@@ -329,13 +370,16 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * Pick a {@link SubAggCollectionMode} based on heuristics about what
      * we're collecting.
      */
-    static SubAggCollectionMode pickSubAggColectMode(AggregatorFactories factories, int expectedSize, long maxOrd) {
+    static SubAggCollectionMode pickSubAggCollectMode(AggregatorFactories factories, int expectedSize, long maxOrd, SearchContext context) {
         if (factories.countAggregators() == 0) {
             // Without sub-aggregations we pretty much ignore this field value so just pick something
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (expectedSize == Integer.MAX_VALUE) {
             // We expect to return all buckets so delaying them won't save any time
+            return SubAggCollectionMode.DEPTH_FIRST;
+        }
+        if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (maxOrd == -1 || maxOrd > expectedSize) {
@@ -445,14 +489,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
                     (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
                     /*
-                     * We can use the low cardinality execution mode iff this aggregator:
-                     *  - has no sub-aggregator AND
-                     *  - collects from a single bucket AND
-                     *  - has a values source that can map from segment to global ordinals
-                     *  - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
-                     *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
-                     *  which directly linked to maxOrd, so we need to limit).
-                     */
+                    * We can use the low cardinality execution mode iff this aggregator:
+                    * - has no sub-aggregator AND
+                    * - collects from a single bucket AND
+                    * - has a values source that can map from segment to global ordinals
+                    * - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
+                    * - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
+                    * which directly linked to maxOrd, so we need to limit).
+                    */
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
                         name,
                         factories,
@@ -556,6 +600,197 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         public String toString() {
             return parseField.getPreferredName();
         }
+    }
+
+    static Aggregator createStreamStringTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource valuesSource,
+        BucketOrder order,
+        DocValueFormat format,
+        BucketCountThresholds bucketCountThresholds,
+        SearchContext context,
+        Aggregator parent,
+        boolean showTermDocCountError,
+        int segmentTopN,
+        Map<String, Object> metadata
+    ) throws IOException {
+        {
+            assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
+            ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+            return new StreamStringTermsAggregator(
+                name,
+                factories,
+                a -> a.new StandardTermsResults(),
+                ordinalsValuesSource,
+                order,
+                format,
+                bucketCountThresholds,
+                context,
+                parent,
+                SubAggCollectionMode.DEPTH_FIRST,
+                showTermDocCountError,
+                segmentTopN,
+                metadata
+            );
+        }
+    }
+
+    static Aggregator createStreamNumericTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        DocValueFormat format,
+        BucketOrder order,
+        BucketCountThresholds bucketCountThresholds,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        IncludeExclude.LongFilter longFilter,
+        IncludeExclude includeExclude,
+        boolean showTermDocCountError,
+        CardinalityUpperBound cardinality,
+        int segmentTopN,
+        Map<String, Object> metadata
+    ) throws IOException {
+        Function<StreamNumericTermsAggregator, StreamNumericTermsAggregator.ResultStrategy<?, ?>> resultStrategy;
+        if (valuesSource.isFloatingPoint()) {
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToDoubleFilter();
+            }
+            resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+        } else if (valuesSource.isBigInteger()) {
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToDoubleFilter();
+            }
+            resultStrategy = agg -> agg.new UnsignedLongTermsResults(showTermDocCountError);
+        } else {
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter(format);
+            }
+            resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
+        }
+        return new StreamNumericTermsAggregator(
+            name,
+            factories,
+            resultStrategy,
+            valuesSource,
+            format,
+            order,
+            bucketCountThresholds,
+            aggregationContext,
+            parent,
+            SubAggCollectionMode.DEPTH_FIRST,
+            longFilter,
+            cardinality,
+            segmentTopN,
+            metadata
+        );
+    }
+
+    /**
+     * Computes segmentTopN for use in streaming aggregation.
+     */
+    private static int computeSegmentTopN(SearchContext context, BucketCountThresholds bucketCountThresholds, BucketOrder order) {
+        int effectiveShardSize = bucketCountThresholds.getShardSize();
+        if (InternalOrder.isKeyOrder(order) == false
+            && effectiveShardSize == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+            effectiveShardSize = BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize());
+        }
+        if (effectiveShardSize < bucketCountThresholds.getRequiredSize()) {
+            effectiveShardSize = bucketCountThresholds.getRequiredSize();
+        }
+        int minSegmentSize = context.getQueryShardContext().getIndexSettings().getStreamingAggregationMinSegmentSize();
+        // TODO we can have a factor multiplied on effectiveShardSize
+        return Math.max(minSegmentSize, effectiveShardSize);
+    }
+
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
+        ValuesSource valuesSource = config.getValuesSource();
+        int segmentTopN = computeSegmentTopN(searchContext, bucketCountThresholds, order);
+
+        // Reject numeric aggregators with key-based ordering
+        if (InternalOrder.isKeyOrder(order) && valuesSource instanceof ValuesSource.Numeric) {
+            return StreamingCostMetrics.nonStreamable();
+        }
+
+        if (valuesSource instanceof WithOrdinals ordinalsValuesSource) {
+            if (shouldDisableStreamingForOrdinals(searchContext, ordinalsValuesSource)) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+            return new StreamingCostMetrics(true, segmentTopN);
+        }
+
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            return new StreamingCostMetrics(true, segmentTopN);
+        }
+
+        return StreamingCostMetrics.nonStreamable();
+    }
+
+    /**
+     * Determines if streaming should be disabled for ordinal-based string terms aggregation.
+     *
+     * <p>Streaming is disabled when:
+     * <ul>
+     *   <li>Low cardinality: max cardinality across segments is below the minimum bucket threshold</li>
+     *   <li>Match-all optimization eligible: query is match-all and the majority of docs are in
+     *       segments without deletions, allowing the traditional aggregator to use its
+     *       term frequency optimization</li>
+     * </ul>
+     */
+    private boolean shouldDisableStreamingForOrdinals(SearchContext searchContext, WithOrdinals valuesSource) {
+        List<LeafReaderContext> leaves = searchContext.searcher().getIndexReader().leaves();
+        if (leaves.isEmpty()) {
+            return false;
+        }
+
+        long minBucketCount = searchContext.getStreamingMinEstimatedBucketCount();
+        long maxCardinality = 0;
+        long totalDocs = 0;
+        // A segment is "clean" if it has no deletions
+        long docsInCleanSegments = 0;
+
+        for (LeafReaderContext leaf : leaves) {
+            try {
+                SortedSetDocValues docValues = valuesSource.ordinalsValues(leaf);
+                if (docValues != null) {
+                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
+                }
+            } catch (IOException e) {
+                // If we can't read doc values, skip this check
+                return false;
+            }
+
+            int segmentDocs = leaf.reader().maxDoc();
+            totalDocs += segmentDocs;
+
+            if (!leaf.reader().hasDeletions()) {
+                docsInCleanSegments += segmentDocs;
+            }
+        }
+
+        // Check 1: Low cardinality - streaming overhead not worth it
+        if (maxCardinality < minBucketCount) {
+            return true;
+        }
+
+        // Check 2: Match-all query with the majority of docs in clean segments
+        // and cardinality within the precompute threshold.
+        // Traditional aggregator can use term frequency optimization for these segments.
+        if (isMatchAllQuery(searchContext.query()) && maxCardinality <= searchContext.termsAggregationMaxPrecomputeCardinality()) {
+            double cleanRatio = totalDocs > 0 ? (double) docsInCleanSegments / totalDocs : 0;
+            return cleanRatio > 0.8;
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if the query is a match-all query.
+     */
+    private static boolean isMatchAllQuery(Query query) {
+        return query instanceof MatchAllDocsQuery;
     }
 
     @Override

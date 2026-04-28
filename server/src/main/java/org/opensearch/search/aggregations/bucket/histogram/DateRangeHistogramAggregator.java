@@ -207,6 +207,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                 subAggregationResults
             ),
             (owningBucketOrd, buckets) -> {
+                checkCancelled();
                 // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 

@@ -32,20 +32,28 @@
 
 package org.opensearch.index.query;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 
+import tools.jackson.core.io.JsonStringEncoder;
+
+import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
+import static org.opensearch.index.query.MatchQueryBuilderTests.testGetComplementNumericField;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
@@ -72,7 +80,9 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 } else {
                     // generate unicode string in 10% of cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
-                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
+                    final StringBuilder sb = new StringBuilder();
+                    encoder.quoteAsString(randomUnicodeOfLength(10), sb);
+                    value = sb.toString();
                 }
                 break;
             case 2:
@@ -139,20 +149,26 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     }
 
     public void testTermArray() throws IOException {
-        String queryAsString = "{\n" + "    \"term\": {\n" + "        \"age\": [34, 35]\n" + "    }\n" + "}";
+        String queryAsString = """
+            {
+                "term": {
+                    "age": [34, 35]
+                }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryAsString));
         assertEquals("[term] query does not support array of values", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"term\" : {\n"
-            + "    \"exact_value\" : {\n"
-            + "      \"value\" : \"Quick Foxes!\",\n"
-            + "      \"boost\" : 1.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "term" : {
+                "exact_value" : {
+                  "value" : "Quick Foxes!",
+                  "boost" : 1.0
+                }
+              }
+            }""";
 
         TermQueryBuilder parsed = (TermQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -170,32 +186,40 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n"
-            + "  \"term\" : {\n"
-            + "    \"message1\" : {\n"
-            + "      \"value\" : \"this\"\n"
-            + "    },\n"
-            + "    \"message2\" : {\n"
-            + "      \"value\" : \"this\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "term" : {
+                "message1" : {
+                  "value" : "this"
+                },
+                "message2" : {
+                  "value" : "this"
+                }
+              }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n" + "  \"term\" : {\n" + "    \"message1\" : \"this\",\n" + "    \"message2\" : \"this\"\n" + "  }\n" + "}";
+        String shortJson = """
+            {
+              "term" : {
+                "message1" : "this",
+                "message2" : "this"
+              }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
     public void testParseAndSerializeBigInteger() throws IOException {
-        String json = "{\n"
-            + "  \"term\" : {\n"
-            + "    \"foo\" : {\n"
-            + "      \"value\" : 80315953321748200608\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "term" : {
+                "foo" : {
+                  "value" : 80315953321748200608
+                }
+              }
+            }""";
         QueryBuilder parsedQuery = parseQuery(json);
         assertSerialization(parsedQuery);
     }
@@ -221,5 +245,26 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         TermQueryBuilder queryBuilder = new TermQueryBuilder("unmapped_field", "foo");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testGetComplement() throws Exception {
+        // getComplement() should return null if QueryShardContext is null
+        int value = 200;
+        TermQueryBuilder queryBuilder = new TermQueryBuilder(INT_FIELD_NAME, value);
+        assertNull(queryBuilder.getComplement(null));
+
+        // getComplement() should return 2 range queries if this is a numeric field
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        testGetComplementNumericField(queryBuilder, value, INT_FIELD_NAME, searcher);
+
+        // should return null if this isn't a numeric field
+        queryBuilder = new TermQueryBuilder(TEXT_FIELD_NAME, "some_text");
+        assertNull(queryBuilder.getComplement(createShardContext(searcher)));
+
+        IOUtils.close(w, reader, dir);
     }
 }

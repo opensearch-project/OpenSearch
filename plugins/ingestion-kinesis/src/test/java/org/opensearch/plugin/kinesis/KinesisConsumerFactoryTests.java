@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.kinesis;
 
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
@@ -28,7 +29,7 @@ public class KinesisConsumerFactoryTests extends OpenSearchTestCase {
         params.put("secret_key", "testSecretKey");
         params.put("access_key", "testAccessKey");
 
-        factory.initialize(params);
+        factory.initialize(new IngestionSource.Builder("KINESIS").setParams(params).build());
 
         Assert.assertNotNull("Config should be initialized", factory.config);
         Assert.assertEquals("Region should be correctly initialized", "us-west-2", factory.config.getRegion());
@@ -41,7 +42,10 @@ public class KinesisConsumerFactoryTests extends OpenSearchTestCase {
             factory.initialize(null);
             Assert.fail("Initialization should throw an exception when params is null");
         } catch (NullPointerException e) {
-            Assert.assertEquals("Cannot invoke \"java.util.Map.get(Object)\" because \"configuration\" is null", e.getMessage());
+            Assert.assertNotNull(
+                "Cannot invoke \"[org.opensearch.cluster.metadata.IngestionSource.params()\" because \"ingestionSource]\" is null",
+                e.getMessage()
+            );
         }
     }
 

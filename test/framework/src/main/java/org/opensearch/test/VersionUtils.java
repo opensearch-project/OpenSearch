@@ -32,7 +32,6 @@
 
 package org.opensearch.test;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
@@ -47,7 +46,9 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/** Utilities for selecting versions in tests */
+/**
+ * Utilities for selecting versions in tests
+ */
 public class VersionUtils {
     // version 1.0 is removed; this is used purely to retain consistent logic for migrations
     @Deprecated
@@ -60,6 +61,7 @@ public class VersionUtils {
      * this which it does in {@code :core:verifyVersions}. So long as the
      * rules here match up with the rules in gradle then this should
      * produce sensible results.
+     *
      * @return a tuple containing versions with backwards compatibility
      * guarantees in v1 and versions without the guarantees in v2
      */
@@ -108,22 +110,19 @@ public class VersionUtils {
         // remove last minor unless it's the first OpenSearch version.
         // all Legacy ES versions are released, so we don't exclude any.
         if (current.equals(V_1_0_0) == false) {
-            List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
-            if (lastMinorLine.get(lastMinorLine.size() - 1) instanceof LegacyESVersion == false) {
-                // if the last minor line is Legacy there are no more staged releases; do nothing
-                // otherwise the last minor line is (by definition) staged and unreleased
-                Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
-                // no more staged legacy bugfixes so skip;
-                if (lastMinor instanceof LegacyESVersion == false && lastMinor.revision == 0) {
-                    // this is not a legacy version; remove the staged bugfix
-                    if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
-                        // a minor is being staged, which is also unreleased
-                        moveLastToUnreleased(stableVersions, unreleasedVersions);
-                    }
-                    // remove the next bugfix
-                    if (stableVersions.isEmpty() == false) {
-                        moveLastToUnreleased(stableVersions, unreleasedVersions);
-                    }
+            // if the last minor line is Legacy there are no more staged releases; do nothing
+            // otherwise the last minor line is (by definition) staged and unreleased
+            Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+            // no more staged legacy bugfixes so skip;
+            if (lastMinor.revision == 0) {
+                // this is not a legacy version; remove the staged bugfix
+                if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
+                    // a minor is being staged, which is also unreleased
+                    moveLastToUnreleased(stableVersions, unreleasedVersions);
+                }
+                // remove the next bugfix
+                if (stableVersions.isEmpty() == false) {
+                    moveLastToUnreleased(stableVersions, unreleasedVersions);
                 }
             }
         }
@@ -166,11 +165,9 @@ public class VersionUtils {
     private static final List<Version> RELEASED_VERSIONS;
     private static final List<Version> UNRELEASED_VERSIONS;
     private static final List<Version> ALL_VERSIONS;
-    private static final List<Version> ALL_OPENSEARCH_VERSIONS;
-    private static final List<Version> ALL_LEGACY_VERSIONS;
 
     static {
-        Tuple<List<Version>, List<Version>> versions = resolveReleasedVersions(Version.CURRENT, LegacyESVersion.class);
+        Tuple<List<Version>, List<Version>> versions = resolveReleasedVersions(Version.CURRENT, Version.class);
         RELEASED_VERSIONS = versions.v1();
         UNRELEASED_VERSIONS = versions.v2();
         List<Version> allVersions = new ArrayList<>(RELEASED_VERSIONS.size() + UNRELEASED_VERSIONS.size());
@@ -178,9 +175,6 @@ public class VersionUtils {
         allVersions.addAll(UNRELEASED_VERSIONS);
         Collections.sort(allVersions);
         ALL_VERSIONS = Collections.unmodifiableList(allVersions);
-        // @todo remove this when legacy support is no longer needed
-        ALL_OPENSEARCH_VERSIONS = ALL_VERSIONS.stream().filter(v -> v.major < 6).collect(Collectors.toList());
-        ALL_LEGACY_VERSIONS = ALL_VERSIONS.stream().filter(v -> v.major >= 6).collect(Collectors.toList());
     }
 
     /**
@@ -204,14 +198,11 @@ public class VersionUtils {
         return ALL_VERSIONS;
     }
 
-    /** Returns an immutable, sorted list containing all opensearch versions; released and unreleased */
+    /**
+     * Returns an immutable, sorted list containing all opensearch versions; released and unreleased
+     */
     public static List<Version> allOpenSearchVersions() {
-        return ALL_OPENSEARCH_VERSIONS;
-    }
-
-    /** Returns an immutable, sorted list containing all legacy versions; released and unreleased */
-    public static List<Version> allLegacyVersions() {
-        return ALL_LEGACY_VERSIONS;
+        return allVersions();
     }
 
     /**
@@ -250,7 +241,9 @@ public class VersionUtils {
         throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + Version.CURRENT + "]");
     }
 
-    /** Returns the oldest released {@link Version} */
+    /**
+     * Returns the oldest released {@link Version}
+     */
     public static Version getFirstVersion() {
         return RELEASED_VERSIONS.get(0);
     }
@@ -260,7 +253,9 @@ public class VersionUtils {
         return majorVersions.get(major).get(0);
     }
 
-    /** Returns a random {@link Version} from all available versions. */
+    /**
+     * Returns a random {@link Version} from all available versions.
+     */
     public static Version randomVersion(Random random) {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
     }
@@ -269,19 +264,13 @@ public class VersionUtils {
      * Return a random {@link Version} from all available opensearch versions.
      **/
     public static Version randomOpenSearchVersion(Random random) {
-        return ALL_OPENSEARCH_VERSIONS.get(random.nextInt(ALL_OPENSEARCH_VERSIONS.size()));
+        return randomVersion(random);
     }
 
     /**
-     * Return a random {@link LegacyESVersion} from all available legacy versions.
-     **/
-    public static LegacyESVersion randomLegacyVersion(Random random) {
-        return (LegacyESVersion) ALL_LEGACY_VERSIONS.get(random.nextInt(ALL_LEGACY_VERSIONS.size()));
-    }
-
-    /** Returns the first released (e.g., patch version 0) {@link Version} of the last minor from the requested major version
-     *  e.g., for version 1.0.0 this would be legacy version (7.10.0); the first release (patch 0), of the last
-     *  minor (for 7.x that is minor version 10) for the desired major version (7)
+     * Returns the first released (e.g., patch version 0) {@link Version} of the last minor from the requested major version
+     * e.g., for version 1.0.0 this would be legacy version (7.10.0); the first release (patch 0), of the last
+     * minor (for 7.x that is minor version 10) for the desired major version (7)
      **/
     public static Version lastFirstReleasedMinorFromMajor(List<Version> allVersions, int major) {
         Map<Integer, List<Version>> majorVersions = allVersions.stream().collect(Collectors.groupingBy(v -> (int) v.major));
@@ -290,13 +279,17 @@ public class VersionUtils {
         return candidates.get(0);
     }
 
-    /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
+    /**
+     * Returns a random {@link Version} from all available versions, that is compatible with the given version.
+     */
     public static Version randomCompatibleVersion(Random random, Version version) {
         final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).collect(Collectors.toList());
         return compatible.get(random.nextInt(compatible.size()));
     }
 
-    /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
+    /**
+     * Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive).
+     */
     public static Version randomVersionBetween(Random random, @Nullable Version minVersion, @Nullable Version maxVersion) {
         int minVersionIndex = 0;
         if (minVersion != null) {
@@ -319,21 +312,27 @@ public class VersionUtils {
         }
     }
 
-    /** returns the first future incompatible version */
+    /**
+     * returns the first future incompatible version
+     */
     public static Version incompatibleFutureVersion(Version version) {
         final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
         assert opt.isPresent() : "no future incompatible version for " + version;
         return opt.get();
     }
 
-    /** returns the first future compatible version */
+    /**
+     * returns the first future compatible version
+     */
     public static Version compatibleFutureVersion(Version version) {
         final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
         assert opt.isPresent() : "no future compatible version for " + version;
         return opt.get();
     }
 
-    /** Returns the maximum {@link Version} that is compatible with the given version. */
+    /**
+     * Returns the maximum {@link Version} that is compatible with the given version.
+     */
     public static Version maxCompatibleVersion(Version version) {
         final List<Version> compatible = ALL_VERSIONS.stream()
             .filter(version::isCompatible)

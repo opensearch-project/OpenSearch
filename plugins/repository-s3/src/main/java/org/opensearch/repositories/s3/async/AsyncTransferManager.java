@@ -37,9 +37,9 @@ import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -56,6 +56,8 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import com.jcraft.jzlib.JZlib;
+
+import static org.opensearch.repositories.s3.utils.SseKmsUtil.configureEncryptionSettings;
 
 /**
  * A helper class that automatically uses multipart upload based on the size of the source object
@@ -154,7 +156,8 @@ public final class AsyncTransferManager {
         CreateMultipartUploadRequest.Builder createMultipartUploadRequestBuilder = CreateMultipartUploadRequest.builder()
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
-            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector));
+            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
+            .expectedBucketOwner(uploadRequest.getExpectedBucketOwner());
 
         if (CollectionUtils.isNotEmpty(uploadRequest.getMetadata())) {
             createMultipartUploadRequestBuilder.metadata(uploadRequest.getMetadata());
@@ -162,7 +165,10 @@ public final class AsyncTransferManager {
         if (uploadRequest.doRemoteDataIntegrityCheck()) {
             createMultipartUploadRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
         }
-        CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadFuture = SocketAccess.doPrivileged(
+
+        configureEncryptionSettings(createMultipartUploadRequestBuilder, uploadRequest);
+
+        CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadFuture = AccessController.doPrivileged(
             () -> s3AsyncClient.createMultipartUpload(createMultipartUploadRequestBuilder.build())
         );
 
@@ -295,9 +301,10 @@ public final class AsyncTransferManager {
             .uploadId(uploadId)
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
             .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
+            .expectedBucketOwner(uploadRequest.getExpectedBucketOwner())
             .build();
 
-        return SocketAccess.doPrivileged(() -> s3AsyncClient.completeMultipartUpload(completeMultipartUploadRequest));
+        return AccessController.doPrivileged(() -> s3AsyncClient.completeMultipartUpload(completeMultipartUploadRequest));
     }
 
     private static String base64StringFromLong(Long val) {
@@ -356,7 +363,8 @@ public final class AsyncTransferManager {
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
             .contentLength(uploadRequest.getContentLength())
-            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.putObjectMetricPublisher));
+            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.putObjectMetricPublisher))
+            .expectedBucketOwner(uploadRequest.getExpectedBucketOwner());
 
         if (CollectionUtils.isNotEmpty(uploadRequest.getMetadata())) {
             putObjectRequestBuilder.metadata(uploadRequest.getMetadata());
@@ -365,6 +373,9 @@ public final class AsyncTransferManager {
             putObjectRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
             putObjectRequestBuilder.checksumCRC32(base64StringFromLong(uploadRequest.getExpectedChecksum()));
         }
+
+        configureEncryptionSettings(putObjectRequestBuilder, uploadRequest);
+
         PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
         ExecutorService streamReadExecutor;
         if (uploadRequest.getWritePriority() == WritePriority.URGENT) {
@@ -375,7 +386,7 @@ public final class AsyncTransferManager {
             streamReadExecutor = executorService;
         }
 
-        CompletableFuture<Void> putObjectFuture = SocketAccess.doPrivileged(() -> {
+        CompletableFuture<Void> putObjectFuture = AccessController.doPrivileged(() -> {
             InputStream inputStream = null;
             CompletableFuture<PutObjectResponse> putObjectRespFuture;
             try {
@@ -454,9 +465,10 @@ public final class AsyncTransferManager {
         DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
+            .expectedBucketOwner(uploadRequest.getExpectedBucketOwner())
             .build();
 
-        SocketAccess.doPrivileged(() -> s3AsyncClient.deleteObject(deleteObjectRequest)).exceptionally(throwable -> {
+        AccessController.doPrivileged(() -> s3AsyncClient.deleteObject(deleteObjectRequest)).exceptionally(throwable -> {
             log.error(() -> new ParameterizedMessage("Failed to delete uploaded object of key {}", uploadRequest.getKey()), throwable);
             return null;
         });

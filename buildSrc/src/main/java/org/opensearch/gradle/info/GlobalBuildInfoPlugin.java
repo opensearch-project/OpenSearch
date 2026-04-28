@@ -109,6 +109,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File rootDir = project.getRootDir();
         GitInfo gitInfo = gitInfo(rootDir);
 
+        FipsBuildParams.init(project::findProperty);
+
         BuildParams.init(params -> {
             // Initialize global build parameters
             boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
@@ -129,8 +131,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setIsCi(System.getenv("JENKINS_URL") != null);
             params.setIsInternal(isInternal);
             params.setDefaultParallel(findDefaultParallel(project));
-            params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
+            params.setInFipsJvm(FipsBuildParams.isInFipsMode());
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
+            params.setBuildUnreleasedFromSource(Util.getBooleanProperty("bwc.buildUnreleasedFromSource", true));
             if (isInternal) {
                 params.setBwcVersions(resolveBwcVersions(rootDir));
             }
@@ -147,10 +150,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         // todo redesign this terrible unreliable hack; should NEVER rely on parsing a source file
         // for now, we hack the hack
         File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
-        File legacyVersionsFile = new File(root, DEFAULT_LEGACY_VERSION_JAVA_FILE_PATH);
-        try (FileInputStream fis = new FileInputStream(versionsFile); FileInputStream fis2 = new FileInputStream(legacyVersionsFile)) {
+        try (FileInputStream fis = new FileInputStream(versionsFile)) {
             List<String> versionLines = IOUtils.readLines(fis, "UTF-8");
-            versionLines.addAll(IOUtils.readLines(fis2, "UTF-8"));
             return new BwcVersions(versionLines);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve bwc versions from versionsFile.", e);
@@ -179,7 +180,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
-        LOGGER.quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());
+        LOGGER.quiet("  Crypto Standard       : " + FipsBuildParams.getFipsMode());
         LOGGER.quiet("=======================================");
     }
 

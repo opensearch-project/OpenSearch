@@ -10,8 +10,8 @@ package org.opensearch.plugin.wlm.rule;
 
 import org.opensearch.rule.RuleAttribute;
 import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.FeatureValueValidator;
 
 import java.util.Map;
 
@@ -21,21 +21,24 @@ import java.util.Map;
  */
 public class WorkloadGroupFeatureType implements FeatureType {
     /**
-     * The instance for WorkloadGroupFeatureType
-     */
-    public static final WorkloadGroupFeatureType INSTANCE = new WorkloadGroupFeatureType();
-    /**
      * Name for WorkloadGroupFeatureType
      */
     public static final String NAME = "workload_group";
     private static final int MAX_ATTRIBUTE_VALUES = 10;
     private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
-    private static final Map<String, Attribute> ALLOWED_ATTRIBUTES = Map.of(
-        RuleAttribute.INDEX_PATTERN.getName(),
-        RuleAttribute.INDEX_PATTERN
-    );
+    private final Map<Attribute, Integer> orderedAttributes;
+    private final FeatureValueValidator featureValueValidator;
 
-    private WorkloadGroupFeatureType() {}
+    /**
+     * constructor for WorkloadGroupFeatureType
+     * @param featureValueValidator
+     * @param orderedAttributes
+     */
+    public WorkloadGroupFeatureType(FeatureValueValidator featureValueValidator, Map<Attribute, Integer> orderedAttributes) {
+        this.featureValueValidator = featureValueValidator;
+        orderedAttributes.put(RuleAttribute.INDEX_PATTERN, 2);
+        this.orderedAttributes = orderedAttributes;
+    }
 
     @Override
     public String getName() {
@@ -53,12 +56,12 @@ public class WorkloadGroupFeatureType implements FeatureType {
     }
 
     @Override
-    public Map<String, Attribute> getAllowedAttributesRegistry() {
-        return ALLOWED_ATTRIBUTES;
+    public Map<Attribute, Integer> getOrderedAttributes() {
+        return orderedAttributes;
     }
 
     @Override
-    public void registerFeatureType() {
-        AutoTaggingRegistry.registerFeatureType(INSTANCE);
+    public FeatureValueValidator getFeatureValueValidator() {
+        return featureValueValidator;
     }
 }

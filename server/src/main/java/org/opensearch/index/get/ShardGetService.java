@@ -107,13 +107,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetStats stats() {
-        return new GetStats(
-            existsMetric.count(),
-            TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()),
-            missingMetric.count(),
-            TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()),
-            currentMetric.count()
-        );
+        return new GetStats.Builder().existsCount(existsMetric.count())
+            .existsTimeInMillis(TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()))
+            .missingCount(missingMetric.count())
+            .missingTimeInMillis(TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()))
+            .current(currentMetric.count())
+            .build();
     }
 
     public GetResult get(

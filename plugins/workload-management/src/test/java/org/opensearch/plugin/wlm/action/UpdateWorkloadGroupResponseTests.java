@@ -15,14 +15,14 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
+import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.workloadGroupOne;
 import static org.mockito.Mockito.mock;
 
 public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
@@ -43,7 +43,7 @@ public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
         List<WorkloadGroup> list2 = new ArrayList<>();
         list1.add(responseGroup);
         list2.add(otherResponseGroup);
-        WorkloadGroupTestUtils.assertEqualWorkloadGroups(list1, list2, false);
+        WorkloadManagementTestUtils.assertEqualWorkloadGroups(list1, list2, false);
     }
 
     /**
@@ -60,7 +60,33 @@ public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
             + "  \"resource_limits\" : {\n"
             + "    \"memory\" : 0.3\n"
             + "  },\n"
+            + "  \"search_settings\" : { },\n"
             + "  \"updated_at\" : 4513232413\n"
+            + "}";
+        assertEquals(expected, actual);
+    }
+
+    /**
+     * Test case to verify the toXContent method of UpdateWorkloadGroupResponse with search settings.
+     */
+    public void testToXContentUpdateWorkloadGroupWithSearchSettings() throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        UpdateWorkloadGroupResponse response = new UpdateWorkloadGroupResponse(
+            WorkloadManagementTestUtils.workloadGroupWithSearchSettings,
+            RestStatus.OK
+        );
+        String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
+        String expected = "{\n"
+            + "  \"_id\" : \"H6jVP6Kb0zgtZmPOmZj4UQ==\",\n"
+            + "  \"name\" : \"workload_group_three\",\n"
+            + "  \"resiliency_mode\" : \"enforced\",\n"
+            + "  \"resource_limits\" : {\n"
+            + "    \"memory\" : 0.5\n"
+            + "  },\n"
+            + "  \"search_settings\" : {\n"
+            + "    \"timeout\" : \"30s\"\n"
+            + "  },\n"
+            + "  \"updated_at\" : 4513232417\n"
             + "}";
         assertEquals(expected, actual);
     }

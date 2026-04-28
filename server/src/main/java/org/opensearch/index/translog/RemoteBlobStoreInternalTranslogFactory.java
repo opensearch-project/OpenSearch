@@ -37,12 +37,15 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
     private final RemoteStoreSettings remoteStoreSettings;
 
+    private final boolean isServerSideEncryptionEnabled;
+
     public RemoteBlobStoreInternalTranslogFactory(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
         String repositoryName,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isServerSideEncryptionEnabled
     ) {
         Repository repository;
         try {
@@ -54,6 +57,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         this.threadPool = threadPool;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.remoteStoreSettings = remoteStoreSettings;
+        this.isServerSideEncryptionEnabled = isServerSideEncryptionEnabled;
     }
 
     @Override
@@ -65,6 +69,31 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
         BooleanSupplier startedPrimarySupplier
+    ) throws IOException {
+        assert config.getIndexSettings().isDerivedSourceEnabled() == false; // For derived source supported index, primary method must be
+                                                                            // used
+        return this.newTranslog(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            startedPrimarySupplier,
+            TranslogOperationHelper.DEFAULT
+        );
+    }
+
+    @Override
+    public Translog newTranslog(
+        TranslogConfig config,
+        String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier primaryTermSupplier,
+        LongConsumer persistedSequenceNumberConsumer,
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
 
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
@@ -81,7 +110,9 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 threadPool,
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
-                remoteStoreSettings
+                remoteStoreSettings,
+                translogOperationHelper,
+                isServerSideEncryptionEnabled
             );
         } else {
             return new RemoteFsTranslog(
@@ -95,7 +126,10 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 threadPool,
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
-                remoteStoreSettings
+                remoteStoreSettings,
+                translogOperationHelper,
+                null,
+                isServerSideEncryptionEnabled
             );
         }
     }

@@ -23,7 +23,7 @@ public class KafkaSourceConfigTests extends OpenSearchTestCase {
         params.put("fetch.min.bytes", 30000);
         params.put("enable.auto.commit", false);
 
-        KafkaSourceConfig config = new KafkaSourceConfig(params);
+        KafkaSourceConfig config = new KafkaSourceConfig(100, params);
 
         Assert.assertEquals("The topic should be correctly initialized and returned", "topic", config.getTopic());
         Assert.assertEquals(
@@ -33,5 +33,11 @@ public class KafkaSourceConfigTests extends OpenSearchTestCase {
         );
         Assert.assertEquals("Incorrect fetch.min.bytes", 30000, config.getConsumerConfigurations().get("fetch.min.bytes"));
         Assert.assertEquals("Incorrect enable.auto.commit", false, config.getConsumerConfigurations().get("enable.auto.commit"));
+        Assert.assertEquals(
+            "auto.offset.reset must be 'none' by default",
+            "none",
+            config.getConsumerConfigurations().get("auto.offset.reset")
+        );
+        Assert.assertEquals("Incorrect max.poll.records", 100, config.getConsumerConfigurations().get("max.poll.records"));
     }
 }

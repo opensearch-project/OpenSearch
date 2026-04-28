@@ -54,6 +54,8 @@ import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.index.get.GetResult;
+import org.opensearch.index.mapper.extrasource.BytesValue;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -67,6 +69,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -647,6 +650,21 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
     }
 
+    public void testUpdateScriptNotSupportingExtraFieldValues() {
+        UpdateRequest req = new UpdateRequest("index", "id");
+        req.script(mockInlineScript("return"));
+
+        // Attach extra field values to the upsert request (doc cannot be set with script).
+        IndexRequest upsert = new IndexRequest("index").id("id").source("{\"f\":\"v\"}", MediaTypeRegistry.JSON);
+        upsert.extraFieldValues(new ExtraFieldValues(Map.of("k", new BytesValue(new BytesArray(new byte[] { 1, 2, 3 })))));
+
+        req.upsert(upsert);
+        ActionRequestValidationException e = req.validate();
+
+        assertNotNull(e);
+        assertThat(e.validationErrors(), contains("ExtraFieldValues are not supported with scripted updates"));
+    }
+
     public void testToString() throws IOException {
         UpdateRequest request = new UpdateRequest("test", "1").script(mockInlineScript("ctx._source.body = \"foo\""));
         assertThat(
@@ -667,5 +685,45 @@ public class UpdateRequestTests extends OpenSearchTestCase {
                     + "doc[index {[test][null], source[{\"body\":\"bar\"}]}], scripted_upsert[false], detect_noop[true]}"
             )
         );
+    }
+
+    public void testGetChildIndexRequests() {
+        UpdateRequest request = new UpdateRequest("test", "1");
+        IndexRequest docRequest = new IndexRequest("test").id("1");
+        IndexRequest upsertRequest = new IndexRequest("test").id("1");
+
+        // Empty
+        List<IndexRequest> childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 0);
+
+        // Normal update
+        request = new UpdateRequest("test", "1").doc(docRequest);
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 1);
+        assertEquals(childRequests.get(0), docRequest);
+
+        // Update with script
+        request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.field = \"foo\""));
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 0);
+
+        // Normal upsert
+        request = new UpdateRequest("test", "1").doc(docRequest).upsert(upsertRequest);
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 2);
+        assertEquals(childRequests.get(0), docRequest);
+        assertEquals(childRequests.get(1), upsertRequest);
+
+        // Upsert with script
+        request = new UpdateRequest("test", "1").upsert(upsertRequest).script(mockInlineScript("ctx.field = \"foo\""));
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 1);
+        assertEquals(childRequests.get(0), upsertRequest);
+
+        // Doc as upsert
+        request = new UpdateRequest("test", "1").doc(docRequest).docAsUpsert(true);
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 1);
+        assertEquals(childRequests.get(0), docRequest);
     }
 }

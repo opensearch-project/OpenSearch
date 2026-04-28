@@ -128,8 +128,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String stringValue) {
+            return stringValue;
         }
         throw newConfigurationException(
             processorType,
@@ -162,20 +162,17 @@ public final class ConfigurationUtils {
     }
 
     private static String readStringOrInt(String processorType, String processorTag, String propertyName, Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof String) {
-            return (String) value;
-        } else if (value instanceof Integer) {
-            return String.valueOf(value);
-        }
-        throw newConfigurationException(
-            processorType,
-            processorTag,
-            propertyName,
-            "property isn't a string or int, but of type [" + value.getClass().getName() + "]"
-        );
+        return switch (value) {
+            case null -> null;
+            case String stringValue -> stringValue;
+            case Integer intValue -> String.valueOf(intValue);
+            default -> throw newConfigurationException(
+                processorType,
+                processorTag,
+                propertyName,
+                "property isn't a string or int, but of type [" + value.getClass().getName() + "]"
+            );
+        };
     }
 
     /**
@@ -215,8 +212,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof Boolean) {
-            return (boolean) value;
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
         }
         throw newConfigurationException(
             processorType,
@@ -317,7 +314,7 @@ public final class ConfigurationUtils {
     }
 
     private static <T> List<T> readList(String processorType, String processorTag, String propertyName, Object value) {
-        if (value instanceof List) {
+        if (value instanceof List<?>) {
             @SuppressWarnings("unchecked")
             List<T> stringList = (List<T>) value;
             return stringList;
@@ -371,7 +368,7 @@ public final class ConfigurationUtils {
     }
 
     private static <T> Map<String, T> readMap(String processorType, String processorTag, String propertyName, Object value) {
-        if (value instanceof Map) {
+        if (value instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, T> map = (Map<String, T>) value;
             return map;
@@ -523,11 +520,11 @@ public final class ConfigurationUtils {
     ) throws Exception {
         if (config == null) {
             throw newConfigurationException(type, null, null, "the config of processor [" + type + "] cannot be null");
-        } else if (config instanceof Map) {
+        } else if (config instanceof Map<?, ?>) {
             return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
-        } else if (config instanceof String && "script".equals(type)) {
+        } else if (config instanceof String stringConfig && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);
-            normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);
+            normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), stringConfig);
             return readProcessor(processorFactories, scriptService, type, normalizedScript);
         } else {
             throw newConfigurationException(type, null, null, "property isn't a map, but of type [" + config.getClass().getName() + "]");
@@ -605,8 +602,8 @@ public final class ConfigurationUtils {
     private static Map<String, Object> normalizeScript(Object scriptConfig) {
         if (scriptConfig instanceof Map<?, ?>) {
             return (Map<String, Object>) scriptConfig;
-        } else if (scriptConfig instanceof String) {
-            return Collections.singletonMap("source", scriptConfig);
+        } else if (scriptConfig instanceof String stringConfig) {
+            return Collections.singletonMap("source", stringConfig);
         } else {
             throw newConfigurationException(
                 "conditional",

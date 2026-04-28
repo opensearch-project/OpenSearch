@@ -42,9 +42,10 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
@@ -549,6 +550,82 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    /**
+     * After a searchable snapshot restore completes, all file cache blocks
+     * fetched during DirectoryReader.open() should be unpinned (refCount=0)
+     * so the file cache can evict them under LRU pressure.
+     *
+     * Tests both CFS (compound file) and non-CFS indexes in a single snapshot/restore cycle.
+     * Uses index.codec=default to avoid AssertingCodec (test-only codec that creates extra clones)
+     * and dummyDocuments=false for a clean single-segment layout after force merge.
+     */
+    public void testBlocksUnpinnedAfterRestore() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String cfsIndex = "test-idx-cfs";
+        final String nonCfsIndex = "test-idx-noncfs";
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumDataNodes(1);
+
+        // Disable check_on_startup: Lucene's CodecUtil.checksumEntireFile() clones IndexInput
+        // without closing it, leaving file cache blocks pinned until GC. The test framework
+        // randomizes this setting, which would cause assertNoPinnedBlocks to fail
+        // non-deterministically.
+        Settings.Builder commonSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+            .put("index.codec", "default")
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false");
+
+        createIndex(cfsIndex, commonSettings.build());
+        createIndex(nonCfsIndex, Settings.builder().put(commonSettings.build()).put("index.compound_format", false).build());
+        ensureGreen();
+
+        for (String indexName : new String[] { cfsIndex, nonCfsIndex }) {
+            IndexRequestBuilder[] builders = new IndexRequestBuilder[100];
+            for (int i = 0; i < builders.length; i++) {
+                builders[i] = client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            }
+            indexRandom(true, false, builders);
+            client.admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        }
+        flushAndRefresh(cfsIndex, nonCfsIndex);
+        ensureGreen();
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, cfsIndex, nonCfsIndex);
+        deleteIndicesAndEnsureGreen(client, cfsIndex, nonCfsIndex);
+
+        internalCluster().ensureAtLeastNumWarmNodes(1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+
+        assertNoPinnedBlocks("after restore");
+        assertDocCount(cfsIndex + "-copy", 100L);
+        assertDocCount(nonCfsIndex + "-copy", 100L);
+    }
+
+    private void assertNoPinnedBlocks(String context) throws IOException {
+        int pinnedCount = 0;
+        for (Node node : internalCluster().getInstances(Node.class)) {
+            if (node.fileCache() == null) continue;
+
+            Path fileCachePath = node.getNodeEnvironment().fileCacheNodePath().fileCachePath;
+            try (Stream<Path> paths = Files.walk(fileCachePath)) {
+                List<Path> blockFiles = paths.filter(Files::isRegularFile).collect(Collectors.toList());
+                for (Path blockFile : blockFiles) {
+                    Integer refCount = node.fileCache().getRef(blockFile);
+                    if (refCount != null && refCount > 0) {
+                        pinnedCount++;
+                        logger.warn("--> [{}] PINNED block={}, refCount={}", context, blockFile.getFileName(), refCount);
+                    }
+                }
+            }
+        }
+        assertEquals("All blocks should be unpinned " + context, 0, pinnedCount);
+    }
+
     public void testUpdateIndexSettings() throws InterruptedException {
         final String indexName = "test-index";
         final String restoredIndexName = indexName + "-copy";
@@ -711,7 +788,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     private void assertAllNodesFileCacheEmpty() {
         NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         for (NodeStats stats : response.getNodes()) {
-            FileCacheStats fcstats = stats.getFileCacheStats();
+            AggregateFileCacheStats fcstats = stats.getFileCacheStats();
             if (fcstats != null) {
                 assertTrue(isFileCacheEmpty(fcstats));
             }
@@ -722,7 +799,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         int nonEmptyFileCacheNodes = 0;
         for (NodeStats stats : response.getNodes()) {
-            FileCacheStats fcStats = stats.getFileCacheStats();
+            AggregateFileCacheStats fcStats = stats.getFileCacheStats();
             if (stats.getNode().isWarmNode()) {
                 if (!isFileCacheEmpty(fcStats)) {
                     nonEmptyFileCacheNodes++;
@@ -735,7 +812,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(numNodes, nonEmptyFileCacheNodes);
     }
 
-    private boolean isFileCacheEmpty(FileCacheStats stats) {
+    private boolean isFileCacheEmpty(AggregateFileCacheStats stats) {
         return stats.getUsed().getBytes() == 0L && stats.getActive().getBytes() == 0L;
     }
 
@@ -1053,5 +1130,62 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertTrue("index path should " + (exists ? "exist" : "not exist"), Files.exists(indexDataPath) == exists);
             assertTrue("index cache path should " + (exists ? "exist" : "not exist"), Files.exists(indexPath) == exists);
         }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testRestoreRemoteSnapshotWithNullShardSizes() throws Exception {
+        final String snapshotName1 = "test-snap-1";
+        final String snapshotName2 = "test-snap-2";
+        final String repoName = "test-repo";
+        final String indexName1 = "test-idx-1";
+        final String indexName2 = "test-idx-2";
+        final Client client = client();
+
+        // Setup cluster with delayed ClusterInfo updates to simulate null shard sizes
+        client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("cluster.info.update.interval", "60m"))
+            .get();
+
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        createIndexWithDocsAndEnsureGreen(0, 50, indexName1);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName1, repoName, indexName1);
+        deleteIndicesAndEnsureGreen(client, indexName1);
+
+        createIndexWithDocsAndEnsureGreen(0, 50, indexName2);
+        takeSnapshot(client, snapshotName2, repoName, indexName2);
+        deleteIndicesAndEnsureGreen(client, indexName2);
+
+        internalCluster().ensureAtLeastNumWarmNodes(2);
+
+        RestoreSnapshotRequest firstRestore = new RestoreSnapshotRequest(repoName, snapshotName1).indices(indexName1)
+            .storageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .renamePattern("(.+)")
+            .renameReplacement("remote-$1")
+            .waitForCompletion(true);
+
+        client.admin().cluster().restoreSnapshot(firstRestore).get();
+        ensureGreen("remote-" + indexName1);
+
+        // Second restore immediately after - ClusterInfo won't have size data for first restore shards
+        RestoreSnapshotRequest secondRestore = new RestoreSnapshotRequest(repoName, snapshotName2).indices(indexName2)
+            .storageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .renamePattern("(.+)")
+            .renameReplacement("remote-$1")
+            .waitForCompletion(true);
+
+        client.admin().cluster().restoreSnapshot(secondRestore).get();
+        ensureGreen("remote-" + indexName2);
+
+        assertDocCount("remote-" + indexName1, 50L);
+        assertDocCount("remote-" + indexName2, 50L);
+
+        client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("cluster.info.update.interval"))
+            .get();
     }
 }

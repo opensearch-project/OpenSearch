@@ -124,72 +124,45 @@ public class ScriptScoreQuery extends Query {
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, 1.0f);
 
         return new Weight(this) {
+
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final Weight weight = this;
+                ScorerSupplier subQueryScorerSupplier = subQueryWeight.scorerSupplier(context);
+                if (subQueryScorerSupplier == null) {
+                    return null;
+                }
+                Weight weight = this;
                 return new ScorerSupplier() {
-                    private Scorer scorer;
-                    private BulkScorer bulkScorer;
-
                     @Override
                     public BulkScorer bulkScorer() throws IOException {
                         if (minScore == null) {
-                            final BulkScorer subQueryBulkScorer = subQueryWeight.bulkScorer(context);
-                            if (subQueryBulkScorer == null) {
-                                bulkScorer = null;
-                            } else {
-                                bulkScorer = new ScriptScoreBulkScorer(
-                                    subQueryBulkScorer,
-                                    subQueryScoreMode,
-                                    makeScoreScript(context),
-                                    boost
-                                );
-                            }
+                            final BulkScorer subQueryBulkScorer = subQueryScorerSupplier.bulkScorer();
+                            return new ScriptScoreBulkScorer(subQueryBulkScorer, subQueryScoreMode, makeScoreScript(context), boost);
                         } else {
-                            final Scorer scorer = get(Long.MAX_VALUE);
-                            if (scorer != null) {
-                                bulkScorer = new Weight.DefaultBulkScorer(scorer);
-                            }
+                            return super.bulkScorer();
                         }
-
-                        return bulkScorer;
                     }
 
                     @Override
                     public Scorer get(long leadCost) throws IOException {
-                        final Scorer subQueryScorer = subQueryWeight.scorer(context);
-
-                        if (subQueryScorer == null) {
-                            scorer = null;
-                        } else {
-                            Scorer scriptScorer = new ScriptScorer(
-                                weight,
-                                makeScoreScript(context),
-                                subQueryScorer,
-                                subQueryScoreMode,
-                                boost,
-                                null
-                            );
-                            if (minScore != null) {
-                                scriptScorer = new MinScoreScorer(weight, scriptScorer, minScore);
-                            }
-                            scorer = scriptScorer;
+                        Scorer subQueryScorer = subQueryScorerSupplier.get(leadCost);
+                        Scorer scriptScorer = new ScriptScorer(
+                            weight,
+                            makeScoreScript(context),
+                            subQueryScorer,
+                            subQueryScoreMode,
+                            boost,
+                            null
+                        );
+                        if (minScore != null) {
+                            scriptScorer = new MinScoreScorer(weight, scriptScorer, minScore);
                         }
-
-                        return scorer;
+                        return scriptScorer;
                     }
 
                     @Override
                     public long cost() {
-                        if (scorer != null) {
-                            return scorer.iterator().cost();
-                        } else if (bulkScorer != null) {
-                            return bulkScorer.cost();
-                        } else {
-                            // We have no prior knowledge of how many docs might match for any given query term,
-                            // so we assume that all docs could be a match.
-                            return Integer.MAX_VALUE;
-                        }
+                        return subQueryScorerSupplier.cost();
                     }
                 };
             }

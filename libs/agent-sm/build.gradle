@@ -20,3 +20,7 @@ base {
 
 test.enabled = false
 testingConventions.enabled = false
+
+dependencies {
+  compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.7"
+}

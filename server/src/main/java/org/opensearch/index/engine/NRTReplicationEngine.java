@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -21,6 +22,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -29,6 +31,7 @@ import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -41,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
@@ -58,6 +62,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 public class NRTReplicationEngine extends Engine {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
+    private final Object lastCommittedSegmentInfosMutex = new Object();
     private final NRTReplicationReaderManager readerManager;
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
@@ -97,6 +102,9 @@ public class NRTReplicationEngine extends Engine {
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
                 this.readerManager.addListener(listener);
             }
+            // Wire up a warmer listener to trigger index warming
+            // when new segments arrive via segment replication
+            this.readerManager.addListener(new WarmerRefreshListener(logger, isClosed, engineConfig, this.readerManager));
             final Map<String, String> userData = this.lastCommittedSegmentInfos.getUserData();
             final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             translogManagerRef = new WriteOnlyTranslogManager(
@@ -125,7 +133,8 @@ public class NRTReplicationEngine extends Engine {
                 },
                 this,
                 engineConfig.getTranslogFactory(),
-                engineConfig.getStartedPrimarySupplier()
+                engineConfig.getStartedPrimarySupplier(),
+                TranslogOperationHelper.create(engineConfig)
             );
             this.translogManager = translogManagerRef;
             success = true;
@@ -150,7 +159,8 @@ public class NRTReplicationEngine extends Engine {
         return new NRTReplicationReaderManager(
             OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
             replicaFileTracker::incRef,
-            replicaFileTracker::decRef
+            replicaFileTracker::decRef,
+            engineConfig
         );
     }
 
@@ -191,9 +201,11 @@ public class NRTReplicationEngine extends Engine {
         // get a reference to the previous commit files so they can be decref'd once a new commit is made.
         final Collection<String> previousCommitFiles = getLastCommittedSegmentInfos().files(true);
         store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
-        this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-        // incref the latest on-disk commit.
-        replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));
+        synchronized (lastCommittedSegmentInfosMutex) {
+            this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            // incref the latest on-disk commit.
+            replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));
+        }
         // decref the prev commit.
         replicaFileTracker.decRef(previousCommitFiles);
         translogManager.syncTranslog();
@@ -410,8 +422,12 @@ public class NRTReplicationEngine extends Engine {
             flush(false, true);
         }
         try {
-            final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
-            return new GatedCloseable<>(indexCommit, () -> {});
+            synchronized (lastCommittedSegmentInfosMutex) {
+                final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
+                final Collection<String> files = indexCommit.getFileNames();
+                replicaFileTracker.incRef(files);
+                return new GatedCloseable<>(indexCommit, () -> { replicaFileTracker.decRef(files); });
+            }
         } catch (IOException e) {
             throw new EngineException(shardId, "Unable to build latest IndexCommit", e);
         }
@@ -490,6 +506,13 @@ public class NRTReplicationEngine extends Engine {
     public void maybePruneDeletes() {}
 
     @Override
+    public MergeStats getMergeStats() {
+        MergeStats mergeStats = new MergeStats();
+        mergeStats.add(engineConfig.getMergedSegmentTransferTracker().stats());
+        return mergeStats;
+    }
+
+    @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {}
 
     @Override
@@ -537,6 +560,61 @@ public class NRTReplicationEngine extends Engine {
 
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
+        return new SoftDeletesDirectoryReaderWrapper(
+            DirectoryReader.open(store.directory(), engineConfig.getLeafSorter()),
+            Lucene.SOFT_DELETES_FIELD
+        );
+    }
+
+    /**
+     * A {@link ReferenceManager.RefreshListener} that warms new segments when the reader is refreshed
+     * during segment replication. This ensures index warming (e.g., loading global ordinals via
+     * {@link Engine.Warmer}) occurs on NRT replica shards, consistent with the warming behavior
+     * in {@link InternalEngine} used by NRT primary shards.
+     *
+     * @opensearch.internal
+     */
+    static final class WarmerRefreshListener implements ReferenceManager.RefreshListener {
+        private final Engine.Warmer warmer;
+        private final Logger logger;
+        private final AtomicBoolean isEngineClosed;
+        private final NRTReplicationReaderManager readerManager;
+
+        WarmerRefreshListener(
+            Logger logger,
+            AtomicBoolean isEngineClosed,
+            EngineConfig engineConfig,
+            NRTReplicationReaderManager readerManager
+        ) {
+            this.warmer = engineConfig.getWarmer();
+            this.logger = logger;
+            this.isEngineClosed = isEngineClosed;
+            this.readerManager = readerManager;
+        }
+
+        @Override
+        public void beforeRefresh() throws IOException {}
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (didRefresh && warmer != null) {
+                try {
+                    OpenSearchDirectoryReader reader = readerManager.acquire();
+                    try {
+                        warmer.warm(reader);
+                    } catch (Exception e) {
+                        if (isEngineClosed.get() == false) {
+                            logger.warn("failed to warm reader replica", e);
+                        }
+                    } finally {
+                        readerManager.release(reader);
+                    }
+                } catch (IOException e) {
+                    if (isEngineClosed.get() == false) {
+                        logger.warn("failed to acquire reader for warming on replica", e);
+                    }
+                }
+            }
+        }
     }
 }

@@ -73,11 +73,11 @@ List projects = [
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
   'distribution:bwc:staged',
+  'distribution:tools:fips-demo-installer-cli',
   'distribution:tools:java-version-checker',
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
-  'distribution:tools:upgrade-cli',
   'server',
   'server:cli',
   'test:framework',
@@ -126,7 +126,10 @@ project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugi
 addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))
 addSubProjects('', new File(rootProject.projectDir, 'plugins'))
-addSubProjects('', new File(rootProject.projectDir, 'sandbox'))
+// Sandbox modules require JDK 25+. Include only when explicitly enabled via -Dsandbox.enabled=true.
+if (System.getProperty('sandbox.enabled', 'false') == 'true') {
+  addSubProjects('', new File(rootProject.projectDir, 'sandbox'))
+}
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 

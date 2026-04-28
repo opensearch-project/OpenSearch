@@ -28,9 +28,11 @@ import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -157,7 +159,7 @@ public class PitService {
     }
 
     /**
-     * This method returns indices associated for each pit
+     * This method returns indices associated for each pit. The result will be a Map that maps pitIds to index names.
      */
     public Map<String, String[]> getIndicesForPits(List<String> pitIds) {
         Map<String, String[]> pitToIndicesMap = new HashMap<>();
@@ -165,6 +167,17 @@ public class PitService {
             pitToIndicesMap.put(pitId, SearchContextId.decode(nodeClient.getNamedWriteableRegistry(), pitId).getActualIndices());
         }
         return pitToIndicesMap;
+    }
+
+    /**
+     * This method returns indices associated for each pit. The result will be a Set of all index names.
+     */
+    public Set<String> getIndicesForPitsFlat(Collection<String> pitIds) {
+        Set<String> result = new HashSet<>();
+        for (String pitId : pitIds) {
+            result.addAll(Arrays.asList(SearchContextId.decode(nodeClient.getNamedWriteableRegistry(), pitId).getActualIndices()));
+        }
+        return result;
     }
 
     /**

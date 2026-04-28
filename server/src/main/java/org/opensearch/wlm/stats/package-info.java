@@ -7,6 +7,6 @@
  */
 
 /**
- * Query group stats related artifacts
+ * Workload group stats related artifacts
  */
 package org.opensearch.wlm.stats;

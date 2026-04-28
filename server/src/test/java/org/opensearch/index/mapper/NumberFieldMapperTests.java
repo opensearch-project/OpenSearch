@@ -33,16 +33,26 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.Numbers;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -86,7 +96,10 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(
+            b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed().value())
+        );
     }
 
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -118,7 +131,9 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.NONE, dvField.fieldType().docValuesSkipIndexType());
         assertFalse(dvField.fieldType().stored());
+
     }
 
     @Override
@@ -130,6 +145,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(1, fields.length);
         IndexableField dvField = fields[0];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.NONE, dvField.fieldType().docValuesSkipIndexType());
     }
 
     @Override
@@ -156,6 +172,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.NONE, dvField.fieldType().docValuesSkipIndexType());
         IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
         // The 'unsigned_long' is stored as a string
@@ -204,30 +221,13 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                     assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
                 } else {
                     assertThat(e.getCause().getMessage(), containsString("Current token"));
-                    assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
+                    assertThat(e.getCause().getMessage(), containsString("not numeric, cannot use numeric value accessors"));
                 }
 
                 ParsedDocument doc = ignoring.parse(source);
                 IndexableField[] fields = doc.rootDoc().getFields("field");
                 assertEquals(0, fields.length);
                 assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
-            }
-        }
-    }
-
-    /**
-     * Test that in case the malformed value is an xContent object we throw error regardless of `ignore_malformed`
-     */
-    public void testIgnoreMalformedWithObject() throws Exception {
-        SourceToParse malformed = source(b -> b.startObject("field").field("foo", "bar").endObject());
-        for (String type : types()) {
-            for (Boolean ignoreMalformed : new Boolean[] { true, false }) {
-                DocumentMapper mapper = createDocumentMapper(
-                    fieldMapping(b -> b.field("type", type).field("ignore_malformed", ignoreMalformed))
-                );
-                MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(malformed));
-                assertThat(e.getCause().getMessage(), containsString("Current token"));
-                assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
             }
         }
     }
@@ -270,15 +270,15 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, "-1", "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
-            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
+            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of `short`"),
+            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of `int"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of `long`"),
             OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, new BigInteger("18446744073709551616"), "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int"),
-            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long"),
+            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of `short`"),
+            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of `int`"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of `long`"),
             OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, new BigInteger("-1"), "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
@@ -486,6 +486,21 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
+    public void testSkipList() throws IOException {
+        for (String type : types()) {
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", type).field("index", false).field("skip_list", true))
+            );
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
+
+            IndexableField[] fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.length);
+            IndexableField dvField = fields[0];
+            assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+            assertEquals(DocValuesSkipIndexType.RANGE, dvField.fieldType().docValuesSkipIndexType());
+        }
+    }
+
     private NumberFieldMapper getMapper(NumberType numberType, FieldMapper.CopyTo copyTo, boolean hasDocValues, boolean isStored)
         throws IOException {
         MapperService mapperService = createMapperService(
@@ -560,5 +575,305 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             }
         }
         return doc;
+    }
+
+    public void testHalfFloatEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.HALF_FLOAT;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100.5f, true);
+        float decoded = HalfFloatPoint.decodeDimension(encoded, 0);
+        assertTrue("Should round up", decoded > 100.5f);
+        // Test roundUp = false
+        encoded = type.encodePoint(100.5f, false);
+        decoded = HalfFloatPoint.decodeDimension(encoded, 0);
+        assertTrue("Should round down", decoded < 100.5f);
+        encoded = type.encodePoint(0.0f, true);
+        decoded = HalfFloatPoint.decodeDimension(encoded, 0);
+        assertTrue("Zero roundUp should be positive", decoded > 0.0f);
+        encoded = type.encodePoint("123.45", true);
+        decoded = HalfFloatPoint.decodeDimension(encoded, 0);
+        assertTrue("String parsing should work", decoded > 123.45f);
+    }
+
+    public void testFloatEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.FLOAT;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100.5f, true);
+        float decoded = FloatPoint.decodeDimension(encoded, 0);
+        assertEquals(FloatPoint.nextUp(100.5f), decoded, 0.0f);
+        // Test roundUp = false
+        encoded = type.encodePoint(100.5f, false);
+        decoded = FloatPoint.decodeDimension(encoded, 0);
+        assertEquals(FloatPoint.nextDown(100.5f), decoded, 0.0f);
+    }
+
+    public void testDoubleEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.DOUBLE;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100.5, true);
+        double decoded = DoublePoint.decodeDimension(encoded, 0);
+        assertEquals(DoublePoint.nextUp(100.5), decoded, 0.0);
+        // Test roundUp = false
+        encoded = type.encodePoint(100.5, false);
+        decoded = DoublePoint.decodeDimension(encoded, 0);
+        assertEquals(DoublePoint.nextDown(100.5), decoded, 0.0);
+        encoded = type.encodePoint("123.456789", true);
+        decoded = DoublePoint.decodeDimension(encoded, 0);
+        assertTrue("String parsing should work", decoded > 123.456789);
+    }
+
+    public void testIntegerEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.INTEGER;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100, true);
+        int decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(101, decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint(100, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(99, decoded);
+        encoded = type.encodePoint(Integer.MAX_VALUE, true);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Integer.MAX_VALUE, decoded); // Can't increment
+        encoded = type.encodePoint(Integer.MIN_VALUE, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Integer.MIN_VALUE, decoded); // Can't decrement
+        encoded = type.encodePoint(100.7f, true);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(101, decoded); // 100.7 coerced to 100, then incremented
+    }
+
+    public void testLongEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100L, true);
+        long decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(101L, decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint(100L, false);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(99L, decoded);
+        // Test edge cases
+        encoded = type.encodePoint(Long.MAX_VALUE, true);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(Long.MAX_VALUE, decoded); // Can't increment
+        encoded = type.encodePoint("9223372036854775806", true);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(9223372036854775807L, decoded);
+    }
+
+    public void testByteEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.BYTE;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint((byte) 100, true);
+        int decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(101, decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint((byte) 100, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(99, decoded);
+        // Test edge cases
+        encoded = type.encodePoint(Byte.MAX_VALUE, true);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Byte.MAX_VALUE, decoded);
+        encoded = type.encodePoint(Byte.MIN_VALUE, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Byte.MIN_VALUE, decoded);
+    }
+
+    public void testShortEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.SHORT;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint((short) 100, true);
+        int decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(101, decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint((short) 100, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(99, decoded);
+        // Test edge cases
+        encoded = type.encodePoint(Short.MAX_VALUE, true);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Short.MAX_VALUE, decoded);
+    }
+
+    public void testUnsignedLongEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.UNSIGNED_LONG;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(BigInteger.valueOf(100L), true);
+        BigInteger decoded = BigIntegerPoint.decodeDimension(encoded, 0);
+        assertEquals(BigInteger.valueOf(101L), decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint(BigInteger.valueOf(100L), false);
+        decoded = BigIntegerPoint.decodeDimension(encoded, 0);
+        assertEquals(BigInteger.valueOf(99L), decoded);
+        // Test edge cases
+        BigInteger maxUnsignedLong = Numbers.MAX_UNSIGNED_LONG_VALUE;
+        encoded = type.encodePoint(maxUnsignedLong, true);
+        decoded = BigIntegerPoint.decodeDimension(encoded, 0);
+        assertEquals(maxUnsignedLong, decoded); // Can't increment
+        encoded = type.encodePoint("18446744073709551614", true);
+        decoded = BigIntegerPoint.decodeDimension(encoded, 0);
+        assertEquals(new BigInteger("18446744073709551615"), decoded);
+    }
+
+    public void testCoercionBehavior() {
+        // Test that decimal values are properly coerced for integer types
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
+        // 100.7 should be coerced to 100, then incremented to 101
+        byte[] encoded = type.encodePoint(100.7, true);
+        long decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(101L, decoded);
+        // 100.3 should be coerced to 100, then decremented to 99
+        encoded = type.encodePoint(100.3, false);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(99L, decoded);
+    }
+
+    public void testNegativeNumberHandling() {
+        // Test negative numbers for integer types
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.INTEGER;
+        // Negative number roundUp (exclusive lower bound)
+        byte[] encoded = type.encodePoint(-100, true);
+        int decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(-99, decoded);
+        // Negative number roundDown (exclusive upper bound)
+        encoded = type.encodePoint(-100, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(-101, decoded);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIntegerValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field(FIELD_NAME, 42)), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals(FIELD_NAME) && e.getValue().equals(42));
+        assertTrue("Expected integer value 42", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatLongValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "long").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field(FIELD_NAME, 123456789L)), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals(FIELD_NAME) && e.getValue().equals(123456789L));
+        assertTrue("Expected long value 123456789", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDoubleValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "double").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field(FIELD_NAME, 3.14)), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals(FIELD_NAME) && e.getValue().equals(3.14));
+        assertTrue("Expected double value 3.14", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws Exception {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            settings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField(FIELD_NAME)), docInput);
+
+        assertFalse(docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(FIELD_NAME)));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: integer value
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject()),
+            b -> b.field(FIELD_NAME, 42),
+            FIELD_NAME,
+            42
+        );
+
+        // Scenario 2: long value
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "long").endObject()),
+            b -> b.field(FIELD_NAME, 123456789L),
+            FIELD_NAME,
+            123456789L
+        );
+
+        // Scenario 3: double value
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "double").endObject()),
+            b -> b.field(FIELD_NAME, 3.14),
+            FIELD_NAME,
+            3.14
+        );
+
+        // Scenario 4: null value — no field produced
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject()),
+            b -> b.nullField(FIELD_NAME),
+            FIELD_NAME,
+            null
+        );
+    }
+
+    private void assertNumericLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        Number expectedValue
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        if (expectedValue == null) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertEquals(expectedValue.doubleValue(), luceneFields[0].numericValue().doubleValue(), 0.001d);
+
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals(fieldName) && e.getValue().equals(expectedValue));
+            assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
+        }
     }
 }

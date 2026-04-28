@@ -54,7 +54,11 @@ public final class ShardRequestCache {
     final CounterMetric missCount = new CounterMetric();
 
     public RequestCacheStats stats() {
-        return new RequestCacheStats(Math.max(0, totalMetric.count()), evictionsMetric.count(), hitCount.count(), missCount.count());
+        return new RequestCacheStats.Builder().memorySize(Math.max(0, totalMetric.count()))
+            .evictions(evictionsMetric.count())
+            .hitCount(hitCount.count())
+            .missCount(missCount.count())
+            .build();
     }
 
     public void onHit() {

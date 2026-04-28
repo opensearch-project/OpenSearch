@@ -71,7 +71,7 @@ public class SequentialDocValuesIterator {
     }
 
     public Long value(int currentEntryId) throws IOException {
-        if (starTreeValuesIterator instanceof SortedNumericStarTreeValuesIterator) {
+        if (starTreeValuesIterator instanceof SortedNumericStarTreeValuesIterator sortedNumericIterator) {
             if (currentEntryId < 0) {
                 throw new IllegalStateException("invalid entry id to fetch the next value");
             }
@@ -81,9 +81,9 @@ public class SequentialDocValuesIterator {
             if (entryId == StarTreeValuesIterator.NO_MORE_ENTRIES || entryId != currentEntryId) {
                 return null;
             }
-            return ((SortedNumericStarTreeValuesIterator) starTreeValuesIterator).nextValue();
+            return sortedNumericIterator.nextValue();
 
-        } else if (starTreeValuesIterator instanceof SortedSetStarTreeValuesIterator) {
+        } else if (starTreeValuesIterator instanceof SortedSetStarTreeValuesIterator sortedSetIterator) {
             if (currentEntryId < 0) {
                 throw new IllegalStateException("invalid entry id to fetch the next value");
             }
@@ -93,7 +93,7 @@ public class SequentialDocValuesIterator {
             if (entryId == StarTreeValuesIterator.NO_MORE_ENTRIES || entryId != currentEntryId) {
                 return null;
             }
-            return ((SortedSetStarTreeValuesIterator) starTreeValuesIterator).nextOrd();
+            return sortedSetIterator.nextOrd();
         } else {
             throw new IllegalStateException("Unsupported Iterator requested for SequentialDocValuesIterator");
         }

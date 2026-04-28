@@ -24,9 +24,9 @@ import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.repositories.s3.S3TransferRejectedException;
-import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -95,7 +95,8 @@ public class AsyncPartsHandler {
                     .key(uploadRequest.getKey())
                     .uploadId(uploadId)
                     .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
-                    .contentLength(inputStreamContainer.getContentLength());
+                    .contentLength(inputStreamContainer.getContentLength())
+                    .expectedBucketOwner(uploadRequest.getExpectedBucketOwner());
                 if (uploadRequest.doRemoteDataIntegrityCheck()) {
                     uploadPartRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
                 }
@@ -136,8 +137,9 @@ public class AsyncPartsHandler {
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
             .uploadId(uploadId)
+            .expectedBucketOwner(uploadRequest.getExpectedBucketOwner())
             .build();
-        SocketAccess.doPrivileged(() -> s3AsyncClient.abortMultipartUpload(abortMultipartUploadRequest).exceptionally(throwable -> {
+        AccessController.doPrivileged(() -> s3AsyncClient.abortMultipartUpload(abortMultipartUploadRequest).exceptionally(throwable -> {
             log.warn(
                 () -> new ParameterizedMessage(
                     "Failed to abort previous multipart upload "
@@ -240,7 +242,7 @@ public class AsyncPartsHandler {
             uploadPartRequest.contentLength(),
             maxRetryablePartSize
         );
-        CompletableFuture<UploadPartResponse> uploadPartResponseFuture = SocketAccess.doPrivileged(
+        CompletableFuture<UploadPartResponse> uploadPartResponseFuture = AccessController.doPrivileged(
             () -> s3AsyncClient.uploadPart(
                 uploadPartRequest,
                 AsyncRequestBody.fromInputStream(inputStream, inputStreamContainer.getContentLength(), streamReadExecutor)

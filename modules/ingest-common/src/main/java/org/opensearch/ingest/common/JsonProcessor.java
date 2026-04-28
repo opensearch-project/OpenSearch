@@ -115,7 +115,7 @@ public final class JsonProcessor extends AbstractProcessor {
 
     public static void apply(Map<String, Object> ctx, String fieldName) {
         Object value = apply(ctx.get(fieldName));
-        if (value instanceof Map) {
+        if (value instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
             ctx.putAll(map);

@@ -32,8 +32,11 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
@@ -119,8 +122,54 @@ public abstract class LeafBucketCollector implements LeafCollector {
     public abstract void collect(int doc, long owningBucketOrd) throws IOException;
 
     @Override
-    public final void collect(int doc) throws IOException {
+    public void collect(int doc) throws IOException {
         collect(doc, 0);
+    }
+
+    @Override
+    public void collect(DocIdStream stream) throws IOException {
+        collect(stream, 0);
+    }
+
+    /**
+     * Collect a range of doc IDs, between {@code min} inclusive and {@code max} exclusive. {@code
+     * max} is guaranteed to be greater than {@code min}.
+     *
+     * <p>Extending this method is typically useful to take advantage of pre-aggregated data exposed
+     * in a {@link DocValuesSkipper}.
+     *
+     * <p>The default implementation calls {@link #collect(DocIdStream)} on a {@link DocIdStream} that
+     * matches the given range.
+     *
+     * @see #collect(int,long)
+     */
+    @Override
+    public void collectRange(int min, int max) throws IOException {
+        // Different aggregator implementations should override this method even if to just delegate to super for
+        // helping the performance: when the super call inlines, calls to #collect(int, long) become monomorphic.
+        for (int docId = min; docId < max; docId++) {
+            collect(docId, 0);
+        }
+    }
+
+    /**
+     * Bulk-collect doc IDs within {@code owningBucketOrd}.
+     *
+     * <p>Note: The provided {@link DocIdStream} may be reused across calls and should be consumed immediately.
+     *
+     * <p>Note: The provided DocIdStream typically only holds a small subset of query matches. This method may be called multiple times per segment.
+     * Like collect(int), it is guaranteed that doc IDs get collected in order, ie. doc IDs are collected in order within a DocIdStream, and if
+     * called twice, all doc IDs from the second DocIdStream will be greater than all doc IDs from the first DocIdStream.
+     *
+     * <p>It is legal for callers to mix calls to {@link #collect(DocIdStream, long)} and {@link #collect(int, long)}.
+     *
+     * <p>The default implementation calls {@code stream.forEach(doc -> collect(doc, owningBucketOrd))}.
+     */
+    @ExperimentalApi
+    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        // Different aggregator implementations should override this method even if to just delegate to super for
+        // helping the performance: when the super call inlines, calls to #collect(int, long) become monomorphic.
+        stream.forEach((doc) -> collect(doc, owningBucketOrd));
     }
 
     @Override

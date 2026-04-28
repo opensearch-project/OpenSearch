@@ -125,13 +125,16 @@ public class FieldTypeInferenceTests extends MapperServiceTestCase {
                 });
                 assertNull(mapper);
                 assertEquals(typeInference.getSampleSize(), totalDocsEvaluated[0]);
+                int leafIndex = 0;
                 for (List<Integer> docsPerLeaf : docsEvaluated) {
                     for (int j = 0; j < docsPerLeaf.size() - 1; j++) {
                         assertTrue(docsPerLeaf.get(j) < docsPerLeaf.get(j + 1));
                     }
                     if (!docsPerLeaf.isEmpty()) {
-                        assertTrue(docsPerLeaf.get(0) >= 0 && docsPerLeaf.get(docsPerLeaf.size() - 1) < docsPerLeafCount);
+                        int numDocsInLeaf = reader.leaves().get(leafIndex).reader().numDocs();
+                        assertTrue(docsPerLeaf.get(0) >= 0 && docsPerLeaf.get(docsPerLeaf.size() - 1) < numDocsInLeaf);
                     }
+                    leafIndex++;
                 }
             }
         }

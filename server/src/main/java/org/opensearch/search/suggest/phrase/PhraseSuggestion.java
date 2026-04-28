@@ -126,10 +126,9 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             // objects being merged with PhraseSuggestion.Entry objects. We merge Suggestion.Entry objects
             // by assuming they had a low cutoff score rather than a high one as that is the more common scenario
             // and the simplest one for us to implement.
-            if (!(other instanceof PhraseSuggestion.Entry)) {
+            if (!(other instanceof PhraseSuggestion.Entry otherSuggestionEntry)) {
                 return;
             }
-            PhraseSuggestion.Entry otherSuggestionEntry = (PhraseSuggestion.Entry) other;
             this.cutoffScore = Math.max(this.cutoffScore, otherSuggestionEntry.cutoffScore);
         }
 

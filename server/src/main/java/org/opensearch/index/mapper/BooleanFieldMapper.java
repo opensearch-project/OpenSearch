@@ -198,8 +198,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
-                    if (value instanceof Boolean) {
-                        return (Boolean) value;
+                    if (value instanceof Boolean boolValue) {
+                        return boolValue;
                     } else {
                         String textValue = value.toString();
                         return Booleans.parseBooleanStrict(textValue, false);
@@ -213,12 +213,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             if (value == null) {
                 return Values.FALSE;
             }
-            if (value instanceof Boolean) {
-                return ((Boolean) value) ? Values.TRUE : Values.FALSE;
+            if (value instanceof Boolean boolValue) {
+                return boolValue ? Values.TRUE : Values.FALSE;
             }
             String sValue;
-            if (value instanceof BytesRef) {
-                sValue = ((BytesRef) value).utf8ToString();
+            if (value instanceof BytesRef bytesRef) {
+                sValue = bytesRef.utf8ToString();
             } else {
                 sValue = value.toString();
             }
@@ -374,18 +374,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        Boolean value = context.parseExternalValue(Boolean.class);
-        if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                if (nullValue != null) {
-                    value = nullValue;
-                }
-            } else {
-                value = context.parser().booleanValue();
-            }
-        }
-
+        Boolean value = parseBooleanValue(context);
         if (value == null) {
             return;
         }
@@ -400,6 +389,30 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         } else {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Boolean value = parseBooleanValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private Boolean parseBooleanValue(ParseContext context) throws IOException {
+        Boolean value = context.parseExternalValue(Boolean.class);
+        if (value == null) {
+            XContentParser.Token token = context.parser().currentToken();
+            if (token == XContentParser.Token.VALUE_NULL) {
+                if (nullValue != null) {
+                    value = nullValue;
+                }
+            } else {
+                value = context.parser().booleanValue();
+            }
+        }
+        return value;
     }
 
     @Override

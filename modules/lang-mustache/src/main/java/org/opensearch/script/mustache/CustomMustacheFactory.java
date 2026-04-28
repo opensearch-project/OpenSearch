@@ -32,8 +32,6 @@
 
 package org.opensearch.script.mustache;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import com.github.mustachejava.Code;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.DefaultMustacheVisitor;
@@ -63,6 +61,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 public class CustomMustacheFactory extends DefaultMustacheFactory {
 
@@ -216,13 +216,13 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
                     return null;
                 }
                 try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
-                    if (resolved instanceof Iterable) {
+                    if (resolved instanceof Iterable<?> iterable) {
                         builder.startArray();
-                        for (Object o : (Iterable<?>) resolved) {
+                        for (Object o : iterable) {
                             builder.value(o);
                         }
                         builder.endArray();
-                    } else if (resolved instanceof Map) {
+                    } else if (resolved instanceof Map<?, ?>) {
                         builder.map((Map<String, ?>) resolved);
                     } else {
                         // Do not handle as JSON
@@ -264,9 +264,9 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
             return s -> {
                 if (s == null) {
                     return null;
-                } else if (resolved instanceof Iterable) {
+                } else if (resolved instanceof Iterable<?> iterable) {
                     StringJoiner joiner = new StringJoiner(delimiter);
-                    for (Object o : (Iterable<?>) resolved) {
+                    for (Object o : iterable) {
                         joiner.add(oh.stringify(o));
                     }
                     return joiner.toString();
@@ -368,7 +368,9 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         @Override
         public void encode(String s, Writer writer) throws IOException {
-            writer.write(JsonStringEncoder.getInstance().quoteAsString(s));
+            final StringBuilder sb = new StringBuilder();
+            JsonStringEncoder.getInstance().quoteAsString(s, sb);
+            writer.write(sb.toString());
         }
     }
 
