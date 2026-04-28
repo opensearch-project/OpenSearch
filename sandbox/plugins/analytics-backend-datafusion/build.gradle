@@ -100,7 +100,7 @@ dependencies {
     exclude group: 'org.opensearch'
   }
   // PPL front-end plugin — provides UnifiedPPLExecuteAction transport action used by the IT.
-  internalClusterTestImplementation project(':sandbox:qa:test-ppl-frontend')
+  internalClusterTestImplementation project(':sandbox:plugins:test-ppl-frontend')
 }
 
 test {

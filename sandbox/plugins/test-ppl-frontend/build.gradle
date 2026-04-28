@@ -110,7 +110,7 @@ bundlePlugin {
   exclude 'error_prone_annotations-*.jar'
 }
 
-// This is a test plugin under sandbox/qa — package-level javadocs are not required, and the
+// This is a test plugin — package-level javadocs are not required, and the
 // bundled unified-query SNAPSHOT jars are internal OpenSearch artifacts not published with
 // the LICENSE/NOTICE layout `dependencyLicenses` enforces.
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
