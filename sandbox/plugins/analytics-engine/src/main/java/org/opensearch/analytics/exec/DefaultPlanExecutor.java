@@ -8,125 +8,203 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.TableScan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.analytics.backend.EngineResultBatch;
-import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
-import org.opensearch.analytics.backend.SearchExecEngine;
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.TimeoutTaskCancellationUtility;
+import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
+import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
+import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.PlannerImpl;
+import org.opensearch.analytics.planner.dag.DAGBuilder;
+import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
+import org.opensearch.analytics.planner.dag.PlanForker;
+import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.index.IndexService;
-import org.opensearch.index.engine.DataFormatAwareEngine;
-import org.opensearch.index.shard.IndexShard;
-import org.opensearch.indices.IndicesService;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.search.SearchService;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskAwareRequest;
+import org.opensearch.tasks.TaskManager;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.Executor;
+
+import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
 /**
- * {@link QueryPlanExecutor} default implementation.
- * <p>
- * Acquires a composite reader, selects a {@link AnalyticsSearchBackendPlugin}, and
- * delegates query execution to it.
+ * Coordinator-level plan executor. Registered as a {@link HandledTransportAction}
+ * so that Guice injects all dependencies ({@link TransportService},
+ * {@link ClusterService}, {@link ThreadPool}, etc.) automatically.
+ *
+ * <p>The SQL plugin resolves this class from the Node's Guice injector and invokes
+ * {@link #execute(RelNode, Object)} directly. The transport path ({@code doExecute})
+ * is reserved for future remote query invocation.
+ *
+ * @opensearch.internal
  */
-public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<Object[]>> {
+public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, ActionResponse>
+    implements
+        QueryPlanExecutor<RelNode, Iterable<Object[]>> {
 
     private static final Logger logger = LogManager.getLogger(DefaultPlanExecutor.class);
-    private final Map<String, AnalyticsSearchBackendPlugin> backEnds;
-    private final IndicesService indicesService;
-    private final ClusterService clusterService;
 
-    /**
-     * Constructs a DefaultPlanExecutor.
-     *
-     * @param providers list of search execution engine providers
-     * @param indicesService service for accessing index shards
-     * @param clusterService service for accessing cluster state
-     */
-    public DefaultPlanExecutor(List<AnalyticsSearchBackendPlugin> providers, IndicesService indicesService, ClusterService clusterService) {
-        this.backEnds = new LinkedHashMap<>();
-        for (AnalyticsSearchBackendPlugin provider : providers) {
-            this.backEnds.put(provider.name(), provider);
-        }
-        this.indicesService = indicesService;
+    private final CapabilityRegistry capabilityRegistry;
+    private final ClusterService clusterService;
+    private final Scheduler scheduler;
+    private final Executor searchExecutor;
+    private final TaskManager taskManager;
+    private final NodeClient client;
+
+    @Inject
+    public DefaultPlanExecutor(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        CapabilityRegistry capabilityRegistry,
+        EngineContext engineContext,
+        NodeClient client,
+        Scheduler scheduler
+    ) {
+        super(AnalyticsQueryAction.NAME, transportService, actionFilters, in -> {
+            throw new UnsupportedOperationException("Transport path not implemented yet");
+        });
+        this.capabilityRegistry = capabilityRegistry;
         this.clusterService = clusterService;
+        this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.taskManager = transportService.getTaskManager();
+        this.client = client;
+        this.scheduler = scheduler;
+    }
+
+    // TODO: Extract plan → optimize → fork → convert → DAG into a dedicated component (e.g. QueryDAGBuilder)
+    // that takes the logical fragment and returns a fully-built DAG ready for scheduling.
+    // Also add per-step timing (plan, fork, convert, schedule, execute) for observability.
+    @Override
+    public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
+        RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
+        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
+        PlanForker.forkAll(dag, capabilityRegistry);
+        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
+        logger.info("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
+
+        // Register coordinator-level query task with TaskManager (like SearchTask).
+        // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.
+        // TODO: accept a request type from FrontEnd including cancelAfterTimeInterval - its set from cluster settings below, null in req.
+        final AnalyticsQueryTask queryTask = (AnalyticsQueryTask) taskManager.register(
+            "transport",
+            "analytics_query",
+            new AnalyticsQueryTaskRequest(dag.queryId(), null)
+        );
+
+        // Create per-query context
+        QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
+
+        PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
+
+        // Per-query cleanup on terminal. Stage-execution cancellation on external
+        // task-cancel/timeout is wired inside the Scheduler — on this path the
+        // walker has already cascaded cancellations by the time we see the failure.
+        // Scheduler yields batches; we materialize rows at the API edge for callers
+        // that still consume Iterable<Object[]>.
+        ActionListener<Iterable<VectorSchemaRoot>> listener = ActionListener.wrap(batches -> {
+            Iterable<Object[]> rows = batchesToRows(batches);
+            config.closeBufferAllocator();
+            taskManager.unregister(queryTask);
+            future.onResponse(rows);
+        }, e -> {
+            config.closeBufferAllocator();
+            taskManager.unregister(queryTask);
+            future.onFailure(e);
+        });
+
+        TimeValue taskTimeout = queryTask.getCancelAfterTimeInterval();
+        TimeValue clusterTimeout = clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
+        if (taskTimeout != null || SearchService.NO_TIMEOUT.equals(clusterTimeout) == false) {
+            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(client, queryTask, clusterTimeout, listener, e -> {});
+        }
+
+        scheduler.execute(config, listener);
+        return future.actionGet();  // TODO: single blocking point — Should be async with Front-End passing listener.
     }
 
     @Override
-    public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
-        String tableName = extractTableName(logicalFragment);
-        AnalyticsSearchBackendPlugin provider = selectBackEnd();
-        if (provider == null) {
-            return new ArrayList<>();
+    protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
+        // Transport path — reserved for future remote query invocation.
+        // Currently, the SQL plugin invokes execute(RelNode, Object) directly.
+        listener.onFailure(new UnsupportedOperationException("Direct invocation only — use execute(RelNode, Object)"));
+    }
+
+    /**
+     * Lightweight {@link TaskAwareRequest} for registering an {@link AnalyticsQueryTask}
+     * with {@link TaskManager}. Mirrors how {@code SearchRequest.createTask()} returns
+     * a {@code SearchTask}.
+     */
+    static class AnalyticsQueryTaskRequest implements TaskAwareRequest {
+        private final String queryId;
+        private final TimeValue cancelAfterTimeInterval;
+        private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
+
+        AnalyticsQueryTaskRequest(String queryId, @Nullable TimeValue cancelAfterTimeInterval) {
+            this.queryId = queryId;
+            this.cancelAfterTimeInterval = cancelAfterTimeInterval;
         }
 
-        IndexShard shard = resolveShard(tableName);
-        DataFormatAwareEngine dataFormatAwareEngine = shard.getCompositeEngine();
-        if (dataFormatAwareEngine == null) {
-            throw new IllegalStateException("No CompositeEngine on shard [" + shard.shardId() + "]");
+        @Override
+        public void setParentTask(TaskId taskId) {
+            this.parentTaskId = taskId;
         }
 
-        SearchShardTask task = null; // TODO: init task
+        @Override
+        public TaskId getParentTask() {
+            return parentTaskId;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new AnalyticsQueryTask(id, type, action, queryId, parentTaskId, headers, cancelAfterTimeInterval);
+        }
+    }
+
+    /**
+     * Materializes Arrow batches into row-oriented {@code Object[]}s for the
+     * external query API. The scheduler yields batches (the native wire format);
+     * the row materialization happens here, once, at the API edge.
+     *
+     * <p>Package-private for unit testing.
+     */
+    static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches) {
         List<Object[]> rows = new ArrayList<>();
-        try (var dataFormatAwareReader = dataFormatAwareEngine.acquireReader()) {
-            ExecutionContext ctx = new ExecutionContext(tableName, task, dataFormatAwareReader.get());
-            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = provider.createSearchExecEngine(ctx)) {
-                logger.info("[DefaultPlanExecutor] Executing via [{}]", provider.name());
-                try (EngineResultStream resultStream = engine.execute(ctx)) {
-                    Iterator<EngineResultBatch> batchIterator = resultStream.iterator();
-                    while (batchIterator.hasNext()) {
-                        EngineResultBatch batch = batchIterator.next();
-                        List<String> fieldNames = batch.getFieldNames();
-                        for (int row = 0; row < batch.getRowCount(); row++) {
-                            Object[] rowValues = new Object[fieldNames.size()];
-                            for (int col = 0; col < fieldNames.size(); col++) {
-                                rowValues[col] = batch.getFieldValue(fieldNames.get(col), row);
-                            }
-                            rows.add(rowValues);
-                        }
-                    }
+        for (VectorSchemaRoot batch : batches) {
+            int colCount = batch.getFieldVectors().size();
+            int rowCount = batch.getRowCount();
+            for (int r = 0; r < rowCount; r++) {
+                Object[] row = new Object[colCount];
+                for (int c = 0; c < colCount; c++) {
+                    row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
                 }
+                rows.add(row);
             }
-        } catch (Exception e) {
-            throw new RuntimeException("Execution failed for [" + provider.name() + "]", e);
+            batch.close();
         }
         return rows;
-    }
-
-    static String extractTableName(RelNode node) {
-        if (node instanceof TableScan) {
-            List<String> qn = node.getTable().getQualifiedName();
-            return qn.get(qn.size() - 1);
-        }
-        for (RelNode input : node.getInputs()) {
-            String name = extractTableName(input);
-            if (name != null) return name;
-        }
-        throw new IllegalArgumentException("No TableScan found in plan fragment");
-    }
-
-    private IndexShard resolveShard(String indexName) {
-        IndexService indexService = indicesService.indexService(clusterService.state().metadata().index(indexName).getIndex());
-        if (indexService == null) throw new IllegalStateException("Index [" + indexName + "] not on this node");
-        Set<Integer> shardIds = indexService.shardIds();
-        if (shardIds.isEmpty()) throw new IllegalStateException("No shards for [" + indexName + "]");
-        return indexService.getShardOrNull(shardIds.iterator().next());
-    }
-
-    private AnalyticsSearchBackendPlugin selectBackEnd() {
-        if (backEnds.isEmpty()) {
-            logger.warn("No back-end plugins registered — queries will return empty results");
-            return null;
-        }
-        // TODO: select based on data format available in the catalog snapshot
-        return backEnds.values().iterator().next();
     }
 }

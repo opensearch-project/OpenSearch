@@ -925,4 +925,53 @@ public class XContentParserTests extends OpenSearchTestCase {
         return tokens;
     }
 
+    public void testYamlBooleanParsing() throws IOException {
+        // YAML 1.1 boolean true values per SnakeYAML's Resolver.BOOL regex
+        String[] truthyValues = { "true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON" };
+        // YAML 1.1 boolean false values per SnakeYAML's Resolver.BOOL regex
+        String[] falsyValues = { "false", "False", "FALSE", "no", "No", "NO", "off", "Off", "OFF" };
+
+        for (String value : truthyValues) {
+            String yaml = "---\nfield: " + value + "\n";
+            try (XContentParser parser = createParser(YamlXContent.yamlXContent, yaml)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals("field", parser.currentName());
+                XContentParser.Token token = parser.nextToken();
+                assertEquals("Expected VALUE_BOOLEAN token for '" + value + "'", XContentParser.Token.VALUE_BOOLEAN, token);
+                assertTrue("Expected '" + value + "' to be a boolean value", parser.isBooleanValue());
+                assertTrue("Expected '" + value + "' to parse as true", parser.booleanValue());
+                assertEquals("Expected text() to preserve original value", value, parser.text());
+            }
+        }
+
+        for (String value : falsyValues) {
+            String yaml = "---\nfield: " + value + "\n";
+            try (XContentParser parser = createParser(YamlXContent.yamlXContent, yaml)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals("field", parser.currentName());
+                XContentParser.Token token = parser.nextToken();
+                assertEquals("Expected VALUE_BOOLEAN token for '" + value + "'", XContentParser.Token.VALUE_BOOLEAN, token);
+                assertTrue("Expected '" + value + "' to be a boolean value", parser.isBooleanValue());
+                assertFalse("Expected '" + value + "' to parse as false", parser.booleanValue());
+                assertEquals("Expected text() to preserve original value", value, parser.text());
+            }
+        }
+
+        // Values that should NOT be treated as booleans
+        String[] nonBooleans = { "truthy", "nope", "yep", "often", "None", "NOTICE", "trUe", "fAlse", "TruE", "y", "Y", "n", "N" };
+        for (String value : nonBooleans) {
+            String yaml = "---\nfield: " + value + "\n";
+            try (XContentParser parser = createParser(YamlXContent.yamlXContent, yaml)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals("field", parser.currentName());
+                parser.nextToken();
+                assertFalse("Expected '" + value + "' to NOT be a boolean value", parser.isBooleanValue());
+                assertEquals(value, parser.text());
+            }
+        }
+    }
+
 }

@@ -15,6 +15,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+import static org.opensearch.action.ValidateActions.addValidationError;
+
 /**
  * Migration status request for a single index.
  */
@@ -65,17 +67,24 @@ public class GetTieringStatusRequest extends ClusterManagerNodeReadRequest<GetTi
      */
     public GetTieringStatusRequest(StreamInput in) throws IOException {
         super(in);
-        throw new UnsupportedOperationException("Not yet implemented");
+        index = in.readString();
+        isDetailedFlagEnabled = in.readBoolean();
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        ActionRequestValidationException validationException = null;
+        if (index == null) {
+            validationException = addValidationError("index is missing", validationException);
+        }
+        return validationException;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        super.writeTo(out);
+        out.writeString(index);
+        out.writeBoolean(isDetailedFlagEnabled);
     }
 
     /**

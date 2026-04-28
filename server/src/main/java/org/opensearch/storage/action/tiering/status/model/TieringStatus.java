@@ -8,6 +8,10 @@
 
 package org.opensearch.storage.action.tiering.status.model;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -15,13 +19,19 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Migration status object.
  */
 public class TieringStatus implements ToXContentObject, Writeable {
+
+    private static final Logger logger = LogManager.getLogger(TieringStatus.class);
 
     /** Key for tiering status. */
     public static final String TIERING_STATUS = "tiering_status";
@@ -158,12 +168,27 @@ public class TieringStatus implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput streamOutput) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        streamOutput.writeString(indexName);
+        streamOutput.writeString(status);
+        streamOutput.writeString(source);
+        streamOutput.writeString(target);
+        streamOutput.writeLong(startTime);
+        streamOutput.writeOptionalWriteable(shardLevelStatus);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder xContentBuilder, Params params) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        xContentBuilder.startObject(TIERING_STATUS);
+        xContentBuilder.field(INDEX, this.getIndexName());
+        xContentBuilder.field(STATE, this.getStatus());
+        xContentBuilder.field(SOURCE, this.getSource());
+        xContentBuilder.field(TARGET, this.getTarget());
+        xContentBuilder.field(START_TIME, this.getStartTime());
+        if (shardLevelStatus != null) {
+            shardLevelStatus.toXContent(xContentBuilder, params);
+        }
+        xContentBuilder.endObject();
+        return xContentBuilder;
     }
 
     /**
@@ -173,7 +198,15 @@ public class TieringStatus implements ToXContentObject, Writeable {
      * @throws IOException if error
      */
     public static TieringStatus readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("Not yet implemented");
+        final TieringStatus tieringStatus = new TieringStatus();
+        tieringStatus.setIndexName(in.readString());
+        tieringStatus.setStatus(in.readString());
+        tieringStatus.setSource(in.readString());
+        tieringStatus.setTarget(in.readString());
+        tieringStatus.setStartTime(in.readLong());
+        tieringStatus.setShardLevelStatus(in.readOptionalWriteable(ShardLevelStatus::new));
+
+        return tieringStatus;
     }
 
     /** Shard-level status with counters. */
@@ -198,7 +231,13 @@ public class TieringStatus implements ToXContentObject, Writeable {
          * @throws IOException if error
          */
         public ShardLevelStatus(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("Not yet implemented");
+            shardLevelCounters = new HashMap<>();
+            final Map<String, Object> inputMap = in.readMap();
+            for (Map.Entry<String, Object> entry : inputMap.entrySet()) {
+                shardLevelCounters.put(entry.getKey(), Integer.parseInt(entry.getValue().toString()));
+            }
+            List<OngoingShard> shards = in.readList(OngoingShard::new);
+            ongoingShards = shards != null ? shards : Collections.emptyList();
         }
 
         /**
@@ -211,14 +250,93 @@ public class TieringStatus implements ToXContentObject, Writeable {
             this.ongoingShards = ongoingShards;
         }
 
+        public static ShardLevelStatus fromRoutingTable(
+            ClusterState clusterState,
+            String index,
+            Boolean isDetailedFlagEnabled,
+            String targetTier
+        ) {
+            final List<ShardRouting> routingTable = clusterState.routingTable().allShards(index);
+            final Map<String, Integer> shardLevelCounters = new HashMap<>();
+            final List<OngoingShard> ongoingShards = new ArrayList<>();
+
+            int pending = 0;
+            int running = 0;
+            int succeeded = 0;
+            boolean isTargetWarm = "WARM".equalsIgnoreCase(targetTier);
+
+            for (ShardRouting shard : routingTable) {
+                // Switch based on shard routing state. Note that INITIALIZING is missing below since we will have a
+                // corresponding shard in RELOCATING state.
+                switch (shard.state()) {
+                    case STARTED:
+                        // Only count STARTED shards as done if they're placed on target nodes.
+                        final boolean isWarmNode = clusterState.getNodes().get(shard.currentNodeId()).isWarmNode();
+                        if (isTargetWarm == isWarmNode) {
+                            succeeded++;
+                        } else {
+                            pending++;
+                        }
+                        break;
+                    case UNASSIGNED:
+                        pending++;
+                        break;
+                    case RELOCATING:
+                        running++;
+                        if (isDetailedFlagEnabled) {
+                            ongoingShards.add(new OngoingShard(shard.shardId().id(), shard.relocatingNodeId()));
+                        }
+                        break;
+                    default:
+                        logger.warn("Unexpected shard state [{}] for index [{}]", shard.state(), index);
+                        break;
+
+                }
+            }
+            shardLevelCounters.put(PENDING_SHARDS, pending);
+            shardLevelCounters.put(SUCCEEDED_SHARDS, succeeded);
+            shardLevelCounters.put(RUNNING_SHARDS, running);
+            shardLevelCounters.put(TOTAL_SHARDS, pending + succeeded + running);
+            return new ShardLevelStatus(shardLevelCounters, ongoingShards);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException("Not yet implemented");
+            out.writeMapWithConsistentOrder(shardLevelCounters);
+            out.writeList(ongoingShards != null ? ongoingShards : Collections.emptyList());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            throw new UnsupportedOperationException("Not yet implemented");
+            builder.startObject(SHARD_LEVEL_STATUS);
+            for (Map.Entry<String, Integer> counter : shardLevelCounters.entrySet()) {
+                builder.field(counter.getKey(), counter.getValue());
+            }
+
+            if (ongoingShards != null && !ongoingShards.isEmpty()) {
+                builder.startArray(SHARD_RELOCATION_STATUS);
+                for (OngoingShard shard : ongoingShards) {
+                    if (shard != null) {
+                        shard.toXContent(builder, params);
+                    }
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ShardLevelStatus that = (ShardLevelStatus) o;
+            return Objects.equals(shardLevelCounters, that.shardLevelCounters) && Objects.equals(ongoingShards, that.ongoingShards);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(shardLevelCounters, ongoingShards);
         }
     }
 
@@ -243,17 +361,38 @@ public class TieringStatus implements ToXContentObject, Writeable {
          * @throws IOException if error
          */
         public OngoingShard(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("Not yet implemented");
+            this.sourceShardId = in.readInt();
+            this.relocatingNodeId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException("Not yet implemented");
+            out.writeInt(sourceShardId);
+            out.writeString(relocatingNodeId != null ? relocatingNodeId : "");
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            throw new UnsupportedOperationException("Not yet implemented");
+            builder.startObject().field(SOURCE_SHARD_ID, sourceShardId).field(RELOCATING_NODE_ID, relocatingNodeId).endObject();
+            return builder;
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TieringStatus that = (TieringStatus) o;
+        return Objects.equals(indexName, that.indexName)
+            && Objects.equals(status, that.status)
+            && Objects.equals(source, that.source)
+            && Objects.equals(target, that.target)
+            && (startTime == that.startTime)
+            && Objects.equals(shardLevelStatus, that.shardLevelStatus);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(indexName, status, source, target, startTime, shardLevelStatus);
     }
 }

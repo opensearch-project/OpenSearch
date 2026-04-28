@@ -44,7 +44,6 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 
-import java.io.IOException;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -128,10 +127,9 @@ public interface EnginePlugin {
      *
      * @param indexSettings index settings to detect whether a committer should be passed or not.
      * @return an optional committer factory
-     * @throws IOException if committer initialization fails
      */
     @ExperimentalApi
-    default Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) throws IOException {
+    default Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) {
         return Optional.empty();
     }
 }

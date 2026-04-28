@@ -8,19 +8,35 @@
 
 package org.opensearch.storage.action.tiering;
 
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+
+import static org.opensearch.storage.common.tiering.TieringUtils.H2W_TIERING_TYPE_KEY;
+
 /**
  * REST handler for moving indices to the warm tier.
- * getMigrationType and getTierAction will be added in the implementation PR.
  */
 public class RestHotToWarmTierAction extends RestBaseTierAction {
 
+    private static final String TARGET_TIER = "warm";
+
     /** Constructs a new RestHotToWarmTierAction. */
     public RestHotToWarmTierAction() {
-        super("warm");
+        super(TARGET_TIER);
     }
 
     @Override
     public String getName() {
         return "warm_tier_action";
+    }
+
+    @Override
+    protected String getMigrationType() {
+        return H2W_TIERING_TYPE_KEY;
+    }
+
+    @Override
+    protected ActionType<AcknowledgedResponse> getTierAction() {
+        return HotToWarmTierAction.INSTANCE;
     }
 }

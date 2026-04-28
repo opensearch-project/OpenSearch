@@ -26,6 +26,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -62,8 +63,8 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         .build();
 
     public void testReplicationWithUnassignedPrimary() throws Exception {
-        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
-        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        final IndexShard primary = newStartedShard(true, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         SegmentReplicator replicator = new SegmentReplicator(threadPool);
 
         ClusterService cs = mock(ClusterService.class);
@@ -78,8 +79,8 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
     }
 
     public void testReplicationWithUnknownPrimaryNode() throws Exception {
-        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
-        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        final IndexShard primary = newStartedShard(true, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         SegmentReplicator replicator = new SegmentReplicator(threadPool);
 
         ClusterService cs = mock(ClusterService.class);
@@ -115,8 +116,8 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
     }
 
     public void testStartReplicationRunsSuccessfully() throws Exception {
-        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
-        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        final IndexShard primary = newStartedShard(true, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
 
         // index and copy segments to replica.
         int numDocs = randomIntBetween(10, 20);
@@ -166,8 +167,8 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
 
     public void testReplicationFails() throws Exception {
         allowShardFailures();
-        final IndexShard replica = newStartedShard(false, settings, new NRTReplicationEngineFactory());
-        final IndexShard primary = newStartedShard(true, settings, new NRTReplicationEngineFactory());
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        final IndexShard primary = newStartedShard(true, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
 
         SegmentReplicator segmentReplicator = spy(new SegmentReplicator(threadPool));
         SegmentReplicationSourceFactory factory = mock(SegmentReplicationSourceFactory.class);
