@@ -12,7 +12,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.spi.ExchangeSink;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +29,7 @@ import java.util.List;
  *
  * <p>A configurable row count limit ({@link #maxRows}) acts as a guardrail
  * against unbounded result accumulation. When exceeded, {@link #feed}
- * throws {@link RowLimitExceededException} which propagates to the stage
+ * throws {@link OpenSearchRejectedExecutionException} which propagates to the stage
  * execution and transitions it to FAILED.
  *
  * <p><b>Thread safety:</b> {@link #feed} may be called concurrently from

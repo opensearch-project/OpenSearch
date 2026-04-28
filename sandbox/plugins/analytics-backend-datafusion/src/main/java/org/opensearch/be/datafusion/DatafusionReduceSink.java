@@ -20,6 +20,7 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Streaming coordinator-side reduce sink: opens a native partition stream up front,
@@ -47,6 +48,24 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink {
     private final StreamHandle outStream;
     /** Cumulative batches fed into the native sender. */
     private final AtomicLong feedCount = new AtomicLong();
+    /**
+     * Background thread that drains {@link #outStream} into the downstream sink as soon
+     * as the FINAL plan emits batches — running concurrently with feeds.
+     *
+     * <p>Without this thread, the FINAL plan's downstream side is not polled until
+     * {@code close()} runs {@link #drainOutputIntoDownstream}. That polling chain is
+     * what causes DataFusion's input operators to pull from our partition stream's
+     * receiver. Without a concurrent puller, producers wedge past the input mpsc
+     * capacity (verified empirically with target_partitions=1; without RepartitionExec
+     * or this drain thread, the 2nd send_blocking parks indefinitely).
+     *
+     * <p>The thread starts polling immediately at construction. It exits naturally
+     * when the FINAL plan reaches EOF (after {@link #sender}.close() signals input
+     * EOF and DataFusion completes the last aggregation).
+     */
+    private final Thread drainThread;
+    /** Captures any throwable from the drain thread for surfacing during close(). */
+    private final AtomicReference<Throwable> drainFailure = new AtomicReference<>();
 
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         super(ctx, runtimeHandle);
@@ -66,6 +85,29 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink {
             }
             session.close();
             throw e;
+        }
+        // Spawn the drain thread AFTER the native handles are constructed so the catch-block
+        // doesn't have to deal with thread teardown on construction failure.
+        this.drainThread = new Thread(this::drainLoop, "df-reduce-drain-q" + ctx.queryId() + "-s" + ctx.stageId());
+        this.drainThread.setDaemon(true);
+        this.drainThread.start();
+    }
+
+    /**
+     * Drain loop body. Runs on {@link #drainThread} from sink construction until the
+     * FINAL plan reaches EOF (which only happens after {@code sender.close()} is called
+     * by {@link #closeUnderLock}).
+     *
+     * <p>Polls {@link #outStream} via {@code streamNext} and forwards each emitted batch
+     * to {@code ctx.downstream()}. Any throwable is captured in {@link #drainFailure}
+     * and re-surfaced from {@link #closeUnderLock} via the existing accumulate pattern.
+     */
+    private void drainLoop() {
+        try {
+            drainOutputIntoDownstream(outStream);
+        } catch (Throwable t) {
+            drainFailure.set(t);
+            logger.warn("[ReduceSink] drain thread terminated with error", t);
         }
     }
 
@@ -126,16 +168,26 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink {
     @Override
     protected Throwable closeUnderLock() {
         Throwable failure = null;
+        // 1. Signal EOF on input. The drain thread, which is already polling the output
+        //    stream, will receive the final batches and then EOF, then exit cleanly.
         try {
             sender.close();
         } catch (Throwable t) {
             failure = accumulate(failure, t);
         }
+        // 2. Wait for the drain thread to finish processing remaining output.
         try {
-            drainOutputIntoDownstream(outStream);
-        } catch (Throwable t) {
-            failure = accumulate(failure, t);
+            drainThread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            failure = accumulate(failure, e);
         }
+        // 3. Surface any error captured by the drain thread.
+        Throwable drainErr = drainFailure.get();
+        if (drainErr != null) {
+            failure = accumulate(failure, drainErr);
+        }
+        // 4. Close native resources.
         try {
             outStream.close();
         } catch (Throwable t) {
