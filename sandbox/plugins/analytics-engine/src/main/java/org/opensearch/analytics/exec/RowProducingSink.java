@@ -77,7 +77,9 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
         if (totalRows + incoming > maxRows) {
             batch.close();
             throw new OpenSearchRejectedExecutionException(
-                "Analytics query result exceeded maximum row limit of " + maxRows + " rows. "
+                "Analytics query result exceeded maximum row limit of "
+                    + maxRows
+                    + " rows. "
                     + "Consider adding filters or aggregations to reduce the result set."
             );
         }

@@ -52,7 +52,7 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
 
     /** Substrait/DataFusion table name for the single registered input partition. */
     // TODO: This will change to represent child ID and taken as input in context
-        // for now we have a single partition.
+    // for now we have a single partition.
     static final String INPUT_ID = "input-0";
 
     protected final ExchangeSinkContext ctx;

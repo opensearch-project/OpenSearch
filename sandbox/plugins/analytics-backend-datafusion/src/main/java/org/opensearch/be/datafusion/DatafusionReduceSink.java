@@ -169,7 +169,7 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink {
     protected Throwable closeUnderLock() {
         Throwable failure = null;
         // 1. Signal EOF on input. The drain thread, which is already polling the output
-        //    stream, will receive the final batches and then EOF, then exit cleanly.
+        // stream, will receive the final batches and then EOF, then exit cleanly.
         try {
             sender.close();
         } catch (Throwable t) {

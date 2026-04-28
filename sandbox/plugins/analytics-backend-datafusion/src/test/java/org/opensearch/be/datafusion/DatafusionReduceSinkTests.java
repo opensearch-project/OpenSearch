@@ -170,18 +170,15 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             long completed = sink.feedCount();
             int attempted = attempts.get();
             Thread.State state = producer.getState();
-            logger.info(
-                "After 1500ms wait: completed={}, attempted={}, producerState={}",
-                completed, attempted, state
-            );
+            logger.info("After 1500ms wait: completed={}, attempted={}, producerState={}", completed, attempted, state);
 
             // Channel capacity is 1 (intentionally reduced for diagnostic clarity). If no
             // consumer is draining concurrently with feeds, we'd expect:
-            //   completed = 1 (first push lands), attempted = 2 (second push parked),
-            //   state = WAITING/TIMED_WAITING.
+            // completed = 1 (first push lands), attempted = 2 (second push parked),
+            // state = WAITING/TIMED_WAITING.
             // If a consumer IS draining concurrently (e.g. RepartitionExec spawned a
             // task during DataFusion plan setup), we'd expect:
-            //   completed = totalBatches, state = TERMINATED.
+            // completed = totalBatches, state = TERMINATED.
             // The actual outcome tells us which mental model is correct.
             // After Part 1 (drain thread) is in place, the drain thread polls the output
             // stream which cascades down to our partition stream's receiver — so even
@@ -189,7 +186,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             // EXPECTATION: completed == totalBatches, producer terminated.
             //
             // Without the drain thread (and without RepartitionExec), we'd see:
-            //   completed == 1, attempted == 2, state in {RUNNABLE (FFI-blocked), WAITING}.
+            // completed == 1, attempted == 2, state in {RUNNABLE (FFI-blocked), WAITING}.
             // Note: a Java thread blocked inside an FFI call shows up as RUNNABLE in
             // Thread.getState() because the JVM doesn't see Rust-level parking — the
             // thread is "running native code" from the JVM's perspective.
@@ -198,11 +195,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
                 totalBatches,
                 completed
             );
-            assertEquals(
-                "producer thread should be TERMINATED after completing all feeds; got " + state,
-                Thread.State.TERMINATED,
-                state
-            );
+            assertEquals("producer thread should be TERMINATED after completing all feeds; got " + state, Thread.State.TERMINATED, state);
             assertEquals("attempted should equal completed", completed, attempted);
 
             // Cleanup: close() drops the sender, which fails the parked tx.send futures with
@@ -215,10 +208,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
 
             // Final accounting: feedCount reflects only the feeds that actually deposited
             // before the parked one was unblocked-by-error. Anywhere from 4..5 inclusive.
-            logger.info(
-                "After close: feedCount={}, downstream rows={}",
-                sink.feedCount(), downstream.totalRows
-            );
+            logger.info("After close: feedCount={}, downstream rows={}", sink.feedCount(), downstream.totalRows);
         } finally {
             runtimeHandle.close();
         }
