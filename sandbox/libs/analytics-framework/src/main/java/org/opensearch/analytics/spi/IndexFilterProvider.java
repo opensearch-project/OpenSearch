@@ -11,6 +11,7 @@ package org.opensearch.analytics.spi;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
+import java.lang.foreign.MemorySegment;
 
 /**
  * Produces doc-id bitsets for one index-backed filter leaf.
@@ -36,10 +37,11 @@ import java.io.Closeable;
  *       a segment, {@code releaseProvider(providerKey)} when the query ends.</li>
  * </ol>
  *
- * <p>The SPI intentionally uses a plain {@code long[]} rather than an FFM
- * {@code MemorySegment} so the interface is backend-agnostic and does not
- * require JDK 22+ FFM APIs on the implementer side. The backend-specific FFM
- * callback copies from this array into the caller's native buffer.
+ * <p>The SPI uses a {@link MemorySegment} destination buffer so that
+ * implementations can write doc-id bitsets directly into caller-owned
+ * (possibly native) memory without an intermediate {@code long[]}
+ * allocation. Implementations write words using
+ * {@code out.setAtIndex(ValueLayout.JAVA_LONG, i, word)}.
  *
  * @opensearch.experimental
  */
@@ -60,17 +62,19 @@ public interface IndexFilterProvider extends Closeable {
      *
      * <p>Bit layout: the word at index {@code i} contains matches for docs
      * {@code [minDoc + i*64, minDoc + (i+1)*64)}, LSB-first within each word.
+     * Implementations write words using
+     * {@code out.setAtIndex(ValueLayout.JAVA_LONG, i, word)}.
      *
      * @param collectorKey provider-internal collector key returned by
      *                     {@link #createCollector(int, int, int)}.
      * @param minDoc       inclusive lower bound of the doc range.
      * @param maxDoc       exclusive upper bound of the doc range.
-     * @param out          destination buffer; implementation may write up to
-     *                     {@code out.length} words.
-     * @return number of words actually written ({@code 0 <= n <= out.length}),
-     *         or {@code -1} on error.
+     * @param out          destination {@link MemorySegment} buffer;
+     *                     implementation may write up to
+     *                     {@code out.byteSize() / 8} words.
+     * @return number of words actually written, or {@code -1} on error.
      */
-    int collectDocs(int collectorKey, int minDoc, int maxDoc, long[] out);
+    int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out);
 
     /**
      * Release resources for a collector when the native engine is done

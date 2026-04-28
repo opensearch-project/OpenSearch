@@ -19,6 +19,8 @@ import org.opensearch.index.engine.exec.IndexFilterProvider;
 import org.opensearch.index.engine.exec.SegmentCollector;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 /**
  * Lucene-backed {@link IndexFilterProvider}.
@@ -59,9 +61,12 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
      * @param key the collector key
      * @param minDoc the minimum document ID
      * @param maxDoc the maximum document ID
+     * @param out destination {@link MemorySegment} to write the packed bitset into
+     * @return the number of 64-bit words written into {@code out}
      */
-    public long[] collectDocs(LuceneIndexFilterContext context, int key, int minDoc, int maxDoc) {
-        return context.getCollectorManager().collectDocs(key, minDoc, maxDoc);
+    @Override
+    public int collectDocs(LuceneIndexFilterContext context, int key, int minDoc, int maxDoc, MemorySegment out) {
+        return context.getCollectorManager().collectDocs(key, minDoc, maxDoc, out);
     }
 
     /**
@@ -89,28 +94,31 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
         }
     }
 
-    private static final SegmentCollector EMPTY_COLLECTOR = (min, max) -> {
+    private static final SegmentCollector EMPTY_COLLECTOR = (min, max, out) -> {
         if (max <= min) {
-            return new long[0];
+            return 0;
         }
         int wordCount = (max - min + 63) >>> 6;
-        return new long[wordCount];
+        for (int i = 0; i < wordCount; i++) {
+            out.setAtIndex(ValueLayout.JAVA_LONG, i, 0L);
+        }
+        return wordCount;
     };
 
     /**
      * Per-segment cursor over matching docs.
      *
-     * <p>Forward-only: successive {@link #collectDocs(int, int)} calls MUST use
+     * <p>Forward-only: successive {@link #collectDocs(int, int, MemorySegment)} calls MUST use
      * non-decreasing, non-overlapping {@code [minDoc, maxDoc)} ranges. The
      * Lucene {@link DocIdSetIterator} is a one-shot cursor and cannot seek
      * backwards.
      *
-     * <p>Bit layout: the returned {@code long[]} is a packed bitset where
+     * <p>Bit layout: the {@code out} {@link MemorySegment} receives a packed bitset where
      * word {@code j} bit {@code i} (LSB-first) represents the doc at relative
      * position {@code j*64 + i} within the caller's {@code [minDoc, maxDoc)}
      * range. That is, bit {@code k} represents absolute doc id
-     * {@code minDoc + k}. Length is always {@code ceilDiv(maxDoc - minDoc, 64)}
-     * words regardless of how many bits are set.
+     * {@code minDoc + k}. Word count is always {@code ceilDiv(maxDoc - minDoc, 64)}
+     * regardless of how many bits are set.
      */
     private static final class LuceneSegmentCollector implements SegmentCollector {
         private final DocIdSetIterator iterator;
@@ -127,43 +135,40 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
         }
 
         @Override
-        public long[] collectDocs(int minDoc, int maxDoc) {
+        public int collectDocs(int minDoc, int maxDoc, MemorySegment out) {
             if (maxDoc <= minDoc) {
-                return new long[0];
+                return 0;
             }
-            // Anchor bits at the caller's minDoc. Bit k represents doc minDoc + k.
-            // Length is fixed at ceilDiv(span, 64) regardless of how many bits are set.
+            // Use FixedBitSet for cache-friendly heap-array bit manipulation,
+            // then bulk-copy into the native MemorySegment at the boundary.
             int span = maxDoc - minDoc;
             FixedBitSet bits = new FixedBitSet(span);
 
-            // The iterator only produces matches inside the partition. Clamp the
-            // scan range accordingly; bits outside the partition stay zero.
             int scanFrom = Math.max(minDoc, partitionMinDoc);
             int scanTo = Math.min(maxDoc, partitionMaxDoc);
-            if (scanFrom >= scanTo) {
-                return bits.getBits().clone();
+
+            if (scanFrom < scanTo) {
+                try {
+                    int docId = currentDoc;
+                    if (docId != DocIdSetIterator.NO_MORE_DOCS) {
+                        if (docId < scanFrom) {
+                            docId = iterator.advance(scanFrom);
+                        }
+                        while (docId != DocIdSetIterator.NO_MORE_DOCS && docId < scanTo) {
+                            bits.set(docId - minDoc);
+                            docId = iterator.nextDoc();
+                        }
+                        currentDoc = docId;
+                    }
+                } catch (IOException e) {
+                    // Write what we collected so far.
+                }
             }
 
-            try {
-                int docId = currentDoc;
-                if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                    return bits.getBits().clone();
-                }
-                if (docId < scanFrom) {
-                    docId = iterator.advance(scanFrom);
-                }
-                while (docId != DocIdSetIterator.NO_MORE_DOCS && docId < scanTo) {
-                    bits.set(docId - minDoc); // minDoc-relative, NOT scanFrom-relative
-                    docId = iterator.nextDoc();
-                }
-                currentDoc = docId;
-            } catch (IOException e) {
-                // Return what we collected so far in a correctly-sized buffer.
-                return bits.getBits().clone();
-            }
-            // FixedBitSet.getBits() exposes the backing array (length == ceilDiv(span, 64)).
-            // Clone since the SPI contract returns an owned long[].
-            return bits.getBits().clone();
+            // Single bulk copy: heap long[] → native MemorySegment.
+            long[] words = bits.getBits();
+            MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, words.length);
+            return words.length;
         }
     }
 }

@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 
 /**
  * Provides index-level filtering (partition pruning, segment filtering) for a given data format.
@@ -28,7 +29,7 @@ public interface IndexFilterProvider<Q, C extends IndexFilterContext, ReaderT> e
 
     int createCollector(C context, int segmentOrd, int minDoc, int maxDoc);
 
-    long[] collectDocs(C context, int collectorKey, int minDoc, int maxDoc);
+    int collectDocs(C context, int collectorKey, int minDoc, int maxDoc, MemorySegment out);
 
     void releaseCollector(C context, int collectorKey);
 }
