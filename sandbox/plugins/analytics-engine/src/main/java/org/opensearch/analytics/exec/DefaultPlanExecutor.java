@@ -99,12 +99,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
-        // Phase 4: generate plan alternatives per stage. Phase 5: convert each to backend bytes.
-        // Both must run before the scheduler picks `chosenBytes` for COORDINATOR_REDUCE / SHARD_FRAGMENT
-        // dispatch — otherwise plan alternatives stay empty and LocalStageScheduler asserts.
         PlanForker.forkAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
-        logger.info("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
+        logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
         // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.
@@ -118,12 +115,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // Create per-query context
         QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
 
-        PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>() {
-            @Override
-            protected boolean blockingAllowed() {
-                return true;
-            }
-        };
+        PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
+
         // Per-query cleanup on terminal. Stage-execution cancellation on external
         // task-cancel/timeout is wired inside the Scheduler — on this path the
         // walker has already cascaded cancellations by the time we see the failure.
