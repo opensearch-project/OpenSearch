@@ -38,9 +38,12 @@ public interface MetadataClient extends Closeable {
      *
      * @param indexName      name of the OpenSearch index being published
      * @param indexMetadata  index metadata (mappings, settings) to persist in the catalog
+     * @return the catalog snapshot id observed before this publish began, or {@code null}
+     *         if the table was freshly created and has no snapshots yet. The orchestrator
+     *         threads this back into {@link #finalizePublish} to support rollback.
      * @throws IOException   if catalog setup fails
      */
-    void initialize(String indexName, IndexMetadata indexMetadata) throws IOException;
+    String initialize(String indexName, IndexMetadata indexMetadata) throws IOException;
 
     /**
      * Publishes data files for a single shard to the catalog warehouse. The plugin
@@ -66,11 +69,15 @@ public interface MetadataClient extends Closeable {
      * completion marker on success, or rollback partial commits on failure. Default is
      * no-op.
      *
-     * @param indexName  name of the index that was published
-     * @param success    whether all shards published successfully
+     * @param indexName         name of the index that was published
+     * @param success           whether all shards published successfully
+     * @param savedSnapshotId   the snapshot id captured by {@link #initialize} before this
+     *                          publish began. On failure, the implementation rolls the table
+     *                          back to this snapshot. May be {@code null} if the table had no
+     *                          snapshots prior to this publish (first-ever publish).
      * @throws IOException if the finalization fails
      */
-    default void finalizePublish(String indexName, boolean success) throws IOException {}
+    default void finalizePublish(String indexName, boolean success, String savedSnapshotId) throws IOException {}
 
     /**
      * Reads index metadata previously persisted by {@link #initialize}.

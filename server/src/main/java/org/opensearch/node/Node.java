@@ -1459,7 +1459,12 @@ public class Node implements Closeable {
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
 
-            final MetadataClient catalogMetadataClient = createCatalogMetadataClient(settings, pluginsService, repositoryService);
+            final MetadataClient catalogMetadataClient = createCatalogMetadataClient(
+                settings,
+                pluginsService,
+                repositoryService,
+                this.environment
+            );
             final RemoteCatalogService remoteCatalogService = new RemoteCatalogService(clusterService, client, catalogMetadataClient);
             SnapshotsService snapshotsService = new SnapshotsService(
                 settings,
@@ -2564,7 +2569,8 @@ public class Node implements Closeable {
     private static MetadataClient createCatalogMetadataClient(
         Settings settings,
         PluginsService pluginsService,
-        RepositoriesService repositoriesService
+        RepositoriesService repositoriesService,
+        Environment environment
     ) {
         String catalogType = CATALOG_REPOSITORY_TYPE_SETTING.get(settings);
         if (catalogType == null || catalogType.isEmpty()) {
@@ -2596,7 +2602,7 @@ public class Node implements Closeable {
                     + repository.getClass().getName() + "]"
             );
         }
-        return catalogPlugins.get(0).createMetadataClient((CatalogRepository) repository);
+        return catalogPlugins.get(0).createMetadataClient((CatalogRepository) repository, environment);
     }
 
     /**

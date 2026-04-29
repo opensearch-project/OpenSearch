@@ -11,6 +11,7 @@ package org.opensearch.plugins;
 import org.opensearch.catalog.CatalogRepository;
 import org.opensearch.catalog.MetadataClient;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.env.Environment;
 
 /**
  * Extension point for plugins that provide an external metadata catalog
@@ -28,7 +29,8 @@ public interface CatalogPlugin {
      * The returned client is owned by core and closed on shutdown.
      *
      * @param repository  the catalog repository registered at startup
+     * @param environment node environment (for config dir, keystore secure settings)
      * @return a newly created metadata client bound to that repository
      */
-    MetadataClient createMetadataClient(CatalogRepository repository);
+    MetadataClient createMetadataClient(CatalogRepository repository, Environment environment);
 }
