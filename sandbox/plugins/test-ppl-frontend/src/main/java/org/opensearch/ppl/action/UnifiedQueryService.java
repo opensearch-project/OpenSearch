@@ -15,6 +15,7 @@ import org.apache.calcite.schema.Table;
 import org.apache.calcite.schema.impl.AbstractSchema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.sql.api.UnifiedQueryContext;
@@ -87,8 +88,13 @@ public class UnifiedQueryService {
             UnifiedQueryPlanner planner = new UnifiedQueryPlanner(context);
             RelNode logicalPlan = planner.plan(pplText);
 
-            // Execute directly via the back-end engine — no Janino compilation needed
-            Iterable<Object[]> results = planExecutor.execute(logicalPlan, null);
+            // Execute directly via the back-end engine — no Janino compilation needed.
+            // The executor API is async; this test frontend keeps a sync surface, so we bridge
+            // via PlainActionFuture. The block happens off the transport thread (the executor
+            // forks to SEARCH internally), so this is safe for test/IT use.
+            PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
+            planExecutor.execute(logicalPlan, null, future);
+            Iterable<Object[]> results = future.actionGet();
 
             // Extract column names from the RelNode's row type
             List<RelDataTypeField> fields = logicalPlan.getRowType().getFieldList();

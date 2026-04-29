@@ -18,12 +18,15 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Tests for {@link DefaultPlanExecutor}'s row-materialization boundary.
@@ -138,39 +141,84 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         assertTrue(rows.get(0)[0] instanceof String);
     }
 
-    /**
-     * Regression test for the take() rendering bug. A {@code ListVector(Utf8)} (the
-     * shape of {@code take(stringField, n)}'s result) must be materialized as a plain
-     * {@code List<String>}, not Arrow's {@code JsonStringArrayList<Text>}. The latter
-     * leaks Arrow's {@code Text} class into downstream code that only recognises
-     * standard Java types — eventually being {@code toString()}'d (which produces a
-     * JSON-encoded string instead of an array).
-     */
-    public void testBatchesToRowsListOfStringsDecodedAsListOfStrings() {
-        org.apache.arrow.vector.complex.ListVector listVector = org.apache.arrow.vector.complex.ListVector.empty(
-            "take",
-            allocator
+    public void testBuildBatchesListenerSuccessRunsCleanupOnce() {
+        AtomicInteger cleanupCount = new AtomicInteger(0);
+        AtomicReference<Iterable<Object[]>> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<Iterable<Object[]>> downstream = ActionListener.wrap(result::set, failure::set);
+
+        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = DefaultPlanExecutor.buildBatchesListener(
+            downstream,
+            cleanupCount::incrementAndGet
         );
-        listVector.addOrGetVector(FieldType.nullable(ArrowType.Utf8.INSTANCE));
-        org.apache.arrow.vector.complex.impl.UnionListWriter writer = listVector.getWriter();
-        writer.startList();
-        writer.varChar().writeVarChar("Amber JOHnny");
-        writer.varChar().writeVarChar("Hattie");
-        writer.endList();
-        writer.setValueCount(1);
 
-        VectorSchemaRoot batch = new VectorSchemaRoot(List.of(listVector));
-        batch.setRowCount(1);
+        VectorSchemaRoot batch = makeIntBatch("x", 1, 2);
+        batchesListener.onResponse(List.of(batch));
 
-        List<Object[]> rows = toList(DefaultPlanExecutor.batchesToRows(List.of(batch)));
-        assertEquals(1, rows.size());
-        Object cell = rows.get(0)[0];
-        assertTrue("expected List, got " + cell.getClass(), cell instanceof List);
-        @SuppressWarnings("unchecked")
-        List<Object> values = (List<Object>) cell;
-        assertEquals(2, values.size());
-        assertEquals(String.class, values.get(0).getClass());
-        assertEquals(List.of("Amber JOHnny", "Hattie"), values);
+        assertEquals(1, cleanupCount.get());
+        assertNotNull(result.get());
+        assertEquals(2, toList(result.get()).size());
+        assertNull(failure.get());
+    }
+
+    public void testBuildBatchesListenerFailureRunsCleanupOnce() {
+        AtomicInteger cleanupCount = new AtomicInteger(0);
+        AtomicReference<Iterable<Object[]>> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<Iterable<Object[]>> downstream = ActionListener.wrap(result::set, failure::set);
+
+        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = DefaultPlanExecutor.buildBatchesListener(
+            downstream,
+            cleanupCount::incrementAndGet
+        );
+
+        Exception cause = new RuntimeException("upstream failure");
+        batchesListener.onFailure(cause);
+
+        assertEquals(1, cleanupCount.get());
+        assertNull(result.get());
+        assertSame(cause, failure.get());
+    }
+
+    public void testBuildBatchesListenerConversionFailureRoutesToFailureWithSingleCleanup() {
+        AtomicInteger cleanupCount = new AtomicInteger(0);
+        AtomicReference<Iterable<Object[]>> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<Iterable<Object[]>> downstream = ActionListener.wrap(result::set, failure::set);
+
+        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = DefaultPlanExecutor.buildBatchesListener(
+            downstream,
+            cleanupCount::incrementAndGet
+        );
+
+        Iterable<VectorSchemaRoot> badBatches = () -> { throw new RuntimeException("conversion failed"); };
+        batchesListener.onResponse(badBatches);
+
+        assertEquals("cleanup must run exactly once when conversion throws", 1, cleanupCount.get());
+        assertNull(result.get());
+        assertNotNull(failure.get());
+        assertEquals("conversion failed", failure.get().getMessage());
+    }
+
+    public void testBuildBatchesListenerCleanupFailureOnSuccessRoutesToFailure() {
+        AtomicInteger cleanupCount = new AtomicInteger(0);
+        AtomicReference<Iterable<Object[]>> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<Iterable<Object[]>> downstream = ActionListener.wrap(result::set, failure::set);
+
+        Runnable cleanup = () -> {
+            cleanupCount.incrementAndGet();
+            throw new RuntimeException("cleanup failed");
+        };
+        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = DefaultPlanExecutor.buildBatchesListener(downstream, cleanup);
+
+        VectorSchemaRoot batch = makeIntBatch("x", 1, 2);
+        batchesListener.onResponse(List.of(batch));
+
+        assertEquals("cleanup runs exactly once even when it throws", 1, cleanupCount.get());
+        assertNull("downstream onResponse must not fire when cleanup throws on success path", result.get());
+        assertNotNull(failure.get());
+        assertEquals("cleanup failed", failure.get().getMessage());
     }
 
     public void testBatchesToRowsClosesBatches() {

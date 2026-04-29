@@ -51,6 +51,13 @@ public final class NativeBridge {
     private static final MethodHandle STREAM_NEXT;
     private static final MethodHandle STREAM_CLOSE;
     private static final MethodHandle SQL_TO_SUBSTRAIT;
+    private static final MethodHandle CREATE_LOCAL_SESSION;
+    private static final MethodHandle CLOSE_LOCAL_SESSION;
+    private static final MethodHandle REGISTER_PARTITION_STREAM;
+    private static final MethodHandle EXECUTE_LOCAL_PLAN;
+    private static final MethodHandle SENDER_SEND;
+    private static final MethodHandle SENDER_CLOSE;
+    private static final MethodHandle REGISTER_MEMTABLE;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -136,6 +143,64 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS
+            )
+        );
+
+        // ── Coordinator-reduce bindings ──
+        // i64 df_create_local_session(runtime_ptr)
+        CREATE_LOCAL_SESSION = linker.downcallHandle(
+            lib.find("df_create_local_session").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        // void df_close_local_session(session_ptr)
+        CLOSE_LOCAL_SESSION = linker.downcallHandle(
+            lib.find("df_close_local_session").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_register_partition_stream(session_ptr, input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len)
+        REGISTER_PARTITION_STREAM = linker.downcallHandle(
+            lib.find("df_register_partition_stream").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        // i64 df_execute_local_plan(session_ptr, substrait_ptr, substrait_len)
+        EXECUTE_LOCAL_PLAN = linker.downcallHandle(
+            lib.find("df_execute_local_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_sender_send(sender_ptr, array_ptr, schema_ptr)
+        SENDER_SEND = linker.downcallHandle(
+            lib.find("df_sender_send").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        // void df_sender_close(sender_ptr)
+        SENDER_CLOSE = linker.downcallHandle(lib.find("df_sender_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+
+        // i64 df_register_memtable(session_ptr, input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len,
+        // array_ptrs, schema_ptrs, n_batches)
+        REGISTER_MEMTABLE = linker.downcallHandle(
+            lib.find("df_register_memtable").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
             )
         );
     }
@@ -272,6 +337,106 @@ public final class NativeBridge {
                 out.lenOut()
             );
             return out.toByteArray();
+        }
+    }
+
+    // ---- Coordinator-reduce exports ----
+
+    /**
+     * Creates a local DataFusion session tied to the given global runtime. Returns an opaque
+     * native pointer freed by {@link #closeLocalSession}.
+     */
+    public static long createLocalSession(long runtimePtr) {
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        try (var call = new NativeCall()) {
+            return call.invoke(CREATE_LOCAL_SESSION, runtimePtr);
+        }
+    }
+
+    /** Frees the native local session. Tolerates a zero pointer for idempotent close. */
+    public static void closeLocalSession(long sessionPtr) {
+        NativeCall.invokeVoid(CLOSE_LOCAL_SESSION, sessionPtr);
+    }
+
+    /**
+     * Registers an input partition stream on the session under {@code inputId}, with the given
+     * Arrow IPC-encoded schema. Returns an opaque sender pointer freed by {@link #senderClose}.
+     */
+    public static long registerPartitionStream(long sessionPtr, String inputId, byte[] schemaIpc) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            return call.invoke(
+                REGISTER_PARTITION_STREAM,
+                sessionPtr,
+                id.segment(),
+                id.len(),
+                call.bytes(schemaIpc),
+                (long) schemaIpc.length
+            );
+        }
+    }
+
+    /**
+     * Executes a Substrait plan on the session, returning an opaque stream pointer. The stream is
+     * drained via {@link #streamNext} and freed by {@link #streamClose}.
+     */
+    public static long executeLocalPlan(long sessionPtr, byte[] substrait) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        try (var call = new NativeCall()) {
+            return call.invoke(EXECUTE_LOCAL_PLAN, sessionPtr, call.bytes(substrait), (long) substrait.length);
+        }
+    }
+
+    /**
+     * Pushes one Arrow C Data-exported batch (array + schema addresses) into the sender. The
+     * native side takes ownership of both FFI structs.
+     */
+    public static long senderSend(long senderPtr, long arrayPtr, long schemaPtr) {
+        NativeHandle.validatePointer(senderPtr, "sender");
+        // arrayPtr/schemaPtr come from Arrow Java's C Data export (ArrowArray.memoryAddress()),
+        // NOT from our NativeHandle lifecycle — validate as non-zero rather than live-handle.
+        if (arrayPtr == 0) {
+            throw new IllegalArgumentException("arrayPtr must be non-zero");
+        }
+        if (schemaPtr == 0) {
+            throw new IllegalArgumentException("schemaPtr must be non-zero");
+        }
+        try (var call = new NativeCall()) {
+            return call.invoke(SENDER_SEND, senderPtr, arrayPtr, schemaPtr);
+        }
+    }
+
+    /** Closes the sender, signalling end-of-input. Tolerates a zero pointer. */
+    public static void senderClose(long senderPtr) {
+        NativeCall.invokeVoid(SENDER_CLOSE, senderPtr);
+    }
+
+    /**
+     * Memtable variant of {@link #registerPartitionStream}: hands across a list of
+     * already-exported Arrow C Data batches in two parallel pointer arrays so the native side can
+     * build a {@code MemTable} in one shot. Native takes ownership of all FFI structs on success.
+     */
+    public static long registerMemtable(long sessionPtr, String inputId, byte[] schemaIpc, long[] arrayPtrs, long[] schemaPtrs) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        if (arrayPtrs.length != schemaPtrs.length) {
+            throw new IllegalArgumentException(
+                "arrayPtrs.length (" + arrayPtrs.length + ") != schemaPtrs.length (" + schemaPtrs.length + ")"
+            );
+        }
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            return call.invoke(
+                REGISTER_MEMTABLE,
+                sessionPtr,
+                id.segment(),
+                id.len(),
+                call.bytes(schemaIpc),
+                (long) schemaIpc.length,
+                call.longs(arrayPtrs),
+                call.longs(schemaPtrs),
+                (long) arrayPtrs.length
+            );
         }
     }
 
