@@ -48,8 +48,8 @@ Dataset myDataset = new Dataset("myDatasetName", "my_index_name");
 | Test | Description |
 |------|-------------|
 | `ParquetDataFusionIT` | Sanity check: creates a parquet-format index, validates settings are persisted, ingests docs, runs a simple search |
-| `DslClickBenchIT` | Runs ClickBench DSL queries via `_search` → dsl-query-executor → Calcite → Substrait → DataFusion |
-| `PplClickBenchIT` | Runs ClickBench PPL queries via `/_analytics/ppl` → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion |
+| `DslClickBenchIT` | Auto-discovers and runs all ClickBench DSL queries via `_search` → dsl-query-executor → Calcite → Substrait → DataFusion |
+| `PplClickBenchIT` | Auto-discovers and runs all ClickBench PPL queries via `/_analytics/ppl` → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion |
 
 ## Prerequisites
 
@@ -131,5 +131,5 @@ Note: PPL tests via `/_analytics/ppl` require the `test-ppl-frontend` plugin. It
 - DSL path: `_search` → dsl-query-executor → Calcite planning → Substrait → DataFusion
 - PPL path: `/_analytics/ppl` → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion
 - Expected response validation (via `{language}/expected/q{N}.json`) is planned for future iterations — currently the runner only validates that responses are non-empty
-- `DslClickBenchIT` runs ClickBench Q1. Additional queries can be added as analytics-engine expands aggregation translator support.
-- `PplClickBenchIT` runs ClickBench Q1 via the test-ppl-frontend plugin. Additional queries can be added as support expands.
+- `DslClickBenchIT` auto-discovers all 43 ClickBench DSL queries. Queries that hit unsupported aggregation types or planner limitations are reported as failures.
+- `PplClickBenchIT` auto-discovers all 43 ClickBench PPL queries. Same failure collection behavior as DSL.
