@@ -113,7 +113,12 @@ public class OpenSearchBoundaryTableScan extends TableScan implements Enumerable
     @SuppressWarnings("unchecked")
     public Enumerable<Object[]> bind(DataContext dataContext) {
         try {
-            Iterable<Object[]> result = (Iterable<Object[]>) planExecutor.execute(logicalFragment, dataContext);
+            // Calcite's bind() is synchronous (driven by the EnumerableInterpreter), so we
+            // block here on the async planExecutor until the engine completes.
+            org.opensearch.action.support.PlainActionFuture<Iterable<Object[]>> future =
+                new org.opensearch.action.support.PlainActionFuture<>();
+            planExecutor.execute(logicalFragment, dataContext, future);
+            Iterable<Object[]> result = future.actionGet();
             return Linq4j.asEnumerable(result);
         } catch (Exception e) {
             throw new RuntimeException(

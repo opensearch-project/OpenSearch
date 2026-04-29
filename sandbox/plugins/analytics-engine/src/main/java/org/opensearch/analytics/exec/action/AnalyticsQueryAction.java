@@ -19,8 +19,8 @@ import org.opensearch.core.action.ActionResponse;
  * <p>Currently used as a Guice injection vehicle for {@link DefaultPlanExecutor}
  * — the transport action registration lets Guice construct the executor with all
  * its dependencies ({@code TransportService}, {@code ClusterService}, etc.).
- * The SQL plugin invokes the executor directly via
- * {@link QueryPlanExecutor#execute(Object, Object)}, not through transport.
+ * Front-end plugins invoke the executor directly via
+ * {@link QueryPlanExecutor#execute}, not through transport.
  *
  * <p>Future: the transport path ({@code doExecute}) will accept query strings
  * for remote invocation.

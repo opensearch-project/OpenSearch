@@ -102,6 +102,8 @@ dependencies {
   // Required at runtime by arrow-vector (ArrowType subclasses reference flatbuffers and arrow-format).
   runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
   runtimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+  // Required at runtime by avatica-core (BuiltInConnectionProperty.<clinit> references Timeout).
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5:5.4"
 
   // SQL Unified Query API for PPL parsing
   testImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
