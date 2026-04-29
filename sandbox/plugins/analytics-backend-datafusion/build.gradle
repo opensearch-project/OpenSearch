@@ -12,7 +12,16 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
-java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+// Only the FFM-based nativelib/ sources need JDK 25. Set on compile tasks (not project-level
+// java{}) so Gradle's JVM ecosystem compatibility check doesn't block JDK-21 consumers.
+tasks.named('compileJava').configure {
+  sourceCompatibility = JavaVersion.toVersion(25)
+  targetCompatibility = JavaVersion.toVersion(25)
+}
+tasks.named('compileTestJava').configure {
+  sourceCompatibility = JavaVersion.toVersion(25)
+  targetCompatibility = JavaVersion.toVersion(25)
+}
 
 // Guava is forbidden on compile classpaths by OpenSearch. Calcite's TableScan
 // references ImmutableList, so tests need it. Bypass via custom configuration.
@@ -62,6 +71,9 @@ test {
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
   jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  // JNI native library path for opensearch_datafusion_jni
+  def jniLibDir = file("${projectDir}/target/release").absolutePath
+  jvmArgs += ["-Djava.library.path=${jniLibDir}"]
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
