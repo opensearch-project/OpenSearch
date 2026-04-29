@@ -13,6 +13,7 @@ import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
@@ -152,6 +153,23 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context, dataFusionService::newChildAllocator);
             engine.prepare(ctx);
             return engine;
+        };
+    }
+
+    @Override
+    public ExchangeSinkProvider getExchangeSinkProvider() {
+        return ctx -> {
+            DataFusionService svc = plugin.getDataFusionService();
+            if (svc == null) {
+                throw new IllegalStateException("DataFusionService not initialized");
+            }
+            String mode = plugin.getClusterService() != null
+                ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
+                : "streaming";
+            if ("memtable".equals(mode)) {
+                return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+            }
+            return new DatafusionReduceSink(ctx, svc.getNativeRuntime());
         };
     }
 }

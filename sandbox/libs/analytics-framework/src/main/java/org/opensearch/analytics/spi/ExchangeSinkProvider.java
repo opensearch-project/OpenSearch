@@ -23,10 +23,10 @@ package org.opensearch.analytics.spi;
 public interface ExchangeSinkProvider {
 
     /**
-     * Creates a sink for coordinator-side execution using the serialized coordinator
-     * fragment produced by {@link FragmentConvertor#convertFinalAggFragment}.
-     *
-     * @param coordinatorFragmentBytes backend-specific serialized coordinator fragment
+     * Creates a sink for coordinator-side execution. The backend implementation
+     * uses {@link ExchangeSinkContext#fragmentBytes()} as the serialized plan
+     * (produced by {@link FragmentConvertor#convertFinalAggFragment}) and
+     * writes its reduced output into {@link ExchangeSinkContext#downstream()}.
      */
-    ExchangeSink createSink(byte[] coordinatorFragmentBytes);
+    ExchangeSink createSink(ExchangeSinkContext context);
 }
