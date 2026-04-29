@@ -36,6 +36,14 @@ dependencies {
     testImplementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
 }
 
+tasks.named('forbiddenApisMain').configure {
+    replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('forbiddenApisTest').configure {
+    replaceSignatureFiles 'jdk-signatures'
+}
+
 validateNebulaPom.enabled = false
 loggerUsageCheck.enabled  = false
 licenseHeaders.enabled    = false
