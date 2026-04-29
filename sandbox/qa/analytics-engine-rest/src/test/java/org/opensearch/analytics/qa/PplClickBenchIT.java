@@ -28,12 +28,8 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
      * ClickBench PPL query numbers to run. Q1 validates the PPL → DataFusion path end-to-end.
      * Additional queries can be added here as the analytics engine adds support for more
      * aggregation translators and planner rules.
-     * <p>
-     * Empty for now — PPL execution in test-ppl-frontend calls DefaultPlanExecutor.execute()
-     * synchronously on the transport thread, triggering a blocking assertion. Will be enabled
-     * once TestPPLTransportAction forks execution to a non-transport thread.
      */
-    private static final List<Integer> QUERY_NUMBERS = List.of();
+    private static final List<Integer> QUERY_NUMBERS = List.of(1);
 
     private static boolean dataProvisioned = false;
 
@@ -45,10 +41,6 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
     }
 
     public void testClickBenchPplQueries() throws Exception {
-        if (QUERY_NUMBERS.isEmpty()) {
-            logger.info("No PPL queries configured — skipping (see QUERY_NUMBERS javadoc)");
-            return;
-        }
         ensureDataProvisioned();
 
         logger.info("Running {} PPL queries: {}", QUERY_NUMBERS.size(), QUERY_NUMBERS);

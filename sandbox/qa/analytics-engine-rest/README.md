@@ -48,8 +48,8 @@ Dataset myDataset = new Dataset("myDatasetName", "my_index_name");
 | Test | Description |
 |------|-------------|
 | `ParquetDataFusionIT` | Sanity check: creates a parquet-format index, validates settings are persisted, ingests docs, runs a simple search |
-| `DslClickBenchIT` | Runs auto-discovered ClickBench DSL queries via `_search` → dsl-query-executor → Calcite → Substrait → DataFusion |
-| `PplClickBenchIT` | Runs auto-discovered ClickBench PPL queries via `/_analytics/ppl` → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion |
+| `DslClickBenchIT` | Runs ClickBench DSL queries via `_search` → dsl-query-executor → Calcite → Substrait → DataFusion |
+| `PplClickBenchIT` | Runs ClickBench PPL queries via `/_analytics/ppl` → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion |
 
 ## Prerequisites
 
@@ -101,12 +101,12 @@ Start a cluster manually (see below), then run tests against it:
 NATIVE_LIB_DIR=$(pwd)/sandbox/libs/dataformat-native/rust/target/release
 
 ./gradlew run -Dsandbox.enabled=true \
-  -PinstalledPlugins="['analytics-engine', 'parquet-data-format', 'analytics-backend-datafusion', 'analytics-backend-lucene', 'dsl-query-executor', 'composite-engine']" \
+  -PinstalledPlugins="['analytics-engine', 'parquet-data-format', 'analytics-backend-datafusion', 'analytics-backend-lucene', 'dsl-query-executor', 'composite-engine', 'test-ppl-frontend']" \
   -Dtests.jvm.argline="-Djava.library.path=$NATIVE_LIB_DIR -Dopensearch.experimental.feature.pluggable.dataformat.enabled=true" \
   -x javadoc -x test -x missingJavadoc
 ```
 
-Note: `test-ppl-frontend` is a sandbox QA plugin and isn't resolvable via `./gradlew run -PinstalledPlugins`. Use `integTest` for tests that need PPL.
+Note: PPL tests via `/_analytics/ppl` require the `test-ppl-frontend` plugin. It is included in the `integTest` cluster config and can also be added to `./gradlew run` via `-PinstalledPlugins`.
 
 ### Running individual tests
 
@@ -132,4 +132,4 @@ Note: `test-ppl-frontend` is a sandbox QA plugin and isn't resolvable via `./gra
 - PPL path: `/_analytics/ppl` → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion
 - Expected response validation (via `{language}/expected/q{N}.json`) is planned for future iterations — currently the runner only validates that responses are non-empty
 - `DslClickBenchIT` runs ClickBench Q1. Additional queries can be added as analytics-engine expands aggregation translator support.
-- `PplClickBenchIT` is scaffolded but no queries are enabled yet — the test-ppl-frontend plugin calls `DefaultPlanExecutor.execute()` synchronously on the transport thread. Will be enabled once `TestPPLTransportAction` forks execution to a non-transport thread.
+- `PplClickBenchIT` runs ClickBench Q1 via the test-ppl-frontend plugin. Additional queries can be added as support expands.
