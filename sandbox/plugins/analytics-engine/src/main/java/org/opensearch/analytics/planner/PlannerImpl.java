@@ -33,6 +33,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
+import org.opensearch.analytics.planner.rules.TimestampLiteralReduceRule;
 
 import java.util.List;
 
@@ -81,6 +82,7 @@ public class PlannerImpl {
         hepBuilder.addMatchOrder(HepMatchOrder.ARBITRARY);
         hepBuilder.addRuleCollection(
             List.of(
+                TimestampLiteralReduceRule.INSTANCE,
                 new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
                 new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
             )

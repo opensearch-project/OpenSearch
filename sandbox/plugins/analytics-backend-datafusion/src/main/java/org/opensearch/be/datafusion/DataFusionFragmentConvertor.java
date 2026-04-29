@@ -32,14 +32,12 @@ import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
 import io.substrait.extension.SimpleExtension;
-import io.substrait.isthmus.ImmutableFeatureBoard;
+import io.substrait.isthmus.ConverterProvider;
 import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
@@ -135,7 +133,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         Plan.Root substraitRoot = Plan.Root.builder().input(substraitRel).names(fieldNames).build();
         Plan plan = Plan.builder().addRoots(substraitRoot).build();
 
-        plan = new TableNameModifier().modifyTableNames(plan);
+        plan = SubstraitPlanRewriter.rewrite(plan);
 
         io.substrait.proto.Plan protoPlan = new PlanProtoConverter().toProto(plan);
         byte[] bytes = protoPlan.toByteArray();
@@ -247,25 +245,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     private SubstraitRelVisitor createVisitor(RelNode relNode) {
         RelDataTypeFactory typeFactory = relNode.getCluster().getTypeFactory();
-        TypeConverter typeConverter = TypeConverter.DEFAULT;
-
-        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
-        ScalarFunctionConverter scalarConverter = new ScalarFunctionConverter(
-            extensions.scalarFunctions(),
-            ADDITIONAL_SCALAR_SIGS,
-            typeFactory,
-            typeConverter
-        );
-        WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
-
-        return new SubstraitRelVisitor(
-            typeFactory,
-            scalarConverter,
-            aggConverter,
-            windowConverter,
-            typeConverter,
-            ImmutableFeatureBoard.builder().build()
-        );
+        ConverterProvider converterProvider = new ConverterProvider(extensions, typeFactory);
+        return new SubstraitRelVisitor(converterProvider);
     }
 
     // ── Plan serde helpers ──────────────────────────────────────────────────────
