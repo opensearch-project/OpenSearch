@@ -84,7 +84,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         }
         topicPartition = new TopicPartition(topic, partitionId);
         consumer.assign(Collections.singletonList(topicPartition));
-        logger.info("Kafka consumer created for topic {} partition {}", topic, partitionId);
+        logger.info("Kafka consumer created for topic {} partition {} with topic metadata fetch timeout {}ms", topic, partitionId, config.getTopicMetadataFetchTimeoutMs());
     }
 
     /**

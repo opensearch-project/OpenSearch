@@ -82,5 +82,13 @@ public class KafkaSourceConfigTests extends OpenSearchTestCase {
         } catch (IllegalArgumentException e) {
             Assert.assertEquals("topic_metadata_fetch_timeout_ms must be positive, got: 0", e.getMessage());
         }
+
+        params.put("topic_metadata_fetch_timeout_ms", -1);
+        try {
+            new KafkaSourceConfig(100, params);
+            fail("Expected IllegalArgumentException for non-positive timeout");
+        } catch (IllegalArgumentException e) {
+            Assert.assertEquals("topic_metadata_fetch_timeout_ms must be positive, got: -1", e.getMessage());
+        }
     }
 }
