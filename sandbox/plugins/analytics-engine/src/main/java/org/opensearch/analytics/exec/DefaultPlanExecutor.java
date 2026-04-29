@@ -10,6 +10,8 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
+import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
@@ -95,9 +97,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.scheduler = scheduler;
     }
 
-    // TODO: Extract plan → optimize → fork → convert → DAG into a dedicated component (e.g. QueryDAGBuilder)
-    // that takes the logical fragment and returns a fully-built DAG ready for scheduling.
-    // Also add per-step timing (plan, fork, convert, schedule, execute) for observability.
     @Override
     public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
         // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
@@ -120,11 +119,19 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
      * scheduler has accepted the query.
      */
     private void executeInternal(RelNode logicalFragment, ActionListener<Iterable<Object[]>> listener) {
+        // Calcite's RelMetadataQuery reads its handler provider from a ThreadLocal
+        // (RelMetadataQueryBase.THREAD_PROVIDERS). The frontend seeds it on its own
+        // thread, but execute() hops to the SEARCH executor where the ThreadLocal is
+        // unset — RelOptUtil.toString / RelNode.explain inside PlannerImpl would then
+        // NPE on a null metadataHandlerProvider. Re-seed from the inbound cluster.
+        RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
+        logicalFragment.getCluster().invalidateMetadataQuery();
+
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
-        logger.info("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
+        logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
         // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.
@@ -230,16 +237,21 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches) {
         List<Object[]> rows = new ArrayList<>();
         for (VectorSchemaRoot batch : batches) {
-            int colCount = batch.getFieldVectors().size();
-            int rowCount = batch.getRowCount();
-            for (int r = 0; r < rowCount; r++) {
-                Object[] row = new Object[colCount];
-                for (int c = 0; c < colCount; c++) {
-                    row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
+            try {
+                int colCount = batch.getFieldVectors().size();
+                int rowCount = batch.getRowCount();
+                for (int r = 0; r < rowCount; r++) {
+                    Object[] row = new Object[colCount];
+                    for (int c = 0; c < colCount; c++) {
+                        row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
+                    }
+                    rows.add(row);
                 }
-                rows.add(row);
+            } finally {
+                // Release the Arrow buffers back to the query allocator. Without this the
+                // query teardown's allocator.close() detects a leak and fails the query.
+                batch.close();
             }
-            batch.close();
         }
         return rows;
     }

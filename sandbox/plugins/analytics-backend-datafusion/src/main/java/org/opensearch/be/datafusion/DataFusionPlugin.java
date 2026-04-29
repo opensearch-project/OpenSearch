@@ -65,11 +65,34 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         Setting.Property.NodeScope
     );
 
+    /**
+     * Selects how the coordinator-reduce sink hands shard responses to the native runtime.
+     * <ul>
+     *   <li>{@code streaming} (default) — use {@link DatafusionReduceSink}: each batch is pushed
+     *       through a tokio mpsc, the native plan polls inputs as it executes.</li>
+     *   <li>{@code memtable} — use {@link DatafusionMemtableReduceSink}: all batches are buffered
+     *       in Java and handed across in one call as a {@code MemTable}. Trades memory for a
+     *       simpler input lifecycle with no cross-runtime spawn or oneshot machinery.</li>
+     * </ul>
+     */
+    public static final Setting<String> DATAFUSION_REDUCE_INPUT_MODE = Setting.simpleString(
+        "datafusion.reduce.input_mode",
+        "streaming",
+        v -> {
+            if (!"streaming".equals(v) && !"memtable".equals(v)) {
+                throw new IllegalArgumentException("datafusion.reduce.input_mode must be 'streaming' or 'memtable', got: " + v);
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final String SUPPORTED_FORMAT = "parquet";
 
     private volatile DataFusionService dataFusionService;
     private volatile DataFormatRegistry dataFormatRegistry;
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
+    private volatile ClusterService clusterService;
 
     /**
      * Creates the DataFusion plugin.
@@ -92,6 +115,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         DataFormatRegistry dataFormatRegistry
     ) {
         this.dataFormatRegistry = dataFormatRegistry;
+        this.clusterService = clusterService;
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
@@ -110,6 +134,13 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         return Collections.singletonList(dataFusionService);
     }
 
+    /**
+     * Loads the Substrait default extension catalog with the plugin's classloader as the
+     * thread context classloader. Jackson polymorphic deserialization (used by Substrait
+     * to load its {@code SimpleExtension} subclasses) consults the TCCL; in an OpenSearch
+     * plugin context the TCCL is typically the server classloader, which cannot see the
+     * plugin-local Substrait classes.
+     */
     private static SimpleExtension.ExtensionCollection loadSubstraitExtensions() {
         Thread t = Thread.currentThread();
         ClassLoader previous = t.getContextClassLoader();
@@ -131,6 +162,15 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
 
     DataFusionService getDataFusionService() {
         return dataFusionService;
+    }
+
+    ClusterService getClusterService() {
+        return clusterService;
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(DATAFUSION_MEMORY_POOL_LIMIT, DATAFUSION_SPILL_MEMORY_LIMIT, DATAFUSION_REDUCE_INPUT_MODE);
     }
 
     @Override
