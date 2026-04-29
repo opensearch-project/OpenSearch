@@ -28,7 +28,9 @@ import java.io.IOException;
  * {@code CatalogPlugin}. If no catalog is configured, {@code metadataClient} is {@code null}
  * and {@link #publishIndex} rejects requests with a clear error.
  * <p>
- * Flow: validate → initialize → broadcast publish to data nodes → finalizePublish → respond.
+ * Flow: validate → initialize (capture pre-publish snapshot id) → broadcast publish to
+ * data nodes → finalizePublish (threads the snapshot id back for rollback on failure)
+ * → respond.
  *
  * @opensearch.experimental
  */
@@ -76,9 +78,10 @@ public class RemoteCatalogService {
                 return;
             }
 
-            // 3. Initialize catalog state (once, on cluster manager).
+            // 3. Initialize catalog state (once, on cluster manager) and capture the
+            //    pre-publish snapshot id. Rollback on failure targets this snapshot.
             logger.info("Initializing catalog for index [{}]", indexName);
-            metadataClient.initialize(indexName, indexMetadata);
+            final String savedSnapshotId = metadataClient.initialize(indexName, indexMetadata);
 
             // 4. Dispatch broadcast action to data nodes.
             logger.info("Publishing shards for index [{}]", indexName);
@@ -89,10 +92,10 @@ public class RemoteCatalogService {
                     boolean allSucceeded = response.getFailedShards() == 0;
                     try {
                         logger.info(
-                            "Finalizing publish for index [{}] (success={}, {}/{} shards)",
-                            indexName, allSucceeded, response.getSuccessfulShards(), response.getTotalShards()
+                            "Finalizing publish for index [{}] (success={}, {}/{} shards, savedSnapshotId={})",
+                            indexName, allSucceeded, response.getSuccessfulShards(), response.getTotalShards(), savedSnapshotId
                         );
-                        metadataClient.finalizePublish(indexName, allSucceeded);
+                        metadataClient.finalizePublish(indexName, allSucceeded, savedSnapshotId);
                     } catch (IOException e) {
                         logger.error("Failed to finalize publish for index [{}]", indexName, e);
                         listener.onFailure(e);

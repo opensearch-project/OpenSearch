@@ -15,6 +15,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugin.catalog.iceberg.credentials.IcebergClientSettings;
 import org.opensearch.plugins.CatalogPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.RepositoryPlugin;
@@ -49,19 +50,27 @@ public class IcebergCatalogPlugin extends Plugin implements RepositoryPlugin, Ca
     }
 
     @Override
-    public MetadataClient createMetadataClient(CatalogRepository repository) {
+    public MetadataClient createMetadataClient(CatalogRepository repository, Environment environment) {
         if (!(repository instanceof IcebergCatalogRepository)) {
             throw new IllegalArgumentException("expected an IcebergCatalogRepository but got [" + repository.getClass().getName() + "]");
         }
-        return new IcebergMetadataClient((IcebergCatalogRepository) repository);
+        return new IcebergMetadataClient((IcebergCatalogRepository) repository, environment);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
+            // Repository-scoped settings (come in under catalog.repository.settings.* prefix).
             IcebergCatalogRepository.BUCKET_ARN_SETTING,
             IcebergCatalogRepository.REGION_SETTING,
-            IcebergCatalogRepository.CATALOG_ENDPOINT_SETTING
+            IcebergCatalogRepository.CATALOG_ENDPOINT_SETTING,
+            IcebergCatalogRepository.ROLE_ARN_SETTING,
+            IcebergCatalogRepository.ROLE_SESSION_NAME_SETTING,
+            IcebergCatalogRepository.IDENTITY_TOKEN_FILE_SETTING,
+            // Cluster-keystore-backed credentials (catalog.credentials.*).
+            IcebergClientSettings.ACCESS_KEY_SETTING,
+            IcebergClientSettings.SECRET_KEY_SETTING,
+            IcebergClientSettings.SESSION_TOKEN_SETTING
         );
     }
 }

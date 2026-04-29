@@ -36,6 +36,9 @@ dependencies {
   api "software.amazon.awssdk:endpoints-spi:${versions.aws}"
   api "software.amazon.awssdk:metrics-spi:${versions.aws}"
 
+  // STS is used from main code by CredentialsBuilder (IRSA + assume-role paths).
+  api "software.amazon.awssdk:sts:${versions.aws}"
+
   // ============================================================================
   // Runtime-only
   // ============================================================================
@@ -56,7 +59,6 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.aws}"
   runtimeOnly "software.amazon.awssdk:signer:${versions.aws}"
   runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.aws}"
-  runtimeOnly "software.amazon.awssdk:sts:${versions.aws}"
 
   // Apache HTTP transitives used by apache-client at runtime.
   runtimeOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -162,4 +164,3 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.iceberg.relocated.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
 }
-
