@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec;
 
+import org.opensearch.core.action.ActionListener;
+
 /**
  * Executes a logical query plan fragment against the underlying data store.
  *
@@ -17,11 +19,12 @@ package org.opensearch.analytics.exec;
 public interface QueryPlanExecutor<LogicalPlan, Stream> {
 
     /**
-     * Executes the given logical fragment and returns result rows.
+     * Executes the given logical fragment and delivers the result stream (or a failure)
+     * to {@code listener}.
      *
-     * @param plan    the logical subtree to execute
-     * @param context execution context (opaque Object to avoid server dependency)
-     * @return rows produced by the engine
+     * @param plan     the logical subtree to execute
+     * @param context  execution context (opaque Object to avoid server dependency)
+     * @param listener receives the produced stream on success, or the failure cause on error
      */
-    Stream execute(LogicalPlan plan, Object context);
+    void execute(LogicalPlan plan, Object context, ActionListener<Stream> listener);
 }
