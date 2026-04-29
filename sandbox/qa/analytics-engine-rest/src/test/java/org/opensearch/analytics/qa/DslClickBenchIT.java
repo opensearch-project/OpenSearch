@@ -14,22 +14,14 @@ import org.opensearch.client.Response;
 import java.util.List;
 
 /**
- * ClickBench DSL integration test. Runs DSL queries against a parquet-backed ClickBench index.
+ * ClickBench DSL integration test. Auto-discovers and runs all DSL queries from
+ * {@code datasets/clickbench/dsl/} against a parquet-backed ClickBench index.
  * <p>
  * Query path: {@code POST /{index}/_search} → dsl-query-executor → Calcite → Substrait → DataFusion
  * <p>
- * Currently runs a subset of queries (see {@link #QUERY_NUMBERS}). To run all 43 ClickBench
- * queries, use {@link DatasetQueryRunner#discoverQueryNumbers(Dataset, String)}. Some queries
- * hit analytics-engine planner/translator limitations and are excluded until resolved.
+ * Failures are collected without fail-fast so all discovered queries are attempted.
  */
 public class DslClickBenchIT extends AnalyticsRestTestCase {
-
-    /**
-     * ClickBench DSL query numbers to run. Q1 validates the DSL → DataFusion path end-to-end.
-     * Additional queries can be added here as the analytics engine adds support for more
-     * aggregation translators and planner rules.
-     */
-    private static final List<Integer> QUERY_NUMBERS = List.of(1);
 
     private static boolean dataProvisioned = false;
 
@@ -43,14 +35,16 @@ public class DslClickBenchIT extends AnalyticsRestTestCase {
     public void testClickBenchDslQueries() throws Exception {
         ensureDataProvisioned();
 
-        logger.info("Running {} DSL queries: {}", QUERY_NUMBERS.size(), QUERY_NUMBERS);
+        List<Integer> queryNumbers = DatasetQueryRunner.discoverQueryNumbers(ClickBenchTestHelper.DATASET, "dsl");
+        assertFalse("No DSL queries discovered", queryNumbers.isEmpty());
+        logger.info("Discovered {} DSL queries: {}", queryNumbers.size(), queryNumbers);
 
         List<String> failures = DatasetQueryRunner.runQueries(
             client(),
             ClickBenchTestHelper.DATASET,
             "dsl",
             "json",
-            QUERY_NUMBERS,
+            queryNumbers,
             (client, dataset, queryBody) -> {
                 Request request = new Request("POST", "/" + dataset.indexName + "/_search");
                 request.setJsonEntity(queryBody);
@@ -60,7 +54,7 @@ public class DslClickBenchIT extends AnalyticsRestTestCase {
         );
 
         if (failures.isEmpty() == false) {
-            fail("DSL query failures:\n" + String.join("\n", failures));
+            fail("DSL query failures (" + failures.size() + " of " + queryNumbers.size() + "):\n" + String.join("\n", failures));
         }
     }
 }
