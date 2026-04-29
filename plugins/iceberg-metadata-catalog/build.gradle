@@ -22,6 +22,13 @@ dependencies {
     exclude group: 'org.apache.iceberg', module: 'iceberg-bundled-guava'
   }
 
+  // Avro is required by iceberg-core's PartitionData (implements org.apache.avro.generic.IndexedRecord).
+  // Any code path that constructs a partitioned DataFile triggers Avro class loading. We pull it in
+  // explicitly so partitioned table writes work; we do not use Avro as a serialization format.
+  // commons-compress is declared as a compile-scope transitive by avro itself.
+  runtimeOnly "org.apache.avro:avro:1.11.1"
+  runtimeOnly "org.apache.commons:commons-compress:${versions.commonscompress}"
+
   // AWS SDK v2 — core + S3 + Apache HTTP client
   api "software.amazon.awssdk:s3:${versions.aws}"
   api "software.amazon.awssdk:apache-client:${versions.aws}"
@@ -161,6 +168,23 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
     'org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
     'org.apache.iceberg.relocated.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'org.apache.iceberg.relocated.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+    'org.apache.iceberg.relocated.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+
+    // Avro uses sun.misc.Unsafe for reflective field access in its specific-record path.
+    // We don't use Avro as a serialization format; we need it on the classpath only because
+    // iceberg-core's PartitionData implements org.apache.avro.generic.IndexedRecord. None of
+    // the FieldAccessUnsafe paths are exercised by our code.
+    'org.apache.avro.reflect.FieldAccessUnsafe',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
+    'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField'
   )
 }

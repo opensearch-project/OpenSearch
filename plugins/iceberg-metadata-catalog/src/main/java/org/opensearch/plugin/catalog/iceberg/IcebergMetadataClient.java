@@ -10,16 +10,23 @@ package org.opensearch.plugin.catalog.iceberg;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,13 +35,19 @@ import org.opensearch.catalog.MetadataClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.env.Environment;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.plugin.catalog.iceberg.credentials.CredentialsBuilder;
 import org.opensearch.plugin.catalog.iceberg.credentials.IcebergClientCredentialsProvider;
 import org.opensearch.plugin.catalog.iceberg.credentials.IcebergClientSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * {@link MetadataClient} implementation backed by an Apache Iceberg REST catalog on
@@ -64,6 +77,9 @@ public class IcebergMetadataClient implements MetadataClient {
     /** Namespace under which all OpenSearch-published Iceberg tables are created. */
     public static final String NAMESPACE = "opensearch";
 
+    /** Key for the Iceberg table property that stores the source OpenSearch index UUID. */
+    static final String PROPERTY_INDEX_UUID = "opensearch.index_uuid";
+
     /** Max attempts for {@link #finalizePublish} rollback on a {@link CommitFailedException}. */
     private static final int FINALIZE_MAX_ATTEMPTS = 3;
 
@@ -72,7 +88,7 @@ public class IcebergMetadataClient implements MetadataClient {
 
     private final IcebergCatalogRepository repository;
     private final Environment environment;
-    private final RESTCatalog catalog;
+    private final Catalog catalog;
     private final AwsCredentialsProvider credentialsProvider;
     private final String registryKey;
 
@@ -104,6 +120,19 @@ public class IcebergMetadataClient implements MetadataClient {
         }
     }
 
+    /**
+     * Test-only constructor. Accepts a pre-built catalog and bypasses credential resolution
+     * and REST endpoint setup. Package-private so tests can inject an in-memory or mocked
+     * {@link Catalog} without reaching the network.
+     */
+    IcebergMetadataClient(Catalog catalog) {
+        this.repository = null;
+        this.environment = null;
+        this.catalog = catalog;
+        this.credentialsProvider = null;
+        this.registryKey = null;
+    }
+
     private Map<String, String> buildCatalogProperties() {
         Map<String, String> props = new HashMap<>();
         props.put(org.apache.iceberg.CatalogProperties.URI, repository.getCatalogEndpoint());
@@ -125,19 +154,48 @@ public class IcebergMetadataClient implements MetadataClient {
     @Override
     public String initialize(String indexName, IndexMetadata indexMetadata) throws IOException {
         TableIdentifier id = tableId(indexName);
+        String expectedIndexUUID = indexMetadata.getIndexUUID();
         Table table;
         Snapshot currentSnapshot;
 
         if (catalog.tableExists(id)) {
             table = catalog.loadTable(id);
+            String storedIndexUUID = table.properties().get(PROPERTY_INDEX_UUID);
+            if (storedIndexUUID == null) {
+                // Table exists but was not created by this plugin (or predates the property).
+                // Fail closed: publishing into it would mix two indices' data under incompatible
+                // partition values.
+                throw new IOException(
+                    "Iceberg table ["
+                        + id
+                        + "] is missing required property ["
+                        + PROPERTY_INDEX_UUID
+                        + "]. Table was not created by this plugin or is from an earlier incompatible version."
+                );
+            }
+            if (!storedIndexUUID.equals(expectedIndexUUID)) {
+                // Namespace collision: caller's index UUID does not match the table's stamped UUID.
+                // Reject so we don't silently merge two unrelated indices that happen to share a name.
+                throw new IOException(
+                    "Iceberg table ["
+                        + id
+                        + "] belongs to a different OpenSearch index (stored UUID ["
+                        + storedIndexUUID
+                        + "] does not match current index UUID ["
+                        + expectedIndexUUID
+                        + "])."
+                );
+            }
             currentSnapshot = table.currentSnapshot();
-            logger.info("Catalog table [{}] exists; reusing current schema", id);
+            logger.info("Catalog table [{}] exists with matching index UUID; reusing", id);
         } else {
             Schema schema = OpenSearchSchemaInference.inferSchema(indexMetadata);
             PartitionSpec spec = OpenSearchSchemaInference.partitionSpec(schema);
-            table = catalog.createTable(id, schema, spec);
+            Map<String, String> tableProperties = new HashMap<>();
+            tableProperties.put(PROPERTY_INDEX_UUID, expectedIndexUUID);
+            table = catalog.createTable(id, schema, spec, tableProperties);
             currentSnapshot = null;
-            logger.info("Created catalog table [{}] for index [{}]", id, indexName);
+            logger.info("Created catalog table [{}] for index [{}] with index UUID [{}]", id, indexName, expectedIndexUUID);
         }
 
         return currentSnapshot == null ? null : Long.toString(currentSnapshot.snapshotId());
@@ -145,7 +203,139 @@ public class IcebergMetadataClient implements MetadataClient {
 
     @Override
     public void publish(String indexName, RemoteSegmentStoreDirectory remoteDirectory, int shardId) throws IOException {
-        throw new UnsupportedOperationException("publish is not yet implemented");
+        TableIdentifier id = tableId(indexName);
+        PublishContext ctx = PublishContext.create(catalog, id, indexName, shardId);
+
+        List<String> parquetFiles = discoverParquetFiles(remoteDirectory);
+        if (parquetFiles.isEmpty()) {
+            logger.info("No parquet files discovered for shard [{}][{}]; skipping publish", indexName, shardId);
+            return;
+        }
+
+        List<DataFile> uploaded = new ArrayList<>(parquetFiles.size());
+        FileIO fileIO = ctx.table().io();
+        for (String remoteFilename : parquetFiles) {
+            uploaded.add(ParquetFileUploader.upload(ctx, remoteDirectory, remoteFilename, fileIO));
+        }
+
+        appendWithRetry(ctx, uploaded);
+    }
+
+    /**
+     * Discovers committed parquet files for this shard via
+     * {@link RemoteSegmentStoreDirectory#readLatestMetadataFile()}. Returns the logical
+     * remote-store filenames (UUID-suffixed, as stored in the metadata file). An empty
+     * result means the shard has no parquet files committed yet — a valid no-op.
+     * <p>
+     * The remote-store layout suffixes each filename with {@code "__<UUID>"} after the
+     * extension (e.g. {@code _0.parquet__gX7bNIIBrs0AUNsR2yEG}), so a plain
+     * {@link String#endsWith(String) endsWith(".parquet")} check does not work. We
+     * strip the suffix at its first {@code "__"} marker before comparing the extension.
+     */
+    private static List<String> discoverParquetFiles(RemoteSegmentStoreDirectory remoteDirectory) throws IOException {
+        RemoteSegmentMetadata metadata = remoteDirectory.readLatestMetadataFile();
+        if (metadata == null) {
+            return Collections.emptyList();
+        }
+        List<String> out = new ArrayList<>();
+        for (String filename : metadata.getMetadata().keySet()) {
+            if (isParquetFilename(filename)) {
+                out.add(filename);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Returns {@code true} if the remote-store filename represents a parquet file,
+     * ignoring the {@code "__<UUID>"} suffix appended by the remote store.
+     */
+    static boolean isParquetFilename(String filename) {
+        int suffixIndex = filename.indexOf("__");
+        String logicalName = suffixIndex >= 0 ? filename.substring(0, suffixIndex) : filename;
+        return logicalName.endsWith(".parquet");
+    }
+
+    /**
+     * Registers the uploaded {@code DataFile}s in the Iceberg table via {@code AppendFiles}.
+     * Applies the filter-before-commit pattern: on each attempt, refresh the table, drop any
+     * files already tracked in this shard's partition, and skip the commit entirely when the
+     * filtered set is empty. Combined with the content-addressed warehouse paths (layer 3)
+     * and Iceberg's {@code CommitFailedException} CAS (layer 2), retries produce no duplicate
+     * rows.
+     */
+    private void appendWithRetry(PublishContext ctx, List<DataFile> candidates) throws IOException {
+        commitWithRetry(ctx.table(), t -> {
+            t.refresh();
+            Set<String> tracked = readTrackedPaths(t, ctx.indexUUID(), ctx.shardId());
+            List<DataFile> newFiles = new ArrayList<>(candidates.size());
+            for (DataFile df : candidates) {
+                if (!tracked.contains(df.path().toString())) {
+                    newFiles.add(df);
+                }
+            }
+            if (newFiles.isEmpty()) {
+                logger.info(
+                    "All {} parquet files for [{}][{}] already tracked; no-op commit",
+                    candidates.size(),
+                    ctx.indexName(),
+                    ctx.shardId()
+                );
+                return;
+            }
+            AppendFiles append = t.newAppend();
+            for (DataFile df : newFiles) {
+                append.appendFile(df);
+            }
+            append.commit();
+            logger.info(
+                "Appended {} new parquet files to [{}][{}] ({} already tracked skipped)",
+                newFiles.size(),
+                ctx.indexName(),
+                ctx.shardId(),
+                candidates.size() - newFiles.size()
+            );
+        }, "appending " + candidates.size() + " parquet files to [" + ctx.indexName() + "][" + ctx.shardId() + "]");
+    }
+
+    /**
+     * Returns the set of file paths already registered in the Iceberg table under this
+     * publish's partition. Iterates all tracked files and filters in-memory by partition
+     * values read from {@code DataFile.partition()} — relying on Iceberg's partition-filter
+     * pushdown via {@code TableScan.filter(Expressions.equal(...))} does not work here,
+     * because those predicates are column-stats-based for data columns, not partition-value
+     * matchers. The number of parquet files per shard is small (at most the shard's active
+     * segment count), so iterating all tracked entries for one partition is acceptable.
+     */
+    private static Set<String> readTrackedPaths(Table table, String indexUUID, int shardId) throws IOException {
+        Set<String> paths = new HashSet<>();
+        if (table.currentSnapshot() == null) {
+            return paths;
+        }
+        try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+            for (FileScanTask task : tasks) {
+                StructLike partition = task.file().partition();
+                if (partitionMatches(partition, indexUUID, shardId)) {
+                    paths.add(task.file().path().toString());
+                }
+            }
+        }
+        return paths;
+    }
+
+    /**
+     * Returns {@code true} if the file's partition values correspond to the given
+     * {@code (index_uuid, shard_id)}. Relies on the partition spec ordering
+     * {@code identity(index_uuid), identity(shard_id)} established by
+     * {@link OpenSearchSchemaInference#partitionSpec}.
+     */
+    private static boolean partitionMatches(StructLike partition, String indexUUID, int shardId) {
+        if (partition.size() < 2) {
+            return false;
+        }
+        Object storedUUID = partition.get(0, Object.class);
+        Object storedShard = partition.get(1, Object.class);
+        return indexUUID.equals(String.valueOf(storedUUID)) && Integer.valueOf(shardId).equals(storedShard);
     }
 
     @Override
@@ -190,6 +380,8 @@ public class IcebergMetadataClient implements MetadataClient {
      * Returns {@code null}. IndexMetadata round-trip via the catalog is not yet
      * implemented — see the class javadoc for the rationale and the planned follow-up
      * (S3 sidecar or Puffin file).
+     *
+     * @param indexName the OpenSearch index name (ignored until the follow-up lands)
      */
     @Override
     public IndexMetadata getMetadata(String indexName) throws IOException {
@@ -204,11 +396,17 @@ public class IcebergMetadataClient implements MetadataClient {
     @Override
     public void close() throws IOException {
         try {
-            catalog.close();
+            if (catalog instanceof AutoCloseable) {
+                ((AutoCloseable) catalog).close();
+            }
+        } catch (IOException | RuntimeException e) {
+            throw e instanceof IOException ? (IOException) e : new IOException("failed to close Iceberg catalog", e);
         } catch (Exception e) {
             throw new IOException("failed to close Iceberg catalog", e);
         } finally {
-            IcebergClientCredentialsProvider.deregister(registryKey);
+            if (registryKey != null) {
+                IcebergClientCredentialsProvider.deregister(registryKey);
+            }
             if (credentialsProvider instanceof AutoCloseable) {
                 try {
                     ((AutoCloseable) credentialsProvider).close();
@@ -263,7 +461,7 @@ public class IcebergMetadataClient implements MetadataClient {
 
     @FunctionalInterface
     private interface TableUpdate {
-        void apply(Table table);
+        void apply(Table table) throws IOException;
     }
 
     // Visible for tests.
