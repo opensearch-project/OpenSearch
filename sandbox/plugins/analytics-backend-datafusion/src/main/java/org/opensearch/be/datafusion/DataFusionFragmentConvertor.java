@@ -32,6 +32,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import io.substrait.expression.AggregateFunctionInvocation;
@@ -52,9 +53,7 @@ import io.substrait.relation.Filter;
 import io.substrait.relation.NamedScan;
 import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
-import io.substrait.relation.RelCopyOnWriteVisitor;
 import io.substrait.relation.Sort;
-import io.substrait.util.EmptyVisitationContext;
 
 /**
  * Converts Calcite RelNode fragments to Substrait protobuf bytes
@@ -264,39 +263,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     /** Serializes a model-level {@link Plan} to proto bytes. */
     private static byte[] serializePlan(Plan plan) {
         return new PlanProtoConverter().toProto(plan).toByteArray();
-    }
-
-    // ── NamedScan prefix stripper ───────────────────────────────────────────────
-
-    /**
-     * Strips Calcite catalog prefixes (e.g. "opensearch") from {@link NamedScan} table
-     * names — DataFusion expects the bare index / stage-input id.
-     */
-    private static class TableNameModifier {
-        Plan modifyTableNames(Plan plan) {
-            TableNameVisitor visitor = new TableNameVisitor();
-            List<Plan.Root> modifiedRoots = new ArrayList<>();
-            for (Plan.Root root : plan.getRoots()) {
-                Optional<Rel> modifiedRel = root.getInput().accept(visitor, null);
-                if (modifiedRel.isPresent()) {
-                    modifiedRoots.add(Plan.Root.builder().from(root).input(modifiedRel.get()).build());
-                } else {
-                    modifiedRoots.add(root);
-                }
-            }
-            return Plan.builder().from(plan).roots(modifiedRoots).build();
-        }
-
-        private static class TableNameVisitor extends RelCopyOnWriteVisitor<RuntimeException> {
-            @Override
-            public Optional<Rel> visit(NamedScan namedScan, EmptyVisitationContext context) {
-                List<String> names = namedScan.getNames();
-                if (names.size() > 1) {
-                    return Optional.of(NamedScan.builder().from(namedScan).names(List.of(names.get(names.size() - 1))).build());
-                }
-                return super.visit(namedScan, context);
-            }
-        }
     }
 
     // ── Calcite TableScan wrappers for OpenSearchStageInputScan rewrite ─────────

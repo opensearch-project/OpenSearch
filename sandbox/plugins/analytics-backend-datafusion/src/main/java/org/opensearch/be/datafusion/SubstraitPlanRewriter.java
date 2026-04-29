@@ -17,7 +17,6 @@ import io.substrait.expression.Expression;
 import io.substrait.expression.ImmutableExpression;
 import io.substrait.plan.Plan;
 import io.substrait.relation.ExpressionCopyOnWriteVisitor;
-import io.substrait.relation.NamedScan;
 import io.substrait.relation.Rel;
 import io.substrait.relation.RelCopyOnWriteVisitor;
 import io.substrait.util.EmptyVisitationContext;
@@ -58,18 +57,6 @@ class SubstraitPlanRewriter {
     private static class PlanRelVisitor extends RelCopyOnWriteVisitor<RuntimeException> {
 
         private final PlanExpressionVisitor expressionVisitor = new PlanExpressionVisitor(this);
-
-        private static final String CATALOG_PREFIX = "opensearch";
-
-        // Strip "opensearch" catalog prefix: ["opensearch", "index_name"] -> ["index_name"]
-        @Override
-        public Optional<Rel> visit(NamedScan namedScan, EmptyVisitationContext ctx) {
-            List<String> names = namedScan.getNames();
-            if (names.size() > 1 && CATALOG_PREFIX.equals(names.get(0))) {
-                return Optional.of(NamedScan.builder().from(namedScan).names(names.subList(1, names.size())).build());
-            }
-            return super.visit(namedScan, ctx);
-        }
 
         // Rewrite expressions inside filter conditions
         @Override

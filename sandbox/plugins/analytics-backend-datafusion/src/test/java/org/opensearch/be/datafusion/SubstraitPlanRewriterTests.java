@@ -118,9 +118,9 @@ public class SubstraitPlanRewriterTests extends OpenSearchTestCase {
         assertEquals(expectedMillis, pts.value());
     }
 
-    public void testCatalogPrefixStripped() {
+    public void testBareNameUnchanged() {
         NamedScan scan = NamedScan.builder()
-            .names(List.of("opensearch", "parquet_dates"))
+            .names(List.of("parquet_dates"))
             .initialSchema(NamedStruct.of(List.of("col0"), R.struct(R.I64)))
             .build();
 

@@ -18,6 +18,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
+import org.opensearch.analytics.spi.RexNodeTransformer;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -73,6 +74,7 @@ public class CapabilityRegistry {
     private final Map<DelegationType, List<String>> delegationAcceptors = new HashMap<>();
     private final Map<FullTextParamKey, Set<String>> fullTextParamIndex = new HashMap<>();
 
+    private final List<RexNodeTransformer> rexTransformers = new ArrayList<>();
     private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
 
     // Backends that declared any capability for each operator — O(1) membership check
@@ -154,6 +156,7 @@ public class CapabilityRegistry {
                 }
                 projectCapableBackends.add(name);
             }
+            rexTransformers.addAll(backend.getRexTransformers());
         }
     }
 
@@ -274,6 +277,12 @@ public class CapabilityRegistry {
         if (annotationViable.contains(candidate)) return true;
         return delegationSupporters(delegationType).contains(candidate)
             && annotationViable.stream().anyMatch(delegationAcceptors(delegationType)::contains);
+    }
+
+    // ---- RexNode transformers ----
+
+    public List<RexNodeTransformer> getRexTransformers() {
+        return rexTransformers;
     }
 
     // ---- Backend access ----

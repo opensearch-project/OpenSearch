@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.spi;
 
+import java.util.List;
+
 /**
  * SPI extension point for backend query engine plugins.
  *
@@ -68,5 +70,14 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default ExchangeSinkProvider getExchangeSinkProvider() {
         return null;
+    }
+
+    /**
+     * Returns RexNode transformers this backend requires during the marking phase.
+     * Transformers run on leaf predicates before backend capability matching.
+     * Empty list means no transformations needed.
+     */
+    default List<RexNodeTransformer> getRexTransformers() {
+        return List.of();
     }
 }
