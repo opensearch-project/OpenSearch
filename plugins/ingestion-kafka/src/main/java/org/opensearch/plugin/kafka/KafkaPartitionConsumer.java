@@ -74,7 +74,10 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         this.config = config;
         String topic = config.getTopic();
         List<PartitionInfo> partitionInfos = AccessController.doPrivileged(
-            (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(topic, Duration.ofMillis(config.getTopicMetadataFetchTimeoutMs()))
+            (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(
+                topic,
+                Duration.ofMillis(config.getTopicMetadataFetchTimeoutMs())
+            )
         );
         if (partitionInfos == null) {
             throw new IllegalArgumentException("Topic " + topic + " does not exist");
@@ -84,7 +87,12 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         }
         topicPartition = new TopicPartition(topic, partitionId);
         consumer.assign(Collections.singletonList(topicPartition));
-        logger.info("Kafka consumer created for topic {} partition {} with topic metadata fetch timeout {}ms", topic, partitionId, config.getTopicMetadataFetchTimeoutMs());
+        logger.info(
+            "Kafka consumer created for topic {} partition {} with topic metadata fetch timeout {}ms",
+            topic,
+            partitionId,
+            config.getTopicMetadataFetchTimeoutMs()
+        );
     }
 
     /**
