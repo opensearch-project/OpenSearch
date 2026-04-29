@@ -8,7 +8,6 @@
 
 package org.opensearch.be.datafusion.stats;
 
-import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.plugin.stats.BackendStatsProvider;
 import org.opensearch.plugin.stats.PluginStats;
 
@@ -31,6 +30,7 @@ public class DataFusionBackendStatsProvider implements BackendStatsProvider {
 
     @Override
     public PluginStats getBackendStats() {
-        return NativeBridge.stats();
+        // TODO: Expose only necessary DF metrics to core.
+        return null;
     }
 }

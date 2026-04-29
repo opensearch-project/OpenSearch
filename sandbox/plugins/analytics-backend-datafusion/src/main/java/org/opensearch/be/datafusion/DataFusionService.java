@@ -156,8 +156,11 @@ public class DataFusionService extends AbstractLifecycleComponent {
      * @return the current {@link DataFusionStats}
      */
     public DataFusionStats getStats() {
-        return NativeBridge.stats();    }
-
+        if (runtimeHandle == null) {
+            throw new IllegalStateException("DataFusionService has not been started");
+        }
+        return NativeBridge.stats();
+    }
     // Cache management (node-level, delegates to native runtime)
 
     /**

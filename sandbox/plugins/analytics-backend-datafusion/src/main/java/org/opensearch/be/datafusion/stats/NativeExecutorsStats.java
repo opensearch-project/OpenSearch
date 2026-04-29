@@ -29,9 +29,6 @@ import java.util.Objects;
  */
 public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 
-    /** Number of fields in a RuntimeMetrics block. */
-    public static final int RUNTIME_METRICS_COUNT = 8;
-
     /** Operation types in documented order. */
     public enum OperationType {
         /** Query execution operation. */
