@@ -213,6 +213,19 @@ pub fn create_global_runtime(
     spill_dir: &str,
     spill_limit: i64,
 ) -> Result<i64, DataFusionError> {
+    if memory_pool_limit < 0 {
+        return Err(DataFusionError::Configuration(format!(
+            "memory_pool_limit must be non-negative, got {}",
+            memory_pool_limit
+        )));
+    }
+    if spill_limit < 0 {
+        return Err(DataFusionError::Configuration(format!(
+            "spill_limit must be non-negative, got {}",
+            spill_limit
+        )));
+    }
+
     let disk_manager = DiskManagerBuilder::default()
         .with_max_temp_directory_size(spill_limit as u64)
         .with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));

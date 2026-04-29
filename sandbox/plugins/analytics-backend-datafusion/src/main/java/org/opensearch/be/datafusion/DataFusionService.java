@@ -123,10 +123,13 @@ public class DataFusionService extends AbstractLifecycleComponent {
     /**
      * Sets the memory pool limit at runtime. Takes effect for new allocations only.
      * Existing reservations that exceed the new limit are NOT reclaimed.
+     * <p>
+     * The user-visible info-level log line is emitted by the caller in
+     * {@code DataFusionPlugin.updateMemoryPoolLimit}; this method is silent to avoid
+     * duplicate log entries.
      */
     public void setMemoryPoolLimit(long newLimitBytes) {
         NativeBridge.setMemoryPoolLimit(getNativeRuntime().get(), newLimitBytes);
-        logger.debug("Memory pool limit updated to {} bytes", newLimitBytes);
     }
 
     // Cache management (node-level, delegates to native runtime)

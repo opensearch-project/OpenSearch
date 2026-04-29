@@ -89,4 +89,17 @@ public class DynamicMemoryPoolTests extends OpenSearchTestCase {
         long usage = NativeBridge.getMemoryPoolUsage(runtimePtr);
         assertTrue("Usage should be >= 0", usage >= 0);
     }
+
+    /**
+     * H1 — after the service has been stopped, {@link DataFusionService#setMemoryPoolLimit}
+     * must surface an {@link IllegalStateException} rather than dereferencing a closed runtime
+     * handle. The plugin-level listener catches this to keep cluster-state updates quiet during
+     * node shutdown.
+     */
+    public void testSetMemoryPoolLimitAfterStopThrowsIllegalState() {
+        service.stop();
+        expectThrows(IllegalStateException.class, () -> service.setMemoryPoolLimit(128L * 1024 * 1024));
+        // Null out so tearDown does not try to stop again.
+        service = null;
+    }
 }

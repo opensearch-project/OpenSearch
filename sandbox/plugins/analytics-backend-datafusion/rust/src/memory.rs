@@ -13,7 +13,6 @@
 //! share an `Arc<AtomicUsize>` for the limit, so `set_limit` is lock-free
 //! and takes effect on the next `try_grow` call.
 
-use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -79,7 +78,14 @@ impl DynamicLimitPool {
 
 impl MemoryPool for DynamicLimitPool {
     fn grow(&self, _reservation: &MemoryReservation, additional: usize) {
-        self.used.fetch_add(additional, Ordering::Relaxed);
+        // `grow` is an infallible accounting call; the caller is responsible
+        // for pairing it with a successful `try_grow`, so under well-behaved
+        // callers `used + additional` cannot overflow `usize`. Use a saturating
+        // CAS loop so that a buggy caller (or a malicious `additional == usize::MAX`)
+        // cannot wrap the counter.
+        let _ = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+            Some(used.saturating_add(additional))
+        });
     }
 
     fn shrink(&self, _reservation: &MemoryReservation, shrink: usize) {
@@ -91,13 +97,24 @@ impl MemoryPool for DynamicLimitPool {
         reservation: &MemoryReservation,
         additional: usize,
     ) -> Result<(), DataFusionError> {
-        let limit = self.dynamic_limit.load(Ordering::Acquire);
+        // Load the limit inside the closure so every CAS retry sees the current
+        // value. A concurrent `set_limit` that raises the limit while we are
+        // spinning here should be honoured; loading once outside the closure
+        // would miss that update.
+        let dynamic_limit = &self.dynamic_limit;
         self.used
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+                let limit = dynamic_limit.load(Ordering::Acquire);
                 let new_used = used.checked_add(additional)?;
                 (new_used <= limit).then_some(new_used)
             })
             .map_err(|used| {
+                // Re-load the limit for the error message. This can be a slightly newer
+                // value than the limit used in the decision above under a concurrent
+                // `set_limit`, but we prefer "most-recent" for operator visibility. The
+                // allocation decision itself was already made against a consistent
+                // snapshot inside the closure.
+                let limit = dynamic_limit.load(Ordering::Acquire);
                 DataFusionError::ResourcesExhausted(format!(
                     "Failed to allocate {} bytes for {} ({} already reserved) \
                      — {} available out of {} (dynamic limit)",
@@ -190,5 +207,77 @@ mod tests {
         let consumer2 = MemoryConsumer::new("test2");
         let mut reservation2 = consumer2.register(&pool);
         assert!(reservation2.try_grow(1).is_err());
+    }
+
+    #[test]
+    fn test_try_grow_overflow_protection() {
+        let (pool, _handle) = DynamicLimitPool::new(usize::MAX);
+        let consumer = MemoryConsumer::new("test");
+        let mut reservation = consumer.register(&pool);
+        assert!(reservation.try_grow(1024).is_ok());
+        // `additional == usize::MAX` would overflow `used + additional`.
+        // checked_add inside fetch_update must reject it cleanly.
+        assert!(reservation.try_grow(usize::MAX).is_err());
+        assert_eq!(pool.reserved(), 1024);
+    }
+
+    #[test]
+    fn test_grow_saturates_instead_of_wrapping() {
+        let (pool, _handle) = DynamicLimitPool::new(1024);
+        // `grow` is infallible accounting — a buggy caller must not be able to
+        // wrap `used` back to zero by passing `usize::MAX`. `saturating_add`
+        // pins `used` at `usize::MAX` instead.
+        let consumer = MemoryConsumer::new("test");
+        let reservation = consumer.register(&pool);
+        MemoryPool::grow(&pool, &reservation, usize::MAX);
+        assert_eq!(pool.reserved(), usize::MAX);
+        MemoryPool::grow(&pool, &reservation, 1);
+        assert_eq!(pool.reserved(), usize::MAX);
+    }
+
+    #[test]
+    fn test_concurrent_set_limit_observed_by_try_grow() {
+        use std::sync::Barrier;
+        use std::thread;
+
+        // Repeat to give the race a chance to surface.
+        for _ in 0..64 {
+            let (pool, handle) = DynamicLimitPool::new(1024);
+            let pool = Arc::new(pool);
+            let barrier = Arc::new(Barrier::new(2));
+
+            let raiser = {
+                let handle = handle.clone();
+                let barrier = barrier.clone();
+                thread::spawn(move || {
+                    barrier.wait();
+                    handle.set_limit(1 << 30);
+                })
+            };
+
+            let allocator = {
+                let pool = pool.clone();
+                let barrier = barrier.clone();
+                thread::spawn(move || {
+                    barrier.wait();
+                    let consumer = MemoryConsumer::new("race");
+                    let mut reservation = consumer.register(&pool);
+                    // Retry a bounded number of times — once `set_limit` lands,
+                    // try_grow must observe it because the limit is loaded inside
+                    // the fetch_update closure.
+                    let mut last = reservation.try_grow(2048);
+                    for _ in 0..1000 {
+                        if last.is_ok() {
+                            break;
+                        }
+                        last = reservation.try_grow(2048);
+                    }
+                    last.expect("set_limit raise should eventually be observed by try_grow");
+                })
+            };
+
+            raiser.join().unwrap();
+            allocator.join().unwrap();
+        }
     }
 }
