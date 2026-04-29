@@ -17,7 +17,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
@@ -56,9 +55,10 @@ import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_A
  * so that Guice injects all dependencies ({@link TransportService},
  * {@link ClusterService}, {@link ThreadPool}, etc.) automatically.
  *
- * <p>The SQL plugin resolves this class from the Node's Guice injector and invokes
- * {@link #execute(RelNode, Object)} directly. The transport path ({@code doExecute})
- * is reserved for future remote query invocation.
+ * <p>Front-end plugins resolve this class from the Node's Guice injector and invoke
+ * {@link #execute(RelNode, Object, ActionListener)} directly. Execution is asynchronous —
+ * the listener is fired by the scheduler once the query completes (or fails). The transport
+ * path ({@code doExecute}) is reserved for future remote query invocation.
  *
  * @opensearch.internal
  */
@@ -98,30 +98,27 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     }
 
     @Override
-    public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
-        // Dispatch the entire query lifecycle (planning, scheduling, blocking wait)
-        // onto the SEARCH executor so the calling thread — which may be a transport
-        // thread — is freed immediately. The PlainActionFuture.actionGet() still
-        // blocks, but on a SEARCH pool thread rather than a transport thread.
-        // TODO: make fully async by having the front-end pass an ActionListener
-        // instead of expecting a synchronous return value.
-        PlainActionFuture<Iterable<Object[]>> outerFuture = new PlainActionFuture<>();
+    public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
+        // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
+        // executor so the calling thread — which may be a transport thread — is freed
+        // immediately. The scheduler then drives execution asynchronously and fires
+        // {@code listener} once the query terminates; nothing on this path blocks.
         searchExecutor.execute(() -> {
             try {
-                outerFuture.onResponse(executeInternal(logicalFragment));
+                executeInternal(logicalFragment, listener);
             } catch (Exception e) {
-                outerFuture.onFailure(e);
+                listener.onFailure(e);
             }
         });
-        return outerFuture.actionGet();
     }
 
     /**
-     * Internal synchronous execution. Runs on the SEARCH thread pool, never on
-     * a transport thread. Plans the query, builds the DAG, schedules execution,
-     * and blocks until results are available.
+     * Plans, registers the query task, and dispatches to the {@link Scheduler}. Runs on
+     * the SEARCH thread pool — never on a transport thread. The result (or failure) is
+     * delivered to {@code listener} by the scheduler; this method returns as soon as the
+     * scheduler has accepted the query.
      */
-    private Iterable<Object[]> executeInternal(RelNode logicalFragment) {
+    private void executeInternal(RelNode logicalFragment, ActionListener<Iterable<Object[]>> listener) {
         // Calcite's RelMetadataQuery reads its handler provider from a ThreadLocal
         // (RelMetadataQueryBase.THREAD_PROVIDERS). The frontend seeds it on its own
         // thread, but execute() hops to the SEARCH executor where the ThreadLocal is
@@ -138,49 +135,47 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
         // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.
-        // TODO: accept a request type from FrontEnd including cancelAfterTimeInterval - its set from cluster settings below, null in req.
+        // TODO: accept a request type from FrontEnd including cancelAfterTimeInterval — set from cluster settings below, null in req.
         final AnalyticsQueryTask queryTask = (AnalyticsQueryTask) taskManager.register(
             "transport",
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-
-        // Create per-query context
-        QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
-
-        PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
+        final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
 
         // Per-query cleanup on terminal. Stage-execution cancellation on external
         // task-cancel/timeout is wired inside the Scheduler — on this path the
         // walker has already cascaded cancellations by the time we see the failure.
         // Scheduler yields batches; we materialize rows at the API edge for callers
         // that still consume Iterable<Object[]>.
-        ActionListener<Iterable<VectorSchemaRoot>> listener = ActionListener.wrap(batches -> {
-            Iterable<Object[]> rows = batchesToRows(batches);
-            config.closeBufferAllocator();
-            taskManager.unregister(queryTask);
-            future.onResponse(rows);
-        }, e -> {
-            config.closeBufferAllocator();
-            taskManager.unregister(queryTask);
-            future.onFailure(e);
+        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = buildBatchesListener(listener, () -> {
+            try {
+                config.closeBufferAllocator();
+            } finally {
+                taskManager.unregister(queryTask);
+            }
         });
 
         TimeValue taskTimeout = queryTask.getCancelAfterTimeInterval();
         TimeValue clusterTimeout = clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
         if (taskTimeout != null || SearchService.NO_TIMEOUT.equals(clusterTimeout) == false) {
-            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(client, queryTask, clusterTimeout, listener, e -> {});
+            batchesListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+                client,
+                queryTask,
+                clusterTimeout,
+                batchesListener,
+                e -> {}
+            );
         }
 
-        scheduler.execute(config, listener);
-        return future.actionGet();
+        scheduler.execute(config, batchesListener);
     }
 
     @Override
     protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
         // Transport path — reserved for future remote query invocation.
-        // Currently, the SQL plugin invokes execute(RelNode, Object) directly.
-        listener.onFailure(new UnsupportedOperationException("Direct invocation only — use execute(RelNode, Object)"));
+        // Currently, front-ends invoke execute(RelNode, Object, ActionListener) directly.
+        listener.onFailure(new UnsupportedOperationException("Direct invocation only — use execute(RelNode, Object, ActionListener)"));
     }
 
     /**
@@ -212,6 +207,24 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new AnalyticsQueryTask(id, type, action, queryId, parentTaskId, headers, cancelAfterTimeInterval);
         }
+    }
+
+    /**
+     * Builds the batches→rows {@link ActionListener} used by {@link #executeInternal}. {@code cleanup}
+     * runs exactly once before {@code downstream} is notified — on either response or failure paths.
+     * A cleanup failure on the response path is routed to {@code downstream.onFailure}; on the failure
+     * path it is attached as a suppressed exception. This eliminates the double-cleanup that the prior
+     * try/finally pattern produced when an exception in the success path was caught by
+     * {@link ActionListener#wrap} and re-routed to the failure callback.
+     *
+     * <p>Package-private for unit testing.
+     */
+    static ActionListener<Iterable<VectorSchemaRoot>> buildBatchesListener(
+        ActionListener<Iterable<Object[]>> downstream,
+        Runnable cleanup
+    ) {
+        ActionListener<Iterable<Object[]>> wrapped = ActionListener.runBefore(downstream, cleanup::run);
+        return ActionListener.wrap(batches -> wrapped.onResponse(batchesToRows(batches)), wrapped::onFailure);
     }
 
     /**
