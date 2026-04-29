@@ -1,0 +1,19 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:opensearch_aggregate
+aggregate_functions:
+  # PPL `take(x, n)` — collect up to N values into a list. Backed by a custom
+  # Rust UDAF in datafusion. The return uses substrait's `LIST?<…>` syntax
+  # (uppercase, nullability between LIST and the type parameter) — the lowercase
+  # `list<…>?` form fails the substrait-java type parser.
+  - name: "take"
+    description: "Collect first N values into a list."
+    impls:
+      - args:
+          - name: x
+            value: any1
+          - name: n
+            value: i32
+        nullability: DECLARED_OUTPUT
+        decomposable: NONE
+        return: LIST?<any1>

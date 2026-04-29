@@ -138,6 +138,41 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         assertTrue(rows.get(0)[0] instanceof String);
     }
 
+    /**
+     * Regression test for the take() rendering bug. A {@code ListVector(Utf8)} (the
+     * shape of {@code take(stringField, n)}'s result) must be materialized as a plain
+     * {@code List<String>}, not Arrow's {@code JsonStringArrayList<Text>}. The latter
+     * leaks Arrow's {@code Text} class into downstream code that only recognises
+     * standard Java types — eventually being {@code toString()}'d (which produces a
+     * JSON-encoded string instead of an array).
+     */
+    public void testBatchesToRowsListOfStringsDecodedAsListOfStrings() {
+        org.apache.arrow.vector.complex.ListVector listVector = org.apache.arrow.vector.complex.ListVector.empty(
+            "take",
+            allocator
+        );
+        listVector.addOrGetVector(FieldType.nullable(ArrowType.Utf8.INSTANCE));
+        org.apache.arrow.vector.complex.impl.UnionListWriter writer = listVector.getWriter();
+        writer.startList();
+        writer.varChar().writeVarChar("Amber JOHnny");
+        writer.varChar().writeVarChar("Hattie");
+        writer.endList();
+        writer.setValueCount(1);
+
+        VectorSchemaRoot batch = new VectorSchemaRoot(List.of(listVector));
+        batch.setRowCount(1);
+
+        List<Object[]> rows = toList(DefaultPlanExecutor.batchesToRows(List.of(batch)));
+        assertEquals(1, rows.size());
+        Object cell = rows.get(0)[0];
+        assertTrue("expected List, got " + cell.getClass(), cell instanceof List);
+        @SuppressWarnings("unchecked")
+        List<Object> values = (List<Object>) cell;
+        assertEquals(2, values.size());
+        assertEquals(String.class, values.get(0).getClass());
+        assertEquals(List.of("Amber JOHnny", "Hattie"), values);
+    }
+
     public void testBatchesToRowsClosesBatches() {
         BufferAllocator child = allocator.newChildAllocator("test", 0, Long.MAX_VALUE);
         VectorSchemaRoot batch = makeIntBatch(child, "x", 1, 2);

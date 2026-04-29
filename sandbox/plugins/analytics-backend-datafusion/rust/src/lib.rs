@@ -19,3 +19,4 @@ pub mod io;
 pub mod query_executor;
 pub mod query_memory_pool_tracker;
 pub mod runtime_manager;
+pub mod udaf;

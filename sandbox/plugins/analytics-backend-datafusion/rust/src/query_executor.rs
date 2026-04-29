@@ -93,6 +93,7 @@ pub async fn execute_query(
         .build();
 
     let ctx = SessionContext::new_with_state(state);
+    crate::udaf::register_all(&ctx);
 
     // Register table via ListingTable — all IO goes through object store
     let file_format = ParquetFormat::new();

@@ -115,6 +115,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                         caps.add(AggregateCapability.simple(func, Set.of(type), formats));
                     }
                 }
+                // PPL TAKE — collect first N values into a list. State-expanding (state grows with N).
+                caps.add(AggregateCapability.stateExpanding(AggregateFunction.TAKE, Set.copyOf(SUPPORTED_FIELD_TYPES), formats));
                 return Set.copyOf(caps);
             }
         };

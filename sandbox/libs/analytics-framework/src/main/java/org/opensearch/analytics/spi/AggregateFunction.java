@@ -38,6 +38,7 @@ public enum AggregateFunction {
     PERCENTILE_DISC(Type.STATE_EXPANDING, SqlKind.PERCENTILE_DISC),
     COLLECT(Type.STATE_EXPANDING, SqlKind.COLLECT),
     LISTAGG(Type.STATE_EXPANDING, SqlKind.LISTAGG),
+    TAKE(Type.STATE_EXPANDING, SqlKind.OTHER),
 
     // Approximate — probabilistic, fixed-size state
     APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER);
@@ -76,10 +77,12 @@ public enum AggregateFunction {
         return null;
     }
 
-    /** Maps an aggregate function name to an AggregateFunction. Throws if not recognized. */
+    /** Maps an aggregate function name to an AggregateFunction. Throws if not recognized.
+     *  Lookup is case-insensitive — Calcite SqlAggFunction names are lowercase
+     *  while enum constants follow Java convention (uppercase). */
     public static AggregateFunction fromNameOrError(String name) {
         try {
-            return valueOf(name);
+            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Unrecognized aggregate function [" + name + "]", e);
         }

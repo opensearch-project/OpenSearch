@@ -16,6 +16,7 @@ import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
+import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 
 /**
  * Volcano CBO rule that splits an {@link OpenSearchAggregate} into
@@ -59,7 +60,22 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     @Override
     public boolean matches(RelOptRuleCall call) {
         OpenSearchAggregate aggregate = call.rel(0);
-        return aggregate.getMode() == AggregateMode.SINGLE;
+        if (aggregate.getMode() != AggregateMode.SINGLE) {
+            return false;
+        }
+        // Skip if input is already gathered — the split would introduce a
+        // pointless PARTIAL+EXCHANGE+FINAL pipeline and, worse, the FINAL's
+        // constructor re-validates agg call types against its (re-aggregated)
+        // input, which fails for non-distributive aggregates like TAKE/AVG/STDDEV
+        // whose partial state shape differs from their result shape.
+        RelNode input = call.rel(1);
+        for (int i = 0; i < input.getTraitSet().size(); i++) {
+            if (input.getTraitSet().getTrait(i) instanceof OpenSearchDistribution dist) {
+                return dist.getType() != org.apache.calcite.rel.RelDistribution.Type.SINGLETON
+                    && dist.getType() != org.apache.calcite.rel.RelDistribution.Type.ANY;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -77,7 +93,8 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getGroupSets(),
             aggregate.getAggCallList(),
             AggregateMode.PARTIAL,
-            aggregate.getViableBackends()
+            aggregate.getViableBackends(),
+            aggregate.getCallAnnotations()
         );
 
         // Request SINGLETON distribution — Volcano inserts Exchange automatically
@@ -93,7 +110,8 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getGroupSets(),
             aggregate.getAggCallList(),
             AggregateMode.FINAL,
-            aggregate.getViableBackends()
+            aggregate.getViableBackends(),
+            aggregate.getCallAnnotations()
         );
 
         call.transformTo(finalAggregate);

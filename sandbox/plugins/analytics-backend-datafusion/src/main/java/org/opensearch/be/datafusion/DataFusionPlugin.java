@@ -115,7 +115,25 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         ClassLoader previous = t.getContextClassLoader();
         try {
             t.setContextClassLoader(DataFusionPlugin.class.getClassLoader());
-            return DefaultExtensionCatalog.DEFAULT_COLLECTION;
+            SimpleExtension.ExtensionCollection collection = DefaultExtensionCatalog.DEFAULT_COLLECTION;
+            // Layer in OpenSearch-specific aggregates — currently the PPL `take(x, n)` UDAF backed
+            // by a custom Rust impl. The YAML lives at /extensions/opensearch_aggregate.yaml on
+            // the plugin classpath.
+            try (java.io.InputStream stream = DataFusionPlugin.class.getResourceAsStream("/extensions/opensearch_aggregate.yaml")) {
+                if (stream != null) {
+                    String content = new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                    SimpleExtension.ExtensionCollection custom = SimpleExtension.load(
+                        "extension:org.opensearch:opensearch_aggregate",
+                        content
+                    );
+                    collection = collection.merge(custom);
+                } else {
+                    logger.warn("opensearch_aggregate.yaml not found on plugin classpath");
+                }
+            } catch (java.io.IOException e) {
+                throw new RuntimeException("Failed to load opensearch_aggregate.yaml", e);
+            }
+            return collection;
         } finally {
             t.setContextClassLoader(previous);
         }

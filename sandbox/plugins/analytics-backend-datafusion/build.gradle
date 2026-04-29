@@ -6,20 +6,34 @@
  * compatible open source license.
  */
 
+apply plugin: 'opensearch.internal-cluster-test'
+
 opensearchplugin {
   description = 'DataFusion native execution engine plugin for the query engine.'
   classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
   extendedPlugins = ['analytics-engine']
 }
 
+// Required to resolve test-ppl-frontend's transitive unified-query-* SNAPSHOT deps at IT time.
+repositories {
+  maven {
+    name = 'OpenSearch Snapshots'
+    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+  }
+}
+
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
-// Guava is forbidden on compile classpaths by OpenSearch. Calcite's TableScan
-// references ImmutableList, so tests need it. Bypass via custom configuration.
+// Guava is forbidden on compile classpaths by OpenSearch. Calcite's SqlAggFunction /
+// SqlIdentifier signatures reference ImmutableList, so the main DataFusionFragmentConvertor
+// needs it; tests use it directly too. Bypass via custom configurations on both.
 configurations {
+  calciteCompile
   calciteTestCompile
+  compileClasspath { exclude group: 'com.google.guava' }
   testCompileClasspath { exclude group: 'com.google.guava' }
 }
+sourceSets.main.compileClasspath += configurations.calciteCompile
 sourceSets.test.compileClasspath += configurations.calciteTestCompile
 
 dependencies {
@@ -54,8 +68,24 @@ dependencies {
   implementation "io.substrait:isthmus:0.67.0"
   implementation "io.substrait:core:0.67.0"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
+  // jsr310 is loaded transitively by Arrow's JsonStringArrayList<clinit> when materializing
+  // ListVector elements (e.g. take()'s ARRAY result) — without it the plugin classloader
+  // throws NoClassDefFoundError on the first list-typed result row.
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
 
+  calciteCompile "com.google.guava:guava:${versions.guava}"
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
+
+  // ── internalClusterTest: end-to-end PPL → DataFusion smoke tests (AggregationUDFIT) ──
+  // test-ppl-frontend owns the PPL REST/transport plumbing; composite-engine +
+  // parquet-data-format + analytics-backend-lucene provide the parquet-backed composite
+  // index path that the IT relies on (DataFusion only reads parquet).
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
+  internalClusterTestImplementation project(':sandbox:plugins:test-ppl-frontend')
+  internalClusterTestImplementation project(':sandbox:plugins:composite-engine')
+  internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
+  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
 }
 
 test {
@@ -63,6 +93,57 @@ test {
   jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+internalClusterTest {
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+configurations.all {
+  // okhttp-aws-signer is a transitive dep of unified-query-common (via unified-query-core),
+  // only published on JitPack, not needed for PPL parsing/planning.
+  exclude group: 'com.github.babbel', module: 'okhttp-aws-signer'
+
+  resolutionStrategy {
+    // Align transitive versions with OpenSearch's managed versions — required because the
+    // unified-query-* artifacts (pulled in via test-ppl-frontend) bring older versions of
+    // common libs that conflict with OpenSearch's enforced versions on the IT classpath.
+    force 'com.google.guava:guava:33.4.0-jre'
+    force 'com.google.guava:failureaccess:1.0.2'
+    force 'com.google.errorprone:error_prone_annotations:2.36.0'
+    force 'org.checkerframework:checker-qual:3.43.0'
+    force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+    force "org.slf4j:slf4j-api:${versions.slf4j}"
+    force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+    force "org.locationtech.jts:jts-core:${versions.jts}"
+    force "commons-codec:commons-codec:${versions.commonscodec}"
+    force "joda-time:joda-time:2.12.7"
+    force "org.yaml:snakeyaml:2.4"
+    force "org.codehaus.janino:janino:3.1.12"
+    force "org.codehaus.janino:commons-compiler:3.1.12"
+    force "commons-io:commons-io:${versions.commonsio}"
+    force "org.apache.commons:commons-lang3:3.18.0"
+    force "org.apache.commons:commons-text:1.11.0"
+    force "commons-logging:commons-logging:1.3.5"
+    force "net.minidev:json-smart:2.5.2"
+    force "org.apache.httpcomponents.client5:httpclient5:5.6"
+    force "org.apache.httpcomponents.core5:httpcore5:5.4"
+    force "com.squareup.okhttp3:okhttp:4.12.0"
+    force "org.jetbrains.kotlin:kotlin-stdlib:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
+  }
 }
 
 tasks.withType(JavaCompile).configureEach {

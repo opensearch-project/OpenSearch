@@ -11,7 +11,12 @@ package org.opensearch.be.datafusion;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.util.Optionality;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.FragmentConvertor;
@@ -25,6 +30,8 @@ import io.substrait.isthmus.ImmutableFeatureBoard;
 import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
+import io.substrait.isthmus.expression.FunctionMappings;
+import io.substrait.isthmus.expression.NameBasedAggregateFunctionConverter;
 import io.substrait.isthmus.expression.ScalarFunctionConverter;
 import io.substrait.isthmus.expression.WindowFunctionConverter;
 import io.substrait.plan.Plan;
@@ -93,7 +100,17 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelDataTypeFactory typeFactory = relNode.getCluster().getTypeFactory();
         TypeConverter typeConverter = TypeConverter.DEFAULT;
 
-        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
+        // PPL `take` isn't in standard Calcite — emit a stub SqlAggFunction whose only
+        // job is to seed the converter's name→FunctionFinder map so
+        // NameBasedAggregateFunctionConverter can route the actual PPL TAKE operator
+        // instance (a different Java object) by case-insensitive name match.
+        List<FunctionMappings.Sig> additionalAggSigs = List.of(FunctionMappings.s(stubAgg("take"), "take"));
+        AggregateFunctionConverter aggConverter = new NameBasedAggregateFunctionConverter(
+            extensions.aggregateFunctions(),
+            additionalAggSigs,
+            typeFactory,
+            typeConverter
+        );
         ScalarFunctionConverter scalarConverter = new ScalarFunctionConverter(
             extensions.scalarFunctions(),
             List.of(),
@@ -112,6 +129,31 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         );
     }
 
+    /**
+     * Minimal {@link SqlAggFunction} acting as a name→FunctionFinder map key.
+     * PPL emits its own SqlAggFunction instances; identity lookup against these
+     * stubs misses, but {@link NameBasedAggregateFunctionConverter} falls back
+     * to matching on operator name, which the stub provides.
+     */
+    private static SqlAggFunction stubAgg(String name) {
+        return new SqlAggFunction(
+            name,
+            null,
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.ARG0,
+            null,
+            OperandTypes.VARIADIC,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION,
+            false,
+            false,
+            Optionality.FORBIDDEN
+        ) {};
+    }
+
+    /**
+     * Strips Calcite catalog prefixes (e.g. "opensearch") from {@link NamedScan} table
+     * names — DataFusion expects the bare index / stage-input id.
+     */
     private static class TableNameModifier {
         Plan modifyTableNames(Plan plan) {
             TableNameVisitor visitor = new TableNameVisitor();

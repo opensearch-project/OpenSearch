@@ -14,9 +14,6 @@
 
 apply plugin: 'opensearch.internal-cluster-test'
 
-// SQL Unified Query API version (aligned with OpenSearch build version)
-def sqlUnifiedQueryVersion = '3.6.0.0-SNAPSHOT'
-
 opensearchplugin {
   description = 'Analytics engine hub: discovers and wires query extensions via ExtensiblePlugin SPI.'
   classname = 'org.opensearch.analytics.AnalyticsPlugin'
@@ -73,6 +70,10 @@ dependencies {
   // implementation (not compileOnly) so bundlePlugin doesn't strip them.
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  // Arrow's JsonStringArrayList<clinit> registers jsr310's JavaTimeModule on its
+  // ObjectMapper. Triggered the first time a ListVector element is materialized via
+  // getObject — e.g. PPL take()'s ARRAY result. Without it, NoClassDefFoundError.
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
 
   // Guava — required at compile time because Calcite base classes expose guava types.
   // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
@@ -105,22 +106,13 @@ dependencies {
   // Required at runtime by avatica-core (BuiltInConnectionProperty.<clinit> references Timeout).
   runtimeOnly "org.apache.httpcomponents.core5:httpcore5:5.4"
 
-  // SQL Unified Query API for PPL parsing
-  testImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-  testImplementation("org.opensearch.query:unified-query-core:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-  testImplementation("org.opensearch.query:unified-query-ppl:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-
-  // Arrow Flight streaming transport for ITs
-  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
-
   // Calcite bytecode references @Immutable from immutables — resolve at test compile time
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
+
+  // ClickBenchUnifiedPipelineIT and other ITs use the PPL transport action defined in
+  // the test-ppl-frontend plugin.
+  internalClusterTestImplementation project(':sandbox:plugins:test-ppl-frontend')
+  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
 }
 
 tasks.withType(JavaCompile).configureEach {

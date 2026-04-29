@@ -17,19 +17,14 @@ import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.ppl.planner.PushDownPlanner;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 /**
  * Transport action that coordinates PPL query execution.
  *
- * <p>Receives {@link EngineContext} and {@link QueryPlanExecutor} via Guice injection.
- * The engine context provides both the schema (from cluster state) and the aggregated
- * operator table from all back-end engines.
- *
- * <p>On success, calls {@code listener.onResponse()} with the {@link PPLResponse}.
- * On failure, calls {@code listener.onFailure()} with the exception.
+ * <p>Receives {@link EngineContext} and {@link QueryPlanExecutor} from the analytics-engine
+ * plugin via Guice injection (enabled by {@code extendedPlugins = ['analytics-engine']}).
  */
 public class TestPPLTransportAction extends HandledTransportAction<PPLRequest, PPLResponse> {
 
@@ -45,9 +40,7 @@ public class TestPPLTransportAction extends HandledTransportAction<PPLRequest, P
         QueryPlanExecutor<RelNode, Iterable<Object[]>> executor
     ) {
         super(UnifiedPPLExecuteAction.NAME, transportService, actionFilters, PPLRequest::new);
-
-        PushDownPlanner pushDownPlanner = new PushDownPlanner(engineContext.operatorTable(), executor);
-        this.unifiedQueryService = new UnifiedQueryService(pushDownPlanner, engineContext);
+        this.unifiedQueryService = new UnifiedQueryService(executor, engineContext);
     }
 
     /** Test-only constructor that accepts a pre-built {@link UnifiedQueryService}. */
