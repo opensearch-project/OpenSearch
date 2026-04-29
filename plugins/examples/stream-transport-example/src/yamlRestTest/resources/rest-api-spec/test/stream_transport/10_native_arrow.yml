@@ -1,0 +1,8 @@
+"Test native Arrow stream transport with classloader isolation":
+  - do:
+      native_arrow_test:
+        batches: 3
+        rows: 5
+
+  - match: { batches: 3 }
+  - match: { total_rows: 15 }

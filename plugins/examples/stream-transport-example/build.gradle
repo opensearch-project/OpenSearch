@@ -1,5 +1,6 @@
 apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
   name = 'stream-transport-example'
@@ -13,6 +14,18 @@ dependencies {
   compileOnly project(':plugins:arrow-flight-rpc')
 }
 testingConventions.enabled = false
+
+testClusters {
+  yamlRestTest {
+    plugin ':plugins:arrow-flight-rpc'
+    systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
+    systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    systemProperty 'io.netty.noUnsafe', 'false'
+    systemProperty 'io.netty.tryUnsafe', 'true'
+    systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  }
+}
+
 internalClusterTest {
   systemProperty 'io.netty.allocator.numDirectArenas', '1'
   systemProperty 'io.netty.noUnsafe', 'false'

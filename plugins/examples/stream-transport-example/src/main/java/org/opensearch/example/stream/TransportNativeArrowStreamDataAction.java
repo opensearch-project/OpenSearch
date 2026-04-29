@@ -53,9 +53,13 @@ public class TransportNativeArrowStreamDataAction extends TransportAction<Native
     private static final String[] NAMES = { "Alice", "Bob", "Carol", "Dave", "Eve" };
 
     @Inject
-    public TransportNativeArrowStreamDataAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
+    public TransportNativeArrowStreamDataAction(
+        StreamTransportService streamTransportService,
+        ActionFilters actionFilters,
+        StreamTransportServiceHolder holder
+    ) {
         super(NativeArrowStreamDataAction.NAME, actionFilters, streamTransportService.getTaskManager());
-        StreamTransportExamplePlugin.STS_REF.set(streamTransportService);
+        holder.set(streamTransportService);
         streamTransportService.registerRequestHandler(
             NativeArrowStreamDataAction.NAME,
             ThreadPool.Names.GENERIC,
