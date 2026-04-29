@@ -55,6 +55,7 @@ public class TransportNativeArrowStreamDataAction extends TransportAction<Native
     @Inject
     public TransportNativeArrowStreamDataAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
         super(NativeArrowStreamDataAction.NAME, actionFilters, streamTransportService.getTaskManager());
+        StreamTransportExamplePlugin.STS_REF.set(streamTransportService);
         streamTransportService.registerRequestHandler(
             NativeArrowStreamDataAction.NAME,
             ThreadPool.Names.GENERIC,

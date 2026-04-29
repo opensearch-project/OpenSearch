@@ -5,11 +5,12 @@ opensearchplugin {
   name = 'stream-transport-example'
   description = 'Example plugin demonstrating stream-based transport actions'
   classname = 'org.opensearch.example.stream.StreamTransportExamplePlugin'
+  extendedPlugins = ['arrow-flight-rpc']
   licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile = rootProject.file('NOTICE.txt')
 }
 dependencies {
-  api project(':plugins:arrow-flight-rpc')
+  compileOnly project(':plugins:arrow-flight-rpc')
 }
 testingConventions.enabled = false
 internalClusterTest {

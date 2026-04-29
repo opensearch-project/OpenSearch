@@ -9,13 +9,26 @@
 package org.opensearch.example.stream;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.transport.StreamTransportService;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 public class StreamTransportExamplePlugin extends Plugin implements ActionPlugin {
+
+    static final AtomicReference<StreamTransportService> STS_REF = new AtomicReference<>();
 
     public StreamTransportExamplePlugin() {}
 
@@ -25,5 +38,18 @@ public class StreamTransportExamplePlugin extends Plugin implements ActionPlugin
             new ActionHandler<>(StreamDataAction.INSTANCE, TransportStreamDataAction.class),
             new ActionHandler<>(NativeArrowStreamDataAction.INSTANCE, TransportNativeArrowStreamDataAction.class)
         );
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesLookup
+    ) {
+        return List.of(new RestNativeArrowStreamAction(nodesLookup, STS_REF::get));
     }
 }
