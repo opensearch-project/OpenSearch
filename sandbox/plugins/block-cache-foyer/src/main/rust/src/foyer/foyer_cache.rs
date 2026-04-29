@@ -6,10 +6,11 @@
  * compatible open source license.
  */
 
-//! [`FoyerCache`] — a [`PageCache`] implementation backed by Foyer.
+//! [`FoyerCache`] — a [`BlockCache`] implementation backed by Foyer.
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use bytes::Bytes;
 use dashmap::DashMap;
 use foyer::{BlockEngineConfig, DeviceBuilder, Event, EventListener, FsDeviceBuilder,
@@ -18,7 +19,8 @@ use foyer::{BlockEngineConfig, DeviceBuilder, Event, EventListener, FsDeviceBuil
 use foyer::UringIoEngineConfig;
 
 use crate::range_cache::{CacheKey, SEPARATOR};
-use crate::traits::PageCache;
+use crate::stats::BlockCacheStatsCounter;
+use crate::traits::BlockCache;
 
 // ── I/O engine selection ──────────────────────────────────────────────────────
 
@@ -92,12 +94,13 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
 
 // ── Key index eviction listener ───────────────────────────────────────────────
 
-/// Foyer event listener that removes evicted keys from the key index.
+/// Foyer event listener that removes evicted keys from the key index
+/// and updates the shared [`BlockCacheStats`] counters.
 ///
 /// Shared between [`FoyerCache`] and Foyer via `Arc`. When Foyer evicts,
-/// replaces, or removes an entry, `on_leave` is called, which removes the key
-/// from the prefix-to-keys index. This prevents `key_index` from growing
-/// unbounded as Foyer's LRU evicts entries from disk.
+/// replaces, or removes an entry, `on_leave` is called, which:
+/// 1. Removes the key from the prefix-to-keys index (prevents unbounded growth).
+/// 2. Updates the appropriate stats counters.
 ///
 /// # Key index prefix extraction
 ///
@@ -106,15 +109,20 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
 /// the index key.
 struct KeyIndexListener {
     key_index: Arc<DashMap<String, Vec<String>>>,
+    /// Shared stats counters — updated here for eviction/remove/clear events.
+    stats: Arc<BlockCacheStatsCounter>,
 }
 
 impl EventListener for KeyIndexListener {
     type Key   = String;
     type Value = Vec<u8>;
 
-    fn on_leave(&self, reason: Event, key: &String, _value: &Vec<u8>) {
+    fn on_leave(&self, reason: Event, key: &String, value: &Vec<u8>) {
+        let size = value.len() as i64;
+
         match reason {
-            Event::Evict | Event::Replace | Event::Remove => {
+            Event::Evict => {
+                // Remove from key index
                 let index_key = if let Some(sep_pos) = key.find(SEPARATOR) {
                     &key[..sep_pos]
                 } else {
@@ -127,8 +135,32 @@ impl EventListener for KeyIndexListener {
                         self.key_index.remove(index_key);
                     }
                 }
+                // Update eviction stats
+                self.stats.eviction_count.fetch_add(1, Ordering::Relaxed);
+                self.stats.eviction_bytes.fetch_add(size, Ordering::Relaxed);
+                self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
             }
-            Event::Clear => {}
+            Event::Replace | Event::Remove => {
+                // Remove from key index
+                let index_key = if let Some(sep_pos) = key.find(SEPARATOR) {
+                    &key[..sep_pos]
+                } else {
+                    key.as_str()
+                };
+                if let Some(mut keys) = self.key_index.get_mut(index_key) {
+                    keys.retain(|k| k != key);
+                    if keys.is_empty() {
+                        drop(keys);
+                        self.key_index.remove(index_key);
+                    }
+                }
+                // Remove: entry is being explicitly deleted — subtract from used_bytes.
+                // Replace: old entry leaves, new entry will be added via put() with new size.
+                self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
+            }
+            Event::Clear => {
+                // key_index and used_bytes are reset in FoyerCache::clear()
+            }
         }
     }
 }
@@ -139,18 +171,21 @@ impl EventListener for KeyIndexListener {
 ///
 /// Wraps a Foyer [`HybridCache`] configured as a disk-only store, together
 /// with a concurrent key index that maps each index prefix to its cached entry
-/// keys. The key index allows removing all cached entries sharing a common
-/// prefix in O(n) without requiring Foyer to support prefix-scan semantics.
+/// keys, and a set of [`BlockCacheStats`] atomic counters.
 ///
-/// Keys are opaque strings supplied by the caller. The index key is derived as
-/// everything before the first [`SEPARATOR`]. See [`PageCache`] for key format
-/// conventions.
+/// The key index allows removing all cached entries sharing a common prefix
+/// in O(n) without requiring Foyer to support prefix-scan semantics.
 ///
-/// The key index is kept in sync with Foyer's internal state via an
-/// [`EventListener`] — stale keys are removed automatically when Foyer evicts
-/// entries via LRU.
+/// Stats are updated on every hot-path operation:
+/// - `get()` → hit_count / miss_count
+/// - `put()` → used_bytes
+/// - `KeyIndexListener::on_leave()` → eviction_count, eviction_bytes, used_bytes
 ///
-/// Thread-safe: both [`HybridCache`] and [`DashMap`] are `Send + Sync`.
+/// Stats are exposed via [`FoyerCache::stats`] and read by the
+/// `foyer_snapshot_stats` FFM function at most once per `_nodes/stats` request.
+///
+/// Thread-safe: both [`HybridCache`] and [`DashMap`] are `Send + Sync`;
+/// all stats fields are [`AtomicI64`].
 pub struct FoyerCache {
     inner: HybridCache<String, Vec<u8>>,
     /// Maps each index prefix to the list of Foyer keys stored under that prefix.
@@ -158,6 +193,9 @@ pub struct FoyerCache {
     pub(crate) key_index: Arc<DashMap<String, Vec<String>>>,
     /// Keeps the Tokio runtime alive for the lifetime of the cache.
     _runtime: Arc<tokio::runtime::Runtime>,
+    /// Atomic stats counters. Shared with [`KeyIndexListener`].
+    /// Exposed for FFM read via `foyer_snapshot_stats`.
+    pub(crate) stats: Arc<BlockCacheStatsCounter>,
 }
 
 impl FoyerCache {
@@ -182,7 +220,11 @@ impl FoyerCache {
     ) -> Self {
         let disk_dir = disk_dir.into();
         let key_index: Arc<DashMap<String, Vec<String>>> = Arc::new(DashMap::new());
-        let listener = Arc::new(KeyIndexListener { key_index: Arc::clone(&key_index) });
+        let stats = BlockCacheStatsCounter::new();
+        let listener = Arc::new(KeyIndexListener {
+            key_index: Arc::clone(&key_index),
+            stats: Arc::clone(&stats),
+        });
 
         let rt = tokio::runtime::Runtime::new()
             .expect("[block-cache] failed to create Tokio runtime");
@@ -222,7 +264,7 @@ impl FoyerCache {
             "[block-cache] ready: disk={}B, block_size={}B, io_engine={}, dir={}",
             disk_bytes, block_size_bytes, io_engine_for_log, disk_dir.display()
         );
-        Self { inner, key_index, _runtime: Arc::new(rt) }
+        Self { inner, key_index, _runtime: Arc::new(rt), stats }
     }
 
     /// Derive the index key from a cache key: everything before the first [`SEPARATOR`].
@@ -233,18 +275,33 @@ impl FoyerCache {
     }
 }
 
-impl PageCache for FoyerCache {
+impl BlockCache for FoyerCache {
     async fn get(&self, key: &CacheKey) -> Option<Bytes> {
         match self.inner.get(&key.as_str().to_string()).await {
-            Ok(Some(e)) => Some(Bytes::copy_from_slice(e.value())),
-            _           => None,
+            Ok(Some(e)) => {
+                let size = e.value().len() as i64;
+                self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
+                // Track bytes served from cache. For variable-size entries this is
+                // more informative than hit_count alone — see BlockCacheStats docs.
+                self.stats.hit_bytes.fetch_add(size, Ordering::Relaxed);
+                Some(Bytes::copy_from_slice(e.value()))
+            }
+            _ => {
+                self.stats.miss_count.fetch_add(1, Ordering::Relaxed);
+                self.stats.miss_bytes.fetch_add(key.range_len() as i64, Ordering::Relaxed);
+                None
+            }
         }
     }
 
     fn put(&self, key: &CacheKey, data: Bytes) {
+        let size = data.len() as i64;
         let raw = key.as_str();
         let k = raw.to_string();
         self.inner.insert(k.clone(), data.to_vec());
+        // Track bytes added. If this entry replaces an existing one, on_leave()
+        // will subtract the old size via Event::Replace.
+        self.stats.used_bytes.fetch_add(size, Ordering::Relaxed);
         let idx = Self::index_key(raw).to_string();
         self.key_index.entry(idx).or_default().push(k);
     }
@@ -266,6 +323,7 @@ impl PageCache for FoyerCache {
 
     async fn clear(&self) {
         self.key_index.clear();
+        self.stats.used_bytes.store(0, Ordering::Relaxed);
         let _ = self.inner.clear().await;
     }
 }

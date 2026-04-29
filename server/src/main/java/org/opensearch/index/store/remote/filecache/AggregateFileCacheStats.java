@@ -11,9 +11,7 @@ package org.opensearch.index.store.remote.filecache;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,7 +31,7 @@ import java.util.EnumSet;
  * @opensearch.api
  */
 @ExperimentalApi
-public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
+public class AggregateFileCacheStats implements NodeCacheStats {
 
     private final long timestamp;
     private final FileCacheStats overallFileCacheStats;
@@ -131,6 +129,14 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
     // visible for testing.
     public FileCacheStats getBlockFileCacheStats() {
         return blockFileCacheStats;
+    }
+
+    FileCacheStats getFullFileCacheStats() {
+        return fullFileCacheStats;
+    }
+
+    FileCacheStats getPinnedFileCacheStats() {
+        return pinnedFileCacheStats;
     }
 
     @Override
