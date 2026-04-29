@@ -16,6 +16,7 @@ import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
+import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -43,6 +44,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.addAll(FieldType.keyword());
         SUPPORTED_FIELD_TYPES.addAll(FieldType.date());
         SUPPORTED_FIELD_TYPES.add(FieldType.BOOLEAN);
+        SUPPORTED_FIELD_TYPES.add(FieldType.TEXT);
     }
 
     private static final Set<FilterOperator> STANDARD_FILTER_OPS = Set.of(
@@ -116,6 +118,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 return Set.copyOf(caps);
             }
         };
+    }
+
+    @Override
+    public FragmentConvertor getFragmentConvertor() {
+        return new DataFusionFragmentConvertor(plugin.getSubstraitExtensions());
     }
 
     @Override

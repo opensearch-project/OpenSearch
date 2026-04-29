@@ -35,6 +35,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import io.substrait.extension.DefaultExtensionCatalog;
+import io.substrait.extension.SimpleExtension;
+
 /**
  * Main plugin class for the DataFusion native engine integration.
  * <p>
@@ -66,6 +69,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
 
     private volatile DataFusionService dataFusionService;
     private volatile DataFormatRegistry dataFormatRegistry;
+    private volatile SimpleExtension.ExtensionCollection substraitExtensions;
 
     /**
      * Creates the DataFusion plugin.
@@ -101,7 +105,24 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
 
+        this.substraitExtensions = loadSubstraitExtensions();
+
         return Collections.singletonList(dataFusionService);
+    }
+
+    private static SimpleExtension.ExtensionCollection loadSubstraitExtensions() {
+        Thread t = Thread.currentThread();
+        ClassLoader previous = t.getContextClassLoader();
+        try {
+            t.setContextClassLoader(DataFusionPlugin.class.getClassLoader());
+            return DefaultExtensionCatalog.DEFAULT_COLLECTION;
+        } finally {
+            t.setContextClassLoader(previous);
+        }
+    }
+
+    SimpleExtension.ExtensionCollection getSubstraitExtensions() {
+        return substraitExtensions;
     }
 
     DataFormatRegistry getDataFormatRegistry() {
