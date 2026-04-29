@@ -441,16 +441,14 @@ impl IndexedStream {
         &self,
         rg: &RowGroupInfo,
         selection: RowSelection,
+        push_predicate: bool,
     ) -> Result<(SendableRecordBatchStream, Arc<dyn ExecutionPlan>)> {
-        // Whether to push the residual predicate into parquet decode. At
-        // narrow selectivity (row-granular RowSelection), decoder-time
-        // predicate application is cheap and occasionally lets parquet skip
-        // whole column chunks. For block-granular selection (higher
-        // selectivity), pushdown would double-evaluate the predicate
-        // (FilterExec re-runs it because we report `Inexact`), so we
-        // disable it. Tests can override via `force_pushdown`.
-        let push = self.force_pushdown.unwrap_or(self.indexed_pushdown_filters);
-        parquet_bridge::create_row_selection_stream(&self.bridge_config(), rg.index, selection, push)
+        parquet_bridge::create_row_selection_stream(
+            &self.bridge_config(),
+            rg.index,
+            selection,
+            push_predicate,
+        )
     }
 
     fn finalize_batch(&mut self, batch: RecordBatch) -> Poll<Option<Result<RecordBatch>>> {
@@ -732,7 +730,39 @@ impl IndexedStream {
                     }
 
                     let t_plan = std::time::Instant::now();
-                    match self.create_row_selection_stream(&rg, selection) {
+                    // Pushdown decision:
+                    //
+                    // Row-granular (min_skip_run == 1): RowSelection
+                    // already narrowed to candidate rows; parquet's
+                    // `with_predicate` applies the residual in lockstep
+                    // with the decode. Delivered rows = candidate ∧
+                    // residual = exact output. Pushdown is ON.
+                    //
+                    // Block-granular (min_skip_run > 1): RowSelection
+                    // is coalesced. If the stream will build
+                    // `current_mask` over delivered rows, or the
+                    // evaluator's `on_batch_mask` will look up positions
+                    // via PositionMap, pushdown would drop rows
+                    // mid-decode and misalign those indices. Pushdown
+                    // OFF; the evaluator applies the residual
+                    // post-decode.
+                    //
+                    // `forbid_parquet_pushdown()` is a blanket opt-out
+                    // that overrides the row-granular path too — used by
+                    // BitmapTreeEvaluator because its `on_batch_mask`
+                    // uses PositionMap on Collector leaves regardless of
+                    // strategy, and because the outer FilterExec is
+                    // dropped (supports_filters_pushdown = Exact) so
+                    // there's no safety net if pushdown misbehaves on a
+                    // UDF-containing predicate.
+                    let base_push =
+                        self.force_pushdown.unwrap_or(self.indexed_pushdown_filters);
+                    let alignment_risk = min_skip_run != 1 && self.evaluator.needs_row_mask();
+                    let push = base_push
+                        && !alignment_risk
+                        && !self.evaluator.forbid_parquet_pushdown();
+
+                    match self.create_row_selection_stream(&rg, selection, push) {
                         Ok((stream, plan)) => {
                             if let Some(ref timer) = self.metrics.parquet_time {
                                 timer.add_duration(t_plan.elapsed());

@@ -148,6 +148,33 @@ pub async fn execute_indexed_query(
         Some(e) => classify_filter(&e.tree),
     };
 
+    // Derive the parquet pushdown predicate from the BoolNode tree.
+    // `scan()` ignores DataFusion's filters argument (which contains
+    // the `index_filter` UDF marker whose body panics) and uses this
+    // field instead.
+    //
+    // SingleCollector: residual (non-Collector top-AND children) →
+    //   PhysicalExpr for `ParquetSource::with_predicate`. In
+    //   row-granular mode parquet narrows Collector-matching rows via
+    //   RowSelection and drops residual-failing rows via pushdown.
+    //   In block-granular mode the evaluator's `on_batch_mask` applies
+    //   both mask and residual post-decode, and pushdown is suppressed
+    //   by the stream's `will_build_mask` guard (to avoid misalignment).
+    // Tree: None — BitmapTreeEvaluator walks the whole BoolNode in
+    //   `on_batch_mask` using arrow kernels; no pushdown needed.
+    let pushdown_predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> =
+        match &classification {
+            FilterClass::SingleCollector => {
+                extraction.as_ref().and_then(|e| {
+                    let residual_bool = extract_single_collector_residual(&e.tree);
+                    residual_bool
+                        .as_ref()
+                        .and_then(crate::indexed_table::bool_tree::residual_bool_to_physical_expr)
+                })
+            }
+            FilterClass::Tree | FilterClass::None => None,
+        };
+
     let factory: EvaluatorFactory = match classification {
         FilterClass::None => {
             return Err(DataFusionError::Execution(
@@ -172,19 +199,26 @@ pub async fn execute_indexed_query(
                     .map_err(|e| DataFusionError::External(e.into()))?,
             );
             let schema_for_pruner = schema.clone();
-            // Build the non-Collector pruning expression for the residual
-            // (everything under the top-level AND except the Collector
-            // leaf) and wrap as a single PruningPredicate. DataFusion
-            // rewrites it homomorphically — AND/OR/NOT/IN all handled.
+
+            // Extract the residual (non-Collector children of top-level
+            // AND) as a BoolNode and convert to PhysicalExpr. Used for:
+            //   - Page-stats pruning in candidate stage (via PruningPredicate).
+            //   - Parquet `with_predicate` pushdown in row-granular mode.
+            //   - `on_batch_mask` refinement in block-granular mode.
+            //
+            // SingleCollector is always AND(Collector, residual...) so
+            // the residual has zero Collectors — no Literal(true)
+            // substitution needed (unlike bool_tree_to_pruning_expr
+            // which handles arbitrary trees).
+            let residual_bool = extract_single_collector_residual(&extraction.tree);
+            let residual_expr = residual_bool
+                .as_ref()
+                .and_then(crate::indexed_table::bool_tree::residual_bool_to_physical_expr);
             let residual_pruning_predicate: Option<Arc<
                 datafusion::physical_optimizer::pruning::PruningPredicate,
-            >> = crate::indexed_table::page_pruner::bool_tree_to_pruning_expr(
-                &extraction.tree,
-                &schema_for_pruner,
-            )
-            .and_then(|expr| {
+            >> = residual_expr.as_ref().and_then(|expr| {
                 crate::indexed_table::page_pruner::build_pruning_predicate(
-                    &expr,
+                    expr,
                     Arc::clone(&schema_for_pruner),
                 )
             });
@@ -215,6 +249,7 @@ pub async fn execute_indexed_query(
                         Arc::new(collector) as Arc<dyn RowGroupDocsCollector>,
                         pruner,
                         residual_pruning_predicate.clone(),
+                        residual_expr.clone(),
                         Some(
                             crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(
                                 stream_metrics,
@@ -339,6 +374,7 @@ pub async fn execute_indexed_query(
         target_partitions: num_partitions.max(1),
         force_strategy: query_config.force_strategy,
         force_pushdown: query_config.force_pushdown,
+        pushdown_predicate,
         query_config: Arc::clone(&query_config),
     }));
     ctx.register_table(&table_name, provider)?;
@@ -383,6 +419,30 @@ fn single_collector_bytes(
         BoolNode::Collector { query_bytes } => Some(Arc::clone(query_bytes)),
         BoolNode::And(children) => children.iter().find_map(single_collector_bytes),
         _ => None,
+    }
+}
+
+/// For a tree classified as `SingleCollector`, return the residual
+/// (all non-Collector children of the top-level AND, re-assembled into
+/// a single BoolNode). Returns `None` if the tree is a bare Collector
+/// (no residual).
+fn extract_single_collector_residual(
+    tree: &crate::indexed_table::bool_tree::BoolNode,
+) -> Option<crate::indexed_table::bool_tree::BoolNode> {
+    use crate::indexed_table::bool_tree::BoolNode;
+    let children = match tree {
+        BoolNode::And(c) => c,
+        _ => return None,
+    };
+    let residuals: Vec<BoolNode> = children
+        .iter()
+        .filter(|c| !matches!(c, BoolNode::Collector { .. }))
+        .cloned()
+        .collect();
+    match residuals.len() {
+        0 => None,
+        1 => Some(residuals.into_iter().next().unwrap()),
+        _ => Some(BoolNode::And(residuals)),
     }
 }
 

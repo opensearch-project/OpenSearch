@@ -339,6 +339,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         target_partitions: 1,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        pushdown_predicate: None,
         query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
     let ctx = SessionContext::new();

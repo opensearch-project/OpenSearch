@@ -262,6 +262,7 @@ async fn run_tree_and_plan(
         // (no Phase-2 mask), but Path C tree eval requires BooleanMask today.
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        pushdown_predicate: None,
         query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 

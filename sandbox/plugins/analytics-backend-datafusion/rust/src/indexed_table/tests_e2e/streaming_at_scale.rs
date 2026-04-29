@@ -438,6 +438,7 @@ async fn run_large(
         target_partitions: 1,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        pushdown_predicate: None,
         query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 
@@ -856,6 +857,7 @@ async fn run_large_partitioned(
         target_partitions: partitions,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        pushdown_predicate: None,
         query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
     let ctx = SessionContext::new();

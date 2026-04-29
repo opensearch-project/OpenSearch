@@ -94,6 +94,21 @@ pub trait RowGroupBitsetSource: Send + Sync {
     fn needs_row_mask(&self) -> bool {
         true
     }
+
+    /// Whether this evaluator requires parquet's `with_predicate` pushdown
+    /// to be OFF. `true` when the evaluator applies its own refinement in
+    /// `on_batch_mask` over the full delivered batch (using `PositionMap`
+    /// for Collector lookups) — pushdown would drop rows mid-decode and
+    /// misalign indices.
+    ///
+    /// Default `false`: pushdown decided by the stream's base policy.
+    /// Overridden to `true` by evaluators that must see the complete
+    /// RowSelection-delivered rowset (e.g.
+    /// `SingleCollectorEvaluator` when it owns the residual filter in
+    /// `on_batch_mask`, or `TreeBitsetSource` which always refines).
+    fn forbid_parquet_pushdown(&self) -> bool {
+        false
+    }
 }
 
 /// Output of `prefetch_rg`.
@@ -123,7 +138,7 @@ impl PrefetchedRg {
 }
 
 /// Multi-filter tree path: pluggable tree evaluator + leaf bitmap source
-/// 
+///
 /// Context for evaluating a tree against one row group.
 #[derive(Debug, Clone, Copy)]
 pub struct RgEvalContext {
@@ -342,6 +357,20 @@ impl RowGroupBitsetSource for TreeBitsetSource {
     /// is wasted work.
     fn needs_row_mask(&self) -> bool {
         false
+    }
+
+    /// BitmapTree walks the BoolNode in `on_batch_mask` using
+    /// `PositionMap` for Collector lookups. If parquet's pushdown
+    /// dropped rows mid-decode, our delivered batch would have a
+    /// different size than the PositionMap expects, causing
+    /// misaligned Collector lookups. Plus, the pushdown predicate
+    /// (if any reached us via `scan(filters)`) could contain the
+    /// `index_filter(...)` UDF marker whose body panics.
+    ///
+    /// So: always forbid parquet pushdown for BitmapTree. Phase 2
+    /// will do the actual filter and produce filtered values.
+    fn forbid_parquet_pushdown(&self) -> bool {
+        true
     }
 }
 

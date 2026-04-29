@@ -283,6 +283,62 @@ fn push_not_into(child: BoolNode) -> BoolNode {
     }
 }
 
+/// Convert a Collector-free `BoolNode` (the residual of a
+/// `SingleCollector`-classified tree, or any subtree guaranteed to
+/// have no `Collector` leaves) into a single
+/// `Arc<dyn PhysicalExpr>` suitable for parquet's `with_predicate`
+/// pushdown or DataFusion's `Expr::evaluate(batch)`.
+///
+/// Contrast with `page_pruner::bool_tree_to_pruning_expr`:
+/// - That helper replaces `Collector` leaves with `Literal(true)` so
+///   the result can feed DataFusion's `PruningPredicate` rewriter
+///   (which evaluates only against per-page stats, not cell values).
+/// - This helper assumes no Collectors are present (appropriate for
+///   a SingleCollector residual). Returns `None` if a Collector is
+///   encountered (shouldn't happen for a well-formed residual).
+///
+/// NOT handling: emits `NotExpr`. Callers that need De Morgan
+/// normalization should `push_not_down` first.
+pub fn residual_bool_to_physical_expr(
+    node: &BoolNode,
+) -> Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> {
+    use datafusion::logical_expr::Operator;
+    use datafusion::physical_expr::expressions::{BinaryExpr, NotExpr};
+
+    match node {
+        BoolNode::Predicate(expr) => Some(Arc::clone(expr)),
+        BoolNode::And(children) => {
+            if children.is_empty() {
+                return None;
+            }
+            let mut iter = children.iter();
+            let mut acc = residual_bool_to_physical_expr(iter.next().unwrap())?;
+            for c in iter {
+                let child = residual_bool_to_physical_expr(c)?;
+                acc = Arc::new(BinaryExpr::new(acc, Operator::And, child));
+            }
+            Some(acc)
+        }
+        BoolNode::Or(children) => {
+            if children.is_empty() {
+                return None;
+            }
+            let mut iter = children.iter();
+            let mut acc = residual_bool_to_physical_expr(iter.next().unwrap())?;
+            for c in iter {
+                let child = residual_bool_to_physical_expr(c)?;
+                acc = Arc::new(BinaryExpr::new(acc, Operator::Or, child));
+            }
+            Some(acc)
+        }
+        BoolNode::Not(child) => {
+            let inner = residual_bool_to_physical_expr(child)?;
+            Some(Arc::new(NotExpr::new(inner)))
+        }
+        BoolNode::Collector { .. } => None,
+    }
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // Tests
 // ════════════════════════════════════════════════════════════════════════════

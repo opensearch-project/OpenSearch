@@ -154,6 +154,7 @@ async fn run_two_segment_query(
                     None,
                     None,
                     None,
+                    None,
                 ),
             );
             Ok(eval)
@@ -172,6 +173,7 @@ async fn run_two_segment_query(
         target_partitions: num_partitions,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        pushdown_predicate: None,
         query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 
@@ -358,6 +360,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
                     None,
                     None,
                     None,
+                    None,
                 ),
             );
             Ok(eval)
@@ -376,6 +379,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         target_partitions: num_partitions,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        pushdown_predicate: None,
         query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 
@@ -767,6 +771,7 @@ async fn run_wide_segments(
         target_partitions: num_partitions,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
+        pushdown_predicate: None,
         query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
     }));
 

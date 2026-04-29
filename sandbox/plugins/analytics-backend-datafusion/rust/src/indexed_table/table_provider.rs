@@ -105,6 +105,19 @@ pub struct IndexedTableConfig {
     pub force_strategy: Option<FilterStrategy>,
     /// If `Some`, force `with_pushdown_filters` on/off. Mainly for tests.
     pub force_pushdown: Option<bool>,
+    /// Parquet-native residual predicate to push into decode time via
+    /// `ParquetSource::with_predicate`. Derived from the BoolNode tree
+    /// by `execute_indexed_query`:
+    /// - `FilterClass::SingleCollector`: residual (non-Collector
+    ///   children of top AND) as a single `PhysicalExpr`.
+    /// - `FilterClass::Tree`: `None` (BitmapTreeEvaluator does all
+    ///   refinement in `on_batch_mask`; pushdown would risk invoking
+    ///   the `index_filter` UDF).
+    ///
+    /// `scan()` uses this rather than the `filters` argument it
+    /// receives from DataFusion, because DataFusion's filters include
+    /// the `index_filter(...)` UDF marker whose body panics.
+    pub pushdown_predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     /// Query-scoped tunables (batch_size, min_skip_run_default, costs, …).
     /// Shared by reference across fanned-out `QueryShardExec` instances.
     pub query_config: Arc<crate::datafusion_query_config::DatafusionQueryConfig>,
@@ -148,20 +161,20 @@ impl TableProvider for IndexedTableProvider {
         &self,
         filters: &[&Expr],
     ) -> Result<Vec<TableProviderFilterPushDown>> {
-        // `Inexact` — we accept all filters for use with
-        // `ParquetSource.with_predicate(...)` (decode-time pruning), but
-        // DataFusion keeps them in an outer FilterExec for authoritative
-        // evaluation. Upgrading to `Exact` for well-formed filter shapes
-        // is a follow-up; requires careful scoping of which Expr trees we
-        // can prove we've fully applied.
-        Ok(vec![TableProviderFilterPushDown::Inexact; filters.len()])
+        // `Exact` — the BoolNode tree held by the evaluator factory
+        // fully handles every WHERE filter (Collectors via FFM bitsets,
+        // Predicates via arrow kernels in refinement). DataFusion
+        // removes the outer FilterExec, which is important because
+        // otherwise FilterExec would try to evaluate the
+        // `index_filter(...)` UDF whose body panics by design.
+        Ok(vec![TableProviderFilterPushDown::Exact; filters.len()])
     }
 
     async fn scan(
         &self,
-        state: &dyn Session,
+        _state: &dyn Session,
         projection: Option<&Vec<usize>>,
-        filters: &[Expr],
+        _filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let full_schema = self.config.schema.clone();
@@ -170,29 +183,16 @@ impl TableProvider for IndexedTableProvider {
             None => full_schema.clone(),
         };
 
-        // Conjoin pushed-down logical filters into a single physical predicate
-        // for `ParquetSource.with_predicate(...)`. This enables parquet's own
-        // page-index pruning and decoder-time filtering during row-selection
-        // reads. `supports_filters_pushdown` reports `Inexact`, so DataFusion
-        // still wraps us in a FilterExec that re-applies the same predicates
-        // on the output — correct but not ideal; tightening to `Exact` for
-        // fully-expressible shapes is a separate follow-up.
-        let predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>> =
-            if filters.is_empty() {
-                None
-            } else {
-                let conjunction = filters
-                    .iter()
-                    .cloned()
-                    .reduce(datafusion::logical_expr::and)
-                    .expect("filters.is_empty() == false so reduce yields Some");
-                let df_schema = datafusion::common::DFSchema::try_from(full_schema.as_ref().clone())?;
-                Some(datafusion::physical_expr::create_physical_expr(
-                    &conjunction,
-                    &df_schema,
-                    state.execution_props(),
-                )?)
-            };
+        // Ignore DataFusion's `filters` argument. The `index_filter(...)`
+        // UDF call would be in there (its body panics), and the
+        // BoolNode tree held by the evaluator factory already contains
+        // the full WHERE semantics.
+        //
+        // The pushdown predicate — the parquet-native residual to hand
+        // to `ParquetSource::with_predicate` — is derived from the
+        // BoolNode in `execute_indexed_query` and stashed on the
+        // config by that caller.
+        let predicate = self.config.pushdown_predicate.clone();
 
         // Row-group-aligned partition assignments
         let layouts: Vec<SegmentLayout> = self
@@ -431,6 +431,7 @@ mod tests {
             target_partitions: 1,
             force_strategy: None,
             force_pushdown: None,
+            pushdown_predicate: None,
             query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
         }
     }
@@ -458,32 +459,5 @@ mod tests {
         let provider = IndexedTableProvider::new(empty_config());
         let pred = scan_predicate(&provider, &[]).await;
         assert!(pred.is_none(), "no filters → no predicate");
-    }
-
-    #[tokio::test]
-    async fn scan_with_single_filter_produces_some_predicate() {
-        let provider = IndexedTableProvider::new(empty_config());
-        let filters = [col("a").gt(lit(5i32))];
-        let pred = scan_predicate(&provider, &filters).await;
-        assert!(pred.is_some(), "single filter should yield a PhysicalExpr");
-    }
-
-    #[tokio::test]
-    async fn scan_with_multiple_filters_conjoins_them() {
-        let provider = IndexedTableProvider::new(empty_config());
-        let filters = [
-            col("a").gt(lit(5i32)),
-            col("b").eq(lit("x")),
-        ];
-        let pred = scan_predicate(&provider, &filters).await.expect("some");
-        // The physical AND expression shows up as `BinaryExpr(And, ...)` in
-        // its Display form. We don't depend on exact formatting beyond the
-        // top-level operator.
-        let s = format!("{}", pred);
-        assert!(
-            s.contains(" AND "),
-            "conjoined predicate should display AND: got {}",
-            s
-        );
     }
 }
