@@ -50,6 +50,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -9391,8 +9392,8 @@ public class InternalEngineTests extends EngineTestCase {
         MappedFieldType idFieldType = mock(MappedFieldType.class);
         when(idFieldType.unwrap()).thenReturn(idFieldType);
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(IdFieldMapper.NAME)).thenReturn(idFieldType);
         when(mapperService.fieldType(any())).thenReturn(null);
+        when(mapperService.fieldType(IdFieldMapper.NAME)).thenReturn(idFieldType);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.isCompositeIndexPresent()).thenReturn(false);
 
@@ -9441,7 +9442,14 @@ public class InternalEngineTests extends EngineTestCase {
                     for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                         SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                         for (String file : segmentReader.getSegmentInfo().files()) {
-                            expectedTotal += store.directory().fileLength(file);
+                            if (IndexFileNames.getExtension(file) == null) {
+                                continue;
+                            }
+                            long len = store.directory().fileLength(file);
+                            if (len == 0L) {
+                                continue;
+                            }
+                            expectedTotal += len;
                         }
                     }
                 }
