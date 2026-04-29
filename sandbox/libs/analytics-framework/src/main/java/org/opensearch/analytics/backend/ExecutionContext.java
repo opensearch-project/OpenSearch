@@ -60,4 +60,14 @@ public class ExecutionContext {
     public void setFragmentBytes(byte[] fragmentBytes) {
         this.fragmentBytes = fragmentBytes;
     }
+
+    /** Returns the caller-provided allocator for producing Arrow result buffers. */
+    public BufferAllocator getAllocator() {
+        return allocator;
+    }
+
+    /** Sets the caller-provided allocator. The caller owns its lifecycle; the engine must not close it. */
+    public void setAllocator(BufferAllocator allocator) {
+        this.allocator = allocator;
+    }
 }

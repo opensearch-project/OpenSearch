@@ -175,7 +175,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 throw new IllegalStateException("No DatafusionReader available in the acquired reader");
             }
             DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
-            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context, dataFusionService::newChildAllocator);
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context);
             engine.prepare(ctx);
             return engine;
         };

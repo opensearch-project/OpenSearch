@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
@@ -40,12 +41,24 @@ import java.util.Map;
  * <p>Does NOT hold {@code IndicesService} — receives an already-resolved
  * {@link IndexShard} from the transport action.
  *
+ * <p>Owns a service-lifetime {@link RootAllocator} shared by every fragment —
+ * both the row-path {@link #executeFragment} and the streaming
+ * {@link #executeFragmentStreaming}. One allocator per service means memory
+ * accounting is reported at the service level, and — because the allocator
+ * outlives any single request — no per-request close-time leak check fires.
+ * For the streaming path, Arrow Flight's outbound handler co-locates its
+ * transfer target on this same allocator
+ * (see {@code FlightOutboundHandler#processBatchTask}), keeping transfers
+ * same-allocator and avoiding the known cross-allocator bug with
+ * foreign-backed buffers from the C Data Interface.
+ *
  * @opensearch.internal
  */
-public class AnalyticsSearchService {
+public class AnalyticsSearchService implements AutoCloseable {
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
+    private final RootAllocator allocator;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
         this(backends, List.of());
@@ -54,6 +67,12 @@ public class AnalyticsSearchService {
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, List<AnalyticsOperationListener> listeners) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
+        this.allocator = new RootAllocator(Long.MAX_VALUE);
+    }
+
+    @Override
+    public void close() {
+        allocator.close();
     }
 
     public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard) {
@@ -143,14 +162,11 @@ public class AnalyticsSearchService {
         return new ResolvedFragment(readerProvider, selectedPlan, request.getQueryId(), request.getStageId(), shardIdStr);
     }
 
-    private static ExecutionContext buildContext(
-        FragmentExecutionRequest request,
-        Reader reader,
-        FragmentExecutionRequest.PlanAlternative plan
-    ) {
+    private ExecutionContext buildContext(FragmentExecutionRequest request, Reader reader, FragmentExecutionRequest.PlanAlternative plan) {
         SearchShardTask searchShardTask = null; // TODO: real task for cancellation
         ExecutionContext ctx = new ExecutionContext(request.getShardId().getIndexName(), searchShardTask, reader);
         ctx.setFragmentBytes(plan.getFragmentBytes());
+        ctx.setAllocator(allocator);
         return ctx;
     }
 

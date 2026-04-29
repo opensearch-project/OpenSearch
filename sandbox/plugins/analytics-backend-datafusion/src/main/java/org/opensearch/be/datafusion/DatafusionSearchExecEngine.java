@@ -18,7 +18,6 @@ import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  * DataFusion-backed search execution engine.
@@ -33,17 +32,9 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
     private static final Logger logger = LogManager.getLogger(DatafusionSearchExecEngine.class);
 
     private final DatafusionContext datafusionContext;
-    private final Supplier<BufferAllocator> allocatorFactory;
-    private BufferAllocator streamAllocator;
 
-    /**
-     * Creates an execution engine backed by the given DataFusion context.
-     * @param datafusionContext the DataFusion execution context
-     * @param allocatorFactory factory for creating a child allocator for result stream memory
-     */
-    public DatafusionSearchExecEngine(DatafusionContext datafusionContext, Supplier<BufferAllocator> allocatorFactory) {
+    public DatafusionSearchExecEngine(DatafusionContext datafusionContext) {
         this.datafusionContext = datafusionContext;
-        this.allocatorFactory = allocatorFactory;
     }
 
     @Override
@@ -55,22 +46,18 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
 
     @Override
     public EngineResultStream execute(ExecutionContext requestContext) throws IOException {
+        BufferAllocator allocator = requestContext.getAllocator();
+        if (allocator == null) {
+            throw new IllegalStateException("ExecutionContext.allocator must be set by the caller before execute()");
+        }
         DatafusionSearcher searcher = datafusionContext.getSearcher();
         searcher.search(datafusionContext);
         StreamHandle handle = datafusionContext.takeStreamHandle();
-        streamAllocator = allocatorFactory.get();
-        return new DatafusionResultStream(handle, streamAllocator);
+        return new DatafusionResultStream(handle, allocator);
     }
 
     @Override
     public void close() throws IOException {
-        try {
-            datafusionContext.close();
-        } finally {
-            if (streamAllocator != null) {
-                streamAllocator.close();
-                streamAllocator = null;
-            }
-        }
+        datafusionContext.close();
     }
 }

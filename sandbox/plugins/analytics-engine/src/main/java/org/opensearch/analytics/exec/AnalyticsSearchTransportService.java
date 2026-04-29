@@ -8,13 +8,11 @@
 
 package org.opensearch.analytics.exec;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
-import org.opensearch.arrow.flight.transport.ArrowFlightChannel;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -114,9 +112,6 @@ public class AnalyticsSearchTransportService {
             FragmentExecutionRequest::new,
             (request, channel, task) -> {
                 IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
-                // fixme: Cross-allocator transfer leaks ~128 B/batch (known Arrow bug) — bounded, fix tracked as follow-up.
-                BufferAllocator channelAllocator = ArrowFlightChannel.from(channel).getAllocator();
-                assert channelAllocator != null;
                 try (FragmentResources ctx = searchService.executeFragmentStreaming(request, shard)) {
                     Iterator<EngineResultBatch> it = ctx.stream().iterator();
                     while (it.hasNext()) {
