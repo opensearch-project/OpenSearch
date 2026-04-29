@@ -230,4 +230,168 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
 
         ensureGreen(indexName);
     }
+
+    public void testCompositeIndexUsesClusterDefaultFormatsWhenOverridesAbsent() throws IOException {
+        String indexName = "test-composite-cluster-default";
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                    .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "lucene")
+            )
+            .get();
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .build();
+
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(indexSettings)
+            .setMapping("field_text", "type=text", "field_keyword", "type=keyword", "field_number", "type=integer")
+            .get();
+        assertTrue("Index creation should be acknowledged", response.isAcknowledged());
+
+        ensureGreen(indexName);
+
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
+        Settings actual = settingsResponse.getIndexToSettings().get(indexName);
+        assertEquals("parquet", actual.get(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey()));
+        assertEquals("lucene", actual.getAsList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey()).get(0));
+
+        for (int i = 0; i < 10; i++) {
+            IndexResponse indexResponse = client().prepareIndex()
+                .setIndex(indexName)
+                .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", randomInt(100))
+                .get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+
+        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(indexName).get().getStatus());
+        assertEquals(RestStatus.OK, client().admin().indices().prepareFlush(indexName).get().getStatus());
+
+        IndicesStatsResponse statsResponse = client().admin()
+            .indices()
+            .prepareStats(indexName)
+            .clear()
+            .setIndexing(true)
+            .setRefresh(true)
+            .setDocs(true)
+            .setStore(true)
+            .get();
+        ShardStats shardStats = statsResponse.getIndex(indexName).getShards()[0];
+        assertEquals(10, shardStats.getStats().indexing.getTotal().getIndexCount());
+
+        CommitStats commitStats = shardStats.getCommitStats();
+        assertNotNull(commitStats);
+        assertTrue(commitStats.getUserData().containsKey(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY));
+
+        DataformatAwareCatalogSnapshot snapshot = DataformatAwareCatalogSnapshot.deserializeFromString(
+            commitStats.getUserData().get(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY),
+            Function.identity()
+        );
+        assertEquals(Set.of("parquet", "lucene"), snapshot.getDataFormats());
+
+        ensureGreen(indexName);
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey())
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey())
+            )
+            .get();
+    }
+
+    public void testCompositeIndexRequestOverrideBeatsClusterDefault() throws IOException {
+        String indexName = "test-composite-request-override";
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                    .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "lucene")
+            )
+            .get();
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "lucene")
+            .putList("index.composite.secondary_data_formats")
+            .build();
+
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(indexSettings)
+            .setMapping("field_text", "type=text", "field_keyword", "type=keyword", "field_number", "type=integer")
+            .get();
+        assertTrue("Index creation should be acknowledged", response.isAcknowledged());
+
+        ensureGreen(indexName);
+
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
+        Settings actual = settingsResponse.getIndexToSettings().get(indexName);
+        assertEquals("lucene", actual.get(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey()));
+        assertTrue(actual.getAsList(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.getKey()).isEmpty());
+
+        for (int i = 0; i < 10; i++) {
+            IndexResponse indexResponse = client().prepareIndex()
+                .setIndex(indexName)
+                .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", randomInt(100))
+                .get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+
+        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(indexName).get().getStatus());
+        assertEquals(RestStatus.OK, client().admin().indices().prepareFlush(indexName).get().getStatus());
+
+        IndicesStatsResponse statsResponse = client().admin()
+            .indices()
+            .prepareStats(indexName)
+            .clear()
+            .setIndexing(true)
+            .setRefresh(true)
+            .setDocs(true)
+            .setStore(true)
+            .get();
+        ShardStats shardStats = statsResponse.getIndex(indexName).getShards()[0];
+        assertEquals(10, shardStats.getStats().indexing.getTotal().getIndexCount());
+
+        CommitStats commitStats = shardStats.getCommitStats();
+        assertNotNull(commitStats);
+        assertTrue(commitStats.getUserData().containsKey(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY));
+
+        DataformatAwareCatalogSnapshot snapshot = DataformatAwareCatalogSnapshot.deserializeFromString(
+            commitStats.getUserData().get(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY),
+            Function.identity()
+        );
+        assertEquals(Set.of("lucene"), snapshot.getDataFormats());
+
+        ensureGreen(indexName);
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey())
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey())
+            )
+            .get();
+    }
 }

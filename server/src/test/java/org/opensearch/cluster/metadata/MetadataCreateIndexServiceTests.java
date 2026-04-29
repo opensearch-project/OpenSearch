@@ -159,6 +159,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.common.util.FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES;
+import static org.opensearch.common.util.FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_MERGE_POLICY;
@@ -2182,6 +2183,137 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 + "]: cannot be smaller than cluster.minimum.index.refresh_interval [10s]",
             exception.getMessage()
         );
+    }
+
+    // ---- updatePluggableDataFormatSettings ----
+
+    public void testUpdatePluggableDataFormatSettingsNoopWhenFeatureFlagDisabled() {
+        // Feature flag is off by default in tests; the helper must not contribute either setting,
+        // even when a cluster-scope default is present.
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(out));
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsStampsClusterDefaultsWhenIndexLevelAbsent() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+
+        Settings out = indexSettingsBuilder.build();
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsSkipsEnabledWhenAlreadySet() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // Primary override is preserved; value still stamped from the cluster default.
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsSkipsValueWhenAlreadySet() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene");
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+
+        Settings out = indexSettingsBuilder.build();
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsSkipsBothWhenAlreadySet() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene");
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsStampsBuiltInDefaultsWhenClusterBagEmpty() {
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+
+        Settings out = indexSettingsBuilder.build();
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(out));
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(out));
+        assertEquals("", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testAggregateIndexSettingsStampsPluggableDataFormatClusterDefaults() {
+        // End-to-end sanity: confirm updatePluggableDataFormatSettings is wired into the create-index
+        // pipeline, so the effective values land in the settings returned by aggregateIndexSettings.
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(Settings.EMPTY);
+
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(aggregated));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(aggregated));
     }
 
     public void testAnyTranslogDurabilityWhenRestrictSettingFalse() {

@@ -309,6 +309,28 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * Cluster-level default for {@code index.pluggable.dataformat.enabled}.
+     * Applied at index creation time when the index setting is not explicitly provided.
+     */
+    public static final Setting<Boolean> CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.default.index.pluggable.dataformat.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Cluster-level default for {@code index.pluggable.dataformat}.
+     * Applied at index creation time when the index setting is not explicitly provided.
+     */
+    public static final Setting<String> CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING = Setting.simpleString(
+        "cluster.default.index.pluggable.dataformat",
+        "",
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * This setting is used to set the minimum refresh interval applicable for all indexes in a cluster. The
      * {@code cluster.default.index.refresh_interval} setting value needs to be higher than this setting's value. Index
      * creation will fail if the index setting {@code index.refresh_interval} is supplied with a value lower than the

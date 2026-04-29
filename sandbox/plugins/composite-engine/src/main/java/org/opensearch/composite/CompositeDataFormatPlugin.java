@@ -10,9 +10,16 @@ package org.opensearch.composite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
@@ -21,9 +28,16 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
+import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.watcher.ResourceWatcherService;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +70,13 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
     private static final Logger logger = LogManager.getLogger(CompositeDataFormatPlugin.class);
 
     /**
+     * Populated during {@link #createComponents} so the {@link IndexSettingProvider} registered by
+     * {@link #getAdditionalIndexSettingProviders()} can read live cluster-scope default settings
+     * at index-creation time.
+     */
+    private ClusterService clusterService;
+
+    /**
      * Index setting that designates the primary data format for an index.
      * The primary format is the authoritative format used for merge operations.
      */
@@ -79,11 +100,87 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Setting.Property.Final
     );
 
+    /**
+     * Cluster-level default for {@code index.composite.primary_data_format}.
+     * When the index setting is not explicitly provided, this cluster setting is used as the fallback.
+     */
+    public static final Setting<String> CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT = Setting.simpleString(
+        "cluster.default.index.composite.primary_data_format",
+        "lucene",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Cluster-level default for {@code index.composite.secondary_data_formats}.
+     * When the index setting is not explicitly provided, this cluster setting is used as the fallback.
+     */
+    public static final Setting<List<String>> CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS = Setting.listSetting(
+        "cluster.default.index.composite.secondary_data_formats",
+        Collections.emptyList(),
+        s -> s,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     public CompositeDataFormatPlugin() {}
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(PRIMARY_DATA_FORMAT, SECONDARY_DATA_FORMATS);
+        return List.of(
+            PRIMARY_DATA_FORMAT,
+            SECONDARY_DATA_FORMATS,
+            CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT,
+            CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS
+        );
+    }
+
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        this.clusterService = clusterService;
+        return Collections.emptyList();
+    }
+
+    /**
+     * Stamps the cluster-scope defaults for {@link #PRIMARY_DATA_FORMAT} and
+     * {@link #SECONDARY_DATA_FORMATS} into newly created indices when those index-level settings
+     * are not supplied by the request or a matching template.
+     *
+     * <p>Because both index settings are {@link Setting.Property#Final}, the effective value is
+     * resolved once at index-creation time from the live {@link ClusterSettings} registry and
+     * frozen into the index metadata. Later updates to the {@code cluster.default.*} settings
+     * affect only indices created after the update.
+     *
+     * <p>If {@link #createComponents} has not run yet (e.g. during early bootstrap), the provider
+     * contributes no settings so that index creation falls back to the per-setting defaults.
+     */
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return Collections.singletonList(new IndexSettingProvider() {
+            @Override
+            public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings templateAndRequestSettings) {
+                ClusterSettings clusterSettings = clusterService.getClusterSettings();
+                Settings.Builder out = Settings.builder();
+                if (PRIMARY_DATA_FORMAT.exists(templateAndRequestSettings) == false) {
+                    out.put(PRIMARY_DATA_FORMAT.getKey(), clusterSettings.get(CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT));
+                }
+                if (SECONDARY_DATA_FORMATS.exists(templateAndRequestSettings) == false) {
+                    out.putList(SECONDARY_DATA_FORMATS.getKey(), clusterSettings.get(CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS));
+                }
+                return out.build();
+            }
+        });
     }
 
     @Override

@@ -1218,6 +1218,7 @@ public class MetadataCreateIndexService {
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
         updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
+        updatePluggableDataFormatSettings(indexSettingsBuilder, clusterSettings);
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -1416,6 +1417,33 @@ public class MetadataCreateIndexService {
                     throw new IndexCreationException(indexName, validationException);
                 }
             }
+        }
+    }
+
+    /**
+     * Stamps the cluster-scope defaults for the pluggable data-format index settings into the
+     * index metadata at creation time when no explicit override is supplied. No-op when the
+     * pluggable data-format feature flag is disabled.
+     */
+    public static void updatePluggableDataFormatSettings(Settings.Builder settingsBuilder, ClusterSettings clusterSettings) {
+        if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) == false) {
+            return;
+        }
+
+        final Settings current = settingsBuilder.build();
+
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(current) == false) {
+            settingsBuilder.put(
+                IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(),
+                clusterSettings.get(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
+            );
+        }
+
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(current) == false) {
+            settingsBuilder.put(
+                IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(),
+                clusterSettings.get(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+            );
         }
     }
 
