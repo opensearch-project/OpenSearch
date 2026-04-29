@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-//! [`PageCache`] trait — the abstraction for disk caching with typed keys.
+//! [`BlockCache`] trait — the abstraction for disk caching with typed keys.
 
 use bytes::Bytes;
 use crate::range_cache::CacheKey;
@@ -25,7 +25,7 @@ use crate::range_cache::CacheKey;
 ///
 /// Implementations must be `Send + Sync` so they can be shared across async
 /// tasks and threads.
-pub trait PageCache: Send + Sync {
+pub trait BlockCache: Send + Sync {
     /// Look up a cached entry. Returns `Some(Bytes)` on hit, `None` on miss.
     fn get(&self, key: &CacheKey)
         -> impl std::future::Future<Output = Option<Bytes>> + Send;

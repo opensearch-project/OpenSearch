@@ -15,7 +15,7 @@ use tempfile::TempDir;
 use crate::foyer::foyer_cache::FoyerCache;
 use crate::foyer::ffm::{foyer_create_cache, foyer_destroy_cache};
 use crate::range_cache::range_cache_key;
-use crate::traits::PageCache;
+use crate::traits::BlockCache;
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 

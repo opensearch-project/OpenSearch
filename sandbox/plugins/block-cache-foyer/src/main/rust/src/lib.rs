@@ -7,5 +7,6 @@
  */
 
 pub mod range_cache;
+pub mod stats;
 pub mod traits;
 pub mod foyer;

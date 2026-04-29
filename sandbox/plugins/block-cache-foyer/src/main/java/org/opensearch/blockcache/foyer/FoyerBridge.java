@@ -10,9 +10,11 @@ package org.opensearch.blockcache.foyer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.blockcache.stats.BlockCacheStats;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
@@ -42,6 +44,7 @@ public final class FoyerBridge {
 
     private static final MethodHandle FOYER_CREATE_CACHE;
     private static final MethodHandle FOYER_DESTROY_CACHE;
+    private static final MethodHandle FOYER_SNAPSHOT_STATS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -71,7 +74,21 @@ public final class FoyerBridge {
                 ValueLayout.JAVA_LONG   // ptr
             )
         );
-        logger.info("FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache");
+
+        // i64 foyer_snapshot_stats(i64 ptr, i64* out) — 0=success, <0=error
+        // Writes BlockCacheStats.Field.COUNT * 2 i64 values into out:
+        // overall section then block-level section.
+        // See BlockCacheStats.Field for the per-section field layout.
+        FOYER_SNAPSHOT_STATS = linker.downcallHandle(
+            lib.find("foyer_snapshot_stats").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,  // return: 0=ok, <0=error
+                ValueLayout.JAVA_LONG,  // ptr: i64 cache handle
+                ValueLayout.ADDRESS     // out: *mut i64, output buffer
+            )
+        );
+
+        logger.info("FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache, foyer_snapshot_stats");
     }
 
     /**
@@ -91,7 +108,7 @@ public final class FoyerBridge {
             var engine = call.str(ioEngine);
             long ptr = call.invoke(FOYER_CREATE_CACHE, diskBytes, dir.segment(), dir.len(), blockSizeBytes, engine.segment(), engine.len());
             if (ptr <= 0) {
-                throw new IllegalStateException("foyer_create_cache returned invalid pointer: " + ptr);
+                throw new IllegalStateException("foyer_create_cache returned an invalid handle");
             }
             logger.info(
                 "Foyer block cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, dir={}",
@@ -117,6 +134,46 @@ public final class FoyerBridge {
             call.invoke(FOYER_DESTROY_CACHE, ptr);
         }
         logger.info("Foyer block cache destroyed");
+    }
+
+    /**
+     * Snapshot the cache statistics from the native Foyer runtime.
+     *
+     * <p>Returns a {@code long[]} containing two equal-sized sections:
+     * {@code overall} (cross-tier rollup) followed by {@code block_level} (disk tier).
+     * Each section contains one value per {@link BlockCacheStats.Field} constant,
+     * in ordinal order.
+     *
+     * <p>The buffer size and per-section field layout are driven by
+     * {@link BlockCacheStats.Field} — no separate size constants to maintain.
+     */
+    public static long[] snapshotStats(long ptr) {
+        // Allocate exactly BlockCacheStats.Field.COUNT values per section, two sections total.
+        // The native side must write the same number of values; a length mismatch means
+        // the Java Field enum and the Rust snapshot() array are out of sync.
+        final int bufferSize = BlockCacheStats.Field.COUNT * 2;
+        try (Arena arena = Arena.ofConfined()) {
+            var out = arena.allocateArray(ValueLayout.JAVA_LONG, bufferSize);
+            try (var call = new NativeCall()) {
+                call.invoke(FOYER_SNAPSHOT_STATS, ptr, out);
+            }
+            // toArray copies the entire allocated segment.
+            long[] result = out.toArray(ValueLayout.JAVA_LONG);
+            if (result.length != bufferSize) {
+                // Native/Java field count mismatch — log and return zeros rather than silently
+                // mismap fields, which would produce corrupted stats silently.
+                logger.error(
+                    "foyer_snapshot_stats: expected {} values but got {}; "
+                    + "BlockCacheStats.Field and Rust snapshot() are out of sync",
+                    bufferSize, result.length
+                );
+                return new long[bufferSize];
+            }
+            return result;
+        } catch (Exception e) {
+            logger.warn("foyer_snapshot_stats failed: {}", e.getMessage());
+            return new long[bufferSize];
+        }
     }
 
     private FoyerBridge() {}

@@ -14,15 +14,17 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.BlockCacheSettings;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
+import org.opensearch.index.store.remote.filecache.UnifiedCacheService;
 import org.opensearch.indices.IndicesService;
 
 import static org.opensearch.monitor.fs.FsProbe.adjustForHugeFilesystems;
 
 /**
- * FileSystem service implementation for warm nodes that calculates disk usage
- * based on file cache size and remote data ratio instead of actual physical disk usage.
+ * FileSystem service for warm nodes. Reports virtual disk capacity based on
+ * total SSD reservation across all caches and their respective data-to-cache
+ * ratios, rather than actual physical disk usage.
  *
  * @opensearch.internal
  */
@@ -32,29 +34,36 @@ public class WarmFsService extends FsService {
 
     private final FileCacheSettings fileCacheSettings;
     private final IndicesService indicesService;
-    private final FileCache fileCache;
+    private final UnifiedCacheService unifiedCacheService;
+    private final double dataToBlockCacheRatio;
 
     public WarmFsService(
         Settings settings,
         NodeEnvironment nodeEnvironment,
         FileCacheSettings fileCacheSettings,
         IndicesService indicesService,
-        FileCache fileCache
+        UnifiedCacheService unifiedCacheService
     ) {
-        super(settings, nodeEnvironment, fileCache);
+        super(settings, nodeEnvironment, unifiedCacheService.fileCache());
         this.fileCacheSettings = fileCacheSettings;
         this.indicesService = indicesService;
-        this.fileCache = fileCache;
+        this.unifiedCacheService = unifiedCacheService;
+        this.dataToBlockCacheRatio = BlockCacheSettings.DATA_TO_BLOCK_CACHE_SIZE_RATIO_SETTING.get(settings);
     }
 
     @Override
     public FsInfo stats() {
-        // Calculate total addressable space
-        final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio();
-        final long nodeCacheSize = fileCache != null ? fileCache.capacity() : 0;
-        final long totalBytes = (long) (dataToFileCacheSizeRatio * nodeCacheSize);
+        // Virtual capacity = (file-cache SSD × fileCacheRatio) + (block-cache SSD × blockCacheRatio)
+        final double dataToFileCacheRatio = fileCacheSettings.getRemoteDataRatio();
 
-        // Calculate used bytes from primary shards
+        final long fileCacheCapacity  = unifiedCacheService.fileCache().capacity();
+        final long blockCacheCapacity = unifiedCacheService.blockCacheCapacityBytes();
+        final long totalCacheCapacity = fileCacheCapacity + blockCacheCapacity;
+
+        final long totalBytes = (long) (dataToFileCacheRatio  * fileCacheCapacity)
+                              + (long) (dataToBlockCacheRatio * blockCacheCapacity);
+
+        // Used bytes from primary shards
         long usedBytes = 0;
         if (indicesService != null) {
             for (IndexService indexService : indicesService) {
@@ -73,18 +82,19 @@ public class WarmFsService extends FsService {
         long freeBytes = Math.max(0, totalBytes - usedBytes);
 
         FsInfo.Path warmPath = new FsInfo.Path();
-        warmPath.path = "/warm";
-        warmPath.mount = "warm";
-        warmPath.type = "warm";
-        warmPath.total = adjustForHugeFilesystems(totalBytes);
-        warmPath.free = adjustForHugeFilesystems(freeBytes);
+        warmPath.path      = "/warm";
+        warmPath.mount     = "warm";
+        warmPath.type      = "warm";
+        warmPath.total     = adjustForHugeFilesystems(totalBytes);
+        warmPath.free      = adjustForHugeFilesystems(freeBytes);
         warmPath.available = adjustForHugeFilesystems(freeBytes);
-        if (fileCache != null) {
-            warmPath.fileCacheReserved = adjustForHugeFilesystems(fileCache.capacity());
-            warmPath.fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage());
-        }
+        warmPath.fileCacheReserved  = adjustForHugeFilesystems(totalCacheCapacity);
+        warmPath.fileCacheUtilized  = adjustForHugeFilesystems(unifiedCacheService.cacheUtilizedBytes());
 
-        logger.trace("Warm node disk usage - total: {}, used: {}, free: {}", totalBytes, usedBytes, freeBytes);
+        logger.trace(
+            "Warm node disk usage — total: {}, used: {}, free: {}, cacheReserved: {}, cacheUtilized: {}",
+            totalBytes, usedBytes, freeBytes, totalCacheCapacity, warmPath.fileCacheUtilized
+        );
 
         FsInfo nodeFsInfo = super.stats();
         return new FsInfo(System.currentTimeMillis(), nodeFsInfo.getIoStats(), new FsInfo.Path[] { warmPath });
