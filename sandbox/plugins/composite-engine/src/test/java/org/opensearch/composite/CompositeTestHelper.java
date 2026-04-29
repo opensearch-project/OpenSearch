@@ -22,6 +22,7 @@ import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
@@ -29,11 +30,13 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.store.FormatChecksumStrategy;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -162,7 +165,7 @@ final class CompositeTestHelper {
 
         @Override
         public Merger getMerger() {
-            return null;
+            return mergeInput -> new MergeResult(Map.of());
         }
 
         @Override
@@ -176,7 +179,9 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public void deleteFiles(Map<String, Collection<String>> filesToDelete) {}
+        public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) {
+            return Map.of();
+        }
 
         @Override
         public long getNextWriterGeneration() {
@@ -292,6 +297,19 @@ final class CompositeTestHelper {
         @Override
         public SafeCommitInfo getSafeCommitInfo() {
             return SafeCommitInfo.EMPTY;
+        }
+
+        @Override
+        public List<CatalogSnapshot> listCommittedSnapshots() {
+            return List.of();
+        }
+
+        @Override
+        public void deleteCommit(CatalogSnapshot snapshot) {}
+
+        @Override
+        public boolean isCommitManagedFile(String fileName) {
+            return false;
         }
     }
 }

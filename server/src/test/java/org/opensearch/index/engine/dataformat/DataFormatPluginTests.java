@@ -20,6 +20,7 @@ import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockReader;
 import org.opensearch.index.engine.dataformat.stub.MockReaderManager;
+import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -132,7 +133,9 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
 
         // 5. Merge the two writer file sets
         Merger merger = engine.getMerger();
-        MergeInput mergeInput = MergeInput.builder().fileMetadataList(List.of(fileSet1, fileSet2)).newWriterGeneration(3L).build();
+        Segment seg1 = Segment.builder(fileSet1.writerGeneration()).addSearchableFiles(format, fileSet1).build();
+        Segment seg2 = Segment.builder(fileSet2.writerGeneration()).addSearchableFiles(format, fileSet2).build();
+        MergeInput mergeInput = MergeInput.builder().segments(List.of(seg1, seg2)).newWriterGeneration(3L).build();
         MergeResult mergeResult = merger.merge(mergeInput);
         WriterFileSet merged = mergeResult.getMergedWriterFileSetForDataformat(format);
         assertNotNull(merged);
@@ -147,7 +150,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
 
         // 6. Merge with an existing RowIdMapping (secondary data format merge)
         MergeInput secondaryMergeInput = MergeInput.builder()
-            .fileMetadataList(List.of(fileSet1, fileSet2))
+            .segments(List.of(seg1, seg2))
             .rowIdMapping(mapping)
             .newWriterGeneration(4L)
             .build();
@@ -273,7 +276,15 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             RefreshInput.builder().addSegment(Segment.builder(0L).addSearchableFiles(format, fs1).build()).build()
         );
 
-        CatalogSnapshotManager manager = new CatalogSnapshotManager(1L, 1L, 0L, rr1.refreshedSegments(), 1L, Map.of());
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(CatalogSnapshotManager.createInitialSnapshot(1L, 1L, 0L, rr1.refreshedSegments(), 1L, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            null
+        );
 
         MockReaderManager readerManager = new MockReaderManager(format.name());
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -321,13 +332,10 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         // Search completes — releases the old snapshot ref
         snapshotRef1.close();
 
-        // Snapshot1 is now dead
-        assertTrue(
-            "Snapshot1 should be closed after search releases the last ref",
-            ((DataformatAwareCatalogSnapshot) snapshot1).isClosed()
-        );
+        // Snapshot1 still has commit ref (initial snapshot gets incRef'd by IndexFileDeleter).
+        // It won't be fully closed until a flush triggers the deletion policy.
+        assertFalse("Snapshot1 should still be alive due to commit ref", ((DataformatAwareCatalogSnapshot) snapshot1).isClosed());
 
-        // Snapshot1 is now dead — tryIncRef would fail (verified via new acquire returning snapshot2)
         // Snapshot 2 works
         try (GatedCloseable<CatalogSnapshot> cr2 = manager.acquireSnapshot()) {
             MockReader r2 = readerManager.getReader(cr2.get());
@@ -368,7 +376,15 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         WriterFileSet wfs2 = WriterFileSet.builder().directory(dir).writerGeneration(1L).addFile("data.lucene").addNumRows(10).build();
         Segment seg = Segment.builder(0L).addSearchableFiles(format1, wfs1).addSearchableFiles(format2, wfs2).build();
 
-        CatalogSnapshotManager manager = new CatalogSnapshotManager(1L, 1L, 0L, List.of(seg), 1L, Map.of());
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(CatalogSnapshotManager.createInitialSnapshot(1L, 1L, 0L, List.of(seg), 1L, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            null
+        );
 
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
             rm1.afterRefresh(true, ref.get());

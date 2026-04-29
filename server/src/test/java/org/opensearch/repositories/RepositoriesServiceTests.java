@@ -945,4 +945,24 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             return BlobPath.cleanPath();
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Native store tests — native store wiring is now handled by
+    // ExtensiblePlugin.loadExtensions in each repository plugin.
+    // RepositoriesService no longer participates in native store init.
+    // -----------------------------------------------------------------------
+
+    public void testGetNativeStoreDefaultIsEmpty() {
+        repositoriesService.registerInternalRepository("repo", TestRepository.TYPE);
+        final Repository repo = repositoriesService.repository("repo");
+        assertSame(NativeStoreRepository.EMPTY, repo.getNativeStore());
+    }
+
+    private static class NativeAwareTestRepository extends TestRepository {
+        private static final String TYPE = "native-aware";
+
+        NativeAwareTestRepository(RepositoryMetadata metadata) {
+            super(metadata);
+        }
+    }
 }

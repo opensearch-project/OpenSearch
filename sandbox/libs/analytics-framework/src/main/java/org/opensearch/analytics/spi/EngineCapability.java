@@ -17,16 +17,8 @@ package org.opensearch.analytics.spi;
  * {@link ScanCapability}) are declared via those classes — a non-empty capability set
  * implies operator support.
  *
- * <p>TODO: COORDINATOR_REDUCE will be replaced by a DataTransferCapability-based declaration.
- * The underlying capability is: a backend can accept Arrow Record Batches as input and execute
- * its supported operators over them — regardless of where this happens. At the coordinator,
- * this means accepting partial results for final reduce. At the data node, this means accepting
- * Arrow batches from another backend (e.g. Lucene streaming doc values into DataFusion for
- * aggregation). Same capability, different scope.
- *
  * @opensearch.internal
  */
 public enum EngineCapability {
-    SORT,
-    COORDINATOR_REDUCE
+    SORT
 }

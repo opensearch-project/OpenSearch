@@ -22,6 +22,7 @@ import org.opensearch.index.store.remote.filecache.FullFileCachedIndexInput;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.storage.indexinput.OnDemandPrefetchBlockSnapshotIndexInput;
 import org.opensearch.storage.indexinput.SwitchableIndexInput;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -37,10 +38,13 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.opensearch.index.store.remote.utils.FileTypeUtils.BLOCK_FILE_IDENTIFIER;
 import static org.opensearch.storage.utils.DirectoryUtils.getFilePath;
 import static org.opensearch.storage.utils.DirectoryUtils.getFilePathSwitchable;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link SwitchableIndexInput}.
@@ -53,6 +57,18 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
     TransferManager transferManager;
     private static final String FILE_NAME = "_0.si";
     private static final String FILE_NAME_BLOCK = "_0.si_block_0";
+
+    private static final Supplier<TieredStoragePrefetchSettings> MOCK_PREFETCH_SETTINGS_SUPPLIER = () -> {
+        TieredStoragePrefetchSettings settings = mock(TieredStoragePrefetchSettings.class);
+        when(settings.getReadAheadBlockCount()).thenReturn(TieredStoragePrefetchSettings.DEFAULT_READ_AHEAD_BLOCK_COUNT);
+        when(settings.getReadAheadEnableFileFormats()).thenReturn(TieredStoragePrefetchSettings.READ_AHEAD_ENABLE_FILE_FORMATS);
+        when(settings.isStoredFieldsPrefetchEnabled()).thenReturn(true);
+        return settings;
+    };
+
+    private Supplier<TieredStoragePrefetchSettings> getPrefetchSettingsSupplier() {
+        return MOCK_PREFETCH_SETTINGS_SUPPLIER;
+    }
 
     @Before
     public void setup() throws IOException {
@@ -87,7 +103,8 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
             remoteSegmentStoreDirectory,
             transferManager,
             false,
-            threadPool
+            threadPool,
+            getPrefetchSettingsSupplier()
         );
 
         CachedIndexInput cachedIndexInput = getFileCacheEntry(FILE_NAME);
@@ -120,7 +137,8 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
             remoteSegmentStoreDirectory,
             transferManager,
             true,
-            threadPool
+            threadPool,
+            getPrefetchSettingsSupplier()
         );
 
         CachedIndexInput cachedIndexInput = getFileCacheEntry(FILE_NAME_BLOCK);
@@ -156,7 +174,8 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
             remoteSegmentStoreDirectory,
             transferManager,
             false,
-            threadPool
+            threadPool,
+            getPrefetchSettingsSupplier()
         );
 
         SwitchableIndexInput clonedIndexInput = switchableIndexInput.clone();
@@ -193,7 +212,8 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
             remoteSegmentStoreDirectory,
             transferManager,
             false,
-            threadPool
+            threadPool,
+            getPrefetchSettingsSupplier()
         );
 
         switchableIndexInput.prefetch(0, 10);
@@ -385,7 +405,8 @@ public class SwitchableIndexInputTests extends TieredStorageBaseTestCase {
                 remoteDirectory,
                 transferManager,
                 cacheFromRemote,
-                threadPool
+                threadPool,
+                MOCK_PREFETCH_SETTINGS_SUPPLIER
             );
             sharedLock = new InjectableReadWriteLock(sharedLock);
             objectLock = new InjectableLock(objectLock);

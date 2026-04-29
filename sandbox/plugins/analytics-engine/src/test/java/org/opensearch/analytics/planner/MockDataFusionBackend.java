@@ -8,15 +8,16 @@
 
 package org.opensearch.analytics.planner;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
 import org.opensearch.analytics.spi.ScanCapability;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -24,8 +25,6 @@ import org.opensearch.plugins.SearchBackEndPlugin;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE;
 
 /**
  * Mock DataFusion backend for tests. Supports parquet format with columnar storage,
@@ -41,7 +40,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     public static final String PARQUET_DATA_FORMAT = "parquet";
     private static final Set<String> DATAFUSION_FORMATS = Set.of(PARQUET_DATA_FORMAT);
 
-    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(EngineCapability.SORT, EngineCapability.COORDINATOR_REDUCE);
+    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(EngineCapability.SORT);
 
     private static final Set<FieldType> SUPPORTED_TYPES = new HashSet<>();
     static {
@@ -77,9 +76,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     static {
         Set<FilterCapability> caps = new HashSet<>();
         for (FilterOperator op : STANDARD_OPS) {
-            for (FieldType type : SUPPORTED_TYPES) {
-                caps.add(new FilterCapability.Standard(op, type, DATAFUSION_FORMATS));
-            }
+            caps.add(new FilterCapability.Standard(op, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         FILTER_CAPS = caps;
     }
@@ -88,9 +85,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     static {
         Set<AggregateCapability> caps = new HashSet<>();
         for (AggregateFunction func : AGG_FUNCTIONS) {
-            for (FieldType type : SUPPORTED_TYPES) {
-                caps.add(AggregateCapability.simple(func, type, DATAFUSION_FORMATS));
-            }
+            caps.add(AggregateCapability.simple(func, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         AGG_CAPS = caps;
     }
@@ -100,6 +95,18 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public ExchangeSinkProvider getExchangeSinkProvider() {
+        // Stub — real implementation provided by DataFusion backend
+        return context -> new ExchangeSink() {
+            @Override
+            public void feed(VectorSchemaRoot batch) {}
+
+            @Override
+            public void close() {}
+        };
     }
 
     @Override
@@ -125,30 +132,8 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     // ---- SearchBackEndPlugin (storage) ----
 
     @Override
-    public List<DataFormat> getSupportedFormats() {
-        return List.of(new DataFormat() {
-            @Override
-            public String name() {
-                return PARQUET_DATA_FORMAT;
-            }
-
-            @Override
-            public long priority() {
-                return 0;
-            }
-
-            @Override
-            public Set<FieldTypeCapabilities> supportedFields() {
-                return Set.of(
-                    new FieldTypeCapabilities("integer", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("long", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("keyword", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("text", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("boolean", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("date", Set.of(COLUMNAR_STORAGE))
-                );
-            }
-        });
+    public List<String> getSupportedFormats() {
+        return List.of(PARQUET_DATA_FORMAT);
     }
 
     @Override

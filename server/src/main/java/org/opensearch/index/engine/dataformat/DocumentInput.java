@@ -20,6 +20,10 @@ import org.opensearch.index.mapper.MappedFieldType;
  */
 @ExperimentalApi
 public interface DocumentInput<T> extends AutoCloseable {
+
+    /** Standard field name for the row ID used to correlate documents across data formats. */
+    String ROW_ID_FIELD = "__row_id__";
+
     /**
      * Gets the final input representation.
      *

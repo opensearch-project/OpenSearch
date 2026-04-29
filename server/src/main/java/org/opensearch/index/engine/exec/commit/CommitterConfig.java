@@ -13,9 +13,9 @@ import org.opensearch.index.engine.EngineConfig;
 
 /**
  * Initialization parameters for a {@link Committer}.
- * Carries the shard path, index settings, engine configuration, and store needed to set up the backing store.
+ * Carries the engine configuration needed to set up the backing store.
  *
- * @param engineConfig              the engine configuration (nullable — may be absent in tests or standalone mode)
+ * @param engineConfig the engine configuration (nullable — may be absent in tests or standalone mode)
  * @opensearch.experimental
  */
 @ExperimentalApi

@@ -500,6 +500,15 @@ import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestPutSearchPipelineAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
+import org.opensearch.storage.action.tiering.CancelTieringAction;
+import org.opensearch.storage.action.tiering.HotToWarmTierAction;
+import org.opensearch.storage.action.tiering.RestCancelTierAction;
+import org.opensearch.storage.action.tiering.RestHotToWarmTierAction;
+import org.opensearch.storage.action.tiering.RestWarmToHotTierAction;
+import org.opensearch.storage.action.tiering.TransportCancelTierAction;
+import org.opensearch.storage.action.tiering.TransportHotToWarmTierAction;
+import org.opensearch.storage.action.tiering.TransportWarmToHotTierAction;
+import org.opensearch.storage.action.tiering.WarmToHotTierAction;
 import org.opensearch.storage.action.tiering.status.GetTieringStatusAction;
 import org.opensearch.storage.action.tiering.status.ListTieringStatusAction;
 import org.opensearch.storage.action.tiering.status.rest.RestGetTieringStatusAction;
@@ -851,6 +860,9 @@ public class ActionModule extends AbstractModule {
         if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
             actions.register(ListTieringStatusAction.INSTANCE, TransportListTieringStatusAction.class);
             actions.register(GetTieringStatusAction.INSTANCE, TransportGetTieringStatusAction.class);
+            actions.register(CancelTieringAction.INSTANCE, TransportCancelTierAction.class);
+            actions.register(HotToWarmTierAction.INSTANCE, TransportHotToWarmTierAction.class);
+            actions.register(WarmToHotTierAction.INSTANCE, TransportWarmToHotTierAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -1098,6 +1110,9 @@ public class ActionModule extends AbstractModule {
         if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
             registerHandler.accept(new RestListTieringStatusAction());
             registerHandler.accept(new RestGetTieringStatusAction());
+            registerHandler.accept(new RestCancelTierAction());
+            registerHandler.accept(new RestHotToWarmTierAction());
+            registerHandler.accept(new RestWarmToHotTierAction());
         }
     }
 

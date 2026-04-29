@@ -21,6 +21,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FilterOperator;
@@ -48,10 +49,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         );
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(result.getCondition() instanceof AnnotatedPredicate);
         AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
-        assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(annotated.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(annotated, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
     }
 
     /** Keyword equality — both backends viable per-predicate, operator-level only child. */
@@ -64,7 +63,6 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             makeEquals(0, SqlTypeName.VARCHAR, "US")
         );
 
-        assertTrue(result.getCondition() instanceof AnnotatedPredicate);
         AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
         assertEquals(2, annotated.getViableBackends().size());
         // Operator-level: only child backend (no delegation configured)
@@ -90,7 +88,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         assertFalse(result.getViableBackends().contains(MockLuceneBackend.NAME));
         // MATCH_PHRASE predicate has Lucene as delegation target
         AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
-        assertTrue("MATCH_PHRASE should be evaluable by Lucene", predicate.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(predicate, MockLuceneBackend.NAME);
         assertTrue(predicate.getOriginal().toString().contains("MATCH_PHRASE"));
     }
 
@@ -112,9 +110,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RexCall andCondition = (RexCall) result.getCondition();
         AnnotatedPredicate equalsPred = (AnnotatedPredicate) andCondition.getOperands().get(0);
         AnnotatedPredicate matchPred = (AnnotatedPredicate) andCondition.getOperands().get(1);
-        assertTrue(equalsPred.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(equalsPred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(equalsPred, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertPredicateAnnotation(matchPred, MockLuceneBackend.NAME);
         assertTrue(matchPred.getOriginal().toString().contains("MATCH_PHRASE"));
     }
 
@@ -137,9 +134,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RexCall orCondition = (RexCall) result.getCondition();
         AnnotatedPredicate equalsPred = (AnnotatedPredicate) orCondition.getOperands().get(0);
         AnnotatedPredicate matchPred = (AnnotatedPredicate) orCondition.getOperands().get(1);
-        assertTrue(equalsPred.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(equalsPred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(equalsPred, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertPredicateAnnotation(matchPred, MockLuceneBackend.NAME);
         assertTrue(matchPred.getOriginal().toString().contains("MATCH"));
     }
 
@@ -162,9 +158,9 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RexCall orCondition = (RexCall) result.getCondition();
         AnnotatedPredicate matchPred = (AnnotatedPredicate) orCondition.getOperands().get(0);
         AnnotatedPredicate phrasePred = (AnnotatedPredicate) orCondition.getOperands().get(1);
-        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(matchPred, MockLuceneBackend.NAME);
         assertTrue(matchPred.getOriginal().toString().contains("MATCH"));
-        assertTrue(phrasePred.getViableBackends().contains(MockLuceneBackend.NAME));
+        assertPredicateAnnotation(phrasePred, MockLuceneBackend.NAME);
         assertTrue(phrasePred.getOriginal().toString().contains("MATCH_PHRASE"));
     }
 
@@ -176,7 +172,9 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RexNode condition = makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 0, "hello world");
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
 
-        PlannerContext context = buildContext("parquet", Map.of("message", Map.of("type", "keyword")));
+        // index=false strips the inverted index so no backend can satisfy the full-text predicate
+        // natively, forcing the "without delegation" code path under test.
+        PlannerContext context = buildContext("parquet", Map.of("message", Map.of("type", "keyword", "index", false)));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
         assertTrue(exception.getMessage().contains("No backend can evaluate filter predicate"));
@@ -207,6 +205,10 @@ public class FilterRuleTests extends BasePlannerRulesTests {
      * HAVING on derived column must throw — marking on derived/expression columns
      * is not yet implemented. Verifies the planner fails fast with a clear message
      * rather than silently producing incorrect viableBackends.
+     *
+     * TODO: add testFilterOnAggregateOutput — Filter(Aggregate(Scan)) where the filter
+     * is on a non-derived column (e.g. group-by key) should succeed and propagate
+     * viableBackends correctly through the composed pipeline.
      */
     public void testFilterOnDerivedColumnsAfterAggregateThrows() {
         PlannerContext context = buildContext("parquet", 1, Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer")));
@@ -250,7 +252,15 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         SqlTypeName[] fieldTypes,
         RexNode condition
     ) {
-        return runFilter(format, fields, fieldNames, fieldTypes, condition, List.of(DATAFUSION, LUCENE));
+        return runFilter(
+            format,
+            fields,
+            fieldNames,
+            fieldTypes,
+            condition,
+            List.of(DATAFUSION, LUCENE),
+            Set.of(MockDataFusionBackend.NAME)
+        );
     }
 
     private OpenSearchFilter runFilterWithDelegation(
@@ -260,7 +270,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         SqlTypeName[] fieldTypes,
         RexNode condition
     ) {
-        return runFilter(format, fields, fieldNames, fieldTypes, condition, delegationBackends());
+        return runFilter(format, fields, fieldNames, fieldTypes, condition, delegationBackends(), Set.of(MockDataFusionBackend.NAME));
     }
 
     private OpenSearchFilter runFilter(
@@ -269,7 +279,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         String[] fieldNames,
         SqlTypeName[] fieldTypes,
         RexNode condition,
-        List<AnalyticsSearchBackendPlugin> backends
+        List<AnalyticsSearchBackendPlugin> backends,
+        Set<String> expectedViable
     ) {
         PlannerContext context = buildContext(format, fields, backends);
         RelOptTable table = mockTable("test_index", fieldNames, fieldTypes);
@@ -277,7 +288,13 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         RelNode result = unwrapExchange(runPlanner(filter, context));
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchFilter, got " + result.getClass().getSimpleName(), result instanceof OpenSearchFilter);
+        assertPipelineViableBackends(result, List.of(OpenSearchFilter.class, OpenSearchTableScan.class), expectedViable);
         return (OpenSearchFilter) result;
+    }
+
+    private void assertPredicateAnnotation(AnnotatedPredicate predicate, String... expectedBackends) {
+        for (String backend : expectedBackends)
+            assertTrue("Predicate annotation must contain " + backend, predicate.getViableBackends().contains(backend));
     }
 
     private List<AnalyticsSearchBackendPlugin> delegationBackends() {
