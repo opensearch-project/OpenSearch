@@ -20,15 +20,15 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.opensearch.be.lucene.index.LuceneCommitter;
+import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
-import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -36,12 +36,10 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.InternalTranslogFactory;
-import org.opensearch.plugins.EnginePlugin;
-import org.opensearch.plugins.PluginsService;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -53,6 +51,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link LuceneReaderManager} lifecycle with CatalogSnapshot interactions.
@@ -266,14 +266,42 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         Path dataPath = dir.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
         java.nio.file.Files.createDirectories(dataPath);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
-        Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
-        CommitterConfig cs = new CommitterConfig(createEngineConfig(store, idxSettings, shardId));
+        Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId), (x) -> {}, shardPath);
+        store.createEmpty(org.apache.lucene.util.Version.LATEST);
+        Path translogPath = dataPath.resolve("translog");
+        java.nio.file.Files.createDirectories(translogPath);
+        EngineConfig engineConfig = new EngineConfig.Builder().indexSettings(idxSettings)
+            .store(store)
+            .codecService(new CodecService(null, idxSettings, LogManager.getLogger(getClass()), java.util.List.of()))
+            .translogConfig(
+                new org.opensearch.index.translog.TranslogConfig(
+                    shardId,
+                    translogPath,
+                    idxSettings,
+                    org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE,
+                    "",
+                    false
+                )
+            )
+            .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, java.util.Collections.emptyList()))
+            .build();
+        CommitterConfig cs = new CommitterConfig(engineConfig);
         LuceneCommitter committer = new LuceneCommitter(cs);
 
         try {
-            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
-            ReaderManagerConfig settings = new ReaderManagerConfig(Optional.of(engine), dataFormat, shardPath);
+            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+                new LuceneDataFormat(),
+                committer,
+                mock(MapperService.class),
+                store
+            );
+            ReaderManagerConfig settings = new ReaderManagerConfig(
+                Optional.of(engine),
+                dataFormat,
+                mock(DataFormatRegistry.class),
+                shardPath
+            );
 
             EngineReaderManager<?> rm = LuceneSearchBackEnd.createReaderManager(settings);
             assertNotNull(rm);
@@ -284,49 +312,9 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testCreateReaderManagerWithEmptyProviderThrows() {
-        ReaderManagerConfig settings = new ReaderManagerConfig(Optional.empty(), dataFormat, null);
+        ReaderManagerConfig settings = new ReaderManagerConfig(Optional.empty(), dataFormat, mock(DataFormatRegistry.class), null);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> LuceneSearchBackEnd.createReaderManager(settings));
         assertTrue(ex.getMessage().contains("IndexStoreProvider is required"));
-    }
-
-    private EngineConfig createEngineConfig(Store store, IndexSettings indexSettings, ShardId shardId) {
-        PluginsService mockPluginsService = org.mockito.Mockito.mock(PluginsService.class);
-        org.mockito.Mockito.when(mockPluginsService.filterPlugins(EnginePlugin.class)).thenReturn(java.util.List.of(new LucenePlugin()));
-
-        return new EngineConfigFactory(mockPluginsService, indexSettings).newEngineConfig(
-            shardId,
-            null,
-            indexSettings,
-            null,
-            store,
-            null,
-            new MockAnalyzer(random()),
-            null,
-            new CodecService(null, indexSettings, LogManager.getLogger(getClass()), java.util.List.of()),
-            null,
-            null,
-            null,
-            null,
-            TimeValue.timeValueMinutes(5),
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> new RetentionLeases(0, 0, java.util.Collections.emptyList()),
-            null,
-            null,
-            false,
-            () -> Boolean.TRUE,
-            new InternalTranslogFactory(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
     }
 }

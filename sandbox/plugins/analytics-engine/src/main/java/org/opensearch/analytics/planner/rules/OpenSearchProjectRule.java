@@ -13,6 +13,7 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -64,11 +65,20 @@ public class OpenSearchProjectRule extends RelOptRule {
         // SqlKind → viable backends map once per onMatch() call, and (b) returning
         // childViableBackends directly when all candidates pass to avoid allocation.
         List<RexNode> annotatedExprs = new ArrayList<>(project.getProjects().size());
+        boolean requiresBackendCapabilityEvaluation = false;
         for (RexNode expr : project.getProjects()) {
-            annotatedExprs.add(annotateExpr(expr, childViableBackends));
+            RexNode annotated = annotateExpr(expr, childViableBackends);
+            annotatedExprs.add(annotated);
+            if (annotated instanceof AnnotatedProjectExpression) {
+                requiresBackendCapabilityEvaluation = true;
+            }
         }
 
-        List<String> viableBackends = computeProjectViableBackends(annotatedExprs, childViableBackends);
+        // Passthrough projection: no RexCall to evaluate, so any child backend can emit it.
+        List<String> viableBackends = requiresBackendCapabilityEvaluation
+            ? computeProjectViableBackends(annotatedExprs, childViableBackends)
+            : childViableBackends;
+
         if (viableBackends.isEmpty()) {
             throw new IllegalStateException("No backend can execute all project expressions among " + childViableBackends);
         }
@@ -87,6 +97,10 @@ public class OpenSearchProjectRule extends RelOptRule {
 
     private RexNode annotateExpr(RexNode expr, List<String> childViableBackends) {
         if (!(expr instanceof RexCall rexCall)) {
+            // TODO: RexInputRef and RexLiteral are left unannotated — they are implicitly handled
+            // by whichever backend executes the operator (pass-through for refs, constant for literals).
+            // Revisit if delegation requires knowing which backend evaluates each expression
+            // independently, or if a backend cannot handle pass-through refs natively.
             return expr;
         }
 
@@ -154,9 +168,10 @@ public class OpenSearchProjectRule extends RelOptRule {
         }
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
-        List<String> allCapable = registry.scalarBackendsAnyFormat(scalarFunc, fieldType);
+        List<String> allCapable = hasFieldRef(rexCall)
+            ? registry.scalarBackendsAnyFormat(scalarFunc, fieldType)
+            : registry.literalScalarBackends(scalarFunc, fieldType);
 
-        // Prefer child viable backends
         List<String> viable = new ArrayList<>();
         for (String candidateName : childViableBackends) {
             if (allCapable.contains(candidateName)) {
@@ -166,19 +181,26 @@ public class OpenSearchProjectRule extends RelOptRule {
         if (!viable.isEmpty()) {
             return viable;
         }
-        // Fallback: other backends if reachable via delegation
         List<String> delegationSupporters = registry.delegationSupporters(DelegationType.PROJECT);
         List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.PROJECT);
-        boolean canDelegate = childViableBackends.stream().anyMatch(delegationSupporters::contains);
-        if (!canDelegate) {
-            return viable;
-        }
-        for (String backendName : allCapable) {
-            if (delegationAcceptors.contains(backendName)) {
-                viable.add(backendName);
+        if (childViableBackends.stream().anyMatch(delegationSupporters::contains)) {
+            for (String backendName : allCapable) {
+                if (delegationAcceptors.contains(backendName)) {
+                    viable.add(backendName);
+                }
             }
         }
         return viable;
+    }
+
+    private boolean hasFieldRef(RexNode node) {
+        if (node instanceof RexInputRef) return true;
+        if (node instanceof RexCall rexCall) {
+            for (RexNode operand : rexCall.getOperands()) {
+                if (hasFieldRef(operand)) return true;
+            }
+        }
+        return false;
     }
 
     private List<String> computeProjectViableBackends(List<RexNode> annotatedExprs, List<String> childViableBackends) {

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
@@ -167,7 +168,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public Merger getMerger() {
-        return null;
+        // TODO: Implement merge support as ParquetMerger
+        return mergeInput -> new MergeResult(Map.of());
     }
 
     @Override
@@ -192,19 +194,21 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     }
 
     @Override
-    public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
+    public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
         Collection<String> parquetFiles = filesToDelete.get(dataFormat.name());
         if (parquetFiles == null) {
-            return;
+            return Map.of();
         }
+        Collection<String> failed = new ArrayList<>();
         for (String fileName : parquetFiles) {
             Path filePath = Path.of(fileName);
             logger.debug("Deleting parquet file: {}", filePath);
-            boolean deleted = Files.deleteIfExists(filePath);
-            if (deleted == false) {
+            if (Files.deleteIfExists(filePath) == false) {
                 logger.warn("Failed to delete parquet file: {}", filePath);
+                failed.add(fileName);
             }
         }
+        return failed.isEmpty() ? Map.of() : Map.of(dataFormat.name(), failed);
     }
 
     @Override

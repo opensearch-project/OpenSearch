@@ -43,6 +43,19 @@ public class CommitterTests extends OpenSearchTestCase {
             public SafeCommitInfo getSafeCommitInfo() {
                 return SafeCommitInfo.EMPTY;
             }
+
+            @Override
+            public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
+                return java.util.List.of();
+            }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
+
+            @Override
+            public boolean isCommitManagedFile(String fileName) {
+                return false;
+            }
         };
     }
 
@@ -75,6 +88,19 @@ public class CommitterTests extends OpenSearchTestCase {
             public SafeCommitInfo getSafeCommitInfo() {
                 return SafeCommitInfo.EMPTY;
             }
+
+            @Override
+            public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
+                return java.util.List.of();
+            }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
+
+            @Override
+            public boolean isCommitManagedFile(String fileName) {
+                return false;
+            }
         };
         committer.close();
         assertTrue("close() should have been called", closed.get());
@@ -104,6 +130,19 @@ public class CommitterTests extends OpenSearchTestCase {
             @Override
             public SafeCommitInfo getSafeCommitInfo() {
                 return SafeCommitInfo.EMPTY;
+            }
+
+            @Override
+            public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
+                return java.util.List.of();
+            }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
+
+            @Override
+            public boolean isCommitManagedFile(String fileName) {
+                return false;
             }
         };
         committer.commit(Map.of());
