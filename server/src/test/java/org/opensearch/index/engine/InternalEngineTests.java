@@ -64,6 +64,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
@@ -79,7 +80,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.tests.index.ForceMergePolicy;
@@ -9378,10 +9378,7 @@ public class InternalEngineTests extends EngineTestCase {
         // directory) against the actual total reported by segmentsStats.
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test_file_sizes",
-            Settings.builder()
-                .put(defaultSettings.getSettings())
-                .put(EngineConfig.INDEX_USE_COMPOUND_FILE.getKey(), false)
-                .build()
+            Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_USE_COMPOUND_FILE.getKey(), false).build()
         );
         // Enable fuzzy set for doc ID so that _id uses FuzzyFilterPostingsFormat while other
         // text fields use the standard Lucene format. Two distinct PostingsFormat instances
