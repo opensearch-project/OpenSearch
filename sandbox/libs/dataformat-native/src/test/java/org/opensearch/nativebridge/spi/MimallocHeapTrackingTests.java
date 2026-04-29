@@ -44,12 +44,8 @@ public class MimallocHeapTrackingTests extends OpenSearchTestCase {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
         Linker linker = Linker.nativeLinker();
 
-        PARQUET_INIT_HEAP = linker.downcallHandle(
-            lib.find("parquet_init_heap").orElseThrow(), FunctionDescriptor.ofVoid()
-        );
-        DF_INIT_HEAP = linker.downcallHandle(
-            lib.find("df_init_heap").orElseThrow(), FunctionDescriptor.ofVoid()
-        );
+        PARQUET_INIT_HEAP = linker.downcallHandle(lib.find("parquet_init_heap").orElseThrow(), FunctionDescriptor.ofVoid());
+        DF_INIT_HEAP = linker.downcallHandle(lib.find("df_init_heap").orElseThrow(), FunctionDescriptor.ofVoid());
         PARQUET_ALLOC = linker.downcallHandle(
             lib.find("parquet_allocate_test_buffer").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
@@ -155,8 +151,10 @@ public class MimallocHeapTrackingTests extends OpenSearchTestCase {
 
         // Parquet memory should decrease after free
         long pqAfterFree = NativeLibraryLoader.heapUsed(pIdx);
-        assertTrue("parquet used should decrease after free: afterAlloc=" + pqAfterAlloc + " afterFree=" + pqAfterFree,
-            pqAfterFree < pqAfterAlloc);
+        assertTrue(
+            "parquet used should decrease after free: afterAlloc=" + pqAfterAlloc + " afterFree=" + pqAfterFree,
+            pqAfterFree < pqAfterAlloc
+        );
 
         long dfAfterFree = NativeLibraryLoader.heapUsed(dIdx);
         long freeDelta = dfAfterFree - dfBefore;

@@ -68,10 +68,7 @@ public final class NativeLibraryLoader {
                 LOOKUP.find("native_error_free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
             );
-            HEAP_COUNT = linker.downcallHandle(
-                LOOKUP.find("native_heap_count").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT)
-            );
+            HEAP_COUNT = linker.downcallHandle(LOOKUP.find("native_heap_count").orElseThrow(), FunctionDescriptor.of(ValueLayout.JAVA_INT));
             HEAP_NAME = linker.downcallHandle(
                 LOOKUP.find("native_heap_name").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT)

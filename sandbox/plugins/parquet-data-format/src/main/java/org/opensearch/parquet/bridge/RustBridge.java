@@ -83,10 +83,7 @@ public class RustBridge {
             lib.find("parquet_get_filtered_native_bytes_used").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
-        INIT_HEAP = linker.downcallHandle(
-            lib.find("parquet_init_heap").orElseThrow(),
-            FunctionDescriptor.ofVoid()
-        );
+        INIT_HEAP = linker.downcallHandle(lib.find("parquet_init_heap").orElseThrow(), FunctionDescriptor.ofVoid());
         ALLOCATE_TEST_BUFFER = linker.downcallHandle(
             lib.find("parquet_allocate_test_buffer").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)

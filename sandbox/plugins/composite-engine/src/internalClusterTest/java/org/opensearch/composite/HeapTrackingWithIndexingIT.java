@@ -78,25 +78,26 @@ public class HeapTrackingWithIndexingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
         client().admin().indices().prepareFlush(INDEX_NAME).get();
 
-        ShardStats shardStats = client().admin().indices().prepareStats(INDEX_NAME)
-            .clear().setIndexing(true).get()
-            .getIndex(INDEX_NAME).getShards()[0];
+        ShardStats shardStats = client().admin()
+            .indices()
+            .prepareStats(INDEX_NAME)
+            .clear()
+            .setIndexing(true)
+            .get()
+            .getIndex(INDEX_NAME)
+            .getShards()[0];
         assertEquals(50, shardStats.getStats().indexing.getTotal().getIndexCount());
 
         long parquetAfter = NativeLibraryLoader.heapUsed(parquetIdx);
         long growth = parquetAfter - parquetBefore;
-        assertTrue(
-            "parquet heap should grow by at least 1KB after indexing 50 docs, actual growth=" + growth,
-            growth >= 1024
-        );
+        assertTrue("parquet heap should grow by at least 1KB after indexing 50 docs, actual growth=" + growth, growth >= 1024);
     }
 
     public void testGlobalCommittedCoversPluginHeaps() {
         createParquetIndex();
 
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex().setIndex(INDEX_NAME)
-                .setSource("message", "data " + i, "count", i).get();
+            client().prepareIndex().setIndex(INDEX_NAME).setSource("message", "data " + i, "count", i).get();
         }
         client().admin().indices().prepareFlush(INDEX_NAME).get();
 
@@ -107,10 +108,7 @@ public class HeapTrackingWithIndexingIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < NativeLibraryLoader.heapCount(); i++) {
             sumCommitted += NativeLibraryLoader.heapCommitted(i);
         }
-        assertTrue(
-            "sum committed (" + sumCommitted + ") <= global (" + globalCommitted + ")",
-            sumCommitted <= globalCommitted
-        );
+        assertTrue("sum committed (" + sumCommitted + ") <= global (" + globalCommitted + ")", sumCommitted <= globalCommitted);
     }
 
     public void testCrossPluginHeapIsolation() {
@@ -129,8 +127,10 @@ public class HeapTrackingWithIndexingIT extends OpenSearchIntegTestCase {
 
         assertTrue("parquet used should increase after alloc", pqAfterAlloc > pqBefore);
         // mimalloc may retain small thread-local metadata, so allow up to 64KB slack
-        assertTrue("df used should not significantly change after parquet alloc, delta="
-            + (dfAfterAlloc - dfBefore), dfAfterAlloc - dfBefore < 64 * 1024);
+        assertTrue(
+            "df used should not significantly change after parquet alloc, delta=" + (dfAfterAlloc - dfBefore),
+            dfAfterAlloc - dfBefore < 64 * 1024
+        );
 
         NativeBridge.freeTestBuffer(ptr, size);
 
@@ -138,8 +138,10 @@ public class HeapTrackingWithIndexingIT extends OpenSearchIntegTestCase {
         long dfAfterFree = NativeLibraryLoader.heapUsed(dfIdx);
 
         assertTrue("parquet used should decrease after free", pqAfterFree < pqAfterAlloc);
-        assertTrue("df used should remain stable after freeing parquet's buffer, delta="
-            + (dfAfterFree - dfBefore), dfAfterFree - dfBefore < 64 * 1024);
+        assertTrue(
+            "df used should remain stable after freeing parquet's buffer, delta=" + (dfAfterFree - dfBefore),
+            dfAfterFree - dfBefore < 64 * 1024
+        );
     }
 
     private void createParquetIndex() {
@@ -153,10 +155,13 @@ public class HeapTrackingWithIndexingIT extends OpenSearchIntegTestCase {
             .build();
 
         assertTrue(
-            client().admin().indices().prepareCreate(INDEX_NAME)
+            client().admin()
+                .indices()
+                .prepareCreate(INDEX_NAME)
                 .setSettings(indexSettings)
                 .setMapping("message", "type=text", "count", "type=integer")
-                .get().isAcknowledged()
+                .get()
+                .isAcknowledged()
         );
         ensureGreen(INDEX_NAME);
     }

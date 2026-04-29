@@ -300,6 +300,7 @@ pub unsafe extern "C" fn df_register_memtable(
     api::register_memtable(session_ptr, input_id, schema_ipc, array_slice, schema_slice)
         .map(|_| 0)
         .map_err(|e| e.to_string())
+}
 
 // ── Heap tracking ───────────────────────────────────────────────────────────
 

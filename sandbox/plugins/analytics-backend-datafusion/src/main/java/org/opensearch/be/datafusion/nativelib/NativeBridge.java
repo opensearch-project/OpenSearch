@@ -58,7 +58,7 @@ public final class NativeBridge {
     private static final MethodHandle SENDER_SEND;
     private static final MethodHandle SENDER_CLOSE;
     private static final MethodHandle REGISTER_MEMTABLE;
-private static final MethodHandle INIT_HEAP;
+    private static final MethodHandle INIT_HEAP;
     private static final MethodHandle GET_MEMORY_POOL_USAGE;
     private static final MethodHandle DF_ALLOCATE_TEST_BUFFER;
     private static final MethodHandle DF_FREE_TEST_BUFFER;
@@ -206,10 +206,9 @@ private static final MethodHandle INIT_HEAP;
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
-INIT_HEAP = linker.downcallHandle(
-            lib.find("df_init_heap").orElseThrow(),
-            FunctionDescriptor.ofVoid()
         );
+
+        INIT_HEAP = linker.downcallHandle(lib.find("df_init_heap").orElseThrow(), FunctionDescriptor.ofVoid());
         GET_MEMORY_POOL_USAGE = linker.downcallHandle(
             lib.find("df_get_memory_pool_usage").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
