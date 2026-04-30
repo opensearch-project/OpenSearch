@@ -18,9 +18,9 @@ import java.util.List;
  * Computes which source stream partitions a given OpenSearch shard should consume,
  * based on the configured {@link PartitionStrategy}.
  */
-public class PartitionAssignment {
+public class StreamPartitionAssignment {
 
-    private PartitionAssignment() {
+    private StreamPartitionAssignment() {
         // utility class
     }
 
