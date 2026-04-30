@@ -9434,6 +9434,7 @@ public class InternalEngineTests extends EngineTestCase {
                 ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc));
                 engine.flush(true, true);
+                engine.refresh("test");
 
                 // Compute the expected total: sum of the actual on-disk lengths of every file
                 // that belongs to the flushed segment.
