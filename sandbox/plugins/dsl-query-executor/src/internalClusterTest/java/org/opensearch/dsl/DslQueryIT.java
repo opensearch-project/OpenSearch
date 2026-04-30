@@ -10,6 +10,7 @@ package org.opensearch.dsl;
 
 import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
@@ -42,23 +43,29 @@ public class DslQueryIT extends DslIntegTestBase {
 
     public void testTermsQueryWithBoostThrowsException() {
         createTestIndex();
-        expectThrows(Exception.class, () ->
-            search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").boost(2.0f)))
+        expectThrows(
+            ConversionException.class,
+            () -> search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").boost(2.0f)))
         );
     }
 
     public void testTermsQueryWithNameThrowsException() {
         createTestIndex();
-        expectThrows(Exception.class, () ->
-            search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").queryName("my_query")))
+        expectThrows(
+            ConversionException.class,
+            () -> search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").queryName("my_query")))
         );
     }
 
     public void testTermsQueryWithValueTypeThrowsException() {
         createTestIndex();
-        expectThrows(Exception.class, () ->
-            search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").valueType(
-                org.opensearch.index.query.TermsQueryBuilder.ValueType.BITMAP)))
+        expectThrows(
+            ConversionException.class,
+            () -> search(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.termsQuery("name", "laptop").valueType(org.opensearch.index.query.TermsQueryBuilder.ValueType.BITMAP)
+                )
+            )
         );
     }
 

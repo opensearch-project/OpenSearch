@@ -56,7 +56,7 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testIntegerValues() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.termsQuery("price", new Object[]{1200, 1500}), ctx);
+        RexNode result = translator.convert(QueryBuilders.termsQuery("price", new Object[] { 1200, 1500 }), ctx);
 
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.OR, call.getKind());
@@ -67,43 +67,41 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testDoubleValuesUsesSearch() throws ConversionException {
-        RexNode result = translator.convert(
-            QueryBuilders.termsQuery("rating", new Object[]{4.5, 4.8, 5.0}), ctx);
+        RexNode result = translator.convert(QueryBuilders.termsQuery("rating", new Object[] { 4.5, 4.8, 5.0 }), ctx);
 
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.OR, call.getKind());
     }
 
     public void testThrowsForUnknownField() {
-        expectThrows(ConversionException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("nonexistent", "value"), ctx));
+        expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.termsQuery("nonexistent", "value"), ctx));
     }
 
     public void testThrowsForEmptyValues() {
-        expectThrows(IllegalArgumentException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("name", (Object[]) null), ctx));
+        expectThrows(IllegalArgumentException.class, () -> translator.convert(QueryBuilders.termsQuery("name", (Object[]) null), ctx));
     }
 
     public void testThrowsForBoost() {
-        expectThrows(ConversionException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("name", "laptop").boost(2.0f), ctx));
+        expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.termsQuery("name", "laptop").boost(2.0f), ctx));
     }
 
     public void testThrowsForQueryName() {
-        expectThrows(ConversionException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("name", "laptop").queryName("my_query"), ctx));
+        expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termsQuery("name", "laptop").queryName("my_query"), ctx)
+        );
     }
 
     public void testThrowsForTermsLookup() {
         TermsLookup termsLookup = new TermsLookup("lookup_index", "1", "terms");
-        expectThrows(ConversionException.class,
-            () -> translator.convert(QueryBuilders.termsLookupQuery("name", termsLookup), ctx));
+        expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.termsLookupQuery("name", termsLookup), ctx));
     }
 
     public void testThrowsForValueType() {
-        expectThrows(ConversionException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("name", "laptop")
-                .valueType(TermsQueryBuilder.ValueType.BITMAP), ctx));
+        expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termsQuery("name", "laptop").valueType(TermsQueryBuilder.ValueType.BITMAP), ctx)
+        );
     }
 
     public void testReportsCorrectQueryType() {
@@ -112,37 +110,41 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
 
     // Supported types: VARCHAR, INTEGER, DOUBLE, BOOLEAN, BIGINT
     // Date type still throws ClassCastException from Calcite's RexBuilder.makeLiteral()
-    
+
     // TODO: Enable when date type support is added
     public void testDateType() {
-        expectThrows(ClassCastException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("created_date", 
-                new Object[]{new Date(1704067200000L), new Date(1706745600000L)}), ctx));
+        expectThrows(
+            ClassCastException.class,
+            () -> translator.convert(
+                QueryBuilders.termsQuery("created_date", new Object[] { new Date(1704067200000L), new Date(1706745600000L) }),
+                ctx
+            )
+        );
     }
 
     public void testBooleanType() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.termsQuery("is_active", new Object[]{true, false}), ctx);
+        RexNode result = translator.convert(QueryBuilders.termsQuery("is_active", new Object[] { true, false }), ctx);
 
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.OR, call.getKind());
     }
 
     public void testLongType() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.termsQuery("timestamp", new Object[]{1234567890L, 9876543210L}), ctx);
+        RexNode result = translator.convert(QueryBuilders.termsQuery("timestamp", new Object[] { 1234567890L, 9876543210L }), ctx);
 
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.OR, call.getKind());
     }
 
     public void testGeoPointType() {
-        expectThrows(IllegalArgumentException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("location", 
-                new Object[]{"40.7128,-74.0060", "34.0522,-118.2437"}), ctx));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> translator.convert(QueryBuilders.termsQuery("location", new Object[] { "40.7128,-74.0060", "34.0522,-118.2437" }), ctx)
+        );
     }
 
     public void testKeywordType() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.termsQuery("status", 
-            new Object[]{"active", "pending"}), ctx);
+        RexNode result = translator.convert(QueryBuilders.termsQuery("status", new Object[] { "active", "pending" }), ctx);
 
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.OR, call.getKind());
@@ -150,8 +152,12 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
 
     // TODO: Enable when binary type support is added
     public void testBinaryType() {
-        expectThrows(ClassCastException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("binary_data", 
-                new Object[]{"U29tZSBiaW5hcnkgYmxvYg==", "QW5vdGhlciBibG9i"}), ctx));
+        expectThrows(
+            ClassCastException.class,
+            () -> translator.convert(
+                QueryBuilders.termsQuery("binary_data", new Object[] { "U29tZSBiaW5hcnkgYmxvYg==", "QW5vdGhlciBibG9i" }),
+                ctx
+            )
+        );
     }
 }
