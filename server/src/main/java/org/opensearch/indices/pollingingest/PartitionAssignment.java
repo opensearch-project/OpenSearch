@@ -39,9 +39,8 @@ public class PartitionAssignment {
         if (numSourcePartitions <= 0) {
             throw new IllegalArgumentException("Number of source partitions must be positive, got: " + numSourcePartitions);
         }
-        if (shardId < 0 || shardId >= numShards) {
-            throw new IllegalArgumentException("Shard ID [" + shardId + "] must be >= 0 and < numShards [" + numShards + "]");
-        }
+        assert shardId >= 0 && shardId < numShards : "Shard ID [" + shardId + "] must be >= 0 and < numShards [" + numShards + "]";
+
         // TODO - support "RANGE" below when we implement https://github.com/opensearch-project/OpenSearch/issues/21267
         switch (strategy) {
             case FIXED:

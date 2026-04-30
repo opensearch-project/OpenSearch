@@ -99,8 +99,8 @@ public class PartitionAssignmentTests extends OpenSearchTestCase {
     // --- Error cases ---
 
     public void testInvalidShardId() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        AssertionError e = expectThrows(
+            AssertionError.class,
             () -> PartitionAssignment.assignPartitions(-1, 4, 8, PartitionStrategy.AUTO)
         );
         assertTrue(e.getMessage().contains("Shard ID"));
