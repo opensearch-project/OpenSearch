@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Updated Netty to 4.1.133.Final ([#21491](https://github.com/opensearch-project/OpenSearch/pull/21491))
+- Updated log4j to 2.25.4 ([#21445](https://github.com/opensearch-project/OpenSearch/pull/21445))
 
 ### Deprecated
 
