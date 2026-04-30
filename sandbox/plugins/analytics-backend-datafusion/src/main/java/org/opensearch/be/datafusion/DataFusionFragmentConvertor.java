@@ -19,6 +19,7 @@ import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelReferentialConstraint;
 import org.apache.calcite.rel.RelRoot;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
@@ -38,6 +39,7 @@ import java.util.Optional;
 import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
 import io.substrait.extension.SimpleExtension;
+import io.substrait.isthmus.AggregateFunctions;
 import io.substrait.isthmus.ImmutableFeatureBoard;
 import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
@@ -119,6 +121,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     // ── Core conversion helpers ─────────────────────────────────────────────────
 
     private byte[] convertToSubstrait(RelNode fragment) {
+        // Rewrite AVG aggregate calls to use the isthmus's SubstraitAvgAggFunction
+        // so the AggregateFunctionConverter can find the binding.
+        fragment = rewriteAvgCalls(fragment);
+
         RelRoot root = RelRoot.of(fragment, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(fragment);
         Rel substraitRel = visitor.apply(root.rel);
@@ -144,6 +150,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * conversion and rewiring its input during {@link #rewire(Plan, Rel)}.
      */
     private Rel convertStandalone(RelNode operator) {
+        operator = rewriteAvgCalls(operator);
         SubstraitRelVisitor visitor = createVisitor(operator);
         return visitor.apply(operator);
     }
@@ -237,6 +244,57 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     // ── Visitor wiring ──────────────────────────────────────────────────────────
+
+    /**
+     * Rewrites any {@link org.apache.calcite.rel.core.Aggregate} in the tree whose
+     * {@link AggregateCall}s use Calcite's standard {@code SqlStdOperatorTable.AVG}
+     * to use the isthmus's {@link AggregateFunctions#AVG} instead. The isthmus
+     * {@link AggregateFunctionConverter} only recognizes its own AVG variant.
+     */
+    private static RelNode rewriteAvgCalls(RelNode node) {
+        if (node instanceof org.apache.calcite.rel.core.Aggregate agg) {
+            boolean changed = false;
+            List<AggregateCall> newCalls = new ArrayList<>(agg.getAggCallList().size());
+            for (AggregateCall call : agg.getAggCallList()) {
+                if (call.getAggregation().getKind() == SqlKind.AVG
+                    && call.getAggregation() != AggregateFunctions.AVG) {
+                    newCalls.add(
+                        AggregateCall.create(
+                            AggregateFunctions.AVG,
+                            call.isDistinct(),
+                            call.isApproximate(),
+                            call.ignoreNulls(),
+                            call.rexList,
+                            call.getArgList(),
+                            call.filterArg,
+                            call.distinctKeys,
+                            call.collation,
+                            call.type,
+                            call.name
+                        )
+                    );
+                    changed = true;
+                } else {
+                    newCalls.add(call);
+                }
+            }
+            if (changed) {
+                node = agg.copy(agg.getTraitSet(), rewriteAvgCalls(agg.getInput()), agg.getGroupSet(), agg.getGroupSets(), newCalls);
+            }
+        }
+        // Recurse into children
+        List<RelNode> newInputs = new ArrayList<>(node.getInputs().size());
+        boolean childChanged = false;
+        for (RelNode input : node.getInputs()) {
+            RelNode rewritten = rewriteAvgCalls(input);
+            newInputs.add(rewritten);
+            if (rewritten != input) childChanged = true;
+        }
+        if (childChanged) {
+            node = node.copy(node.getTraitSet(), newInputs);
+        }
+        return node;
+    }
 
     private SubstraitRelVisitor createVisitor(RelNode relNode) {
         RelDataTypeFactory typeFactory = relNode.getCluster().getTypeFactory();

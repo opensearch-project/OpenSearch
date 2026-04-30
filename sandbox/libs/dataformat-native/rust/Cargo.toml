@@ -28,6 +28,7 @@ datafusion-datasource = "52.1.0"
 datafusion-common = "52.1.0"
 datafusion-execution = "52.1.0"
 datafusion-physical-expr = "52.1.0"
+datafusion-physical-optimizer = "52.1.0"
 datafusion-substrait = "52.1.0"
 
 # Async

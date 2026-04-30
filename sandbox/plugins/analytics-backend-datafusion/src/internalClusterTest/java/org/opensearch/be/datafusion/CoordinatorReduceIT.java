@@ -128,7 +128,46 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
         );
     }
 
+    /**
+     * Tests SUM, MIN, MAX metric aggregations in a single query across multiple
+     * shards. Uses varying values (1..N) so the partial/final split is exercised
+     * meaningfully — each shard sees a different subset of values.
+     */
+    public void testMetricAggregationsAcrossShards() throws Exception {
+        String index = "coord_reduce_metrics";
+        createParquetBackedIndex(index);
+        indexVaryingDocs(index);
+
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        long expectedSum = (long) totalDocs * (totalDocs + 1) / 2;
+        long expectedMin = 1;
+        long expectedMax = totalDocs;
+
+        // Test SUM + MIN + MAX in a single query
+        PPLResponse response = executePPL(
+            "source = " + index + " | stats sum(value) as s, min(value) as lo, max(value) as hi"
+        );
+
+        assertNotNull("PPLResponse must not be null", response);
+        assertEquals("scalar agg must return exactly 1 row", 1, response.getRows().size());
+
+        Object[] row = response.getRows().get(0);
+
+        long actualSum = ((Number) row[response.getColumns().indexOf("s")]).longValue();
+        assertEquals("SUM(value) 1.." + totalDocs, expectedSum, actualSum);
+
+        long actualMin = ((Number) row[response.getColumns().indexOf("lo")]).longValue();
+        assertEquals("MIN(value)", expectedMin, actualMin);
+
+        long actualMax = ((Number) row[response.getColumns().indexOf("hi")]).longValue();
+        assertEquals("MAX(value)", expectedMax, actualMax);
+    }
+
     private void createParquetBackedIndex() {
+        createParquetBackedIndex(INDEX);
+    }
+
+    private void createParquetBackedIndex(String indexName) {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, NUM_SHARDS)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -140,12 +179,12 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
 
         CreateIndexResponse response = client().admin()
             .indices()
-            .prepareCreate(INDEX)
+            .prepareCreate(indexName)
             .setSettings(indexSettings)
             .setMapping("value", "type=integer")
             .get();
         assertTrue("index creation must be acknowledged", response.isAcknowledged());
-        ensureGreen(INDEX);
+        ensureGreen(indexName);
     }
 
     private void indexDeterministicDocs() {
@@ -155,6 +194,15 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();
+    }
+
+    private void indexVaryingDocs(String indexName) {
+        int total = NUM_SHARDS * DOCS_PER_SHARD;
+        for (int i = 0; i < total; i++) {
+            client().prepareIndex(indexName).setId("v" + i).setSource("value", i + 1).get();
+        }
+        client().admin().indices().prepareRefresh(indexName).get();
+        client().admin().indices().prepareFlush(indexName).get();
     }
 
     private PPLResponse executePPL(String ppl) {

@@ -184,17 +184,9 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             List<RexNode> cleanRexList = aggCall.rexList.stream().filter(rex -> !(rex instanceof AggregateCallAnnotation)).toList();
             strippedCalls.add(
                 AggregateCall.create(
-                    aggCall.getAggregation(),
-                    aggCall.isDistinct(),
-                    aggCall.isApproximate(),
-                    aggCall.ignoreNulls(),
-                    cleanRexList,
-                    aggCall.getArgList(),
-                    aggCall.filterArg,
-                    aggCall.distinctKeys,
-                    aggCall.collation,
-                    aggCall.type,
-                    aggCall.name
+                    aggCall.getAggregation(), aggCall.isDistinct(), aggCall.isApproximate(),
+                    aggCall.ignoreNulls(), cleanRexList, aggCall.getArgList(), aggCall.filterArg,
+                    aggCall.distinctKeys, aggCall.collation, aggCall.type, aggCall.name
                 )
             );
         }

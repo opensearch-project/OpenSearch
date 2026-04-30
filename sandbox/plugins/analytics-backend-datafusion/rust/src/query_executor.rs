@@ -20,6 +20,9 @@ use datafusion::{
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
+use datafusion_physical_optimizer::combine_partial_final_agg::CombinePartialFinalAggregate;
+use datafusion_physical_optimizer::PhysicalOptimizerRule;
+use datafusion_physical_optimizer::optimizer::PhysicalOptimizer;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
 use object_store::ObjectMeta;
@@ -90,6 +93,7 @@ pub async fn execute_query(
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
+        .with_physical_optimizer_rules(physical_optimizer_rules_without_combine())
         .build();
 
     let ctx = SessionContext::new_with_state(state);
@@ -145,4 +149,18 @@ pub async fn execute_query(
     );
 
     Ok(Box::into_raw(Box::new(wrapped)) as i64)
+}
+
+/// Returns the default physical optimizer rules with
+/// [`CombinePartialFinalAggregate`] removed. See
+/// [`crate::local_executor::physical_optimizer_rules_without_combine`] for
+/// rationale.
+fn physical_optimizer_rules_without_combine(
+) -> Vec<Arc<dyn PhysicalOptimizerRule + Send + Sync>> {
+    let combine_name = CombinePartialFinalAggregate::new().name().to_string();
+    PhysicalOptimizer::default()
+        .rules
+        .into_iter()
+        .filter(|rule| rule.name() != combine_name)
+        .collect()
 }

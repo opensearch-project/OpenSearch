@@ -15,6 +15,7 @@ datafusion-expr = { workspace = true }
 datafusion-datasource = { workspace = true }
 datafusion-common = { workspace = true }
 datafusion-execution = { workspace = true }
+datafusion-physical-optimizer = { workspace = true }
 datafusion-substrait = { workspace = true }
 
 arrow = { workspace = true }

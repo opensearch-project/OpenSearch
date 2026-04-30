@@ -37,11 +37,34 @@ use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::{SendableRecordBatchStream, SessionStateBuilder};
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::prelude::{SessionConfig, SessionContext};
+use datafusion_physical_optimizer::combine_partial_final_agg::CombinePartialFinalAggregate;
+use datafusion_physical_optimizer::PhysicalOptimizerRule;
+use datafusion_physical_optimizer::optimizer::PhysicalOptimizer;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use prost::Message;
 use substrait::proto::Plan;
 
 use crate::partition_stream::{channel, PartitionStreamSender, SingleReceiverPartition};
+
+/// Returns the default physical optimizer rules with
+/// [`CombinePartialFinalAggregate`] removed.
+///
+/// DataFusion's `CombinePartialFinalAggregate` rule detects when a partial
+/// aggregate and final aggregate are in the same process and recombines them
+/// into a single aggregate. In our distributed execution model, the
+/// coordinator-reduce session executes only the FINAL aggregate over streamed
+/// partial results from data nodes. Allowing the combine rule to fire would
+/// undo the partial/final split, producing incorrect results (e.g. averaging
+/// averages instead of merging sum/count).
+fn physical_optimizer_rules_without_combine(
+) -> Vec<Arc<dyn PhysicalOptimizerRule + Send + Sync>> {
+    let combine_name = CombinePartialFinalAggregate::new().name().to_string();
+    PhysicalOptimizer::default()
+        .rules
+        .into_iter()
+        .filter(|rule| rule.name() != combine_name)
+        .collect()
+}
 
 /// Coordinator-reduce DataFusion session.
 ///
@@ -69,6 +92,7 @@ impl LocalSession {
             .with_config(SessionConfig::new())
             .with_runtime_env(runtime_env)
             .with_default_features()
+            .with_physical_optimizer_rules(physical_optimizer_rules_without_combine())
             .build();
         Self {
             ctx: SessionContext::new_with_state(state),
