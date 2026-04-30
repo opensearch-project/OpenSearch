@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -64,9 +65,9 @@ public class FormatChecksumStrategySharingTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
+        public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
             // Creates a NEW PrecomputedChecksumStrategy every call — this is the bug pattern
-            return Map.of(FORMAT_NAME, new DataFormatDescriptor(FORMAT_NAME, new PrecomputedChecksumStrategy()));
+            return Map.of(FORMAT_NAME, () -> new DataFormatDescriptor(FORMAT_NAME, new PrecomputedChecksumStrategy()));
         }
     }
 

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -300,7 +301,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        Map<String, DataFormatDescriptor> descriptors = registry.getFormatDescriptors(indexSettings, format);
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(indexSettings, format);
         assertNotNull(descriptors);
     }
 
@@ -311,7 +312,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
         MockDataFormat unregistered = new MockDataFormat("unknown", 1L, Set.of());
 
-        Map<String, DataFormatDescriptor> descriptors = registry.getFormatDescriptors(indexSettings, unregistered);
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(indexSettings, unregistered);
         assertTrue(descriptors.isEmpty());
     }
 }

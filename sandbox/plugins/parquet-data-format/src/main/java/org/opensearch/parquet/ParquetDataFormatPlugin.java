@@ -110,10 +110,10 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
-    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
         return Map.of(
             ParquetDataFormat.PARQUET_DATA_FORMAT_NAME,
-            new DataFormatDescriptor(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, new PrecomputedChecksumStrategy())
+            () -> new DataFormatDescriptor(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, new PrecomputedChecksumStrategy())
         );
     }
 

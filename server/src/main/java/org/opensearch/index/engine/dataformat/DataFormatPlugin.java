@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Plugin interface for providing custom data format implementations.
@@ -39,14 +40,18 @@ public interface DataFormatPlugin {
     IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings);
 
     /**
-     * Returns format descriptors for this plugin, filtered by the given index settings.
-     * Each entry maps a format name to its {@link DataFormatDescriptor} containing the
-     * default checksum strategy and format name.
+     * Returns format descriptor suppliers for this plugin, filtered by the given index settings.
+     * Each entry maps a format name to a {@link Supplier} of its {@link DataFormatDescriptor},
+     * deferring descriptor object creation until the descriptor is actually needed.
+     * Callers that only need format names can use {@code keySet()} without triggering creation.
      *
      * @param indexSettings the index settings used to determine active formats
-     * @return map of format name to descriptor
+     * @return map of format name to descriptor supplier
      */
-    default Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    default Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
         return Map.of();
     }
 }

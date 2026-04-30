@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -135,14 +136,15 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns format descriptors for the active data format of the given index.
+     * Returns format descriptor suppliers for the active data format of the given index.
      * Resolves the data format from index settings via the {@code pluggable_dataformat} setting,
      * then delegates to {@link DataFormatPlugin#getFormatDescriptors(IndexSettings, DataFormatRegistry)}.
+     * Callers that only need format names can use {@code keySet()} without triggering descriptor creation.
      *
      * @param indexSettings the index settings used to determine the active data format
-     * @return unmodifiable map of format name to descriptor, or empty map if no pluggable data format is configured
+     * @return map of format name to descriptor supplier, or empty map if no pluggable data format is configured
      */
-    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings) {
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings) {
         String dataformatName = indexSettings.pluggableDataFormat();
         if (dataformatName != null && dataformatName.isEmpty() == false) {
             DataFormat format = dataFormats.get(dataformatName);
@@ -157,15 +159,15 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns format descriptors for a specific data format, bypassing the
+     * Returns format descriptor suppliers for a specific data format, bypassing the
      * {@code pluggable_dataformat} index setting lookup. This is used by composite
      * plugins to resolve child format descriptors without recursion.
      *
      * @param indexSettings the index settings
      * @param dataFormat the specific data format to get descriptors for
-     * @return map of format name to descriptor, or empty map if the format is not registered
+     * @return map of format name to descriptor supplier, or empty map if the format is not registered
      */
-    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormat dataFormat) {
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings, DataFormat dataFormat) {
         DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
         if (plugin == null) {
             return Map.of();
@@ -183,10 +185,10 @@ public class DataFormatRegistry {
      * @return unmodifiable map of format name to checksum strategy
      */
     public Map<String, FormatChecksumStrategy> createChecksumStrategies(IndexSettings indexSettings) {
-        Map<String, DataFormatDescriptor> descriptors = getFormatDescriptors(indexSettings);
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = getFormatDescriptors(indexSettings);
         Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
-        for (Map.Entry<String, DataFormatDescriptor> entry : descriptors.entrySet()) {
-            FormatChecksumStrategy strategy = entry.getValue().getChecksumStrategy();
+        for (Map.Entry<String, Supplier<DataFormatDescriptor>> entry : descriptors.entrySet()) {
+            FormatChecksumStrategy strategy = entry.getValue().get().getChecksumStrategy();
             if (strategy != null) {
                 strategies.put(entry.getKey(), strategy);
             }

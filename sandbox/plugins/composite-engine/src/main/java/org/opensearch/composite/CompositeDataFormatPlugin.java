@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Sandbox plugin that provides a {@link CompositeIndexingExecutionEngine} for
@@ -103,12 +104,15 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
     }
 
     @Override
-    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
         Settings settings = indexSettings.getSettings();
         String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
         List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
 
-        Map<String, DataFormatDescriptor> descriptors = new HashMap<>();
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = new HashMap<>();
         if (primaryFormatName != null) {
             descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings, dataFormatRegistry.format(primaryFormatName)));
         }
