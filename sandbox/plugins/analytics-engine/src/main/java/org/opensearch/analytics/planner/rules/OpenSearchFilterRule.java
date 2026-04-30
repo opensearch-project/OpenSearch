@@ -12,7 +12,6 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Filter;
-import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
@@ -29,8 +28,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
-import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.analytics.spi.RexNodeTransformer;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.ArrayList;
@@ -84,9 +81,7 @@ public class OpenSearchFilterRule extends RelOptRule {
         List<FieldStorageInfo> childFieldStorage = openSearchInput.getOutputFieldStorage();
 
         // Annotate every leaf predicate with viable backends.
-        // Backend-registered RexNodeTransformers are applied to each leaf before annotation.
-        RexBuilder rexBuilder = filter.getCluster().getRexBuilder();
-        RexNode annotatedCondition = annotateCondition(filter.getCondition(), childFieldStorage, childViableBackends, rexBuilder);
+        RexNode annotatedCondition = annotateCondition(filter.getCondition(), childFieldStorage, childViableBackends);
 
         // Compute operator-level viable backends: must be viable for child AND handle predicates
         List<String> viableBackends = computeFilterViableBackends(annotatedCondition, childViableBackends);
@@ -116,72 +111,22 @@ public class OpenSearchFilterRule extends RelOptRule {
 
     /**
      * Recursively walks the condition tree. Boolean connectives (AND, OR, NOT) are
-     * preserved — we recurse into their children. Leaf predicates are:
-     * 1. Transformed — backend-registered {@link RexNodeTransformer}s are applied.
-     * 2. Annotated — wrapped in {@link AnnotatedPredicate} with viable backends.
+     * preserved — we recurse into their children. Leaf predicates are wrapped in
+     * {@link AnnotatedPredicate} with viable backends resolved from child's field storage.
      */
-    private RexNode annotateCondition(
-        RexNode condition,
-        List<FieldStorageInfo> fieldStorageInfos,
-        List<String> childViableBackends,
-        RexBuilder rexBuilder
-    ) {
-        List<RexNodeTransformer> transformers = context.getCapabilityRegistry().getRexTransformers();
-        RexNodeTransformer.FieldMappingLookup lookup = fieldIndex -> {
-            if (fieldIndex >= 0 && fieldIndex < fieldStorageInfos.size()) {
-                return fieldStorageInfos.get(fieldIndex).getMappingType();
-            }
-            return null;
-        };
-        return annotateConditionRecursive(condition, fieldStorageInfos, childViableBackends, rexBuilder, transformers, lookup);
-    }
-
-    private RexNode annotateConditionRecursive(
-        RexNode condition,
-        List<FieldStorageInfo> fieldStorageInfos,
-        List<String> childViableBackends,
-        RexBuilder rexBuilder,
-        List<RexNodeTransformer> transformers,
-        RexNodeTransformer.FieldMappingLookup lookup
-    ) {
+    private RexNode annotateCondition(RexNode condition, List<FieldStorageInfo> fieldStorageInfos, List<String> childViableBackends) {
         if (!(condition instanceof RexCall rexCall)) {
             return condition;
         }
         if (rexCall.getKind() == SqlKind.AND || rexCall.getKind() == SqlKind.OR || rexCall.getKind() == SqlKind.NOT) {
             List<RexNode> annotatedOperands = new ArrayList<>();
             for (RexNode operand : rexCall.getOperands()) {
-                annotatedOperands.add(
-                    annotateConditionRecursive(operand, fieldStorageInfos, childViableBackends, rexBuilder, transformers, lookup)
-                );
+                annotatedOperands.add(annotateCondition(operand, fieldStorageInfos, childViableBackends));
             }
             return rexCall.clone(rexCall.getType(), annotatedOperands);
         }
-        RexCall transformed = applyRexTransformers(rexCall, transformers, rexBuilder, lookup);
-        List<String> viableBackends = resolveViableBackends(transformed, fieldStorageInfos, childViableBackends);
-        return new AnnotatedPredicate(transformed.getType(), transformed, viableBackends, context.nextAnnotationId());
-    }
-
-    /**
-     * Applies all backend-registered RexNode transformers to a leaf predicate.
-     * The predicate is passed as a whole so transformers can resolve field indices
-     * from sibling operands (e.g., $0 in {@code >($0, TIMESTAMP('...'))}).
-     * TODO: When multiple backends are active, transformers should be scoped per-backend
-     * and applied only to predicates targeting that backend's fields.
-     */
-    private static RexCall applyRexTransformers(
-        RexCall predicate,
-        List<RexNodeTransformer> transformers,
-        RexBuilder rexBuilder,
-        RexNodeTransformer.FieldMappingLookup lookup
-    ) {
-        if (transformers.isEmpty()) {
-            return predicate;
-        }
-        RexCall result = predicate;
-        for (RexNodeTransformer transformer : transformers) {
-            result = transformer.transform(result, rexBuilder, lookup);
-        }
-        return result;
+        List<String> viableBackends = resolveViableBackends(rexCall, fieldStorageInfos, childViableBackends);
+        return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends, context.nextAnnotationId());
     }
 
     /**

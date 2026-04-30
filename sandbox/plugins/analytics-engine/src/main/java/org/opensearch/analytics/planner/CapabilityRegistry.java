@@ -18,7 +18,6 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
-import org.opensearch.analytics.spi.RexNodeTransformer;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -275,22 +274,6 @@ public class CapabilityRegistry {
         if (annotationViable.contains(candidate)) return true;
         return delegationSupporters(delegationType).contains(candidate)
             && annotationViable.stream().anyMatch(delegationAcceptors(delegationType)::contains);
-    }
-
-    // ---- RexNode transformers ----
-
-    /**
-     * Returns all RexNode transformers from all backends.
-     * TODO: After PlanForking, each PlanAlternative has a single backend. Transformers should
-     * be scoped per-backend and applied in FragmentConversionDriver using
-     * {@code getBackend(backendName).getRexTransformers()} instead of collecting from all backends.
-     */
-    public List<RexNodeTransformer> getRexTransformers() {
-        List<RexNodeTransformer> transformers = new ArrayList<>();
-        for (AnalyticsSearchBackendPlugin backend : backends) {
-            transformers.addAll(backend.getRexTransformers());
-        }
-        return transformers;
     }
 
     // ---- Backend access ----

@@ -20,12 +20,13 @@ import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.RexNodeTransformer;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
 import java.util.HashSet;
-import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -138,12 +139,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 }
                 return Set.copyOf(caps);
             }
-        };
-    }
 
-    @Override
-    public List<RexNodeTransformer> getRexTransformers() {
-        return List.of(new TimestampFunctionTransformer());
+            @Override
+            public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+                return Map.of(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter());
+            }
+        };
     }
 
     @Override

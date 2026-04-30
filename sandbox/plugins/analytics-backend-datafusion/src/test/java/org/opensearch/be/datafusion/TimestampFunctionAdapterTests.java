@@ -11,9 +11,9 @@ package org.opensearch.be.datafusion;
 import org.apache.calcite.util.TimestampString;
 import org.opensearch.test.OpenSearchTestCase;
 
-public class TimestampFunctionTransformerTests extends OpenSearchTestCase {
+public class TimestampFunctionAdapterTests extends OpenSearchTestCase {
 
-    private final TimestampFunctionTransformer transformer = new TimestampFunctionTransformer();
+    private final TimestampFunctionAdapter transformer = new TimestampFunctionAdapter();
 
     public void testIsoWithTAndZ() {
         TimestampString ts = transformer.parseTimestamp("2024-01-01T00:00:00Z");

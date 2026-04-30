@@ -72,7 +72,10 @@ public enum ScalarFunction {
     COALESCE(Category.SCALAR, SqlKind.COALESCE),
     NULLIF(Category.SCALAR, SqlKind.NULLIF),
 
-    EXTRACT(Category.SCALAR, SqlKind.EXTRACT);
+    EXTRACT(Category.SCALAR, SqlKind.EXTRACT),
+
+    // ── Datetime ────────────────────────────────────────────────────
+    TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.
