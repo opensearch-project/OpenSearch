@@ -67,13 +67,17 @@ public final class FilterProviderRegistry {
         if (f == null) {
             return -1;
         }
-        IndexFilterProvider provider = f.create(queryBytes);
-        if (provider == null) {
+        try {
+            IndexFilterProvider provider = f.create(queryBytes);
+            if (provider == null) {
+                return -1;
+            }
+            int key = nextKey.getAndIncrement();
+            providers.put(key, provider);
+            return key;
+        } catch (Exception e) {
             return -1;
         }
-        int key = nextKey.getAndIncrement();
-        providers.put(key, provider);
-        return key;
     }
 
     /**

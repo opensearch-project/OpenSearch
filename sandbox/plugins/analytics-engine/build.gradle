@@ -22,6 +22,8 @@ opensearchplugin {
   classname = 'org.opensearch.analytics.AnalyticsPlugin'
 }
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
 repositories {
   maven {
     name = 'OpenSearch Snapshots'
