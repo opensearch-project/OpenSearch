@@ -46,7 +46,7 @@ log = "0.4"
 
 # Allocator
 mimalloc = { version = "0.1.48", default-features = false }
-libmimalloc-sys = { version = "0.1.44", features = ["extended"] }
+libmimalloc-sys = { version = "0.1.44", features = ["extended", "local_dynamic_tls"] }
 
 # Misc
 dashmap = "5.5"
