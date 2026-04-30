@@ -119,7 +119,9 @@ impl ProviderHandle {
 
 impl std::fmt::Debug for ProviderHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ProviderHandle").field("key", &self.key).finish()
+        f.debug_struct("ProviderHandle")
+            .field("key", &self.key)
+            .finish()
     }
 }
 

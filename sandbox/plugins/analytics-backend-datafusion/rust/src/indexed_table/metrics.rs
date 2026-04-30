@@ -66,6 +66,36 @@ pub struct StreamMetrics {
     /// Number of RGs whose `PositionMap` was the `Runs` variant
     /// (block-granular; explicit run table).
     pub position_map_runs: Option<Count>,
+    /// Wall-clock time the poll thread spent blocked on the oneshot
+    /// receiver for a pending prefetch. Zero if prefetch fully overlapped
+    /// with upstream work; non-zero indicates idle time.
+    pub prefetch_wait_time: Option<Time>,
+    /// Count of `Poll::Pending` returns from the prefetch receiver (times
+    /// the poll thread had to park waiting for Lucene).
+    pub prefetch_wait_count: Option<Count>,
+    /// Wall-clock time spent inside `LimitedBatchCoalescer::push_batch` +
+    /// `next_completed_batch`. Helps isolate coalescing overhead.
+    pub coalesce_time: Option<Time>,
+    /// Count of batches fed into the coalescer (before combining).
+    pub batches_pre_coalesce: Option<Count>,
+    /// Time spent in `build_mask` (once per RG — builds RG-sized
+    /// BooleanArray from candidate RoaringBitmap via PositionMap).
+    pub build_mask_time: Option<Time>,
+    /// Time spent in `filter_record_batch` per input batch.
+    pub filter_record_batch_time: Option<Time>,
+    /// Time spent in evaluator's `on_batch_mask` per input batch
+    /// (returns None on pure-collector paths; cost of dispatch is
+    /// visible here).
+    pub on_batch_mask_time: Option<Time>,
+    /// Time spent slicing + downcasting the current_mask per input
+    /// batch.
+    pub mask_slice_time: Option<Time>,
+    /// Time spent in the projection fix-up at the bottom of
+    /// `finalize_batch` (strip predicate columns).
+    pub projection_fixup_time: Option<Time>,
+    /// Time spent polling the inner parquet stream (pull decoded
+    /// batch), isolating decode from our own processing.
+    pub parquet_poll_time: Option<Time>,
     /// Accumulated inner `DataSourceExec` parquet metrics (shared across partitions).
     pub inner_parquet_metrics: Option<Arc<std::sync::Mutex<Vec<MetricsSet>>>>,
 }
@@ -93,6 +123,16 @@ impl StreamMetrics {
             position_map_identity: None,
             position_map_bitmap: None,
             position_map_runs: None,
+            prefetch_wait_time: None,
+            prefetch_wait_count: None,
+            coalesce_time: None,
+            batches_pre_coalesce: None,
+            build_mask_time: None,
+            filter_record_batch_time: None,
+            on_batch_mask_time: None,
+            mask_slice_time: None,
+            projection_fixup_time: None,
+            parquet_poll_time: None,
             inner_parquet_metrics: None,
         }
     }
@@ -119,6 +159,16 @@ pub struct PartitionMetrics {
     pub position_map_identity: Count,
     pub position_map_bitmap: Count,
     pub position_map_runs: Count,
+    pub prefetch_wait_time: Time,
+    pub prefetch_wait_count: Count,
+    pub coalesce_time: Time,
+    pub batches_pre_coalesce: Count,
+    pub build_mask_time: Time,
+    pub filter_record_batch_time: Time,
+    pub on_batch_mask_time: Time,
+    pub mask_slice_time: Time,
+    pub projection_fixup_time: Time,
+    pub parquet_poll_time: Time,
 }
 
 impl PartitionMetrics {
@@ -144,6 +194,21 @@ impl PartitionMetrics {
             position_map_identity: counter("position_map_identity"),
             position_map_bitmap: counter("position_map_bitmap"),
             position_map_runs: counter("position_map_runs"),
+            prefetch_wait_time: MetricBuilder::new(metrics)
+                .subset_time("prefetch_wait_time", partition),
+            prefetch_wait_count: counter("prefetch_wait_count"),
+            coalesce_time: MetricBuilder::new(metrics).subset_time("coalesce_time", partition),
+            batches_pre_coalesce: counter("batches_pre_coalesce"),
+            build_mask_time: MetricBuilder::new(metrics).subset_time("build_mask_time", partition),
+            filter_record_batch_time: MetricBuilder::new(metrics)
+                .subset_time("filter_record_batch_time", partition),
+            on_batch_mask_time: MetricBuilder::new(metrics)
+                .subset_time("on_batch_mask_time", partition),
+            mask_slice_time: MetricBuilder::new(metrics).subset_time("mask_slice_time", partition),
+            projection_fixup_time: MetricBuilder::new(metrics)
+                .subset_time("projection_fixup_time", partition),
+            parquet_poll_time: MetricBuilder::new(metrics)
+                .subset_time("parquet_poll_time", partition),
         }
     }
 
@@ -172,6 +237,16 @@ impl PartitionMetrics {
             position_map_identity: Some(self.position_map_identity),
             position_map_bitmap: Some(self.position_map_bitmap),
             position_map_runs: Some(self.position_map_runs),
+            prefetch_wait_time: Some(self.prefetch_wait_time),
+            prefetch_wait_count: Some(self.prefetch_wait_count),
+            coalesce_time: Some(self.coalesce_time),
+            batches_pre_coalesce: Some(self.batches_pre_coalesce),
+            build_mask_time: Some(self.build_mask_time),
+            filter_record_batch_time: Some(self.filter_record_batch_time),
+            on_batch_mask_time: Some(self.on_batch_mask_time),
+            mask_slice_time: Some(self.mask_slice_time),
+            projection_fixup_time: Some(self.projection_fixup_time),
+            parquet_poll_time: Some(self.parquet_poll_time),
             inner_parquet_metrics,
         }
     }

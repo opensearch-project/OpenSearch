@@ -28,21 +28,32 @@ pub struct DatafusionQueryConfig {
     pub force_pushdown: Option<bool>,
     pub cost_predicate: u32,
     pub cost_collector: u32,
+    /// Maximum number of Collector-leaf FFM calls issued in parallel per
+    /// RG prefetch. 1 = today's fully-sequential behaviour (lowest CPU,
+    /// fastest short-circuit). `target_partitions × max_collector_parallelism`
+    /// bounds total concurrent Lucene threads; default is 1
+    ///
+    /// At higher values, short-circuit savings in AND/OR groups are
+    /// sacrificed (see `BitmapTreeEvaluator::prefetch`): collectors
+    /// beyond the first may run even if their result is not needed.
+    pub max_collector_parallelism: usize,
 }
 
 impl Default for DatafusionQueryConfig {
     fn default() -> Self {
         Self {
             batch_size: 8192,
-            target_partitions: 4,
+            // TODO: change this default value ?
+            target_partitions: 1,
             parquet_pushdown_filters: false,
-            min_skip_run_default: 1024,
-            min_skip_run_selectivity_threshold: 0.03,
+            min_skip_run_default: 1024, // Todo: tune based on benchmarks
+            min_skip_run_selectivity_threshold: 0.03, // Todo : tune based on benchmarks
             indexed_pushdown_filters: true,
             force_strategy: None,
             force_pushdown: None,
             cost_predicate: 1,
-            cost_collector: 10,
+            cost_collector: 10, // TODO : should this be collector leaf specific
+            max_collector_parallelism: 1,
         }
     }
 }
@@ -69,6 +80,7 @@ pub struct WireDatafusionQueryConfig {
     pub force_pushdown: i32,
     pub cost_predicate: i32,
     pub cost_collector: i32,
+    pub max_collector_parallelism: i32,
 }
 
 impl DatafusionQueryConfig {
@@ -107,6 +119,7 @@ impl DatafusionQueryConfig {
             force_pushdown,
             cost_predicate: w.cost_predicate as u32,
             cost_collector: w.cost_collector as u32,
+            max_collector_parallelism: (w.max_collector_parallelism as usize).max(1),
         }
     }
 }
@@ -119,7 +132,7 @@ mod tests {
     fn defaults_match_legacy_constants() {
         let c = DatafusionQueryConfig::default();
         assert_eq!(c.batch_size, 8192);
-        assert_eq!(c.target_partitions, 4);
+        assert_eq!(c.target_partitions, 1);
         assert!(!c.parquet_pushdown_filters);
         assert_eq!(c.min_skip_run_default, 1024);
         assert!((c.min_skip_run_selectivity_threshold - 0.03).abs() < 1e-9);
@@ -152,6 +165,7 @@ mod tests {
             force_pushdown: 0,
             cost_predicate: 3,
             cost_collector: 17,
+            max_collector_parallelism: 4,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };
@@ -180,6 +194,7 @@ mod tests {
             force_pushdown: -1,
             cost_predicate: 1,
             cost_collector: 10,
+            max_collector_parallelism: 2,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };

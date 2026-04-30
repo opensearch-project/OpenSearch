@@ -25,6 +25,7 @@
 //! ```
 
 use std::any::Any;
+use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -38,15 +39,16 @@ use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_expr::{EquivalenceProperties, Partitioning};
 use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
-use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties,
-};
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties};
 use datafusion_common::DataFusionError;
 
 use super::eval::RowGroupBitsetSource;
 use super::metrics::PartitionMetrics;
 use super::partitioning::{compute_assignments, PartitionAssignment, SegmentChunk, SegmentLayout};
 use super::stream::{FilterStrategy, IndexedExec, RowGroupInfo};
+use crate::datafusion_query_config::DatafusionQueryConfig;
+use crate::indexed_table::metrics::StreamMetrics;
+use std::collections::HashSet;
 
 /// Info about a segment and its corresponding parquet file.
 #[derive(Debug, Clone)]
@@ -83,7 +85,7 @@ pub type EvaluatorFactory = Arc<
     dyn Fn(
             &SegmentFileInfo,
             &SegmentChunk,
-            &crate::indexed_table::metrics::StreamMetrics,
+            &StreamMetrics,
         ) -> Result<Arc<dyn RowGroupBitsetSource>, String>
         + Send
         + Sync,
@@ -120,7 +122,9 @@ pub struct IndexedTableConfig {
     pub pushdown_predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     /// Query-scoped tunables (batch_size, min_skip_run_default, costs, …).
     /// Shared by reference across fanned-out `QueryShardExec` instances.
-    pub query_config: Arc<crate::datafusion_query_config::DatafusionQueryConfig>,
+    pub query_config: Arc<DatafusionQueryConfig>,
+    /// Full-schema column indices referenced by BoolNode Predicate leaves.
+    pub predicate_columns: Vec<usize>,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -128,8 +132,8 @@ pub struct IndexedTableProvider {
     config: Arc<IndexedTableConfig>,
 }
 
-impl std::fmt::Debug for IndexedTableProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for IndexedTableProvider {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IndexedTableProvider")
             .field("segments", &self.config.segments.len())
             .field("partitions", &self.config.target_partitions)
@@ -178,10 +182,27 @@ impl TableProvider for IndexedTableProvider {
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let full_schema = self.config.schema.clone();
-        let projected_schema: SchemaRef = match projection {
+        // Output schema = what DataFusion expects
+        let output_schema: SchemaRef = match projection {
             Some(proj) => Arc::new(full_schema.project(proj)?),
             None => full_schema.clone(),
         };
+        // Read projection = output + predicate columns for evaluator
+        let read_projection: Option<Vec<usize>> = if self.config.predicate_columns.is_empty() {
+            projection.cloned()
+        } else {
+            projection.map(|proj| {
+                let mut cols = proj.clone();
+                for &idx in &self.config.predicate_columns {
+                    if !cols.contains(&idx) {
+                        cols.push(idx);
+                    }
+                }
+                cols.sort();
+                cols
+            })
+        };
+        let projected_schema = output_schema;
 
         // Ignore DataFusion's `filters` argument. The `index_filter(...)`
         // UDF call would be in there (its body panics), and the
@@ -216,7 +237,7 @@ impl TableProvider for IndexedTableProvider {
             config: Arc::clone(&self.config),
             full_schema,
             projected_schema,
-            projection: projection.cloned(),
+            projection: read_projection,
             assignments,
             properties,
             predicate,
@@ -249,8 +270,8 @@ pub struct QueryShardExec {
     inner_parquet_metrics: Arc<std::sync::Mutex<Vec<MetricsSet>>>,
 }
 
-impl std::fmt::Debug for QueryShardExec {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for QueryShardExec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("QueryShardExec")
             .field("partitions", &self.assignments.len())
             .field("segments", &self.config.segments.len())
@@ -259,7 +280,7 @@ impl std::fmt::Debug for QueryShardExec {
 }
 
 impl DisplayAs for QueryShardExec {
-    fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "QueryShardExec: partitions={}, segments={}",
@@ -296,6 +317,10 @@ impl ExecutionPlan for QueryShardExec {
         if let Ok(inner) = self.inner_parquet_metrics.lock() {
             for set in inner.iter() {
                 for m in set.iter() {
+                    let name = m.value().name();
+                    if name == "output_rows" || name == "output_batches" || name == "output_bytes" {
+                        continue;
+                    }
                     combined.push(m.clone());
                 }
             }
@@ -319,17 +344,12 @@ impl ExecutionPlan for QueryShardExec {
         // Build one IndexedExec per SegmentChunk, chain via UnionExec-style concatenation.
         let mut execs: Vec<Arc<dyn ExecutionPlan>> = Vec::with_capacity(assignment.chunks.len());
         for chunk in &assignment.chunks {
-            let segment =
-                self.config.segments.get(chunk.segment_idx).ok_or_else(|| {
-                    DataFusionError::Internal(format!(
-                        "segment_idx {} out of range",
-                        chunk.segment_idx
-                    ))
-                })?;
+            let segment = self.config.segments.get(chunk.segment_idx).ok_or_else(|| {
+                DataFusionError::Internal(format!("segment_idx {} out of range", chunk.segment_idx))
+            })?;
 
             // Subset the segment's row groups to just this chunk's.
-            let rg_set: std::collections::HashSet<usize> =
-                chunk.row_group_indices.iter().copied().collect();
+            let rg_set: HashSet<usize> = chunk.row_group_indices.iter().copied().collect();
             let row_groups: Vec<RowGroupInfo> = segment
                 .row_groups
                 .iter()
@@ -377,7 +397,8 @@ impl ExecutionPlan for QueryShardExec {
 
         if execs.is_empty() {
             // No work — empty stream
-            let empty = datafusion::physical_plan::empty::EmptyExec::new(self.projected_schema.clone());
+            let empty =
+                datafusion::physical_plan::empty::EmptyExec::new(self.projected_schema.clone());
             return empty.execute(0, context);
         }
 
@@ -386,7 +407,8 @@ impl ExecutionPlan for QueryShardExec {
         }
 
         // Multiple chunks in one partition — concatenate via UnionExec
-        let union: Arc<dyn ExecutionPlan> = datafusion::physical_plan::union::UnionExec::try_new(execs)?;
+        let union: Arc<dyn ExecutionPlan> =
+            datafusion::physical_plan::union::UnionExec::try_new(execs)?;
         // UnionExec exposes sum-of-partitions; we want exactly one stream per our partition,
         // so wrap in CoalescePartitionsExec.
         let coalesced =
@@ -394,8 +416,6 @@ impl ExecutionPlan for QueryShardExec {
         coalesced.execute(0, context)
     }
 }
-
-
 
 #[cfg(test)]
 impl QueryShardExec {
@@ -424,15 +444,17 @@ mod tests {
             schema,
             segments: Vec::new(),
             store: Arc::new(object_store::local::LocalFileSystem::new()),
-            store_url:
-                datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
+            store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
             // Evaluator factory would never be invoked for this test (no segments).
             evaluator_factory: Arc::new(|_, _, _| unreachable!()),
             target_partitions: 1,
             force_strategy: None,
             force_pushdown: None,
             pushdown_predicate: None,
-            query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
+            query_config: std::sync::Arc::new(
+                crate::datafusion_query_config::DatafusionQueryConfig::default(),
+            ),
+            predicate_columns: vec![],
         }
     }
 

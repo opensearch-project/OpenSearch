@@ -37,18 +37,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use arrow::ipc::reader::StreamReader;
-use arrow_array::{Array, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_array::RecordBatch;
+use arrow_array::{Array, StructArray};
 use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
+use datafusion::execution::RecordBatchStream;
 use datafusion::execution::SessionStateBuilder;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-use datafusion::execution::RecordBatchStream;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
 
@@ -68,8 +68,14 @@ pub struct QueryStreamHandle {
 }
 
 impl QueryStreamHandle {
-    pub fn new(stream: RecordBatchStreamAdapter<CrossRtStream>, query_context: QueryTrackingContext) -> Self {
-        Self { stream, _query_tracking_context: query_context }
+    pub fn new(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+    ) -> Self {
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+        }
     }
 }
 
@@ -88,7 +94,10 @@ pub async fn create_object_metas(
         };
         let path = object_store::path::Path::from(full_path.as_str());
         let meta = store.head(&path).await.map_err(|e| {
-            DataFusionError::Execution(format!("Failed to get object meta for {}: {}", full_path, e))
+            DataFusionError::Execution(format!(
+                "Failed to get object meta for {}: {}",
+                full_path, e
+            ))
         })?;
         metas.push(meta);
     }
@@ -162,9 +171,11 @@ pub fn create_reader(
     let default_rt = RuntimeEnvBuilder::new().build()?;
     let store = default_rt.object_store(&table_url)?;
 
-    let object_metas = tokio_rt_manager.io_runtime.block_on(
-        create_object_metas(store.as_ref(), table_path, filenames),
-    )?;
+    let object_metas = tokio_rt_manager.io_runtime.block_on(create_object_metas(
+        store.as_ref(),
+        table_path,
+        filenames,
+    ))?;
 
     let shard_view = ShardView {
         table_path: table_url,
@@ -207,7 +218,8 @@ pub async unsafe fn execute_query(
     // Create per-query context — auto-registers in the global registry
     let global_pool = runtime.runtime_env.memory_pool.clone();
     let query_context = QueryTrackingContext::new(context_id, global_pool);
-    let query_memory_pool = query_context.memory_pool()
+    let query_memory_pool = query_context
+        .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
 
     // Peek at the substrait extensions list to see if this is an indexed query.
@@ -288,9 +300,7 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// # Safety
 /// `stream_ptr` must be a valid, non-zero pointer. Must not be called concurrently
 /// on the same stream.
-pub async unsafe fn stream_next(
-    stream_ptr: i64,
-) -> Result<i64, DataFusionError> {
+pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
 
     let result = handle.stream.try_next().await?;
@@ -329,10 +339,10 @@ pub unsafe fn sql_to_substrait(
     runtime_ptr: i64,
     manager: &RuntimeManager,
 ) -> Result<Vec<u8>, DataFusionError> {
-    use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
     use datafusion::datasource::file_format::parquet::ParquetFormat;
-    use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
+    use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
     use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+    use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
 
@@ -374,7 +384,9 @@ pub unsafe fn sql_to_substrait(
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
             .with_file_extension(".parquet")
             .with_collect_stat(true);
-        let schema = listing_options.infer_schema(&ctx.state(), &table_path).await?;
+        let schema = listing_options
+            .infer_schema(&ctx.state(), &table_path)
+            .await?;
         let config = ListingTableConfig::new(table_path)
             .with_listing_options(listing_options)
             .with_schema(schema);
@@ -383,7 +395,8 @@ pub unsafe fn sql_to_substrait(
         let plan = ctx.sql(sql).await?.logical_plan().clone();
         let substrait = to_substrait_plan(&plan, &ctx.state())?;
         let mut buf = Vec::new();
-        substrait.encode(&mut buf)
+        substrait
+            .encode(&mut buf)
             .map_err(|e| DataFusionError::Execution(format!("Substrait encode failed: {}", e)))?;
         Ok(buf)
     })
@@ -614,12 +627,13 @@ pub unsafe fn register_memtable(
         })?;
         let struct_array = StructArray::from(array_data);
         let raw = RecordBatch::from(struct_array);
-        let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec()).map_err(|e| {
-            DataFusionError::Execution(format!(
-                "Failed to align imported batch to registered schema for '{}': {}",
-                input_id, e
-            ))
-        })?;
+        let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec())
+            .map_err(|e| {
+                DataFusionError::Execution(format!(
+                    "Failed to align imported batch to registered schema for '{}': {}",
+                    input_id, e
+                ))
+            })?;
         batches.push(aligned);
     }
 

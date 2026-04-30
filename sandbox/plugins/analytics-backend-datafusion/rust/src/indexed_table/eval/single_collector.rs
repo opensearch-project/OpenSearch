@@ -29,17 +29,28 @@ use roaring::RoaringBitmap;
 
 use super::{PrefetchedRg, RowGroupBitsetSource};
 use crate::indexed_table::index::RowGroupDocsCollector;
-use crate::indexed_table::page_pruner::PagePruner;
-use crate::indexed_table::row_selection::{row_selection_to_bitmap, PositionMap};
+use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner};
+use crate::indexed_table::row_selection::{
+    bitmap_to_packed_bits, packed_bits_to_boolean_array, row_selection_to_bitmap, PositionMap,
+};
 use crate::indexed_table::stream::RowGroupInfo;
 use datafusion::physical_optimizer::pruning::PruningPredicate;
+use std::time::Instant;
 
 /// Per-RG state the evaluator keeps for refinement. In row-granular
 /// mode parquet narrowed fully via `with_predicate` + `RowSelection`
 /// and nothing is needed here. In block-granular mode we need the
 /// Collector candidate bitmap to build a post-decode mask.
+///
+/// `mask_buffer` is the candidate bitmap in Arrow's native LSB-first bit
+/// layout, wrapped as a refcounted `Buffer`. Sharing an `Arc<Buffer>` lets
+/// `on_batch_mask` and `build_mask` build zero-copy `BooleanBuffer`
+/// views via `BooleanBuffer::new(buf.clone(), bit_offset, bit_len)`.
+/// Length of the underlying buffer covers `mask_len` bits (= rg_num_rows).
 struct SingleCollectorState {
     candidates: RoaringBitmap,
+    mask_buffer: datafusion::arrow::buffer::Buffer,
+    mask_len: usize,
 }
 
 /// Evaluator holding one collector and applying per-RG page pruning.
@@ -76,8 +87,7 @@ pub struct SingleCollectorEvaluator {
     residual_expr: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     /// Counters recorded by `page_pruner.prune_rg`. Built from the
     /// stream's `PartitionMetrics` at evaluator construction.
-    page_prune_metrics:
-        Option<crate::indexed_table::page_pruner::PagePruneMetrics>,
+    page_prune_metrics: Option<PagePruneMetrics>,
     /// Incremented once per `prefetch_rg` call (once per RG) — the
     /// Collector path always performs one FFM round-trip to Java.
     ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
@@ -89,9 +99,7 @@ impl SingleCollectorEvaluator {
         page_pruner: Arc<PagePruner>,
         pruning_predicate: Option<Arc<PruningPredicate>>,
         residual_expr: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
-        page_prune_metrics: Option<
-            crate::indexed_table::page_pruner::PagePruneMetrics,
-        >,
+        page_prune_metrics: Option<PagePruneMetrics>,
         ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
     ) -> Self {
         Self {
@@ -112,10 +120,12 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         min_doc: i32,
         max_doc: i32,
     ) -> Result<Option<PrefetchedRg>, String> {
-        let t = std::time::Instant::now();
+        let t = Instant::now();
 
-        // Collect bitset from backend → RG-relative RoaringBitmap.
-        let bitset = self.collector
+        // Collect bitset from backend. Lucene returns a packed u64 bitset
+        // in the min_doc-relative space: bit 0 = doc `min_doc`.
+        let bitset = self
+            .collector
             .collect_packed_u64_bitset(min_doc, max_doc)
             .map_err(|e| {
                 format!(
@@ -127,33 +137,32 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             c.add(1);
         }
 
-        let mut candidates = RoaringBitmap::new();
-        for (word_idx, &word) in bitset.iter().enumerate() {
-            if word == 0 {
-                continue;
-            }
-            let base = min_doc as i64 + (word_idx as i64 * 64);
-            let mut w = word;
-            while w != 0 {
-                let bit = w.trailing_zeros() as i64;
-                let doc_id = base + bit;
-                if doc_id < max_doc as i64 {
-                    let rel = doc_id - rg.first_row;
-                    if rel >= 0 && rel <= u32::MAX as i64 {
-                        candidates.insert(rel as u32);
-                    }
-                }
-                w &= w - 1; // clear lowest set bit
-            }
+        // Build RoaringBitmap in RG-relative space using the bulk
+        // `from_lsb0_bytes` API. This is O(container_count), not
+        // O(set_bits). The `offset` argument shifts Lucene's min_doc-
+        // relative bits into RG-relative space (bit 0 = rg.first_row).
+        //
+        // Cast u64 slice to u8 slice (same memory, same byte order on
+        // little-endian — OpenSearch-supported architectures are all LE).
+        let bytes: &[u8] =
+            unsafe { std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8) };
+        let rg_offset = (min_doc as i64 - rg.first_row) as u32; // >= 0 by construction
+        let mut candidates = RoaringBitmap::from_lsb0_bytes(rg_offset, bytes);
+        // `from_lsb0_bytes` may include padding bits past `max_doc` if
+        // the last u64 had extra set bits. Trim to the valid range
+        // `[rg_offset, rg_offset + (max_doc - min_doc))`.
+        let span = (max_doc - min_doc) as u32;
+        let upper_bound = rg_offset.saturating_add(span);
+        if upper_bound < u32::MAX {
+            candidates.remove_range(upper_bound..);
         }
 
         // Apply page-level pruning if we have a residual predicate.
         if let Some(ref pp) = self.pruning_predicate {
-            if let Some(sel) = self.page_pruner.prune_rg(
-                pp,
-                rg.index,
-                self.page_prune_metrics.as_ref(),
-            ) {
+            if let Some(sel) =
+                self.page_pruner
+                    .prune_rg(pp, rg.index, self.page_prune_metrics.as_ref())
+            {
                 let allowed = row_selection_to_bitmap(&sel);
                 candidates &= allowed;
             }
@@ -165,14 +174,23 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             return Ok(None);
         }
 
-        // Attach the candidate bitmap as per-RG state. `on_batch_mask`
-        // downcast's this to reconstruct the Collector mask in
-        // block-granular mode (where parquet with_predicate is OFF to
-        // avoid misalignment with post-decode masking).
+        // Materialise the final RG-relative bitmap as an Arrow `Buffer`
+        // in Arrow's native LSB-first layout. This is the ONLY
+        // representation the hot paths (`on_batch_mask`, `build_mask`)
+        // need; they construct zero-copy `BooleanBuffer` views via
+        // `BooleanBuffer::new(buf.clone(), bit_offset, bit_len)`.
+        let mask_len = rg.num_rows as usize;
+        let packed_bits = bitmap_to_packed_bits(&candidates, mask_len as u32);
+        let mask_buffer = datafusion::arrow::buffer::Buffer::from_vec(packed_bits);
         Ok(Some(PrefetchedRg {
             candidates: candidates.clone(),
             eval_nanos: t.elapsed().as_nanos() as u64,
-            context: Box::new(SingleCollectorState { candidates }),
+            context: Box::new(SingleCollectorState {
+                candidates,
+                mask_buffer: mask_buffer.clone(),
+                mask_len,
+            }),
+            mask_buffer: Some(mask_buffer),
         }))
     }
 
@@ -202,30 +220,58 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             })?;
 
         // Build Collector mask over delivered rows via PositionMap.
-        // Same logic as `row_selection::build_mask` but sliced to
-        // [batch_offset, batch_offset + batch_len).
-        let mut collector_bits = Vec::with_capacity(batch_len);
-        for i in 0..batch_len {
-            let delivered_idx = batch_offset + i;
-            let rg_pos = position_map
-                .rg_position(delivered_idx)
-                .ok_or_else(|| {
-                    format!(
-                        "SingleCollectorEvaluator: delivered_idx {} out of range",
-                        delivered_idx
-                    )
-                })?;
-            let hit = if rg_pos <= u32::MAX as usize {
-                state.candidates.contains(rg_pos as u32)
-            } else {
-                false
-            };
-            collector_bits.push(hit);
-        }
-        let collector_mask = BooleanArray::from(collector_bits);
+        // All paths produce a `BooleanArray` whose underlying
+        // `Buffer` is a refcounted view into `state.mask_buffer` —
+        // zero allocation for Identity, at most one small packed
+        // Vec<u64> for Runs.
+        let collector_mask: BooleanArray = match position_map {
+            // Identity: delivered row i == rg_position (batch_offset + i).
+            // BooleanBuffer::new adjusts bit_offset without copying the
+            // underlying Buffer. The returned BooleanArray points into
+            // state.mask_buffer; lifecycle is Arc-managed.
+            PositionMap::Identity { .. } => {
+                let bb = datafusion::arrow::buffer::BooleanBuffer::new(
+                    state.mask_buffer.clone(),
+                    batch_offset,
+                    batch_len,
+                );
+                BooleanArray::new(bb, None)
+            }
+            // Every delivered row is by construction a candidate — mask is all-true.
+            PositionMap::Bitmap { .. } => BooleanArray::new(
+                datafusion::arrow::buffer::BooleanBuffer::new_set(batch_len),
+                None,
+            ),
+            // Runs: gather per-row bit from the shared mask_buffer into
+            // a new packed Vec<u64> (small — bounded by batch_len/64).
+            PositionMap::Runs { .. } => {
+                let words = batch_len.div_ceil(64);
+                let mut out = vec![0u64; words];
+                let src_bytes = state.mask_buffer.as_slice();
+                for i in 0..batch_len {
+                    let delivered_idx = batch_offset + i;
+                    let rg_pos = position_map.rg_position(delivered_idx).ok_or_else(|| {
+                        format!(
+                            "SingleCollectorEvaluator: delivered_idx {} out of range",
+                            delivered_idx
+                        )
+                    })?;
+                    // Read bit rg_pos from the packed buffer (LSB-first).
+                    let hit = rg_pos < state.mask_len
+                        && (src_bytes[rg_pos >> 3] >> (rg_pos & 7)) & 1 == 1;
+                    if hit {
+                        out[i >> 6] |= 1u64 << (i & 63);
+                    }
+                }
+                packed_bits_to_boolean_array(out, batch_len)
+            }
+        };
 
-        // Evaluate residual against the batch.
-        let residual_value = residual
+        // Evaluate residual against the batch. The residual may use
+        // full-schema column indices; remap to batch positions by name.
+        let remapped_residual = remap_expr_to_batch(residual, batch)
+            .map_err(|e| format!("SingleCollectorEvaluator: remap residual: {}", e))?;
+        let residual_value = remapped_residual
             .evaluate(batch)
             .map_err(|e| format!("SingleCollectorEvaluator: residual.evaluate: {}", e))?;
         let residual_array = residual_value
@@ -239,9 +285,11 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             })?;
 
         // AND with kleene semantics (NULL → exclude).
-        let combined =
-            datafusion::arrow::compute::kernels::boolean::and_kleene(&collector_mask, residual_mask)
-                .map_err(|e| format!("SingleCollectorEvaluator: and_kleene: {}", e))?;
+        let combined = datafusion::arrow::compute::kernels::boolean::and_kleene(
+            &collector_mask,
+            residual_mask,
+        )
+        .map_err(|e| format!("SingleCollectorEvaluator: and_kleene: {}", e))?;
         Ok(Some(combined))
     }
 
@@ -283,15 +331,13 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
-    use datafusion::parquet::arrow::ArrowWriter;
-    use datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions;
     use datafusion::parquet::arrow::arrow_reader::ArrowReaderMetadata;
+    use datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions;
+    use datafusion::parquet::arrow::ArrowWriter;
     use std::fmt;
     use std::sync::Arc;
     use tempfile::NamedTempFile;
@@ -304,7 +350,11 @@ mod tests {
     }
 
     impl RowGroupDocsCollector for StubCollector {
-        fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+        fn collect_packed_u64_bitset(
+            &self,
+            min_doc: i32,
+            max_doc: i32,
+        ) -> Result<Vec<u64>, String> {
             let span = (max_doc - min_doc) as usize;
             let mut bitset = vec![0u64; (span + 63) / 64];
             for &doc in &self.docs {
@@ -323,12 +373,15 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema.clone(),
-            vec![Arc::new(datafusion::arrow::array::Int32Array::from(vec![0i32; 8]))],
+            vec![Arc::new(datafusion::arrow::array::Int32Array::from(
+                vec![0i32; 8],
+            ))],
         )
         .unwrap();
         let tmp = NamedTempFile::new().unwrap();
         {
-            let mut writer = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), None).unwrap();
+            let mut writer =
+                ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), None).unwrap();
             writer.write(&batch).unwrap();
             writer.close().unwrap();
         }
@@ -347,7 +400,11 @@ mod tests {
         let pruner = minimal_page_pruner();
         let eval = SingleCollectorEvaluator::new(collector, pruner, None, None, None, None);
 
-        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let rg = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
         let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("has matches");
         let got: Vec<u32> = prefetched.candidates.iter().collect();
         assert_eq!(got, vec![0u32, 3, 7]);
@@ -361,15 +418,21 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
-            vec![Arc::new(datafusion::arrow::array::Int32Array::from(vec![1, 2, 3]))],
-        ).unwrap();
+            vec![Arc::new(datafusion::arrow::array::Int32Array::from(vec![
+                1, 2, 3,
+            ]))],
+        )
+        .unwrap();
         // Empty position map is fine; SingleCollectorEvaluator ignores it.
-        let pm = crate::indexed_table::row_selection::PositionMap::from_selection(
-            &datafusion::parquet::arrow::arrow_reader::RowSelection::from(
-                Vec::<datafusion::parquet::arrow::arrow_reader::RowSelector>::new(),
-            ),
+        let pm = PositionMap::from_selection(
+            &datafusion::parquet::arrow::arrow_reader::RowSelection::from(Vec::<
+                datafusion::parquet::arrow::arrow_reader::RowSelector,
+            >::new()),
         );
-        assert!(eval.on_batch_mask(&(), 0, &pm, 0, 3, &batch).unwrap().is_none());
+        assert!(eval
+            .on_batch_mask(&(), 0, &pm, 0, 3, &batch)
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -388,7 +451,11 @@ mod tests {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
         let eval = SingleCollectorEvaluator::new(collector, pruner, None, None, None, None);
-        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let rg = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
         assert!(eval.prefetch_rg(&rg, 0, 8).unwrap().is_none());
     }
 
@@ -399,12 +466,17 @@ mod tests {
         // candidate. (Contrast with the old BitsetMode::Or path, which
         // would have unioned with page-pruner-derived "anything-allowed"
         // row IDs — semantics that were never wired up in production.)
-        let collector = Arc::new(StubCollector { docs: vec![0, 3, 7] })
-            as Arc<dyn RowGroupDocsCollector>;
+        let collector = Arc::new(StubCollector {
+            docs: vec![0, 3, 7],
+        }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
         let eval = SingleCollectorEvaluator::new(collector, pruner, None, None, None, None);
 
-        let rg = RowGroupInfo { index: 0, first_row: 0, num_rows: 8 };
+        let rg = RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows: 8,
+        };
         let prefetched = eval.prefetch_rg(&rg, 0, 8).unwrap().expect("has matches");
         let got: Vec<u32> = prefetched.candidates.iter().collect();
         assert_eq!(got, vec![0u32, 3, 7]);
@@ -413,4 +485,29 @@ mod tests {
     // Keep the `fmt` import used
     #[allow(dead_code)]
     fn _use(_: &dyn fmt::Debug) {}
+}
+
+/// Remap Column indices in a PhysicalExpr to match the batch schema by name.
+fn remap_expr_to_batch(
+    expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+    batch: &RecordBatch,
+) -> Result<Arc<dyn datafusion::physical_expr::PhysicalExpr>, String> {
+    use datafusion::common::tree_node::TreeNode;
+    use datafusion::physical_expr::expressions::Column;
+
+    expr.clone()
+        .transform(|e| {
+            if let Some(col) = e.as_any().downcast_ref::<Column>() {
+                if let Ok(new_idx) = batch.schema().index_of(col.name()) {
+                    if new_idx != col.index() {
+                        let remapped = Arc::new(Column::new(col.name(), new_idx))
+                            as Arc<dyn datafusion::physical_expr::PhysicalExpr>;
+                        return Ok(datafusion::common::tree_node::Transformed::yes(remapped));
+                    }
+                }
+            }
+            Ok(datafusion::common::tree_node::Transformed::no(e))
+        })
+        .map(|t| t.data)
+        .map_err(|e| format!("remap_expr_to_batch: {}", e))
 }

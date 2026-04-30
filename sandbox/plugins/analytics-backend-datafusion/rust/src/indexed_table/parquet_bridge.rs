@@ -22,6 +22,11 @@ use std::sync::Arc;
 
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::Result;
+use datafusion::datasource::physical_plan::parquet::{
+    ParquetAccessPlan, ParquetFileMetrics, ParquetFileReaderFactory, RowGroupAccess,
+};
+use datafusion::datasource::physical_plan::ParquetSource;
+use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::parquet::arrow::arrow_reader::{
     ArrowReaderMetadata, ArrowReaderOptions, RowSelection,
@@ -33,11 +38,6 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
 use datafusion_datasource::source::DataSourceExec;
 use datafusion_datasource::PartitionedFile;
-use datafusion::datasource::physical_plan::parquet::{
-    ParquetAccessPlan, ParquetFileMetrics, ParquetFileReaderFactory, RowGroupAccess,
-};
-use datafusion::datasource::physical_plan::ParquetSource;
-use datafusion::execution::object_store::ObjectStoreUrl;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use object_store::ObjectStore;
@@ -160,13 +160,14 @@ fn create_stream_with_access_plan(
         }
     }
 
-    let mut config_builder = FileScanConfigBuilder::new(
-        config.store_url.clone(),
-        Arc::new(parquet_source),
-    )
-    .with_file(partitioned_file);
+    let mut config_builder =
+        FileScanConfigBuilder::new(config.store_url.clone(), Arc::new(parquet_source))
+            .with_file(partitioned_file);
 
     if let Some(ref proj) = config.projection {
+        // Empty projection (e.g. COUNT(*)) is honoured as "read no
+        // columns". Parquet delivers correct row counts via the
+        // access plan but skips all column I/O.
         config_builder = config_builder.with_projection_indices(Some(proj.clone()))?;
     }
 
@@ -199,11 +200,8 @@ impl ParquetFileReaderFactory for CachedMetadataReaderFactory {
         _metadata_size_hint: Option<usize>,
         metrics: &ExecutionPlanMetricsSet,
     ) -> datafusion::common::Result<Box<dyn AsyncFileReader + Send>> {
-        let file_metrics = ParquetFileMetrics::new(
-            partition_index,
-            file.object_meta.location.as_ref(),
-            metrics,
-        );
+        let file_metrics =
+            ParquetFileMetrics::new(partition_index, file.object_meta.location.as_ref(), metrics);
         Ok(Box::new(CachedMetadataReader {
             store: Arc::clone(&self.store),
             location: file.object_meta.location.clone(),

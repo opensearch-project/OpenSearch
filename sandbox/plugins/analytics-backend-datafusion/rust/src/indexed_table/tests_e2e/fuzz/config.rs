@@ -20,38 +20,20 @@
 #[derive(Debug, Clone, Copy)]
 pub(in crate::indexed_table::tests_e2e) enum ColumnKind {
     /// Utf8. Generated via a distinct-values pool; controls cardinality.
-    Utf8 {
-        num_distinct: usize,
-        max_len: usize,
-    },
+    Utf8 { num_distinct: usize, max_len: usize },
     /// Int32. Generated from a `[min, max)` value range.
-    Int32 {
-        min: i32,
-        max: i32,
-    },
+    Int32 { min: i32, max: i32 },
     /// Int64. Same.
-    Int64 {
-        min: i64,
-        max: i64,
-    },
+    Int64 { min: i64, max: i64 },
     /// Float64. Generated from a `[min, max)` range.
-    Float64 {
-        min: f64,
-        max: f64,
-    },
+    Float64 { min: f64, max: f64 },
     /// Boolean.
     Boolean,
     /// Date32. Days since epoch; generated from a `[min, max)` range.
-    Date32 {
-        min: i32,
-        max: i32,
-    },
+    Date32 { min: i32, max: i32 },
     /// Timestamp(Nanosecond, None). Nanoseconds since epoch; generated
     /// from a `[min, max)` range.
-    TimestampNanos {
-        min: i64,
-        max: i64,
-    },
+    TimestampNanos { min: i64, max: i64 },
 }
 
 /// Shape of the fixture. All parameters are deterministic given the
@@ -218,10 +200,7 @@ impl FixtureConfig {
                         max_len: 8,
                     },
                 ),
-                (
-                    "tiny_int".to_string(),
-                    ColumnKind::Int32 { min: 0, max: 2 },
-                ),
+                ("tiny_int".to_string(), ColumnKind::Int32 { min: 0, max: 2 }),
                 (
                     "wide_int".to_string(),
                     ColumnKind::Int32 {
@@ -289,10 +268,7 @@ fn default_columns() -> Vec<(String, ColumnKind)> {
                 max_len: 8,
             },
         ),
-        (
-            "price".to_string(),
-            ColumnKind::Int32 { min: 0, max: 1000 },
-        ),
+        ("price".to_string(), ColumnKind::Int32 { min: 0, max: 1000 }),
         (
             "qty".to_string(),
             ColumnKind::Int64 {

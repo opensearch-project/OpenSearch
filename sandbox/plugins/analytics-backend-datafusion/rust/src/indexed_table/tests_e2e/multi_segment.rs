@@ -59,8 +59,7 @@ fn write_segment_rg(
         .set_max_row_group_size(max_rg_rows)
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
-    let mut w =
-        ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
+    let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
     w.write(&batch).unwrap();
     w.close().unwrap();
     tmp
@@ -115,7 +114,11 @@ async fn run_two_segment_query(
         let mut offset = 0i64;
         for i in 0..parquet_meta.num_row_groups() {
             let n = parquet_meta.row_group(i).num_rows();
-            rgs.push(RowGroupInfo { index: i, first_row: offset, num_rows: n });
+            rgs.push(RowGroupInfo {
+                index: i,
+                first_row: offset,
+                num_rows: n,
+            });
             offset += n;
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
@@ -149,12 +152,7 @@ async fn run_two_segment_query(
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
-                    collector,
-                    pruner,
-                    None,
-                    None,
-                    None,
-                    None,
+                    collector, pruner, None, None, None, None,
                 ),
             );
             Ok(eval)
@@ -174,7 +172,10 @@ async fn run_two_segment_query(
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
+        query_config: std::sync::Arc::new(
+            crate::datafusion_query_config::DatafusionQueryConfig::default(),
+        ),
+        predicate_columns: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -202,11 +203,7 @@ async fn run_two_segment_query(
 async fn two_segments_each_contributes_its_own_docs() {
     // Segment 0: match docs {0, 3, 7} → amazon rows at prices 50, 53, 57
     // Segment 1: match docs {1, 5} → apple rows at prices 101, 105
-    let rows = run_two_segment_query(
-        vec![vec![0, 3, 7], vec![1, 5]],
-        /*num_partitions*/ 2,
-    )
-    .await;
+    let rows = run_two_segment_query(vec![vec![0, 3, 7], vec![1, 5]], /*num_partitions*/ 2).await;
     assert_eq!(
         rows,
         vec![
@@ -222,17 +219,10 @@ async fn two_segments_each_contributes_its_own_docs() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn two_segments_empty_collector_in_one_segment() {
     // Segment 0: no matches. Segment 1: docs {0, 4}.
-    let rows = run_two_segment_query(
-        vec![vec![], vec![0, 4]],
-        2,
-    )
-    .await;
+    let rows = run_two_segment_query(vec![vec![], vec![0, 4]], 2).await;
     assert_eq!(
         rows,
-        vec![
-            (1, "apple".to_string(), 100),
-            (1, "apple".to_string(), 104),
-        ]
+        vec![(1, "apple".to_string(), 100), (1, "apple".to_string(), 104),]
     );
 }
 
@@ -260,11 +250,7 @@ async fn two_segments_doc_ids_are_segment_local() {
     // locality is correct, seg0 returns amazon rows at prices 50, 54 AND
     // seg1 returns apple rows at prices 100, 104. If the implementation
     // mixed up doc-ID spaces, results would differ.
-    let rows = run_two_segment_query(
-        vec![vec![0, 4], vec![0, 4]],
-        2,
-    )
-    .await;
+    let rows = run_two_segment_query(vec![vec![0, 4], vec![0, 4]], 2).await;
     assert_eq!(
         rows,
         vec![
@@ -305,8 +291,11 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         .iter()
         .map(|s| write_segment_rg(s.brand, s.base_price, s.rows, s.max_rg_rows))
         .collect();
-    let brand_to_ord: std::collections::HashMap<&'static str, i32> =
-        specs.iter().enumerate().map(|(i, s)| (s.brand, i as i32)).collect();
+    let brand_to_ord: std::collections::HashMap<&'static str, i32> = specs
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.brand, i as i32))
+        .collect();
     let per_segment_matches: Vec<Vec<i32>> = specs.iter().map(|s| s.matches.clone()).collect();
 
     let mut segments: Vec<SegmentFileInfo> = Vec::new();
@@ -326,7 +315,11 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         let mut offset = 0i64;
         for i in 0..parquet_meta.num_row_groups() {
             let n = parquet_meta.row_group(i).num_rows();
-            rgs.push(RowGroupInfo { index: i, first_row: offset, num_rows: n });
+            rgs.push(RowGroupInfo {
+                index: i,
+                first_row: offset,
+                num_rows: n,
+            });
             offset += n;
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
@@ -355,12 +348,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
-                    collector,
-                    pruner,
-                    None,
-                    None,
-                    None,
-                    None,
+                    collector, pruner, None, None, None, None,
                 ),
             );
             Ok(eval)
@@ -380,7 +368,10 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
+        query_config: std::sync::Arc::new(
+            crate::datafusion_query_config::DatafusionQueryConfig::default(),
+        ),
+        predicate_columns: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -411,11 +402,41 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
 /// exercised.
 fn five_segment_specs() -> Vec<SegSpec> {
     vec![
-        SegSpec { brand: "amazon",  base_price:   0, rows: 16, max_rg_rows: 4, matches: vec![0, 5, 10, 15] },
-        SegSpec { brand: "apple",   base_price: 100, rows: 16, max_rg_rows: 4, matches: vec![1, 6, 11]     },
-        SegSpec { brand: "google",  base_price: 200, rows: 16, max_rg_rows: 4, matches: vec![2, 7, 12]     },
-        SegSpec { brand: "meta",    base_price: 300, rows: 16, max_rg_rows: 4, matches: vec![3, 8, 13]     },
-        SegSpec { brand: "netflix", base_price: 400, rows: 16, max_rg_rows: 4, matches: vec![4, 9, 14]     },
+        SegSpec {
+            brand: "amazon",
+            base_price: 0,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![0, 5, 10, 15],
+        },
+        SegSpec {
+            brand: "apple",
+            base_price: 100,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![1, 6, 11],
+        },
+        SegSpec {
+            brand: "google",
+            base_price: 200,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![2, 7, 12],
+        },
+        SegSpec {
+            brand: "meta",
+            base_price: 300,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![3, 8, 13],
+        },
+        SegSpec {
+            brand: "netflix",
+            base_price: 400,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![4, 9, 14],
+        },
     ]
 }
 
@@ -465,15 +486,19 @@ async fn partition_count_does_not_affect_result_set() {
     for np in [1usize, 2, 3, 4, 5] {
         let rows = run_segments(
             // Clone specs for each run since run_segments consumes the Vec.
-            specs.iter().map(|s| SegSpec {
-                brand: s.brand,
-                base_price: s.base_price,
-                rows: s.rows,
-                max_rg_rows: s.max_rg_rows,
-                matches: s.matches.clone(),
-            }).collect(),
+            specs
+                .iter()
+                .map(|s| SegSpec {
+                    brand: s.brand,
+                    base_price: s.base_price,
+                    rows: s.rows,
+                    max_rg_rows: s.max_rg_rows,
+                    matches: s.matches.clone(),
+                })
+                .collect(),
             np,
-        ).await;
+        )
+        .await;
         assert_eq!(rows, expected, "partition count {} produced wrong rows", np);
     }
 }
@@ -484,10 +509,34 @@ async fn four_segments_mixed_rg_sizes() {
     // seg3 has 8 RGs. Total ~60 rows across 15 RGs. Uneven fan-out
     // stresses compute_assignments.
     let specs = vec![
-        SegSpec { brand: "amazon",  base_price:   0, rows:  8, max_rg_rows: 4, matches: vec![0, 7]        }, // 2 RGs
-        SegSpec { brand: "apple",   base_price: 100, rows: 16, max_rg_rows: 4, matches: vec![1, 9, 15]    }, // 4 RGs
-        SegSpec { brand: "google",  base_price: 200, rows:  4, max_rg_rows: 8, matches: vec![2]           }, // 1 RG
-        SegSpec { brand: "meta",    base_price: 300, rows: 32, max_rg_rows: 4, matches: vec![0, 12, 24, 31] }, // 8 RGs
+        SegSpec {
+            brand: "amazon",
+            base_price: 0,
+            rows: 8,
+            max_rg_rows: 4,
+            matches: vec![0, 7],
+        }, // 2 RGs
+        SegSpec {
+            brand: "apple",
+            base_price: 100,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![1, 9, 15],
+        }, // 4 RGs
+        SegSpec {
+            brand: "google",
+            base_price: 200,
+            rows: 4,
+            max_rg_rows: 8,
+            matches: vec![2],
+        }, // 1 RG
+        SegSpec {
+            brand: "meta",
+            base_price: 300,
+            rows: 32,
+            max_rg_rows: 4,
+            matches: vec![0, 12, 24, 31],
+        }, // 8 RGs
     ];
     let expected: Vec<(i32, String, i32)> = {
         let mut out = Vec::new();
@@ -502,12 +551,19 @@ async fn four_segments_mixed_rg_sizes() {
     // Sweep partition counts; result should be stable.
     for np in [1usize, 2, 4] {
         let rows = run_segments(
-            specs.iter().map(|s| SegSpec {
-                brand: s.brand, base_price: s.base_price, rows: s.rows,
-                max_rg_rows: s.max_rg_rows, matches: s.matches.clone(),
-            }).collect(),
+            specs
+                .iter()
+                .map(|s| SegSpec {
+                    brand: s.brand,
+                    base_price: s.base_price,
+                    rows: s.rows,
+                    max_rg_rows: s.max_rg_rows,
+                    matches: s.matches.clone(),
+                })
+                .collect(),
             np,
-        ).await;
+        )
+        .await;
         assert_eq!(rows, expected, "np={} failed", np);
     }
 }
@@ -518,18 +574,54 @@ async fn six_segments_some_with_no_matches() {
     // the factory handles zero-match segments cleanly (prefetch_rg returns
     // None → RG skip) without hanging or producing phantom rows.
     let specs = vec![
-        SegSpec { brand: "amazon",  base_price:   0, rows: 16, max_rg_rows: 4, matches: vec![3, 11]    },
-        SegSpec { brand: "apple",   base_price: 100, rows: 16, max_rg_rows: 4, matches: vec![]         },
-        SegSpec { brand: "google",  base_price: 200, rows: 16, max_rg_rows: 4, matches: vec![0, 8]     },
-        SegSpec { brand: "meta",    base_price: 300, rows: 16, max_rg_rows: 4, matches: vec![]         },
-        SegSpec { brand: "netflix", base_price: 400, rows: 16, max_rg_rows: 4, matches: vec![5, 10, 15]},
-        SegSpec { brand: "oracle",  base_price: 500, rows: 16, max_rg_rows: 4, matches: vec![]         },
+        SegSpec {
+            brand: "amazon",
+            base_price: 0,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![3, 11],
+        },
+        SegSpec {
+            brand: "apple",
+            base_price: 100,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![],
+        },
+        SegSpec {
+            brand: "google",
+            base_price: 200,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![0, 8],
+        },
+        SegSpec {
+            brand: "meta",
+            base_price: 300,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![],
+        },
+        SegSpec {
+            brand: "netflix",
+            base_price: 400,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![5, 10, 15],
+        },
+        SegSpec {
+            brand: "oracle",
+            base_price: 500,
+            rows: 16,
+            max_rg_rows: 4,
+            matches: vec![],
+        },
     ];
     let expected = vec![
-        (0, "amazon".to_string(),    3),
-        (0, "amazon".to_string(),   11),
-        (2, "google".to_string(),  200),
-        (2, "google".to_string(),  208),
+        (0, "amazon".to_string(), 3),
+        (0, "amazon".to_string(), 11),
+        (2, "google".to_string(), 200),
+        (2, "google".to_string(), 208),
         (4, "netflix".to_string(), 405),
         (4, "netflix".to_string(), 410),
         (4, "netflix".to_string(), 415),
@@ -568,12 +660,12 @@ fn wide_schema() -> SchemaRef {
 fn pred_wide_int(col: &str, op: Operator, v: i32) -> BoolNode {
     let schema = wide_schema();
     let col_idx = schema.index_of(col).expect("wide column");
-    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
-    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Literal::new(
-            ScalarValue::Int32(Some(v)),
-        ));
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Column::new(col, col_idx),
+    );
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Literal::new(ScalarValue::Int32(Some(v))),
+    );
     BoolNode::Predicate(Arc::new(
         datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
     ))
@@ -582,8 +674,9 @@ fn pred_wide_int(col: &str, op: Operator, v: i32) -> BoolNode {
 fn pred_wide_str(col: &str, op: Operator, v: &str) -> BoolNode {
     let schema = wide_schema();
     let col_idx = schema.index_of(col).expect("wide column");
-    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Column::new(col, col_idx),
+    );
     let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
         Arc::new(datafusion::physical_expr::expressions::Literal::new(
             ScalarValue::Utf8(Some(v.to_string())),
@@ -596,25 +689,20 @@ fn pred_wide_str(col: &str, op: Operator, v: &str) -> BoolNode {
 fn pred_wide_bool(col: &str, op: Operator, v: bool) -> BoolNode {
     let schema = wide_schema();
     let col_idx = schema.index_of(col).expect("wide column");
-    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
-    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Literal::new(
-            ScalarValue::Boolean(Some(v)),
-        ));
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Column::new(col, col_idx),
+    );
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Literal::new(ScalarValue::Boolean(Some(v))),
+    );
     BoolNode::Predicate(Arc::new(
         datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
     ))
 }
 
-
 /// Write a 5-column segment. Deterministic per-row values driven by row index
 /// so tests can compute the oracle truth without a second parquet read.
-fn write_wide_segment(
-    brand: &'static str,
-    rows: usize,
-    max_rg_rows: usize,
-) -> NamedTempFile {
+fn write_wide_segment(brand: &'static str, rows: usize, max_rg_rows: usize) -> NamedTempFile {
     let schema = wide_schema();
     let brands: Vec<&str> = (0..rows).map(|_| brand).collect();
     let prices: Vec<i32> = (0..rows).map(|i| (i as i32) * 10).collect(); // 0, 10, 20, ...
@@ -643,8 +731,7 @@ fn write_wide_segment(
         .set_max_row_group_size(max_rg_rows)
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
-    let mut w =
-        ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
+    let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
     w.write(&batch).unwrap();
     w.close().unwrap();
     tmp
@@ -672,7 +759,11 @@ async fn run_wide_segments(
     #[derive(Debug)]
     struct AllDocs;
     impl RowGroupDocsCollector for AllDocs {
-        fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+        fn collect_packed_u64_bitset(
+            &self,
+            min_doc: i32,
+            max_doc: i32,
+        ) -> Result<Vec<u64>, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
             for i in 0..span {
@@ -705,7 +796,11 @@ async fn run_wide_segments(
         let mut offset = 0i64;
         for i in 0..parquet_meta.num_row_groups() {
             let n = parquet_meta.row_group(i).num_rows();
-            rgs.push(RowGroupInfo { index: i, first_row: offset, num_rows: n });
+            rgs.push(RowGroupInfo {
+                index: i,
+                first_row: offset,
+                num_rows: n,
+            });
             offset += n;
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
@@ -751,6 +846,7 @@ async fn run_wide_segments(
                     page_pruner: pruner,
                     cost_predicate: 1,
                     cost_collector: 10,
+                    max_collector_parallelism: 1,
                     pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
                 },
@@ -772,7 +868,10 @@ async fn run_wide_segments(
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
+        query_config: std::sync::Arc::new(
+            crate::datafusion_query_config::DatafusionQueryConfig::default(),
+        ),
+        predicate_columns: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -782,8 +881,11 @@ async fn run_wide_segments(
         .await
         .unwrap();
     let mut stream = df.execute_stream().await.unwrap();
-    let brand_to_ord: std::collections::HashMap<&'static str, i32> =
-        specs.iter().enumerate().map(|(i, s)| (s.brand, i as i32)).collect();
+    let brand_to_ord: std::collections::HashMap<&'static str, i32> = specs
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.brand, i as i32))
+        .collect();
     let mut rows: Vec<(i32, i32, i32, String, bool)> = Vec::new();
     while let Some(batch) = stream.next().await {
         let b = batch.unwrap();
@@ -836,17 +938,38 @@ fn wide_oracle<F: Fn(usize) -> bool>(
 
 fn wide_four_seg_specs() -> Vec<WideSegSpec> {
     vec![
-        WideSegSpec { brand: "amazon",  rows: 16, max_rg_rows: 4 },
-        WideSegSpec { brand: "apple",   rows: 16, max_rg_rows: 4 },
-        WideSegSpec { brand: "google",  rows: 16, max_rg_rows: 4 },
-        WideSegSpec { brand: "meta",    rows: 16, max_rg_rows: 4 },
+        WideSegSpec {
+            brand: "amazon",
+            rows: 16,
+            max_rg_rows: 4,
+        },
+        WideSegSpec {
+            brand: "apple",
+            rows: 16,
+            max_rg_rows: 4,
+        },
+        WideSegSpec {
+            brand: "google",
+            rows: 16,
+            max_rg_rows: 4,
+        },
+        WideSegSpec {
+            brand: "meta",
+            rows: 16,
+            max_rg_rows: 4,
+        },
     ]
 }
 
 fn clone_wide_specs(specs: &[WideSegSpec]) -> Vec<WideSegSpec> {
-    specs.iter().map(|s| WideSegSpec {
-        brand: s.brand, rows: s.rows, max_rg_rows: s.max_rg_rows,
-    }).collect()
+    specs
+        .iter()
+        .map(|s| WideSegSpec {
+            brand: s.brand,
+            rows: s.rows,
+            max_rg_rows: s.max_rg_rows,
+        })
+        .collect()
 }
 
 // ── Wide-schema tests ──────────────────────────────────────────────
@@ -856,7 +979,9 @@ async fn wide_multi_segment_collector_and_two_predicates() {
     // Tree: AND(all_brand_docs, price > 50, qty < 3)
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
-        BoolNode::Collector { query_bytes: Arc::from(&[0u8][..]) },
+        BoolNode::Collector {
+            query_bytes: Arc::from(&[0u8][..]),
+        },
         pred_wide_int("price", Operator::Gt, 50),
         pred_wide_int("qty", Operator::Lt, 3),
     ]);
@@ -872,7 +997,9 @@ async fn wide_multi_segment_or_of_predicates_under_collector() {
     // Tree: AND(all_brand_docs, OR(region == "us-east", active == true))
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
-        BoolNode::Collector { query_bytes: Arc::from(&[0u8][..]) },
+        BoolNode::Collector {
+            query_bytes: Arc::from(&[0u8][..]),
+        },
         BoolNode::Or(vec![
             pred_wide_str("region", Operator::Eq, "us-east"),
             pred_wide_bool("active", Operator::Eq, true),
@@ -890,7 +1017,9 @@ async fn wide_multi_segment_not_and_three_column_predicates() {
     // Tree: AND(all_brand_docs, NOT(price < 30), qty > 2, region != "eu-west")
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
-        BoolNode::Collector { query_bytes: Arc::from(&[0u8][..]) },
+        BoolNode::Collector {
+            query_bytes: Arc::from(&[0u8][..]),
+        },
         BoolNode::Not(Box::new(pred_wide_int("price", Operator::Lt, 30))),
         pred_wide_int("qty", Operator::Gt, 2),
         pred_wide_str("region", Operator::NotEq, "eu-west"),
@@ -910,7 +1039,9 @@ async fn wide_multi_segment_deep_tree_four_predicate_columns() {
     // Tree: AND(collector, OR(AND(price >= 100, qty = 3), AND(region == "us-west", active == true)))
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
-        BoolNode::Collector { query_bytes: Arc::from(&[0u8][..]) },
+        BoolNode::Collector {
+            query_bytes: Arc::from(&[0u8][..]),
+        },
         BoolNode::Or(vec![
             BoolNode::And(vec![
                 pred_wide_int("price", Operator::GtEq, 100),

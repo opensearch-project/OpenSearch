@@ -46,11 +46,7 @@ use std::sync::Arc;
 /// rely on this — e.g. `IndexedStream` skips filter-bitset fetch on empty
 /// row groups by calling with `max_doc == min_doc`.
 pub trait RowGroupDocsCollector: Send + Sync + Debug {
-    fn collect_packed_u64_bitset(
-        &self,
-        min_doc: i32,
-        max_doc: i32,
-    ) -> Result<Vec<u64>, String>;
+    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String>;
 }
 
 /// A searcher scoped to a single shard (index), created once per query.

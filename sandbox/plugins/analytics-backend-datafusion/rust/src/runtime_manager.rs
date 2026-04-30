@@ -90,7 +90,11 @@ mod tests {
     async fn test_cpu_executor_runs_on_different_thread() {
         let mgr = test_mgr();
         let io_id = std::thread::current().id();
-        let cpu_id = mgr.cpu_executor().spawn(async { std::thread::current().id() }).await.unwrap();
+        let cpu_id = mgr
+            .cpu_executor()
+            .spawn(async { std::thread::current().id() })
+            .await
+            .unwrap();
         assert_ne!(io_id, cpu_id);
         mgr.cpu_executor.shutdown();
         std::mem::forget(mgr);
@@ -99,9 +103,11 @@ mod tests {
     #[tokio::test]
     async fn test_io_runtime_registered_on_cpu_threads() {
         let mgr = test_mgr();
-        let has_io = mgr.cpu_executor().spawn(async {
-            crate::io::IO_RUNTIME.with_borrow(|h| h.is_some())
-        }).await.unwrap();
+        let has_io = mgr
+            .cpu_executor()
+            .spawn(async { crate::io::IO_RUNTIME.with_borrow(|h| h.is_some()) })
+            .await
+            .unwrap();
         assert!(has_io);
         mgr.cpu_executor.shutdown();
         std::mem::forget(mgr);

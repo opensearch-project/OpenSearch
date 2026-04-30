@@ -80,12 +80,7 @@ pub(in crate::indexed_table::tests_e2e) fn oracle_evaluate(
     result
 }
 
-fn eval_row(
-    node: &BoolNode,
-    corpus: &Corpus,
-    row: i32,
-    collector_sets: &[HashSet<i32>],
-) -> Tri {
+fn eval_row(node: &BoolNode, corpus: &Corpus, row: i32, collector_sets: &[HashSet<i32>]) -> Tri {
     match node {
         BoolNode::And(children) => {
             let mut acc = Tri::True;
@@ -110,9 +105,9 @@ fn eval_row(
         BoolNode::Not(child) => eval_row(child, corpus, row, collector_sets).not(),
         BoolNode::Collector { query_bytes } => {
             let tag = query_bytes[0] as usize;
-            let set = collector_sets.get(tag).unwrap_or_else(|| {
-                panic!("oracle: Collector tag {} has no matching set", tag)
-            });
+            let set = collector_sets
+                .get(tag)
+                .unwrap_or_else(|| panic!("oracle: Collector tag {} has no matching set", tag));
             if set.contains(&row) {
                 Tri::True
             } else {
@@ -128,11 +123,7 @@ fn eval_row(
 /// - `InListExpr { Column, list: Vec<Literal>, negated }`
 /// - `IsNullExpr(Column)`
 /// - `LikeExpr { Column, pattern: Literal, negated, case_insensitive=false }`
-fn eval_predicate(
-    expr: &std::sync::Arc<dyn PhysicalExpr>,
-    corpus: &Corpus,
-    row: usize,
-) -> Tri {
+fn eval_predicate(expr: &std::sync::Arc<dyn PhysicalExpr>, corpus: &Corpus, row: usize) -> Tri {
     use datafusion::physical_expr::expressions::{InListExpr, IsNullExpr, LikeExpr};
 
     let any = expr.as_any();
@@ -207,7 +198,11 @@ fn eval_predicate(
             .expect("oracle: IsNull target must be Column");
         let cell = get_cell(corpus, col.name(), row);
         // IS NULL returns TRUE/FALSE — never UNKNOWN — per SQL.
-        return if cell_null(cell) { Tri::True } else { Tri::False };
+        return if cell_null(cell) {
+            Tri::True
+        } else {
+            Tri::False
+        };
     }
 
     if let Some(like) = any.downcast_ref::<LikeExpr>() {
@@ -346,10 +341,7 @@ fn compare_cell_lit(cell: &CellValue, op: Operator, lit: &ScalarValue) -> Tri {
             let l = none_unknown!(l);
             cmp_to_tri(c.cmp(l), op)
         }
-        (cell, lit) => panic!(
-            "oracle: type mismatch cell={:?} lit={:?}",
-            cell, lit
-        ),
+        (cell, lit) => panic!("oracle: type mismatch cell={:?} lit={:?}", cell, lit),
     }
 }
 

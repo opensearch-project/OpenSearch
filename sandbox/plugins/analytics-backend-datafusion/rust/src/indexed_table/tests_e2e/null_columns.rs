@@ -14,7 +14,6 @@
 
 use super::*;
 
-
 // ══════════════════════════════════════════════════════════════════════
 // Null-density fixture — 4096 rows, 4 RGs, columns deliberately NULL at
 // different granularities.
@@ -55,7 +54,11 @@ fn build_null_fixture() -> NullFixture {
         all_null.push(None);
         let rg = i / 1024;
         mostly_null.push(if rg < 2 { None } else { Some((i as i32) % 200) });
-        half_null.push(if rg % 2 == 0 { None } else { Some((i as i32) % 500) });
+        half_null.push(if rg % 2 == 0 {
+            None
+        } else {
+            Some((i as i32) % 500)
+        });
         tag.push(if i % 2 == 0 { "even" } else { "odd" });
     }
 
@@ -162,7 +165,11 @@ fn reference_evaluator_null(tree: &NT, row: usize) -> Option<bool> {
                     Some(true) => {}
                 }
             }
-            if u { None } else { Some(true) }
+            if u {
+                None
+            } else {
+                Some(true)
+            }
         }
         NT::Or(cs) => {
             let mut u = false;
@@ -173,7 +180,11 @@ fn reference_evaluator_null(tree: &NT, row: usize) -> Option<bool> {
                     Some(false) => {}
                 }
             }
-            if u { None } else { Some(false) }
+            if u {
+                None
+            } else {
+                Some(false)
+            }
         }
     }
 }
@@ -193,12 +204,12 @@ fn to_engine_tree_null(tree: &NT, coll_seq: &mut u8) -> BoolNode {
     fn pred_int_local(col: &str, op: Operator, v: i32) -> BoolNode {
         let schema = null_schema();
         let col_idx = schema.index_of(col).expect("null column");
-        let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-            Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
-        let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-            Arc::new(datafusion::physical_expr::expressions::Literal::new(
-                ScalarValue::Int32(Some(v)),
-            ));
+        let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+            datafusion::physical_expr::expressions::Column::new(col, col_idx),
+        );
+        let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+            datafusion::physical_expr::expressions::Literal::new(ScalarValue::Int32(Some(v))),
+        );
         BoolNode::Predicate(Arc::new(
             datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
         ))
@@ -206,8 +217,9 @@ fn to_engine_tree_null(tree: &NT, coll_seq: &mut u8) -> BoolNode {
     fn pred_str_local(col: &str, op: Operator, v: &str) -> BoolNode {
         let schema = null_schema();
         let col_idx = schema.index_of(col).expect("null column");
-        let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-            Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+        let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+            datafusion::physical_expr::expressions::Column::new(col, col_idx),
+        );
         let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
             Arc::new(datafusion::physical_expr::expressions::Literal::new(
                 ScalarValue::Utf8(Some(v.to_string())),
@@ -220,16 +232,28 @@ fn to_engine_tree_null(tree: &NT, coll_seq: &mut u8) -> BoolNode {
         NT::Leaf(NullLeaf::Collector(_)) => {
             let tag = *coll_seq;
             *coll_seq += 1;
-            BoolNode::Collector { query_bytes: Arc::from(&[tag][..]) }
+            BoolNode::Collector {
+                query_bytes: Arc::from(&[tag][..]),
+            }
         }
         NT::Leaf(NullLeaf::AllNullGe(v)) => pred_int_local("all_null_col", Operator::GtEq, *v),
-        NT::Leaf(NullLeaf::MostlyNullGe(v)) => pred_int_local("mostly_null_col", Operator::GtEq, *v),
+        NT::Leaf(NullLeaf::MostlyNullGe(v)) => {
+            pred_int_local("mostly_null_col", Operator::GtEq, *v)
+        }
         NT::Leaf(NullLeaf::HalfNullGe(v)) => pred_int_local("half_null_col", Operator::GtEq, *v),
         NT::Leaf(NullLeaf::MostlyNullEq(v)) => pred_int_local("mostly_null_col", Operator::Eq, *v),
         NT::Leaf(NullLeaf::TagEq(s)) => pred_str_local("tag", Operator::Eq, s),
         NT::Not(inner) => BoolNode::Not(Box::new(to_engine_tree_null(inner, coll_seq))),
-        NT::And(cs) => BoolNode::And(cs.iter().map(|c| to_engine_tree_null(c, coll_seq)).collect()),
-        NT::Or(cs) => BoolNode::Or(cs.iter().map(|c| to_engine_tree_null(c, coll_seq)).collect()),
+        NT::And(cs) => BoolNode::And(
+            cs.iter()
+                .map(|c| to_engine_tree_null(c, coll_seq))
+                .collect(),
+        ),
+        NT::Or(cs) => BoolNode::Or(
+            cs.iter()
+                .map(|c| to_engine_tree_null(c, coll_seq))
+                .collect(),
+        ),
     }
 }
 
@@ -253,7 +277,9 @@ fn wire_null_rec(
         BoolNode::Collector { query_bytes } => {
             let tag = query_bytes.first().copied().expect("empty tag bytes") as usize;
             let set = &matching_sets[tag];
-            out.push(Arc::new(RgScopedCollector { matching_rows: set.clone() }));
+            out.push(Arc::new(RgScopedCollector {
+                matching_rows: set.clone(),
+            }));
         }
         BoolNode::Predicate(_) => {}
     }
@@ -270,8 +296,9 @@ fn collect_matching_sets(tree: &NT, out: &mut Vec<Vec<i32>>) {
 
 async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
     let f = null_fixture();
-    let expected: Vec<usize> =
-        (0..NULL_N).filter(|&r| reference_evaluator_null(&tree, r) == Some(true)).collect();
+    let expected: Vec<usize> = (0..NULL_N)
+        .filter(|&r| reference_evaluator_null(&tree, r) == Some(true))
+        .collect();
 
     let mut matching_sets = Vec::new();
     collect_matching_sets(&tree, &mut matching_sets);
@@ -282,8 +309,8 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
 
     let size = std::fs::metadata(&f.path).unwrap().len();
     let file = std::fs::File::open(&f.path).unwrap();
-    let meta = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-        .unwrap();
+    let meta =
+        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
 
@@ -291,7 +318,11 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
     let mut offset = 0i64;
     for i in 0..parquet_meta.num_row_groups() {
         let n = parquet_meta.row_group(i).num_rows();
-        rgs.push(RowGroupInfo { index: i, first_row: offset, num_rows: n });
+        rgs.push(RowGroupInfo {
+            index: i,
+            first_row: offset,
+            num_rows: n,
+        });
         offset += n;
     }
     let segment = SegmentFileInfo {
@@ -323,6 +354,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
+                max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
             });
@@ -333,18 +365,25 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments: vec![segment],
-        store: Arc::new(object_store::local::LocalFileSystem::new()) as Arc<dyn object_store::ObjectStore>,
+        store: Arc::new(object_store::local::LocalFileSystem::new())
+            as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
         target_partitions: 1,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
+        query_config: std::sync::Arc::new(
+            crate::datafusion_query_config::DatafusionQueryConfig::default(),
+        ),
+        predicate_columns: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
-    let df = ctx.sql("SELECT tag, all_null_col, mostly_null_col, half_null_col FROM t").await.unwrap();
+    let df = ctx
+        .sql("SELECT tag, all_null_col, mostly_null_col, half_null_col FROM t")
+        .await
+        .unwrap();
     let mut stream = df.execute_stream().await.unwrap();
 
     let mut count = 0;
@@ -374,7 +413,10 @@ macro_rules! reference_test_null {
 
 // 1. Predicate against a column that is entirely NULL across all segments.
 // 3VL: every row → UNKNOWN → expected 0 rows.
-reference_test_null!(null_predicate_on_all_null_column, NT::Leaf(NullLeaf::AllNullGe(0)));
+reference_test_null!(
+    null_predicate_on_all_null_column,
+    NT::Leaf(NullLeaf::AllNullGe(0))
+);
 
 // 2. NOT of a predicate on an all-NULL column. 3VL: NOT(UNKNOWN) = UNKNOWN →
 // expected 0 rows.

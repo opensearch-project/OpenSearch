@@ -15,7 +15,6 @@
 
 use super::*;
 
-
 // ══════════════════════════════════════════════════════════════════════
 // Large-scale fixture (10_000 rows, multi-RG, multi-page, nullable qty,
 // negative/zero/positive prices). One shared parquet + cached arrays.
@@ -129,7 +128,7 @@ fn build_large_fixture() -> LargeFixture {
 #[derive(Debug, Clone, Copy)]
 enum LLeaf {
     // Collectors (provider_id = u16, mapped in wire_large).
-    LBrand(&'static str), // 0..=3 depending on brand
+    LBrand(&'static str),  // 0..=3 depending on brand
     LStatus(&'static str), // 4 = active, 5 = archived
     // Predicates.
     LPriceGe(i32),
@@ -216,12 +215,12 @@ fn large_schema() -> SchemaRef {
 fn pred_large_int(col: &str, op: Operator, v: i32) -> BoolNode {
     let schema = large_schema();
     let col_idx = schema.index_of(col).expect("large column");
-    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
-    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Literal::new(
-            ScalarValue::Int32(Some(v)),
-        ));
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Column::new(col, col_idx),
+    );
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Literal::new(ScalarValue::Int32(Some(v))),
+    );
     BoolNode::Predicate(Arc::new(
         datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
     ))
@@ -230,8 +229,9 @@ fn pred_large_int(col: &str, op: Operator, v: i32) -> BoolNode {
 fn pred_large_str(col: &str, op: Operator, v: &str) -> BoolNode {
     let schema = large_schema();
     let col_idx = schema.index_of(col).expect("large column");
-    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Column::new(col, col_idx),
+    );
     let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
         Arc::new(datafusion::physical_expr::expressions::Literal::new(
             ScalarValue::Utf8(Some(v.to_string())),
@@ -248,20 +248,24 @@ fn to_engine_tree_large(tree: &LT) -> BoolNode {
     match tree {
         LT::Leaf(l) => match l {
             LLeaf::LBrand(b) => BoolNode::Collector {
-                query_bytes: Arc::from(&[match *b {
-                    "amazon" => 0u8,
-                    "apple" => 1,
-                    "google" => 2,
-                    "samsung" => 3,
-                    _ => panic!("unknown brand {}", b),
-                }][..]),
+                query_bytes: Arc::from(
+                    &[match *b {
+                        "amazon" => 0u8,
+                        "apple" => 1,
+                        "google" => 2,
+                        "samsung" => 3,
+                        _ => panic!("unknown brand {}", b),
+                    }][..],
+                ),
             },
             LLeaf::LStatus(s) => BoolNode::Collector {
-                query_bytes: Arc::from(&[match *s {
-                    "active" => 4u8,
-                    "archived" => 5,
-                    _ => panic!("unknown status {}", s),
-                }][..]),
+                query_bytes: Arc::from(
+                    &[match *s {
+                        "active" => 4u8,
+                        "archived" => 5,
+                        _ => panic!("unknown status {}", s),
+                    }][..],
+                ),
             },
             LLeaf::LPriceGe(v) => pred_large_int("price", Operator::GtEq, *v),
             LLeaf::LPriceLt(v) => pred_large_int("price", Operator::Lt, *v),
@@ -275,7 +279,6 @@ fn to_engine_tree_large(tree: &LT) -> BoolNode {
         LT::Or(cs) => BoolNode::Or(cs.iter().map(to_engine_tree_large).collect()),
     }
 }
-
 
 /// DFS-walk the tree and build one collector per Collector leaf,
 /// matching each leaf's tag byte to a fixture-specific mock collector.
@@ -335,7 +338,7 @@ async fn assert_engine_matches_reference_large(name: &str, tree: LT) {
         .collect();
 
     // Lower + run
-    
+
     let bt = to_engine_tree_large(&tree).push_not_down();
     let collectors = wire_large(&bt);
     let rows = run_large(bt, collectors).await;
@@ -382,8 +385,8 @@ async fn run_large(
     let f = large_fixture();
     let size = std::fs::metadata(&f.path).unwrap().len();
     let file = std::fs::File::open(&f.path).unwrap();
-    let meta = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-        .unwrap();
+    let meta =
+        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
 
@@ -391,7 +394,11 @@ async fn run_large(
     let mut offset = 0i64;
     for i in 0..parquet_meta.num_row_groups() {
         let n = parquet_meta.row_group(i).num_rows();
-        rgs.push(RowGroupInfo { index: i, first_row: offset, num_rows: n });
+        rgs.push(RowGroupInfo {
+            index: i,
+            first_row: offset,
+            num_rows: n,
+        });
         offset += n;
     }
 
@@ -404,13 +411,15 @@ async fn run_large(
         metadata: Arc::clone(&parquet_meta),
     };
 
-    let tree = Arc::new(tree);    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
+    let tree = Arc::new(tree);
+    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
         .into_iter()
         .enumerate()
         .map(|(i, c)| (i as i32, c))
         .collect();
     let factory: super::super::table_provider::EvaluatorFactory = {
-        let per_leaf = per_leaf.clone();        let tree = Arc::clone(&tree);
+        let per_leaf = per_leaf.clone();
+        let tree = Arc::clone(&tree);
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics| {
             let resolved = tree.resolve(&per_leaf)?;
@@ -422,6 +431,7 @@ async fn run_large(
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
+                max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
             });
@@ -432,14 +442,18 @@ async fn run_large(
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments: vec![segment],
-        store: Arc::new(object_store::local::LocalFileSystem::new()) as Arc<dyn object_store::ObjectStore>,
+        store: Arc::new(object_store::local::LocalFileSystem::new())
+            as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
         target_partitions: 1,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
+        query_config: std::sync::Arc::new(
+            crate::datafusion_query_config::DatafusionQueryConfig::default(),
+        ),
+        predicate_columns: vec![],
     }));
 
     let ctx = SessionContext::new();
@@ -463,7 +477,11 @@ async fn run_large(
                 price.value(i),
                 status.value(i).to_string(),
                 cat.value(i).to_string(),
-                if qty.is_null(i) { None } else { Some(qty.value(i)) },
+                if qty.is_null(i) {
+                    None
+                } else {
+                    Some(qty.value(i))
+                },
             ));
         }
     }
@@ -489,8 +507,14 @@ reference_test_large!(large_price_lt_zero, LT::Leaf(LLeaf::LPriceLt(0)));
 reference_test_large!(large_price_ge_zero, LT::Leaf(LLeaf::LPriceGe(0)));
 reference_test_large!(large_price_eq_zero, LT::Leaf(LLeaf::LPriceEq(0)));
 reference_test_large!(large_price_lt_negative, LT::Leaf(LLeaf::LPriceLt(-200)));
-reference_test_large!(large_price_ge_max_out_of_range, LT::Leaf(LLeaf::LPriceGe(1000))); // matches none
-reference_test_large!(large_price_lt_max_out_of_range, LT::Leaf(LLeaf::LPriceLt(-10000))); // matches none
+reference_test_large!(
+    large_price_ge_max_out_of_range,
+    LT::Leaf(LLeaf::LPriceGe(1000))
+); // matches none
+reference_test_large!(
+    large_price_lt_max_out_of_range,
+    LT::Leaf(LLeaf::LPriceLt(-10000))
+); // matches none
 
 // NULL handling: qty is nullable. `qty >= 0` should exclude NULL rows (3VL).
 reference_test_large!(large_qty_ge_zero, LT::Leaf(LLeaf::LQtyGe(0)));
@@ -607,13 +631,19 @@ reference_test_large!(
 // so most pages get pruned in most RGs.
 reference_test_large!(
     large_pure_predicate_narrow,
-    LT::And(vec![LT::Leaf(LLeaf::LPriceGe(800)), LT::Leaf(LLeaf::LCategory("electronics"))])
+    LT::And(vec![
+        LT::Leaf(LLeaf::LPriceGe(800)),
+        LT::Leaf(LLeaf::LCategory("electronics"))
+    ])
 );
 
 // Wide: price <0 OR price >=500 — matches ~70% of rows across every page.
 reference_test_large!(
     large_pure_predicate_wide,
-    LT::Or(vec![LT::Leaf(LLeaf::LPriceLt(0)), LT::Leaf(LLeaf::LPriceGe(500))])
+    LT::Or(vec![
+        LT::Leaf(LLeaf::LPriceLt(0)),
+        LT::Leaf(LLeaf::LPriceGe(500))
+    ])
 );
 
 // Triple AND of pure predicates; page pruning must combine multiple
@@ -737,7 +767,10 @@ reference_test_large!(
 // Exercises RG-skip when the whole expression is vacuous.
 reference_test_large!(
     large_empty_via_contradiction,
-    LT::And(vec![LT::Leaf(LLeaf::LPriceGe(500)), LT::Leaf(LLeaf::LPriceLt(100))])
+    LT::And(vec![
+        LT::Leaf(LLeaf::LPriceGe(500)),
+        LT::Leaf(LLeaf::LPriceLt(100))
+    ])
 );
 
 // Predicate that matches only the top ~5% of values (price >= 900).
@@ -753,7 +786,7 @@ reference_test_large!(
 reference_test_large!(
     large_narrow_predicate_or_wide_collector,
     LT::Or(vec![
-        LT::Leaf(LLeaf::LPriceGe(900)), // narrow, few rows
+        LT::Leaf(LLeaf::LPriceGe(900)),    // narrow, few rows
         LT::Leaf(LLeaf::LBrand("amazon")), // ~25% of rows
     ])
 );
@@ -780,7 +813,6 @@ async fn assert_large_multipartition(name: &str, tree: LT, partitions: usize) {
         .filter(|&r| reference_evaluator_large(&tree, r) == Some(true))
         .collect();
 
-    
     let bt = to_engine_tree_large(&tree).push_not_down();
     let collectors = wire_large(&bt);
     let rows = run_large_partitioned(bt, collectors, partitions).await;
@@ -803,8 +835,8 @@ async fn run_large_partitioned(
     let f = large_fixture();
     let size = std::fs::metadata(&f.path).unwrap().len();
     let file = std::fs::File::open(&f.path).unwrap();
-    let meta = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-        .unwrap();
+    let meta =
+        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
 
@@ -812,7 +844,11 @@ async fn run_large_partitioned(
     let mut offset = 0i64;
     for i in 0..parquet_meta.num_row_groups() {
         let n = parquet_meta.row_group(i).num_rows();
-        rgs.push(RowGroupInfo { index: i, first_row: offset, num_rows: n });
+        rgs.push(RowGroupInfo {
+            index: i,
+            first_row: offset,
+            num_rows: n,
+        });
         offset += n;
     }
     let segment = SegmentFileInfo {
@@ -824,13 +860,15 @@ async fn run_large_partitioned(
         metadata: Arc::clone(&parquet_meta),
     };
 
-    let tree = Arc::new(tree);    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
+    let tree = Arc::new(tree);
+    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
         .into_iter()
         .enumerate()
         .map(|(i, c)| (i as i32, c))
         .collect();
     let factory: super::super::table_provider::EvaluatorFactory = {
-        let per_leaf = per_leaf.clone();        let tree = Arc::clone(&tree);
+        let per_leaf = per_leaf.clone();
+        let tree = Arc::clone(&tree);
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics| {
             let resolved = tree.resolve(&per_leaf)?;
@@ -842,6 +880,7 @@ async fn run_large_partitioned(
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
+                max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
             });
@@ -851,18 +890,25 @@ async fn run_large_partitioned(
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments: vec![segment],
-        store: Arc::new(object_store::local::LocalFileSystem::new()) as Arc<dyn object_store::ObjectStore>,
+        store: Arc::new(object_store::local::LocalFileSystem::new())
+            as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
         target_partitions: partitions,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
+        query_config: std::sync::Arc::new(
+            crate::datafusion_query_config::DatafusionQueryConfig::default(),
+        ),
+        predicate_columns: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
-    let df = ctx.sql("SELECT brand, price, status, category, qty FROM t").await.unwrap();
+    let df = ctx
+        .sql("SELECT brand, price, status, category, qty FROM t")
+        .await
+        .unwrap();
     let mut stream = df.execute_stream().await.unwrap();
     let mut out = Vec::new();
     while let Some(batch) = stream.next().await {
@@ -878,7 +924,11 @@ async fn run_large_partitioned(
                 price.value(i),
                 status.value(i).to_string(),
                 cat.value(i).to_string(),
-                if qty.is_null(i) { None } else { Some(qty.value(i)) },
+                if qty.is_null(i) {
+                    None
+                } else {
+                    Some(qty.value(i))
+                },
             ));
         }
     }
@@ -942,7 +992,7 @@ async fn large_multipartition_predicate_only() {
 reference_test_large!(
     large_and_narrow_then_wide_collector,
     LT::And(vec![
-        LT::Leaf(LLeaf::LPriceEq(12345)), // matches zero rows
+        LT::Leaf(LLeaf::LPriceEq(12345)),  // matches zero rows
         LT::Leaf(LLeaf::LBrand("amazon")), // large bitmap, wasted work today
     ])
 );

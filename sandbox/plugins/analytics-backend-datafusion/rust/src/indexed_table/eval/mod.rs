@@ -49,8 +49,14 @@ use datafusion::arrow::record_batch::RecordBatch;
 use roaring::RoaringBitmap;
 
 use super::bool_tree::ResolvedNode;
+use super::page_pruner::PagePruneMetrics;
 use super::page_pruner::PagePruner;
+use super::row_selection::PositionMap;
 use super::stream::RowGroupInfo;
+use datafusion::arrow::buffer::Buffer;
+use datafusion::physical_optimizer::pruning::PruningPredicate;
+use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 
 /// Per-row-group bitset producer. Plugs into `IndexedStream`.
 pub trait RowGroupBitsetSource: Send + Sync {
@@ -77,7 +83,7 @@ pub trait RowGroupBitsetSource: Send + Sync {
         &self,
         rg_state: &dyn Any,
         rg_first_row: i64,
-        position_map: &crate::indexed_table::row_selection::PositionMap,
+        position_map: &PositionMap,
         batch_offset: usize,
         batch_len: usize,
         batch: &RecordBatch,
@@ -123,6 +129,13 @@ pub struct PrefetchedRg {
     /// Opaque per-RG state threaded to `on_batch_mask` via `rg_state: &dyn Any`.
     /// Evaluators downcast to their own concrete type.
     pub context: Box<dyn Any + Send + Sync>,
+    /// Optional: pre-built Arrow `Buffer` holding `candidates` in
+    /// Arrow's native LSB-first bit layout, length = rg_num_rows. When
+    /// `Some`, `IndexedStream::build_mask` wraps a `BooleanBuffer` view
+    /// over this buffer (zero-copy) instead of rematerialising from the
+    /// `RoaringBitmap`. Set by evaluators that already produced the
+    /// packed bits internally (e.g. `SingleCollectorEvaluator`).
+    pub mask_buffer: Option<Buffer>,
 }
 
 impl PrefetchedRg {
@@ -133,6 +146,7 @@ impl PrefetchedRg {
             candidates,
             eval_nanos,
             context: Box::new(()),
+            mask_buffer: None,
         }
     }
 }
@@ -198,13 +212,8 @@ pub trait TreeEvaluator: Send + Sync {
         ctx: &RgEvalContext,
         leaves: &dyn LeafBitmapSource,
         page_pruner: &PagePruner,
-        pruning_predicates: &std::collections::HashMap<
-            usize,
-            Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
-        >,
-        page_prune_metrics: Option<
-            &crate::indexed_table::page_pruner::PagePruneMetrics,
-        >,
+        pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
+        page_prune_metrics: Option<&PagePruneMetrics>,
     ) -> Result<TreePrefetch, String>;
 
     /// Refinement stage: produce the exact per-row `BooleanArray` for one
@@ -221,7 +230,7 @@ pub trait TreeEvaluator: Send + Sync {
         state: &TreePrefetch,
         batch: &RecordBatch,
         rg_first_row: i64,
-        position_map: &crate::indexed_table::row_selection::PositionMap,
+        position_map: &PositionMap,
         batch_offset: usize,
         batch_len: usize,
     ) -> Result<BooleanArray, String>;
@@ -260,22 +269,21 @@ pub struct TreeBitsetSource {
     /// time so `prefetch_rg` doesn't need an `Arc` deref on the hot path.
     pub cost_predicate: u32,
     pub cost_collector: u32,
+    /// Max number of Collector leaves whose bitmaps are produced in
+    /// parallel per RG prefetch. 1 = sequential (preserves short-circuit
+    /// savings). Higher values trade short-circuit savings for latency
+    /// reduction on multi-collector trees; bounded by caller's config.
+    pub max_collector_parallelism: usize,
     /// Per-predicate `PruningPredicate` cache, keyed by
     /// `Arc::as_ptr(resolved_predicate) as usize`. Built once per query at
     /// dispatch time by the caller. Empty = page-level predicate pruning
     /// disabled (the tree path still works, each Predicate leaf falls
     /// back to "every row is a candidate").
-    pub pruning_predicates: Arc<
-        std::collections::HashMap<
-            usize,
-            Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
-        >,
-    >,
+    pub pruning_predicates: Arc<HashMap<usize, Arc<PruningPredicate>>>,
     /// Counters recorded by `page_pruner.prune_rg` at each Predicate
     /// leaf in the tree walk. Populated from the stream's
     /// `PartitionMetrics` at dispatch time.
-    pub page_prune_metrics:
-        Option<crate::indexed_table::page_pruner::PagePruneMetrics>,
+    pub page_prune_metrics: Option<PagePruneMetrics>,
 }
 
 impl RowGroupBitsetSource for TreeBitsetSource {
@@ -285,7 +293,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
         min_doc: i32,
         max_doc: i32,
     ) -> Result<Option<PrefetchedRg>, String> {
-        let t = std::time::Instant::now();
+        let t = Instant::now();
         let ctx = RgEvalContext {
             rg_idx: rg.index,
             rg_first_row: rg.first_row,
@@ -295,12 +303,36 @@ impl RowGroupBitsetSource for TreeBitsetSource {
             cost_predicate: self.cost_predicate,
             cost_collector: self.cost_collector,
         };
+
+        // Optional: materialise all Collector leaves in parallel before
+        // running the tree walk. Preserves correctness; sacrifices AND/OR
+        // short-circuit savings (all collectors run even if an earlier
+        // AND child already emptied the accumulator). Governed by
+        // `max_collector_parallelism`: 1 = sequential (today).
+        let precomputed = if self.max_collector_parallelism > 1 {
+            Some(precompute_collector_leaves(
+                &self.tree,
+                &ctx,
+                &*self.leaves,
+                self.max_collector_parallelism,
+            )?)
+        } else {
+            None
+        };
+
+        // Use the precomputed cache as the LeafBitmapSource if present;
+        // otherwise delegate directly to the original source (sequential).
+        let leaves_ref: &dyn LeafBitmapSource = match &precomputed {
+            Some(c) => c,
+            None => &*self.leaves,
+        };
+
         let prefetch = self
             .evaluator
             .prefetch(
                 &self.tree,
                 &ctx,
-                &*self.leaves,
+                leaves_ref,
                 &self.page_pruner,
                 &self.pruning_predicates,
                 self.page_prune_metrics.as_ref(),
@@ -324,6 +356,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
             candidates: rg_candidates,
             eval_nanos: t.elapsed().as_nanos() as u64,
             context: Box::new(prefetch),
+            mask_buffer: None,
         }))
     }
 
@@ -331,7 +364,7 @@ impl RowGroupBitsetSource for TreeBitsetSource {
         &self,
         rg_state: &dyn Any,
         rg_first_row: i64,
-        position_map: &crate::indexed_table::row_selection::PositionMap,
+        position_map: &PositionMap,
         batch_offset: usize,
         batch_len: usize,
         batch: &RecordBatch,
@@ -374,10 +407,146 @@ impl RowGroupBitsetSource for TreeBitsetSource {
     }
 }
 
+/// LeafBitmapSource that serves from a pre-populated map keyed by
+/// `Arc::as_ptr(collector)`. Falls back to the inner source for leaves
+/// not in the map (shouldn't happen in practice — we populate the map
+/// with every Collector leaf in the tree before invoking the evaluator).
+struct PrecomputedLeafCache<'a> {
+    map: HashMap<usize, RoaringBitmap>,
+    fallback: &'a dyn LeafBitmapSource,
+}
+
+impl<'a> LeafBitmapSource for PrecomputedLeafCache<'a> {
+    fn leaf_bitmap(
+        &self,
+        tree: &ResolvedNode,
+        leaf_dfs_index: usize,
+        ctx: &RgEvalContext,
+    ) -> Result<RoaringBitmap, String> {
+        if let ResolvedNode::Collector { collector, .. } = tree {
+            let key = Arc::as_ptr(collector) as *const () as usize;
+            if let Some(bm) = self.map.get(&key) {
+                return Ok(bm.clone());
+            }
+        }
+        self.fallback.leaf_bitmap(tree, leaf_dfs_index, ctx)
+    }
+}
+
+/// Walk the resolved tree and collect (key, collector-node-reference)
+/// pairs for every Collector leaf, in DFS order (matching the
+/// evaluator's walk order — we don't care about order beyond determinism).
+/// Duplicates (same Arc pointing at the same collector instance) are
+/// deduplicated by `Arc::as_ptr` so we don't call Lucene twice for the
+/// same leaf.
+fn collect_unique_collector_nodes<'a>(
+    node: &'a ResolvedNode,
+    out: &mut Vec<(usize, &'a ResolvedNode)>,
+    seen: &mut HashSet<usize>,
+) {
+    match node {
+        ResolvedNode::And(children) | ResolvedNode::Or(children) => {
+            for c in children {
+                collect_unique_collector_nodes(c, out, seen);
+            }
+        }
+        ResolvedNode::Not(c) => collect_unique_collector_nodes(c, out, seen),
+        ResolvedNode::Collector { collector, .. } => {
+            let key = Arc::as_ptr(collector) as *const () as usize;
+            if seen.insert(key) {
+                out.push((key, node));
+            }
+        }
+        ResolvedNode::Predicate(_) => {}
+    }
+}
+
+/// Materialise all Collector leaves of `tree` by running their
+/// `LeafBitmapSource::leaf_bitmap` calls in parallel via `std::thread::scope`,
+/// bounded by `max_parallel`. Returns a cache keyed by `Arc::as_ptr(collector)`.
+///
+/// Uses an `Arc<AtomicUsize>`-driven round-robin over pre-spawned worker
+/// threads so we never exceed `max_parallel` concurrent Lucene calls.
+/// On error, returns the first error encountered.
+fn precompute_collector_leaves<'a>(
+    tree: &'a ResolvedNode,
+    ctx: &RgEvalContext,
+    leaves: &'a dyn LeafBitmapSource,
+    max_parallel: usize,
+) -> Result<PrecomputedLeafCache<'a>, String> {
+    let mut collectors: Vec<(usize, &ResolvedNode)> = Vec::new();
+    let mut seen = HashSet::new();
+    collect_unique_collector_nodes(tree, &mut collectors, &mut seen);
+
+    // Zero or one collector → no benefit from parallelism, fall back to
+    // an empty cache (evaluator will use the fallback synchronously).
+    if collectors.len() <= 1 {
+        return Ok(PrecomputedLeafCache {
+            map: HashMap::new(),
+            fallback: leaves,
+        });
+    }
+
+    let n = collectors.len();
+    let parallel = max_parallel.min(n).max(1);
+
+    // Bounded parallelism via std::thread::scope + a work queue Mutex.
+    // Each worker pulls the next collector to evaluate, calls
+    // leaf_bitmap, writes result into a shared Vec<Option<Result<...>>>
+    // at the collector's index.
+    let mut results: Vec<Option<Result<RoaringBitmap, String>>> = (0..n).map(|_| None).collect();
+    let next_idx = std::sync::atomic::AtomicUsize::new(0);
+    let results_mutex = std::sync::Mutex::new(&mut results);
+
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(parallel);
+        for _worker in 0..parallel {
+            let collectors_ref = &collectors;
+            let leaves_ref = leaves;
+            let ctx_ref = ctx;
+            let next_idx_ref = &next_idx;
+            let results_mutex_ref = &results_mutex;
+            handles.push(scope.spawn(move || {
+                loop {
+                    let i = next_idx_ref.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if i >= collectors_ref.len() {
+                        break;
+                    }
+                    let (_key, node) = collectors_ref[i];
+                    // Use i as the leaf_dfs_index — the cache doesn't
+                    // use it for lookup (keys by Arc::as_ptr), so any
+                    // stable value works.
+                    let result = leaves_ref.leaf_bitmap(node, i, ctx_ref);
+                    let mut guard = results_mutex_ref.lock().unwrap();
+                    guard[i] = Some(result);
+                }
+            }));
+        }
+        // Scope ensures all threads complete before returning.
+        for h in handles {
+            let _ = h.join();
+        }
+    });
+
+    // Assemble results. Fail fast on the first error.
+    let mut map = HashMap::with_capacity(n);
+    for (i, slot) in results.into_iter().enumerate() {
+        let bm =
+            slot.ok_or_else(|| format!("precompute: worker did not populate slot {}", i))??;
+        map.insert(collectors[i].0, bm);
+    }
+
+    Ok(PrecomputedLeafCache {
+        map,
+        fallback: leaves,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::indexed_table::bool_tree::ResolvedNode;
+    use crate::indexed_table::index::RowGroupDocsCollector;
     use crate::indexed_table::page_pruner::PagePruner;
     use datafusion::arrow::array::Int32Array;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
@@ -393,8 +562,7 @@ mod tests {
         )
         .unwrap();
         let tmp = tempfile::NamedTempFile::new().unwrap();
-        let mut writer =
-            ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), None).unwrap();
+        let mut writer = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), None).unwrap();
         writer.write(&batch).unwrap();
         writer.close().unwrap();
         let meta = ArrowReaderMetadata::load(
@@ -430,13 +598,8 @@ mod tests {
             _ctx: &RgEvalContext,
             _leaves: &dyn LeafBitmapSource,
             _page_pruner: &PagePruner,
-            _pruning_predicates: &std::collections::HashMap<
-                usize,
-                Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
-            >,
-            _page_prune_metrics: Option<
-                &crate::indexed_table::page_pruner::PagePruneMetrics,
-            >,
+            _pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
+            _page_prune_metrics: Option<&PagePruneMetrics>,
         ) -> Result<TreePrefetch, String> {
             Ok(TreePrefetch {
                 candidates: roaring::RoaringBitmap::new(),
@@ -450,11 +613,11 @@ mod tests {
             _state: &TreePrefetch,
             _batch: &RecordBatch,
             _rg_first_row: i64,
-            _position_map: &crate::indexed_table::row_selection::PositionMap,
+            _position_map: &PositionMap,
             _batch_offset: usize,
             batch_len: usize,
-        ) -> Result<datafusion::arrow::array::BooleanArray, String> {
-            Ok(datafusion::arrow::array::BooleanArray::from(vec![false; batch_len]))
+        ) -> Result<BooleanArray, String> {
+            Ok(BooleanArray::from(vec![false; batch_len]))
         }
     }
 
@@ -463,8 +626,6 @@ mod tests {
         // `TreeBitsetSource::on_batch_mask` returns `Some(refinement_mask)`.
         // `finalize_batch` ignores `current_mask` in that branch, so
         // `IndexedStream` should skip building it.
-        use crate::indexed_table::bool_tree::ResolvedNode;
-        use crate::indexed_table::index::RowGroupDocsCollector;
 
         #[derive(Debug)]
         struct Dummy;
@@ -483,8 +644,9 @@ mod tests {
             page_pruner: empty_pruner(),
             cost_predicate: 1,
             cost_collector: 10,
-            pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
-                page_prune_metrics: None,
+            max_collector_parallelism: 1,
+            pruning_predicates: std::sync::Arc::new(HashMap::new()),
+            page_prune_metrics: None,
         };
         assert!(!source.needs_row_mask());
     }

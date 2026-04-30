@@ -112,9 +112,7 @@ pub fn compute_assignments(
 
         let is_last = i == all_rgs.len() - 1;
 
-        if current_rows >= rows_per_partition
-            && assignments.len() < num_partitions - 1
-            && !is_last
+        if current_rows >= rows_per_partition && assignments.len() < num_partitions - 1 && !is_last
         {
             current_chunks.push(SegmentChunk {
                 segment_idx: chunk_seg.unwrap(),

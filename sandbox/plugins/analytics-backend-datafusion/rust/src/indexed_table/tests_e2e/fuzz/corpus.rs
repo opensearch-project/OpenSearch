@@ -348,12 +348,8 @@ fn write_parquet(
         .set_data_page_row_count_limit(rows_per_page)
         .set_statistics_enabled(EnabledStatistics::Page)
         .build();
-    let mut w = ArrowWriter::try_new(
-        tmp.reopen().expect("reopen"),
-        batch.schema(),
-        Some(props),
-    )
-    .expect("arrow writer");
+    let mut w = ArrowWriter::try_new(tmp.reopen().expect("reopen"), batch.schema(), Some(props))
+        .expect("arrow writer");
     w.write(batch).expect("write");
     w.close().expect("close");
     tmp

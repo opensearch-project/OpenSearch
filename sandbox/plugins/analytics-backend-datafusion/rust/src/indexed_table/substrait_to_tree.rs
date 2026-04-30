@@ -32,6 +32,7 @@
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef};
+use datafusion::common::tree_node::TreeNode;
 use datafusion::common::{DFSchema, ScalarValue};
 use datafusion::execution::context::ExecutionProps;
 use datafusion::logical_expr::{
@@ -129,9 +130,17 @@ fn convert_expr(
         // require boolean return type so the tree evaluator can
         // interpret the result as a per-row mask.
         other => {
-            let phys = create_physical_expr(other, df_schema, props)
-                .map_err(|e| format!("create_physical_expr for {:?}: {}", other, e))?;
-            let return_type = phys.data_type(schema).map_err(|e| format!("data_type: {}", e))?;
+            // Strip table qualifiers from Column references. DataFusion's
+            // substrait consumer qualifies field references with the
+            // NamedScan table name (e.g. "test_table.elb_status_code"),
+            // but the parquet schema has bare names. Without stripping,
+            // `create_physical_expr` fails with "No field named ...".
+            let unqualified = strip_column_qualifiers(other);
+            let phys = create_physical_expr(&unqualified, df_schema, props)
+                .map_err(|e| format!("create_physical_expr for {:?}: {}", unqualified, e))?;
+            let return_type = phys
+                .data_type(schema)
+                .map_err(|e| format!("data_type: {}", e))?;
             if return_type != DataType::Boolean {
                 return Err(format!(
                     "indexed-query expression must be boolean-valued, got {:?}: {:?}",
@@ -156,6 +165,25 @@ fn convert_collector_function(args: &[Expr]) -> Result<BoolNode, String> {
     Ok(BoolNode::Collector { query_bytes: bytes })
 }
 
+/// Strip table qualifiers from `Column` references in an `Expr` tree.
+/// DataFusion's substrait consumer qualifies field references with the
+/// NamedScan table name, but the parquet schema has bare column names.
+fn strip_column_qualifiers(expr: &Expr) -> Expr {
+    expr.clone()
+        .transform(|e| {
+            if let Expr::Column(col) = &e {
+                if col.relation.is_some() {
+                    return Ok(datafusion::common::tree_node::Transformed::yes(
+                        Expr::Column(datafusion::common::Column::new_unqualified(&col.name)),
+                    ));
+                }
+            }
+            Ok(datafusion::common::tree_node::Transformed::no(e))
+        })
+        .unwrap()
+        .data
+}
+
 fn extract_binary_literal(expr: &Expr) -> Result<Arc<[u8]>, String> {
     match expr {
         Expr::Literal(ScalarValue::Binary(Some(v)), _) => Ok(Arc::from(v.as_slice())),
@@ -172,18 +200,32 @@ fn extract_binary_literal(expr: &Expr) -> Result<Arc<[u8]>, String> {
 ///
 /// - 0 collector leaves → `FilterClass::None`
 /// - 1 collector leaf, top-level AND with non-collector children only → `FilterClass::SingleCollector`
-/// - anything else (OR / NOT / multiple collectors / bare collector) → `FilterClass::Tree`
+/// - bare collector or AND(Collector, predicates...) → `FilterClass::SingleCollector`
+/// - AND(Collector, Collector, ...) with only collectors → `FilterClass::SingleCollector`
+///   (merged into single BooleanQuery by the backend)
+/// - anything else (OR / NOT / mixed collector+predicate in OR) → `FilterClass::Tree`
 pub fn classify_filter(tree: &BoolNode) -> FilterClass {
     match tree.collector_leaf_count() {
         0 => FilterClass::None,
         1 => {
-            if is_and_of_collector_plus_predicates(tree) {
+            if matches!(tree, BoolNode::Collector { .. })
+                || is_and_of_collector_plus_predicates(tree)
+            {
                 FilterClass::SingleCollector
             } else {
                 FilterClass::Tree
             }
         }
-        _ => FilterClass::Tree,
+        _ => {
+            // Multiple collectors: if top-level AND with ALL children
+            // being pure Collectors (no predicates), they can be merged
+            // into a single BooleanQuery → SingleCollector.
+            if is_and_of_only_collectors(tree) {
+                FilterClass::SingleCollector
+            } else {
+                FilterClass::Tree
+            }
+        }
     }
 }
 
@@ -203,6 +245,18 @@ fn is_and_of_collector_plus_predicates(tree: &BoolNode) -> bool {
             }
             collector_count == 1
         }
+        _ => false,
+    }
+}
+
+/// Returns true if `tree` is `AND(Collector, Collector, ...)` with ALL
+/// children being direct Collector leaves. These can be merged into a
+/// single Lucene BooleanQuery (MUST clauses) → SingleCollector path.
+fn is_and_of_only_collectors(tree: &BoolNode) -> bool {
+    match tree {
+        BoolNode::And(children) => children
+            .iter()
+            .all(|c| matches!(c, BoolNode::Collector { .. })),
         _ => false,
     }
 }
@@ -279,13 +333,11 @@ impl ScalarUDFImpl for IndexFilterUdf {
         // function. If we reach here, classification missed the marker and
         // would otherwise silently return all-true, masking the bug and
         // producing wrong results. Fail loudly instead.
-        Err(datafusion::common::DataFusionError::Internal(
-            format!(
-                "{} UDF body invoked — classify_filter did not recognize the marker; \
+        Err(datafusion::common::DataFusionError::Internal(format!(
+            "{} UDF body invoked — classify_filter did not recognize the marker; \
                  treat as a serious correctness bug",
-                COLLECTOR_FUNCTION_NAME
-            ),
-        ))
+            COLLECTOR_FUNCTION_NAME
+        )))
     }
 }
 
@@ -298,6 +350,7 @@ mod tests {
     use super::*;
     use datafusion::arrow::datatypes::{Field, Schema};
     use datafusion::logical_expr::{col, lit};
+    use datafusion::physical_expr::expressions::{Column as PhysColumn, Literal};
     use std::sync::Arc;
 
     fn test_schema() -> SchemaRef {
@@ -433,7 +486,6 @@ mod tests {
     fn dummy_predicate() -> BoolNode {
         // A stand-in Predicate leaf — classify only cares about shape,
         // not expression contents. Build a minimal boolean PhysicalExpr.
-        use datafusion::physical_expr::expressions::{Column as PhysColumn, Literal};
         let schema = test_schema();
         let col_idx = schema.index_of("price").unwrap();
         let left: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new("price", col_idx));
@@ -453,8 +505,11 @@ mod tests {
     }
 
     #[test]
-    fn classify_bare_collector_is_tree() {
-        assert_eq!(classify_filter(&collector(b"x")), FilterClass::Tree);
+    fn classify_bare_collector_is_single() {
+        assert_eq!(
+            classify_filter(&collector(b"x")),
+            FilterClass::SingleCollector
+        );
     }
 
     #[test]

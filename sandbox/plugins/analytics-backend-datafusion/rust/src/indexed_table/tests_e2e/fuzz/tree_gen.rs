@@ -116,18 +116,14 @@ fn gen_node(
         0 => {
             let n = pick_fanout(rng);
             let children: Vec<BoolNode> = (0..n)
-                .map(|_| {
-                    gen_node(rng, schema, num_collectors, depth_remaining - 1, max_fanout)
-                })
+                .map(|_| gen_node(rng, schema, num_collectors, depth_remaining - 1, max_fanout))
                 .collect();
             BoolNode::And(children)
         }
         1 => {
             let n = pick_fanout(rng);
             let children: Vec<BoolNode> = (0..n)
-                .map(|_| {
-                    gen_node(rng, schema, num_collectors, depth_remaining - 1, max_fanout)
-                })
+                .map(|_| gen_node(rng, schema, num_collectors, depth_remaining - 1, max_fanout))
                 .collect();
             BoolNode::Or(children)
         }
@@ -347,9 +343,9 @@ fn pick_literal_for(rng: &mut StdRng, dt: &DataType) -> ScalarValue {
         }
         DataType::Int32 => {
             let v = match strategy {
-                0..=69 => rng.gen_range(0..1000),            // in typical range
-                70..=84 => rng.gen_range(i32::MIN..0),        // below typical
-                _ => rng.gen_range(1000..i32::MAX),           // above typical
+                0..=69 => rng.gen_range(0..1000),      // in typical range
+                70..=84 => rng.gen_range(i32::MIN..0), // below typical
+                _ => rng.gen_range(1000..i32::MAX),    // above typical
             };
             ScalarValue::Int32(Some(v))
         }
@@ -380,9 +376,9 @@ fn pick_literal_for(rng: &mut StdRng, dt: &DataType) -> ScalarValue {
         }
         DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, None) => {
             let v: i64 = match strategy {
-                0..=69 => rng.gen_range(
-                    1_704_067_200_000_000_000_i64..1_735_689_600_000_000_000_i64,
-                ),
+                0..=69 => {
+                    rng.gen_range(1_704_067_200_000_000_000_i64..1_735_689_600_000_000_000_i64)
+                }
                 70..=84 => rng.gen_range(0..1_704_067_200_000_000_000_i64),
                 _ => rng.gen_range(1_735_689_600_000_000_000_i64..i64::MAX),
             };
@@ -523,9 +519,7 @@ mod tests {
 
     fn depth(n: &BoolNode) -> usize {
         match n {
-            BoolNode::And(cs) | BoolNode::Or(cs) => {
-                1 + cs.iter().map(depth).max().unwrap_or(0)
-            }
+            BoolNode::And(cs) | BoolNode::Or(cs) => 1 + cs.iter().map(depth).max().unwrap_or(0),
             BoolNode::Not(c) => 1 + depth(c),
             BoolNode::Collector { .. } | BoolNode::Predicate(_) => 0,
         }

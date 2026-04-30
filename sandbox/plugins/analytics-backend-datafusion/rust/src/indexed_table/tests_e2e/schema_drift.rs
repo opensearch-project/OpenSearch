@@ -13,7 +13,6 @@
 
 use super::*;
 
-
 // ══════════════════════════════════════════════════════════════════════
 // Missing-column fixture — parquet written without a column that the
 // tree still references. Simulates a segment written before a mapping
@@ -75,15 +74,19 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
     let f = missing_col_fixture();
     let size = std::fs::metadata(&f.path).unwrap().len();
     let file = std::fs::File::open(&f.path).unwrap();
-    let meta = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-        .unwrap();
+    let meta =
+        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
     let mut offset = 0i64;
     for i in 0..parquet_meta.num_row_groups() {
         let n = parquet_meta.row_group(i).num_rows();
-        rgs.push(RowGroupInfo { index: i, first_row: offset, num_rows: n });
+        rgs.push(RowGroupInfo {
+            index: i,
+            first_row: offset,
+            num_rows: n,
+        });
         offset += n;
     }
     let segment = SegmentFileInfo {
@@ -109,6 +112,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
+                max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
             });
@@ -118,14 +122,18 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments: vec![segment],
-        store: Arc::new(object_store::local::LocalFileSystem::new()) as Arc<dyn object_store::ObjectStore>,
+        store: Arc::new(object_store::local::LocalFileSystem::new())
+            as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
         target_partitions: 1,
         force_strategy: Some(FilterStrategy::BooleanMask),
         force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default()),
+        query_config: std::sync::Arc::new(
+            crate::datafusion_query_config::DatafusionQueryConfig::default(),
+        ),
+        predicate_columns: vec![],
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
@@ -154,12 +162,12 @@ fn schema_with_missing() -> SchemaRef {
 fn pred_missing_int(col: &str, op: Operator, v: i32) -> BoolNode {
     let schema = schema_with_missing();
     let col_idx = schema.index_of(col).expect("column in local schema");
-    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
-    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Literal::new(
-            ScalarValue::Int32(Some(v)),
-        ));
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Column::new(col, col_idx),
+    );
+    let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Literal::new(ScalarValue::Int32(Some(v))),
+    );
     BoolNode::Predicate(Arc::new(
         datafusion::physical_expr::expressions::BinaryExpr::new(left, op, right),
     ))
@@ -168,8 +176,9 @@ fn pred_missing_int(col: &str, op: Operator, v: i32) -> BoolNode {
 fn pred_missing_str(col: &str, op: Operator, v: &str) -> BoolNode {
     let schema = schema_with_missing();
     let col_idx = schema.index_of(col).expect("column in local schema");
-    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-        Arc::new(datafusion::physical_expr::expressions::Column::new(col, col_idx));
+    let left: Arc<dyn datafusion::physical_expr::PhysicalExpr> = Arc::new(
+        datafusion::physical_expr::expressions::Column::new(col, col_idx),
+    );
     let right: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
         Arc::new(datafusion::physical_expr::expressions::Literal::new(
             ScalarValue::Utf8(Some(v.to_string())),
@@ -218,7 +227,11 @@ async fn missing_col_or_with_existing_keeps_existing() {
         pred_missing_str("name", Operator::Eq, "foo"),
         pred_missing_int("missing_col", Operator::GtEq, 0),
     ]);
-    let expected = missing_col_fixture().name.iter().filter(|n| **n == "foo").count();
+    let expected = missing_col_fixture()
+        .name
+        .iter()
+        .filter(|n| **n == "foo")
+        .count();
     assert_eq!(run_missing_col_tree(tree).await, expected);
 }
 
@@ -234,6 +247,8 @@ async fn missing_col_nested_or_kept_existing_only() {
         pred_missing_int("missing_col", Operator::Eq, 42),
     ]);
     let f = missing_col_fixture();
-    let expected = (0..MISSING_N).filter(|&i| f.name[i] == "foo" && f.score[i] < 500).count();
+    let expected = (0..MISSING_N)
+        .filter(|&i| f.name[i] == "foo" && f.score[i] < 500)
+        .count();
     assert_eq!(run_missing_col_tree(tree).await, expected);
 }

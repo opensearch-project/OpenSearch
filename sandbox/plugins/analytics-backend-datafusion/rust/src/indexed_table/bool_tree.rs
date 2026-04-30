@@ -42,7 +42,9 @@ pub enum BoolNode {
     /// upcalls into Java with these bytes at query-resolve time to get a
     /// `provider_key`, then creates per-segment collectors. Bytes are opaque
     /// to Rust; only the Java factory knows how to interpret them.
-    Collector { query_bytes: Arc<[u8]> },
+    Collector {
+        query_bytes: Arc<[u8]>,
+    },
     /// Arbitrary boolean-valued DataFusion expression. At refinement
     /// time, `expr.evaluate(batch)` produces the per-row mask; at page-
     /// prune time, the expression is handed to DataFusion's
@@ -544,8 +546,12 @@ mod tests {
                 assert_eq!(children.len(), 2);
                 match (&children[0], &children[1]) {
                     (
-                        ResolvedNode::Collector { provider_key: p1, .. },
-                        ResolvedNode::Collector { provider_key: p2, .. },
+                        ResolvedNode::Collector {
+                            provider_key: p1, ..
+                        },
+                        ResolvedNode::Collector {
+                            provider_key: p2, ..
+                        },
                     ) => {
                         assert_eq!(*p1, 10);
                         assert_eq!(*p2, 20);

@@ -104,12 +104,12 @@ async fn complex_tree_3_levels_3_collectors_2_predicates() {
         BoolNode::Or(vec![
             index_leaf(0), // brand=amazon
             BoolNode::And(vec![
-                index_leaf(1),       // brand=apple
-                pred_int("price", Operator::Lt, 100),    // price < 100
+                index_leaf(1),                        // brand=apple
+                pred_int("price", Operator::Lt, 100), // price < 100
             ]),
         ]),
         BoolNode::Not(Box::new(index_leaf(2))), // NOT status=archived
-        pred_str("category", Operator::Eq, "electronics"),                        // category=electronics
+        pred_str("category", Operator::Eq, "electronics"), // category=electronics
     ]);
     let rows = run_tree(tree).await;
 
@@ -185,7 +185,7 @@ async fn bare_not_returns_complement() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn negated_leaf_intersected_with_positive_leaf() {
     let tree = BoolNode::And(vec![
-        index_leaf(0),                           // amazon
+        index_leaf(0),                          // amazon
         BoolNode::Not(Box::new(index_leaf(2))), // NOT archived
     ]);
     let rows = run_tree(tree).await;
@@ -212,8 +212,8 @@ async fn negated_leaf_intersected_with_positive_leaf() {
 #[derive(Debug, Clone, Copy)]
 enum LeafId {
     // index-backed collector leaves (provider_id 0/1/2 per `wire_collector_indices`)
-    BrandAmazon,   // provider_id = 0
-    BrandApple,    // provider_id = 1
+    BrandAmazon,    // provider_id = 0
+    BrandApple,     // provider_id = 1
     StatusArchived, // provider_id = 2
     // Parquet predicate leaves — reference_evaluator applies directly.
     PriceLt100,
@@ -232,7 +232,10 @@ enum LeafId {
     // Richer operators — exercise expressions our old converter rejected.
     PriceIn(&'static [i32]),
     /// `price + offset > threshold`.
-    PricePlusGt { offset: i32, threshold: i32 },
+    PricePlusGt {
+        offset: i32,
+        threshold: i32,
+    },
 }
 
 /// Matchers the reference_evaluator uses.
@@ -269,7 +272,9 @@ impl LeafId {
             LeafId::PriceGt100 => ReferencePred::Int("price", Operator::Gt, 100),
             LeafId::PriceGe150 => ReferencePred::Int("price", Operator::GtEq, 150),
             LeafId::PriceEq150 => ReferencePred::Int("price", Operator::Eq, 150),
-            LeafId::CategoryElectronics => ReferencePred::Str("category", Operator::Eq, "electronics"),
+            LeafId::CategoryElectronics => {
+                ReferencePred::Str("category", Operator::Eq, "electronics")
+            }
             LeafId::CategoryBooks => ReferencePred::Str("category", Operator::Eq, "books"),
             LeafId::PriceLt(v) => ReferencePred::Int("price", Operator::Lt, v),
             LeafId::PriceGt(v) => ReferencePred::Int("price", Operator::Gt, v),
@@ -311,10 +316,7 @@ impl LeafId {
                     })
                     .collect();
                 let in_expr = datafusion::physical_expr::expressions::in_list(
-                    price,
-                    literals,
-                    &false,
-                    &schema,
+                    price, literals, &false, &schema,
                 )
                 .unwrap();
                 BoolNode::Predicate(in_expr)
@@ -464,9 +466,15 @@ reference_test!(not_price_lt_100, not_(l(PriceLt100)));
 reference_test!(not_category_books, not_(l(CategoryBooks)));
 
 // Pairs via AND / OR — smallest compound shapes.
-reference_test!(and_two_collectors, and_(vec![l(BrandAmazon), l(StatusArchived)]));
+reference_test!(
+    and_two_collectors,
+    and_(vec![l(BrandAmazon), l(StatusArchived)])
+);
 reference_test!(or_two_collectors, or_(vec![l(BrandAmazon), l(BrandApple)]));
-reference_test!(and_two_predicates, and_(vec![l(PriceGt100), l(CategoryElectronics)]));
+reference_test!(
+    and_two_predicates,
+    and_(vec![l(PriceGt100), l(CategoryElectronics)])
+);
 reference_test!(or_two_predicates, or_(vec![l(PriceLt50), l(PriceGe150)]));
 reference_test!(
     and_collector_and_predicate,
@@ -514,11 +522,17 @@ reference_test!(
 // Absorption: A AND (A OR B) == A ; A OR (A AND B) == A
 reference_test!(
     absorption_and,
-    and_(vec![l(BrandAmazon), or_(vec![l(BrandAmazon), l(BrandApple)])])
+    and_(vec![
+        l(BrandAmazon),
+        or_(vec![l(BrandAmazon), l(BrandApple)])
+    ])
 );
 reference_test!(
     absorption_or,
-    or_(vec![l(PriceLt100), and_(vec![l(PriceLt100), l(CategoryBooks)])])
+    or_(vec![
+        l(PriceLt100),
+        and_(vec![l(PriceLt100), l(CategoryBooks)])
+    ])
 );
 
 // Distributivity: A AND (B OR C) == (A AND B) OR (A AND C)
@@ -587,7 +601,10 @@ reference_test!(
 );
 
 // OR of two non-overlapping collectors.
-reference_test!(or_non_overlapping_collectors, or_(vec![l(BrandAmazon), l(BrandApple)]));
+reference_test!(
+    or_non_overlapping_collectors,
+    or_(vec![l(BrandAmazon), l(BrandApple)])
+);
 
 // AND of two non-overlapping collectors → empty.
 reference_test!(
@@ -602,7 +619,10 @@ reference_test!(
 );
 
 // Single-row targeting: price = 150 AND category = books → row 11.
-reference_test!(single_row_match, and_(vec![l(PriceEq150), l(CategoryBooks)]));
+reference_test!(
+    single_row_match,
+    and_(vec![l(PriceEq150), l(CategoryBooks)])
+);
 
 // No row has `price < 50 AND category=books` in fixture → empty.
 reference_test!(
@@ -693,7 +713,11 @@ reference_test!(
 
 reference_test!(
     multi_column_and,
-    and_(vec![l(PriceGt100), l(CategoryElectronics), l(StatusArchived)])
+    and_(vec![
+        l(PriceGt100),
+        l(CategoryElectronics),
+        l(StatusArchived)
+    ])
 );
 
 reference_test!(
@@ -818,14 +842,8 @@ reference_test!(
     and_(vec![l(BrandApple), l(PriceLt100)])
 );
 
-reference_test!(
-    commutative_or_ab,
-    or_(vec![l(BrandAmazon), l(BrandApple)])
-);
-reference_test!(
-    commutative_or_ba,
-    or_(vec![l(BrandApple), l(BrandAmazon)])
-);
+reference_test!(commutative_or_ab, or_(vec![l(BrandAmazon), l(BrandApple)]));
+reference_test!(commutative_or_ba, or_(vec![l(BrandApple), l(BrandAmazon)]));
 
 // Associativity: A AND (B AND C) vs (A AND B) AND C — engine must not
 // care which one the tree was built as.
@@ -883,11 +901,7 @@ reference_test!(
 reference_test!(
     stress_all_leaves_in_tree,
     and_(vec![
-        or_(vec![
-            l(BrandAmazon),
-            l(BrandApple),
-            l(StatusArchived),
-        ]),
+        or_(vec![l(BrandAmazon), l(BrandApple), l(StatusArchived),]),
         or_(vec![
             l(PriceLt100),
             l(PriceLt50),
@@ -1020,7 +1034,10 @@ reference_test!(
     or_of_predicates_different_columns,
     and_(vec![
         l(BrandApple),
-        or_(vec![l(LeafId::PriceGt(100)), l(LeafId::StatusEq("archived"))]),
+        or_(vec![
+            l(LeafId::PriceGt(100)),
+            l(LeafId::StatusEq("archived"))
+        ]),
     ])
 );
 
@@ -1029,7 +1046,10 @@ reference_test!(
     and_collector_or_of_different_columns,
     and_(vec![
         l(BrandApple),
-        or_(vec![l(LeafId::PriceGt(150)), l(LeafId::StatusEq("archived"))]),
+        or_(vec![
+            l(LeafId::PriceGt(150)),
+            l(LeafId::StatusEq("archived"))
+        ]),
     ])
 );
 
@@ -1044,7 +1064,10 @@ reference_test!(
     or_collector_with_nested_multi_column_or,
     or_(vec![
         l(BrandApple),
-        or_(vec![l(LeafId::PriceLt(40)), l(LeafId::StatusEq("archived"))]),
+        or_(vec![
+            l(LeafId::PriceLt(40)),
+            l(LeafId::StatusEq("archived"))
+        ]),
     ])
 );
 
@@ -1068,7 +1091,10 @@ reference_test!(
         l(BrandApple),
         or_(vec![
             and_(vec![l(LeafId::PriceGt(100)), l(LeafId::StatusEq("active"))]),
-            or_(vec![l(LeafId::PriceLt(50)), l(LeafId::StatusEq("archived"))]),
+            or_(vec![
+                l(LeafId::PriceLt(50)),
+                l(LeafId::StatusEq("archived"))
+            ]),
         ]),
     ])
 );
@@ -1095,17 +1121,17 @@ reference_test!(
     arithmetic_predicate_under_collector,
     and_(vec![
         l(BrandApple),
-        l(LeafId::PricePlusGt { offset: 10, threshold: 100 }),
+        l(LeafId::PricePlusGt {
+            offset: 10,
+            threshold: 100
+        }),
     ])
 );
 
 // apple AND NOT (price IN (95, 200))
 reference_test!(
     not_of_in_list_under_collector,
-    and_(vec![
-        l(BrandApple),
-        not_(l(LeafId::PriceIn(&[95, 200]))),
-    ])
+    and_(vec![l(BrandApple), not_(l(LeafId::PriceIn(&[95, 200]))),])
 );
 
 // apple AND (price IN (60, 200) OR (price + 10) > 200) — mixed.
@@ -1115,7 +1141,10 @@ reference_test!(
         l(BrandApple),
         or_(vec![
             l(LeafId::PriceIn(&[60, 200])),
-            l(LeafId::PricePlusGt { offset: 10, threshold: 200 }),
+            l(LeafId::PricePlusGt {
+                offset: 10,
+                threshold: 200
+            }),
         ]),
     ])
 );
@@ -1154,7 +1183,10 @@ reference_test!(not_of_in_list, not_(l(LeafId::PriceIn(&[50, 95]))));
 // NOT((price + 10) > 100) — NOT over arithmetic; NotExpr wrapper path.
 reference_test!(
     not_of_arithmetic,
-    not_(l(LeafId::PricePlusGt { offset: 10, threshold: 100 }))
+    not_(l(LeafId::PricePlusGt {
+        offset: 10,
+        threshold: 100
+    }))
 );
 
 // NOT(status = "archived") — NOT over string predicate (not the Collector
@@ -1193,7 +1225,10 @@ reference_test!(
     or_with_arithmetic_branch,
     or_(vec![
         l(LeafId::PriceGt(100)),
-        l(LeafId::PricePlusGt { offset: 10, threshold: 50 }),
+        l(LeafId::PricePlusGt {
+            offset: 10,
+            threshold: 50
+        }),
         // Note: PricePlusGt { offset, threshold } means price+offset > threshold.
         // So (price + 10) < 50 doesn't exist as a single LeafId; this is
         // (price > 100) OR (price + 10 > 50) instead. Still a valid tree.
@@ -1219,7 +1254,10 @@ reference_test!(
     three_way_and_mixed_new_operators,
     and_(vec![
         l(LeafId::PriceIn(&[50, 90, 200])),
-        l(LeafId::PricePlusGt { offset: 10, threshold: 50 }),
+        l(LeafId::PricePlusGt {
+            offset: 10,
+            threshold: 50
+        }),
         l(LeafId::StatusEq("active")),
     ])
 );
@@ -1230,7 +1268,7 @@ reference_test!(
     and_(vec![
         l(BrandApple),
         l(LeafId::PriceIn(&[45, 60, 90, 95, 200])), // all apple prices
-        not_(l(LeafId::PriceIn(&[90, 95]))),         // exclude two
+        not_(l(LeafId::PriceIn(&[90, 95]))),        // exclude two
     ])
 );
 

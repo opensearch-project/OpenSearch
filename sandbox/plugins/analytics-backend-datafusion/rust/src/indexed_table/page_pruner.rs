@@ -44,13 +44,11 @@ use std::sync::Arc;
 use datafusion::arrow::array::{ArrayRef, BooleanArray, Int64Array};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::{Column, ScalarValue};
-use datafusion::logical_expr::Operator;
 use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 use datafusion::parquet::arrow::arrow_reader::{RowSelection, RowSelector};
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use datafusion::physical_expr::expressions::{BinaryExpr, Literal};
 #[cfg(test)]
-use datafusion::physical_expr::expressions::Column as PhysColumn;
+use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
 use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistics};
 
@@ -85,21 +83,18 @@ impl PagePruner {
         rg_idx: usize,
         metrics: Option<&PagePruneMetrics>,
     ) -> Option<RowSelection> {
-        let stats = match MultiColumnPagesPruningStats::try_new(
-            rg_idx,
-            &self.schema,
-            &self.metadata,
-        ) {
-            Some(s) => s,
-            None => {
-                if let Some(m) = metrics {
-                    if let Some(ref c) = m.page_pruning_unavailable {
-                        c.add(1);
+        let stats =
+            match MultiColumnPagesPruningStats::try_new(rg_idx, &self.schema, &self.metadata) {
+                Some(s) => s,
+                None => {
+                    if let Some(m) = metrics {
+                        if let Some(ref c) = m.page_pruning_unavailable {
+                            c.add(1);
+                        }
                     }
+                    return None;
                 }
-                return None;
-            }
-        };
+            };
         let keep = match pruning_predicate.prune(&stats) {
             Ok(k) => k,
             Err(e) => {
@@ -150,9 +145,7 @@ pub struct PagePruneMetrics {
 }
 
 impl PagePruneMetrics {
-    pub fn from_stream_metrics(
-        sm: &crate::indexed_table::metrics::StreamMetrics,
-    ) -> Self {
+    pub fn from_stream_metrics(sm: &crate::indexed_table::metrics::StreamMetrics) -> Self {
         Self {
             pages_pruned: sm.pages_pruned.clone(),
             pages_total: sm.pages_total.clone(),
@@ -174,11 +167,7 @@ pub fn build_pruning_predicate(
     let pruning_predicate = match PruningPredicate::try_new(Arc::clone(expr), schema) {
         Ok(pp) => pp,
         Err(e) => {
-            log::debug!(
-                "PruningPredicate::try_new failed for {:?}: {}",
-                expr,
-                e
-            );
+            log::debug!("PruningPredicate::try_new failed for {:?}: {}", expr, e);
             return None;
         }
     };
@@ -360,7 +349,10 @@ mod tests {
         let qtys: Vec<i32> = (100..132).collect();
         let batch = RecordBatch::try_new(
             schema.clone(),
-            vec![Arc::new(Int32Array::from(prices)), Arc::new(Int32Array::from(qtys))],
+            vec![
+                Arc::new(Int32Array::from(prices)),
+                Arc::new(Int32Array::from(qtys)),
+            ],
         )
         .unwrap();
         let tmp = NamedTempFile::new().unwrap();
@@ -370,7 +362,8 @@ mod tests {
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)
             .build();
-        let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
+        let mut w =
+            ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
         w.write(&batch).unwrap();
         w.close().unwrap();
         let meta = ArrowReaderMetadata::load(
@@ -421,7 +414,11 @@ mod tests {
         let expr = bin(p_gt_20, Operator::And, q_lt_110);
         let pp = build_pruning_predicate(&expr, schema).unwrap();
         let sel = pruner.prune_rg(&pp, 0, None).unwrap();
-        assert_eq!(count_rows_kept(&sel), 0, "AND of disjoint page sets prunes everything");
+        assert_eq!(
+            count_rows_kept(&sel),
+            0,
+            "AND of disjoint page sets prunes everything"
+        );
     }
 
     #[test]
@@ -447,7 +444,11 @@ mod tests {
         let expr = bin(p, Operator::Or, q);
         let pp = build_pruning_predicate(&expr, schema).unwrap();
         let sel = pruner.prune_rg(&pp, 0, None).unwrap();
-        assert_eq!(count_rows_kept(&sel), 0, "OR of unreachable ranges prunes everything");
+        assert_eq!(
+            count_rows_kept(&sel),
+            0,
+            "OR of unreachable ranges prunes everything"
+        );
     }
 
     #[test]
@@ -604,8 +605,7 @@ mod tests {
         let (_, schema, _) = two_col_fixture();
         // A predicate that's structurally unusable for pruning — e.g.,
         // `Literal(true)` alone — becomes always-true after rewrite.
-        let expr: Arc<dyn PhysicalExpr> =
-            Arc::new(Literal::new(ScalarValue::Boolean(Some(true))));
+        let expr: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Boolean(Some(true))));
         let pp = build_pruning_predicate(&expr, schema);
         assert!(pp.is_none());
     }
@@ -672,17 +672,21 @@ mod tests {
         // with the same `PagePruner`.
         use datafusion::arrow::array::{Int32Array, RecordBatch};
         use datafusion::arrow::datatypes::{DataType, Field, Schema};
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("price", DataType::Int32, false),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "price",
+            DataType::Int32,
+            false,
+        )]));
         let batch1 = RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Int32Array::from((0..32).collect::<Vec<i32>>()))],
-        ).unwrap();
+        )
+        .unwrap();
         let batch2 = RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Int32Array::from((100..132).collect::<Vec<i32>>()))],
-        ).unwrap();
+        )
+        .unwrap();
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
             .set_max_row_group_size(32)
@@ -690,7 +694,8 @@ mod tests {
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)
             .build();
-        let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
+        let mut w =
+            ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), Some(props)).unwrap();
         w.write(&batch1).unwrap();
         w.flush().unwrap();
         w.write(&batch2).unwrap();
@@ -698,7 +703,8 @@ mod tests {
         let meta = ArrowReaderMetadata::load(
             &tmp.reopen().unwrap(),
             ArrowReaderOptions::new().with_page_index(true),
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(meta.metadata().num_row_groups(), 2);
         let pruner = PagePruner::new(&schema, meta.metadata().clone());
         // price > 50: RG0 (0..31) → nothing, RG1 (100..131) → all.

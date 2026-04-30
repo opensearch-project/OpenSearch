@@ -28,6 +28,7 @@
 //! the batch as-is.
 
 use std::any::Any;
+use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -51,9 +52,10 @@ use tokio::sync::oneshot;
 use super::eval::{PrefetchedRg, RowGroupBitsetSource};
 use super::metrics::StreamMetrics;
 use super::parquet_bridge::{self, RowGroupStreamConfig};
-use super::row_selection::{
-    build_mask, build_row_selection_with_min_skip_run, PositionMap,
-};
+use super::row_selection::{build_mask, build_row_selection_with_min_skip_run, PositionMap};
+use crate::datafusion_query_config::DatafusionQueryConfig;
+use datafusion::physical_plan::coalesce::{LimitedBatchCoalescer, PushBatchStatus};
+use std::time::{Duration, Instant};
 
 /// Row group metadata.
 #[derive(Debug, Clone)]
@@ -98,6 +100,15 @@ struct IndexReader {
     /// bitmap empty → RG skipped without a parquet read). Handle is
     /// cloned from the stream's `PartitionMetrics`.
     rg_skipped: Option<datafusion::physical_plan::metrics::Count>,
+    /// Time the poll thread spent in `Poll::Pending` on the prefetch
+    /// receiver — idle wall-clock attributable to slow Lucene.
+    prefetch_wait_time: Option<datafusion::physical_plan::metrics::Time>,
+    /// Count of times we hit `Poll::Pending` on the prefetch receiver.
+    prefetch_wait_count: Option<datafusion::physical_plan::metrics::Count>,
+    /// Wall-clock timestamp when the current pending prefetch was first
+    /// polled (and returned Pending). Used to attribute wait time when
+    /// the receiver eventually resolves.
+    pending_since: Option<Instant>,
 }
 
 impl IndexReader {
@@ -106,6 +117,8 @@ impl IndexReader {
         row_groups: Vec<RowGroupInfo>,
         doc_range: Option<(i32, i32)>,
         rg_skipped: Option<datafusion::physical_plan::metrics::Count>,
+        prefetch_wait_time: Option<datafusion::physical_plan::metrics::Time>,
+        prefetch_wait_count: Option<datafusion::physical_plan::metrics::Count>,
     ) -> Self {
         Self {
             evaluator,
@@ -115,6 +128,9 @@ impl IndexReader {
             cached_result: None,
             doc_range,
             rg_skipped,
+            prefetch_wait_time,
+            prefetch_wait_count,
+            pending_since: None,
         }
     }
 
@@ -152,7 +168,12 @@ impl IndexReader {
         let doc_range = self.doc_range;
         let (tx, rx) = oneshot::channel();
         tokio::task::spawn_blocking(move || {
-            let _ = tx.send(Self::fetch_row_group(&evaluator, &row_groups, rg_idx, doc_range));
+            let _ = tx.send(Self::fetch_row_group(
+                &evaluator,
+                &row_groups,
+                rg_idx,
+                doc_range,
+            ));
         });
         self.pending_prefetch = Some(rx);
     }
@@ -184,16 +205,34 @@ impl IndexReader {
             if let Some(ref mut rx) = self.pending_prefetch {
                 match Pin::new(rx).poll(cx) {
                     Poll::Ready(Ok(result)) => {
+                        // If we had parked on this receiver, account the
+                        // elapsed wall-clock as prefetch_wait_time.
+                        if let Some(started) = self.pending_since.take() {
+                            if let Some(ref t) = self.prefetch_wait_time {
+                                t.add_duration(started.elapsed());
+                            }
+                        }
                         self.pending_prefetch = None;
                         self.cached_result = Some(result);
                         continue;
                     }
                     Poll::Ready(Err(_)) => {
                         self.pending_prefetch = None;
+                        self.pending_since = None;
                         self.start_prefetch(self.current_rg_idx);
                         return Poll::Pending;
                     }
-                    Poll::Pending => return Poll::Pending,
+                    Poll::Pending => {
+                        // First time we see Pending for this prefetch →
+                        // start the wait-clock.
+                        if self.pending_since.is_none() {
+                            self.pending_since = Some(Instant::now());
+                            if let Some(ref c) = self.prefetch_wait_count {
+                                c.add(1);
+                            }
+                        }
+                        return Poll::Pending;
+                    }
                 }
             }
             self.start_prefetch(self.current_rg_idx);
@@ -232,11 +271,11 @@ pub struct IndexedExec {
     /// Query-scoped tunables. Shared by Arc across IndexedExec instances
     /// from the same query; read once per RG into local fields inside
     /// `IndexedStream` so the hot path never touches the Arc.
-    pub(crate) query_config: Arc<crate::datafusion_query_config::DatafusionQueryConfig>,
+    pub(crate) query_config: Arc<DatafusionQueryConfig>,
 }
 
-impl std::fmt::Debug for IndexedExec {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for IndexedExec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IndexedExec")
             .field("row_groups", &self.row_groups.len())
             .field("has_predicate", &self.predicate.is_some())
@@ -245,7 +284,7 @@ impl std::fmt::Debug for IndexedExec {
 }
 
 impl DisplayAs for IndexedExec {
-    fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         let total_rows: i64 = self.row_groups.iter().map(|rg| rg.num_rows).sum();
         let doc_range_str = match self.doc_range {
             Some((min, max)) => format!(", doc_range=[{}, {})", min, max),
@@ -304,6 +343,8 @@ impl ExecutionPlan for IndexedExec {
             self.row_groups.clone(),
             self.doc_range,
             self.stream_metrics.rg_skipped.clone(),
+            self.stream_metrics.prefetch_wait_time.clone(),
+            self.stream_metrics.prefetch_wait_count.clone(),
         );
         Ok(Box::pin(IndexedStream::new(
             self.schema.clone(),
@@ -322,6 +363,7 @@ impl ExecutionPlan for IndexedExec {
             self.query_config.min_skip_run_default,
             self.query_config.min_skip_run_selectivity_threshold,
             self.query_config.indexed_pushdown_filters,
+            self.query_config.batch_size,
         )))
     }
 }
@@ -370,6 +412,20 @@ struct IndexedStream {
     /// `force_pushdown` still takes priority when set.
     indexed_pushdown_filters: bool,
     evaluator: Arc<dyn RowGroupBitsetSource>,
+    /// Output coalescer — combines small post-filter batches up to
+    /// `target_batch_size` so downstream operators see fewer, larger
+    /// batches (matching FilterExec's behaviour). Post-filter batches
+    /// are fed in via `push_batch`; completed batches are drained via
+    /// `next_completed_batch`.
+    batch_coalescer: LimitedBatchCoalescer,
+    /// Upstream delivered `None` (all RGs consumed). We still need to
+    /// call `finish()` on the coalescer and drain it before returning
+    /// `Ready(None)` ourselves.
+    upstream_done: bool,
+    /// `finish()` has been called on the coalescer. Used to prevent
+    /// calling it twice (assert panic) and to signal "no more input
+    /// will arrive; drain remaining completed batches."
+    coalescer_finished: bool,
 }
 
 impl IndexedStream {
@@ -391,8 +447,10 @@ impl IndexedStream {
         min_skip_run_default: usize,
         min_skip_run_selectivity_threshold: f64,
         indexed_pushdown_filters: bool,
+        target_batch_size: usize,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
+        let batch_coalescer = LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
         Self {
             schema,
             full_schema,
@@ -421,6 +479,9 @@ impl IndexedStream {
             min_skip_run_selectivity_threshold,
             indexed_pushdown_filters,
             evaluator,
+            batch_coalescer,
+            upstream_done: false,
+            coalescer_finished: false,
         }
     }
 
@@ -451,7 +512,12 @@ impl IndexedStream {
         )
     }
 
-    fn finalize_batch(&mut self, batch: RecordBatch) -> Poll<Option<Result<RecordBatch>>> {
+    /// Take one parquet-delivered batch, apply candidate + refinement
+    /// masks, strip predicate columns to match output schema, and return
+    /// the filtered batch ready for the coalescer. Returns a zero-row
+    /// batch if no rows survived (callers filter those out before
+    /// push_batch). Advances per-batch offsets (mask/batch) in lockstep.
+    fn finalize_batch(&mut self, batch: RecordBatch) -> Result<RecordBatch> {
         let batch_len = batch.num_rows();
 
         // Ask the evaluator for a refinement-stage mask on the UNFILTERED
@@ -474,66 +540,57 @@ impl IndexedStream {
             Some(ctx) => ctx.as_ref(),
             None => &UNIT,
         };
-        // Unwrap position_map for this RG. Always set alongside
-        // current_stream by poll_next; use an empty default on the defensive
-        // path.
-        let empty_pos_map = PositionMap::from_selection(&RowSelection::from(
-            Vec::<RowSelector>::new(),
-        ));
-        let position_map = self
-            .current_position_map
-            .as_ref()
-            .unwrap_or(&empty_pos_map);
+        let empty_pos_map =
+            PositionMap::from_selection(&RowSelection::from(Vec::<RowSelector>::new()));
+        let position_map = self.current_position_map.as_ref().unwrap_or(&empty_pos_map);
 
-        let eval_mask = match self.evaluator.on_batch_mask(
-            rg_state,
-            self.current_rg_first_row,
-            position_map,
-            self.batch_offset,
-            batch_len,
-            &batch,
-        ) {
-            Ok(m) => m,
-            Err(e) => return Poll::Ready(Some(Err(DataFusionError::External(e.into())))),
-        };
+        let t_on_batch = Instant::now();
+        let eval_mask = self
+            .evaluator
+            .on_batch_mask(
+                rg_state,
+                self.current_rg_first_row,
+                position_map,
+                self.batch_offset,
+                batch_len,
+                &batch,
+            )
+            .map_err(|e| DataFusionError::External(e.into()))?;
+        if let Some(ref t) = self.metrics.on_batch_mask_time {
+            t.add_duration(t_on_batch.elapsed());
+        }
 
         let output = match eval_mask {
             Some(mask) => {
-                // Case (A): refinement mask is authoritative. Skip current_mask.
                 self.mask_offset += batch_len;
                 self.batch_offset += batch_len;
-                match filter_record_batch(&batch, &mask) {
-                    Ok(filtered) => filtered,
-                    Err(e) => {
-                        return Poll::Ready(Some(Err(DataFusionError::ArrowError(
-                            Box::new(e),
-                            None,
-                        ))));
-                    }
+                let t_filter = Instant::now();
+                let filtered = filter_record_batch(&batch, &mask)
+                    .map_err(|e| DataFusionError::ArrowError(Box::new(e), None))?;
+                if let Some(ref t) = self.metrics.filter_record_batch_time {
+                    t.add_duration(t_filter.elapsed());
                 }
+                filtered
             }
             None => {
-                // Case (B): apply current_mask if present (single-collector
-                // path with BooleanMask strategy), else emit as-is
-                // (single-collector path with RowSelection strategy where
-                // parquet decode already filtered, or a fall-through where
-                // neither candidate nor refinement mask is produced).
                 let current = if let Some(ref mask) = self.current_mask {
+                    let t_slice = Instant::now();
                     let mask_slice = mask.slice(self.mask_offset, batch_len);
                     let mask_slice = mask_slice
                         .as_any()
                         .downcast_ref::<BooleanArray>()
                         .expect("BooleanArray.slice must remain BooleanArray");
-                    self.mask_offset += batch_len;
-                    match filter_record_batch(&batch, mask_slice) {
-                        Ok(filtered) => filtered,
-                        Err(e) => {
-                            return Poll::Ready(Some(Err(DataFusionError::ArrowError(
-                                Box::new(e),
-                                None,
-                            ))));
-                        }
+                    if let Some(ref t) = self.metrics.mask_slice_time {
+                        t.add_duration(t_slice.elapsed());
                     }
+                    self.mask_offset += batch_len;
+                    let t_filter = Instant::now();
+                    let filtered = filter_record_batch(&batch, mask_slice)
+                        .map_err(|e| DataFusionError::ArrowError(Box::new(e), None))?;
+                    if let Some(ref t) = self.metrics.filter_record_batch_time {
+                        t.add_duration(t_filter.elapsed());
+                    }
+                    filtered
                 } else {
                     batch
                 };
@@ -542,15 +599,34 @@ impl IndexedStream {
             }
         };
 
-        if output.num_rows() > 0 {
-            if let Some(ref counter) = self.metrics.output_rows {
-                counter.add(output.num_rows());
+        // Strip extra predicate columns to match output schema
+        let t_proj = Instant::now();
+        let output = if output.num_columns() > self.schema.fields().len() {
+            let n = self.schema.fields().len();
+            if n == 0 {
+                RecordBatch::try_new_with_options(
+                    self.schema.clone(),
+                    vec![],
+                    &datafusion::arrow::record_batch::RecordBatchOptions::new()
+                        .with_row_count(Some(output.num_rows())),
+                )?
+            } else {
+                let indices: Vec<usize> = self
+                    .schema
+                    .fields()
+                    .iter()
+                    .map(|f| output.schema().index_of(f.name()).unwrap_or(0))
+                    .collect();
+                output.project(&indices)?
             }
-            if let Some(ref counter) = self.metrics.batches_produced {
-                counter.add(1);
-            }
+        } else {
+            output
+        };
+        if let Some(ref t) = self.metrics.projection_fixup_time {
+            t.add_duration(t_proj.elapsed());
         }
-        Poll::Ready(Some(Ok(output)))
+
+        Ok(output)
     }
 }
 
@@ -562,7 +638,7 @@ impl Stream for IndexedStream {
         // inside this poll. Attributed to the operator for EXPLAIN
         // ANALYZE, separate from `index_time` / `parquet_time` which
         // time downstream work.
-        let poll_start = std::time::Instant::now();
+        let poll_start = Instant::now();
 
         if !self.initialized {
             self.index_reader.init_prefetch();
@@ -584,17 +660,84 @@ impl IndexedStream {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<RecordBatch>>> {
         loop {
+            // 1. Drain any completed batch from the coalescer first.
+            if let Some(batch) = self.batch_coalescer.next_completed_batch() {
+                if let Some(ref counter) = self.metrics.output_rows {
+                    counter.add(batch.num_rows());
+                }
+                if let Some(ref counter) = self.metrics.batches_produced {
+                    counter.add(1);
+                }
+                return Poll::Ready(Some(Ok(batch)));
+            }
+
+            // 2. If upstream is done and coalescer has drained, we're done.
+            if self.coalescer_finished && self.batch_coalescer.is_empty() {
+                return Poll::Ready(None);
+            }
+
+            // 3. If upstream signalled done and we haven't finished the
+            //    coalescer yet, finish it so it flushes its final buffered
+            //    batch. Loop to drain via next_completed_batch().
+            if self.upstream_done && !self.coalescer_finished {
+                if let Err(e) = self.batch_coalescer.finish() {
+                    return Poll::Ready(Some(Err(e)));
+                }
+                self.coalescer_finished = true;
+                continue;
+            }
+
+            // If coalescer is finished but wasn't drained in step 1, the
+            // top-of-loop `is_empty` check ends it on the next turn.
+            if self.coalescer_finished {
+                // Unreachable in practice — step 1 already drained or
+                // step 2 already returned. Defensive.
+                return Poll::Ready(None);
+            }
+
+            // 4. Pull the next filtered batch from upstream (parquet stream
+            //    + evaluator), push into coalescer, loop.
             // Poll current stream
             if let Some(ref mut stream) = self.current_stream {
-                match Pin::new(stream).poll_next(cx) {
+                let t_poll = Instant::now();
+                let poll_result = Pin::new(stream).poll_next(cx);
+                if let Some(ref t) = self.metrics.parquet_poll_time {
+                    t.add_duration(t_poll.elapsed());
+                }
+                match poll_result {
                     Poll::Ready(Some(Ok(batch))) if batch.num_rows() > 0 => {
                         if let Some(ref c) = self.metrics.parquet_batches_received {
                             c.add(1);
                         }
-                        let result = self.as_mut().finalize_batch(batch);
-                        match result {
-                            Poll::Ready(Some(Ok(b))) if b.num_rows() == 0 => continue,
-                            other => return other,
+                        let filtered = match self.as_mut().finalize_batch(batch) {
+                            Ok(b) => b,
+                            Err(e) => return Poll::Ready(Some(Err(e))),
+                        };
+                        if filtered.num_rows() == 0 {
+                            continue;
+                        }
+                        // Push into coalescer under a timer.
+                        let t0 = Instant::now();
+                        let status = self.batch_coalescer.push_batch(filtered);
+                        if let Some(ref t) = self.metrics.coalesce_time {
+                            t.add_duration(t0.elapsed());
+                        }
+                        if let Some(ref c) = self.metrics.batches_pre_coalesce {
+                            c.add(1);
+                        }
+                        match status {
+                            Ok(PushBatchStatus::Continue) => continue,
+                            Ok(PushBatchStatus::LimitReached) => {
+                                if !self.coalescer_finished {
+                                    if let Err(e) = self.batch_coalescer.finish() {
+                                        return Poll::Ready(Some(Err(e)));
+                                    }
+                                    self.coalescer_finished = true;
+                                }
+                                self.upstream_done = true;
+                                continue;
+                            }
+                            Err(e) => return Poll::Ready(Some(Err(e))),
                         }
                     }
                     Poll::Ready(Some(Ok(_))) => continue,
@@ -622,7 +765,9 @@ impl IndexedStream {
             }
 
             if self.finished {
-                return Poll::Ready(None);
+                // Upstream fully consumed; let the coalescer flush.
+                self.upstream_done = true;
+                continue;
             }
 
             // Poll for next row group
@@ -630,11 +775,10 @@ impl IndexedStream {
                 Poll::Ready(Ok(Some(prefetched))) => {
                     let rg = prefetched.rg;
                     let candidates = prefetched.prefetched.candidates;
+                    let prefetch_mask_buffer = prefetched.prefetched.mask_buffer;
 
                     if let Some(ref timer) = self.metrics.index_time {
-                        timer.add_duration(std::time::Duration::from_nanos(
-                            prefetched.prefetched.eval_nanos,
-                        ));
+                        timer.add_duration(Duration::from_nanos(prefetched.prefetched.eval_nanos));
                     }
                     if let Some(ref counter) = self.metrics.rows_matched {
                         counter.add(candidates.len() as usize);
@@ -643,8 +787,8 @@ impl IndexedStream {
                         // Rows in this RG that the candidate stage
                         // dropped (either via Collector intersection or
                         // page-level pruning). `rg.num_rows - matched`.
-                        let pruned = (rg.num_rows as usize)
-                            .saturating_sub(candidates.len() as usize);
+                        let pruned =
+                            (rg.num_rows as usize).saturating_sub(candidates.len() as usize);
                         counter.add(pruned);
                     }
                     if let Some(ref counter) = self.metrics.rg_processed {
@@ -669,8 +813,7 @@ impl IndexedStream {
                     //   higher selectivity noisy short gaps would explode
                     //   the selector Vec, so absorb anything smaller than
                     //   the default block size.
-                    let selectivity =
-                        candidates.len() as f64 / rg.num_rows as f64;
+                    let selectivity = candidates.len() as f64 / rg.num_rows as f64;
                     let min_skip_run = match self.force_strategy {
                         Some(FilterStrategy::RowSelection) => 1,
                         Some(FilterStrategy::BooleanMask) => rg.num_rows as usize + 1,
@@ -729,7 +872,7 @@ impl IndexedStream {
                         }
                     }
 
-                    let t_plan = std::time::Instant::now();
+                    let t_plan = Instant::now();
                     // Pushdown decision:
                     //
                     // Row-granular (min_skip_run == 1): RowSelection
@@ -755,12 +898,10 @@ impl IndexedStream {
                     // dropped (supports_filters_pushdown = Exact) so
                     // there's no safety net if pushdown misbehaves on a
                     // UDF-containing predicate.
-                    let base_push =
-                        self.force_pushdown.unwrap_or(self.indexed_pushdown_filters);
+                    let base_push = self.force_pushdown.unwrap_or(self.indexed_pushdown_filters);
                     let alignment_risk = min_skip_run != 1 && self.evaluator.needs_row_mask();
-                    let push = base_push
-                        && !alignment_risk
-                        && !self.evaluator.forbid_parquet_pushdown();
+                    let push =
+                        base_push && !alignment_risk && !self.evaluator.forbid_parquet_pushdown();
 
                     match self.create_row_selection_stream(&rg, selection, push) {
                         Ok((stream, plan)) => {
@@ -777,7 +918,25 @@ impl IndexedStream {
                             self.current_mask = if min_skip_run == 1 {
                                 None
                             } else if self.evaluator.needs_row_mask() {
-                                Some(build_mask(&candidates, &position_map))
+                                let t_build = Instant::now();
+                                let m = if let Some(buf) = prefetch_mask_buffer.as_ref() {
+                                    // Fast path: evaluator already produced
+                                    // the packed bits. Wrap as BooleanArray
+                                    // with zero per-RG work (just Arc clone
+                                    // of the Buffer).
+                                    let bb = datafusion::arrow::buffer::BooleanBuffer::new(
+                                        buf.clone(),
+                                        0,
+                                        rg.num_rows as usize,
+                                    );
+                                    BooleanArray::new(bb, None)
+                                } else {
+                                    build_mask(&candidates, &position_map)
+                                };
+                                if let Some(ref t) = self.metrics.build_mask_time {
+                                    t.add_duration(t_build.elapsed());
+                                }
+                                Some(m)
                             } else {
                                 None
                             };
@@ -789,7 +948,8 @@ impl IndexedStream {
                 }
                 Poll::Ready(Ok(None)) => {
                     self.finished = true;
-                    return Poll::Ready(None);
+                    self.upstream_done = true;
+                    continue;
                 }
                 Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(e))),
                 Poll::Pending => return Poll::Pending,
@@ -803,4 +963,3 @@ impl RecordBatchStream for IndexedStream {
         self.schema.clone()
     }
 }
-

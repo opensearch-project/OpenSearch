@@ -49,11 +49,9 @@ fn aggregate_metrics(plan: &Arc<dyn ExecutionPlan>) -> MetricsSet {
 /// `DataSourceExec` which counts pre-mask rows).
 fn get_counter(set: &MetricsSet, name: &str) -> usize {
     use datafusion::physical_plan::metrics::MetricType;
-    set.sum(|m| {
-        m.value().name() == name && m.metric_type() == MetricType::DEV
-    })
-    .map(|v| v.as_usize())
-    .unwrap_or(0)
+    set.sum(|m| m.value().name() == name && m.metric_type() == MetricType::DEV)
+        .map(|v| v.as_usize())
+        .unwrap_or(0)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -136,7 +134,11 @@ async fn metrics_position_map_variants_sum_to_rgs_processed() {
         identity + bitmap + runs,
         rg_processed,
         "identity+bitmap+runs ({}+{}+{}={}) should equal rg_processed ({})",
-        identity, bitmap, runs, identity + bitmap + runs, rg_processed
+        identity,
+        bitmap,
+        runs,
+        identity + bitmap + runs,
+        rg_processed
     );
 }
 

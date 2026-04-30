@@ -58,23 +58,22 @@
 //! A different `LeafBitmapSource` could back Collector leaves by parquet
 //! stats, external bitmap stores, or anything else implementing the trait.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, BooleanArray};
+use datafusion::arrow::array::{Array, AsArray, BooleanArray};
+use datafusion::arrow::compute::kernels::cmp::{eq, gt, gt_eq, lt, lt_eq, neq};
 use datafusion::arrow::compute::{and_kleene as and, not, or_kleene as or};
 use datafusion::arrow::record_batch::RecordBatch;
-#[cfg(test)]
-use datafusion::common::ScalarValue;
-#[cfg(test)]
-use datafusion::logical_expr::Operator;
+use datafusion::logical_expr::{ColumnarValue, Operator};
+use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
 use roaring::RoaringBitmap;
 
 use super::{LeafBitmapSource, RgEvalContext, TreeEvaluator, TreePrefetch};
-#[cfg(test)]
-use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::bool_tree::ResolvedNode;
-use crate::indexed_table::page_pruner::PagePruner;
-use crate::indexed_table::row_selection::PositionMap;
+use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner};
+use crate::indexed_table::row_selection::{packed_bits_to_boolean_array, PositionMap};
+use datafusion::physical_optimizer::pruning::PruningPredicate;
 
 /// In-process Rust `TreeEvaluator`. Stateless — all per-RG state lives in the
 /// `TreePrefetch` value threaded through `RowGroupBitsetSource`.
@@ -87,13 +86,8 @@ impl TreeEvaluator for BitmapTreeEvaluator {
         ctx: &RgEvalContext,
         leaves: &dyn LeafBitmapSource,
         page_pruner: &PagePruner,
-        pruning_predicates: &std::collections::HashMap<
-            usize,
-            Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
-        >,
-        page_prune_metrics: Option<
-            &crate::indexed_table::page_pruner::PagePruneMetrics,
-        >,
+        pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
+        page_prune_metrics: Option<&PagePruneMetrics>,
     ) -> Result<TreePrefetch, String> {
         let mut per_leaf = Vec::new();
         let mut dfs_counter = 0usize;
@@ -124,11 +118,19 @@ impl TreeEvaluator for BitmapTreeEvaluator {
         state: &TreePrefetch,
         batch: &RecordBatch,
         rg_first_row: i64,
-        position_map: &crate::indexed_table::row_selection::PositionMap,
+        position_map: &PositionMap,
         batch_offset: usize,
         batch_len: usize,
     ) -> Result<BooleanArray, String> {
-        on_batch_node(tree, state, batch, rg_first_row, position_map, batch_offset, batch_len)
+        on_batch_node(
+            tree,
+            state,
+            batch,
+            rg_first_row,
+            position_map,
+            batch_offset,
+            batch_len,
+        )
     }
 }
 
@@ -174,11 +176,8 @@ fn prefetch_node(
     ctx: &RgEvalContext,
     leaves: &dyn LeafBitmapSource,
     page_pruner: &PagePruner,
-    pruning_predicates: &std::collections::HashMap<
-        usize,
-        Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
-    >,
-    page_prune_metrics: Option<&crate::indexed_table::page_pruner::PagePruneMetrics>,
+    pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
+    page_prune_metrics: Option<&PagePruneMetrics>,
     dfs: &mut usize,
     out: &mut Vec<(usize, RoaringBitmap)>,
     under_all_and_path: bool,
@@ -279,8 +278,8 @@ fn prefetch_node(
                 leaves,
                 page_pruner,
                 pruning_predicates,
-                    page_prune_metrics,
-                    dfs,
+                page_prune_metrics,
+                dfs,
                 out,
                 /* under_all_and_path */ false,
             )?;
@@ -395,11 +394,8 @@ fn predicate_page_bitmap(
     expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
     ctx: &RgEvalContext,
     page_pruner: &PagePruner,
-    pruning_predicates: &std::collections::HashMap<
-        usize,
-        Arc<datafusion::physical_optimizer::pruning::PruningPredicate>,
-    >,
-    page_prune_metrics: Option<&crate::indexed_table::page_pruner::PagePruneMetrics>,
+    pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
+    page_prune_metrics: Option<&PagePruneMetrics>,
 ) -> RoaringBitmap {
     // Identity key: same Arc used at build time is the same Arc we see here.
     let key = Arc::as_ptr(expr) as *const () as usize;
@@ -514,10 +510,20 @@ fn on_batch_node(
         ResolvedNode::And(children) => {
             let mut optional_result_bitmap: Option<BooleanArray> = None;
             for child in children {
-                let child_bitmap = on_batch_node(child, state, batch, rg_first_row, position_map, batch_offset, batch_len)?;
+                let child_bitmap = on_batch_node(
+                    child,
+                    state,
+                    batch,
+                    rg_first_row,
+                    position_map,
+                    batch_offset,
+                    batch_len,
+                )?;
                 optional_result_bitmap = Some(match optional_result_bitmap {
                     None => child_bitmap,
-                    Some(result_bitmap) => and(&result_bitmap, &child_bitmap).map_err(|e| e.to_string())?,
+                    Some(result_bitmap) => {
+                        and(&result_bitmap, &child_bitmap).map_err(|e| e.to_string())?
+                    }
                 });
                 // Short-circuit: if every row is definitively false
                 // (no nulls, zero trues), any further `FALSE AND x` is
@@ -533,10 +539,20 @@ fn on_batch_node(
         ResolvedNode::Or(children) => {
             let mut optional_result_bitmap: Option<BooleanArray> = None;
             for child in children {
-                let child_bitmap = on_batch_node(child, state, batch, rg_first_row, position_map, batch_offset, batch_len)?;
+                let child_bitmap = on_batch_node(
+                    child,
+                    state,
+                    batch,
+                    rg_first_row,
+                    position_map,
+                    batch_offset,
+                    batch_len,
+                )?;
                 optional_result_bitmap = Some(match optional_result_bitmap {
                     None => child_bitmap,
-                    Some(result_bitmap) => or(&result_bitmap, &child_bitmap).map_err(|e| e.to_string())?,
+                    Some(result_bitmap) => {
+                        or(&result_bitmap, &child_bitmap).map_err(|e| e.to_string())?
+                    }
                 });
                 // Short-circuit: if every row is definitively true
                 // (no nulls, zero falses), any further `TRUE OR x` is
@@ -550,7 +566,15 @@ fn on_batch_node(
             Ok(optional_result_bitmap.unwrap_or_else(|| all_false(batch_len)))
         }
         ResolvedNode::Not(child) => {
-            let child_bitmap = on_batch_node(child, state, batch, rg_first_row, position_map, batch_offset, batch_len)?;
+            let child_bitmap = on_batch_node(
+                child,
+                state,
+                batch,
+                rg_first_row,
+                position_map,
+                batch_offset,
+                batch_len,
+            )?;
             not(&child_bitmap).map_err(|e| e.to_string())
         }
         ResolvedNode::Collector { collector, .. } => {
@@ -592,23 +616,52 @@ fn bitmap_to_batch_mask(
     batch_offset: usize,
     batch_len: usize,
 ) -> BooleanArray {
-    use datafusion::arrow::array::builder::BooleanBufferBuilder;
-    let mut builder = BooleanBufferBuilder::new(batch_len);
-    for i in 0..batch_len {
-        let rg_pos = match position_map.rg_position(batch_offset + i) {
-            Some(p) => p,
-            // Defensive: batch rows beyond delivered_count → false.
-            None => {
-                builder.append(false);
-                continue;
+    // Convert batch-row index -> min-doc-relative bitmap index.
+    // delivered row i -> rg_position(batch_offset + i) -> abs_doc -> bit.
+    //
+    // For Identity position map, rg_position(k) == k, so the mapping is
+    // linear: delivered row i -> bit (rg_first_row + batch_offset + i) - min_doc.
+    // We iterate the set bits of `bm` within the batch's coverage and
+    // translate back, instead of per-row `bm.contains()`.
+    let words = batch_len.div_ceil(64);
+    let mut out = vec![0u64; words];
+
+    let anchor = rg_first_row - min_doc as i64; // rg_pos -> bit: rg_pos + anchor
+    match position_map {
+        PositionMap::Identity { .. } => {
+            // delivered row i -> rg_pos = batch_offset + i -> bit = batch_offset + i + anchor.
+            // Enumerate set bits in `bm` within [anchor + batch_offset, anchor + batch_offset + batch_len).
+            let lo = (batch_offset as i64 + anchor).max(0);
+            let hi = (batch_offset as i64 + anchor + batch_len as i64).max(0);
+            if hi > 0 && lo <= u32::MAX as i64 {
+                let lo_u32 = lo as u32;
+                let hi_u32 = hi.min(u32::MAX as i64) as u32;
+                for b in bm.range(lo_u32..hi_u32) {
+                    // delivered index = bit - anchor - batch_offset
+                    let delivered = (b as i64 - anchor - batch_offset as i64) as usize;
+                    if delivered < batch_len {
+                        out[delivered >> 6] |= 1u64 << (delivered & 63);
+                    }
+                }
             }
-        };
-        let abs_doc = rg_first_row + rg_pos as i64;
-        let bit = abs_doc - min_doc as i64;
-        let hit = bit >= 0 && bit <= u32::MAX as i64 && bm.contains(bit as u32);
-        builder.append(hit);
+        }
+        PositionMap::Bitmap { .. } | PositionMap::Runs { .. } => {
+            // General case — fall back to per-row lookup but use packed-bit
+            // assembly so we avoid the Vec<bool> + BooleanArray::from copy.
+            for i in 0..batch_len {
+                let rg_pos = match position_map.rg_position(batch_offset + i) {
+                    Some(p) => p,
+                    None => continue,
+                };
+                let abs_doc = rg_first_row + rg_pos as i64;
+                let bit = abs_doc - min_doc as i64;
+                if bit >= 0 && bit <= u32::MAX as i64 && bm.contains(bit as u32) {
+                    out[i >> 6] |= 1u64 << (i & 63);
+                }
+            }
+        }
     }
-    BooleanArray::new(builder.finish(), None)
+    packed_bits_to_boolean_array(out, batch_len)
 }
 
 // Evaluate an arbitrary boolean `PhysicalExpr` against a batch; return
@@ -624,12 +677,6 @@ fn predicate_to_batch_mask(
     batch: &RecordBatch,
     expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
 ) -> Result<BooleanArray, String> {
-    use datafusion::arrow::compute::kernels::cmp::{eq, gt, gt_eq, lt, lt_eq, neq};
-    use datafusion::logical_expr::{ColumnarValue, Operator};
-    use datafusion::physical_expr::expressions::{
-        BinaryExpr, Column as PhysColumn, Literal,
-    };
-
     // Fast-path: detect `col OP literal` and call the kernel directly.
     if let Some(bin) = expr.as_any().downcast_ref::<BinaryExpr>() {
         if let (Some(col), Some(lit)) = (
@@ -639,8 +686,7 @@ fn predicate_to_batch_mask(
             match batch.column_by_name(col.name()) {
                 None => {
                     // Column absent from batch schema: SQL UNKNOWN.
-                    let nulls: Vec<Option<bool>> =
-                        (0..batch.num_rows()).map(|_| None).collect();
+                    let nulls: Vec<Option<bool>> = (0..batch.num_rows()).map(|_| None).collect();
                     return Ok(BooleanArray::from(nulls));
                 }
                 Some(col_arr) => {
@@ -673,8 +719,6 @@ fn evaluate_via_df(
     batch: &RecordBatch,
     expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
 ) -> Result<BooleanArray, String> {
-    use datafusion::logical_expr::ColumnarValue;
-
     // Schema drift: if the expression references any column not present
     // in this batch's schema, SQL semantics demand UNKNOWN for every
     // row. Return an all-NULL BooleanArray so kleene AND/OR combine
@@ -693,7 +737,6 @@ fn evaluate_via_df(
         .map_err(|e| format!("expr.evaluate: {}", e))?;
     match result {
         ColumnarValue::Array(arr) => {
-            use datafusion::arrow::array::AsArray;
             if arr.data_type() == &datafusion::arrow::datatypes::DataType::Boolean {
                 Ok(arr.as_boolean().clone())
             } else {
@@ -727,7 +770,7 @@ fn all_false(n: usize) -> BooleanArray {
 }
 
 /// CollectorLeafBitmaps — default LeafBitmapSource for today's flow
-
+///
 /// Expands index-backed `RowGroupDocsCollector` output into RoaringBitmaps.
 /// Pulls the collector directly off the `ResolvedNode::Collector` passed to
 /// it — no separate indexing required, so this impl is fully stateless.
@@ -756,40 +799,26 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
     ) -> Result<RoaringBitmap, String> {
         let collector = match collector_node {
             ResolvedNode::Collector { collector, .. } => collector,
-            _ => return Err("CollectorLeafBitmaps: non-Collector node passed to leaf_bitmap".into()),
+            _ => {
+                return Err("CollectorLeafBitmaps: non-Collector node passed to leaf_bitmap".into())
+            }
         };
         let bitset = collector.collect_packed_u64_bitset(ctx.min_doc, ctx.max_doc)?;
         if let Some(ref c) = self.ffm_collector_calls {
             c.add(1);
         }
-        let mut result_bitmap = RoaringBitmap::new();
-        // Iterate only set bits via trailing_zeros — sparse bitsets (typical
-        // for selective queries) visit O(set_bits) instead of O(span).
+        // Build RoaringBitmap from Lucene's packed LSB-first bits via the
+        // bulk `from_lsb0_bytes` API. O(container_count) allocation,
+        // no per-bit iteration. The tree evaluator walks the result in
+        // min_doc-relative space (bit 0 = ctx.min_doc), same convention
+        // as the old per-bit loop.
         let num_docs = (ctx.max_doc - ctx.min_doc) as u32;
-        for (word_idx, &word) in bitset.iter().enumerate() {
-            // Fast path: whole word empty, skip all 64 bit positions at once.
-            if word == 0 {
-                continue;
-            }
-            let base = (word_idx as u32) * 64;
-            let mut curr_word = word;
-            while curr_word != 0 {
-                // Position of the lowest set bit within the current word (0..=63).
-                let bit = curr_word.trailing_zeros();
-                // Absolute bit position in the bitset = word offset + in-word offset.
-                let rel = base + bit;
-                // Clamp: the last word may have bits set beyond (max_doc - min_doc)
-                // because the bitset is 64-bit-word-aligned; those bits are padding
-                // and must not enter the RoaringBitmap.
-                if rel < num_docs {
-                    result_bitmap.insert(rel);
-                }
-                // Clear that lowest set bit so the next trailing_zeros() finds
-                // the next one. Classic `x & (x - 1)` trick: subtracting 1 flips
-                // the lowest set bit to 0 and all lower bits to 1; AND keeps
-                // only the higher bits unchanged, clearing exactly that one bit.
-                curr_word &= curr_word - 1;
-            }
+        let bytes: &[u8] =
+            unsafe { std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8) };
+        let mut result_bitmap = RoaringBitmap::from_lsb0_bytes(0, bytes);
+        // Trim bits past `num_docs` (last u64 may contain padding).
+        if num_docs < u32::MAX {
+            result_bitmap.remove_range(num_docs..);
         }
         Ok(result_bitmap)
     }
@@ -803,9 +832,17 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
 mod tests {
     use super::*;
     use crate::indexed_table::bool_tree::ResolvedNode;
+    use crate::indexed_table::index::RowGroupDocsCollector;
     use datafusion::arrow::array::Int32Array;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
-    use datafusion::parquet::arrow::arrow_reader::{RowSelection, RowSelector};
+    use datafusion::arrow::record_batch::RecordBatch;
+    use datafusion::common::ScalarValue;
+    use datafusion::parquet::arrow::arrow_reader::{
+        ArrowReaderMetadata, ArrowReaderOptions, RowSelection, RowSelector,
+    };
+    use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
+    use std::collections::{HashMap, HashSet};
 
     /// Deterministic bitmap source for tests.
     struct FixedLeafBitmaps {
@@ -838,9 +875,6 @@ mod tests {
         // Build a minimal PagePruner with no filters — candidate_row_ids_for_filter
         // won't be called since we use no Predicate nodes in these tests.
         // We need a schema + metadata. Simplest: write a tiny parquet and load it.
-        use datafusion::arrow::record_batch::RecordBatch;
-        use datafusion::parquet::arrow::ArrowWriter;
-        use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = RecordBatch::try_new(
             schema.clone(),
@@ -848,8 +882,7 @@ mod tests {
         )
         .unwrap();
         let tmp = tempfile::NamedTempFile::new().unwrap();
-        let mut writer =
-            ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), None).unwrap();
+        let mut writer = ArrowWriter::try_new(tmp.reopen().unwrap(), schema.clone(), None).unwrap();
         writer.write(&batch).unwrap();
         writer.close().unwrap();
         let meta = ArrowReaderMetadata::load(
@@ -892,7 +925,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
         assert_eq!(result.per_leaf.len(), 2);
@@ -906,7 +939,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
             .unwrap();
         assert_eq!(result.candidates, bm(&[1, 2, 3]));
     }
@@ -919,7 +952,7 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
             .unwrap();
         // Universe is [0, 16). Minus {0,1,2} = {3..15}
         let expected: RoaringBitmap = (3u32..16).collect();
@@ -934,26 +967,20 @@ mod tests {
         };
         let pruner = empty_pruner();
         let state = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
             .unwrap();
 
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![Arc::new(Int32Array::from(vec![0i32; 8]))],
-        )
-        .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![0i32; 8]))]).unwrap();
         // Batch covers docs [0, 8). Match bitmap {1,3,5}.
         // Full-scan position map: delivered index == RG position.
-        let pm = PositionMap::from_selection(&RowSelection::from(vec![
-            RowSelector::select(8),
-        ]));
+        let pm = PositionMap::from_selection(&RowSelection::from(vec![RowSelector::select(8)]));
         let mask = BitmapTreeEvaluator
             .on_batch(&tree, &state, &batch, 0, &pm, 0, 8)
             .unwrap();
-        let expected = BooleanArray::from(vec![
-            false, true, false, true, false, true, false, false,
-        ]);
+        let expected =
+            BooleanArray::from(vec![false, true, false, true, false, true, false, false]);
         assert_eq!(mask, expected);
     }
 
@@ -961,9 +988,7 @@ mod tests {
     /// position — matches the pre-block-granular full-scan behaviour and
     /// keeps the per-test expected values unchanged.
     fn identity_pm(rg_num_rows: usize) -> PositionMap {
-        PositionMap::from_selection(&RowSelection::from(vec![
-            RowSelector::select(rg_num_rows),
-        ]))
+        PositionMap::from_selection(&RowSelection::from(vec![RowSelector::select(rg_num_rows)]))
     }
 
     #[test]
@@ -979,9 +1004,14 @@ mod tests {
             b
         };
         let pm = identity_pm(8);
-        let mask = bitmap_to_batch_mask(&bm, /*min_doc*/ 100, /*rg_first_row*/ 100, &pm, 0, 8);
+        let mask = bitmap_to_batch_mask(
+            &bm, /*min_doc*/ 100, /*rg_first_row*/ 100, &pm, 0, 8,
+        );
         let got: Vec<bool> = (0..8).map(|i| mask.value(i)).collect();
-        assert_eq!(got, vec![false, true, false, false, false, true, false, false]);
+        assert_eq!(
+            got,
+            vec![false, true, false, false, false, true, false, false]
+        );
     }
 
     #[test]
@@ -1075,8 +1105,6 @@ mod tests {
 
     /// Build a ResolvedNode::Collector whose cached Phase 1 bitmap is `bm`.
     fn cached_collector(bm: RoaringBitmap) -> (ResolvedNode, (usize, RoaringBitmap)) {
-        use crate::indexed_table::index::RowGroupDocsCollector;
-
         #[derive(Debug)]
         struct Poison;
         impl RowGroupDocsCollector for Poison {
@@ -1116,8 +1144,8 @@ mod tests {
         };
 
         let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int32, false)]));
-        let batch = RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![0i32; 4]))])
-            .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![0i32; 4]))]).unwrap();
 
         let mask = on_batch_node(&tree, &state, &batch, 0, &identity_pm(4), 0, 4)
             .expect("AND should short-circuit on all-false acc, skipping poison leaf");
@@ -1146,8 +1174,8 @@ mod tests {
         };
 
         let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int32, false)]));
-        let batch = RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![0i32; 4]))])
-            .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![0i32; 4]))]).unwrap();
 
         let mask = on_batch_node(&tree, &state, &batch, 0, &identity_pm(4), 0, 4)
             .expect("OR should short-circuit on all-true acc, skipping poison leaf");
@@ -1164,8 +1192,8 @@ mod tests {
 
     /// LeafBitmapSource returning bitmaps by DFS index, panicking on forbidden indices.
     struct PoisonLeafBitmaps {
-        allowed: std::collections::HashMap<usize, RoaringBitmap>,
-        forbidden: std::collections::HashSet<usize>,
+        allowed: HashMap<usize, RoaringBitmap>,
+        forbidden: HashSet<usize>,
     }
     impl LeafBitmapSource for PoisonLeafBitmaps {
         fn leaf_bitmap(
@@ -1191,15 +1219,15 @@ mod tests {
         //   doomed empty and the RG will be skipped. The walker must NOT
         //   call LeafBitmapSource for the second Collector.
         let tree = ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]);
-        let mut allowed = std::collections::HashMap::new();
+        let mut allowed = HashMap::new();
         allowed.insert(0, RoaringBitmap::new()); // empty → trigger short-circuit
-        let mut forbidden = std::collections::HashSet::new();
+        let mut forbidden = HashSet::new();
         forbidden.insert(1); // any call for leaf 1 panics
         let leaves = PoisonLeafBitmaps { allowed, forbidden };
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1220,7 +1248,7 @@ mod tests {
             ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]),
             collector_leaf(2),
         ]);
-        let mut allowed = std::collections::HashMap::new();
+        let mut allowed = HashMap::new();
         allowed.insert(0, {
             let mut b = RoaringBitmap::new();
             b.insert(5);
@@ -1234,12 +1262,12 @@ mod tests {
         });
         let leaves = PoisonLeafBitmaps {
             allowed,
-            forbidden: std::collections::HashSet::new(),
+            forbidden: HashSet::new(),
         };
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
             .unwrap();
         // OR contributes {5} from standalone_leaf → non-empty candidates.
         assert!(!result.candidates.is_empty());
@@ -1263,7 +1291,7 @@ mod tests {
             collector_leaf(0),
             collector_leaf(1),
         ])));
-        let mut allowed = std::collections::HashMap::new();
+        let mut allowed = HashMap::new();
         allowed.insert(0, RoaringBitmap::new()); // triggers short-circuit
         allowed.insert(1, {
             let mut b = RoaringBitmap::new();
@@ -1272,12 +1300,12 @@ mod tests {
         });
         let leaves = PoisonLeafBitmaps {
             allowed,
-            forbidden: std::collections::HashSet::new(),
+            forbidden: HashSet::new(),
         };
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &std::collections::HashMap::new(), None)
+            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None)
             .unwrap();
         // NOT inverts empty AND → universe.
         assert_eq!(result.candidates.len(), 16);
@@ -1288,18 +1316,24 @@ mod tests {
     // ── subtree_cost ─────────────────────────────────────────────────
 
     fn test_predicate_node() -> ResolvedNode {
-        use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
         let left: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> =
             std::sync::Arc::new(PhysColumn::new("x", 0));
         let right: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> =
             std::sync::Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
-        ResolvedNode::Predicate(std::sync::Arc::new(BinaryExpr::new(left, Operator::Eq, right)))
+        ResolvedNode::Predicate(std::sync::Arc::new(BinaryExpr::new(
+            left,
+            Operator::Eq,
+            right,
+        )))
     }
 
     #[test]
     fn subtree_cost_leaf_nodes() {
         let ctx = test_ctx();
-        assert_eq!(subtree_cost(&test_predicate_node(), &ctx), ctx.cost_predicate);
+        assert_eq!(
+            subtree_cost(&test_predicate_node(), &ctx),
+            ctx.cost_predicate
+        );
         assert_eq!(subtree_cost(&collector_leaf(0), &ctx), ctx.cost_collector);
     }
 

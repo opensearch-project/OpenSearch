@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::array::{BooleanArray, BooleanBufferBuilder};
+use datafusion::arrow::array::BooleanArray;
 use datafusion::parquet::arrow::arrow_reader::{RowSelection, RowSelector};
 use roaring::RoaringBitmap;
 
@@ -224,8 +224,12 @@ impl PositionMap {
     pub fn delivered_count(&self) -> usize {
         match self {
             Self::Identity { delivered_count }
-            | Self::Bitmap { delivered_count, .. }
-            | Self::Runs { delivered_count, .. } => *delivered_count,
+            | Self::Bitmap {
+                delivered_count, ..
+            }
+            | Self::Runs {
+                delivered_count, ..
+            } => *delivered_count,
         }
     }
 
@@ -240,14 +244,20 @@ impl PositionMap {
                     None
                 }
             }
-            Self::Bitmap { bits, delivered_count } => {
+            Self::Bitmap {
+                bits,
+                delivered_count,
+            } => {
                 if delivered_idx >= *delivered_count {
                     return None;
                 }
                 // RoaringBitmap::select(n) returns the n-th smallest set bit.
                 bits.select(delivered_idx as u32).map(|b| b as usize)
             }
-            Self::Runs { runs, delivered_count } => {
+            Self::Runs {
+                runs,
+                delivered_count,
+            } => {
                 if delivered_idx >= *delivered_count {
                     return None;
                 }
@@ -284,6 +294,38 @@ pub fn row_selection_to_bitmap(selection: &RowSelection) -> RoaringBitmap {
     out
 }
 
+/// Materialize a `RoaringBitmap` into a packed u64 bit-vector with `len`
+/// bits (LSB-first within each word, matching Arrow's `BooleanBuffer`
+/// layout). Bits beyond `len` are truncated. O(set_bits), not O(len).
+///
+/// Faster than per-position `.contains()` for hot paths that need to do
+/// many lookups against the bitmap — once the packed form exists, each
+/// lookup is a single `(words[i >> 6] >> (i & 63)) & 1` operation.
+///
+/// The returned `Vec<u64>` has `ceil(len / 64)` words. Zero-allocate the
+/// output and only touch words containing set bits.
+pub fn bitmap_to_packed_bits(bm: &RoaringBitmap, len: u32) -> Vec<u64> {
+    let words = len.div_ceil(64) as usize;
+    let mut v = vec![0u64; words];
+    for b in bm.iter() {
+        if b >= len {
+            break; // RoaringBitmap iter yields ascending; safe to stop.
+        }
+        v[(b as usize) >> 6] |= 1u64 << (b & 63);
+    }
+    v
+}
+
+/// Build a `BooleanArray` directly from a packed bit-vector of length
+/// `len`. The `Vec<u64>` is consumed and wrapped as an Arrow `Buffer` via
+/// `from_vec` — zero-copy. Bit layout matches Arrow's native LSB-first
+/// format so no translation is needed.
+pub fn packed_bits_to_boolean_array(bits: Vec<u64>, len: usize) -> BooleanArray {
+    use datafusion::arrow::buffer::Buffer;
+    let buffer = Buffer::from_vec(bits);
+    let boolean = datafusion::arrow::buffer::BooleanBuffer::new(buffer, 0, len);
+    BooleanArray::new(boolean, None)
+}
 
 /// given the `RowSelection` we handed it.
 ///
@@ -295,21 +337,45 @@ pub fn row_selection_to_bitmap(selection: &RowSelection) -> RoaringBitmap {
 /// bit per delivered row, which is a small fraction of `rg_num_rows`.
 pub fn build_mask(candidates: &RoaringBitmap, position_map: &PositionMap) -> BooleanArray {
     let n = position_map.delivered_count();
-    let mut builder = BooleanBufferBuilder::new(n);
-    for i in 0..n {
-        // `rg_position(i)` is `Some` for every `i < delivered_count`, so the
-        // unwrap is safe; we construct the builder of exactly that length.
-        let rg_pos = position_map
-            .rg_position(i)
-            .expect("delivered index < delivered_count has a mapped position");
-        let hit = if rg_pos <= u32::MAX as usize {
-            candidates.contains(rg_pos as u32)
-        } else {
-            false
-        };
-        builder.append(hit);
+    match position_map {
+        // Identity → delivered_idx == rg_position. Materialise the
+        // candidate bitmap as a packed BooleanArray in one shot;
+        // memcpy-speed, O(set_bits + len/64).
+        PositionMap::Identity { delivered_count } => {
+            let bits = bitmap_to_packed_bits(candidates, *delivered_count as u32);
+            packed_bits_to_boolean_array(bits, *delivered_count)
+        }
+        // Bitmap → delivered rows are exactly the candidate set bits. Every
+        // delivered row is by construction a candidate, so the mask is
+        // all-true.
+        PositionMap::Bitmap {
+            delivered_count, ..
+        } => {
+            let all_true = datafusion::arrow::buffer::BooleanBuffer::new_set(*delivered_count);
+            BooleanArray::new(all_true, None)
+        }
+        // Runs → iterate runs, materialise each run's slice into the
+        // output buffer. Each run maps a contiguous rg-position range to a
+        // contiguous delivered-row range.
+        PositionMap::Runs { runs, .. } => {
+            let words = n.div_ceil(64);
+            let mut out = vec![0u64; words];
+            for &(rg_start, delivered_start, run_len) in runs {
+                // Walk the candidate set bits that fall in this run's
+                // rg-position range, translate to delivered position, set
+                // the corresponding bit.
+                let rg_start_u32 = rg_start.min(u32::MAX as usize) as u32;
+                let rg_end_u32 = (rg_start + run_len).min(u32::MAX as usize) as u32;
+                // Roaring's `range()` iterates bits within the range in
+                // ascending order — O(set_bits_in_range).
+                for b in candidates.range(rg_start_u32..rg_end_u32) {
+                    let delivered_idx = delivered_start + (b as usize - rg_start);
+                    out[delivered_idx >> 6] |= 1u64 << (delivered_idx & 63);
+                }
+            }
+            packed_bits_to_boolean_array(out, n)
+        }
     }
-    BooleanArray::new(builder.finish(), None)
 }
 
 #[cfg(test)]
@@ -341,7 +407,10 @@ mod tests {
         let m = build_mask(&candidates, &identity_position_map(8));
         assert_eq!(m.len(), 8);
         let got: Vec<bool> = (0..m.len()).map(|i| m.value(i)).collect();
-        assert_eq!(got, vec![true, false, false, true, false, false, false, true]);
+        assert_eq!(
+            got,
+            vec![true, false, false, true, false, false, false, true]
+        );
     }
 
     #[test]
@@ -441,10 +510,10 @@ mod tests {
         assert_eq!(
             selectors(&sel),
             vec![
-                (false, 1),  // select row 0
-                (true, 99),  // skip rows 1..100 (>= 50 → preserved)
-                (false, 1),  // select row 100
-                (true, 99),  // skip rows 101..200 (>= 50 → preserved)
+                (false, 1), // select row 0
+                (true, 99), // skip rows 1..100 (>= 50 → preserved)
+                (false, 1), // select row 100
+                (true, 99), // skip rows 101..200 (>= 50 → preserved)
             ]
         );
     }
@@ -474,10 +543,7 @@ mod tests {
     fn min_skip_run_ignores_out_of_range_bits() {
         // Bits outside [0, rg_num_rows) are silently ignored (defensive).
         let sel = build_row_selection_with_min_skip_run(&bm(&[5, 999]), 10, 1);
-        assert_eq!(
-            selectors(&sel),
-            vec![(true, 5), (false, 1), (true, 4)]
-        );
+        assert_eq!(selectors(&sel), vec![(true, 5), (false, 1), (true, 4)]);
     }
 
     // ── PositionMap ──────────────────────────────────────────────────
@@ -551,11 +617,8 @@ mod tests {
         // hands to parquet), but we pass min_skip_run = 1 so PositionMap
         // chooses the Bitmap variant rather than Runs.
         let selection = build_row_selection_with_min_skip_run(&candidates, 200, 1);
-        let pm = PositionMap::from_candidates_with_selection(
-            Arc::clone(&candidates),
-            &selection,
-            1,
-        );
+        let pm =
+            PositionMap::from_candidates_with_selection(Arc::clone(&candidates), &selection, 1);
         assert!(matches!(pm, PositionMap::Bitmap { .. }));
         assert_eq!(pm.delivered_count(), 4);
         assert_eq!(pm.rg_position(0), Some(3));
@@ -575,13 +638,9 @@ mod tests {
             bits.insert(i * 97); // scattered, evenly spread up to ~970_000
         }
         let candidates = Arc::new(bits);
-        let selection =
-            build_row_selection_with_min_skip_run(&candidates, 1_000_000, 1);
-        let pm = PositionMap::from_candidates_with_selection(
-            Arc::clone(&candidates),
-            &selection,
-            1,
-        );
+        let selection = build_row_selection_with_min_skip_run(&candidates, 1_000_000, 1);
+        let pm =
+            PositionMap::from_candidates_with_selection(Arc::clone(&candidates), &selection, 1);
         match &pm {
             PositionMap::Bitmap { .. } => {}
             other => panic!("expected Bitmap, got {:?}", other),

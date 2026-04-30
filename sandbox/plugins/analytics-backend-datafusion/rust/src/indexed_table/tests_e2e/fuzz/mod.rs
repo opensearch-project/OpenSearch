@@ -38,7 +38,9 @@ pub(super) use config::{ColumnKind, FixtureConfig};
 #[allow(unused_imports)]
 pub(super) use corpus::{build_corpus, CellValue, Corpus};
 #[allow(unused_imports)]
-pub(super) use harness::{execute_tree, load_segment, run_iteration, run_iteration_twice, LoadedSegment};
+pub(super) use harness::{
+    execute_tree, load_segment, run_iteration, run_iteration_twice, LoadedSegment,
+};
 #[allow(unused_imports)]
 pub(super) use oracle::oracle_evaluate;
 #[allow(unused_imports)]

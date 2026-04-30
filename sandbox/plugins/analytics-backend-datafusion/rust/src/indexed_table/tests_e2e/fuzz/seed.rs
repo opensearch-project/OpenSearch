@@ -56,9 +56,7 @@ fn parse_seed(s: &str) -> Option<u64> {
     } else {
         s
     };
-    let hex_part = hex_part
-        .trim_start_matches("0x")
-        .trim_start_matches("0X");
+    let hex_part = hex_part.trim_start_matches("0x").trim_start_matches("0X");
     u64::from_str_radix(hex_part, 16).ok()
 }
 
@@ -138,7 +136,10 @@ mod tests {
     fn parse_seed_lucene_format() {
         // L:<master_hex>:<derived> → take master
         assert_eq!(parse_seed("L:ABCDEF1234:7890"), Some(0xabcdef1234));
-        assert_eq!(parse_seed("l:deadbeefcafebabe:42"), Some(0xdeadbeefcafebabe));
+        assert_eq!(
+            parse_seed("l:deadbeefcafebabe:42"),
+            Some(0xdeadbeefcafebabe)
+        );
     }
 
     #[test]
