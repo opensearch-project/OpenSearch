@@ -139,6 +139,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                             parent,
                             showTermDocCountError,
                             computeSegmentTopN(context, bucketCountThresholds, order),
+                            cardinality,
                             metadata
                         );
                     }
@@ -613,6 +614,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
         Aggregator parent,
         boolean showTermDocCountError,
         int segmentTopN,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         {
@@ -631,6 +633,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                 SubAggCollectionMode.DEPTH_FIRST,
                 showTermDocCountError,
                 segmentTopN,
+                cardinality,
                 metadata
             );
         }
