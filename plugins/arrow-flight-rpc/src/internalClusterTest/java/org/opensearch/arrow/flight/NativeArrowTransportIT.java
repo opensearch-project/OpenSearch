@@ -24,6 +24,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
+import org.opensearch.arrow.flight.transport.ArrowBatchResponseHandler;
 import org.opensearch.arrow.flight.transport.ArrowFlightChannel;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -37,7 +38,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
@@ -144,7 +144,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
             TestArrowAction.NAME,
             new TestArrowRequest(batchCount, rowsPerBatch, 1),
             TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
-            new StreamTransportResponseHandler<TestArrowResponse>() {
+            new ArrowBatchResponseHandler<TestArrowResponse>() {
                 @Override
                 public void handleStreamResponse(StreamTransportResponse<TestArrowResponse> streamResponse) {
                     try {
@@ -437,7 +437,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
     }
 
-    static class TestArrowResponseHandler implements StreamTransportResponseHandler<TestArrowResponse> {
+    static class TestArrowResponseHandler extends ArrowBatchResponseHandler<TestArrowResponse> {
         private final List<ReceivedBatch> batches;
         private final CountDownLatch latch;
         private final AtomicReference<Exception> failure;

@@ -11,13 +11,13 @@ package org.opensearch.example.stream;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.opensearch.arrow.flight.transport.ArrowBatchResponseHandler;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestOptions;
@@ -134,7 +134,7 @@ public class NativeArrowStreamTransportExampleIT extends OpenSearchIntegTestCase
     }
 
     /** Standard handler — read() uses the normal StreamInput contract. */
-    static class NativeArrowResponseHandler implements StreamTransportResponseHandler<NativeArrowStreamDataResponse> {
+    static class NativeArrowResponseHandler extends ArrowBatchResponseHandler<NativeArrowStreamDataResponse> {
         private final List<ReceivedBatch> batches;
         private final CountDownLatch latch;
         private final AtomicReference<Exception> failure;

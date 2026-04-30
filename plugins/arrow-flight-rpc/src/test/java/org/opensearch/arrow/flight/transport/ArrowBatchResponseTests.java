@@ -129,6 +129,45 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         dst.close();
     }
 
+    public void testStreamInputConstructorCapturesRootAndMarksTransferred() throws IOException {
+        VectorSchemaRoot shared = VectorSchemaRoot.create(schema, allocator);
+        ((IntVector) shared.getVector("val")).allocateNew();
+        ((IntVector) shared.getVector("val")).setSafe(0, 42);
+        ((IntVector) shared.getVector("val")).setValueCount(1);
+        shared.setRowCount(1);
+
+        org.opensearch.core.common.io.stream.NamedWriteableRegistry registry =
+            new org.opensearch.core.common.io.stream.NamedWriteableRegistry(java.util.Collections.emptyList());
+        VectorStreamInput.NativeArrow in = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry);
+        VectorSchemaRoot ownedRoot = in.getRoot();
+
+        TestResponse response = new TestResponse(in);
+        // Root reference captured from the input.
+        assertSame(ownedRoot, response.getRoot());
+
+        // claimOwnership must have fired — close() is a no-op, owned root survives.
+        in.close();
+        assertEquals(42, ((IntVector) response.getRoot().getVector("val")).get(0));
+
+        response.getRoot().close();
+        shared.close();
+    }
+
+    public void testStreamInputConstructorRejectsByteSerializedInput() throws IOException {
+        VectorSchemaRoot shared = VectorSchemaRoot.create(
+            new Schema(List.of(new Field("0", FieldType.nullable(new ArrowType.Binary()), null))),
+            allocator
+        );
+        org.opensearch.core.common.io.stream.NamedWriteableRegistry registry =
+            new org.opensearch.core.common.io.stream.NamedWriteableRegistry(java.util.Collections.emptyList());
+        try (VectorStreamInput in = VectorStreamInput.forByteSerialized(shared, registry)) {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> new TestResponse(in));
+            assertTrue("message should point at skipsDeserialization()", e.getMessage().contains("skipsDeserialization"));
+        } finally {
+            shared.close();
+        }
+    }
+
     public void testTransferToWithMultipleVectors() {
         Schema multiSchema = new Schema(
             List.of(

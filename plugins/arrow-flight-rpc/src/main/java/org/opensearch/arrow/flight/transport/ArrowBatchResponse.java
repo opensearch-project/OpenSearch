@@ -17,39 +17,38 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Base class for transport responses carrying native Arrow data.
+ * Base class for transport responses carrying native Arrow data. Subclasses must provide
+ * two constructors — one for sending (wraps a populated root) and one for receiving
+ * (takes ownership of vectors from the Flight stream via {@link StreamInput}):
  *
- * <p>The producer creates vectors using the channel's allocator and populates them freely
- * on any thread. When the executor processes this batch, it does a zero-copy transfer
- * of the producer's buffers into the channel's shared root — no memcpy, no serialization.
- * After transfer, the framework closes the producer's root, releasing its buffers back
- * to the allocator.
+ * <pre>{@code
+ * public class MyResponse extends ArrowBatchResponse {
+ *     public MyResponse(VectorSchemaRoot root) { super(root); }       // send side
+ *     public MyResponse(StreamInput in) throws IOException { super(in); } // receive side
+ * }
+ * }</pre>
  *
- * <p><b>Allocator guidelines:</b> The allocator used for producer roots must outlive the
- * gRPC stream — do not create and close a child allocator per request. gRPC's zero-copy
- * write path retains buffer references beyond stream completion, and closing the allocator
- * while gRPC still holds these references causes memory accounting errors. Use either the
- * channel allocator (via {@code ArrowFlightChannel.from(channel).getAllocator()}) or a
- * long-lived application allocator. The framework creates the shared root from the
- * producer's allocator to ensure same-allocator transfer, which avoids an Arrow bug with
- * cross-allocator transfer of foreign-backed buffers from C data import.
+ * <p><b>Send side:</b> The producer populates a {@link VectorSchemaRoot} and wraps it.
+ * The framework zero-copy transfers the vectors into the Flight stream via
+ * {@link #transferTo(VectorSchemaRoot)} — no memcpy, no serialization.
  *
- * <p>Usage (send side):
  * <pre>{@code
  * BufferAllocator allocator = ArrowFlightChannel.from(channel).getAllocator();
  * VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
- * // populate producerRoot on any thread...
+ * // populate producerRoot...
  * channel.sendResponseBatch(new MyResponse(producerRoot));
  * // producerRoot is now owned by the framework — don't reuse or close it
  * }</pre>
  *
- * <p>Usage (receive side):
- * <pre>{@code
- * public class MyResponse extends ArrowBatchResponse {
- *     public MyResponse(VectorSchemaRoot root) { super(root); }
- *     public MyResponse(StreamInput in) throws IOException { super(in); }
- * }
- * }</pre>
+ * <p><b>Receive side:</b> The framework calls {@code handler.read(in)} where {@code in} is
+ * a {@link VectorStreamInput.NativeArrow} holding vectors transferred from the Flight stream.
+ * The {@link #ArrowBatchResponse(StreamInput)} constructor claims ownership of those vectors.
+ *
+ * <p><b>Allocator guidelines:</b> The allocator for producer roots must outlive the gRPC
+ * stream. gRPC's zero-copy write path retains buffer references beyond stream completion;
+ * closing the allocator early causes memory accounting errors. Use the channel allocator
+ * ({@code ArrowFlightChannel.from(channel).getAllocator()}) or a long-lived application
+ * allocator.
  *
  * @opensearch.experimental
  */
@@ -59,38 +58,41 @@ public abstract class ArrowBatchResponse extends ActionResponse {
     private final VectorSchemaRoot producerRoot;
 
     /**
-     * Creates a response with the given producer root (send side).
-     * @param producerRoot the root populated by the producer
+     * Send-side constructor: wraps a root populated by the producer.
+     * @param producerRoot the root to send; ownership transfers to the framework
      */
     protected ArrowBatchResponse(VectorSchemaRoot producerRoot) {
         this.producerRoot = producerRoot;
     }
 
     /**
-     * Deserializes a response from a StreamInput (receive side).
-     * @param in the stream input containing the Arrow root
-     * @throws IOException if deserialization fails
+     * Receive-side constructor: claims ownership of the Arrow vectors from the input.
+     * @param in must be a {@link VectorStreamInput.NativeArrow}; throws otherwise
+     * @throws IOException if reading fails
      */
     protected ArrowBatchResponse(StreamInput in) throws IOException {
         super(in);
-        this.producerRoot = ((VectorStreamInput) in).getRoot();
+        if (in instanceof VectorStreamInput.NativeArrow nativeIn) {
+            this.producerRoot = nativeIn.getRoot();
+            nativeIn.claimOwnership();
+        } else {
+            throw new IllegalStateException(
+                "ArrowBatchResponse decoded from a non-native-Arrow StreamInput ("
+                    + (in == null ? "null" : in.getClass().getName())
+                    + "). Wrapping handlers around ArrowBatchResponseHandler must forward "
+                    + "TransportResponseHandler#skipsDeserialization()."
+            );
+        }
     }
 
-    /**
-     * Returns the producer's root. On the send side, this is the root populated
-     * by the producer. On the receive side, this is the root from the Flight stream.
-     */
+    /** Returns the Arrow root holding the response vectors. */
     public VectorSchemaRoot getRoot() {
         return producerRoot;
     }
 
     /**
      * Zero-copy transfers the producer's vectors into the target root.
-     * Called by the framework on the executor thread before {@code putNext()}.
-     * After transfer, the producer's buffers are moved to the target — the producer
-     * root becomes empty.
-     *
-     * @param target the channel's shared root (bound to the Flight stream via start())
+     * @param target the channel's stream root (bound to the Flight stream via start())
      */
     void transferTo(VectorSchemaRoot target) {
         FlightUtils.transferRoot(producerRoot, target);
