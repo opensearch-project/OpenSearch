@@ -115,7 +115,14 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         validateFormatsRegistered(dataFormatRegistry, primaryFormatName, secondaryFormatNames);
 
         Map<String, FormatChecksumStrategy> strategies = checksumStrategies != null ? checksumStrategies : Map.of();
-        IndexingEngineConfig engineSettings = new IndexingEngineConfig(committer, mapperService, indexSettings, store, dataFormatRegistry);
+        IndexingEngineConfig engineSettings = new IndexingEngineConfig(
+            committer,
+            mapperService,
+            indexSettings,
+            store,
+            dataFormatRegistry,
+            strategies
+        );
 
         List<DataFormat> allFormats = new ArrayList<>();
         DataFormat primaryFormat = dataFormatRegistry.format(primaryFormatName);

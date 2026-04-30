@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Integration tests for composite merge operations across single and multiple data format engines.
@@ -66,8 +67,8 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
         }
 
         @Override
-        public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
-            return Map.of("parquet", new DataFormatDescriptor("parquet", new PrecomputedChecksumStrategy()));
+        public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
+            return Map.of("parquet", () -> new DataFormatDescriptor("parquet", new PrecomputedChecksumStrategy()));
         }
 
         @Override

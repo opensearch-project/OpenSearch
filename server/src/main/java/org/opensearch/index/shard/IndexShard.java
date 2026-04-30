@@ -184,6 +184,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
 import org.opensearch.index.store.RemoteStoreFileDownloader;
@@ -416,6 +417,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final DataFormatRegistry dataFormatRegistry;
 
+    private final Map<String, FormatChecksumStrategy> checksumStrategies;
+
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
@@ -456,6 +459,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ClusterApplierService clusterApplierService,
         @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
         @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher,
+        final Map<String, FormatChecksumStrategy> checksumStrategies,
         @Nullable final DataFormatRegistry dataFormatRegistry
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -611,6 +615,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         this.dataFormatRegistry = dataFormatRegistry;
+        this.checksumStrategies = checksumStrategies;
     }
 
     /**
@@ -632,6 +637,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Store store() {
         return this.store;
+    }
+
+    public Map<String, FormatChecksumStrategy> getChecksumStrategies() {
+        return checksumStrategies;
     }
 
     public boolean isMigratingToRemote() {
@@ -4523,7 +4532,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             clusterApplierService,
             mergedSegmentTransferTracker,
             dataFormatRegistry,
-            mapperService
+            mapperService,
+            checksumStrategies
         );
     }
 

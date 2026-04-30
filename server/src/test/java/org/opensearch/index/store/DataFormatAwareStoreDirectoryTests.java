@@ -13,17 +13,9 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.opensearch.Version;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatPlugin;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.plugins.PluginsService;
-import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -34,11 +26,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.CRC32;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
 
@@ -64,20 +54,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         ShardId sid = new ShardId(new Index("test-index", indexUUID), shardId);
         shardPath = new ShardPath(false, shardDataPath, shardDataPath, sid);
 
-        PluginsService pluginsService = mock(PluginsService.class);
-        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
-        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
-        DataFormatRegistry dataFormatRegistry = new DataFormatRegistry(pluginsService);
-
-        // Create real IndexSettings (IndexSettings is final, cannot be mocked)
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test-index").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
-
-        dataFormatAwareStoreDirectory = new DataFormatAwareStoreDirectory(indexSettings, fsDirectory, shardPath, dataFormatRegistry);
+        dataFormatAwareStoreDirectory = new DataFormatAwareStoreDirectory(fsDirectory, shardPath, Map.of());
     }
 
     @After
