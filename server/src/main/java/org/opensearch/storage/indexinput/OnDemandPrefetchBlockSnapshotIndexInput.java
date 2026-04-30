@@ -19,6 +19,8 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
+import org.opensearch.storage.slowlogs.TieredStoragePerQueryMetric;
+import org.opensearch.storage.slowlogs.TieredStorageQueryMetricService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -60,7 +62,12 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
 
     @Override
     protected IndexInput fetchBlock(int blockId) throws IOException {
-        // TODO: Metric recording will be added when TieredStorageQueryMetricService is available
+        // Record cache access attempt and track hit/miss
+        String blockFileName = fileName + "_block_" + blockId;
+        boolean cacheHit = checkCacheHit(blockId);
+        final TieredStoragePerQueryMetric metricCollector = TieredStorageQueryMetricService.getInstance()
+            .getMetricCollector(Thread.currentThread().threadId());
+        metricCollector.recordFileAccess(blockFileName, cacheHit);
         fetchNextNBlocks(blockId);
         return super.fetchBlock(blockId);
     }
@@ -114,7 +121,7 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
         }
         logger.trace("Prefetching Read Ahead Block Count: {} from Block ID: {} for File: {}", readAheadBlockCount, blockId, fileName);
         downloadBlocksAsync(blockId + 1, blockId + readAheadBlockCount, true);
-        // TODO: Metric recording will be added when TieredStorageQueryMetricService is available
+        TieredStorageQueryMetricService.getInstance().recordDocValuesPrefetch(true);
     }
 
     @Override
@@ -134,6 +141,8 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
     }
 
     protected void downloadBlocksAsync(int startBlock, int endBlock, boolean isReadAhead) {
+        final TieredStoragePerQueryMetric metricCollector = TieredStorageQueryMetricService.getInstance()
+            .getMetricCollector(Thread.currentThread().threadId());
         for (int nextBlockId = startBlock; nextBlockId <= endBlock; nextBlockId++) {
             String blockFileName = fileName + "_block_" + nextBlockId;
             long blockStart = getBlockStart(nextBlockId);
@@ -146,7 +155,11 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
                 blockEnd,
                 originalFileSize
             );
-            // TODO: Metric recording will be added when TieredStorageQueryMetricService is available
+            if (isReadAhead) {
+                metricCollector.recordReadAhead(fileName, nextBlockId);
+            } else {
+                metricCollector.recordPrefetch(fileName, nextBlockId);
+            }
             // Block may be present on multiple chunks of a file, so we need
             // to fetch each chunk/blob part separately to fetch an entire block.
             BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
@@ -204,7 +217,6 @@ public class OnDemandPrefetchBlockSnapshotIndexInput extends OnDemandBlockSnapsh
     /**
      * Checks if a block file exists in the file cache.
      * This method determines cache hit/miss status for transfer manager operations.
-     * TODO: Will be used by TieredStorageQueryMetricService for recording per-query cache metrics.
      *
      * @param blockId the id of the block to check
      * @return true if the block exists in cache (cache hit), false otherwise (cache miss)

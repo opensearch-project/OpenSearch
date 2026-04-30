@@ -10,12 +10,13 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
+import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
@@ -23,6 +24,7 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
@@ -54,9 +56,10 @@ import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_A
  * so that Guice injects all dependencies ({@link TransportService},
  * {@link ClusterService}, {@link ThreadPool}, etc.) automatically.
  *
- * <p>The SQL plugin resolves this class from the Node's Guice injector and invokes
- * {@link #execute(RelNode, Object)} directly. The transport path ({@code doExecute})
- * is reserved for future remote query invocation.
+ * <p>Front-end plugins resolve this class from the Node's Guice injector and invoke
+ * {@link #execute(RelNode, Object, ActionListener)} directly. Execution is asynchronous —
+ * the listener is fired by the scheduler once the query completes (or fails). The transport
+ * path ({@code doExecute}) is reserved for future remote query invocation.
  *
  * @opensearch.internal
  */
@@ -95,62 +98,86 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.scheduler = scheduler;
     }
 
-    // TODO: Extract plan → optimize → fork → convert → DAG into a dedicated component (e.g. QueryDAGBuilder)
-    // that takes the logical fragment and returns a fully-built DAG ready for scheduling.
-    // Also add per-step timing (plan, fork, convert, schedule, execute) for observability.
     @Override
-    public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
+    public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
+        // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
+        // executor so the calling thread — which may be a transport thread — is freed
+        // immediately. The scheduler then drives execution asynchronously and fires
+        // {@code listener} once the query terminates; nothing on this path blocks.
+        searchExecutor.execute(() -> {
+            try {
+                executeInternal(logicalFragment, listener);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Plans, registers the query task, and dispatches to the {@link Scheduler}. Runs on
+     * the SEARCH thread pool — never on a transport thread. The result (or failure) is
+     * delivered to {@code listener} by the scheduler; this method returns as soon as the
+     * scheduler has accepted the query.
+     */
+    private void executeInternal(RelNode logicalFragment, ActionListener<Iterable<Object[]>> listener) {
+        // Calcite's RelMetadataQuery reads its handler provider from a ThreadLocal
+        // (RelMetadataQueryBase.THREAD_PROVIDERS). The frontend seeds it on its own
+        // thread, but execute() hops to the SEARCH executor where the ThreadLocal is
+        // unset — RelOptUtil.toString / RelNode.explain inside PlannerImpl would then
+        // NPE on a null metadataHandlerProvider. Re-seed from the inbound cluster.
+        RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
+        logicalFragment.getCluster().invalidateMetadataQuery();
+
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);
+        BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
-        logger.info("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
+        logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
         // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.
-        // TODO: accept a request type from FrontEnd including cancelAfterTimeInterval - its set from cluster settings below, null in req.
+        // TODO: accept a request type from FrontEnd including cancelAfterTimeInterval — set from cluster settings below, null in req.
         final AnalyticsQueryTask queryTask = (AnalyticsQueryTask) taskManager.register(
             "transport",
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-
-        // Create per-query context
-        QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
-
-        PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
+        final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
 
         // Per-query cleanup on terminal. Stage-execution cancellation on external
         // task-cancel/timeout is wired inside the Scheduler — on this path the
         // walker has already cascaded cancellations by the time we see the failure.
         // Scheduler yields batches; we materialize rows at the API edge for callers
         // that still consume Iterable<Object[]>.
-        ActionListener<Iterable<VectorSchemaRoot>> listener = ActionListener.wrap(batches -> {
-            Iterable<Object[]> rows = batchesToRows(batches);
-            config.closeBufferAllocator();
-            taskManager.unregister(queryTask);
-            future.onResponse(rows);
-        }, e -> {
-            config.closeBufferAllocator();
-            taskManager.unregister(queryTask);
-            future.onFailure(e);
+        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = buildBatchesListener(listener, () -> {
+            try {
+                config.closeBufferAllocator();
+            } finally {
+                taskManager.unregister(queryTask);
+            }
         });
 
         TimeValue taskTimeout = queryTask.getCancelAfterTimeInterval();
         TimeValue clusterTimeout = clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
         if (taskTimeout != null || SearchService.NO_TIMEOUT.equals(clusterTimeout) == false) {
-            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(client, queryTask, clusterTimeout, listener, e -> {});
+            batchesListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+                client,
+                queryTask,
+                clusterTimeout,
+                batchesListener,
+                e -> {}
+            );
         }
 
-        scheduler.execute(config, listener);
-        return future.actionGet();  // TODO: single blocking point — Should be async with Front-End passing listener.
+        scheduler.execute(config, batchesListener);
     }
 
     @Override
     protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
         // Transport path — reserved for future remote query invocation.
-        // Currently, the SQL plugin invokes execute(RelNode, Object) directly.
-        listener.onFailure(new UnsupportedOperationException("Direct invocation only — use execute(RelNode, Object)"));
+        // Currently, front-ends invoke execute(RelNode, Object, ActionListener) directly.
+        listener.onFailure(new UnsupportedOperationException("Direct invocation only — use execute(RelNode, Object, ActionListener)"));
     }
 
     /**
@@ -185,6 +212,24 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     }
 
     /**
+     * Builds the batches→rows {@link ActionListener} used by {@link #executeInternal}. {@code cleanup}
+     * runs exactly once before {@code downstream} is notified — on either response or failure paths.
+     * A cleanup failure on the response path is routed to {@code downstream.onFailure}; on the failure
+     * path it is attached as a suppressed exception. This eliminates the double-cleanup that the prior
+     * try/finally pattern produced when an exception in the success path was caught by
+     * {@link ActionListener#wrap} and re-routed to the failure callback.
+     *
+     * <p>Package-private for unit testing.
+     */
+    static ActionListener<Iterable<VectorSchemaRoot>> buildBatchesListener(
+        ActionListener<Iterable<Object[]>> downstream,
+        Runnable cleanup
+    ) {
+        ActionListener<Iterable<Object[]>> wrapped = ActionListener.runBefore(downstream, cleanup::run);
+        return ActionListener.wrap(batches -> wrapped.onResponse(batchesToRows(batches)), wrapped::onFailure);
+    }
+
+    /**
      * Materializes Arrow batches into row-oriented {@code Object[]}s for the
      * external query API. The scheduler yields batches (the native wire format);
      * the row materialization happens here, once, at the API edge.
@@ -194,16 +239,21 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     static Iterable<Object[]> batchesToRows(Iterable<VectorSchemaRoot> batches) {
         List<Object[]> rows = new ArrayList<>();
         for (VectorSchemaRoot batch : batches) {
-            int colCount = batch.getFieldVectors().size();
-            int rowCount = batch.getRowCount();
-            for (int r = 0; r < rowCount; r++) {
-                Object[] row = new Object[colCount];
-                for (int c = 0; c < colCount; c++) {
-                    row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
+            try {
+                int colCount = batch.getFieldVectors().size();
+                int rowCount = batch.getRowCount();
+                for (int r = 0; r < rowCount; r++) {
+                    Object[] row = new Object[colCount];
+                    for (int c = 0; c < colCount; c++) {
+                        row[c] = ArrowValues.toJavaValue(batch.getVector(c), r);
+                    }
+                    rows.add(row);
                 }
-                rows.add(row);
+            } finally {
+                // Release the Arrow buffers back to the query allocator. Without this the
+                // query teardown's allocator.close() detects a leak and fails the query.
+                batch.close();
             }
-            batch.close();
         }
         return rows;
     }

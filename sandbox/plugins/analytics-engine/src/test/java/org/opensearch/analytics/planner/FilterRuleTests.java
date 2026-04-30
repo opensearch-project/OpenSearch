@@ -16,7 +16,12 @@ import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
@@ -24,7 +29,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegationType;
-import org.opensearch.analytics.spi.FilterOperator;
 
 import java.util.List;
 import java.util.Map;
@@ -35,6 +39,17 @@ import java.util.Set;
  * delegation, and derived column handling.
  */
 public class FilterRuleTests extends BasePlannerRulesTests {
+
+    private static SqlFunction fullTextSqlFunction(String name) {
+        return new SqlFunction(
+            name,
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.BOOLEAN,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+    }
 
     // ---- Per-predicate annotation tests ----
 
@@ -79,7 +94,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             Map.of("message", Map.of("type", "keyword", "index", true)),
             new String[] { "message" },
             new SqlTypeName[] { SqlTypeName.VARCHAR },
-            makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 0, "hello world")
+            makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 0, "hello world")
         );
 
         // DF is viable at operator level (has doc values in parquet)
@@ -99,10 +114,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             Map.of("status", Map.of("type", "integer", "index", true), "message", Map.of("type", "keyword", "index", true)),
             new String[] { "status", "message" },
             new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR },
-            makeAnd(
-                makeEquals(0, SqlTypeName.INTEGER, 200),
-                makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 1, "timeout error")
-            )
+            makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 1, "timeout error"))
         );
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -125,7 +137,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             makeCall(
                 SqlStdOperatorTable.OR,
                 makeEquals(0, SqlTypeName.INTEGER, 200),
-                makeFullTextCall(FilterOperator.MATCH.toSqlFunction(), 1, "error")
+                makeFullTextCall(fullTextSqlFunction("MATCH"), 1, "error")
             )
         );
 
@@ -148,8 +160,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.VARCHAR },
             makeCall(
                 SqlStdOperatorTable.OR,
-                makeFullTextCall(FilterOperator.MATCH.toSqlFunction(), 0, "hello"),
-                makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 1, "world")
+                makeFullTextCall(fullTextSqlFunction("MATCH"), 0, "hello"),
+                makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 1, "world")
             )
         );
 
@@ -169,7 +181,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     /** Full-text without delegation — errors. */
     public void testFullTextErrorsWithoutDelegation() {
         RelOptTable table = mockTable("test_index", new String[] { "message" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
-        RexNode condition = makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 0, "hello world");
+        RexNode condition = makeFullTextCall(fullTextSqlFunction("MATCH_PHRASE"), 0, "hello world");
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
 
         // index=false strips the inverted index so no backend can satisfy the full-text predicate
