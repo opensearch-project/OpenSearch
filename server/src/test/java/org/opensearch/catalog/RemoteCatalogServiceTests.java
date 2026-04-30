@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 
 public class RemoteCatalogServiceTests extends OpenSearchTestCase {
 
-    private MetadataClient metadataClient;
+    private CatalogMetadataClient metadataClient;
     private ClusterService clusterService;
     private Client client;
     private RemoteCatalogService service;
@@ -40,7 +40,7 @@ public class RemoteCatalogServiceTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        metadataClient = mock(MetadataClient.class);
+        metadataClient = mock(CatalogMetadataClient.class);
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
         service = new RemoteCatalogService(clusterService, client, metadataClient);
@@ -101,7 +101,7 @@ public class RemoteCatalogServiceTests extends OpenSearchTestCase {
             .build();
         when(clusterService.state()).thenReturn(state);
 
-        doThrow(new IOException("catalog unavailable")).when(metadataClient).initialize(eq("my-index"), any());
+        doThrow(new IOException("catalog unavailable")).when(metadataClient).startPublishForIndex(eq("my-index"), any());
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         service.publishIndex("my-index", new ActionListener<>() {

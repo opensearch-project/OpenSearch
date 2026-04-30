@@ -10,7 +10,7 @@ package org.opensearch.action.admin.cluster.catalog;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.opensearch.catalog.MetadataClient;
+import org.opensearch.catalog.CatalogMetadataClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -34,7 +34,7 @@ import java.util.List;
 /**
  * Broadcast transport action that fans out catalog publish to data nodes holding primary
  * shards. Each shard-level handler builds a {@link RemoteSegmentStoreDirectory} and calls
- * {@link MetadataClient#publish}. Same pattern as {@code TransportForceMergeAction}.
+ * {@link CatalogMetadataClient#copyShard}. Same pattern as {@code TransportForceMergeAction}.
  *
  * @opensearch.experimental
  */
@@ -43,7 +43,7 @@ public class TransportPublishShardAction extends TransportBroadcastByNodeAction<
     PublishShardResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
 
-    private final MetadataClient metadataClient;
+    private final CatalogMetadataClient metadataClient;
     private final RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory;
     private final ClusterService clusterService;
 
@@ -51,7 +51,7 @@ public class TransportPublishShardAction extends TransportBroadcastByNodeAction<
     public TransportPublishShardAction(
         ClusterService clusterService,
         TransportService transportService,
-        MetadataClient metadataClient,
+        CatalogMetadataClient metadataClient,
         RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -96,7 +96,6 @@ public class TransportPublishShardAction extends TransportBroadcastByNodeAction<
     @Override
     protected EmptyResult shardOperation(PublishShardRequest request, ShardRouting shardRouting) throws IOException {
         String indexName = shardRouting.getIndexName();
-        int shardId = shardRouting.shardId().id();
 
         IndexMetadata indexMetadata = clusterService.state().metadata().index(indexName);
         IndexSettings indexSettings = new IndexSettings(indexMetadata, clusterService.getSettings());
@@ -108,7 +107,7 @@ public class TransportPublishShardAction extends TransportBroadcastByNodeAction<
             indexSettings.getRemoteStorePathStrategy()
         );
 
-        metadataClient.publish(indexName, remoteDirectory, shardId);
+        metadataClient.copyShard(request.getPublishId(), shardRouting.shardId(), remoteDirectory);
         return EmptyResult.INSTANCE;
     }
 

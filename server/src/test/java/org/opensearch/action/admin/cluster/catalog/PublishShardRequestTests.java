@@ -17,7 +17,7 @@ import java.io.IOException;
 public class PublishShardRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
-        PublishShardRequest original = new PublishShardRequest("my-index");
+        PublishShardRequest original = new PublishShardRequest("publish-42", "my-index");
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -26,11 +26,17 @@ public class PublishShardRequestTests extends OpenSearchTestCase {
         PublishShardRequest deserialized = new PublishShardRequest(in);
 
         assertArrayEquals(original.indices(), deserialized.indices());
+        assertEquals(original.getPublishId(), deserialized.getPublishId());
     }
 
     public void testToString() {
-        PublishShardRequest request = new PublishShardRequest("logs-2024");
+        PublishShardRequest request = new PublishShardRequest("publish-xyz", "logs-2024");
         String str = request.toString();
-        assertTrue(str.contains("logs-2024"));
+        assertTrue("toString mentions index", str.contains("logs-2024"));
+        assertTrue("toString mentions publishId", str.contains("publish-xyz"));
+    }
+
+    public void testNullPublishIdRejected() {
+        expectThrows(NullPointerException.class, () -> new PublishShardRequest(null, "my-index"));
     }
 }

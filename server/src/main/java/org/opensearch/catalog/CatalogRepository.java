@@ -43,7 +43,7 @@ import java.util.function.Function;
 
 /**
  * Abstract base for catalog-backed repositories. Holds {@link RepositoryMetadata} only —
- * data-plane operations go through {@link MetadataClient}. Snapshot methods throw
+ * data-plane operations go through {@link CatalogMetadataClient}. Snapshot methods throw
  * {@link UnsupportedOperationException}. Registered via {@link org.opensearch.plugins.RepositoryPlugin}.
  *
  * @opensearch.experimental

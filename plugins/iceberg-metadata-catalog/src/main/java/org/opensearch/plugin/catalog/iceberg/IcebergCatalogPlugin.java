@@ -8,8 +8,8 @@
 
 package org.opensearch.plugin.catalog.iceberg;
 
-import org.opensearch.catalog.CatalogRepository;
-import org.opensearch.catalog.MetadataClient;
+import org.opensearch.catalog.CatalogMetadataClient;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -49,11 +49,14 @@ public class IcebergCatalogPlugin extends Plugin implements RepositoryPlugin, Ca
     }
 
     @Override
-    public MetadataClient createMetadataClient(CatalogRepository repository) {
-        if (!(repository instanceof IcebergCatalogRepository)) {
-            throw new IllegalArgumentException("expected an IcebergCatalogRepository but got [" + repository.getClass().getName() + "]");
+    public CatalogMetadataClient createMetadataClient(RepositoryMetadata repositoryMetadata, Environment environment) {
+        if (!IcebergCatalogRepository.TYPE.equals(repositoryMetadata.type())) {
+            throw new IllegalArgumentException(
+                "expected repository type [" + IcebergCatalogRepository.TYPE + "] but got ["
+                    + repositoryMetadata.type() + "]"
+            );
         }
-        return new IcebergMetadataClient((IcebergCatalogRepository) repository);
+        return new IcebergMetadataClient(repositoryMetadata, environment);
     }
 
     @Override
