@@ -33,9 +33,8 @@ class FlightUtils {
     }
 
     /**
-     * Zero-copy transfers every vector from {@code source} into {@code target} and copies
-     * the row count. After this call, the source vectors are empty and the target owns
-     * the buffers.
+     * Zero-copy transfers every vector from {@code source} into {@code target}. After this call,
+     * the target owns the buffers and holds the row count; the source is empty with row count 0.
      */
     static void transferRoot(VectorSchemaRoot source, VectorSchemaRoot target) {
         List<FieldVector> sources = source.getFieldVectors();
@@ -45,5 +44,6 @@ class FlightUtils {
             tp.transfer();
         }
         target.setRowCount(source.getRowCount());
+        source.setRowCount(0);
     }
 }

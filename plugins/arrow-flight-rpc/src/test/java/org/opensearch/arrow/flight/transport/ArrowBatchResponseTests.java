@@ -92,8 +92,9 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         assertEquals(42, dstVec.get(0));
         assertEquals(99, dstVec.get(1));
 
-        // Source should be empty after transfer
+        // Source should be empty after transfer — both at vector and root level
         assertEquals(0, srcVec.getValueCount());
+        assertEquals(0, src.getRowCount());
 
         src.close();
         dst.close();
