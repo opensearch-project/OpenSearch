@@ -16,6 +16,8 @@ import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.mapper.IdFieldMapper;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -108,6 +110,37 @@ public class PartitionedBlockingQueueContainer {
     }
 
     /**
+     *  Visible for testing. Initialize multiple internal partitions backed by the provided processor
+     *  runnables. Used by tests that exercise per-partition pointer aggregation across processors.
+     */
+    PartitionedBlockingQueueContainer(List<MessageProcessorRunnable> messageProcessorRunnables, int shardId) {
+        partitionToQueueMap = new ConcurrentHashMap<>();
+        partitionToMessageProcessorMap = new ConcurrentHashMap<>();
+        partitionToProcessorExecutorMap = new ConcurrentHashMap<>();
+        this.numPartitions = messageProcessorRunnables.size();
+
+        for (int partition = 0; partition < numPartitions; partition++) {
+            MessageProcessorRunnable runnable = messageProcessorRunnables.get(partition);
+            partitionToQueueMap.put(partition, runnable.getBlockingQueue());
+            partitionToMessageProcessorMap.put(partition, runnable);
+            int finalPartition = partition;
+            ExecutorService executorService = Executors.newSingleThreadExecutor(
+                r -> new Thread(
+                    r,
+                    String.format(
+                        Locale.ROOT,
+                        "stream-poller-processor-shard-%d-%d-partition-%d",
+                        shardId,
+                        System.currentTimeMillis(),
+                        finalPartition
+                    )
+                )
+            );
+            partitionToProcessorExecutorMap.put(partition, executorService);
+        }
+    }
+
+    /**
      * Starts the processor threads to read updates and write to the index.
      */
     public void startProcessorThreads() {
@@ -173,6 +206,37 @@ public class PartitionedBlockingQueueContainer {
      */
     public List<IngestionShardPointer> getCurrentShardPointers() {
         return partitionToMessageProcessorMap.values().stream().map(MessageProcessorRunnable::getCurrentShardPointer).toList();
+    }
+
+    /**
+     * Aggregates per-source-partition pointers across all internal processor threads. For each
+     * source partition P, returns the minimum pointer across all processors that have observed
+     * messages from P. This represents the safe recovery offset for partition P — all processors
+     * have made at least this much progress on P.
+     * <p>
+     * Processors that have never seen messages from a given partition do not contribute to that
+     * partition's entry. If no processor has observed a partition, the partition is absent from
+     * the result; callers should fall back to the initial start pointer for that partition.
+     * <p>
+     * Returns an empty map in single-partition ({@code simple}) mode, where pointers are
+     * not {@link org.opensearch.index.SourcePartitionAwarePointer}; callers should fall back to
+     * {@link #getCurrentShardPointers()} in that case.
+     *
+     * @return per-source-partition minimum pointer across processor threads
+     */
+    public Map<Integer, IngestionShardPointer> getCurrentPartitionPointers() {
+        Map<Integer, IngestionShardPointer> aggregated = new HashMap<>();
+        for (MessageProcessorRunnable processor : partitionToMessageProcessorMap.values()) {
+            Map<Integer, IngestionShardPointer> processorPointers = processor.getCurrentPartitionPointers();
+            for (Map.Entry<Integer, IngestionShardPointer> entry : processorPointers.entrySet()) {
+                aggregated.merge(
+                    entry.getKey(),
+                    entry.getValue(),
+                    (existing, incoming) -> existing.compareTo(incoming) <= 0 ? existing : incoming
+                );
+            }
+        }
+        return Collections.unmodifiableMap(aggregated);
     }
 
     private int getPartitionFromID(String id) {

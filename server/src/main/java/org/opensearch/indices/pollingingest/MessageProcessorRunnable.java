@@ -21,6 +21,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
+import org.opensearch.index.SourcePartitionAwarePointer;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.IngestionEngine;
@@ -35,10 +36,13 @@ import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
@@ -61,9 +65,18 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     private final MessageProcessor messageProcessor;
     private final MessageProcessorMetrics messageProcessorMetrics = MessageProcessorMetrics.create();
 
-    // currentShardPointer tracks the most recent pointer that is being processed
+    // currentShardPointer tracks the most recent pointer that is being processed (any partition).
+    // Preserved for backward compatibility with the legacy single-pointer checkpoint model.
     @Nullable
     private volatile IngestionShardPointer currentShardPointer;
+
+    // currentPartitionPointers tracks the most recent pointer being processed PER source partition.
+    // Populated only when the pointer implements {@link SourcePartitionAwarePointer} (i.e., multi-partition mode).
+    // For each source partition P, the value is the latest pointer this processor has handled from P.
+    // Used by the multi-partition checkpoint model: aggregating min(pointer for P) across all
+    // processor threads gives the safe recovery offset for partition P.
+    private final Map<Integer, IngestionShardPointer> currentPartitionPointers = new ConcurrentHashMap<>();
+
     private volatile boolean closed = false;
     private volatile IngestionErrorStrategy errorStrategy;
 
@@ -351,7 +364,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             if (shardUpdateMessage != null) {
                 try {
                     messageProcessorMetrics.processedCounter.inc();
-                    currentShardPointer = shardUpdateMessage.pointer();
+                    markCurrentPointer(shardUpdateMessage.pointer());
                     messageProcessor.process(shardUpdateMessage, messageProcessorMetrics);
                     shardUpdateMessage = null;
                     retryCount = 0;
@@ -417,6 +430,41 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     @Nullable
     public IngestionShardPointer getCurrentShardPointer() {
         return currentShardPointer;
+    }
+
+    /**
+     * Returns the latest pointer this processor has handled per source partition. The map is
+     * populated only when pointers implement {@link SourcePartitionAwarePointer} (multi-partition mode).
+     * In single-partition (legacy {@code fixed}) mode the map is empty and callers should fall
+     * back to {@link #getCurrentShardPointer()}.
+     * <p>
+     * Returned as an unmodifiable snapshot — safe to iterate without external synchronization.
+     * Each entry value is at least as old as the actual processed offset (offsets are monotonically
+     * increasing, so a stale read is conservative).
+     *
+     * @return per-partition latest pointers; empty map if this processor is in single-partition mode
+     */
+    public Map<Integer, IngestionShardPointer> getCurrentPartitionPointers() {
+        if (currentPartitionPointers.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return Collections.unmodifiableMap(new HashMap<>(currentPartitionPointers));
+    }
+
+    /**
+     * Records that {@code pointer} is now in flight on this processor. Always updates the legacy
+     * single-pointer field. Additionally updates the per-partition map when the pointer carries
+     * partition information (i.e., it is a {@link SourcePartitionAwarePointer}).
+     * <p>
+     * Visible for testing — invoked from {@link #run()} just before delegating to the message
+     * processor.
+     */
+    void markCurrentPointer(IngestionShardPointer pointer) {
+        currentShardPointer = pointer;
+        if (pointer instanceof SourcePartitionAwarePointer) {
+            int partition = ((SourcePartitionAwarePointer) pointer).getSourcePartition();
+            currentPartitionPointers.put(partition, pointer);
+        }
     }
 
     /**

@@ -21,6 +21,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardConsumer;
+import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.indices.pollingingest.mappers.DefaultIngestionMessageMapper;
@@ -34,7 +35,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -742,6 +745,45 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         // When all queues return null and initialBatchStartPointer is null, getBatchStartPointer should return null
         assertNull(poller.getBatchStartPointer());
+    }
+
+    public void testGetBatchStartPointersDelegatesToContainer() {
+        // Mock container returning a per-partition map; verify the poller delegates and forwards
+        PartitionedBlockingQueueContainer mockContainer = mock(PartitionedBlockingQueueContainer.class);
+        when(mockContainer.getCurrentShardPointers()).thenReturn(Arrays.asList((IngestionShardPointer) null));
+        Map<Integer, IngestionShardPointer> expected = new HashMap<>();
+        expected.put(3, new FakeIngestionSource.FakeIngestionShardPointer(80));
+        expected.put(7, new FakeIngestionSource.FakeIngestionShardPointer(50));
+        when(mockContainer.getCurrentPartitionPointers()).thenReturn(expected);
+
+        poller = new DefaultStreamPoller(
+            null,
+            fakeConsumerFactory,
+            "",
+            0,
+            mockContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+        );
+
+        Map<Integer, IngestionShardPointer> actual = poller.getBatchStartPointers();
+        assertEquals(expected, actual);
+    }
+
+    public void testGetBatchStartPointersEmptyByDefault() {
+        // In the standard setUp() the container has no per-partition pointers (simple mode)
+        assertTrue(
+            "getBatchStartPointers() should return an empty map when no SourcePartitionAwarePointers have been processed",
+            poller.getBatchStartPointers().isEmpty()
+        );
     }
 
     // ==================== Warmup Tests ====================

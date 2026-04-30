@@ -15,6 +15,8 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.io.Closeable;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * A poller for reading messages from an ingestion shard. This is used in the ingestion engine.
@@ -22,6 +24,13 @@ import java.io.Closeable;
 public interface StreamPoller extends Closeable, ClusterStateListener {
 
     String BATCH_START = "batch_start";
+
+    /**
+     * Prefix for per-source-partition checkpoint keys in Lucene commit data, used by the
+     * multi-partition checkpoint model. The full key is {@code BATCH_START_PREFIX + partitionId}
+     * (e.g., {@code batch_start_p3} for source partition 3).
+     */
+    String BATCH_START_PREFIX = "batch_start_p";
 
     /**
      * Start the poller
@@ -52,6 +61,23 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
      * Get the pointer to the start of the current batch of messages.
      */
     IngestionShardPointer getBatchStartPointer();
+
+    /**
+     * Returns per-source-partition recovery pointers for the multi-partition checkpoint model.
+     * The map key is the source partition ID and the value is the safe checkpoint for that
+     * partition (the minimum pointer across all processor threads that have observed messages
+     * from that partition).
+     * <p>
+     * The default implementation returns an empty map. Multi-partition pollers should override
+     * to return per-partition checkpoints. An empty map signals to callers (e.g., the engine
+     * during commit) that the legacy single-pointer checkpoint model should be used via
+     * {@link #getBatchStartPointer()}.
+     *
+     * @return per-source-partition recovery pointers; empty in single-partition (legacy) mode
+     */
+    default Map<Integer, IngestionShardPointer> getBatchStartPointers() {
+        return Collections.emptyMap();
+    }
 
     PollingIngestStats getStats();
 

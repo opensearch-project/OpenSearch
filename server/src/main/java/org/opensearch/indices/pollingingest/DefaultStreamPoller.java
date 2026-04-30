@@ -525,6 +525,21 @@ public class DefaultStreamPoller implements StreamPoller {
             .orElseGet(() -> initialBatchStartPointer);
     }
 
+    /**
+     * Returns per-source-partition recovery pointers for the multi-partition checkpoint model.
+     * For each source partition the value is the minimum pointer across all processor threads
+     * that have observed messages from that partition.
+     * <p>
+     * Returns an empty map in single-partition ({@code simple}) mode — pointers in that
+     * mode are not {@link org.opensearch.index.SourcePartitionAwarePointer}, so no per-partition entries
+     * are populated. Callers should fall back to {@link #getBatchStartPointer()} when the result
+     * is empty.
+     */
+    @Override
+    public Map<Integer, IngestionShardPointer> getBatchStartPointers() {
+        return blockingQueueContainer.getCurrentPartitionPointers();
+    }
+
     @Override
     public PollingIngestStats getStats() {
         MessageProcessorRunnable.MessageProcessorMetrics processorMetrics = blockingQueueContainer.getMessageProcessorMetrics();
