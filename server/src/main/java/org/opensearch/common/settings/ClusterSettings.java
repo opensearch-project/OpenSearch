@@ -740,6 +740,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Settings related to the external metadata catalog
                 Node.CATALOG_REPOSITORY_TYPE_SETTING,
                 Node.CATALOG_REPOSITORY_SETTINGS,
+                Node.CATALOG_PUBLISH_TIMEOUT_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,

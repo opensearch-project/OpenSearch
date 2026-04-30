@@ -447,27 +447,24 @@ public class Node implements Closeable {
         Property.NodeScope
     );
 
-    /**
-     * Type of the catalog registered at node startup (e.g., {@code iceberg_s3tables}).
-     * When unset, catalog publish is disabled on this node and {@code _catalog/publish} returns
-     * an error. When set, exactly one {@link org.opensearch.plugins.CatalogPlugin} must be
-     * installed that understands this type; its
-     * {@link org.opensearch.plugins.CatalogPlugin#createMetadataClient} is invoked at startup
-     * with the node's catalog {@link org.opensearch.cluster.metadata.RepositoryMetadata}.
-     */
+    /** Type of the catalog registered at node startup (e.g., {@code iceberg_s3tables}). */
     public static final Setting<String> CATALOG_REPOSITORY_TYPE_SETTING = Setting.simpleString(
         "catalog.repository.type",
         Property.NodeScope
     );
 
-    /**
-     * Settings passed to the catalog plugin. Keys under this prefix are stripped and forwarded
-     * verbatim via {@link org.opensearch.cluster.metadata.RepositoryMetadata#settings} — see
-     * each catalog implementation for supported keys.
-     */
+    /** Settings forwarded verbatim to the catalog plugin under this prefix. */
     public static final Setting.AffixSetting<String> CATALOG_REPOSITORY_SETTINGS = Setting.prefixKeySetting(
         "catalog.repository.settings.",
         (key) -> Setting.simpleString(key, Property.NodeScope)
+    );
+
+    /** Upper bound for an end-to-end catalog publish. */
+    public static final Setting<TimeValue> CATALOG_PUBLISH_TIMEOUT_SETTING = Setting.timeSetting(
+        "catalog.publish.timeout",
+        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
     );
 
     public static final String CATALOG_REPOSITORY_NAME = "_catalog";
@@ -1463,7 +1460,12 @@ public class Node implements Closeable {
             final CatalogMetadataClient catalogMetadataClient = createCatalogMetadataClient(
                 settings, pluginsService, this.environment
             );
-            final RemoteCatalogService remoteCatalogService = new RemoteCatalogService(clusterService, client, catalogMetadataClient);
+            final RemoteCatalogService remoteCatalogService = new RemoteCatalogService(
+                clusterService,
+                client,
+                catalogMetadataClient,
+                CATALOG_PUBLISH_TIMEOUT_SETTING.get(settings)
+            );
             SnapshotsService snapshotsService = new SnapshotsService(
                 settings,
                 clusterService,

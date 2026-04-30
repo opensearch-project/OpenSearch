@@ -8,6 +8,8 @@
 
 package org.opensearch.catalog;
 
+import org.opensearch.action.admin.cluster.catalog.PublishShardAction;
+import org.opensearch.action.admin.cluster.catalog.PublishShardRequest;
 import org.opensearch.action.admin.cluster.catalog.PublishShardResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -15,12 +17,15 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -31,6 +36,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteCatalogServiceTests extends OpenSearchTestCase {
+
+    private static final TimeValue TEST_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(5);
 
     private CatalogMetadataClient metadataClient;
     private ClusterService clusterService;
@@ -43,11 +50,13 @@ public class RemoteCatalogServiceTests extends OpenSearchTestCase {
         metadataClient = mock(CatalogMetadataClient.class);
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
-        service = new RemoteCatalogService(clusterService, client, metadataClient);
+        service = new RemoteCatalogService(clusterService, client, metadataClient, TEST_PUBLISH_TIMEOUT);
     }
 
     public void testPublishIndexFailsWhenNoMetadataClient() {
-        RemoteCatalogService serviceWithoutClient = new RemoteCatalogService(clusterService, client, null);
+        RemoteCatalogService serviceWithoutClient = new RemoteCatalogService(
+            clusterService, client, null, TEST_PUBLISH_TIMEOUT
+        );
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         serviceWithoutClient.publishIndex("my-index", new ActionListener<>() {
@@ -90,15 +99,7 @@ public class RemoteCatalogServiceTests extends OpenSearchTestCase {
     }
 
     public void testPublishIndexFailsWhenInitializeFails() throws IOException {
-        IndexMetadata indexMetadata = IndexMetadata.builder("my-index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-            .build();
-        ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
-            .build();
+        ClusterState state = stateWithIndex("my-index");
         when(clusterService.state()).thenReturn(state);
 
         doThrow(new IOException("catalog unavailable")).when(metadataClient).startPublishForIndex(eq("my-index"), any());
@@ -119,5 +120,41 @@ public class RemoteCatalogServiceTests extends OpenSearchTestCase {
         assertNotNull(failure.get());
         assertTrue(failure.get() instanceof IOException);
         verify(client, never()).execute(any(), any(), any());
+    }
+
+    /**
+     * Verifies the configured publish timeout is set on the dispatched
+     * {@link PublishShardRequest} so the broadcast framework enforces it at the per-shard
+     * RPC layer.
+     */
+    public void testPublishIndexPropagatesTimeoutOntoBroadcastRequest() throws IOException {
+        ClusterState state = stateWithIndex("my-index");
+        when(clusterService.state()).thenReturn(state);
+
+        ArgumentCaptor<PublishShardRequest> captor = ArgumentCaptor.forClass(PublishShardRequest.class);
+
+        service.publishIndex("my-index", ActionListener.wrap(
+            response -> { /* ignored — test only cares about dispatch */ },
+            ex -> { /* ignored — ditto */ }
+        ));
+
+        verify(client).execute(eq(PublishShardAction.INSTANCE), captor.capture(), any());
+        assertEquals(
+            "configured timeout must be propagated onto PublishShardRequest",
+            TEST_PUBLISH_TIMEOUT,
+            captor.getValue().timeout()
+        );
+    }
+
+    private static ClusterState stateWithIndex(String indexName) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .build();
+        return ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .build();
     }
 }

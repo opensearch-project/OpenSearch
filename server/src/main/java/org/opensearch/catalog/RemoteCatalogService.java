@@ -16,10 +16,12 @@ import org.opensearch.action.admin.cluster.catalog.PublishShardResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -41,6 +43,7 @@ public class RemoteCatalogService {
     private final ClusterService clusterService;
     private final Client client;
     private final CatalogMetadataClient metadataClient;
+    private final TimeValue publishTimeout;
 
     /**
      * Creates a new service.
@@ -49,11 +52,24 @@ public class RemoteCatalogService {
      * @param client          node client used to dispatch the broadcast publish action
      * @param metadataClient  client bound to the node's catalog repository, or {@code null}
      *                        if no catalog is configured on this node
+     * @param publishTimeout  upper bound on the end-to-end broadcast publish. Propagated to
+     *                        {@link PublishShardRequest#timeout(TimeValue)} so the broadcast
+     *                        framework enforces it at the per-shard RPC layer. When the
+     *                        timeout fires, the orchestrator invokes
+     *                        {@code finalizePublish(..., false)} for rollback and reports the
+     *                        error to the caller. Must not be {@code null}; see
+     *                        {@code Node.CATALOG_PUBLISH_TIMEOUT_SETTING}.
      */
-    public RemoteCatalogService(ClusterService clusterService, Client client, CatalogMetadataClient metadataClient) {
+    public RemoteCatalogService(
+        ClusterService clusterService,
+        Client client,
+        CatalogMetadataClient metadataClient,
+        TimeValue publishTimeout
+    ) {
         this.clusterService = clusterService;
         this.client = client;
         this.metadataClient = metadataClient;
+        this.publishTimeout = Objects.requireNonNull(publishTimeout, "publishTimeout must not be null");
     }
 
     /**
@@ -86,6 +102,7 @@ public class RemoteCatalogService {
             // 4. Dispatch broadcast action to data nodes.
             logger.info("Copying shards for publish [{}] on index [{}]", publishId, indexName);
             PublishShardRequest broadcastRequest = new PublishShardRequest(publishId, indexName);
+            broadcastRequest.timeout(publishTimeout);
             client.execute(PublishShardAction.INSTANCE, broadcastRequest, ActionListener.wrap(
                 response -> {
                     // 5. Always finalize — plugin stamps completion or rolls back based on success flag.
