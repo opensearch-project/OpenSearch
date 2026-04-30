@@ -206,6 +206,7 @@ public class OpenSearchAggregateRule extends RelOptRule {
         if (inferred.equals(aggCall.type)) {
             return aggCall;
         }
+        LOGGER.info("fixAggCallType: {} type {} → {}", aggCall.getAggregation().getName(), aggCall.type, inferred);
         return AggregateCall.create(
             aggCall.getAggregation(), aggCall.isDistinct(), aggCall.isApproximate(),
             aggCall.ignoreNulls(), aggCall.rexList, aggCall.getArgList(), aggCall.filterArg,

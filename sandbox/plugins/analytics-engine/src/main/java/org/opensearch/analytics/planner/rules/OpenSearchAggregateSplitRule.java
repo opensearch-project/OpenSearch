@@ -12,10 +12,14 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Volcano CBO rule that splits an {@link OpenSearchAggregate} into
@@ -84,14 +88,23 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         RelTraitSet singletonTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().singleton());
         RelNode gathered = convert(partial, singletonTraits);
 
-        // Final aggregate: merges partial states at coordinator
+        // Final aggregate: merges partial states at coordinator.
+        // Remap argLists: the PARTIAL output has group-by columns first, then one
+        // column per aggCall. Each FINAL aggCall must reference its corresponding
+        // column in the PARTIAL output, not the original input column.
+        int groupCount = aggregate.getGroupSet().cardinality();
+        List<AggregateCall> finalCalls = new ArrayList<>();
+        for (int i = 0; i < aggregate.getAggCallList().size(); i++) {
+            AggregateCall origCall = aggregate.getAggCallList().get(i);
+            finalCalls.add(origCall.adaptTo(gathered, List.of(groupCount + i), origCall.filterArg, groupCount, aggregate.getGroupCount()));
+        }
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
             singletonTraits,
             gathered,
             aggregate.getGroupSet(),
             aggregate.getGroupSets(),
-            aggregate.getAggCallList(),
+            finalCalls,
             AggregateMode.FINAL,
             aggregate.getViableBackends()
         );

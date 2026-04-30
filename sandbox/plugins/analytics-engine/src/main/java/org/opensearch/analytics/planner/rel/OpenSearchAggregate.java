@@ -17,6 +17,8 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -30,6 +32,7 @@ import java.util.List;
  */
 public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode {
 
+    private static final Logger LOGGER = LogManager.getLogger(OpenSearchAggregate.class);
     private final List<String> viableBackends;
     private final AggregateMode mode;
 
@@ -179,17 +182,31 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        RelNode strippedInput = strippedChildren.getFirst();
+        // Build a temporary no-op aggregate (empty aggCalls) just to serve as the
+        // binding context for type inference. Empty aggCalls avoids the type assertion.
+        LogicalAggregate bindingAgg = LogicalAggregate.create(
+            strippedInput, List.of(), getGroupSet(), getGroupSets(), List.of()
+        );
         List<AggregateCall> strippedCalls = new ArrayList<>();
         for (AggregateCall aggCall : getAggCallList()) {
             List<RexNode> cleanRexList = aggCall.rexList.stream().filter(rex -> !(rex instanceof AggregateCallAnnotation)).toList();
+            AggregateCall tempCall = AggregateCall.create(
+                aggCall.getAggregation(), aggCall.isDistinct(), aggCall.isApproximate(),
+                aggCall.ignoreNulls(), cleanRexList, aggCall.getArgList(), aggCall.filterArg,
+                aggCall.distinctKeys, aggCall.collation, aggCall.type, aggCall.name
+            );
+            // Infer the correct return type against the stripped input's row type.
+            org.apache.calcite.rel.type.RelDataType inferredType =
+                aggCall.getAggregation().inferReturnType(tempCall.createBinding(bindingAgg));
             strippedCalls.add(
                 AggregateCall.create(
                     aggCall.getAggregation(), aggCall.isDistinct(), aggCall.isApproximate(),
                     aggCall.ignoreNulls(), cleanRexList, aggCall.getArgList(), aggCall.filterArg,
-                    aggCall.distinctKeys, aggCall.collation, aggCall.type, aggCall.name
+                    aggCall.distinctKeys, aggCall.collation, inferredType, aggCall.name
                 )
             );
         }
-        return LogicalAggregate.create(strippedChildren.getFirst(), List.of(), getGroupSet(), getGroupSets(), strippedCalls);
+        return LogicalAggregate.create(strippedInput, List.of(), getGroupSet(), getGroupSets(), strippedCalls);
     }
 }

@@ -169,7 +169,33 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         Plan.Root innerRoot = inner.getRoots().get(0);
         Rel innerRel = innerRoot.getInput();
         Rel rewired = replaceInput(wrapper, innerRel);
-        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(innerRoot.getNames()).build()).build();
+        // Use the wrapper's output field names when the wrapper changes the schema
+        // (e.g. Aggregate produces different fields than its input). Fall back to
+        // inner names for schema-preserving wrappers (Sort, Filter).
+        List<String> names = deriveNames(rewired, innerRoot.getNames());
+        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(names).build()).build();
+    }
+
+    /**
+     * Derives output field names for the rewired plan. For Aggregates, the output
+     * schema differs from the input — use the measure names. For other wrappers
+     * (Sort, Filter, Project), the inner names are preserved.
+     */
+    private static List<String> deriveNames(Rel rel, List<String> innerNames) {
+        if (rel instanceof Aggregate agg) {
+            List<String> names = new ArrayList<>();
+            // Group-by columns first
+            for (io.substrait.expression.Expression expr : agg.getGroupings().stream()
+                .flatMap(g -> g.getExpressions().stream()).toList()) {
+                names.add("group_" + names.size());
+            }
+            // Then measure columns
+            for (Aggregate.Measure m : agg.getMeasures()) {
+                names.add("agg_" + names.size());
+            }
+            return names;
+        }
+        return innerNames;
     }
 
     private static Rel replaceInput(Rel wrapper, Rel newInput) {
