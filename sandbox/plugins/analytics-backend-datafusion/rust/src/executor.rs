@@ -8,7 +8,7 @@
 
 use futures::{future::BoxFuture, Future, FutureExt, TryFutureExt};
 use parking_lot::RwLock;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::{
     runtime::Handle,

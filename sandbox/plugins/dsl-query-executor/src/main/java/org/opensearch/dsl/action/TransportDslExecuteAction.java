@@ -25,12 +25,10 @@ import org.opensearch.core.index.Index;
 import org.opensearch.dsl.converter.SearchSourceConverter;
 import org.opensearch.dsl.executor.DslQueryPlanExecutor;
 import org.opensearch.dsl.executor.QueryPlans;
-import org.opensearch.dsl.result.ExecutionResult;
 import org.opensearch.dsl.result.SearchResponseBuilder;
 import org.opensearch.tasks.Task;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-
-import java.util.List;
 
 /**
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
@@ -47,6 +45,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     private final DslQueryPlanExecutor planExecutor;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ThreadPool threadPool;
 
     /**
      * Guice-injected constructor — receives analytics engine dependencies.
@@ -65,31 +64,48 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         EngineContext engineContext,
         QueryPlanExecutor<RelNode, Iterable<Object[]>> executor,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ThreadPool threadPool
     ) {
         super(DslExecuteAction.NAME, transportService, actionFilters, SearchRequest::new);
         this.engineContext = engineContext;
         this.planExecutor = new DslQueryPlanExecutor(executor);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.threadPool = threadPool;
     }
 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-        try {
-            String indexName = resolveToSingleIndex(request);
-
-            long convertStart = System.nanoTime();
-            SearchSourceConverter converter = new SearchSourceConverter(engineContext.getSchema());
-            QueryPlans plans = converter.convert(request.source(), indexName);
-            long convertTime = System.nanoTime() - convertStart;
-            List<ExecutionResult> results = planExecutor.execute(plans);
-            SearchResponse response = SearchResponseBuilder.build(results, convertTime);
-            listener.onResponse(response);
-        } catch (Exception e) {
-            logger.error("DSL execution failed", e);
-            listener.onFailure(e);
-        }
+        threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            final QueryPlans plans;
+            final long convertTime;
+            try {
+                String indexName = resolveToSingleIndex(request);
+                long convertStart = System.nanoTime();
+                SearchSourceConverter converter = new SearchSourceConverter(engineContext.getSchema());
+                plans = converter.convert(request.source(), indexName);
+                convertTime = System.nanoTime() - convertStart;
+            } catch (Exception e) {
+                logger.error("DSL conversion failed", e);
+                listener.onFailure(e);
+                return;
+            }
+            planExecutor.execute(plans, ActionListener.wrap(results -> {
+                final SearchResponse response;
+                try {
+                    response = SearchResponseBuilder.build(results, convertTime);
+                } catch (Exception buildEx) {
+                    logger.error("DSL response building failed", buildEx);
+                    listener.onFailure(buildEx);
+                    return;
+                }
+                listener.onResponse(response);
+            }, e -> {
+                logger.error("DSL execution failed", e);
+                listener.onFailure(e);
+            }));
+        });
     }
 
     // TODO: Consider delegating index resolution to Analytics Core plugin (e.g. via

@@ -127,8 +127,8 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
         assertTrue(result.refreshedSegments().isEmpty());
     }
 
-    public void testGetMergerReturnsNull() {
-        assertNull(engine.getMerger());
+    public void testGetMergerReturnsNoopMerger() {
+        assertNotNull(engine.getMerger());
     }
 
     public void testGetNextWriterGenerationThrows() {

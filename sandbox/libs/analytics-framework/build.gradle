@@ -68,6 +68,11 @@ dependencies {
   // consumers' compile/javadoc classpath without becoming a runtime dep.
   compileOnlyApi 'org.apiguardian:apiguardian-api:1.1.2'
   compileOnlyApi 'org.checkerframework:checker-qual:3.43.0'
+
+  // Arrow's Schema.class carries @JsonInclude / @JsonTypeInfo / @JsonProperty annotations.
+  // Needed on the javadoc/compile classpath so the references resolve; compileOnly keeps
+  // it out of the runtime bundle (runtime Jackson is provided by server).
+  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 }
 
 testingConventions.enabled = false
@@ -90,73 +95,6 @@ tasks.named('forbiddenApisMain').configure {
 // Split into multiple calls to stay under the JVM method parameter limit.
 tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
-    // Jackson annotations (transitive dep of jackson-databind, provided by server at runtime)
-    'com.fasterxml.jackson.annotation.JacksonAnnotationsInside',
-    'com.fasterxml.jackson.annotation.JacksonInject',
-    'com.fasterxml.jackson.annotation.JacksonInject$Value',
-    'com.fasterxml.jackson.annotation.JsonAlias',
-    'com.fasterxml.jackson.annotation.JsonAnyGetter',
-    'com.fasterxml.jackson.annotation.JsonAnySetter',
-    'com.fasterxml.jackson.annotation.JsonAutoDetect',
-    'com.fasterxml.jackson.annotation.JsonAutoDetect$Value',
-    'com.fasterxml.jackson.annotation.JsonAutoDetect$Visibility',
-    'com.fasterxml.jackson.annotation.JsonBackReference',
-    'com.fasterxml.jackson.annotation.JsonClassDescription',
-    'com.fasterxml.jackson.annotation.JsonCreator',
-    'com.fasterxml.jackson.annotation.JsonCreator$Mode',
-    'com.fasterxml.jackson.annotation.JsonDeserializeAs',
-    'com.fasterxml.jackson.annotation.JsonEnumDefaultValue',
-    'com.fasterxml.jackson.annotation.JsonFilter',
-    'com.fasterxml.jackson.annotation.JsonFormat',
-    'com.fasterxml.jackson.annotation.JsonFormat$Feature',
-    'com.fasterxml.jackson.annotation.JsonFormat$Shape',
-    'com.fasterxml.jackson.annotation.JsonFormat$Value',
-    'com.fasterxml.jackson.annotation.JsonGetter',
-    'com.fasterxml.jackson.annotation.JsonIdentityInfo',
-    'com.fasterxml.jackson.annotation.JsonIdentityReference',
-    'com.fasterxml.jackson.annotation.JsonIgnore',
-    'com.fasterxml.jackson.annotation.JsonIgnoreProperties',
-    'com.fasterxml.jackson.annotation.JsonIgnoreProperties$Value',
-    'com.fasterxml.jackson.annotation.JsonIgnoreType',
-    'com.fasterxml.jackson.annotation.JsonInclude',
-    'com.fasterxml.jackson.annotation.JsonInclude$Include',
-    'com.fasterxml.jackson.annotation.JsonInclude$Value',
-    'com.fasterxml.jackson.annotation.JsonIncludeProperties',
-    'com.fasterxml.jackson.annotation.JsonIncludeProperties$Value',
-    'com.fasterxml.jackson.annotation.JsonKey',
-    'com.fasterxml.jackson.annotation.JsonManagedReference',
-    'com.fasterxml.jackson.annotation.JsonMerge',
-    'com.fasterxml.jackson.annotation.JsonProperty',
-    'com.fasterxml.jackson.annotation.JsonProperty$Access',
-    'com.fasterxml.jackson.annotation.JsonPropertyDescription',
-    'com.fasterxml.jackson.annotation.JsonPropertyOrder',
-    'com.fasterxml.jackson.annotation.JsonRawValue',
-    'com.fasterxml.jackson.annotation.JsonRootName',
-    'com.fasterxml.jackson.annotation.JsonSerializeAs',
-    'com.fasterxml.jackson.annotation.JsonSetter',
-    'com.fasterxml.jackson.annotation.JsonSetter$Value',
-    'com.fasterxml.jackson.annotation.JsonSubTypes',
-    'com.fasterxml.jackson.annotation.JsonSubTypes$Type',
-    'com.fasterxml.jackson.annotation.JsonTypeId',
-    'com.fasterxml.jackson.annotation.JsonTypeInfo',
-    'com.fasterxml.jackson.annotation.JsonTypeInfo$As',
-    'com.fasterxml.jackson.annotation.JsonTypeInfo$Id',
-    'com.fasterxml.jackson.annotation.JsonTypeInfo$None',
-    'com.fasterxml.jackson.annotation.JsonTypeInfo$Value',
-    'com.fasterxml.jackson.annotation.JsonTypeName',
-    'com.fasterxml.jackson.annotation.JsonUnwrapped',
-    'com.fasterxml.jackson.annotation.JsonValue',
-    'com.fasterxml.jackson.annotation.JsonView',
-    'com.fasterxml.jackson.annotation.Nulls',
-    'com.fasterxml.jackson.annotation.ObjectIdGenerator',
-    'com.fasterxml.jackson.annotation.ObjectIdGenerator$IdKey',
-    'com.fasterxml.jackson.annotation.ObjectIdGenerators$None',
-    'com.fasterxml.jackson.annotation.ObjectIdGenerators$PropertyGenerator',
-    'com.fasterxml.jackson.annotation.ObjectIdResolver',
-    'com.fasterxml.jackson.annotation.OptBoolean',
-    'com.fasterxml.jackson.annotation.PropertyAccessor',
-    'com.fasterxml.jackson.annotation.SimpleObjectIdResolver',
-
     // Gson (optional json-path provider)
     'com.google.gson.Gson',
     'com.google.gson.JsonArray',

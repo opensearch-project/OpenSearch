@@ -13,9 +13,11 @@ import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
+import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -43,6 +45,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.addAll(FieldType.keyword());
         SUPPORTED_FIELD_TYPES.addAll(FieldType.date());
         SUPPORTED_FIELD_TYPES.add(FieldType.BOOLEAN);
+        SUPPORTED_FIELD_TYPES.add(FieldType.TEXT);
     }
 
     private static final Set<FilterOperator> STANDARD_FILTER_OPS = Set.of(
@@ -119,6 +122,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
+    public FragmentConvertor getFragmentConvertor() {
+        return new DataFusionFragmentConvertor(plugin.getSubstraitExtensions());
+    }
+
+    @Override
     public SearchExecEngineProvider getSearchExecEngineProvider() {
         return ctx -> {
             DataFusionService dataFusionService = plugin.getDataFusionService();
@@ -145,6 +153,23 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context, dataFusionService::newChildAllocator);
             engine.prepare(ctx);
             return engine;
+        };
+    }
+
+    @Override
+    public ExchangeSinkProvider getExchangeSinkProvider() {
+        return ctx -> {
+            DataFusionService svc = plugin.getDataFusionService();
+            if (svc == null) {
+                throw new IllegalStateException("DataFusionService not initialized");
+            }
+            String mode = plugin.getClusterService() != null
+                ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
+                : "streaming";
+            if ("memtable".equals(mode)) {
+                return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+            }
+            return new DatafusionReduceSink(ctx, svc.getNativeRuntime());
         };
     }
 }

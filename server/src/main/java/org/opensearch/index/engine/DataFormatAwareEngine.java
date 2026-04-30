@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -33,10 +34,17 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
+import org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException;
+import org.opensearch.index.engine.dataformat.merge.MergeHandler;
+import org.opensearch.index.engine.dataformat.merge.MergeScheduler;
+import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -163,6 +171,19 @@ public class DataFormatAwareEngine implements Indexer {
     // Refresh tracker
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
+    // Merge
+    private final MergeScheduler mergeScheduler;
+
+    /**
+     * System property to enable or disable pluggable dataformat merge operations.
+     * Set to "true" to enable merges (e.g., {@code -Dopensearch.pluggable.dataformat.merge.enabled=true}).
+     * Defaults to "false" (merges disabled) as the merge implementations are not yet complete
+     * for all data formats.
+     * <p>
+     * TODO: Remove this flag once merge implementations are complete for all data formats.
+     */
+    static final String MERGE_ENABLED_PROPERTY = "opensearch.pluggable.dataformat.merge.enabled";
+
     @Nullable
     private final String historyUUID;
 
@@ -227,11 +248,16 @@ public class DataFormatAwareEngine implements Indexer {
                 LinkedList::new,
                 Runtime.getRuntime().availableProcessors()
             );
-            this.readerManagers = registry.getReaderManagers(
-                Optional.ofNullable(indexingExecutionEngine.getProvider()),
-                engineConfig.getMapperService(),
-                engineConfig.getIndexSettings(),
-                store.shardPath()
+            // Create Reader managers
+            // We will pass IndexStoreProvider to this, which would contain store
+            // and any index specific attributes useful for reads.
+            this.readerManagers = indexingExecutionEngine.buildReaderManager(
+                new ReaderManagerConfig(
+                    Optional.ofNullable(indexingExecutionEngine.getProvider()),
+                    indexingExecutionEngine.getDataFormat(),
+                    registry,
+                    store.shardPath()
+                )
             );
 
             // 6. Create CombinedCatalogSnapshotDeletionPolicy
@@ -278,6 +304,35 @@ public class DataFormatAwareEngine implements Indexer {
                 this::updateAutoIdTimestamp,
                 (a, b) -> null
             );
+            // All critical engine components must be initialized before the engine is considered ready
+            assert translogManager != null : "translog manager must be initialized";
+            assert localCheckpointTracker != null : "local checkpoint tracker must be initialized";
+            assert catalogSnapshotManager != null : "catalog snapshot manager must be initialized";
+            assert indexingExecutionEngine != null : "indexing execution engine must be initialized";
+            assert committer != null : "committer must be initialized";
+            assert writerPool != null : "writer pool must be initialized";
+
+            DataFormatAwareMergePolicy dataFormatAwareMergePolicy = new DataFormatAwareMergePolicy(
+                engineConfig.getIndexSettings().getMergePolicy(true),
+                shardId
+            );
+
+            // Merge
+            MergeHandler mergeHandler = new MergeHandler(
+                this::acquireSnapshot,
+                indexingExecutionEngine.getMerger(),
+                shardId,
+                dataFormatAwareMergePolicy,
+                dataFormatAwareMergePolicy
+            );
+            this.mergeScheduler = new MergeScheduler(
+                mergeHandler,
+                this::applyMergeChanges,
+                shardId,
+                engineConfig.getIndexSettings(),
+                engineConfig.getThreadPool()
+            );
+
             success = true;
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
@@ -368,6 +423,18 @@ public class DataFormatAwareEngine implements Indexer {
         );
     }
 
+    /**
+     * Indexes a document into the engine. Handles sequence number assignment for primary
+     * operations, throttling, translog recording, and local checkpoint tracking.
+     * <p>
+     * For primary operations, the indexing strategy planner determines whether to execute
+     * the operation or return an early result (e.g., for version conflicts). For replica
+     * operations, the sequence number is marked as seen and the operation proceeds directly.
+     *
+     * @param index the index operation containing the parsed document, version, and origin
+     * @return the index result with sequence number, version, and translog location
+     * @throws IOException if writing to the engine or translog fails
+     */
     @Override
     public Engine.IndexResult index(Engine.Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
@@ -405,6 +472,8 @@ public class DataFormatAwareEngine implements Indexer {
                         );
                     } else {
                         markSeqNoAsSeen(index.seqNo());
+                        // Replica and recovery operations must arrive with a pre-assigned sequence number
+                        assert index.seqNo() >= 0 : "recovery or replica ops should have an assigned seq no.; origin: " + index.origin();
                     }
 
                     assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
@@ -439,16 +508,26 @@ public class DataFormatAwareEngine implements Indexer {
         Engine.IndexResult indexResult;
 
         assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
+        // Primary term must be positive — it identifies the current primary shard
+        assert index.primaryTerm() > 0 : "primary term must be positive but was: " + index.primaryTerm();
 
         // Convert ParsedDocument to DocumentInput and write via the execution engine's writer
         Writer currentWriter = null;
         try {
             currentWriter = writerPool.getAndLock();
+            // Writer pool must never return null — it creates on demand via the supplier
+            assert currentWriter != null : "writer pool returned null writer";
 
             WriteResult result = currentWriter.addDoc(index.parsedDoc().getDocumentInput());
 
             if (result instanceof WriteResult.Success) {
                 indexResult = new Engine.IndexResult(index.version(), index.primaryTerm(), index.seqNo(), true);
+                // The result must carry the same seq no that was assigned to the operation
+                assert indexResult.getSeqNo() == index.seqNo() : "IndexResult seq no ["
+                    + indexResult.getSeqNo()
+                    + "] must match operation seq no ["
+                    + index.seqNo()
+                    + "]";
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;
                 indexResult = new Engine.IndexResult(f.cause(), index.version(), index.primaryTerm(), index.seqNo());
@@ -476,6 +555,13 @@ public class DataFormatAwareEngine implements Indexer {
                 }
             indexResult.setTranslogLocation(location);
         }
+        // Non-translog-origin successful operations must be recorded in the translog for durability
+        assert index.origin().isFromTranslog()
+            || indexResult.getResultType() != Engine.Result.Type.SUCCESS
+            || indexResult.getTranslogLocation() != null : "successful non-translog-origin op must have a translog location";
+        // Translog-origin operations must NOT be written back to the translog (would cause duplicates)
+        assert index.origin().isFromTranslog() == false || indexResult.getTranslogLocation() == null
+            : "translog-origin op should not have a translog location";
 
         // Track the sequence number
         localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
@@ -488,16 +574,44 @@ public class DataFormatAwareEngine implements Indexer {
         return indexResult;
     }
 
+    /**
+     * Not supported — delete operations are not implemented for data-format-aware engines.
+     *
+     * @throws UnsupportedEncodingException always
+     */
     @Override
     public Engine.DeleteResult delete(Engine.Delete delete) throws IOException {
         throw new UnsupportedEncodingException("delete operation not supported.");
     }
 
+    /**
+     * Not supported — no-op operations are not implemented for data-format-aware engines.
+     *
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public Engine.NoOpResult noOp(Engine.NoOp noOp) throws IOException {
         throw new UnsupportedOperationException("no_op operation not supported.");
     }
 
+    /**
+     * Parses the source document using the document mapper and creates an {@link Engine.Index}
+     * operation. The parsed document's {@link org.opensearch.index.engine.dataformat.DocumentInput}
+     * is created via the indexing execution engine's {@code newDocumentInput()} method.
+     *
+     * @param docMapper                the document mapper for parsing
+     * @param source                   the raw source to parse
+     * @param seqNo                    the sequence number ({@code UNASSIGNED_SEQ_NO} for primary)
+     * @param primaryTerm              the primary term
+     * @param version                  the expected version
+     * @param versionType              the version type
+     * @param origin                   the operation origin (PRIMARY, REPLICA, etc.)
+     * @param autoGeneratedIdTimestamp the auto-generated ID timestamp
+     * @param isRetry                  whether this is a retry
+     * @param ifSeqNo                  the conditional sequence number
+     * @param ifPrimaryTerm            the conditional primary term
+     * @return the prepared index operation
+     */
     @Override
     public Engine.Index prepareIndex(
         DocumentMapperForType docMapper,
@@ -534,6 +648,11 @@ public class DataFormatAwareEngine implements Indexer {
         );
     }
 
+    /**
+     * Not supported — delete operations are not implemented for data-format-aware engines.
+     *
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public Engine.Delete prepareDelete(
         String id,
@@ -548,10 +667,22 @@ public class DataFormatAwareEngine implements Indexer {
         throw new UnsupportedOperationException("delete operation not supported.");
     }
 
+    /**
+     * Refreshes the engine to make recently indexed documents searchable.
+     * <p>
+     * Acquires all writers from the pool, flushes each to produce per-format file sets,
+     * delegates to the {@link IndexingExecutionEngine#refresh} to incorporate segments,
+     * commits a new catalog snapshot, and notifies reader managers so they can open
+     * updated readers.
+     *
+     * @param source a descriptive label for the refresh (e.g., "flush", "write indexing buffer")
+     * @throws EngineException if the refresh fails
+     */
     @Override
     public void refresh(String source) throws EngineException {
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed = false;
+        List<Closeable> toClose = new ArrayList<>();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             refreshLock.lock();
@@ -576,27 +707,31 @@ public class DataFormatAwareEngine implements Indexer {
                                 segmentBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
                                 hasFiles = true;
                             }
-                            writer.close();
+                            toClose.add(writer);
                             if (hasFiles) {
                                 newSegments.add(segmentBuilder.build());
                             }
                             refreshed |= hasFiles;
                         }
                         logger.debug("Produced {} new segments from flush", newSegments.size());
+                        // Every new segment must contain files from at least one data format
+                        assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().isEmpty() == false)
+                            : "new segments must have at least one format's files";
 
                         // refresh only if new segments have been created or force param is true
                         if (refreshed) {
                             RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
+                            // Refresh result must contain at least as many segments as existed before (existing + new)
+                            assert result.refreshedSegments().size() >= existingSegments.size()
+                                : "refresh must not lose existing segments; had "
+                                    + existingSegments.size()
+                                    + " but got "
+                                    + result.refreshedSegments().size();
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
 
-                            // TODO: Add other Refresh listeners
-                            // Notify reader managers so they can create readers for the new snapshot
                             try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
-                                CatalogSnapshot newSnapshot = newSnapshotRef.get();
-                                for (EngineReaderManager<?> rm : readerManagers.values()) {
-                                    rm.afterRefresh(refreshed, newSnapshot);
-                                }
+                                refreshListeners(refreshed, newSnapshotRef.get());
                             }
                         }
                     } finally {
@@ -604,9 +739,11 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                     if (refreshed) {
                         lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
+                        triggerPossibleMerges(); // trigger merges
                     }
                 }
             } finally {
+                IOUtils.close(toClose);
                 refreshLock.unlock();
             }
         } catch (AlreadyClosedException ex) {
@@ -622,6 +759,16 @@ public class DataFormatAwareEngine implements Indexer {
         }
     }
 
+    /**
+     * Flushes the engine by refreshing buffered data to segments, persisting the catalog
+     * snapshot and commit data (translog UUID, sequence numbers), syncing the translog,
+     * and trimming unreferenced translog files.
+     *
+     * @param force       if {@code true}, forces a flush even if not strictly needed
+     * @param waitIfOngoing if {@code true}, waits for an in-progress flush to complete
+     * @throws EngineException if the flush fails
+     * @throws IllegalArgumentException if {@code force} is true but {@code waitIfOngoing} is false
+     */
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
@@ -652,6 +799,13 @@ public class DataFormatAwareEngine implements Indexer {
                         // and available to the deletion policy when onCommit is triggered.
                         translogManager.ensureCanFlush();
                         translogManager.syncTranslog();
+                        // After sync, the persisted checkpoint must equal the processed checkpoint
+                        assert localCheckpointTracker.getPersistedCheckpoint() == localCheckpointTracker.getProcessedCheckpoint()
+                            : "persisted checkpoint ["
+                                + localCheckpointTracker.getPersistedCheckpoint()
+                                + "] must equal processed checkpoint ["
+                                + localCheckpointTracker.getProcessedCheckpoint()
+                                + "] after sync";
                         Map<String, String> commitData = new HashMap<>();
                         commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
                         commitData.put(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(snapshot.getLastWriterGeneration()));
@@ -666,6 +820,12 @@ public class DataFormatAwareEngine implements Indexer {
                         commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
                         // Update snapshot userData so deletion policy can read max_seq_no
                         snapshot.setUserData(commitData, true);
+                        // Commit data must contain all keys required for recovery
+                        assert commitData.containsKey(CatalogSnapshot.CATALOG_SNAPSHOT_KEY) : "commit data missing catalog snapshot";
+                        assert commitData.containsKey(Translog.TRANSLOG_UUID_KEY) : "commit data missing translog UUID";
+                        assert commitData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit data missing local checkpoint";
+                        assert commitData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit data missing max seq no";
+                        assert commitData.containsKey(Engine.HISTORY_UUID_KEY) : "commit data missing history UUID";
                         committer.commit(commitData);
                         snapshotRef.markSuccess();
                         translogManager.rollTranslogGeneration();
@@ -684,11 +844,18 @@ public class DataFormatAwareEngine implements Indexer {
         }
     }
 
+    /** Flushes the engine with default parameters (non-forced, wait if ongoing). */
     @Override
     public void flush() {
         flush(false, true);
     }
 
+    /**
+     * Determines whether a periodic flush is needed based on translog size relative
+     * to the configured flush threshold.
+     *
+     * @return {@code true} if the translog exceeds the flush threshold
+     */
     @Override
     public boolean shouldPeriodicallyFlush() {
         ensureOpen();
@@ -699,6 +866,7 @@ public class DataFormatAwareEngine implements Indexer {
         );
     }
 
+    /** Triggers a refresh to flush the indexing buffer to segments. */
     @Override
     public void writeIndexingBuffer() throws EngineException {
         refresh("write indexing buffer");
@@ -716,11 +884,13 @@ public class DataFormatAwareEngine implements Indexer {
         // TODO: Delegate to IndexingExecutionEngine's Merger when merge scheduling is implemented
     }
 
+    /** {@inheritDoc} Returns the RAM bytes used by the indexing execution engine. */
     @Override
     public long getIndexBufferRAMBytesUsed() {
         return indexingExecutionEngine.getNativeBytesUsed();
     }
 
+    /** {@inheritDoc} Activates write throttling when merge pressure increases. */
     @Override
     public void activateThrottling() {
         int count = throttleRequestCount.incrementAndGet();
@@ -730,6 +900,7 @@ public class DataFormatAwareEngine implements Indexer {
         }
     }
 
+    /** {@inheritDoc} Deactivates write throttling when merge pressure subsides. */
     @Override
     public void deactivateThrottling() {
         int count = throttleRequestCount.decrementAndGet();
@@ -744,6 +915,14 @@ public class DataFormatAwareEngine implements Indexer {
         return throttle.isThrottled();
     }
 
+    /**
+     * Updates the retention settings for the translog deletion policy.
+     * Also resets the auto-ID timestamp optimization if disabled.
+     *
+     * @param translogRetentionAge   the maximum age for translog files
+     * @param translogRetentionSize  the maximum total size for translog files
+     * @param softDeletesRetentionOps unused — soft deletes are not supported
+     */
     @Override
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
         if (engineConfig.isAutoGeneratedIDsOptimizationEnabled() == false) {
@@ -752,25 +931,37 @@ public class DataFormatAwareEngine implements Indexer {
         final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
+
+        // This checks if the settings related to merge are changed and based on that updates the local variables in the class
+        mergeScheduler.refreshConfig();
     }
 
+    /** {@inheritDoc} Always returns {@code true} — a refresh is always considered needed. */
     @Override
     public boolean refreshNeeded() {
         // A refresh is needed if there are operations since the last refresh
         return true;
     }
 
+    /** {@inheritDoc} Delegates to {@link #refresh(String)} and always returns {@code true}. */
     @Override
     public boolean maybeRefresh(String source) {
         refresh(source);
         return true;
     }
 
+    /** No-op — data-format engines do not maintain Lucene-style delete tombstones. */
     @Override
     public void maybePruneDeletes() {
         // No-op: data-format engines do not maintain Lucene-style delete tombstones
     }
 
+    /**
+     * Verifies that the global checkpoint matches the maximum sequence number before
+     * closing the index. Throws if they diverge, indicating uncommitted operations.
+     *
+     * @throws IllegalStateException if global checkpoint does not match max seq no
+     */
     @Override
     public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
@@ -846,6 +1037,15 @@ public class DataFormatAwareEngine implements Indexer {
         return 0L;
     }
 
+    /**
+     * Counts the number of translog operations between the given sequence numbers.
+     *
+     * @param source      a descriptive label for the caller
+     * @param fromSeqNo   the starting sequence number (inclusive)
+     * @param toSeqNumber the ending sequence number (inclusive)
+     * @return the number of operations in the range
+     * @throws IOException if reading the translog fails
+     */
     @Override
     public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNumber) throws IOException {
         ensureOpen();
@@ -897,8 +1097,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public MergeStats getMergeStats() {
-        // TODO: MergeHandler to provide this.
-        return new MergeStats();
+        return mergeScheduler.stats();
     }
 
     @Override
@@ -941,6 +1140,17 @@ public class DataFormatAwareEngine implements Indexer {
         return () -> {};
     }
 
+    /**
+     * Returns a translog snapshot for the given sequence number range.
+     *
+     * @param source            a descriptive label for the caller
+     * @param fromSeqNo         the starting sequence number (inclusive)
+     * @param toSeqNo           the ending sequence number (inclusive)
+     * @param requiredFullRange whether the full range must be present
+     * @param accurateCount     unused
+     * @return a translog snapshot
+     * @throws IOException if reading the translog fails
+     */
     @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
@@ -957,6 +1167,12 @@ public class DataFormatAwareEngine implements Indexer {
         return historyUUID;
     }
 
+    /**
+     * Flushes the engine and then closes it. If the engine is already closed, the flush
+     * is skipped. Waits for any pending close operations to complete.
+     *
+     * @throws IOException if flush or close fails
+     */
     @Override
     public void flushAndClose() throws IOException {
         if (isClosed.get() == false) {
@@ -973,6 +1189,14 @@ public class DataFormatAwareEngine implements Indexer {
         awaitPendingClose();
     }
 
+    /**
+     * Fails the engine with the given reason and optional exception. Acquires the fail
+     * engine lock to ensure only one failure is recorded. Closes the engine and notifies
+     * the event listener.
+     *
+     * @param reason  a human-readable reason for the failure
+     * @param failure the exception that caused the failure, or {@code null}
+     */
     @Override
     public void failEngine(String reason, @Nullable Exception failure) {
         if (failEngineLock.tryLock()) {
@@ -984,6 +1208,8 @@ public class DataFormatAwareEngine implements Indexer {
                 failedEngine.set(failure != null ? failure : new IllegalStateException(reason));
                 try {
                     closeNoLock("engine failed on: [" + reason + "]");
+                    // After failEngine, the engine must be in a closed state
+                    assert isClosed.get() : "engine must be closed after failEngine";
                 } finally {
                     logger.warn(() -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     engineConfig.getEventListener().onFailedEngine(reason, failure);
@@ -999,6 +1225,11 @@ public class DataFormatAwareEngine implements Indexer {
         }
     }
 
+    /**
+     * Acquires a reference to the current catalog snapshot for reading segment metadata.
+     *
+     * @return a gated closeable wrapping the catalog snapshot
+     */
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
         return catalogSnapshotManager.acquireSnapshot();
@@ -1011,9 +1242,12 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     /**
-     * Acquires a DataFormatAwareReader on the latest catalog snapshot.
-     * The caller MUST close the returned {@link DataFormatAwareReader} when done,
-     * which releases the snapshot reference.
+     * Acquires a {@link DataFormatAwareReader} on the latest catalog snapshot.
+     * The caller must close the returned reader when done, which releases the
+     * snapshot reference.
+     *
+     * @return a gated closeable wrapping the reader
+     * @throws IOException if reader acquisition fails
      */
     public GatedCloseable<Reader> acquireReader() throws IOException {
         ensureOpen();
@@ -1042,6 +1276,12 @@ public class DataFormatAwareEngine implements Indexer {
         }
     }
 
+    /**
+     * Closes the engine, releasing all resources including the indexing execution engine,
+     * translog manager, reader managers, and store reference.
+     *
+     * @throws IOException if closing any resource fails
+     */
     @Override
     public void close() throws IOException {
         if (isClosed.get() == false) {
@@ -1050,6 +1290,42 @@ public class DataFormatAwareEngine implements Indexer {
             }
         }
         awaitPendingClose();
+    }
+
+    private void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
+        refreshLock.lock();
+        try {
+            catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
+            try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+                refreshListeners(true, newSnapshotRef.get());
+            }
+        } catch (Exception ex) {
+            try {
+                logger.error(() -> new ParameterizedMessage("Merge failed while registering merged files in Snapshot"), ex);
+                failEngine("Merge failed while registering merged files in Snapshot", ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
+            throw new MergeFailedEngineException(shardId, ex);
+        } finally {
+            refreshLock.unlock();
+        }
+    }
+
+    private void refreshListeners(boolean refreshed, CatalogSnapshot catalogSnapshot) throws IOException {
+        // TODO: Add other Refresh listeners
+        // Notify reader managers so they can create readers for the new snapshot
+        for (EngineReaderManager<?> rm : readerManagers.values()) {
+            rm.afterRefresh(refreshed, catalogSnapshot);
+        }
+    }
+
+    private void triggerPossibleMerges() {
+        if (Booleans.parseBoolean(System.getProperty(MERGE_ENABLED_PROPERTY, Boolean.FALSE.toString())) == false) {
+            logger.debug("Pluggable dataformat merge is disabled via system property [{}], skipping merge", MERGE_ENABLED_PROPERTY);
+            return;
+        }
+        mergeScheduler.triggerMerges();
     }
 
     private void closeNoLock(String reason) {
