@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner.dag;
 
+import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexCall;
@@ -20,6 +21,7 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
@@ -99,7 +101,7 @@ public class BackendPlanAdapter {
         boolean childrenChanged
     ) {
         List<FieldStorageInfo> fieldStorage = filter.getOutputFieldStorage();
-        RexNode adaptedCondition = adaptRex(filter.getCondition(), adapters, fieldStorage);
+        RexNode adaptedCondition = adaptRex(filter.getCondition(), adapters, fieldStorage, filter.getCluster());
         if (adaptedCondition != filter.getCondition() || childrenChanged) {
             return new OpenSearchFilter(
                 filter.getCluster(),
@@ -124,7 +126,7 @@ public class BackendPlanAdapter {
         List<RexNode> adaptedProjects = new ArrayList<>(project.getProjects().size());
         boolean projectsChanged = false;
         for (RexNode projectExpr : project.getProjects()) {
-            RexNode adapted = adaptRex(projectExpr, adapters, fieldStorage);
+            RexNode adapted = adaptRex(projectExpr, adapters, fieldStorage, project.getCluster());
             adaptedProjects.add(adapted);
             if (adapted != projectExpr) projectsChanged = true;
         }
@@ -156,17 +158,25 @@ public class BackendPlanAdapter {
     private static RexNode adaptRex(
         RexNode node,
         Map<ScalarFunction, ScalarFunctionAdapter> adapters,
-        List<FieldStorageInfo> fieldStorage
+        List<FieldStorageInfo> fieldStorage,
+        RelOptCluster cluster
     ) {
         if (!(node instanceof RexCall call)) {
             return node;
+        }
+
+        // Annotation wrappers: adapt the inner expression and re-wrap with same metadata.
+        // Plain RexCall.clone() would drop the annotation subclass, breaking later stripping.
+        if (node instanceof OperatorAnnotation annotation && annotation.unwrap() != null) {
+            RexNode adaptedInner = adaptRex(annotation.unwrap(), adapters, fieldStorage, cluster);
+            return adaptedInner == annotation.unwrap() ? node : annotation.withAdaptedOriginal(adaptedInner);
         }
 
         // Recurse into operands first
         List<RexNode> adaptedOperands = new ArrayList<>(call.getOperands().size());
         boolean operandsChanged = false;
         for (RexNode operand : call.getOperands()) {
-            RexNode adapted = adaptRex(operand, adapters, fieldStorage);
+            RexNode adapted = adaptRex(operand, adapters, fieldStorage, cluster);
             adaptedOperands.add(adapted);
             if (adapted != operand) operandsChanged = true;
         }
@@ -178,7 +188,7 @@ public class BackendPlanAdapter {
         if (function != null) {
             ScalarFunctionAdapter adapter = adapters.get(function);
             if (adapter != null) {
-                return adapter.adapt(current, fieldStorage);
+                return adapter.adapt(current, fieldStorage, cluster);
             }
         }
 
