@@ -12,6 +12,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.Mapper;
@@ -57,7 +58,7 @@ public final class ArrowSchemaBuilder {
         }
         // Add row ID field (long)
         LongParquetField longField = new LongParquetField();
-        fields.add(new Field("_row_id", longField.getFieldType(), null));
+        fields.add(new Field(DocumentInput.ROW_ID_FIELD, longField.getFieldType(), null));
         return new Schema(fields);
     }
 
