@@ -104,7 +104,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
 
         RelNode marked = runPlanner(filter, context);
-        LOGGER.info("Marked:\n{}", RelOptUtil.toString(marked));
+        LOGGER.debug("Marked:\n{}", RelOptUtil.toString(marked));
 
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
@@ -245,6 +245,53 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
             "SIN operand should remain INPUT_REF with no adapters registered",
             SqlKind.INPUT_REF,
             sinCall.getOperands().getFirst().getKind()
+        );
+    }
+
+    /** Nested SIN(ABS($0)) — both have adapters, only one CAST at the leaf. */
+    public void testNestedAdaptedFunctionsProduceSingleCast() {
+        ScalarFunctionAdapter castAdapter = sinCastAdapter; // same logic works for ABS
+        MockDataFusionBackend dfWithBothAdapters = new MockDataFusionBackend() {
+            @Override
+            protected Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+                return Map.of(ScalarFunction.SIN, castAdapter, ScalarFunction.ABS, castAdapter);
+            }
+        };
+
+        PlannerContext context = buildContext("parquet", 1, intFields(), List.of(dfWithBothAdapters));
+
+        RexNode absCall = rexBuilder.makeCall(
+            SqlStdOperatorTable.ABS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0)
+        );
+        RexNode sinAbsCall = rexBuilder.makeCall(SIN_FUNCTION, absCall);
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            sinAbsCall,
+            rexBuilder.makeLiteral(0.5, typeFactory.createSqlType(SqlTypeName.DOUBLE), true)
+        );
+        LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), condition);
+
+        RelNode marked = runPlanner(filter, context);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
+
+        StagePlan plan = dag.rootStage().getPlanAlternatives().getFirst();
+        OpenSearchFilter adaptedFilter = (OpenSearchFilter) plan.resolvedFragment();
+
+        // ABS should have CAST on its direct RexInputRef operand
+        RexCall absResult = findCallByName(adaptedFilter.getCondition(), "ABS");
+        assertNotNull("ABS call should exist", absResult);
+        assertEquals("ABS operand should be CAST", SqlKind.CAST, absResult.getOperands().getFirst().getKind());
+
+        // SIN's operand is ABS (a RexCall, not RexInputRef) — adapter should NOT insert CAST
+        RexCall sinResult = findCallByName(adaptedFilter.getCondition(), "SIN");
+        assertNotNull("SIN call should exist", sinResult);
+        assertEquals(
+            "SIN operand should be ABS (no double-CAST)",
+            "ABS",
+            ((RexCall) sinResult.getOperands().getFirst()).getOperator().getName()
         );
     }
 

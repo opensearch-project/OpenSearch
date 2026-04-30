@@ -127,12 +127,10 @@ public enum ScalarFunction {
         return null;
     }
 
-    /** Maps a Calcite SqlFunction to a ScalarFunction by name, or null if not recognized. */
+    /** Maps a Calcite SqlFunction to a ScalarFunction by name, or throws if not recognized. */
     public static ScalarFunction fromSqlFunction(SqlFunction function) {
-        try {
-            return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
+        // TODO: Add an explicit functionName field per enum constant instead of relying on
+        // valueOf(toUpperCase). This couples enum constant naming to SQL function naming convention.
+        return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
     }
 }

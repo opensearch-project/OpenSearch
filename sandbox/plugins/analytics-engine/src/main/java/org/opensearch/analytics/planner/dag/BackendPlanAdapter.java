@@ -64,11 +64,7 @@ public class BackendPlanAdapter {
             if (adapters.isEmpty()) {
                 adapted.add(plan);
             } else {
-                LOGGER.debug(
-                    "Before adaptation [{}]:\n{}",
-                    plan.backendId(),
-                    RelOptUtil.toString(plan.resolvedFragment())
-                );
+                LOGGER.debug("Before adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(plan.resolvedFragment()));
                 RelNode adaptedFragment = adaptNode(plan.resolvedFragment(), adapters);
                 LOGGER.debug("After adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(adaptedFragment));
                 adapted.add(new StagePlan(adaptedFragment, plan.backendId()));
@@ -145,6 +141,18 @@ public class BackendPlanAdapter {
         return project;
     }
 
+    /**
+     * Adapts RexNodes bottom-up: operands are adapted before the call itself.
+     *
+     * <p>This means a parent adapter receives already-adapted operands. This is safe
+     * because adapters only inspect their <b>direct</b> operands via
+     * {@code operand instanceof RexInputRef} to resolve field storage. If a child
+     * adapter wraps an operand in CAST, the parent sees a {@code RexCall} (not
+     * {@code RexInputRef}) and skips adaptation — no double-CAST occurs.
+     *
+     * <p>This ordering is validated by {@code testNestedAdaptedFunctionsProduceSingleCast}
+     * which confirms {@code SIN(ABS($0))} with both adapted produces one CAST at the leaf.
+     */
     private static RexNode adaptRex(
         RexNode node,
         Map<ScalarFunction, ScalarFunctionAdapter> adapters,
@@ -179,8 +187,11 @@ public class BackendPlanAdapter {
 
     private static ScalarFunction resolveFunction(RexCall call) {
         if (call.getOperator() instanceof SqlFunction sqlFunction) {
-            ScalarFunction fromName = ScalarFunction.fromSqlFunction(sqlFunction);
-            if (fromName != null) return fromName;
+            try {
+                return ScalarFunction.fromSqlFunction(sqlFunction);
+            } catch (IllegalArgumentException ignored) {
+                // Not in our enum — fall through to SqlKind resolution
+            }
         }
         return ScalarFunction.fromSqlKind(call.getKind());
     }
