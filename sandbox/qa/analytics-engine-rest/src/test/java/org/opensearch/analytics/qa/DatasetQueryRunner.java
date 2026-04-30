@@ -11,6 +11,7 @@ package org.opensearch.analytics.qa;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.client.RestClient;
+import org.opensearch.common.io.PathUtils;
 
 import java.io.IOException;
 import java.net.URI;
@@ -19,7 +20,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -70,7 +71,7 @@ public final class DatasetQueryRunner {
                 fs = FileSystems.newFileSystem(uri, Collections.emptyMap());
                 path = fs.getPath(resourceDir);
             } else {
-                path = Paths.get(uri);
+                path = PathUtils.get(uri);
             }
             try (Stream<Path> stream = Files.list(path)) {
                 stream.forEach(p -> {
@@ -115,7 +116,7 @@ public final class DatasetQueryRunner {
     ) {
         List<String> failures = new ArrayList<>();
         for (int queryNum : queryNumbers) {
-            String queryId = language.toUpperCase() + " Q" + queryNum;
+            String queryId = language.toUpperCase(Locale.ROOT) + " Q" + queryNum;
             try {
                 String queryBody = DatasetProvisioner.loadResource(dataset.queryResourcePath(language, extension, queryNum));
                 logger.info("=== {} ===\n{}", queryId, queryBody);

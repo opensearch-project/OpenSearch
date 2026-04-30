@@ -66,6 +66,7 @@ public class TestPPLTransportAction extends HandledTransportAction<PPLRequest, P
     protected void doExecute(Task task, PPLRequest request, ActionListener<PPLResponse> listener) {
         // Fork to SEARCH thread pool — DefaultPlanExecutor.execute() blocks on a future
         // internally, which is forbidden on the transport thread.
+        // TODO: update UnifiedQueryService to consume a listener that DefaultPlanExecutor does to avoid threadpool fork
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             try {
                 PPLResponse response = unifiedQueryService.execute(request.getPplText());
