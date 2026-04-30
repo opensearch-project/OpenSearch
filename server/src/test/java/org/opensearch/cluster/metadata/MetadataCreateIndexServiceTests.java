@@ -2229,8 +2229,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         // Primary override is preserved; value still stamped from the cluster default.
-        Settings.Builder indexSettingsBuilder = Settings.builder()
-            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
         MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
 
         Settings out = indexSettingsBuilder.build();
@@ -2246,8 +2245,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        Settings.Builder indexSettingsBuilder = Settings.builder()
-            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene");
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene");
         MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
 
         Settings out = indexSettingsBuilder.build();

@@ -127,9 +127,7 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
             .build();
         injectClusterService(plugin, clusterBag);
 
-        Settings requestOrTemplate = Settings.builder()
-            .put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "lucene")
-            .build();
+        Settings requestOrTemplate = Settings.builder().put(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.getKey(), "lucene").build();
 
         IndexSettingProvider provider = singleProvider(plugin);
         Settings out = provider.getAdditionalIndexSettings("some-index", false, requestOrTemplate);
