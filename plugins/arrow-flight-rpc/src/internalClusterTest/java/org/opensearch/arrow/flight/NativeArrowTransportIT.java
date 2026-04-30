@@ -125,13 +125,9 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Regression test: prior to the FlightTransportResponse.nextResponse() fix, the returned response
-     * held a reference to FlightStream's internal shared root. Subsequent next()/close() calls would
-     * clear those vectors, so a consumer that deferred reading the data (e.g. to dispatch work to an
-     * async listener) would see valueCount=0 / null data.
-     *
-     * This test retains references to all batch roots and only validates them AFTER the stream has
-     * been fully drained and closed — reproducing the condition the fix protects against.
+     * Collects every batch without reading vector data, fully drains and closes the stream, then
+     * verifies each retained batch still holds its data. Mirrors an async consumer that defers
+     * reading until after the stream has advanced or been closed.
      */
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testBatchesSurviveStreamAdvanceAndClose() throws Exception {
@@ -190,7 +186,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
 
         try {
             // Every retained batch must still have its data intact even though the stream has
-            // advanced and closed. Without the fix, these roots would be empty/cleared.
+            // advanced and closed.
             for (int batchIdx = 0; batchIdx < retained.size(); batchIdx++) {
                 VectorSchemaRoot root = retained.get(batchIdx).getRoot();
                 assertEquals("row count must survive stream close", rowsPerBatch, root.getRowCount());
