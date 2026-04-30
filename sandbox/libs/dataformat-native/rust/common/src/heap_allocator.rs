@@ -16,24 +16,34 @@
 //! [`HeapRoutingAllocator`] is the `#[global_allocator]`. It checks a
 //! thread-local [`ACTIVE_HEAP`] on every allocation:
 //! - If set → `mi_heap_malloc_aligned(heap, ...)` (tracked by plugin)
-//! - If null → `mi_malloc_aligned(...)` (default, untracked)
+//! - If null → `System` allocator (libc malloc, safe on JVM threads)
 //!
-//! **Critical:** `dealloc` and `realloc` always use the default mimalloc
-//! functions (`mi_free`, `mi_realloc_aligned`) which resolve the owning
-//! heap from the pointer's segment metadata. This prevents cross-heap
-//! migration and use-after-free when threads exit.
+//! The System default path is critical for JVM interop: when the native
+//! library is loaded via dlopen/FFM, JVM threads call into Rust without
+//! mimalloc TLS being initialized. Using System for the default path
+//! avoids SIGSEGV in `mi_thread_init`. Once `#[ffm_safe]` spawns a Rust
+//! thread and `ScopedThreadHeap` sets the active heap, all allocations
+//! route through mimalloc heaps for per-plugin tracking.
+//!
+//! **Dealloc routing:** Uses `mi_is_in_heap_region` to detect whether a
+//! pointer belongs to mimalloc. If so, `mi_free`; otherwise `System.dealloc`.
+//!
+//! **Critical:** `mi_free` resolves the owning heap from the pointer's
+//! segment metadata. This prevents cross-heap migration and use-after-free
+//! when threads exit.
 
 use core::ffi::{c_char, c_void};
-use std::alloc::{GlobalAlloc, Layout};
+use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::sync::{Mutex, Once};
 use std::thread;
 
 pub use libmimalloc_sys::mi_heap_t;
+use native_bridge_macros::ffm_thread;
 use libmimalloc_sys::{
     mi_free, mi_heap_area_t, mi_heap_malloc_aligned, mi_heap_new,
-    mi_heap_visit_blocks, mi_heap_zalloc_aligned, mi_malloc_aligned,
-    mi_realloc_aligned, mi_zalloc_aligned,
+    mi_heap_visit_blocks, mi_heap_zalloc_aligned, mi_is_in_heap_region,
+    mi_realloc_aligned,
 };
 
 // mi_stats_get_json is part of mimalloc's extended API (mimalloc-stats.h) but
@@ -63,7 +73,9 @@ unsafe impl GlobalAlloc for HeapRoutingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let heap = get_active_heap();
         if heap.is_null() {
-            mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
+            // Default path: use System allocator (libc malloc).
+            // This is safe on JVM threads — no mimalloc TLS access.
+            System.alloc(layout)
         } else {
             mi_heap_malloc_aligned(heap, layout.size(), layout.align()) as *mut u8
         }
@@ -73,20 +85,31 @@ unsafe impl GlobalAlloc for HeapRoutingAllocator {
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         let heap = get_active_heap();
         if heap.is_null() {
-            mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
+            System.alloc_zeroed(layout)
         } else {
             mi_heap_zalloc_aligned(heap, layout.size(), layout.align()) as *mut u8
         }
     }
 
     #[inline]
-    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        mi_free(ptr as *mut c_void);
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        // Route to the correct deallocator based on pointer ownership.
+        // mi_is_in_heap_region checks if the pointer belongs to any mimalloc
+        // segment — if so, use mi_free; otherwise use System free.
+        if mi_is_in_heap_region(ptr as *const c_void) {
+            mi_free(ptr as *mut c_void);
+        } else {
+            System.dealloc(ptr, layout);
+        }
     }
 
     #[inline]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        mi_realloc_aligned(ptr as *mut c_void, new_size, layout.align()) as *mut u8
+        if mi_is_in_heap_region(ptr as *const c_void) {
+            mi_realloc_aligned(ptr as *mut c_void, new_size, layout.align()) as *mut u8
+        } else {
+            System.realloc(ptr, layout, new_size)
+        }
     }
 }
 
@@ -258,6 +281,7 @@ pub fn all_plugin_stats() -> Vec<PluginStats> {
 // ── FFM exports ─────────────────────────────────────────────────────────────
 
 /// Returns the number of registered plugin heaps.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn native_heap_count() -> i32 {
     REGISTRY.lock().unwrap().len() as i32
@@ -265,6 +289,7 @@ pub extern "C" fn native_heap_count() -> i32 {
 
 /// Copies the name of the heap at `index` into `buf` (null-terminated).
 /// Returns bytes written (excluding null), or -1 on error.
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn native_heap_name(index: i32, buf: *mut u8, buf_len: i32) -> i32 {
     let registry = REGISTRY.lock().unwrap();
@@ -281,6 +306,7 @@ pub unsafe extern "C" fn native_heap_name(index: i32, buf: *mut u8, buf_len: i32
 
 /// Returns used bytes for the plugin heap at the given index.
 /// Only walks blocks for the requested heap, not all heaps.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn native_heap_used(index: i32) -> i64 {
     let heap = {
@@ -294,6 +320,7 @@ pub extern "C" fn native_heap_used(index: i32) -> i64 {
 
 /// Returns committed bytes for the plugin heap at the given index.
 /// Only walks blocks for the requested heap, not all heaps.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn native_heap_committed(index: i32) -> i64 {
     let heap = {
@@ -311,6 +338,7 @@ pub extern "C" fn native_heap_committed(index: i32) -> i64 {
 ///
 /// Avoids full serde_json::Value parse — uses targeted string search for the
 /// "committed" field to minimize overhead on a frequently-called stats path.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn native_global_committed() -> i64 {
     let raw = unsafe {
@@ -341,6 +369,7 @@ pub extern "C" fn native_global_committed() -> i64 {
 /// All threads must have stopped using plugin heaps before calling this.
 /// Any pointers allocated from plugin heaps become dangling after this call.
 /// This is intended for graceful process shutdown only.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn native_heap_destroy_all() {
     let mut registry = REGISTRY.lock().unwrap();

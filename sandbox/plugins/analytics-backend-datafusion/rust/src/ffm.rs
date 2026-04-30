@@ -13,6 +13,7 @@ use std::str;
 use std::sync::Arc;
 
 use native_bridge_common::ffm_safe;
+use native_bridge_common::ffm_thread;
 use parking_lot::RwLock;
 
 use crate::api;
@@ -38,12 +39,14 @@ fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
         .ok_or_else(|| "Runtime manager not initialized".to_string())
 }
 
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn df_init_runtime_manager(cpu_threads: i32) {
     let mut guard = TOKIO_RUNTIME_MANAGER.write();
     *guard = Some(Arc::new(RuntimeManager::new(cpu_threads as usize)));
 }
 
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn df_shutdown_runtime_manager() {
     let mgr = TOKIO_RUNTIME_MANAGER.write().take();
@@ -66,6 +69,7 @@ pub unsafe extern "C" fn df_create_global_runtime(
         .map_err(|e| e.to_string())
 }
 
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn df_close_global_runtime(ptr: i64) {
     let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
@@ -93,6 +97,7 @@ pub unsafe extern "C" fn df_create_reader(
     api::create_reader(table_path, filenames, &mgr).map_err(|e| e.to_string())
 }
 
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn df_close_reader(ptr: i64) {
     let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
@@ -136,6 +141,7 @@ pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
         .map_err(|e| e.to_string())
 }
 
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
     let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
@@ -193,6 +199,7 @@ pub unsafe extern "C" fn df_create_local_session(runtime_ptr: i64) -> i64 {
     api::create_local_session(runtime_ptr).map_err(|e| e.to_string())
 }
 
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn df_close_local_session(ptr: i64) {
     api::close_local_session(ptr);
@@ -257,6 +264,7 @@ pub unsafe extern "C" fn df_sender_send(sender_ptr: i64, array_ptr: i64, schema_
         .map_err(|e| e.to_string())
 }
 
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
     api::sender_close(sender_ptr);
@@ -317,18 +325,21 @@ fn get_df_heap() -> heap_allocator::PluginHeap {
 }
 
 /// Initialize the datafusion plugin's mimalloc heap. Call once at plugin startup.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn df_init_heap() {
     get_df_heap();
 }
 
 /// Set the calling thread's active heap to datafusion's heap.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn df_set_thread_heap() {
     heap_allocator::set_thread_heap(get_df_heap());
 }
 
 /// Returns the DataFusion memory pool usage in bytes, or 0 if no runtime.
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn df_get_memory_pool_usage(runtime_ptr: i64) -> i64 {
     let _guard = heap_allocator::scoped_thread_heap(get_df_heap());
@@ -338,6 +349,7 @@ pub unsafe extern "C" fn df_get_memory_pool_usage(runtime_ptr: i64) -> i64 {
 }
 
 /// Test-only: allocate a buffer on datafusion's heap. Returns pointer as i64.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn df_allocate_test_buffer(size: i64) -> i64 {
     heap_allocator::test_allocate_buffer(get_df_heap(), size)
@@ -345,6 +357,7 @@ pub extern "C" fn df_allocate_test_buffer(size: i64) -> i64 {
 
 /// Test-only: free a test buffer. Safe to call from any thread — mimalloc resolves
 /// the owning heap from the pointer's segment metadata.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn df_free_test_buffer(ptr: i64, _size: i64) {
     heap_allocator::test_free_buffer(ptr);

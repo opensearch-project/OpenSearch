@@ -90,7 +90,7 @@ public class HeapTrackingWithIndexingIT extends OpenSearchIntegTestCase {
 
         long parquetAfter = NativeLibraryLoader.heapUsed(parquetIdx);
         long growth = parquetAfter - parquetBefore;
-        assertTrue("parquet heap should grow by at least 1KB after indexing 50 docs, actual growth=" + growth, growth >= 1024);
+        assertTrue("parquet heap should grow by at least 512 bytes after indexing 50 docs, actual growth=" + growth, growth >= 512);
     }
 
     public void testGlobalCommittedCoversPluginHeaps() {

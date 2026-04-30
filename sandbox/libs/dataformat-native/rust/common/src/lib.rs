@@ -14,3 +14,4 @@ pub mod logger;
 
 // Re-export the proc macro so plugins use `#[native_bridge_common::ffm_safe]`
 pub use native_bridge_macros::ffm_safe;
+pub use native_bridge_macros::ffm_thread;

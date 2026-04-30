@@ -15,6 +15,7 @@
 
 use std::ffi::CString;
 use std::os::raw::c_char;
+use native_bridge_macros::ffm_thread;
 
 /// Heap-allocate the error message and return its pointer as a negative i64.
 pub fn into_error_ptr(msg: String) -> i64 {
@@ -24,12 +25,14 @@ pub fn into_error_ptr(msg: String) -> i64 {
 }
 
 /// Returns a pointer to the null-terminated error message.
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn native_error_message(ptr: i64) -> *const c_char {
     ptr as *const c_char
 }
 
 /// Frees a heap-allocated error string.
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn native_error_free(ptr: i64) {
     if ptr != 0 {
@@ -38,6 +41,7 @@ pub unsafe extern "C" fn native_error_free(ptr: i64) {
 }
 
 /// Deliberately panics with the given message. For testing panic handling.
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn native_test_panic(msg_ptr: *const u8, msg_len: i64) -> i64 {
     match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| -> Result<i64, String> {
@@ -60,6 +64,7 @@ pub unsafe extern "C" fn native_test_panic(msg_ptr: *const u8, msg_len: i64) -> 
 }
 
 /// Returns an error (not a panic) with the given message. For testing error handling.
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn native_test_error(msg_ptr: *const u8, msg_len: i64) -> i64 {
     let msg = std::str::from_utf8_unchecked(std::slice::from_raw_parts(msg_ptr, msg_len as usize));
@@ -68,6 +73,7 @@ pub unsafe extern "C" fn native_test_error(msg_ptr: *const u8, msg_len: i64) -> 
 
 /// Validates a string from (ptr, len). Returns 0 on valid UTF-8, error pointer on invalid input.
 /// Used for testing input validation (null ptr, negative len, bad UTF-8).
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn native_test_validate_str(ptr: *const u8, len: i64) -> i64 {
     if ptr.is_null() {

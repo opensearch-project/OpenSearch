@@ -15,6 +15,7 @@ use std::slice;
 use std::str;
 
 use native_bridge_common::ffm_safe;
+use native_bridge_common::ffm_thread;
 use native_bridge_common::heap_allocator;
 
 use crate::writer::NativeParquetWriter;
@@ -139,6 +140,7 @@ pub unsafe extern "C" fn parquet_get_file_metadata(
     Ok(0)
 }
 
+#[ffm_thread]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_get_filtered_native_bytes_used(
     prefix_ptr: *const u8,
@@ -161,18 +163,21 @@ fn get_parquet_heap() -> heap_allocator::PluginHeap {
 }
 
 /// Initialize the parquet plugin's mimalloc heap. Call once at plugin startup.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn parquet_init_heap() {
     get_parquet_heap();
 }
 
 /// Set the calling thread's active heap to parquet's heap.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn parquet_set_thread_heap() {
     heap_allocator::set_thread_heap(get_parquet_heap());
 }
 
 /// Test-only: allocate a buffer on parquet's heap. Returns pointer as i64.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn parquet_allocate_test_buffer(size: i64) -> i64 {
     heap_allocator::test_allocate_buffer(get_parquet_heap(), size)
@@ -180,6 +185,7 @@ pub extern "C" fn parquet_allocate_test_buffer(size: i64) -> i64 {
 
 /// Test-only: free a test buffer. Safe to call from any thread — mimalloc resolves
 /// the owning heap from the pointer's segment metadata.
+#[ffm_thread]
 #[no_mangle]
 pub extern "C" fn parquet_free_test_buffer(ptr: i64, _size: i64) {
     heap_allocator::test_free_buffer(ptr);
