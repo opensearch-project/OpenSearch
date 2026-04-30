@@ -39,13 +39,10 @@ class TimestampFunctionTransformer implements RexNodeTransformer {
     private static final String TIMESTAMP_FUNCTION_NAME = "TIMESTAMP";
 
     @Override
-    public RexNode transform(RexNode node, RexBuilder rexBuilder, FieldMappingLookup fieldMappingTypes) {
-        if (!(node instanceof RexCall call)) {
-            return node;
-        }
+    public RexCall transform(RexCall call, RexBuilder rexBuilder, FieldMappingLookup fieldMappingTypes) {
         int precision = resolveTimestampPrecision(call, fieldMappingTypes);
         if (precision < 0) {
-            return node;
+            return call;
         }
         boolean changed = false;
         List<RexNode> newOperands = new ArrayList<>(call.getOperands().size());
@@ -56,7 +53,7 @@ class TimestampFunctionTransformer implements RexNodeTransformer {
                 changed = true;
             }
         }
-        return changed ? call.clone(call.getType(), newOperands) : node;
+        return changed ? (RexCall) call.clone(call.getType(), newOperands) : call;
     }
 
     private RexNode convertTimestampFunction(RexNode operand, RexBuilder rexBuilder, int precision) {

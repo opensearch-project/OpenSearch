@@ -9,6 +9,7 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 
 /**
@@ -24,14 +25,14 @@ import org.apache.calcite.rex.RexNode;
 public interface RexNodeTransformer {
 
     /**
-     * Transforms a RexNode, potentially replacing function calls with simplified forms.
+     * Transforms a RexCall, potentially replacing function calls with simplified forms.
      *
-     * @param node              the RexNode to transform
+     * @param call              the RexCall to transform
      * @param rexBuilder        for creating new RexNodes
      * @param fieldMappingTypes lookup for field mapping types by field index
-     * @return the transformed node, or the original if no transformation applies
+     * @return the transformed call, or the original if no transformation applies
      */
-    RexNode transform(RexNode node, RexBuilder rexBuilder, FieldMappingLookup fieldMappingTypes);
+    RexCall transform(RexCall call, RexBuilder rexBuilder, FieldMappingLookup fieldMappingTypes);
 
     /**
      * Lookup for field mapping types by field index.

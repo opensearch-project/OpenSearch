@@ -177,11 +177,11 @@ public class OpenSearchFilterRule extends RelOptRule {
         if (transformers.isEmpty()) {
             return predicate;
         }
-        RexNode result = predicate;
+        RexCall result = predicate;
         for (RexNodeTransformer transformer : transformers) {
             result = transformer.transform(result, rexBuilder, lookup);
         }
-        return (result instanceof RexCall rexCall) ? rexCall : predicate;
+        return result;
     }
 
     /**
