@@ -124,6 +124,93 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
     }
 
+    /**
+     * Regression test: prior to the FlightTransportResponse.nextResponse() fix, the returned response
+     * held a reference to FlightStream's internal shared root. Subsequent next()/close() calls would
+     * clear those vectors, so a consumer that deferred reading the data (e.g. to dispatch work to an
+     * async listener) would see valueCount=0 / null data.
+     *
+     * This test retains references to all batch roots and only validates them AFTER the stream has
+     * been fully drained and closed — reproducing the condition the fix protects against.
+     */
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testBatchesSurviveStreamAdvanceAndClose() throws Exception {
+        DiscoveryNode node = getClusterState().nodes().iterator().next();
+        StreamTransportService sts = internalCluster().getInstance(StreamTransportService.class);
+        List<TestArrowResponse> retained = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        int batchCount = 3;
+        int rowsPerBatch = 4;
+        sts.sendRequest(
+            node,
+            TestArrowAction.NAME,
+            new TestArrowRequest(batchCount, rowsPerBatch, 1),
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            new StreamTransportResponseHandler<TestArrowResponse>() {
+                @Override
+                public void handleStreamResponse(StreamTransportResponse<TestArrowResponse> streamResponse) {
+                    try {
+                        TestArrowResponse response;
+                        // Collect references WITHOUT reading vector data — defer that until after close.
+                        while ((response = streamResponse.nextResponse()) != null) {
+                            retained.add(response);
+                        }
+                        streamResponse.close();
+                    } catch (Exception e) {
+                        failure.set(e);
+                        streamResponse.cancel("Test error", e);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    failure.set(exp);
+                    latch.countDown();
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.GENERIC;
+                }
+
+                @Override
+                public TestArrowResponse read(StreamInput in) throws IOException {
+                    return new TestArrowResponse(in);
+                }
+            }
+        );
+
+        assertTrue("Stream should complete within 30s", latch.await(30, TimeUnit.SECONDS));
+        assertNull("No exception expected: " + failure.get(), failure.get());
+        assertEquals(batchCount, retained.size());
+
+        try {
+            // Every retained batch must still have its data intact even though the stream has
+            // advanced and closed. Without the fix, these roots would be empty/cleared.
+            for (int batchIdx = 0; batchIdx < retained.size(); batchIdx++) {
+                VectorSchemaRoot root = retained.get(batchIdx).getRoot();
+                assertEquals("row count must survive stream close", rowsPerBatch, root.getRowCount());
+                IntVector batchIdVec = (IntVector) root.getVector("batch_id");
+                VarCharVector nameVec = (VarCharVector) root.getVector("name");
+                IntVector valueVec = (IntVector) root.getVector("value");
+                assertEquals("valueCount must survive stream close", rowsPerBatch, batchIdVec.getValueCount());
+                for (int row = 0; row < rowsPerBatch; row++) {
+                    assertEquals("batch_id survives", batchIdx, batchIdVec.get(row));
+                    assertEquals("name survives", "row-" + batchIdx + "-" + row, new String(nameVec.get(row), StandardCharsets.UTF_8));
+                    assertEquals("value survives", batchIdx * 1000 + row, valueVec.get(row));
+                }
+            }
+        } finally {
+            for (TestArrowResponse r : retained) {
+                r.getRoot().close();
+            }
+        }
+    }
+
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testParallelBatchProduction() throws Exception {
         // 100 batches, 10 rows each, produced by 5 parallel threads.

@@ -99,6 +99,35 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         dst.close();
     }
 
+    /**
+     * After transfer, closing the source must not affect the destination — the destination owns
+     * its buffers. This is the invariant FlightTransportResponse relies on to decouple the
+     * returned response from FlightStream's shared, reused root.
+     */
+    public void testDestinationSurvivesSourceClose() {
+        VectorSchemaRoot src = VectorSchemaRoot.create(schema, allocator);
+        IntVector srcVec = (IntVector) src.getVector("val");
+        srcVec.allocateNew();
+        srcVec.setSafe(0, 7);
+        srcVec.setSafe(1, 13);
+        srcVec.setValueCount(2);
+        src.setRowCount(2);
+
+        VectorSchemaRoot dst = VectorSchemaRoot.create(schema, allocator);
+        new TestResponse(src).transferTo(dst);
+
+        // Close the source — simulates FlightStream clearing/closing its shared root.
+        src.close();
+
+        assertEquals(2, dst.getRowCount());
+        IntVector dstVec = (IntVector) dst.getVector("val");
+        assertEquals(2, dstVec.getValueCount());
+        assertEquals(7, dstVec.get(0));
+        assertEquals(13, dstVec.get(1));
+
+        dst.close();
+    }
+
     public void testTransferToWithMultipleVectors() {
         Schema multiSchema = new Schema(
             List.of(
