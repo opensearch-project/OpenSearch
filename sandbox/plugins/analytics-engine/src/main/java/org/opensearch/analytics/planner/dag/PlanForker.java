@@ -12,13 +12,10 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
-import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.util.ImmutableBitSet;
-import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.apache.calcite.util.ImmutableBitSet;import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
@@ -237,6 +234,10 @@ public class PlanForker {
         int outputIdx = groupCount;
         for (AggregateCall aggCall : partialAgg.getAggCallList()) {
             AggregateFunction func = AggregateFunction.fromSqlKind(aggCall.getAggregation().getKind());
+            if (func == null) {
+                try { func = AggregateFunction.fromNameOrError(aggCall.getAggregation().getName()); }
+                catch (IllegalStateException ignored) {}
+            }
             AggregateDecomposition decomp = func != null ? registry.getDecomposition(backendId, func) : null;
             decompositions.add(decomp);
 
@@ -244,7 +245,6 @@ public class PlanForker {
                 List<AggregateCall> partialCalls = decomp.partialCalls(aggCall);
                 List<Integer> indices = new ArrayList<>();
                 for (AggregateCall pc : partialCalls) {
-                    // Infer correct return type against the partial input
                     AggregateCall typed = fixCallType(pc, partialAgg);
                     newPartialCalls.add(typed);
                     indices.add(outputIdx++);
@@ -294,14 +294,18 @@ public class PlanForker {
             List<Integer> partialCols = result.partialColumnMapping.get(i);
 
             if (decomp != null) {
-                for (int partialCol : partialCols) {
-                    RelDataType colType = newPartialRowType.getFieldList().get(partialCol).getType();
-                    // SUM infers a nullable return type; ensure the type matches
-                    RelDataType nullableType = typeFactory.createTypeWithNullability(colType, true);
+                List<AggregateCall> partialCalls = decomp.partialCalls(originalPartialAgg.getAggCallList().get(origCallIdx));
+                for (int j = 0; j < partialCols.size(); j++) {
+                    int partialCol = partialCols.get(j);
+                    RelDataType colType = typeFactory.createTypeWithNullability(
+                        newPartialRowType.getFieldList().get(partialCol).getType(), true
+                    );
+                    // Use the same function as the partial call for the merge
+                    // (e.g. approx_count_distinct for HLL, SUM for AVG decomposition)
                     AggregateCall mergeCall = AggregateCall.create(
-                        org.apache.calcite.sql.fun.SqlStdOperatorTable.SUM,
+                        partialCalls.get(j).getAggregation(),
                         false, false, false, List.of(), List.of(partialCol),
-                        -1, null, org.apache.calcite.rel.RelCollations.EMPTY, nullableType, null
+                        -1, null, org.apache.calcite.rel.RelCollations.EMPTY, colType, null
                     );
                     mergeCallsFlat.add(mergeCall);
                 }

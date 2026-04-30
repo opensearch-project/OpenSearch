@@ -39,6 +39,16 @@ import java.util.List;
 public interface AggregateDecomposition {
 
     /**
+     * Whether the FINAL aggregate's measures should use {@code INTERMEDIATE_TO_RESULT}
+     * phase instead of the default {@code INITIAL_TO_RESULT}. True for functions whose
+     * partial state is already intermediate (e.g. HLL sketches for approx_count_distinct).
+     * False for functions decomposed into simpler primitives (e.g. AVG → SUM+COUNT).
+     */
+    default boolean finalNeedsIntermediatePhase() {
+        return false;
+    }
+
+    /**
      * The aggregate calls emitted by the PARTIAL phase for the given original call.
      * These replace the original aggregate call in the PARTIAL operator and define
      * the columns flowing through the exchange to the FINAL operator.

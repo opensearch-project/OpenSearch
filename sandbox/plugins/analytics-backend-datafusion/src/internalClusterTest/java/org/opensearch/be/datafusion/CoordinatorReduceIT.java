@@ -144,7 +144,7 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
         long expectedMin = 1;
         long expectedMax = totalDocs;
 
-        // Test SUM + AVG + MIN + MAX in a single query
+        // Test AVG + MIN + MAX across shards (SUM+AVG on same column is a known limitation)
         PPLResponse response = executePPL(
             "source = " + index + " | stats avg(value) as a, min(value) as lo, max(value) as hi"
         );
@@ -162,6 +162,27 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
 
         long actualMax = ((Number) row[response.getColumns().indexOf("hi")]).longValue();
         assertEquals("MAX(value)", expectedMax, actualMax);
+    }
+
+    /**
+     * Tests APPROX_COUNT_DISTINCT (HLL) across shards via the HllDecomposition SPI.
+     * Values 1..20 are all distinct, so the result should be approximately 20.
+     */
+    public void testDistinctCountAcrossShards() throws Exception {
+        String index = "coord_reduce_dc";
+        createParquetBackedIndex(index);
+        indexVaryingDocs(index);
+
+        PPLResponse response = executePPL("source = " + index + " | stats dc(value) as dc");
+
+        assertNotNull("PPLResponse must not be null", response);
+        assertEquals("scalar agg must return exactly 1 row", 1, response.getRows().size());
+
+        long actual = ((Number) response.getRows().get(0)[0]).longValue();
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        // HLL is approximate — allow 10% deviation
+        assertTrue("dc(value) should be approximately " + totalDocs + ", got " + actual,
+            actual >= totalDocs * 0.9 && actual <= totalDocs * 1.1);
     }
 
     private void createParquetBackedIndex() {

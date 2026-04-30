@@ -104,7 +104,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     public byte[] convertFinalAggFragment(RelNode fragment) {
         LOGGER.info("Converting final-aggregate fragment, rowType={}", fragment.getRowType());
         RelNode rewritten = rewriteStageInputScans(fragment);
-        return convertToSubstrait(rewritten);
+        byte[] bytes = convertToSubstrait(rewritten);
+        // For decomposable functions whose partial state is already intermediate
+        // (e.g. approx_count_distinct → HLL sketch), set INTERMEDIATE_TO_RESULT
+        // on the corresponding measures so DataFusion merges sketches correctly.
+        return withIntermediatePhaseForDecomposedMeasures(bytes);
     }
 
     @Override
@@ -280,6 +284,59 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     // ── Visitor wiring ──────────────────────────────────────────────────────────
+
+    /**
+     * Rewrites any {@link Aggregate} in the Substrait plan whose measures use
+     * functions that require {@code INTERMEDIATE_TO_RESULT} phase (e.g.
+     * {@code approx_count_distinct} when the input is already HLL sketch bytes).
+     */
+    private byte[] withIntermediatePhaseForDecomposedMeasures(byte[] bytes) {
+        Plan plan = decodePlan(bytes);
+        Plan rewritten = new IntermediatePhaseRewriter().rewrite(plan);
+        return serializePlan(rewritten);
+    }
+
+    private static class IntermediatePhaseRewriter extends RelCopyOnWriteVisitor<RuntimeException> {
+        Plan rewrite(Plan plan) {
+            List<Plan.Root> roots = new ArrayList<>();
+            boolean changed = false;
+            for (Plan.Root root : plan.getRoots()) {
+                Optional<Rel> rel = root.getInput().accept(this, null);
+                if (rel.isPresent()) {
+                    roots.add(Plan.Root.builder().from(root).input(rel.get()).build());
+                    changed = true;
+                } else {
+                    roots.add(root);
+                }
+            }
+            return changed ? Plan.builder().from(plan).roots(roots).build() : plan;
+        }
+
+        @Override
+        public Optional<Rel> visit(Aggregate agg, EmptyVisitationContext ctx) {
+            // First recurse into children
+            Optional<Rel> childResult = super.visit(agg, ctx);
+            Aggregate base = (Aggregate) childResult.orElse(agg);
+
+            boolean changed = false;
+            List<Aggregate.Measure> newMeasures = new ArrayList<>(base.getMeasures().size());
+            for (Aggregate.Measure m : base.getMeasures()) {
+                String funcName = m.getFunction().declaration().name();
+                if ("approx_count_distinct".equals(funcName)
+                    && m.getFunction().aggregationPhase() == Expression.AggregationPhase.INITIAL_TO_RESULT) {
+                    AggregateFunctionInvocation fn = AggregateFunctionInvocation.builder()
+                        .from(m.getFunction())
+                        .aggregationPhase(Expression.AggregationPhase.INTERMEDIATE_TO_RESULT)
+                        .build();
+                    newMeasures.add(Aggregate.Measure.builder().from(m).function(fn).build());
+                    changed = true;
+                } else {
+                    newMeasures.add(m);
+                }
+            }
+            return changed ? Optional.of(Aggregate.builder().from(base).measures(newMeasures).build()) : childResult;
+        }
+    }
 
     /**
      * Rewrites any {@link org.apache.calcite.rel.core.Aggregate} in the tree whose
