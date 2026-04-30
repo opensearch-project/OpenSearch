@@ -84,6 +84,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshotManager.createInitialSnapshot;
 
@@ -215,7 +216,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
             DataFormatRegistry registry = engineConfig.getDataFormatRegistry();
             Map<DataFormat, EngineReaderManager<?>> aggregated = new HashMap<>();
-            Map<String, DataFormatDescriptor> descriptors = registry.getFormatDescriptors(engineConfig.getIndexSettings());
+            Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(engineConfig.getIndexSettings());
             for (String formatName : descriptors.keySet()) {
                 DataFormat format = registry.format(formatName);
                 aggregated.putAll(
@@ -366,7 +367,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
             // No IndexWriter — commit directly via store using synthetic SegmentInfos.
             SegmentInfos syntheticInfos = new SegmentInfos(org.apache.lucene.util.Version.LATEST.major);
-            syntheticInfos.setNextWriteGeneration(snapshot.getGeneration());
+            syntheticInfos.setNextWriteGeneration(snapshot.getLastCommitGeneration());
             syntheticInfos.setUserData(commitData, false);
             if (bumpSICounter) {
                 try {
@@ -377,6 +378,10 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                 syntheticInfos.changed();
             }
             store.commitSegmentInfos(syntheticInfos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+
+            if (snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
+                dfaSnapshot.setLastCommitInfo(syntheticInfos.getSegmentsFileName(), syntheticInfos.getGeneration());
+            }
 
             synchronized (lastCommittedSnapshotMutex) {
                 lastCommittedSnapshot = snapshot.clone();

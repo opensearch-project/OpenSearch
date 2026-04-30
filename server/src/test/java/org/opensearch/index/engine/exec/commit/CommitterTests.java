@@ -24,7 +24,9 @@ public class CommitterTests extends OpenSearchTestCase {
     private static Committer noOpCommitter() {
         return new Committer() {
             @Override
-            public void commit(Map<String, String> commitData) {}
+            public CommitResult commit(Map<String, String> commitData) {
+                return null;
+            }
 
             @Override
             public void close() {}
@@ -67,7 +69,9 @@ public class CommitterTests extends OpenSearchTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         Committer committer = new Committer() {
             @Override
-            public void commit(Map<String, String> commitData) {}
+            public CommitResult commit(Map<String, String> commitData) {
+                return null;
+            }
 
             @Override
             public void close() {
@@ -110,8 +114,9 @@ public class CommitterTests extends OpenSearchTestCase {
         AtomicBoolean committed = new AtomicBoolean(false);
         Committer committer = new Committer() {
             @Override
-            public void commit(Map<String, String> commitData) {
+            public CommitResult commit(Map<String, String> commitData) {
                 committed.set(true);
+                return null;
             }
 
             @Override
