@@ -25,6 +25,22 @@
 static GLOBAL: native_bridge_common::heap_allocator::HeapRoutingAllocator =
     native_bridge_common::heap_allocator::HeapRoutingAllocator;
 
+// On Linux, when this cdylib is loaded via dlopen (Java FFM), mimalloc's
+// internal state (_mi_subproc) may not be initialized before the first
+// allocation. Call mi_process_init() in a library constructor to ensure
+// mimalloc is ready before Rust's runtime triggers any allocations.
+#[cfg(target_os = "linux")]
+#[unsafe(link_section = ".init_array")]
+static INIT: unsafe extern "C" fn() = {
+    unsafe extern "C" fn init() {
+        extern "C" {
+            fn mi_process_init();
+        }
+        unsafe { mi_process_init() };
+    }
+    init
+};
+
 // Pull in plugin rlibs — forces linker to include all #[no_mangle] symbols.
 extern crate native_bridge_common;
 extern crate opensearch_datafusion;
