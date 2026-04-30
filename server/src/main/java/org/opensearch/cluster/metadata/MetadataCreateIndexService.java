@@ -1303,18 +1303,22 @@ public class MetadataCreateIndexService {
 
         // Partition strategy validation
         if (IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
+            // The setting key itself was introduced in V_3_7_0. Reject any explicit value (including
+            // [fixed], the default) on mixed clusters where some nodes don't recognize the key —
+            // otherwise index metadata replicated to older nodes would carry an unknown setting.
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_7_0)) {
+                throw new IllegalArgumentException(
+                    "index.ingestion_source.partition_strategy requires all nodes in the cluster to be on version ["
+                        + Version.V_3_7_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
+
             IngestionSource.PartitionStrategy partitionStrategy = IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.get(settings);
             if (partitionStrategy == IngestionSource.PartitionStrategy.AUTO) {
-                Version minNodeVersion = state.nodes().getMinNodeVersion();
-                if (minNodeVersion.before(Version.V_3_7_0)) {
-                    throw new IllegalArgumentException(
-                        "partition_strategy [auto] requires all nodes in the cluster to be on version ["
-                            + Version.V_3_7_0
-                            + "] or later, but the minimum node version is ["
-                            + minNodeVersion
-                            + "]"
-                    );
-                }
                 int numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
                 if (numShards > 1) {
                     logger.warn(
@@ -1325,6 +1329,11 @@ public class MetadataCreateIndexService {
                     );
                 }
             }
+            // TODO: For partition_strategy=fixed, surface a warning when numSourcePartitions > numShards
+            // (excess source partitions are silently never consumed) and an error when
+            // numSourcePartitions < numShards (shards beyond numSourcePartitions-1 fail to initialize).
+            // Requires consumerFactory.getSourcePartitionCount() which is added in a follow-up PR
+            // (multi-partition consumer factory). The check will be wired here once available.
         }
     }
 
