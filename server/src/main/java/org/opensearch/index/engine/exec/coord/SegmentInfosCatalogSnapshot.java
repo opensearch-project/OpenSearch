@@ -193,6 +193,11 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
         return segmentInfos.getSegmentsFileName();
     }
 
+    @Override
+    public String getLastCommitFileName() {
+        return segmentInfos.getSegmentsFileName();
+    }
+
     /** Serializes the wrapped in-memory {@link SegmentInfos}. No disk read. */
     @Override
     public byte[] serialize() throws IOException {

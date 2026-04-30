@@ -129,6 +129,7 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
 
         indexDocs(randomIntBetween(20, 50));
         client().admin().indices().prepareFlush(INDEX_NAME).get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
         ensureGreen(INDEX_NAME);
 
         assertBusy(() -> {
@@ -185,6 +186,7 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
         for (int i = 0; i < 3; i++) {
             indexDocs(randomIntBetween(10, 25));
             client().admin().indices().prepareFlush(INDEX_NAME).get();
+            client().admin().indices().prepareRefresh(INDEX_NAME).get();
             ensureGreen(INDEX_NAME);
 
             final long capturedPrev = previousVersion;
@@ -231,6 +233,7 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
 
         indexDocs(randomIntBetween(20, 40));
         client().admin().indices().prepareFlush(INDEX_NAME).get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
         String replicaNode = replicaNodeNames().get(0);
         IndexShard primary = getIndexShard(primaryNodeName(), INDEX_NAME);
@@ -285,6 +288,7 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
 
         indexDocs(randomIntBetween(20, 40));
         client().admin().indices().prepareFlush(INDEX_NAME).get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
         String replicaNode = replicaNodeNames().get(0);
         IndexShard primary = getIndexShard(primaryNodeName(), INDEX_NAME);
@@ -348,6 +352,7 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
 
         indexDocs(randomIntBetween(20, 40));
         client().admin().indices().prepareFlush(INDEX_NAME).get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
         ensureGreen(INDEX_NAME);
 
         assertBusy(() -> {

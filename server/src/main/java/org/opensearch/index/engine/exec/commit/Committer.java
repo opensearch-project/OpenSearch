@@ -39,13 +39,21 @@ import java.util.Map;
 public interface Committer extends CommitFileManager, Closeable {
 
     /**
+     * Result of a successful commit, containing the segments file name and its Lucene generation.
+     */
+    @ExperimentalApi
+    record CommitResult(String commitFileName, long generation) {
+    }
+
+    /**
      * Durably commits the given data to the backing store's commit metadata.
      * Called during the engine's flush path.
      *
      * @param commitData the key-value pairs to persist as commit metadata
+     * @return the commit result containing the segments_N filename and generation, or {@code null} if not applicable
      * @throws IOException if the commit fails
      */
-    void commit(Map<String, String> commitData) throws IOException;
+    CommitResult commit(Map<String, String> commitData) throws IOException;
 
     /**
      * Returns the user data from the last successful commit.

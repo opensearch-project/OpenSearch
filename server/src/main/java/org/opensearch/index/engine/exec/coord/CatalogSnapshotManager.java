@@ -219,7 +219,9 @@ public class CatalogSnapshotManager implements Closeable {
                 latestCatalogSnapshot.getVersion(),
                 refreshedSegments,
                 latestCatalogSnapshot.getLastWriterGeneration() + 1,
-                latestCatalogSnapshot.getUserData()
+                latestCatalogSnapshot.getUserData(),
+                latestCatalogSnapshot.getLastCommitFileName(),
+                latestCatalogSnapshot.getLastCommitGeneration()
             );
         } catch (Exception e) {
             // Construction failed (e.g., OOM) — notify listeners that the refresh did not produce a new snapshot

@@ -46,6 +46,8 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     private final long lastWriterGeneration;
     private Map<String, String> userData;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private String lastCommitFileName;
+    private long lastCommitGeneration = -1;
 
     /**
      * Constructs a new DataformatAwareCatalogSnapshot.
@@ -65,11 +67,41 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         long lastWriterGeneration,
         Map<String, String> userData
     ) {
+        this(id, generation, version, segments, lastWriterGeneration, userData, null, -1);
+    }
+
+    /**
+     * Constructs a new DataformatAwareCatalogSnapshot carrying forward the last committed segments file name.
+     * <p>
+     * This constructor ensures that the {@code segmentsFileName} from a prior flush is preserved
+     * across refreshes and merges, which would otherwise create new snapshots without it.
+     *
+     * @param id the unique snapshot identifier
+     * @param generation the monotonically increasing generation number
+     * @param version the schema version for serialization compatibility
+     * @param segments the list of segments in this snapshot
+     * @param lastWriterGeneration the generation of the last writer that contributed to this snapshot
+     * @param userData user-defined metadata key-value pairs
+     * @param lastCommittedFileName the segments_N file name from the most recent flush, or null
+     * @param lastCommitGeneration the Lucene generation of the most recent commit, or -1
+     */
+    DataformatAwareCatalogSnapshot(
+        long id,
+        long generation,
+        long version,
+        List<Segment> segments,
+        long lastWriterGeneration,
+        Map<String, String> userData,
+        String lastCommittedFileName,
+        long lastCommitGeneration
+    ) {
         super("dataformat_aware_catalog_snapshot", generation, version);
         this.id = id;
         this.segments = Collections.unmodifiableList(new ArrayList<>(segments));
         this.lastWriterGeneration = lastWriterGeneration;
         this.userData = Map.copyOf(userData);
+        this.lastCommitFileName = lastCommittedFileName;
+        this.lastCommitGeneration = lastCommitGeneration;
     }
 
     /**
@@ -190,7 +222,16 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
 
     @Override
     public DataformatAwareCatalogSnapshot clone() {
-        return new DataformatAwareCatalogSnapshot(id, generation, version, segments, lastWriterGeneration, userData);
+        return new DataformatAwareCatalogSnapshot(
+            id,
+            generation,
+            version,
+            segments,
+            lastWriterGeneration,
+            userData,
+            this.getLastCommitFileName(),
+            this.lastCommitGeneration
+        );
     }
 
     @Override
@@ -226,15 +267,39 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         return 0L;
     }
 
+    @Override
+    public synchronized String getSegmentsFileName() {
+        return getLastCommitFileName();
+    }
+
     /**
-     * Returns {@code null}: DFA snapshots have no single on-disk segments-file whose generation
-     * matches {@link #getGeneration()} — DFA's counter advances on refresh, Lucene's {@code
-     * segments_N} advances on flush, so they drift. {@code loadMetadata} skips the hash-full-file
-     * step for DFA snapshots.
+     * Returns the {@code segments_N} filename associated with this snapshot's Lucene commit,
+     * or {@code null} if this snapshot has not yet been committed (e.g., refresh-only snapshots).
      */
     @Override
-    public String getSegmentsFileName() {
-        return null;
+    public synchronized String getLastCommitFileName() {
+        return lastCommitFileName;
+    }
+
+    @Override
+    public long getLastCommitGeneration() {
+        if (lastCommitGeneration >= 0) {
+            return lastCommitGeneration;
+        }
+        return getGeneration();
+    }
+
+    /**
+     * Sets the commit file name and Lucene generation produced by the commit that persisted this snapshot.
+     * Called by the engine after {@code Committer.commit()} or by the replica after
+     * {@code store.commitSegmentInfos()}.
+     *
+     * @param commitFileName the segments_N filename (e.g., "segments_2")
+     * @param commitGeneration the Lucene generation of the commit
+     */
+    public synchronized void setLastCommitInfo(String commitFileName, long commitGeneration) {
+        this.lastCommitFileName = commitFileName;
+        this.lastCommitGeneration = commitGeneration;
     }
 
     /**
@@ -278,6 +343,12 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
                 for (String file : entry.getValue().files()) {
                     fileNames.add(FileMetadata.serialize(formatName, file));
                 }
+            }
+        }
+        if (includeSegmentsFile) {
+            String segFile = getLastCommitFileName();
+            if (segFile != null) {
+                fileNames.add(segFile);
             }
         }
         return fileNames;
