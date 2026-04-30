@@ -74,7 +74,6 @@ public class CapabilityRegistry {
     private final Map<DelegationType, List<String>> delegationAcceptors = new HashMap<>();
     private final Map<FullTextParamKey, Set<String>> fullTextParamIndex = new HashMap<>();
 
-    private final List<RexNodeTransformer> rexTransformers = new ArrayList<>();
     private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
 
     // Backends that declared any capability for each operator — O(1) membership check
@@ -156,7 +155,6 @@ public class CapabilityRegistry {
                 }
                 projectCapableBackends.add(name);
             }
-            rexTransformers.addAll(backend.getRexTransformers());
         }
     }
 
@@ -281,8 +279,18 @@ public class CapabilityRegistry {
 
     // ---- RexNode transformers ----
 
+    /**
+     * Returns all RexNode transformers from all backends.
+     * TODO: After PlanForking, each PlanAlternative has a single backend. Transformers should
+     * be scoped per-backend and applied in FragmentConversionDriver using
+     * {@code getBackend(backendName).getRexTransformers()} instead of collecting from all backends.
+     */
     public List<RexNodeTransformer> getRexTransformers() {
-        return rexTransformers;
+        List<RexNodeTransformer> transformers = new ArrayList<>();
+        for (AnalyticsSearchBackendPlugin backend : backends) {
+            transformers.addAll(backend.getRexTransformers());
+        }
+        return transformers;
     }
 
     // ---- Backend access ----
