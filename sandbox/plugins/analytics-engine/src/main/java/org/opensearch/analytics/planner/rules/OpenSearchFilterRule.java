@@ -20,15 +20,15 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
-import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
-import org.opensearch.analytics.spi.FilterOperator;
+import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -153,14 +153,14 @@ public class OpenSearchFilterRule extends RelOptRule {
             );
         }
 
-        FilterOperator operator = null;
+        ScalarFunction function = null;
         if (predicate.getOperator() instanceof SqlFunction sqlFunction) {
-            operator = FilterOperator.fromSqlFunction(sqlFunction);
+            function = ScalarFunction.fromSqlFunction(sqlFunction);
         }
-        if (operator == null) {
-            operator = FilterOperator.fromSqlKind(predicate.getKind());
+        if (function == null) {
+            function = ScalarFunction.fromSqlKind(predicate.getKind());
         }
-        if (operator == null) {
+        if (function == null) {
             throw new IllegalStateException("Unrecognized filter operator [" + predicate.getKind() + "]");
         }
 
@@ -186,7 +186,7 @@ public class OpenSearchFilterRule extends RelOptRule {
             // A backend is viable only if it has the field in its own storage formats — ensuring
             // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
             // field only when the field has indexFormats=[lucene] set in the mapping).
-            Set<String> fieldViable = new HashSet<>(registry.filterBackendsForField(operator, storageInfo));
+            Set<String> fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
 
             viableSet.retainAll(fieldViable);
         }
