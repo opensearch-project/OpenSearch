@@ -44,13 +44,11 @@ public class ExistsQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testThrowsForUnknownField() {
-        expectThrows(ConversionException.class,
-            () -> translator.convert(QueryBuilders.existsQuery("nonexistent"), ctx));
+        expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.existsQuery("nonexistent"), ctx));
     }
 
     public void testThrowsForBoost() {
-        expectThrows(ConversionException.class,
-            () -> translator.convert(QueryBuilders.existsQuery("name").boost(2.0f), ctx));
+        expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.existsQuery("name").boost(2.0f), ctx));
     }
 
     public void testReportsCorrectQueryType() {

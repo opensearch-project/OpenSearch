@@ -66,19 +66,19 @@ public class DslQueryIT extends DslIntegTestBase {
 
     public void testExistsQueryWithBoostFails() {
         createTestIndex();
-        expectThrows(Exception.class, () ->
-            search(new SearchSourceBuilder().query(QueryBuilders.existsQuery("name").boost(2.0f)))
-        );
+        expectThrows(Exception.class, () -> search(new SearchSourceBuilder().query(QueryBuilders.existsQuery("name").boost(2.0f))));
     }
 
     // TODO: Enable once BooleanQueryTranslatorExists is supported
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/TODO")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21442")
     public void testExistsQueryWithBool() {
         createTestIndex();
-        assertOk(search(new SearchSourceBuilder().query(
-            QueryBuilders.boolQuery()
-                .must(QueryBuilders.existsQuery("name"))
-                .filter(QueryBuilders.termQuery("brand", "brandX"))
-        )));
+        assertOk(
+            search(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.boolQuery().must(QueryBuilders.existsQuery("name")).filter(QueryBuilders.termQuery("brand", "brandX"))
+                )
+            )
+        );
     }
 }
