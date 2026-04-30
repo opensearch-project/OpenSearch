@@ -238,7 +238,8 @@ public class DataFormatAwareEngine implements Indexer {
                     config().getMapperService(),
                     config().getIndexSettings(),
                     config().getStore(),
-                    registry
+                    registry,
+                    config().getChecksumStrategies()
                 ),
                 registry.format(config().getIndexSettings().pluggableDataFormat())
             );
