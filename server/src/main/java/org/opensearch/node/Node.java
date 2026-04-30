@@ -250,10 +250,9 @@ import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.repositories.Repository;
-import org.opensearch.catalog.CatalogRepository;
 import org.opensearch.catalog.CatalogMetadataClient;
 import org.opensearch.catalog.RemoteCatalogService;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.plugins.CatalogPlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptContext;
@@ -449,10 +448,12 @@ public class Node implements Closeable {
     );
 
     /**
-     * Type of the catalog repository registered at node startup (e.g., {@code iceberg_s3tables}).
+     * Type of the catalog registered at node startup (e.g., {@code iceberg_s3tables}).
      * When unset, catalog publish is disabled on this node and {@code _catalog/publish} returns
-     * an error. When set, a {@link org.opensearch.plugins.CatalogPlugin} must be installed that
-     * registers an internal repository factory for this type.
+     * an error. When set, exactly one {@link org.opensearch.plugins.CatalogPlugin} must be
+     * installed that understands this type; its
+     * {@link org.opensearch.plugins.CatalogPlugin#createMetadataClient} is invoked at startup
+     * with the node's catalog {@link org.opensearch.cluster.metadata.RepositoryMetadata}.
      */
     public static final Setting<String> CATALOG_REPOSITORY_TYPE_SETTING = Setting.simpleString(
         "catalog.repository.type",
@@ -460,15 +461,15 @@ public class Node implements Closeable {
     );
 
     /**
-     * Settings passed to the catalog repository factory. Keys under this prefix are stripped and
-     * forwarded verbatim — see each catalog implementation for supported settings.
+     * Settings passed to the catalog plugin. Keys under this prefix are stripped and forwarded
+     * verbatim via {@link org.opensearch.cluster.metadata.RepositoryMetadata#settings} — see
+     * each catalog implementation for supported keys.
      */
     public static final Setting.AffixSetting<String> CATALOG_REPOSITORY_SETTINGS = Setting.prefixKeySetting(
         "catalog.repository.settings.",
         (key) -> Setting.simpleString(key, Property.NodeScope)
     );
 
-    /** Internal repository name used for the catalog. Hidden from the public snapshot API. */
     public static final String CATALOG_REPOSITORY_NAME = "_catalog";
 
     private static final String CLIENT_TYPE = "node";
@@ -1460,7 +1461,7 @@ public class Node implements Closeable {
             repositoriesServiceReference.set(repositoryService);
 
             final CatalogMetadataClient catalogMetadataClient = createCatalogMetadataClient(
-                settings, pluginsService, repositoryService, this.environment
+                settings, pluginsService, this.environment
             );
             final RemoteCatalogService remoteCatalogService = new RemoteCatalogService(clusterService, client, catalogMetadataClient);
             SnapshotsService snapshotsService = new SnapshotsService(
@@ -2566,7 +2567,6 @@ public class Node implements Closeable {
     private static CatalogMetadataClient createCatalogMetadataClient(
         Settings settings,
         PluginsService pluginsService,
-        RepositoriesService repositoriesService,
         Environment environment
     ) {
         String catalogType = CATALOG_REPOSITORY_TYPE_SETTING.get(settings);
@@ -2587,19 +2587,11 @@ public class Node implements Closeable {
             );
         }
 
-        // Strip the "catalog.repository.settings." prefix and forward the rest to the factory.
+        // Strip the "catalog.repository.settings." prefix and forward the rest to the plugin.
         Settings repoSettings = settings.getByPrefix("catalog.repository.settings.");
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata(CATALOG_REPOSITORY_NAME, catalogType, repoSettings);
 
-        repositoriesService.registerInternalRepository(CATALOG_REPOSITORY_NAME, catalogType, repoSettings);
-
-        Repository repository = repositoriesService.repository(CATALOG_REPOSITORY_NAME);
-        if (!(repository instanceof CatalogRepository)) {
-            throw new IllegalStateException(
-                "catalog repository type [" + catalogType + "] did not produce a CatalogRepository, got ["
-                    + repository.getClass().getName() + "]"
-            );
-        }
-        return catalogPlugins.get(0).createMetadataClient(repository.getMetadata(), environment);
+        return catalogPlugins.get(0).createMetadataClient(repositoryMetadata, environment);
     }
 
     /**

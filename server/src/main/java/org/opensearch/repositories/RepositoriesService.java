@@ -623,11 +623,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     public void registerInternalRepository(String name, String type) {
-        registerInternalRepository(name, type, Settings.EMPTY);
-    }
-
-    public void registerInternalRepository(String name, String type, Settings settings) {
-        RepositoryMetadata metadata = new RepositoryMetadata(name, type, settings);
+        RepositoryMetadata metadata = new RepositoryMetadata(name, type, Settings.EMPTY);
         Repository repository = internalRepositories.computeIfAbsent(name, (n) -> {
             logger.debug("put internal repository [{}][{}]", name, type);
             return createRepository(metadata, internalTypesRegistry);
