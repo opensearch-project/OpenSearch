@@ -39,19 +39,21 @@ import java.util.List;
 public interface AggregateDecomposition {
 
     /**
-     * The aggregate calls emitted by the PARTIAL phase.
+     * The aggregate calls emitted by the PARTIAL phase for the given original call.
      * These replace the original aggregate call in the PARTIAL operator and define
      * the columns flowing through the exchange to the FINAL operator.
      *
      * <p>The returned calls must use types compatible with
      * Calcite's type system so the exchange row type is well-defined.
+     *
+     * @param originalCall the original aggregate call being decomposed
      */
-    List<AggregateCall> partialCalls();
+    List<AggregateCall> partialCalls(AggregateCall originalCall);
 
     /**
      * Expression over the partial results that produces the final aggregated value.
      * {@code partialRefs} are {@link org.apache.calcite.rex.RexInputRef} nodes
-     * referencing the columns emitted by {@link #partialCalls()} in order.
+     * referencing the columns emitted by {@link #partialCalls(AggregateCall)} in order.
      *
      * <p>For AVG: {@code partialRefs.get(0) / partialRefs.get(1)} (SUM / COUNT).
      * For HLL: a call to the backend's HLL_MERGE function over {@code partialRefs.get(0)}.

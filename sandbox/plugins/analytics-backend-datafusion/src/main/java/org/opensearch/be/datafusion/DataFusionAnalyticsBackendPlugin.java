@@ -125,7 +125,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 Set<AggregateCapability> caps = new HashSet<>();
                 for (AggregateFunction func : AGG_FUNCTIONS) {
                     for (FieldType type : SUPPORTED_FIELD_TYPES) {
-                        caps.add(AggregateCapability.simple(func, Set.of(type), formats));
+                        if (func == AggregateFunction.AVG) {
+                            caps.add(new AggregateCapability(func, Set.of(type), formats, AvgDecomposition.INSTANCE));
+                        } else {
+                            caps.add(AggregateCapability.simple(func, Set.of(type), formats));
+                        }
                     }
                 }
                 return Set.copyOf(caps);

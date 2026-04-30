@@ -9,6 +9,7 @@
 package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.spi.AggregateCapability;
+import org.opensearch.analytics.spi.AggregateDecomposition;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
@@ -50,6 +51,8 @@ public class CapabilityRegistry {
     private final Map<ScanKey, Map<String, List<String>>> scanIndex = new HashMap<>();
     private final Map<ScalarKey, Map<String, List<String>>> filterIndex = new HashMap<>();
     private final Map<AggregateKey, Map<String, List<String>>> aggregateIndex = new HashMap<>();
+    /** Backend → AggregateFunction → AggregateDecomposition (null if standard). */
+    private final Map<String, Map<AggregateFunction, AggregateDecomposition>> decompositionIndex = new HashMap<>();
     private final Map<ScalarKey, Map<String, List<String>>> scalarIndex = new HashMap<>();
     // Backends that declared supportsLiteralEvaluation=true for a (function, fieldType)
     private final Map<ScalarKey, List<String>> literalScalarIndex = new HashMap<>();
@@ -118,6 +121,10 @@ public class CapabilityRegistry {
                     addToFormatMap(aggregateIndex, new AggregateKey(cap.function(), fieldType), cap.formats(), name);
                 }
                 aggregateCapableBackends.add(name);
+                if (cap.decomposition() != null) {
+                    decompositionIndex.computeIfAbsent(name, k -> new HashMap<>())
+                        .putIfAbsent(cap.function(), cap.decomposition());
+                }
             }
             for (ProjectCapability cap : caps.projectCapabilities()) {
                 switch (cap) {
@@ -273,6 +280,12 @@ public class CapabilityRegistry {
             throw new IllegalArgumentException("No backend found with name [" + name + "]");
         }
         return backend;
+    }
+
+    /** Returns the decomposition for the given backend and function, or null if standard. */
+    public AggregateDecomposition getDecomposition(String backendId, AggregateFunction function) {
+        Map<AggregateFunction, AggregateDecomposition> backendDecomps = decompositionIndex.get(backendId);
+        return backendDecomps != null ? backendDecomps.get(function) : null;
     }
 
     public FieldStorageResolver resolveFieldStorage(IndexMetadata indexMetadata) {

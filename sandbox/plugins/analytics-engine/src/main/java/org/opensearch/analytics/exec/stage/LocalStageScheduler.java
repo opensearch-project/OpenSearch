@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec.stage;
 
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
@@ -73,6 +74,12 @@ final class LocalStageScheduler implements StageScheduler {
             + stage.getStageId()
             + " expected exactly one child stage, got "
             + children.size();
-        return ArrowSchemaFromCalcite.arrowSchemaFromRowType(children.getFirst().getFragment().getRowType());
+        // Use the chosen plan alternative's row type (which reflects decomposition rewrites)
+        // rather than the original fragment's row type.
+        Stage child = children.getFirst();
+        RelNode childFragment = child.getPlanAlternatives().isEmpty()
+            ? child.getFragment()
+            : child.getPlanAlternatives().getFirst().resolvedFragment();
+        return ArrowSchemaFromCalcite.arrowSchemaFromRowType(childFragment.getRowType());
     }
 }

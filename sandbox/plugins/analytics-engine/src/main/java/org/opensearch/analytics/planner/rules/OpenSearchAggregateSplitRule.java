@@ -42,7 +42,7 @@ import java.util.List;
  *       each AggregateCall using the chosen backend.</li>
  *   <li>If null: apply Calcite's {@code AggregateReduceFunctionsRule} to rewrite
  *       AVG → SUM/COUNT, STDDEV → SUM(x²)+SUM(x)+COUNT, etc.</li>
- *   <li>If non-null: use {@link org.opensearch.analytics.spi.AggregateDecomposition#partialCalls()}
+ *   <li>If non-null: use {@link org.opensearch.analytics.spi.AggregateDecomposition#partialCalls(AggregateCall)}
  *       to rewrite PARTIAL's aggCalls and output row type, and
  *       {@code AggregateDecomposition.finalExpression()} to
  *       rewrite FINAL's aggCalls. Both must be updated together — the exchange row type

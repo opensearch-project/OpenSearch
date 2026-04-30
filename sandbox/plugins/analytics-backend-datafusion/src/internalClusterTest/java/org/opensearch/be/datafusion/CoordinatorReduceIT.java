@@ -140,12 +140,13 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
 
         int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
         long expectedSum = (long) totalDocs * (totalDocs + 1) / 2;
+        double expectedAvg = (double) expectedSum / totalDocs;
         long expectedMin = 1;
         long expectedMax = totalDocs;
 
-        // Test SUM + MIN + MAX in a single query
+        // Test SUM + AVG + MIN + MAX in a single query
         PPLResponse response = executePPL(
-            "source = " + index + " | stats sum(value) as s, min(value) as lo, max(value) as hi"
+            "source = " + index + " | stats avg(value) as a, min(value) as lo, max(value) as hi"
         );
 
         assertNotNull("PPLResponse must not be null", response);
@@ -153,8 +154,8 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
 
         Object[] row = response.getRows().get(0);
 
-        long actualSum = ((Number) row[response.getColumns().indexOf("s")]).longValue();
-        assertEquals("SUM(value) 1.." + totalDocs, expectedSum, actualSum);
+        double actualAvg = ((Number) row[response.getColumns().indexOf("a")]).doubleValue();
+        assertEquals("AVG(value) 1.." + totalDocs, expectedAvg, actualAvg, 0.01);
 
         long actualMin = ((Number) row[response.getColumns().indexOf("lo")]).longValue();
         assertEquals("MIN(value)", expectedMin, actualMin);

@@ -102,19 +102,24 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     @Override
     public byte[] convertFinalAggFragment(RelNode fragment) {
-        LOGGER.debug("Converting final-aggregate fragment");
-        // Rewrite any OpenSearchStageInputScan leaves to plain TableScan nodes so the
-        // isthmus visitor (which only knows about Calcite core / Logical RelNodes)
-        // emits a ReadRel with the stage-input-id as the named table.
+        LOGGER.info("Converting final-aggregate fragment, rowType={}", fragment.getRowType());
         RelNode rewritten = rewriteStageInputScans(fragment);
         return convertToSubstrait(rewritten);
     }
 
     @Override
     public byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
-        LOGGER.debug("Attaching generic fragment [{}] on top of {} inner bytes", fragment.getClass().getSimpleName(), innerBytes.length);
+        LOGGER.info("Attaching [{}] on top, fragment rowType={}, innerBytes={}", fragment.getClass().getSimpleName(), fragment.getRowType(), innerBytes.length);
         Plan inner = decodePlan(innerBytes);
-        Rel wrapper = convertStandalone(fragment);
+        // Replace the fragment's child with a dummy TableScan so the Substrait visitor
+        // doesn't traverse into nodes it can't handle (e.g. StageInputScan from stripped
+        // reduce-stage trees). The rewire step replaces this dummy with the actual inner plan.
+        RelNode dummyChild = new StageInputTableScan(
+            fragment.getCluster(), fragment.getTraitSet(),
+            "dummy", fragment.getInputs().getFirst().getRowType()
+        );
+        RelNode withDummy = fragment.copy(fragment.getTraitSet(), List.of(dummyChild));
+        Rel wrapper = convertStandalone(withDummy);
         return serializePlan(rewire(inner, wrapper));
     }
 
@@ -184,14 +189,19 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     private static List<String> deriveNames(Rel rel, List<String> innerNames) {
         if (rel instanceof Aggregate agg) {
             List<String> names = new ArrayList<>();
-            // Group-by columns first
             for (io.substrait.expression.Expression expr : agg.getGroupings().stream()
                 .flatMap(g -> g.getExpressions().stream()).toList()) {
                 names.add("group_" + names.size());
             }
-            // Then measure columns
             for (Aggregate.Measure m : agg.getMeasures()) {
                 names.add("agg_" + names.size());
+            }
+            return names;
+        }
+        if (rel instanceof Project proj) {
+            List<String> names = new ArrayList<>();
+            for (int i = 0; i < proj.getExpressions().size(); i++) {
+                names.add("proj_" + i);
             }
             return names;
         }
