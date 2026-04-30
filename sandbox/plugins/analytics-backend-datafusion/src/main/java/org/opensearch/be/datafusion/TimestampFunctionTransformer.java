@@ -13,7 +13,6 @@ import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.TimestampString;
 import org.opensearch.analytics.spi.RexNodeTransformer;
@@ -24,7 +23,9 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -39,26 +40,37 @@ class TimestampFunctionTransformer implements RexNodeTransformer {
 
     @Override
     public RexNode transform(RexNode node, RexBuilder rexBuilder, FieldMappingLookup fieldMappingTypes) {
-        int precision = resolveTimestampPrecision(node, fieldMappingTypes);
+        if (!(node instanceof RexCall call)) {
+            return node;
+        }
+        int precision = resolveTimestampPrecision(call, fieldMappingTypes);
         if (precision < 0) {
             return node;
         }
-        return node.accept(new RexShuttle() {
-            @Override
-            public RexNode visitCall(RexCall call) {
-                RexCall visited = (RexCall) super.visitCall(call);
-                if (visited.getOperands().size() == 1
-                    && TIMESTAMP_FUNCTION_NAME.equals(visited.getOperator().getName())
-                    && visited.getOperands().get(0) instanceof RexLiteral literal
-                    && literal.getType().getSqlTypeName() == SqlTypeName.VARCHAR) {
-                    String value = literal.getValueAs(String.class);
-                    if (value != null) {
-                        return rexBuilder.makeTimestampLiteral(parseTimestamp(value), precision);
-                    }
-                }
-                return visited;
+        boolean changed = false;
+        List<RexNode> newOperands = new ArrayList<>(call.getOperands().size());
+        for (RexNode operand : call.getOperands()) {
+            RexNode converted = convertTimestampFunction(operand, rexBuilder, precision);
+            newOperands.add(converted);
+            if (converted != operand) {
+                changed = true;
             }
-        });
+        }
+        return changed ? call.clone(call.getType(), newOperands) : node;
+    }
+
+    private RexNode convertTimestampFunction(RexNode operand, RexBuilder rexBuilder, int precision) {
+        if (operand instanceof RexCall call
+            && call.getOperands().size() == 1
+            && TIMESTAMP_FUNCTION_NAME.equals(call.getOperator().getName())
+            && call.getOperands().get(0) instanceof RexLiteral literal
+            && literal.getType().getSqlTypeName() == SqlTypeName.VARCHAR) {
+            String value = literal.getValueAs(String.class);
+            if (value != null) {
+                return rexBuilder.makeTimestampLiteral(parseTimestamp(value), precision);
+            }
+        }
+        return operand;
     }
 
     private int resolveTimestampPrecision(RexNode node, FieldMappingLookup lookup) {

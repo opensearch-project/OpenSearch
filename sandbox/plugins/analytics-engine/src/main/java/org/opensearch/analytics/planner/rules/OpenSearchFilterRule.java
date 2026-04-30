@@ -163,7 +163,10 @@ public class OpenSearchFilterRule extends RelOptRule {
 
     /**
      * Applies all backend-registered RexNode transformers to a leaf predicate.
-     * Each transformer sees the output of the previous.
+     * The predicate is passed as a whole so transformers can resolve field indices
+     * from sibling operands (e.g., $0 in {@code >($0, TIMESTAMP('...'))}).
+     * TODO: When multiple backends are active, transformers should be scoped per-backend
+     * and applied only to predicates targeting that backend's fields.
      */
     private static RexCall applyRexTransformers(
         RexCall predicate,

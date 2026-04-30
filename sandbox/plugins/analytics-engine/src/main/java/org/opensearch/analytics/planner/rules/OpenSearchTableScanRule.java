@@ -8,20 +8,12 @@
 
 package org.opensearch.analytics.planner.rules;
 
-import org.apache.calcite.linq4j.tree.Expression;
+import org.apache.calcite.plan.RelOptAbstractTable;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.RelOptSchema;
 import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.rel.RelCollation;
-import org.apache.calcite.rel.RelDistribution;
-import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.RelReferentialConstraint;
 import org.apache.calcite.rel.core.TableScan;
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
-import org.apache.calcite.schema.ColumnStrategy;
-import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -115,87 +107,16 @@ public class OpenSearchTableScanRule extends RelOptRule {
     }
 
     /**
-     * Wraps a {@link RelOptTable} to override the qualified name with just the bare index name.
+     * Wraps a {@link RelOptTable} with just the bare index name as the qualified name.
      * Isthmus reads {@code getQualifiedName()} when creating {@code NamedScan} — this ensures
      * the Substrait plan contains only the index name, not the Calcite catalog prefix.
+     *
+     * <p>TODO: Move table name stripping to the SQL/PPL plugin before dispatching the RelNode
+     * to the analytics engine, so the scan rule always receives bare index names.
      */
-    private static class IndexNameTable implements RelOptTable {
-        private final RelOptTable delegate;
-        private final List<String> bareName;
-
+    private static class IndexNameTable extends RelOptAbstractTable {
         IndexNameTable(RelOptTable delegate, String indexName) {
-            this.delegate = delegate;
-            this.bareName = List.of(indexName);
-        }
-
-        @Override
-        public List<String> getQualifiedName() {
-            return bareName;
-        }
-
-        @Override
-        public RelDataType getRowType() {
-            return delegate.getRowType();
-        }
-
-        @Override
-        public double getRowCount() {
-            return delegate.getRowCount();
-        }
-
-        @Override
-        public RelOptSchema getRelOptSchema() {
-            return delegate.getRelOptSchema();
-        }
-
-        @Override
-        public RelNode toRel(ToRelContext context) {
-            return delegate.toRel(context);
-        }
-
-        @Override
-        public List<ColumnStrategy> getColumnStrategies() {
-            return delegate.getColumnStrategies();
-        }
-
-        @Override
-        public <C> C unwrap(Class<C> aClass) {
-            return delegate.unwrap(aClass);
-        }
-
-        @Override
-        public boolean isKey(ImmutableBitSet columns) {
-            return delegate.isKey(columns);
-        }
-
-        @Override
-        public List<ImmutableBitSet> getKeys() {
-            return delegate.getKeys();
-        }
-
-        @Override
-        public List<RelReferentialConstraint> getReferentialConstraints() {
-            return delegate.getReferentialConstraints();
-        }
-
-        @Override
-        public List<RelCollation> getCollationList() {
-            return delegate.getCollationList();
-        }
-
-        @Override
-        public RelDistribution getDistribution() {
-            return delegate.getDistribution();
-        }
-
-        @Override
-        public Expression getExpression(Class clazz) {
-            return delegate.getExpression(clazz);
-        }
-
-        @Override
-        public RelOptTable extend(List<RelDataTypeField> extendedFields) {
-            return delegate.extend(extendedFields);
+            super(delegate.getRelOptSchema(), indexName, delegate.getRowType());
         }
     }
 }
