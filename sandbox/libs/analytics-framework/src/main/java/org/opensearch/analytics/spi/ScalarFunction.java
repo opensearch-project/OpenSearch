@@ -65,37 +65,25 @@ public enum ScalarFunction {
     FLOOR(Category.MATH, SqlKind.FLOOR),
 
     // ── Cast / type ──────────────────────────────────────────────────
-    CAST(Category.TYPE, SqlKind.CAST),
+    CAST(Category.SCALAR, SqlKind.CAST),
 
     // ── Conditional ──────────────────────────────────────────────────
-    CASE(Category.CONDITIONAL, SqlKind.CASE),
-    COALESCE(Category.CONDITIONAL, SqlKind.COALESCE),
-    NULLIF(Category.CONDITIONAL, SqlKind.NULLIF),
+    CASE(Category.SCALAR, SqlKind.CASE),
+    COALESCE(Category.SCALAR, SqlKind.COALESCE),
+    NULLIF(Category.SCALAR, SqlKind.NULLIF),
 
-    // ── Date/time ────────────────────────────────────────────────────
-    EXTRACT(Category.DATETIME, SqlKind.EXTRACT);
+    EXTRACT(Category.SCALAR, SqlKind.EXTRACT);
 
     /**
      * Category of scalar function.
      */
     public enum Category {
-        COMPARISON(false),
-        FULL_TEXT(true),
-        STRING(false),
-        MATH(false),
-        TYPE(false),
-        CONDITIONAL(false),
-        DATETIME(false);
-
-        private final boolean supportsParams;
-
-        Category(boolean supportsParams) {
-            this.supportsParams = supportsParams;
-        }
-
-        public boolean supportsParams() {
-            return supportsParams;
-        }
+        COMPARISON,
+        FULL_TEXT,
+        STRING,
+        MATH,
+        /** Catch-all for functions that don't fit other categories (CAST, CASE, COALESCE, EXTRACT, etc.). */
+        SCALAR
     }
 
     private final Category category;
