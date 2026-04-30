@@ -72,6 +72,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Path tempDirectory;
     private final Directory directory;
     private final IndexWriter indexWriter;
+    private long mappingVersion;
     private volatile long docCount;
 
     /**
@@ -202,6 +203,23 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     @Override
     public long generation() {
         return writerGeneration;
+    }
+
+    @Override
+    public boolean isSchemaMutable() {
+        return true;
+    }
+
+    @Override
+    public long mappingVersion() {
+        return mappingVersion;
+    }
+
+    @Override
+    public void updateMappingVersion(long newVersion) {
+        if (newVersion > this.mappingVersion) {
+            this.mappingVersion = newVersion;
+        }
     }
 
     /**

@@ -26,6 +26,7 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
@@ -272,7 +273,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         when(keywordField.hasDocValues()).thenReturn(true);
 
         // Create writer through the engine
-        LuceneWriter writer = (LuceneWriter) engine.createWriter(generation);
+        LuceneWriter writer = (LuceneWriter) engine.createWriter(new WriterConfig(generation));
         try {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = engine.newDocumentInput();
@@ -328,8 +329,8 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         // Create writers through the engine — do NOT close them before refresh,
         // because close() deletes the temp directory that refresh needs to read.
-        LuceneWriter writer1 = (LuceneWriter) engine.createWriter(gen1);
-        LuceneWriter writer2 = (LuceneWriter) engine.createWriter(gen2);
+        LuceneWriter writer1 = (LuceneWriter) engine.createWriter(new WriterConfig(gen1));
+        LuceneWriter writer2 = (LuceneWriter) engine.createWriter(new WriterConfig(gen2));
         try {
             for (int i = 0; i < numDocs1; i++) {
                 LuceneDocumentInput input = engine.newDocumentInput();
