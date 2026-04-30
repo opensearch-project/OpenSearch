@@ -159,6 +159,9 @@ public class OpenSearchProjectRule extends RelOptRule {
 
     private List<String> resolveScalarViableBackends(RexCall rexCall, List<String> childViableBackends) {
         ScalarFunction scalarFunc = ScalarFunction.fromSqlKind(rexCall.getKind());
+        if (scalarFunc == null && rexCall.getOperator() instanceof SqlFunction sqlFunction) {
+            scalarFunc = ScalarFunction.fromSqlFunction(sqlFunction);
+        }
         if (scalarFunc == null) {
             return List.of();
         }

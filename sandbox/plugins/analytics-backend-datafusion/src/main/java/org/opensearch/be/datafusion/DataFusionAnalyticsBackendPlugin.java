@@ -15,8 +15,8 @@ import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
-import org.opensearch.analytics.spi.FilterOperator;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -47,17 +47,17 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.add(FieldType.TEXT);
     }
 
-    private static final Set<FilterOperator> STANDARD_FILTER_OPS = Set.of(
-        FilterOperator.EQUALS,
-        FilterOperator.NOT_EQUALS,
-        FilterOperator.GREATER_THAN,
-        FilterOperator.GREATER_THAN_OR_EQUAL,
-        FilterOperator.LESS_THAN,
-        FilterOperator.LESS_THAN_OR_EQUAL,
-        FilterOperator.IS_NULL,
-        FilterOperator.IS_NOT_NULL,
-        FilterOperator.IN,
-        FilterOperator.LIKE
+    private static final Set<ScalarFunction> STANDARD_FILTER_OPS = Set.of(
+        ScalarFunction.EQUALS,
+        ScalarFunction.NOT_EQUALS,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL,
+        ScalarFunction.IS_NULL,
+        ScalarFunction.IS_NOT_NULL,
+        ScalarFunction.IN,
+        ScalarFunction.LIKE
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -98,7 +98,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             public Set<FilterCapability> filterCapabilities() {
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
                 Set<FilterCapability> caps = new HashSet<>();
-                for (FilterOperator op : STANDARD_FILTER_OPS) {
+                for (ScalarFunction op : STANDARD_FILTER_OPS) {
                     for (FieldType type : SUPPORTED_FIELD_TYPES) {
                         caps.add(new FilterCapability.Standard(op, Set.of(type), formats));
                     }
