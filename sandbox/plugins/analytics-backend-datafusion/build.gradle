@@ -163,6 +163,8 @@ configurations.all {
     force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
     force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
     force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
+    force "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+    force "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   }
 }
 
