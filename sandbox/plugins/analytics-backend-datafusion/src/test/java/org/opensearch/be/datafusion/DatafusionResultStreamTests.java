@@ -75,7 +75,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             Iterator<EngineResultBatch> it = stream.iterator();
             assertTrue(it.hasNext());
             EngineResultBatch batch = it.next();
-            assertTrue(batch.getRowCount() > 0);
+            try {
+                assertTrue(batch.getRowCount() > 0);
+            } finally {
+                batch.getArrowRoot().close();
+            }
             // close without exhausting the stream
         }
     }
@@ -85,7 +89,12 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             Iterator<EngineResultBatch> it = stream.iterator();
             int totalRows = 0;
             while (it.hasNext()) {
-                totalRows += it.next().getRowCount();
+                EngineResultBatch batch = it.next();
+                try {
+                    totalRows += batch.getRowCount();
+                } finally {
+                    batch.getArrowRoot().close();
+                }
             }
             assertEquals(2, totalRows);
         }
@@ -96,7 +105,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         try (DatafusionResultStream stream = createStream("SELECT message FROM test_table")) {
             Iterator<EngineResultBatch> it = stream.iterator();
             EngineResultBatch batch = it.next();
-            assertTrue(batch.getRowCount() > 0);
+            try {
+                assertTrue(batch.getRowCount() > 0);
+            } finally {
+                batch.getArrowRoot().close();
+            }
         }
     }
 
@@ -116,7 +129,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             assertTrue(it.hasNext());
             assertTrue(it.hasNext());
             EngineResultBatch batch = it.next();
-            assertTrue(batch.getRowCount() > 0);
+            try {
+                assertTrue(batch.getRowCount() > 0);
+            } finally {
+                batch.getArrowRoot().close();
+            }
         }
     }
 
@@ -133,11 +150,15 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             Iterator<EngineResultBatch> it = stream.iterator();
             assertTrue(it.hasNext());
             EngineResultBatch batch = it.next();
-            assertEquals(2, batch.getFieldNames().size());
-            assertTrue(batch.getFieldNames().contains("message"));
-            assertTrue(batch.getFieldNames().contains("message2"));
-            assertNotNull(batch.getFieldValue("message", 0));
-            expectThrows(IllegalArgumentException.class, () -> batch.getFieldValue("nonexistent", 0));
+            try {
+                assertEquals(2, batch.getFieldNames().size());
+                assertTrue(batch.getFieldNames().contains("message"));
+                assertTrue(batch.getFieldNames().contains("message2"));
+                assertNotNull(batch.getFieldValue("message", 0));
+                expectThrows(IllegalArgumentException.class, () -> batch.getFieldValue("nonexistent", 0));
+            } finally {
+                batch.getArrowRoot().close();
+            }
         }
     }
 
