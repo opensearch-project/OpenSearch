@@ -1235,6 +1235,7 @@ public class MetadataCreateIndexService {
 
         List<String> validationErrors = new ArrayList<>();
         validateIndexReplicationTypeSettings(indexSettingsBuilder.build(), clusterSettings).ifPresent(validationErrors::add);
+        validatePluggableDataFormatSettings(indexSettingsBuilder.build(), clusterSettings).ifPresent(validationErrors::add);
         validateErrors(request.index(), validationErrors);
 
         Settings indexSettings = indexSettingsBuilder.build();
@@ -1722,6 +1723,7 @@ public class MetadataCreateIndexService {
         throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
         validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
+        validatePluggableDataFormatSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
         validateErrors(indexName, validationErrors);
     }
 
@@ -1821,6 +1823,49 @@ public class MetadataCreateIndexService {
             return Optional.of(
                 "index setting [index.replication.type] is not allowed to be set as ["
                     + IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Validates that {@code index.pluggable.dataformat.enabled} and {@code index.pluggable.dataformat} match the
+     * cluster-level defaults {@code cluster.default.index.pluggable.dataformat.enabled} and
+     * {@code cluster.default.index.pluggable.dataformat} when
+     * {@code cluster.index.restrict.pluggable.dataformat} is set to true.
+     *
+     * @param requestSettings settings resulting from merging request, templates, and cluster-level defaults
+     * @param clusterSettings cluster setting
+     */
+    private static Optional<String> validatePluggableDataFormatSettings(Settings requestSettings, ClusterSettings clusterSettings) {
+        if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) == false) {
+            return Optional.empty();
+        }
+        if (clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING) == false) {
+            return Optional.empty();
+        }
+
+        if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey())
+            && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(requestSettings)
+                .equals(clusterSettings.get(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)) == false) {
+            return Optional.of(
+                "index setting ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                    + "] is not allowed to be set as ["
+                    + IndicesService.CLUSTER_INDEX_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+
+        if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey())
+            && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(requestSettings)
+                .equals(clusterSettings.get(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING)) == false) {
+            return Optional.of(
+                "index setting ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey()
+                    + "] is not allowed to be set as ["
+                    + IndicesService.CLUSTER_INDEX_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey()
                     + "=true]"
             );
         }

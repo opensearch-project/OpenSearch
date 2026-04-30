@@ -14,13 +14,24 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockParquetDataFormatPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
+import java.util.Collection;
+import java.util.List;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class ClusterDefaultPluggableDataFormatIT extends OpenSearchIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(MockCommitterEnginePlugin.class, MockParquetDataFormatPlugin.class);
+    }
 
     @Override
     protected Settings featureFlagSettings() {

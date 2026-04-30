@@ -867,6 +867,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Pluggable dataformat cluster defaults
                 IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING,
                 IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING,
+                IndicesService.CLUSTER_INDEX_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING,
 
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
 

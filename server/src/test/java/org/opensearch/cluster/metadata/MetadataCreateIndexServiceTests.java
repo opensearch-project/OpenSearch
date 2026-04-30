@@ -81,6 +81,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndexCreationException;
@@ -2312,6 +2313,47 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(aggregated));
         assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(aggregated));
+    }
+
+    public void testAggregateIndexSettingsPropagatesIndexCreationExceptionFromProvider() {
+        // Simulates a plugin-supplied IndexSettingProvider (like CompositeDataFormatPlugin) rejecting
+        // a forbidden index-level override by throwing IndexCreationException wrapping a
+        // ValidationException. The exception must propagate out of aggregateIndexSettings unchanged so
+        // the REST layer reports it the same way as the built-in validateErrors path does.
+        final String expectedError = "index setting [index.example] is not allowed to be set as [cluster.test.restrict=true]";
+        IndexSettingProvider throwingProvider = new IndexSettingProvider() {
+            @Override
+            public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings templateAndRequestSettings) {
+                ValidationException ve = new ValidationException();
+                ve.addValidationError(expectedError);
+                throw new IndexCreationException(indexName, ve);
+            }
+        };
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(Settings.EMPTY);
+
+        IndexCreationException thrown = expectThrows(
+            IndexCreationException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                Settings.EMPTY,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.singleton(throwingProvider),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            )
+        );
+
+        assertEquals("test", thrown.getIndex().getName());
+        assertTrue(thrown.getCause() instanceof ValidationException);
+        assertTrue(
+            "expected validation error to contain [" + expectedError + "] but was [" + thrown.getCause().getMessage() + "]",
+            thrown.getCause().getMessage().contains(expectedError)
+        );
     }
 
     public void testAnyTranslogDurabilityWhenRestrictSettingFalse() {

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.ValidationException;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -29,6 +30,7 @@ import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.IndexSettingProvider;
+import org.opensearch.indices.IndexCreationException;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -37,6 +39,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -122,6 +125,24 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * If enabled, this cluster setting enforces that indexes will be created with composite data-format settings
+     * matching the cluster-level defaults defined in {@link #CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT} and
+     * {@link #CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS} by rejecting any request that specifies an index-level value
+     * that does not match. If disabled, users may choose the composite data-format on a per-index basis using the
+     * {@link #PRIMARY_DATA_FORMAT} and {@link #SECONDARY_DATA_FORMATS} settings.
+     *
+     * <p>This is scoped to the composite plugin so restriction can be toggled independently of the server-level
+     * {@code cluster.index.restrict.pluggable.dataformat} flag that governs the core
+     * {@code index.pluggable.dataformat.*} settings.
+     */
+    public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING = Setting.boolSetting(
+        "cluster.index.restrict.composite.dataformat",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
     public CompositeDataFormatPlugin() {}
 
     @Override
@@ -130,7 +151,8 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             PRIMARY_DATA_FORMAT,
             SECONDARY_DATA_FORMATS,
             CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT,
-            CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS
+            CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS,
+            CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
         );
     }
 
@@ -171,12 +193,45 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             @Override
             public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings templateAndRequestSettings) {
                 ClusterSettings clusterSettings = clusterService.getClusterSettings();
+                boolean restrict = clusterSettings.get(CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING);
+                String clusterPrimary = clusterSettings.get(CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT);
+                List<String> clusterSecondary = clusterSettings.get(CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS);
+
+                if (restrict) {
+                    List<String> errors = new ArrayList<>();
+                    if (PRIMARY_DATA_FORMAT.exists(templateAndRequestSettings)
+                        && PRIMARY_DATA_FORMAT.get(templateAndRequestSettings).equals(clusterPrimary) == false) {
+                        errors.add(
+                            "index setting ["
+                                + PRIMARY_DATA_FORMAT.getKey()
+                                + "] is not allowed to be set as ["
+                                + CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey()
+                                + "=true]"
+                        );
+                    }
+                    if (SECONDARY_DATA_FORMATS.exists(templateAndRequestSettings)
+                        && SECONDARY_DATA_FORMATS.get(templateAndRequestSettings).equals(clusterSecondary) == false) {
+                        errors.add(
+                            "index setting ["
+                                + SECONDARY_DATA_FORMATS.getKey()
+                                + "] is not allowed to be set as ["
+                                + CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey()
+                                + "=true]"
+                        );
+                    }
+                    if (errors.isEmpty() == false) {
+                        ValidationException validationException = new ValidationException();
+                        validationException.addValidationErrors(errors);
+                        throw new IndexCreationException(indexName, validationException);
+                    }
+                }
+
                 Settings.Builder out = Settings.builder();
                 if (PRIMARY_DATA_FORMAT.exists(templateAndRequestSettings) == false) {
-                    out.put(PRIMARY_DATA_FORMAT.getKey(), clusterSettings.get(CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT));
+                    out.put(PRIMARY_DATA_FORMAT.getKey(), clusterPrimary);
                 }
                 if (SECONDARY_DATA_FORMATS.exists(templateAndRequestSettings) == false) {
-                    out.putList(SECONDARY_DATA_FORMATS.getKey(), clusterSettings.get(CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS));
+                    out.putList(SECONDARY_DATA_FORMATS.getKey(), clusterSecondary);
                 }
                 return out.build();
             }

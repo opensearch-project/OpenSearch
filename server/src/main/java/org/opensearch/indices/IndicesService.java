@@ -393,6 +393,20 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * If enabled, this setting enforces that indexes will be created with pluggable data-format settings matching the
+     * cluster-level defaults defined in {@code cluster.default.index.pluggable.dataformat.enabled} and
+     * {@code cluster.default.index.pluggable.dataformat} by rejecting any request that specifies an index-level value
+     * that does not match. If disabled, users may choose the pluggable data-format on a per-index basis using the
+     * {@code index.pluggable.dataformat.enabled} and {@code index.pluggable.dataformat} settings.
+     */
+    public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING = Setting.boolSetting(
+        "cluster.index.restrict.pluggable.dataformat",
+        false,
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;
