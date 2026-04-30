@@ -28,15 +28,15 @@ import java.util.Map;
 /**
  * Implements merging of Parquet files.
  */
-public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
+public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
 
-    private static final Logger logger = LogManager.getLogger(StreamingParquetMergeStrategy.class);
+    private static final Logger logger = LogManager.getLogger(NativeParquetMergeStrategy.class);
 
     private final DataFormat dataFormat;
     private final String indexName;
     private final Path shardDataPath;
 
-    public StreamingParquetMergeStrategy(DataFormat dataFormat, String indexName, Path shardDataPath) {
+    public NativeParquetMergeStrategy(DataFormat dataFormat, String indexName, Path shardDataPath) {
         this.dataFormat = dataFormat;
         this.indexName = indexName;
         this.shardDataPath = shardDataPath;

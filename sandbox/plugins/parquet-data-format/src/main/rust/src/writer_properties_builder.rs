@@ -83,13 +83,14 @@ impl WriterPropertiesBuilder {
         builder
     }
 
-    /// Applies row group size and row count settings.
+    /// Applies row group row count limit.
+    /// In parquet-rs 57.x, `set_max_row_group_size` is a row count limit (not bytes).
     fn apply_row_group_settings(
         builder: parquet::file::properties::WriterPropertiesBuilder,
         config: &NativeSettings
     ) -> parquet::file::properties::WriterPropertiesBuilder {
         builder
-            .set_max_row_group_size(config.get_row_group_size_bytes())
+            .set_max_row_group_size(config.get_row_group_max_rows())
     }
 
     /// Applies dictionary encoding settings.

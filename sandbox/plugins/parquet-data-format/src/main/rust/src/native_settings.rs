@@ -18,7 +18,6 @@ pub struct NativeSettings {
     pub page_size_bytes: Option<usize>,
     pub page_row_limit: Option<usize>,
     pub dict_size_bytes: Option<usize>,
-    pub row_group_size_bytes: Option<usize>,
     pub field_configs: Option<HashMap<String, FieldConfig>>,
     pub custom_settings: Option<HashMap<String, String>>,
     pub bloom_filter_enabled: Option<bool>,
@@ -29,6 +28,10 @@ pub struct NativeSettings {
     pub nulls_first: Vec<bool>,
     pub sort_in_memory_threshold_bytes: Option<u64>,
     pub sort_batch_size: Option<usize>,
+    pub merge_batch_size: Option<usize>,
+    pub row_group_max_rows: Option<usize>,
+    pub merge_rayon_threads: Option<usize>,
+    pub merge_io_threads: Option<usize>,
 }
 
 impl NativeSettings {
@@ -54,10 +57,6 @@ impl NativeSettings {
 
     pub fn get_dict_size_bytes(&self) -> usize {
         self.dict_size_bytes.unwrap_or(2 * 1024 * 1024)
-    }
-
-    pub fn get_row_group_size_bytes(&self) -> usize {
-        self.row_group_size_bytes.unwrap_or(128 * 1024 * 1024)
     }
 
     pub fn get_bloom_filter_enabled(&self) -> bool {
@@ -86,6 +85,22 @@ impl NativeSettings {
 
     pub fn get_sort_batch_size(&self) -> usize {
         self.sort_batch_size.unwrap_or(8192)
+    }
+
+    pub fn get_merge_batch_size(&self) -> usize {
+        self.merge_batch_size.unwrap_or(100_000)
+    }
+
+    pub fn get_row_group_max_rows(&self) -> usize {
+        self.row_group_max_rows.unwrap_or(1_000_000)
+    }
+
+    pub fn get_merge_rayon_threads(&self) -> Option<usize> {
+        self.merge_rayon_threads
+    }
+
+    pub fn get_merge_io_threads(&self) -> Option<usize> {
+        self.merge_io_threads
     }
 }
 

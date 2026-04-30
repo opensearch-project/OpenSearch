@@ -33,6 +33,7 @@ public class RustBridge {
     private static final MethodHandle ON_SETTINGS_UPDATE;
     private static final MethodHandle REMOVE_SETTINGS;
     private static final MethodHandle MERGE_FILES;
+    private static final MethodHandle READ_AS_JSON;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -112,12 +113,15 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,                        // page_size_bytes
                 ValueLayout.JAVA_LONG,                        // page_row_limit
                 ValueLayout.JAVA_LONG,                        // dict_size_bytes
-                ValueLayout.JAVA_LONG,                        // row_group_size_bytes
                 ValueLayout.JAVA_LONG,                        // bloom_filter_enabled
                 ValueLayout.JAVA_DOUBLE,                      // bloom_filter_fpp
                 ValueLayout.JAVA_LONG,                        // bloom_filter_ndv
                 ValueLayout.JAVA_LONG,                        // sort_in_memory_threshold_bytes
-                ValueLayout.JAVA_LONG                         // sort_batch_size
+                ValueLayout.JAVA_LONG,                        // sort_batch_size
+                ValueLayout.JAVA_LONG,                        // row_group_max_rows
+                ValueLayout.JAVA_LONG,                        // merge_batch_size
+                ValueLayout.JAVA_LONG,                        // merge_rayon_threads
+                ValueLayout.JAVA_LONG                         // merge_io_threads
             )
         );
         REMOVE_SETTINGS = linker.downcallHandle(
@@ -135,6 +139,17 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,                      // output file
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG                       // index_name
+            )
+        );
+        READ_AS_JSON = linker.downcallHandle(
+            lib.find("parquet_read_as_json").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // file
+                ValueLayout.ADDRESS,     // out_buf
+                ValueLayout.JAVA_LONG,   // buf_capacity
+                ValueLayout.ADDRESS      // out_len
             )
         );
     }
@@ -251,12 +266,15 @@ public class RustBridge {
                 nativeSettings.getPageSizeBytes() != null ? nativeSettings.getPageSizeBytes() : -1L,
                 nativeSettings.getPageRowLimit() != null ? (long) nativeSettings.getPageRowLimit() : -1L,
                 nativeSettings.getDictSizeBytes() != null ? nativeSettings.getDictSizeBytes() : -1L,
-                nativeSettings.getRowGroupSizeBytes() != null ? nativeSettings.getRowGroupSizeBytes() : -1L,
                 nativeSettings.getBloomFilterEnabled() != null ? (nativeSettings.getBloomFilterEnabled() ? 1L : 0L) : -1L,
                 nativeSettings.getBloomFilterFpp() != null ? nativeSettings.getBloomFilterFpp() : -1.0,
                 nativeSettings.getBloomFilterNdv() != null ? nativeSettings.getBloomFilterNdv() : -1L,
                 nativeSettings.getSortInMemoryThresholdBytes() != null ? nativeSettings.getSortInMemoryThresholdBytes() : -1L,
-                nativeSettings.getSortBatchSize() != null ? (long) nativeSettings.getSortBatchSize() : -1L
+                nativeSettings.getSortBatchSize() != null ? (long) nativeSettings.getSortBatchSize() : -1L,
+                nativeSettings.getRowGroupMaxRows() != null ? (long) nativeSettings.getRowGroupMaxRows() : -1L,
+                nativeSettings.getMergeBatchSize() != null ? (long) nativeSettings.getMergeBatchSize() : -1L,
+                nativeSettings.getMergeRayonThreads() != null ? (long) nativeSettings.getMergeRayonThreads() : -1L,
+                nativeSettings.getMergeIoThreads() != null ? (long) nativeSettings.getMergeIoThreads() : -1L
             );
         }
     }
@@ -289,6 +307,21 @@ public class RustBridge {
             seg.setAtIndex(ValueLayout.JAVA_LONG, i, bools.get(i) ? 1L : 0L);
         }
         return seg;
+    }
+
+    /**
+     * Reads a parquet file and returns its contents as a JSON string.
+     */
+    public static String readAsJson(String file) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            int bufSize = 10 * 1024 * 1024; // 10MB
+            var outBuf = call.buf(bufSize);
+            var outLen = call.longOut();
+            call.invokeIO(READ_AS_JSON, f.segment(), f.len(), outBuf, (long) bufSize, outLen);
+            int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
+            return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
+        }
     }
 
     private RustBridge() {}

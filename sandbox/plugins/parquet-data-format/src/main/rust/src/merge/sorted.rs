@@ -18,7 +18,7 @@ use crate::{log_debug, log_info};
 use super::context::MergeContext;
 use super::cursor::FileCursor;
 use super::heap::{cmp_sort_values, get_sort_values, HeapItem};
-use super::io_task::{get_merge_pool, BATCH_SIZE, OUTPUT_FLUSH_ROWS};
+use super::io_task::get_merge_pool;
 use super::schema::ColumnMapping;
 
 /// Performs a streaming k-way merge with an explicit sort direction per column.
@@ -29,11 +29,17 @@ pub fn merge_sorted(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
-) -> super::MergeResult<()> {
-    let batch_size = BATCH_SIZE;
-    let output_flush_rows = OUTPUT_FLUSH_ROWS;
+) -> super::MergeResult<u32> {
+    let config = crate::writer::SETTINGS_STORE
+        .get(index_name)
+        .map(|r| r.clone())
+        .unwrap_or_default();
+    let batch_size = config.get_merge_batch_size();
+    let output_flush_rows = config.get_row_group_max_rows();
+    let rayon_threads = config.get_merge_rayon_threads();
+    let io_threads = config.get_merge_io_threads();
     if input_files.is_empty() {
-        return Ok(());
+        return Ok(0);
     }
 
     if sort_columns.is_empty() {
@@ -42,7 +48,7 @@ pub fn merge_sorted(
         ));
     }
 
-    let pool = get_merge_pool();
+    let pool = get_merge_pool(rayon_threads);
     let direction_label = if reverse_sorts.iter().all(|&r| !r) {
         "ascending"
     } else if reverse_sorts.iter().all(|&r| r) {
@@ -51,7 +57,7 @@ pub fn merge_sorted(
         "mixed"
     };
 
-    log_info!(
+    log_debug!(
         "[RUST] Starting streaming merge ({}): {} input files, sort_columns={:?}, \
          batch_size={}, flush_rows={}, merge_threads={}, output='{}'",
         direction_label,
@@ -86,6 +92,8 @@ pub fn merge_sorted(
         output_path,
         index_name,
         output_flush_rows,
+        rayon_threads,
+        io_threads,
     )?;
 
     // Precompute column mappings per cursor (avoids per-batch name lookups)
@@ -93,7 +101,7 @@ pub fn merge_sorted(
         .map(|s| ColumnMapping::new(s, ctx.data_schema()))
         .collect();
 
-    log_info!(
+    log_debug!(
         "[RUST] Merge initialized ({}): {} cursors",
         direction_label,
         num_cursors
@@ -202,15 +210,16 @@ pub fn merge_sorted(
     }
 
     // ── Phase 5: Close ──────────────────────────────────────────────────
-    let _metadata = ctx.finish()?;
+    let (_metadata, crc32) = ctx.finish()?;
 
-    log_info!(
-        "[RUST] Merge complete ({}): {} total rows written to '{}' in {} row groups",
+    log_debug!(
+        "[RUST] Merge complete ({}): {} total rows written to '{}' in {} row groups, crc32={:#010x}",
         direction_label,
         _metadata.file_metadata().num_rows(),
         output_path,
-        _metadata.num_row_groups()
+        _metadata.num_row_groups(),
+        crc32
     );
 
-    Ok(())
+    Ok(crc32)
 }

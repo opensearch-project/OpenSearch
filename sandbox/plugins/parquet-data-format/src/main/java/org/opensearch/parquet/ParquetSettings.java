@@ -28,13 +28,6 @@ public final class ParquetSettings {
     /** Group setting prefix for all Parquet settings. */
     public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting("index.parquet.", Setting.Property.IndexScope);
 
-    /** Maximum row group size in bytes (default 128MB). */
-    public static final Setting<ByteSizeValue> ROW_GROUP_SIZE_BYTES = Setting.byteSizeSetting(
-        "index.parquet.row_group_size_bytes",
-        new ByteSizeValue(128, ByteSizeUnit.MB),
-        Setting.Property.IndexScope
-    );
-
     /** Data page size limit in bytes (default 1MB). */
     public static final Setting<ByteSizeValue> PAGE_SIZE_BYTES = Setting.byteSizeSetting(
         "index.parquet.page_size_bytes",
@@ -127,11 +120,42 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
+    /** Maximum number of rows per row group (default 1000000). */
+    public static final Setting<Integer> ROW_GROUP_MAX_ROWS = Setting.intSetting(
+        "index.parquet.row_group_max_rows",
+        1_000_000,
+        1,
+        Setting.Property.IndexScope
+    );
+
+    /** Batch size for reading records during merge (default 100000 rows). */
+    public static final Setting<Integer> MERGE_BATCH_SIZE = Setting.intSetting(
+        "index.parquet.merge_batch_size",
+        100_000,
+        1,
+        Setting.Property.IndexScope
+    );
+
+    /** Number of Rayon threads for parallel column encoding during merge (default num_cores/8, min 1). */
+    public static final Setting<Integer> MERGE_RAYON_THREADS = Setting.intSetting(
+        "parquet.merge_rayon_threads",
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 8),
+        1,
+        Setting.Property.NodeScope
+    );
+
+    /** Number of Tokio IO threads for async disk writes during merge (default num_cores/8, min 1). */
+    public static final Setting<Integer> MERGE_IO_THREADS = Setting.intSetting(
+        "parquet.merge_io_threads",
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 8),
+        1,
+        Setting.Property.NodeScope
+    );
+
     /** Returns all settings defined by the Parquet plugin. */
     public static List<Setting<?>> getSettings() {
         return List.of(
             PARQUET_SETTINGS,
-            ROW_GROUP_SIZE_BYTES,
             PAGE_SIZE_BYTES,
             PAGE_ROW_LIMIT,
             DICT_SIZE_BYTES,
@@ -143,7 +167,11 @@ public final class ParquetSettings {
             MAX_NATIVE_ALLOCATION,
             MAX_ROWS_PER_VSR,
             SORT_IN_MEMORY_THRESHOLD,
-            SORT_BATCH_SIZE
+            SORT_BATCH_SIZE,
+            ROW_GROUP_MAX_ROWS,
+            MERGE_BATCH_SIZE,
+            MERGE_RAYON_THREADS,
+            MERGE_IO_THREADS
         );
     }
 }

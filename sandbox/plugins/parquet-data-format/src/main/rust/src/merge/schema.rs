@@ -17,13 +17,13 @@ use parquet::schema::types::Type;
 use super::error::MergeResult;
 
 /// Reserved column name for the synthetic row identifier added during merge.
-pub const ROW_ID_COLUMN_NAME: &str = "___row_id";
+pub const ROW_ID_COLUMN_NAME: &str = "__row_id__";
 
 /// Builds the output Parquet schema as the union of pre-read schema descriptors.
 ///
 /// The output schema contains every column seen across all inputs, except:
-/// - Any existing `___row_id` column is removed.
-/// - A fresh `___row_id` INT64 REQUIRED column is appended at the end.
+/// - Any existing `__row_id__` column is removed.
+/// - A fresh `__row_id__` INT64 REQUIRED column is appended at the end.
 pub fn build_parquet_root_schema(
     schema_descriptors: &[parquet::schema::types::SchemaDescriptor],
 ) -> MergeResult<Arc<Type>> {
@@ -54,7 +54,7 @@ pub fn build_parquet_root_schema(
     Ok(Arc::new(parquet_root))
 }
 
-/// Returns column indices that exclude `___row_id`, for use as a projection mask.
+/// Returns column indices that exclude `__row_id__`, for use as a projection mask.
 pub fn projection_indices_excluding_row_id(schema: &ArrowSchema) -> Vec<usize> {
     schema
         .fields()
@@ -66,7 +66,7 @@ pub fn projection_indices_excluding_row_id(schema: &ArrowSchema) -> Vec<usize> {
 }
 
 
-/// Appends a `___row_id` column with sequential values `[start_id, start_id + N)`
+/// Appends a `__row_id__` column with sequential values `[start_id, start_id + N)`
 /// to the given batch, producing a new batch with the output schema.
 pub fn append_row_id(
     batch: &RecordBatch,

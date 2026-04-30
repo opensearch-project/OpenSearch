@@ -18,6 +18,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::{mpsc as tokio_mpsc, oneshot};
 use tokio::task::JoinHandle;
 
+use crate::crc_writer::CrcWriter;
 use crate::rate_limited_writer::RateLimitedWriter;
 use crate::log_error;
 
@@ -26,20 +27,16 @@ use super::error::{MergeError, MergeResult};
 // Constants
 // =============================================================================
 
-/// Number of rows to request per Parquet read batch.
-pub const BATCH_SIZE: usize = 100_000;
-
-/// Approximate number of rows to buffer before flushing a row group.
-pub const OUTPUT_FLUSH_ROWS: usize = 1_000_000;
-
 /// Disk write rate limit in MB/s.
 pub const RATE_LIMIT_MB_PER_SEC: f64 = 20.0;
 
-/// Number of threads in the shared Rayon pool for parallel column encoding.
-const RAYON_NUM_THREADS: usize = 4;
-
-/// Number of Tokio worker threads for async IO.
-const TOKIO_WORKER_THREADS: usize = 4;
+/// Default thread count for merge pools: max(1, num_cpus / 8).
+fn default_merge_threads() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get() / 8)
+        .unwrap_or(1)
+        .max(1)
+}
 
 /// Bounded channel capacity between the merge loop and the IO task.
 const IO_CHANNEL_BUFFER: usize = 2;
@@ -50,10 +47,11 @@ const IO_CHANNEL_BUFFER: usize = 2;
 
 static MERGE_POOL: OnceLock<ThreadPool> = OnceLock::new();
 
-pub fn get_merge_pool() -> &'static ThreadPool {
+pub fn get_merge_pool(num_threads: Option<usize>) -> &'static ThreadPool {
     MERGE_POOL.get_or_init(|| {
+        let n = num_threads.unwrap_or_else(default_merge_threads);
         rayon::ThreadPoolBuilder::new()
-            .num_threads(RAYON_NUM_THREADS)
+            .num_threads(n)
             .thread_name(|idx| format!("parquet-merge-{}", idx))
             .build()
             .expect("Failed to build parquet-merge Rayon thread pool")
@@ -66,10 +64,11 @@ pub fn get_merge_pool() -> &'static ThreadPool {
 
 static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
-fn get_io_runtime() -> &'static Runtime {
+fn get_io_runtime(num_threads: Option<usize>) -> &'static Runtime {
     IO_RUNTIME.get_or_init(|| {
+        let n = num_threads.unwrap_or_else(default_merge_threads);
         tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(TOKIO_WORKER_THREADS)
+            .worker_threads(n)
             .thread_name("parquet-io")
             .enable_all()
             .build()
@@ -81,10 +80,13 @@ fn get_io_runtime() -> &'static Runtime {
 // IO task protocol
 // =============================================================================
 
+/// Writer type used by the IO task: CRC → rate-limit → file.
+pub type MergeWriter = CrcWriter<RateLimitedWriter<File>>;
+
 /// Commands sent from the merge loop to the background IO task.
 pub enum IoCommand {
     WriteRowGroup(Vec<parquet::arrow::arrow_writer::ArrowColumnChunk>),
-    Close(oneshot::Sender<MergeResult<ParquetMetaData>>),
+    Close(oneshot::Sender<MergeResult<(ParquetMetaData, u32)>>),
 }
 
 async fn drain_on_error(rx: &mut tokio_mpsc::Receiver<IoCommand>, msg: &str) {
@@ -104,14 +106,16 @@ async fn drain_on_error(rx: &mut tokio_mpsc::Receiver<IoCommand>, msg: &str) {
 /// but is **not** awaited immediately — this allows the merge loop to prepare
 /// the next row group while the current one is still being flushed to disk.
 pub fn spawn_io_task(
-    writer: SerializedFileWriter<RateLimitedWriter<File>>,
+    writer: SerializedFileWriter<MergeWriter>,
+    crc_handle: crate::crc_writer::CrcHandle,
+    io_threads: Option<usize>,
 ) -> tokio_mpsc::Sender<IoCommand> {
     let (tx, mut rx) = tokio_mpsc::channel::<IoCommand>(IO_CHANNEL_BUFFER);
 
-    get_io_runtime().spawn(async move {
-        let mut writer: Option<SerializedFileWriter<RateLimitedWriter<File>>> = Some(writer);
+    get_io_runtime(io_threads).spawn(async move {
+        let mut writer: Option<SerializedFileWriter<MergeWriter>> = Some(writer);
         let mut in_flight: Option<
-            JoinHandle<MergeResult<SerializedFileWriter<RateLimitedWriter<File>>>>,
+            JoinHandle<MergeResult<SerializedFileWriter<MergeWriter>>>,
         > = None;
 
         while let Some(cmd) = rx.recv().await {
@@ -165,8 +169,10 @@ pub fn spawn_io_task(
                     }
 
                     let w = writer.take().unwrap();
+                    let crc = crc_handle.clone();
                     let result = tokio::task::spawn_blocking(move || {
-                        w.close().map_err(MergeError::from)
+                        let metadata = w.close().map_err(MergeError::from)?;
+                        Ok((metadata, crc.crc32()))
                     })
                         .await;
 

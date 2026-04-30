@@ -14,11 +14,11 @@ use lazy_static::lazy_static;
 use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, ArrowWriter};
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use std::fs::File;
-use std::io::Read;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::{log_error, log_debug};
+use crate::crc_writer::CrcWriter;
 use crate::merge::{merge_sorted, schema::ROW_ID_COLUMN_NAME};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
@@ -33,8 +33,9 @@ pub struct FinalizeResult {
 /// Bundles all per-writer resources so a single `DashMap::remove` atomically
 /// drops the writer, closes the file handle, and cleans up sort config.
 struct WriterState {
-    writer: Arc<Mutex<ArrowWriter<File>>>,
+    writer: Arc<Mutex<ArrowWriter<CrcWriter<File>>>>,
     settings: NativeSettings,
+    crc_handle: crate::crc_writer::CrcHandle,
 }
 
 lazy_static! {
@@ -93,6 +94,7 @@ impl NativeParquetWriter {
         log_debug!("Schema created with {} fields", schema.fields().len());
 
         let file = File::create(&temp_filename)?;
+        let (crc_file, crc_handle) = CrcWriter::new(file);
 
         let mut settings: NativeSettings = SETTINGS_STORE
             .get(&index_name)
@@ -107,11 +109,12 @@ impl NativeParquetWriter {
 
         SETTINGS_STORE.insert(index_name, settings.clone());
 
-        let writer = ArrowWriter::try_new(file, schema, Some(props))?;
+        let writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
 
         WRITERS.insert(temp_filename, WriterState {
             writer: Arc::new(Mutex::new(writer)),
             settings,
+            crc_handle,
         });
 
         Ok(())
@@ -157,17 +160,17 @@ impl NativeParquetWriter {
         log_debug!("finalize_writer called for file: {} (temp: {})", filename, temp_filename);
 
         if let Some((_, state)) = WRITERS.remove(&temp_filename) {
-            let WriterState { writer: writer_arc, settings } = state;
+            let WriterState { writer: writer_arc, settings, crc_handle } = state;
             let index_name = settings.index_name.as_deref().unwrap_or("");
             match Arc::try_unwrap(writer_arc) {
                 Ok(mutex) => {
                     let writer = mutex.into_inner().unwrap();
                     match writer.close() {
                         Ok(_) => {
+                            let temp_crc32 = crc_handle.crc32();
                             log_debug!("Successfully closed temp writer for: {}", temp_filename);
-                            // _file is dropped here, closing the file handle
 
-                            Self::sort_and_rewrite_parquet(&temp_filename, &filename, index_name, &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first)?;
+                            let crc32 = Self::sort_and_rewrite_parquet(&temp_filename, &filename, index_name, &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first, temp_crc32)?;
 
                             if Path::new(&temp_filename).exists() {
                                 if let Err(e) = std::fs::remove_file(&temp_filename) {
@@ -175,8 +178,6 @@ impl NativeParquetWriter {
                                 }
                             }
 
-                            // Compute CRC32 by reading the final sorted file
-                            let crc32 = Self::compute_file_crc32(&filename)?;
                             log_debug!("CRC32 for file {}: {:#010x}", filename, crc32);
 
                             // Keep a handle for sync_to_disk
@@ -207,17 +208,6 @@ impl NativeParquetWriter {
         }
     }
 
-    fn compute_file_crc32(path: &str) -> Result<u32, Box<dyn std::error::Error>> {
-        let mut file = File::open(path)?;
-        let mut hasher = crc32fast::Hasher::new();
-        let mut buf = [0u8; 64 * 1024];
-        loop {
-            let n = file.read(&mut buf)?;
-            if n == 0 { break; }
-            hasher.update(&buf[..n]);
-        }
-        Ok(hasher.finalize())
-    }
 
     fn sort_and_rewrite_parquet(
         temp_filename: &str,
@@ -226,7 +216,8 @@ impl NativeParquetWriter {
         sort_columns: &[String],
         reverse_sorts: &[bool],
         nulls_first: &[bool],
-    ) -> Result<(), Box<dyn std::error::Error>> {
+        temp_crc32: u32,
+    ) -> Result<u32, Box<dyn std::error::Error>> {
         log_debug!(
             "sort_and_rewrite_parquet: temp={}, output={}, sort_columns={:?}, reverse_sorts={:?}, nulls_first={:?}",
             temp_filename, output_filename, sort_columns, reverse_sorts, nulls_first
@@ -235,7 +226,7 @@ impl NativeParquetWriter {
         if sort_columns.is_empty() {
             log_debug!("No sort columns specified, renaming temp file to final");
             std::fs::rename(temp_filename, output_filename)?;
-            return Ok(());
+            return Ok(temp_crc32);
         }
 
         let config = SETTINGS_STORE
@@ -260,7 +251,7 @@ impl NativeParquetWriter {
         sort_columns: &[String],
         reverse_sorts: &[bool],
         nulls_first: &[bool],
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<u32, Box<dyn std::error::Error>> {
         log_debug!("Using in-memory sort for small file: {}", temp_filename);
 
         let file = File::open(temp_filename)?;
@@ -274,7 +265,7 @@ impl NativeParquetWriter {
             _ => {
                 log_debug!("No data to sort in file: {}", temp_filename);
                 std::fs::rename(temp_filename, output_filename)?;
-                return Ok(());
+                return Ok(0);
             }
         };
 
@@ -282,8 +273,8 @@ impl NativeParquetWriter {
         let sorted_batch = Self::sort_batch(&batch, sort_columns, reverse_sorts, nulls_first)?;
         let final_batch = Self::rewrite_row_ids(&sorted_batch, &schema)?;
 
-        Self::write_final_file(output_filename, index_name, &final_batch, schema)?;
-        Ok(())
+        let crc32 = Self::write_final_file(output_filename, index_name, &final_batch, schema)?;
+        Ok(crc32)
     }
 
     /// For large files: read in batches, sort each batch individually, write each
@@ -297,7 +288,7 @@ impl NativeParquetWriter {
         reverse_sorts: &[bool],
         nulls_first: &[bool],
         batch_size: usize,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<u32, Box<dyn std::error::Error>> {
         log_debug!("Using streaming merge sort for large file: {}", temp_filename);
 
         let file = File::open(temp_filename)?;
@@ -306,17 +297,18 @@ impl NativeParquetWriter {
 
         let mut chunk_paths: Vec<String> = Vec::new();
         let mut batch_count = 0;
-        let temp_dir = std::env::temp_dir();
+        let chunk_dir = Path::new(output_filename).parent().unwrap_or_else(|| Path::new("."));
 
         for batch_result in arrow_reader {
             let batch = batch_result?;
             let schema = batch.schema();
             let sorted_batch = Self::sort_batch(&batch, sort_columns, reverse_sorts, nulls_first)?;
 
-            let chunk_filename = temp_dir
-                .join(format!("sort_chunk_{}_{}.parquet", batch_count, std::process::id()))
+            let chunk_filename = chunk_dir
+                .join(format!("temp_sort_chunk_{}_{}.parquet", batch_count, std::process::id()))
                 .to_string_lossy()
                 .to_string();
+            // CRC for temp chunks is not needed, discard it
             Self::write_final_file(&chunk_filename, index_name, &sorted_batch, schema)?;
 
             chunk_paths.push(chunk_filename);
@@ -326,13 +318,13 @@ impl NativeParquetWriter {
         if chunk_paths.is_empty() {
             log_debug!("No data to sort in file: {}", temp_filename);
             std::fs::rename(temp_filename, output_filename)?;
-            return Ok(());
+            return Ok(0);
         }
 
         log_debug!("Created {} sorted chunks, merging via streaming k-way merge", batch_count);
 
-        // Use the streaming merge to produce the final sorted file
-        merge_sorted(
+        // merge_sorted returns CRC32 of the final merged output
+        let crc32 = merge_sorted(
             &chunk_paths,
             output_filename,
             index_name,
@@ -346,7 +338,7 @@ impl NativeParquetWriter {
             let _ = std::fs::remove_file(path);
         }
 
-        Ok(())
+        Ok(crc32)
     }
 
     fn sort_batch(
@@ -384,7 +376,7 @@ impl NativeParquetWriter {
         Ok(RecordBatch::try_new(batch.schema(), sorted_columns?)?)
     }
 
-    /// If a ___row_id column exists, rewrite it with sequential values 0..N.
+    /// If a __row_id__ column exists, rewrite it with sequential values 0..N.
     fn rewrite_row_ids(
         batch: &RecordBatch,
         schema: &Arc<arrow::datatypes::Schema>,
@@ -392,7 +384,7 @@ impl NativeParquetWriter {
         use arrow::array::Int64Array;
 
         if let Some(row_id_idx) = schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME) {
-            log_debug!("Rewriting ___row_id column with sequential values 0..{}", batch.num_rows());
+            log_debug!("Rewriting __row_id__ column with sequential values 0..{}", batch.num_rows());
             let sequential_ids = Int64Array::from_iter_values(
                 (0..batch.num_rows() as u64).map(|x| x as i64)
             );
@@ -409,18 +401,20 @@ impl NativeParquetWriter {
         index_name: &str,
         batch: &RecordBatch,
         schema: Arc<arrow::datatypes::Schema>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<u32, Box<dyn std::error::Error>> {
         let config = SETTINGS_STORE
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
         let props = WriterPropertiesBuilder::build(&config);
         let file = File::create(output_filename)?;
-        let mut writer = ArrowWriter::try_new(file, schema, Some(props))?;
+        let (crc_file, crc_handle) = CrcWriter::new(file);
+        let mut writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
         writer.write(batch)?;
         writer.close()?;
-        log_debug!("Successfully wrote final file: {}", output_filename);
-        Ok(())
+        let crc32 = crc_handle.crc32();
+        log_debug!("Successfully wrote final file: {} (crc32={:#010x})", output_filename, crc32);
+        Ok(crc32)
     }
 
     pub fn sync_to_disk(filename: String) -> Result<(), Box<dyn std::error::Error>> {

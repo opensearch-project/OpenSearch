@@ -86,12 +86,12 @@ fn test_unsorted_merge_real_files() {
     assert_eq!(actual_rows, expected_rows, "Row count mismatch");
 }
 
-/// Verify that ___row_id in the output is monotonically increasing (0, 1, 2, ...).
+/// Verify that __row_id__ in the output is monotonically increasing (0, 1, 2, ...).
 fn verify_row_id_order(path: &str) {
     let file = File::open(path).unwrap();
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
     let schema = builder.schema().clone();
-    let col_idx = schema.index_of("___row_id").expect("___row_id not in output");
+    let col_idx = schema.index_of("__row_id__").expect("__row_id__ not in output");
     let reader = builder.build().unwrap();
 
     let mut expected: i64 = 0;
@@ -99,14 +99,14 @@ fn verify_row_id_order(path: &str) {
         let batch = batch.unwrap();
         let col = batch.column(col_idx).as_any()
             .downcast_ref::<arrow::array::Int64Array>()
-            .expect("___row_id should be Int64");
+            .expect("__row_id__ should be Int64");
         for i in 0..col.len() {
-            assert!(!col.is_null(i), "___row_id should never be null");
-            assert_eq!(col.value(i), expected, "___row_id gap at row {}", expected);
+            assert!(!col.is_null(i), "__row_id__ should never be null");
+            assert_eq!(col.value(i), expected, "__row_id__ gap at row {}", expected);
             expected += 1;
         }
     }
-    println!("Verified ___row_id is sequential 0..{}", expected);
+    println!("Verified __row_id__ is sequential 0..{}", expected);
 }
 
 
@@ -144,7 +144,7 @@ fn test_sorted_merge_real_files() {
     println!("Output rows: {}", actual_rows);
     assert_eq!(actual_rows, expected_rows, "Row count mismatch");
 
-    // Verify ___row_id is sequential 0..N
+    // Verify __row_id__ is sequential 0..N
     verify_row_id_order(&output_str);
 
     // Verify EventDate is non-decreasing in the merged output

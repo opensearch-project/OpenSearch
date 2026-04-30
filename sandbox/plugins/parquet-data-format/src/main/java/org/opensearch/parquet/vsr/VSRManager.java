@@ -14,6 +14,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
@@ -130,7 +131,7 @@ public class VSRManager implements AutoCloseable {
             parquetField.createField(fieldType, activeVSR, pair.getValue());
         }
         int rowIndex = activeVSR.getRowCount();
-        BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector("___row_id");
+        BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector(DocumentInput.ROW_ID_FIELD);
         if (rowIdVector != null) {
             rowIdVector.setSafe(rowIndex, doc.getRowId());
         }

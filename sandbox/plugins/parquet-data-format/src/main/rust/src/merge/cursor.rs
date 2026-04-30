@@ -139,7 +139,7 @@ impl FileCursor {
         let reader = Arc::clone(&self.reader);
         let tx = self.prefetch_tx.clone();
 
-        get_merge_pool().spawn(move || {
+        get_merge_pool(None).spawn(move || {
             let mut reader = reader.lock().unwrap();
             let result = match reader.next() {
                 Some(Ok(batch)) if batch.num_rows() > 0 => Some(Ok(batch)),

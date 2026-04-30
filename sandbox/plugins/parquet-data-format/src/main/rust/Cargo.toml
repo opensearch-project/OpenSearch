@@ -22,6 +22,7 @@ native-bridge-common = { workspace = true }
 rayon = { workspace = true }
 tokio = { workspace = true }
 crc32fast = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }

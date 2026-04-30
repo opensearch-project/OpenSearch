@@ -27,8 +27,8 @@ import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.NativeSettings;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
 import org.opensearch.parquet.merge.ParquetMergeExecutor;
-import org.opensearch.parquet.merge.StreamingParquetMergeStrategy;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
 import org.opensearch.threadpool.ThreadPool;
@@ -73,6 +73,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final Supplier<Schema> schemaSupplier;
     private final ArrowBufferPool bufferPool;
     private final IndexSettings indexSettings;
+    private final Settings nodeSettings;
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
     private final Merger parquetMerger;
@@ -127,6 +128,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.schemaSupplier = schemaSupplier;
         this.bufferPool = new ArrowBufferPool(settings);
         this.indexSettings = indexSettings;
+        this.nodeSettings = settings;
         this.threadPool = threadPool;
         this.checksumStrategy = checksumStrategy;
         try {
@@ -137,7 +139,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             throw new RuntimeException(e);
         }
         this.parquetMerger = new ParquetMergeExecutor(
-            new StreamingParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath.getDataPath())
+            new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath.getDataPath())
         );
         pushSettingsToRust();
     }
@@ -160,12 +162,15 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .pageSizeBytes(ParquetSettings.PAGE_SIZE_BYTES.get(settings).getBytes())
             .pageRowLimit(ParquetSettings.PAGE_ROW_LIMIT.get(settings))
             .dictSizeBytes(ParquetSettings.DICT_SIZE_BYTES.get(settings).getBytes())
-            .rowGroupSizeBytes(ParquetSettings.ROW_GROUP_SIZE_BYTES.get(settings).getBytes())
             .bloomFilterEnabled(ParquetSettings.BLOOM_FILTER_ENABLED.get(settings))
             .bloomFilterFpp(ParquetSettings.BLOOM_FILTER_FPP.get(settings))
             .bloomFilterNdv(ParquetSettings.BLOOM_FILTER_NDV.get(settings))
             .sortInMemoryThresholdBytes(ParquetSettings.SORT_IN_MEMORY_THRESHOLD.get(settings).getBytes())
             .sortBatchSize(ParquetSettings.SORT_BATCH_SIZE.get(settings))
+            .rowGroupMaxRows(ParquetSettings.ROW_GROUP_MAX_ROWS.get(settings))
+            .mergeBatchSize(ParquetSettings.MERGE_BATCH_SIZE.get(settings))
+            .mergeRayonThreads(ParquetSettings.MERGE_RAYON_THREADS.get(nodeSettings))
+            .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
             .build();
         try {
             RustBridge.onSettingsUpdate(config);

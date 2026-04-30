@@ -19,6 +19,7 @@ use parquet::schema::types::SchemaDescriptor;
 use rayon::prelude::*;
 use tokio::sync::{mpsc as tokio_mpsc, oneshot};
 
+use crate::crc_writer::CrcWriter;
 use crate::rate_limited_writer::RateLimitedWriter;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
 use crate::{log_debug, SETTINGS_STORE};
@@ -43,6 +44,7 @@ pub struct MergeContext {
     row_group_index: usize,
     next_row_id: i64,
     total_rows_written: usize,
+    rayon_threads: Option<usize>,
 }
 
 impl MergeContext {
@@ -54,6 +56,8 @@ impl MergeContext {
         output_path: &str,
         index_name: &str,
         output_flush_rows: usize,
+        rayon_threads: Option<usize>,
+        io_threads: Option<usize>,
     ) -> MergeResult<Self> {
         if let Some(parent) = Path::new(output_path).parent() {
             if !parent.exists() {
@@ -90,15 +94,17 @@ impl MergeContext {
         let throttled_writer =
             RateLimitedWriter::new(output_file, RATE_LIMIT_MB_PER_SEC).map_err(MergeError::Io)?;
 
+        let (crc_writer, crc_handle) = CrcWriter::new(throttled_writer);
+
         let config = SETTINGS_STORE
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
         let writer_props = Arc::new(WriterPropertiesBuilder::build(&config));
 
-        let writer = SerializedFileWriter::new(throttled_writer, parquet_root, writer_props)?;
+        let writer = SerializedFileWriter::new(crc_writer, parquet_root, writer_props)?;
         let rg_writer_factory = ArrowRowGroupWriterFactory::new(&writer, output_schema.clone());
-        let io_tx = spawn_io_task(writer);
+        let io_tx = spawn_io_task(writer, crc_handle, io_threads);
 
         Ok(Self {
             data_schema,
@@ -111,6 +117,7 @@ impl MergeContext {
             row_group_index: 0,
             next_row_id: 0,
             total_rows_written: 0,
+            rayon_threads,
         })
     }
 
@@ -152,22 +159,19 @@ impl MergeContext {
             .rg_writer_factory
             .create_column_writers(self.row_group_index)?;
 
-        let mut leaves_and_writers = Vec::new();
-        {
-            let mut writer_iter = col_writers.into_iter();
-            for (arr, field) in with_id.columns().iter().zip(self.output_schema.fields()) {
-                for leaf in compute_leaves(field, arr)? {
-                    let col_writer = writer_iter.next().ok_or_else(|| {
-                        MergeError::Logic("Fewer column writers than leaf columns".into())
-                    })?;
-                    leaves_and_writers.push((leaf, col_writer));
+        let leaves_and_writers = match Self::pair_leaves_with_writers(&with_id, &self.output_schema, col_writers) {
+            Ok(paired) => paired,
+            Err((err, remaining)) => {
+                for w in remaining {
+                    let _ = w.close();
                 }
+                return Err(err);
             }
-        }
+        };
 
         let chunk_results: Vec<
             Result<parquet::arrow::arrow_writer::ArrowColumnChunk, parquet::errors::ParquetError>,
-        > = get_merge_pool().install(|| {
+        > = get_merge_pool(self.rayon_threads).install(|| {
             leaves_and_writers
                 .into_par_iter()
                 .map(|(leaf, mut col_writer)| {
@@ -201,12 +205,44 @@ impl MergeContext {
         Ok(())
     }
 
-    /// Final flush + close the IO task. Returns Parquet metadata.
-    pub fn finish(mut self) -> MergeResult<parquet::file::metadata::ParquetMetaData> {
+    /// Pairs leaf arrays with column writers, returning unconsumed writers on error
+    /// so the caller can close them.
+    fn pair_leaves_with_writers(
+        batch: &RecordBatch,
+        schema: &Arc<ArrowSchema>,
+        col_writers: Vec<parquet::arrow::arrow_writer::ArrowColumnWriter>,
+    ) -> Result<
+        Vec<(parquet::arrow::arrow_writer::ArrowLeafColumn, parquet::arrow::arrow_writer::ArrowColumnWriter)>,
+        (MergeError, Vec<parquet::arrow::arrow_writer::ArrowColumnWriter>),
+    > {
+        let mut writer_iter = col_writers.into_iter();
+        let mut paired = Vec::new();
+        for (arr, field) in batch.columns().iter().zip(schema.fields()) {
+            let leaves = match compute_leaves(field, arr) {
+                Ok(l) => l,
+                Err(e) => return Err((e.into(), writer_iter.collect())),
+            };
+            for leaf in leaves {
+                match writer_iter.next() {
+                    Some(w) => paired.push((leaf, w)),
+                    None => {
+                        return Err((
+                            MergeError::Logic("Fewer column writers than leaf columns".into()),
+                            Vec::new(),
+                        ))
+                    }
+                }
+            }
+        }
+        Ok(paired)
+    }
+
+    /// Final flush + close the IO task. Returns Parquet metadata and CRC32.
+    pub fn finish(mut self) -> MergeResult<(parquet::file::metadata::ParquetMetaData, u32)> {
         self.flush()?;
 
         let (reply_tx, reply_rx) =
-            oneshot::channel::<MergeResult<parquet::file::metadata::ParquetMetaData>>();
+            oneshot::channel::<MergeResult<(parquet::file::metadata::ParquetMetaData, u32)>>();
 
         self.io_tx
             .blocking_send(IoCommand::Close(reply_tx))

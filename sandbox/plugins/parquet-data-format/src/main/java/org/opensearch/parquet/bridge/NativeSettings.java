@@ -21,12 +21,15 @@ public class NativeSettings {
     private final Long pageSizeBytes;
     private final Integer pageRowLimit;
     private final Long dictSizeBytes;
-    private final Long rowGroupSizeBytes;
     private final Boolean bloomFilterEnabled;
     private final Double bloomFilterFpp;
     private final Long bloomFilterNdv;
     private final Long sortInMemoryThresholdBytes;
     private final Integer sortBatchSize;
+    private final Integer rowGroupMaxRows;
+    private final Integer mergeBatchSize;
+    private final Integer mergeRayonThreads;
+    private final Integer mergeIoThreads;
 
     private NativeSettings(Builder builder) {
         this.indexName = builder.indexName;
@@ -35,12 +38,15 @@ public class NativeSettings {
         this.pageSizeBytes = builder.pageSizeBytes;
         this.pageRowLimit = builder.pageRowLimit;
         this.dictSizeBytes = builder.dictSizeBytes;
-        this.rowGroupSizeBytes = builder.rowGroupSizeBytes;
         this.bloomFilterEnabled = builder.bloomFilterEnabled;
         this.bloomFilterFpp = builder.bloomFilterFpp;
         this.bloomFilterNdv = builder.bloomFilterNdv;
         this.sortInMemoryThresholdBytes = builder.sortInMemoryThresholdBytes;
         this.sortBatchSize = builder.sortBatchSize;
+        this.rowGroupMaxRows = builder.rowGroupMaxRows;
+        this.mergeBatchSize = builder.mergeBatchSize;
+        this.mergeRayonThreads = builder.mergeRayonThreads;
+        this.mergeIoThreads = builder.mergeIoThreads;
     }
 
     public String getIndexName() {
@@ -67,10 +73,6 @@ public class NativeSettings {
         return dictSizeBytes;
     }
 
-    public Long getRowGroupSizeBytes() {
-        return rowGroupSizeBytes;
-    }
-
     public Boolean getBloomFilterEnabled() {
         return bloomFilterEnabled;
     }
@@ -91,6 +93,22 @@ public class NativeSettings {
         return sortBatchSize;
     }
 
+    public Integer getRowGroupMaxRows() {
+        return rowGroupMaxRows;
+    }
+
+    public Integer getMergeBatchSize() {
+        return mergeBatchSize;
+    }
+
+    public Integer getMergeRayonThreads() {
+        return mergeRayonThreads;
+    }
+
+    public Integer getMergeIoThreads() {
+        return mergeIoThreads;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -102,12 +120,15 @@ public class NativeSettings {
         private Long pageSizeBytes;
         private Integer pageRowLimit;
         private Long dictSizeBytes;
-        private Long rowGroupSizeBytes;
         private Boolean bloomFilterEnabled;
         private Double bloomFilterFpp;
         private Long bloomFilterNdv;
         private Long sortInMemoryThresholdBytes;
         private Integer sortBatchSize;
+        private Integer rowGroupMaxRows;
+        private Integer mergeBatchSize;
+        private Integer mergeRayonThreads;
+        private Integer mergeIoThreads;
 
         public Builder indexName(String v) {
             this.indexName = v;
@@ -139,11 +160,6 @@ public class NativeSettings {
             return this;
         }
 
-        public Builder rowGroupSizeBytes(Long v) {
-            this.rowGroupSizeBytes = v;
-            return this;
-        }
-
         public Builder bloomFilterEnabled(Boolean v) {
             this.bloomFilterEnabled = v;
             return this;
@@ -166,6 +182,26 @@ public class NativeSettings {
 
         public Builder sortBatchSize(Integer v) {
             this.sortBatchSize = v;
+            return this;
+        }
+
+        public Builder rowGroupMaxRows(Integer v) {
+            this.rowGroupMaxRows = v;
+            return this;
+        }
+
+        public Builder mergeBatchSize(Integer v) {
+            this.mergeBatchSize = v;
+            return this;
+        }
+
+        public Builder mergeRayonThreads(Integer v) {
+            this.mergeRayonThreads = v;
+            return this;
+        }
+
+        public Builder mergeIoThreads(Integer v) {
+            this.mergeIoThreads = v;
             return this;
         }
 

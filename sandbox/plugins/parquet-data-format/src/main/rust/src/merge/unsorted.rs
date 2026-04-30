@@ -17,17 +17,24 @@ use crate::{log_debug, log_info};
 
 use super::context::MergeContext;
 use super::error::MergeResult;
-use super::io_task::{BATCH_SIZE, OUTPUT_FLUSH_ROWS};
 use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
 
 /// Unsorted merge: reads each input file sequentially, pads to union schema,
-/// rewrites `___row_id` with globally sequential values. No sorting performed.
+/// rewrites `__row_id__` with globally sequential values. No sorting performed.
 pub fn merge_unsorted(
     input_files: &[String],
     output_path: &str,
     index_name: &str,
-) -> MergeResult<()> {
-    log_info!(
+) -> MergeResult<u32> {
+    let config = crate::writer::SETTINGS_STORE
+        .get(index_name)
+        .map(|r| r.clone())
+        .unwrap_or_default();
+    let batch_size = config.get_merge_batch_size();
+    let output_flush_rows = config.get_row_group_max_rows();
+    let rayon_threads = config.get_merge_rayon_threads();
+    let io_threads = config.get_merge_io_threads();
+    log_debug!(
         "[RUST] Starting unsorted merge: {} input files, output='{}'",
         input_files.len(),
         output_path
@@ -46,9 +53,9 @@ pub fn merge_unsorted(
 
         let projection_indices = projection_indices_excluding_row_id(&schema);
         let projection = parquet::arrow::ProjectionMask::roots(&parquet_descr, projection_indices);
-        let reader = builder.with_batch_size(BATCH_SIZE).with_projection(projection).build()?;
+        let reader = builder.with_batch_size(batch_size).with_projection(projection).build()?;
 
-        // The reader's schema is the projected schema (___row_id excluded).
+        // The reader's schema is the projected schema (__row_id__ excluded).
         arrow_schemas.push(reader.schema().as_ref().clone());
         parquet_descriptors.push(parquet_descr);
         readers.push(reader);
@@ -59,7 +66,9 @@ pub fn merge_unsorted(
         &parquet_descriptors,
         output_path,
         index_name,
-        OUTPUT_FLUSH_ROWS,
+        output_flush_rows,
+        rayon_threads,
+        io_threads,
     )?;
 
     // Precompute column mappings per reader
@@ -82,14 +91,15 @@ pub fn merge_unsorted(
         }
     }
 
-    let _metadata = ctx.finish()?;
+    let (_metadata, crc32) = ctx.finish()?;
 
-    log_info!(
-        "[RUST] Unsorted merge complete: {} total rows written to '{}' in {} row groups",
+    log_debug!(
+        "[RUST] Unsorted merge complete: {} total rows written to '{}' in {} row groups, crc32={:#010x}",
         _metadata.file_metadata().num_rows(),
         output_path,
-        _metadata.num_row_groups()
+        _metadata.num_row_groups(),
+        crc32
     );
 
-    Ok(())
+    Ok(crc32)
 }

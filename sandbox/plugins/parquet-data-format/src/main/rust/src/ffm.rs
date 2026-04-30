@@ -215,12 +215,15 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     page_size_bytes: i64,
     page_row_limit: i64,
     dict_size_bytes: i64,
-    row_group_size_bytes: i64,
     bloom_filter_enabled: i64,
     bloom_filter_fpp: f64,
     bloom_filter_ndv: i64,
     sort_in_memory_threshold_bytes: i64,
     sort_batch_size: i64,
+    row_group_max_rows: i64,
+    merge_batch_size: i64,
+    merge_rayon_threads: i64,
+    merge_io_threads: i64,
 ) -> i64 {
     let index_name = str_from_raw(index_name_ptr, index_name_len)
         .map_err(|e| format!("parquet_on_settings_update index_name: {}", e))?.to_string();
@@ -245,12 +248,15 @@ pub unsafe extern "C" fn parquet_on_settings_update(
         page_size_bytes: opt_usize(page_size_bytes),
         page_row_limit: opt_usize(page_row_limit),
         dict_size_bytes: opt_usize(dict_size_bytes),
-        row_group_size_bytes: opt_usize(row_group_size_bytes),
         bloom_filter_enabled: opt_bool(bloom_filter_enabled),
         bloom_filter_fpp: opt_f64(bloom_filter_fpp),
         bloom_filter_ndv: opt_u64(bloom_filter_ndv),
         sort_in_memory_threshold_bytes: opt_u64(sort_in_memory_threshold_bytes),
         sort_batch_size: opt_usize(sort_batch_size),
+        row_group_max_rows: opt_usize(row_group_max_rows),
+        merge_batch_size: opt_usize(merge_batch_size),
+        merge_rayon_threads: opt_usize(merge_rayon_threads),
+        merge_io_threads: opt_usize(merge_io_threads),
         ..Default::default()
     };
 
@@ -325,4 +331,85 @@ pub unsafe extern "C" fn parquet_merge_files(
     }
     .map(|_| 0)
     .map_err(|e| format!("{}", e))
+}
+
+// ---------------------------------------------------------------------------
+// Parquet reader (for test verification)
+// ---------------------------------------------------------------------------
+
+/// Reads a parquet file and returns its contents as a JSON string.
+/// Each row is a JSON object. The result is a JSON array of objects.
+/// The JSON bytes are written into `out_buf`, actual length into `out_len`.
+/// Returns 0 on success.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_read_as_json(
+    file_ptr: *const u8,
+    file_len: i64,
+    out_buf: *mut u8,
+    buf_capacity: i64,
+    out_len: *mut i64,
+) -> i64 {
+    use arrow::array::Array;
+
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_read_as_json: {}", e))?.to_string();
+
+    let file = std::fs::File::open(&filename)
+        .map_err(|e| format!("Failed to open {}: {}", filename, e))?;
+    let builder = parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder::try_new(file)
+        .map_err(|e| format!("Failed to read parquet: {}", e))?;
+    let reader = builder.with_batch_size(8192).build()
+        .map_err(|e| format!("Failed to build reader: {}", e))?;
+
+    let mut rows: Vec<serde_json::Value> = Vec::new();
+    for batch_result in reader {
+        let batch = batch_result.map_err(|e| format!("Read error: {}", e))?;
+        let schema = batch.schema();
+        for row_idx in 0..batch.num_rows() {
+            let mut obj = serde_json::Map::new();
+            for (col_idx, field) in schema.fields().iter().enumerate() {
+                let col = batch.column(col_idx);
+                let val = if col.is_null(row_idx) {
+                    serde_json::Value::Null
+                } else {
+                    match col.data_type() {
+                        arrow::datatypes::DataType::Int32 => {
+                            let arr = col.as_any().downcast_ref::<arrow::array::Int32Array>().unwrap();
+                            serde_json::Value::Number(arr.value(row_idx).into())
+                        }
+                        arrow::datatypes::DataType::Int64 => {
+                            let arr = col.as_any().downcast_ref::<arrow::array::Int64Array>().unwrap();
+                            serde_json::Value::Number(arr.value(row_idx).into())
+                        }
+                        arrow::datatypes::DataType::Utf8 => {
+                            let arr = col.as_any().downcast_ref::<arrow::array::StringArray>().unwrap();
+                            serde_json::Value::String(arr.value(row_idx).to_string())
+                        }
+                        arrow::datatypes::DataType::Boolean => {
+                            let arr = col.as_any().downcast_ref::<arrow::array::BooleanArray>().unwrap();
+                            serde_json::Value::Bool(arr.value(row_idx))
+                        }
+                        arrow::datatypes::DataType::Float64 => {
+                            let arr = col.as_any().downcast_ref::<arrow::array::Float64Array>().unwrap();
+                            serde_json::json!(arr.value(row_idx))
+                        }
+                        _ => serde_json::Value::String(format!("<unsupported:{}>", col.data_type())),
+                    }
+                };
+                obj.insert(field.name().clone(), val);
+            }
+            rows.push(serde_json::Value::Object(obj));
+        }
+    }
+
+    let json_str = serde_json::to_string(&rows)
+        .map_err(|e| format!("JSON serialization failed: {}", e))?;
+    let bytes = json_str.as_bytes();
+    if bytes.len() > buf_capacity as usize {
+        return Err(format!("JSON output ({} bytes) exceeds buffer capacity ({})", bytes.len(), buf_capacity));
+    }
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, bytes.len());
+    *out_len = bytes.len() as i64;
+    Ok(0)
 }
