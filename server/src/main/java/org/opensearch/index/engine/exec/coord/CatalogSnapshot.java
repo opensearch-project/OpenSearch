@@ -113,7 +113,9 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
         Map<String, String> userData = segmentInfos.getUserData();
         String serialized = userData.get(CATALOG_SNAPSHOT_KEY);
         if (serialized != null && serialized.isEmpty() == false) {
-            return DataformatAwareCatalogSnapshot.deserializeFromString(serialized, directoryResolver);
+            DataformatAwareCatalogSnapshot dfa = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, directoryResolver);
+            dfa.setLastCommitInfo(segmentInfos.getSegmentsFileName(), segmentInfos.getGeneration());
+            return dfa;
         }
         return new SegmentInfosCatalogSnapshot(segmentInfos);
     }
@@ -325,6 +327,26 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      * {@code loadMetadata} skips the hash-full-file step when {@code null}.
      */
     public abstract String getSegmentsFileName();
+
+    /**
+     * Returns the last committed file name for this snapshot.
+     * For DFA snapshots this is set via {@link DataformatAwareCatalogSnapshot#setLastCommitInfo}
+     * after a flush or replication commit. For SI snapshots this delegates to
+     * {@link #getSegmentsFileName()}.
+     */
+    public abstract String getLastCommitFileName();
+
+    /**
+     * Returns the Lucene {@code segments_N} generation to use when serializing this snapshot
+     * into a synthetic {@code SegmentInfos} or building a {@code ReplicationCheckpoint}.
+     * <p>
+     * For {@code SegmentInfosCatalogSnapshot}, this is the Lucene generation from {@code SegmentInfos}.
+     * For {@code DataformatAwareCatalogSnapshot}, this is the generation set via
+     * {@link DataformatAwareCatalogSnapshot#setLastCommitInfo}, falling back to {@link #getGeneration()}.
+     */
+    public long getLastCommitGeneration() {
+        return getGeneration();
+    }
 
     /**
      * Returns the Lucene {@link SegmentInfos} bytes written into the remote metadata file. Bytes

@@ -295,7 +295,9 @@ final class CompositeTestHelper {
         boolean closeCalled = false;
 
         @Override
-        public void commit(Map<String, String> commitData) {}
+        public CommitResult commit(Map<String, String> commitData) {
+            return null;
+        }
 
         @Override
         public void close() {

@@ -106,6 +106,7 @@ public class DataFormatAwareUploadIT extends RemoteStoreBaseIntegTestCase {
         createDfaIndex(0);
         indexDocs(randomIntBetween(10, 30));
         client().admin().indices().prepareFlush(INDEX_NAME).get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
         final IndexShard primary = getIndexShard(primaryNodeName(), INDEX_NAME);
         assertBusy(() -> {
@@ -151,6 +152,7 @@ public class DataFormatAwareUploadIT extends RemoteStoreBaseIntegTestCase {
             indexDocs(5);
             client().admin().indices().prepareRefresh(INDEX_NAME).get();
             client().admin().indices().prepareFlush(INDEX_NAME).get();
+            client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
             final long capturedPrev = previousVersion;
             final int iteration = i;
@@ -209,6 +211,7 @@ public class DataFormatAwareUploadIT extends RemoteStoreBaseIntegTestCase {
             indexDocs(5);
             if (isFlush[i]) {
                 client().admin().indices().prepareFlush(INDEX_NAME).get();
+                client().admin().indices().prepareRefresh(INDEX_NAME).get();
             } else {
                 client().admin().indices().prepareRefresh(INDEX_NAME).get();
             }

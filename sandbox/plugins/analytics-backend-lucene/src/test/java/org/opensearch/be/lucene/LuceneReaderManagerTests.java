@@ -226,6 +226,11 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
+            public String getLastCommitFileName() {
+                return null;
+            }
+
+            @Override
             public byte[] serialize() throws IOException {
                 return new byte[0];
             }

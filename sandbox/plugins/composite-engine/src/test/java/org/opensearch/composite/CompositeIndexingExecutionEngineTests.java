@@ -241,9 +241,10 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         Map<String, String> lastCommitData = null;
 
         @Override
-        public void commit(Map<String, String> commitData) {
+        public CommitResult commit(Map<String, String> commitData) {
             commitCalled = true;
             lastCommitData = commitData;
+            return null;
         }
 
         @Override

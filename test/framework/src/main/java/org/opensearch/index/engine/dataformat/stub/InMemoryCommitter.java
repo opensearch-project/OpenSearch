@@ -28,8 +28,9 @@ public class InMemoryCommitter implements Committer {
     }
 
     @Override
-    public void commit(Map<String, String> commitData) {
+    public CommitResult commit(Map<String, String> commitData) {
         this.committedData = Map.copyOf(commitData);
+        return null;
     }
 
     @Override

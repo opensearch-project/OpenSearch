@@ -185,8 +185,8 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
 import org.opensearch.index.store.RemoteStoreFileDownloader;
@@ -2113,10 +2113,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (catalogSnapshot == null) {
             return ReplicationCheckpoint.empty(shardId);
         }
-        // DFA and Lucene paths both use the snapshot's own generation as the segmentsGen cookie;
-        // the synthetic SegmentInfos uploaded to remote carries the same value via setNextWriteGeneration,
-        // so the replica's SegmentInfos.readCommit(bytes, segmentsGen) suffix check matches.
-        final long segmentsGen = catalogSnapshot.getGeneration();
+        // DFA snapshots use the Lucene segments_N generation (parsed from segmentsFileName)
+        // so the replica's SegmentInfos.readCommit(bytes, segmentsGen) and commitCatalogSnapshot
+        // write the correct segments_N file. Falls back to the DFA catalog generation when
+        // segmentsFileName is not yet set.
+        final long segmentsGen = catalogSnapshot.getLastCommitGeneration();
         final ReplicationCheckpoint latestReplicationCheckpoint = getLatestReplicationCheckpoint();
         if (latestReplicationCheckpoint.getSegmentInfosVersion() == catalogSnapshot.getVersion()
             && latestReplicationCheckpoint.getSegmentsGen() == segmentsGen

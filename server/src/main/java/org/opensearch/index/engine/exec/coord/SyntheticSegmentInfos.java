@@ -26,8 +26,9 @@ import java.util.Map;
  *
  * <p>All Lucene-codec dependencies are confined to this class so
  * {@link DataformatAwareCatalogSnapshot} can stay a pure data carrier. The generation used for
- * {@code setNextWriteGeneration} is the snapshot's own DFA generation — it is a consistency
- * cookie only (the replica passes the same value to {@code SegmentInfos.readCommit}).</p>
+ * {@code setNextWriteGeneration} is the Lucene {@code segments_N} generation from the snapshot's
+ * {@link CatalogSnapshot#getLastCommitGeneration()}, ensuring the replica writes the correct
+ * {@code segments_N} file on commit.</p>
  */
 final class SyntheticSegmentInfos {
 
@@ -38,7 +39,7 @@ final class SyntheticSegmentInfos {
         Map<String, String> userData = new HashMap<>(snapshot.getUserData());
         userData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
         segmentInfos.setUserData(userData, false);
-        segmentInfos.setNextWriteGeneration(snapshot.getGeneration());
+        segmentInfos.setNextWriteGeneration(snapshot.getLastCommitGeneration());
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         segmentInfos.write(new ByteBuffersIndexOutput(out, "synthetic SegmentInfos", "synthetic SegmentInfos"));
         return out.toArrayCopy();

@@ -65,6 +65,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -916,7 +917,10 @@ public class DataFormatAwareEngine implements Indexer {
                         assert Long.parseLong(commitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) >= -1
                             : "local checkpoint in commit data must be >= -1";
                         assert Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO)) >= -1 : "max seq no in commit data must be >= -1";
-                        committer.commit(commitData);
+                        Committer.CommitResult commitResult = committer.commit(commitData);
+                        if (commitResult != null && snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
+                            dfaSnapshot.setLastCommitInfo(commitResult.commitFileName(), commitResult.generation());
+                        }
                         snapshotRef.markSuccess();
                         translogManager.trimUnreferencedReaders();
                     }
