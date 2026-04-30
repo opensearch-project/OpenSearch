@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Updated netty to 4.1.132.Final
+- Updated log4j to 2.25.4
 
 ### Deprecated
 
