@@ -1277,6 +1277,22 @@ public class MetadataCreateIndexService {
      * Also validates that mapper_settings keys are recognized for the configured mapper_type.
      */
     static void validateIngestionSourceSettings(Settings settings, ClusterState state) {
+        // General multi-shard pull-based ingestion warning.
+        String ingestionSourceType = IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.get(settings);
+        boolean isPullBasedIngestion = ingestionSourceType != null
+            && IndexMetadata.NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType) == false;
+        if (isPullBasedIngestion) {
+            int numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
+            if (numShards > 1) {
+                logger.warn(
+                    "Multi-shard pull-based ingestion with [{}] shards requires the source topic to be "
+                        + "key-partitioned by the document ID field for correctness. If the same document "
+                        + "appears in multiple source partitions, it may be indexed into multiple shards.",
+                    numShards
+                );
+            }
+        }
+
         if (IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.exists(settings) == false) {
             return;
         }
@@ -1315,19 +1331,6 @@ public class MetadataCreateIndexService {
                         + minNodeVersion
                         + "]"
                 );
-            }
-
-            IngestionSource.PartitionStrategy partitionStrategy = IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.get(settings);
-            if (partitionStrategy == IngestionSource.PartitionStrategy.AUTO) {
-                int numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
-                if (numShards > 1) {
-                    logger.warn(
-                        "partition_strategy [auto] with [{}] shards requires the source topic to be key-partitioned "
-                            + "by the document ID field for correctness. If the source is not key-partitioned, "
-                            + "the same document may be indexed into multiple shards.",
-                        numShards
-                    );
-                }
             }
             // TODO: For partition_strategy=fixed, surface a warning when numSourcePartitions > numShards
             // (excess source partitions are silently never consumed) and an error when
