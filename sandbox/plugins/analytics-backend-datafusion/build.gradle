@@ -6,20 +6,39 @@
  * compatible open source license.
  */
 
+apply plugin: 'opensearch.internal-cluster-test'
+
+// SQL Unified Query API version (aligned with OpenSearch build version) — required by
+// the PPL transport plugin used in CoordinatorReduceIT.
+def sqlUnifiedQueryVersion = '3.6.0.0-SNAPSHOT'
+
 opensearchplugin {
   description = 'DataFusion native execution engine plugin for the query engine.'
   classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
   extendedPlugins = ['analytics-engine']
 }
 
+repositories {
+  maven {
+    name = 'OpenSearch Snapshots'
+    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+  }
+}
+
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
-// Guava is forbidden on compile classpaths by OpenSearch. Calcite's TableScan
-// references ImmutableList, so tests need it. Bypass via custom configuration.
+// Guava is forbidden on compile classpaths by OpenSearch. The fragment convertor's
+// StageInputTableScan extends Calcite TableScan (which leaks ImmutableList in its
+// constructor signature), and tests use Calcite types directly. Bypass via custom
+// configurations on both main and test compileClasspath while keeping Guava off the
+// plugin's runtime bundle (provided by analytics-engine).
 configurations {
+  calciteCompile
   calciteTestCompile
+  compileClasspath { exclude group: 'com.google.guava' }
   testCompileClasspath { exclude group: 'com.google.guava' }
 }
+sourceSets.main.compileClasspath += configurations.calciteCompile
 sourceSets.test.compileClasspath += configurations.calciteTestCompile
 
 dependencies {
@@ -28,19 +47,22 @@ dependencies {
 
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
+  // analytics-engine's RelNode types (OpenSearchStageInputScan) are referenced by the
+  // fragment convertor for pre-isthmus rewrite. compileOnly — provided at runtime by
+  // the parent analytics-engine plugin (extendedPlugins above).
+  compileOnly project(':sandbox:plugins:analytics-engine')
 
   compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // Apache Arrow dependencies.
-  // arrow-vector + arrow-memory-core are provided at runtime by the parent analytics-engine
-  // plugin (we extend it via extendedPlugins); compile-only here to avoid duplicate bundling
+  // arrow-vector + arrow-memory-core + arrow-format + flatbuffers are provided at runtime
+  // by the parent analytics-engine plugin; compile-only here to avoid duplicate bundling
   // and license files.
   compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
-  // Provided at runtime by parent analytics-engine plugin; compileOnly to avoid jar hell.
   compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
   compileOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
@@ -53,9 +75,32 @@ dependencies {
   // Substrait — Calcite RelNode to Substrait plan conversion for DataFusion native runtime
   implementation "io.substrait:isthmus:0.67.0"
   implementation "io.substrait:core:0.67.0"
+  // Jackson datatype module required by Substrait's DefaultExtensionCatalog (not transitively
+  // bundled by the analytics-engine parent plugin).
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
 
+  calciteCompile "com.google.guava:guava:${versions.guava}"
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
+
+  // ── internalClusterTest: end-to-end coordinator-reduce IT ───────────────────
+  // Pulls in every sibling plugin needed to construct a parquet-backed composite
+  // index, dispatch a multi-shard PPL aggregate, and exercise DatafusionReduceSink.
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
+  internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
+  internalClusterTestImplementation project(':sandbox:plugins:composite-engine')
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
+  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
+  internalClusterTestImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
+    exclude group: 'org.opensearch'
+  }
+  internalClusterTestImplementation("org.opensearch.query:unified-query-core:${sqlUnifiedQueryVersion}") {
+    exclude group: 'org.opensearch'
+  }
+  internalClusterTestImplementation("org.opensearch.query:unified-query-ppl:${sqlUnifiedQueryVersion}") {
+    exclude group: 'org.opensearch'
+  }
+  // PPL front-end plugin — provides UnifiedPPLExecuteAction transport action used by the IT.
+  internalClusterTestImplementation project(':sandbox:plugins:test-ppl-frontend')
 }
 
 test {
@@ -65,16 +110,67 @@ test {
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
+internalClusterTest {
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+  jvmArgs '-Darrow.memory.debug.allocator=false'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+configurations.all {
+  // okhttp-aws-signer is a transitive dep of unified-query-common (via unified-query-core),
+  // only published on JitPack, not needed for PPL parsing/planning
+  exclude group: 'com.github.babbel', module: 'okhttp-aws-signer'
+
+  resolutionStrategy {
+    // Align transitive versions with OpenSearch's managed versions — required because the
+    // unified-query-* artifacts pull in older versions of common libs that conflict with
+    // OpenSearch's enforced versions on internalClusterTest classpath.
+    force 'com.google.guava:guava:33.4.0-jre'
+    force 'com.google.guava:failureaccess:1.0.2'
+    force 'com.google.errorprone:error_prone_annotations:2.36.0'
+    force 'org.checkerframework:checker-qual:3.43.0'
+    force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+    force "org.slf4j:slf4j-api:${versions.slf4j}"
+    force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+    force "org.locationtech.jts:jts-core:${versions.jts}"
+    force "commons-codec:commons-codec:${versions.commonscodec}"
+    force "joda-time:joda-time:2.12.7"
+    force "org.yaml:snakeyaml:2.4"
+    force "org.codehaus.janino:janino:3.1.12"
+    force "org.codehaus.janino:commons-compiler:3.1.12"
+    force "commons-io:commons-io:${versions.commonsio}"
+    force "org.apache.commons:commons-lang3:3.18.0"
+    force "org.apache.commons:commons-text:1.11.0"
+    force "commons-logging:commons-logging:1.3.5"
+    force "net.minidev:json-smart:2.5.2"
+    force "org.apache.httpcomponents.client5:httpclient5:5.6"
+    force "org.apache.httpcomponents.core5:httpcore5:5.4"
+    force "com.squareup.okhttp3:okhttp:4.12.0"
+    force "org.jetbrains.kotlin:kotlin-stdlib:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
+    force "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+    force "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  }
+}
+
 tasks.withType(JavaCompile).configureEach {
   // Arrow references Jackson annotations not on classpath — harmless warnings
   options.compilerArgs -= '-Werror'
-}
-
-tasks.named('thirdPartyAudit').configure {
-  ignoreMissingClasses(
-    // Optional Calcite DDL parser — lives in calcite-server module, not needed at runtime
-    'org.apache.calcite.sql.parser.ddl.SqlDdlParserImpl'
-  )
 }
 
 // TODO: Remove once back-end is built out with test suite
@@ -86,4 +182,12 @@ tasks.named('forbiddenPatterns').configure {
 
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
     enabled = false
+}
+
+tasks.named('thirdPartyAudit').configure {
+    ignoreMissingClasses(
+        // SqlDdlParserImpl is generated by Calcite at build time and not bundled in the
+        // calcite-core jar; substrait-isthmus references it through reflection in optional code paths.
+        'org.apache.calcite.sql.parser.ddl.SqlDdlParserImpl'
+    )
 }

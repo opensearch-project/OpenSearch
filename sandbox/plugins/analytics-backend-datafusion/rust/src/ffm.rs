@@ -165,3 +165,130 @@ pub unsafe extern "C" fn df_sql_to_substrait(
     }
     Ok(0)
 }
+
+// ---------------------------------------------------------------------------
+// Coordinator-reduce local execution exports
+//
+// Mirror the shard-scan exports above: fallible entry points use `#[ffm_safe]`
+// so `Err(String)` returns are converted into a negated heap-allocated error
+// string pointer that `NativeCall.invoke` reads and frees on the Java side.
+// Close functions are infallible and do not use the macro. The output stream
+// returned by `df_execute_local_plan` is the same `QueryStreamHandle` shape
+// as `df_execute_query`, so it drains through the existing `df_stream_next` /
+// `df_stream_close` paths unchanged.
+// ---------------------------------------------------------------------------
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_create_local_session(runtime_ptr: i64) -> i64 {
+    api::create_local_session(runtime_ptr).map_err(|e| e.to_string())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn df_close_local_session(ptr: i64) {
+    api::close_local_session(ptr);
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream(
+    session_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len)
+        .map_err(|e| format!("df_register_partition_stream: input_id: {}", e))?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    api::register_partition_stream(session_ptr, input_id, schema_ipc).map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_execute_local_plan(
+    session_ptr: i64,
+    substrait_ptr: *const u8,
+    substrait_len: i64,
+) -> i64 {
+    let mgr = get_rt_manager()?;
+    // Copy substrait bytes into an owned Vec so the spawned future can move them
+    // (cpu_executor.spawn requires 'static). Clone the manager Arc twice — once for
+    // the inner future to access the runtime env / etc., once for the outer block_on
+    // closure to call `cpu_executor().spawn`.
+    let bytes_vec = slice::from_raw_parts(substrait_ptr, substrait_len as usize).to_vec();
+    let mgr_for_inner = Arc::clone(&mgr);
+    let mgr_for_spawn = Arc::clone(&mgr);
+    // Wrap plan setup in cpu_executor.spawn so internal DataFusion spawns
+    // (RepartitionExec drain, CoalescePartitionsExec, etc.) inherit the CPU executor
+    // instead of the IO runtime. Without this, operator hash work runs on IO workers.
+    // The IO runtime still drives the outer block_on (bridging the synchronous FFI
+    // call to the async spawn handle).
+    mgr.io_runtime
+        .block_on(async move {
+            let inner_fut = async move {
+                unsafe { api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, 0).await }
+            };
+            match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
+                Ok(inner_result) => inner_result,
+                Err(e) => Err(datafusion::error::DataFusionError::Execution(format!(
+                    "execute_local_plan: CPU spawn failed: {e:?}"
+                ))),
+            }
+        })
+        .map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_sender_send(sender_ptr: i64, array_ptr: i64, schema_ptr: i64) -> i64 {
+    let mgr = get_rt_manager()?;
+    api::sender_send(sender_ptr, array_ptr, schema_ptr, mgr.io_runtime.handle())
+        .map(|_| 0)
+        .map_err(|e| e.to_string())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
+    api::sender_close(sender_ptr);
+}
+
+/// Memtable variant of `df_register_partition_stream`: instead of returning a
+/// sender that streams batches one at a time, the caller hands across `n`
+/// already-exported Arrow C Data batches in two parallel pointer arrays and
+/// the native side constructs a [`MemTable`] in one shot.
+///
+/// `array_ptrs` and `schema_ptrs` must each point to an `n`-element array of
+/// `i64`s, where each pair `(array_ptrs[i], schema_ptrs[i])` is a populated
+/// `FFI_ArrowArray` / `FFI_ArrowSchema` pair owned by the caller. On success
+/// Rust takes ownership; on error the structs are dropped on the Rust side.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_memtable(
+    session_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+    array_ptrs: *const i64,
+    schema_ptrs: *const i64,
+    n_batches: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len)
+        .map_err(|e| format!("df_register_memtable: input_id: {}", e))?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    let n = n_batches as usize;
+    let array_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(array_ptrs, n)
+    };
+    let schema_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(schema_ptrs, n)
+    };
+    api::register_memtable(session_ptr, input_id, schema_ipc, array_slice, schema_slice)
+        .map(|_| 0)
+        .map_err(|e| e.to_string())
+}

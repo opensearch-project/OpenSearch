@@ -30,4 +30,7 @@ public interface OperatorAnnotation {
 
     /** Returns the original unwrapped expression with annotation removed. */
     RexNode unwrap();
+
+    /** Returns a copy of this annotation wrapping a different (adapted) inner expression. */
+    RexNode withAdaptedOriginal(RexNode adaptedOriginal);
 }

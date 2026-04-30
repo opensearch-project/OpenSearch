@@ -65,11 +65,20 @@ public class OpenSearchProjectRule extends RelOptRule {
         // SqlKind → viable backends map once per onMatch() call, and (b) returning
         // childViableBackends directly when all candidates pass to avoid allocation.
         List<RexNode> annotatedExprs = new ArrayList<>(project.getProjects().size());
+        boolean requiresBackendCapabilityEvaluation = false;
         for (RexNode expr : project.getProjects()) {
-            annotatedExprs.add(annotateExpr(expr, childViableBackends));
+            RexNode annotated = annotateExpr(expr, childViableBackends);
+            annotatedExprs.add(annotated);
+            if (annotated instanceof AnnotatedProjectExpression) {
+                requiresBackendCapabilityEvaluation = true;
+            }
         }
 
-        List<String> viableBackends = computeProjectViableBackends(annotatedExprs, childViableBackends);
+        // Passthrough projection: no RexCall to evaluate, so any child backend can emit it.
+        List<String> viableBackends = requiresBackendCapabilityEvaluation
+            ? computeProjectViableBackends(annotatedExprs, childViableBackends)
+            : childViableBackends;
+
         if (viableBackends.isEmpty()) {
             throw new IllegalStateException("No backend can execute all project expressions among " + childViableBackends);
         }
@@ -150,6 +159,9 @@ public class OpenSearchProjectRule extends RelOptRule {
 
     private List<String> resolveScalarViableBackends(RexCall rexCall, List<String> childViableBackends) {
         ScalarFunction scalarFunc = ScalarFunction.fromSqlKind(rexCall.getKind());
+        if (scalarFunc == null && rexCall.getOperator() instanceof SqlFunction sqlFunction) {
+            scalarFunc = ScalarFunction.fromSqlFunction(sqlFunction);
+        }
         if (scalarFunc == null) {
             return List.of();
         }

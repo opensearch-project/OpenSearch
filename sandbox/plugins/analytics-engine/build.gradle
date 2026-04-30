@@ -95,6 +95,25 @@ dependencies {
   testRuntimeOnly "org.codehaus.janino:janino:3.1.12"
   testRuntimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
 
+  // jackson-annotations — required at runtime by jackson-databind (transitive via Calcite).
+  // Without this, child plugins that use Arrow's Schema (which triggers ObjectMapper init)
+  // fail with NoClassDefFoundError for JsonSerializeAs.
+  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+
+  // commons-math3 — Calcite's TimeFrames.<clinit> references
+  // org.apache.commons.math3.fraction.BigFraction. Must live in this parent plugin's
+  // classloader because calcite-core is loaded here; child plugins (opensearch-sql)
+  // can't satisfy classloads triggered by parent-loaded classes.
+  runtimeOnly "org.apache.commons:commons-math3:3.6.1"
+
+  // httpcore5 — Avatica's BuiltInConnectionProperty static initializer references
+  // org.apache.hc.core5.util.Timeout. Must live in this parent plugin's classloader
+  // because calcite-core/avatica-core are loaded here; child plugins (test-ppl-frontend)
+  // can't satisfy classloads triggered by parent-loaded classes.
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
+  runtimeOnly "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+
   // arrow-memory-unsafe provides the DefaultAllocationManager that arrow-memory-core
   // discovers via ServiceLoader at runtime. Must be in the parent plugin's classloader
   // because BaseAllocator (from arrow-memory-core) does the ServiceLoader lookup.
@@ -102,6 +121,8 @@ dependencies {
   // Required at runtime by arrow-vector (ArrowType subclasses reference flatbuffers and arrow-format).
   runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
   runtimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+  // Required at runtime by avatica-core (BuiltInConnectionProperty.<clinit> references Timeout).
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5:5.4"
 
   // SQL Unified Query API for PPL parsing
   testImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
@@ -146,6 +167,19 @@ tasks.named('thirdPartyAudit').configure {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
+
+  ignoreMissingClasses(
+    // Optional brotli compression support pulled in by httpclient5 — not used by analytics
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+    // Optional Apache Commons Compress reference — gated by runtime classpath probe
+    'org.apache.commons.compress.compressors.CompressorStreamFactory',
+    // Optional Conscrypt provider — TLS support fallback path
+    'org.conscrypt.Conscrypt'
+  )
 }
 
 configurations.all {
@@ -184,6 +218,8 @@ configurations.all {
     force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
     force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
     force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
+    force "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+    force "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   }
 }
 

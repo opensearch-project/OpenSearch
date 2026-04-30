@@ -11,11 +11,11 @@ package org.opensearch.index.store;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Factory interface for creating DataFormatAwareStoreDirectory instances.
@@ -46,7 +46,7 @@ public interface DataFormatAwareStoreDirectoryFactory {
      * @param shardId                the shard identifier
      * @param shardPath              the path the shard is using for file storage
      * @param localDirectoryFactory  the factory for creating the underlying local directory, respecting index store type configuration
-     * @param dataFormatRegistry     registry of available data format plugins
+     * @param checksumStrategies     pre-built checksum strategies keyed by format name
      * @return a new DataFormatAwareStoreDirectory instance supporting all discovered formats
      * @throws IOException if directory creation fails or resources cannot be allocated
      */
@@ -55,6 +55,6 @@ public interface DataFormatAwareStoreDirectoryFactory {
         ShardId shardId,
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
-        DataFormatRegistry dataFormatRegistry
+        Map<String, FormatChecksumStrategy> checksumStrategies
     ) throws IOException;
 }

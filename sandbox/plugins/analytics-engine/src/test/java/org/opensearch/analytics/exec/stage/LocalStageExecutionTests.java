@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec.stage;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.opensearch.analytics.exec.RowProducingSink;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.test.OpenSearchTestCase;
@@ -42,7 +43,7 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    public void testStartClosesSinksAndTransitionsToSucceeded() {
+    public void testStartClosesBackendSinkAndTransitionsToSucceeded() {
         CapturingSink backend = new CapturingSink();
         CapturingSink downstream = new CapturingSink();
         LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, downstream);
@@ -50,7 +51,9 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
         exec.start();
 
         assertTrue("backend sink closed", backend.closed);
-        assertTrue("downstream sink closed", downstream.closed);
+        // Downstream is NOT closed by start() — its lifecycle is owned by the walker,
+        // which still needs to read the buffered batches via outputSource().readResult().
+        assertFalse("downstream must not be closed by LocalStageExecution.start()", downstream.closed);
         assertEquals(StageExecution.State.SUCCEEDED, exec.getState());
     }
 
@@ -63,7 +66,13 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
         assertSame(backend, exec.inputSink(42));
     }
 
-    public void testOutputSourceThrowsUnsupported() {
+    public void testOutputSourceReturnsDownstreamWhenItImplementsExchangeSource() {
+        RowProducingSink downstream = new RowProducingSink();
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), new CapturingSink(), downstream);
+        assertSame(downstream, exec.outputSource());
+    }
+
+    public void testOutputSourceThrowsWhenDownstreamDoesNotImplementExchangeSource() {
         LocalStageExecution exec = new LocalStageExecution(stageWithId(0), new CapturingSink(), new CapturingSink());
         expectThrows(UnsupportedOperationException.class, exec::outputSource);
     }
