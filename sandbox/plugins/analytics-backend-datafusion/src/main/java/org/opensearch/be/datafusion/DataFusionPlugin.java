@@ -183,11 +183,6 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         return List.of(DATAFUSION_MEMORY_POOL_LIMIT, DATAFUSION_SPILL_MEMORY_LIMIT, DATAFUSION_REDUCE_INPUT_MODE);
     }
 
-    @Override
-    public List<Setting<?>> getSettings() {
-        return List.of(DATAFUSION_MEMORY_POOL_LIMIT, DATAFUSION_SPILL_MEMORY_LIMIT);
-    }
-
     /**
      * Applies a new memory pool limit to the running DataFusion runtime.
      * <p>
