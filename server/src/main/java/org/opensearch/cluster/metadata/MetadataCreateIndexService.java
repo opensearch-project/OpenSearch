@@ -1293,6 +1293,28 @@ public class MetadataCreateIndexService {
             }
         }
 
+        // Partition strategy validation. The setting key itself was introduced in V_3_7_0; reject any explicit
+        // value (including [simple], the default) on mixed clusters where some nodes don't
+        // recognize the key — otherwise index metadata replicated to older nodes would carry
+        // an unknown setting.
+        if (IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_7_0)) {
+                throw new IllegalArgumentException(
+                    "index.ingestion_source.partition_strategy requires all nodes in the cluster to be on version ["
+                        + Version.V_3_7_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
+            // TODO: For partition_strategy=simple, surface a warning when numSourcePartitions > numShards
+            // (excess source partitions are silently never consumed) and an error when
+            // numSourcePartitions < numShards (shards beyond numSourcePartitions-1 fail to initialize).
+            // Requires consumerFactory.getSourcePartitionCount() which is added in a follow-up PR
+            // (multi-partition consumer factory). The check will be wired here once available.
+        }
+
         if (IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.exists(settings) == false) {
             return;
         }
@@ -1316,28 +1338,6 @@ public class MetadataCreateIndexService {
 
         // Settings validation to the mapper
         IngestionMessageMapper.validateSettings(mapperType, mapperSettings);
-
-        // Partition strategy validation
-        if (IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
-            // The setting key itself was introduced in V_3_7_0. Reject any explicit value (including
-            // [simple], the default) on mixed clusters where some nodes don't recognize the key —
-            // otherwise index metadata replicated to older nodes would carry an unknown setting.
-            Version minNodeVersion = state.nodes().getMinNodeVersion();
-            if (minNodeVersion.before(Version.V_3_7_0)) {
-                throw new IllegalArgumentException(
-                    "index.ingestion_source.partition_strategy requires all nodes in the cluster to be on version ["
-                        + Version.V_3_7_0
-                        + "] or later, but the minimum node version is ["
-                        + minNodeVersion
-                        + "]"
-                );
-            }
-            // TODO: For partition_strategy=simple, surface a warning when numSourcePartitions > numShards
-            // (excess source partitions are silently never consumed) and an error when
-            // numSourcePartitions < numShards (shards beyond numSourcePartitions-1 fail to initialize).
-            // Requires consumerFactory.getSourcePartitionCount() which is added in a follow-up PR
-            // (multi-partition consumer factory). The check will be wired here once available.
-        }
     }
 
     /**

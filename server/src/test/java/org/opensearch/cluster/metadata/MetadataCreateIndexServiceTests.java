@@ -3912,4 +3912,93 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("cannot be the same"));
     }
 
+    // ---- partition_strategy validation tests ----
+
+    public void testValidateIngestionSourceSettingsPartitionStrategyOnCurrentVersion() {
+        // partition_strategy explicitly set on a current-version cluster — should pass
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "modulo").build();
+
+        // Should not throw
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    public void testValidateIngestionSourceSettingsPartitionStrategySimpleOnCurrentVersion() {
+        // Even setting the default value (simple) explicitly should pass on current-version cluster
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "simple").build();
+
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    public void testValidateIngestionSourceSettingsPartitionStrategyOnMixedClusterRejected() {
+        // partition_strategy setting key was introduced in V_3_7_0. Any explicit value (including
+        // the default 'simple') should be rejected if the cluster has nodes < V_3_7_0 — otherwise
+        // those nodes would receive replicated index metadata containing an unknown setting key.
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, Version.V_3_5_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "modulo").build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+        );
+        assertTrue(e.getMessage().contains("index.ingestion_source.partition_strategy requires all nodes"));
+        assertTrue(e.getMessage().contains(Version.V_3_7_0.toString()));
+        assertTrue(e.getMessage().contains(Version.V_3_5_0.toString()));
+    }
+
+    public void testValidateIngestionSourceSettingsPartitionStrategySimpleAlsoRejectedOnMixedCluster() {
+        // Even the default value 'simple' set explicitly is rejected on a mixed cluster — the
+        // setting KEY itself is unknown to older nodes, regardless of the value.
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, Version.V_3_5_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "simple").build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+        );
+        assertTrue(e.getMessage().contains("index.ingestion_source.partition_strategy requires all nodes"));
+    }
+
+    public void testValidateIngestionSourceSettingsPartitionStrategyAbsentOnMixedClusterPasses() {
+        // Without the explicit partition_strategy setting, no metadata is replicated — old nodes are unaffected.
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, Version.V_3_5_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        // No partition_strategy in settings — validation should pass even on mixed cluster
+        Settings settings = Settings.builder().build();
+
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    public void testValidateIngestionSourceSettingsNonPullBasedSkipsWarning() {
+        // Non-pull-based index (no ingestion source type) should skip the multi-shard warning
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4).build();
+
+        // Should not throw and should not log the multi-shard warning (no ingestion source)
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
 }
