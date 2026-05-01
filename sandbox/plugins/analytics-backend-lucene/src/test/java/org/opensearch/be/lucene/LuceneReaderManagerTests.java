@@ -187,11 +187,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public String getSegmentsFileName() {
-                return null;
-            }
-
-            @Override
             public String getLastCommitFileName() {
                 return null;
             }

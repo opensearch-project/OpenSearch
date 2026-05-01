@@ -108,11 +108,6 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public String getSegmentsFileName() {
-        return null;
-    }
-
-    @Override
     public String getLastCommitFileName() {
         return null;
     }
