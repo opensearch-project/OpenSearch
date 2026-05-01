@@ -23,8 +23,14 @@ import org.apache.parquet.io.ColumnIOFactory;
 import org.apache.parquet.io.MessageColumnIO;
 import org.apache.parquet.io.RecordReader;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Types;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import io.trino.hive.thrift.metastore.Partition;
 import io.trino.hive.thrift.metastore.ThriftHiveMetastore;
+import io.trino.hive.thrift.metastore.FieldSchema;
+import io.trino.hive.thrift.metastore.Table;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
@@ -57,6 +63,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private TTransport metastoreTransport;
     private FileSystem fileSystem;
     private Configuration hadoopConf;
+    private MessageType tableSchema;
+    private List<String> partitionKeys;
 
     // Partition tracking (Flink ContinuousPartitionFetcher pattern)
     private String watermark;  // last fully processed partition name
@@ -127,6 +135,14 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 }
             );
             logger.info("HiveShardConsumer initialized successfully for shard {}", shardId);
+
+            // Fetch table schema from Metastore and convert to Parquet MessageType
+            Table table = metastoreClient.getTable(config.getDatabase(), config.getTable());
+            tableSchema = hiveSchemaToParquet(table.getSd().getCols());
+            partitionKeys = table.getPartitionKeys().stream()
+                .map(FieldSchema::getName)
+                .collect(Collectors.toList());
+            logger.info("Table schema for shard {}: {}", shardId, tableSchema);
         }
     }
 
@@ -188,8 +204,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                     }
                     continue;
                 }
-                MessageColumnIO columnIO = new ColumnIOFactory().getColumnIO(currentSchema);
-                currentRecordReader = columnIO.getRecordReader(currentRowGroup, new GroupRecordConverter(currentSchema));
+                MessageColumnIO columnIO = new ColumnIOFactory().getColumnIO(tableSchema, currentSchema);
+                currentRecordReader = columnIO.getRecordReader(currentRowGroup, new GroupRecordConverter(tableSchema));
                 currentRowGroupRowsRemaining = currentRowGroup.getRowCount();
             }
 
@@ -322,58 +338,66 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     }
 
     private String partitionToName(Partition partition) {
-        // Reconstruct partition name like "dt=2026-04-15"
         List<String> values = partition.getValues();
-        try {
-            List<String> keys = metastoreClient.getTable(config.getDatabase(), config.getTable())
-                .getPartitionKeys()
-                .stream()
-                .map(f -> f.getName())
-                .collect(Collectors.toList());
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < keys.size(); i++) {
-                if (i > 0) sb.append("/");
-                sb.append(keys.get(i)).append("=").append(values.get(i));
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            return String.join("/", values);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < partitionKeys.size(); i++) {
+            if (i > 0) sb.append("/");
+            sb.append(partitionKeys.get(i)).append("=").append(values.get(i));
         }
+        return sb.toString();
     }
 
     private byte[] recordToJson(Group record) {
-        // Convert Parquet SimpleGroup to JSON
-        // SimpleGroup.toString() produces a readable but non-standard format.
-        // For PoC, build a simple JSON from the schema fields.
         StringBuilder sb = new StringBuilder("{");
         org.apache.parquet.schema.GroupType schema = record.getType();
         for (int i = 0; i < schema.getFieldCount(); i++) {
             if (i > 0) sb.append(",");
             String fieldName = schema.getFieldName(i);
             sb.append("\"").append(fieldName).append("\":");
-            try {
-                String value = record.getValueToString(i, 0);
-                // Attempt to detect numeric types
-                if (schema.getType(i).isPrimitive()) {
-                    switch (schema.getType(i).asPrimitiveType().getPrimitiveTypeName()) {
-                        case INT32:
-                        case INT64:
-                        case FLOAT:
-                        case DOUBLE:
-                            sb.append(value);
-                            break;
-                        default:
-                            sb.append("\"").append(value.replace("\"", "\\\"")).append("\"");
-                    }
-                } else {
-                    sb.append("\"").append(value.replace("\"", "\\\"")).append("\"");
-                }
-            } catch (Exception e) {
+            int repetitionCount = record.getFieldRepetitionCount(i);
+            if (repetitionCount == 0) {
                 sb.append("null");
+                continue;
+            }
+            if (schema.getType(i).isPrimitive()) {
+                switch (schema.getType(i).asPrimitiveType().getPrimitiveTypeName()) {
+                    case BOOLEAN:
+                        sb.append(record.getBoolean(i, 0));
+                        break;
+                    case INT32:
+                        sb.append(record.getInteger(i, 0));
+                        break;
+                    case INT64:
+                        sb.append(record.getLong(i, 0));
+                        break;
+                    case FLOAT:
+                        sb.append(record.getFloat(i, 0));
+                        break;
+                    case DOUBLE:
+                        sb.append(record.getDouble(i, 0));
+                        break;
+                    case BINARY:
+                    case FIXED_LEN_BYTE_ARRAY:
+                        String strVal = record.getString(i, 0);
+                        sb.append("\"").append(escapeJson(strVal)).append("\"");
+                        break;
+                    case INT96:
+                        // Timestamp stored as INT96 - output as string
+                        sb.append("\"").append(record.getValueToString(i, 0)).append("\"");
+                        break;
+                    default:
+                        sb.append("\"").append(escapeJson(record.getValueToString(i, 0))).append("\"");
+                }
+            } else {
+                sb.append("\"").append(escapeJson(record.getValueToString(i, 0))).append("\"");
             }
         }
         sb.append("}");
         return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static String escapeJson(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
     @Override
@@ -406,6 +430,59 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         if (pendingWork == null) return 0;
         int remaining = pendingWork.size() - currentWorkIndex;
         return remaining;
+    }
+
+    /**
+     * Converts Hive FieldSchema list to Parquet MessageType.
+     * Follows the same type mapping as Hive's HiveSchemaConverter.
+     */
+    private static MessageType hiveSchemaToParquet(List<FieldSchema> columns) {
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (FieldSchema col : columns) {
+            builder.addField(hiveTypeToParquetType(col.getName(), col.getType()));
+        }
+        return builder.named("table");
+    }
+
+    private static org.apache.parquet.schema.Type hiveTypeToParquetType(String name, String hiveType) {
+        switch (hiveType.toLowerCase(java.util.Locale.ROOT)) {
+            case "boolean":
+                return Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(name);
+            case "tinyint":
+            case "smallint":
+            case "int":
+                return Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named(name);
+            case "bigint":
+                return Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(name);
+            case "float":
+                return Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(name);
+            case "double":
+                return Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(name);
+            case "string":
+            case "varchar":
+            case "char":
+                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                    .as(LogicalTypeAnnotation.stringType())
+                    .named(name);
+            case "binary":
+                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(name);
+            case "timestamp":
+                return Types.optional(PrimitiveType.PrimitiveTypeName.INT96).named(name);
+            case "date":
+                return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+                    .as(LogicalTypeAnnotation.dateType())
+                    .named(name);
+            case "decimal":
+                // Default decimal(10,0) for unparameterized
+                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                    .as(LogicalTypeAnnotation.decimalType(0, 10))
+                    .named(name);
+            default:
+                // Fallback: treat as binary string
+                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                    .as(LogicalTypeAnnotation.stringType())
+                    .named(name);
+        }
     }
 
     @Override
