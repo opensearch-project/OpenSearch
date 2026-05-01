@@ -302,7 +302,8 @@ public final class NativeBridge {
                 FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT),
                 arena
             );
-            REGISTER_FILTER_TREE_CALLBACKS.invokeWithArguments(
+            NativeCall.invokeVoid(
+                REGISTER_FILTER_TREE_CALLBACKS,
                 createProviderStub,
                 releaseProviderStub,
                 createCollectorStub,

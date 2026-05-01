@@ -22,6 +22,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 
+/**
+ * FFM bridge to the native Rust parquet writer library.
+ */
 public class RustBridge {
 
     private static final MethodHandle CREATE_WRITER;

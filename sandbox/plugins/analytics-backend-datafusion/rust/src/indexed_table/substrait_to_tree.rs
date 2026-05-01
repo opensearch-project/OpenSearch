@@ -199,65 +199,37 @@ fn extract_binary_literal(expr: &Expr) -> Result<Arc<[u8]>, String> {
 /// Classify a filter tree to decide which execution path to take.
 ///
 /// - 0 collector leaves → `FilterClass::None`
-/// - 1 collector leaf, top-level AND with non-collector children only → `FilterClass::SingleCollector`
-/// - bare collector or AND(Collector, predicates...) → `FilterClass::SingleCollector`
-/// - AND(Collector, Collector, ...) with only collectors → `FilterClass::SingleCollector`
-///   (merged into single BooleanQuery by the backend)
-/// - anything else (OR / NOT / mixed collector+predicate in OR) → `FilterClass::Tree`
+/// - bare collector → `FilterClass::SingleCollector`
+/// - any AND-only tree (no OR/NOT above collectors) with ≥1 collector
+///   → `FilterClass::SingleCollector`. Nested ANDs with mixed
+///   collectors + predicates are accepted; `single_collector_bytes`
+///   merges the collectors and `extract_single_collector_residual`
+///   strips them to produce the predicate residual.
+/// - anything else (OR / NOT above a collector) → `FilterClass::Tree`
 pub fn classify_filter(tree: &BoolNode) -> FilterClass {
-    match tree.collector_leaf_count() {
-        0 => FilterClass::None,
-        1 => {
-            if matches!(tree, BoolNode::Collector { .. })
-                || is_and_of_collector_plus_predicates(tree)
-            {
-                FilterClass::SingleCollector
-            } else {
-                FilterClass::Tree
-            }
-        }
-        _ => {
-            // Multiple collectors: if top-level AND with ALL children
-            // being pure Collectors (no predicates), they can be merged
-            // into a single BooleanQuery → SingleCollector.
-            if is_and_of_only_collectors(tree) {
-                FilterClass::SingleCollector
-            } else {
-                FilterClass::Tree
-            }
-        }
+    if tree.collector_leaf_count() == 0 {
+        return FilterClass::None;
+    }
+    if matches!(tree, BoolNode::Collector { .. }) {
+        return FilterClass::SingleCollector;
+    }
+    if is_and_only_collector_tree(tree) {
+        FilterClass::SingleCollector
+    } else {
+        FilterClass::Tree
     }
 }
 
-/// Returns true if `tree` is `AND(Collector, ...non-collector-children)` with
-/// exactly one `Collector` child directly under the top-level `AND` and all
-/// other children having zero collector leaves. Path B shape.
-fn is_and_of_collector_plus_predicates(tree: &BoolNode) -> bool {
+/// Returns true when every collector in `tree` is reachable only
+/// through AND nodes (no OR or NOT on the path from root to any
+/// collector leaf). Predicates, ANDs, and collector leaves are fine;
+/// OR or NOT containing a collector disqualifies.
+fn is_and_only_collector_tree(tree: &BoolNode) -> bool {
     match tree {
-        BoolNode::And(children) => {
-            let mut collector_count = 0;
-            for child in children {
-                match child {
-                    BoolNode::Collector { .. } => collector_count += 1,
-                    other if other.collector_leaf_count() == 0 => {}
-                    _ => return false, // nested collector — Tree path
-                }
-            }
-            collector_count == 1
-        }
-        _ => false,
-    }
-}
-
-/// Returns true if `tree` is `AND(Collector, Collector, ...)` with ALL
-/// children being direct Collector leaves. These can be merged into a
-/// single Lucene BooleanQuery (MUST clauses) → SingleCollector path.
-fn is_and_of_only_collectors(tree: &BoolNode) -> bool {
-    match tree {
-        BoolNode::And(children) => children
-            .iter()
-            .all(|c| matches!(c, BoolNode::Collector { .. })),
-        _ => false,
+        BoolNode::And(children) => children.iter().all(is_and_only_collector_tree),
+        BoolNode::Collector { .. } | BoolNode::Predicate(_) => true,
+        // OR or NOT containing any collector → Tree path.
+        BoolNode::Or(_) | BoolNode::Not(_) => tree.collector_leaf_count() == 0,
     }
 }
 
@@ -519,9 +491,10 @@ mod tests {
     }
 
     #[test]
-    fn classify_and_with_two_collectors_is_tree() {
+    fn classify_and_with_two_collectors_is_single() {
+        // AND(C, C, P) — all collectors under AND-only path → SingleCollector.
         let tree = BoolNode::And(vec![collector(b"x"), collector(b"y"), dummy_predicate()]);
-        assert_eq!(classify_filter(&tree), FilterClass::Tree);
+        assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
     }
 
     #[test]
@@ -541,6 +514,93 @@ mod tests {
         let tree = BoolNode::And(vec![
             BoolNode::Or(vec![collector(b"x"), dummy_predicate()]),
             dummy_predicate(),
+        ]);
+        assert_eq!(classify_filter(&tree), FilterClass::Tree);
+    }
+
+    // ── Nested AND shapes → SingleCollector ──────────────────────────
+
+    #[test]
+    fn classify_nested_and_collector_plus_predicate_is_single() {
+        // AND(C₁, AND(C₂, P)) — nested AND, all collectors under AND-only path.
+        let tree = BoolNode::And(vec![
+            collector(b"x"),
+            BoolNode::And(vec![collector(b"y"), dummy_predicate()]),
+        ]);
+        assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
+    }
+
+    #[test]
+    fn classify_deeply_nested_and_is_single() {
+        // AND(P, AND(C₁, AND(C₂, AND(C₃, P)))) — depth 4, all AND.
+        let tree = BoolNode::And(vec![
+            dummy_predicate(),
+            BoolNode::And(vec![
+                collector(b"a"),
+                BoolNode::And(vec![
+                    collector(b"b"),
+                    BoolNode::And(vec![collector(b"c"), dummy_predicate()]),
+                ]),
+            ]),
+        ]);
+        assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
+    }
+
+    #[test]
+    fn classify_nested_and_only_collectors_is_single() {
+        // AND(AND(C₁, C₂), AND(C₃, C₄)) — nested AND of only collectors.
+        let tree = BoolNode::And(vec![
+            BoolNode::And(vec![collector(b"a"), collector(b"b")]),
+            BoolNode::And(vec![collector(b"c"), collector(b"d")]),
+        ]);
+        assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
+    }
+
+    #[test]
+    fn classify_nested_and_with_or_predicate_is_single() {
+        // AND(C, AND(P, OR(P, P))) — OR contains only predicates, no collectors.
+        let tree = BoolNode::And(vec![
+            collector(b"x"),
+            BoolNode::And(vec![
+                dummy_predicate(),
+                BoolNode::Or(vec![dummy_predicate(), dummy_predicate()]),
+            ]),
+        ]);
+        assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
+    }
+
+    #[test]
+    fn classify_nested_and_with_not_predicate_is_single() {
+        // AND(C, NOT(P)) — NOT wraps a predicate, not a collector.
+        let tree = BoolNode::And(vec![
+            collector(b"x"),
+            BoolNode::Not(Box::new(dummy_predicate())),
+        ]);
+        assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
+    }
+
+    #[test]
+    fn classify_nested_and_or_containing_collector_is_tree() {
+        // AND(C₁, AND(OR(C₂, P), P)) — OR above C₂ → Tree.
+        let tree = BoolNode::And(vec![
+            collector(b"x"),
+            BoolNode::And(vec![
+                BoolNode::Or(vec![collector(b"y"), dummy_predicate()]),
+                dummy_predicate(),
+            ]),
+        ]);
+        assert_eq!(classify_filter(&tree), FilterClass::Tree);
+    }
+
+    #[test]
+    fn classify_nested_and_not_containing_collector_is_tree() {
+        // AND(C₁, AND(NOT(C₂), P)) — NOT above C₂ → Tree.
+        let tree = BoolNode::And(vec![
+            collector(b"x"),
+            BoolNode::And(vec![
+                BoolNode::Not(Box::new(collector(b"y"))),
+                dummy_predicate(),
+            ]),
         ]);
         assert_eq!(classify_filter(&tree), FilterClass::Tree);
     }

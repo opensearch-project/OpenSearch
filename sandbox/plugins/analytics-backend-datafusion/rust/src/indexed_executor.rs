@@ -462,24 +462,30 @@ fn single_collector_bytes(tree: &BoolNode) -> Option<Arc<[u8]>> {
 }
 
 /// For a tree classified as `SingleCollector`, return the residual
-/// (all non-Collector children of the top-level AND, re-assembled into
-/// a single BoolNode). Returns `None` if the tree is a bare Collector
-/// (no residual).
+/// (all non-Collector parts of the AND tree, re-assembled into a
+/// single BoolNode). Recursively strips Collector leaves from nested
+/// ANDs. Returns `None` if the tree is a bare Collector or the entire
+/// tree is collectors-only (no residual predicates).
 fn extract_single_collector_residual(tree: &BoolNode) -> Option<BoolNode> {
-    let children = match tree {
-        BoolNode::And(c) => c,
-        _ => return None,
-    };
-    let residuals: Vec<BoolNode> = children
-        .iter()
-        .filter(|c| !matches!(c, BoolNode::Collector { .. }))
-        .cloned()
-        .collect();
-    match residuals.len() {
-        0 => None,
-        1 => Some(residuals.into_iter().next().unwrap()),
-        _ => Some(BoolNode::And(residuals)),
+    fn strip_collectors(node: &BoolNode) -> Option<BoolNode> {
+        match node {
+            BoolNode::Collector { .. } => None,
+            BoolNode::Predicate(_) => Some(node.clone()),
+            BoolNode::And(children) => {
+                let residuals: Vec<BoolNode> =
+                    children.iter().filter_map(strip_collectors).collect();
+                match residuals.len() {
+                    0 => None,
+                    1 => Some(residuals.into_iter().next().unwrap()),
+                    _ => Some(BoolNode::And(residuals)),
+                }
+            }
+            // OR/NOT with no collectors pass through unchanged (they're
+            // pure-predicate subtrees in a SingleCollector-classified tree).
+            other => Some(other.clone()),
+        }
     }
+    strip_collectors(tree)
 }
 
 // ── Placeholder provider used only for substrait consume pass ─────────
@@ -515,5 +521,117 @@ impl TableProvider for PlaceholderProvider {
         Err(DataFusionError::Internal(
             "PlaceholderProvider should not be scanned".into(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::indexed_table::bool_tree::BoolNode;
+    use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::common::ScalarValue;
+    use datafusion::logical_expr::Operator;
+    use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
+    use datafusion::physical_expr::PhysicalExpr;
+    use std::sync::Arc;
+
+    fn collector(tag: &[u8]) -> BoolNode {
+        BoolNode::Collector {
+            query_bytes: Arc::from(tag),
+        }
+    }
+
+    fn pred() -> BoolNode {
+        let left: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new("price", 0));
+        let right: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
+        BoolNode::Predicate(Arc::new(BinaryExpr::new(left, Operator::Eq, right)))
+    }
+
+    fn is_predicate(node: &BoolNode) -> bool {
+        matches!(node, BoolNode::Predicate(_))
+    }
+
+    // ── extract_single_collector_residual ─────────────────────────────
+
+    #[test]
+    fn residual_bare_collector_is_none() {
+        assert!(extract_single_collector_residual(&collector(b"x")).is_none());
+    }
+
+    #[test]
+    fn residual_and_collector_plus_predicate() {
+        let tree = BoolNode::And(vec![collector(b"x"), pred()]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        assert!(is_predicate(&r));
+    }
+
+    #[test]
+    fn residual_and_only_collectors_is_none() {
+        let tree = BoolNode::And(vec![collector(b"x"), collector(b"y")]);
+        assert!(extract_single_collector_residual(&tree).is_none());
+    }
+
+    #[test]
+    fn residual_nested_and_strips_collectors() {
+        // AND(C₁, AND(C₂, P)) → residual is P
+        let tree = BoolNode::And(vec![
+            collector(b"x"),
+            BoolNode::And(vec![collector(b"y"), pred()]),
+        ]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        assert!(is_predicate(&r));
+    }
+
+    #[test]
+    fn residual_deeply_nested_and() {
+        // AND(P₁, AND(C₁, AND(C₂, P₂))) → AND(P₁, P₂)
+        let p1 = pred();
+        let p2 = pred();
+        let tree = BoolNode::And(vec![
+            p1,
+            BoolNode::And(vec![
+                collector(b"a"),
+                BoolNode::And(vec![collector(b"b"), p2]),
+            ]),
+        ]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        match r {
+            BoolNode::And(children) => {
+                assert_eq!(children.len(), 2);
+                assert!(children.iter().all(is_predicate));
+            }
+            _ => panic!("expected AND, got {:?}", r),
+        }
+    }
+
+    #[test]
+    fn residual_nested_and_with_or_predicate() {
+        // AND(C, AND(P, OR(P, P))) → AND(P, OR(P, P))
+        let tree = BoolNode::And(vec![
+            collector(b"x"),
+            BoolNode::And(vec![
+                pred(),
+                BoolNode::Or(vec![pred(), pred()]),
+            ]),
+        ]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        match r {
+            BoolNode::And(children) => {
+                assert_eq!(children.len(), 2);
+                assert!(is_predicate(&children[0]));
+                assert!(matches!(children[1], BoolNode::Or(_)));
+            }
+            _ => panic!("expected AND, got {:?}", r),
+        }
+    }
+
+    #[test]
+    fn residual_nested_and_all_collectors_is_none() {
+        // AND(AND(C₁, C₂), AND(C₃, C₄)) → no residual
+        let tree = BoolNode::And(vec![
+            BoolNode::And(vec![collector(b"a"), collector(b"b")]),
+            BoolNode::And(vec![collector(b"c"), collector(b"d")]),
+        ]);
+        assert!(extract_single_collector_residual(&tree).is_none());
     }
 }
