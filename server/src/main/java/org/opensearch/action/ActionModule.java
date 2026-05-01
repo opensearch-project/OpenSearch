@@ -46,6 +46,10 @@ import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommi
 import org.opensearch.action.admin.cluster.decommission.awareness.get.TransportGetDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
+import org.opensearch.action.admin.cluster.deployment.GetDeploymentAction;
+import org.opensearch.action.admin.cluster.deployment.TransitionDeploymentAction;
+import org.opensearch.action.admin.cluster.deployment.TransportGetDeploymentAction;
+import org.opensearch.action.admin.cluster.deployment.TransportTransitionDeploymentAction;
 import org.opensearch.action.admin.cluster.filecache.PruneFileCacheAction;
 import org.opensearch.action.admin.cluster.filecache.TransportPruneFileCacheAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
@@ -369,6 +373,7 @@ import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestGetDecommissionStateAction;
+import org.opensearch.rest.action.admin.cluster.RestGetDeploymentAction;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.rest.action.admin.cluster.RestGetScriptContextAction;
 import org.opensearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
@@ -391,6 +396,7 @@ import org.opensearch.rest.action.admin.cluster.RestRemoteStoreStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreRemoteStoreAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
+import org.opensearch.rest.action.admin.cluster.RestTransitionDeploymentAction;
 import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestWlmStatsAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
@@ -850,6 +856,10 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSearchPipelineAction.INSTANCE, GetSearchPipelineTransportAction.class);
         actions.register(DeleteSearchPipelineAction.INSTANCE, DeleteSearchPipelineTransportAction.class);
 
+        // Deployment
+        actions.register(TransitionDeploymentAction.INSTANCE, TransportTransitionDeploymentAction.class);
+        actions.register(GetDeploymentAction.INSTANCE, TransportGetDeploymentAction.class);
+
         // Pull-based ingestion actions
         actions.register(PauseIngestionAction.INSTANCE, TransportPauseIngestionAction.class);
         actions.register(ResumeIngestionAction.INSTANCE, TransportResumeIngestionAction.class);
@@ -1074,6 +1084,10 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSearchPipelineAction());
         registerHandler.accept(new RestGetSearchPipelineAction());
         registerHandler.accept(new RestDeleteSearchPipelineAction());
+
+        // Deployment API
+        registerHandler.accept(new RestTransitionDeploymentAction());
+        registerHandler.accept(new RestGetDeploymentAction());
 
         // Extensions API
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {

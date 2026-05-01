@@ -74,6 +74,8 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
+import org.opensearch.cluster.deployment.DeploymentManagerService;
+import org.opensearch.cluster.deployment.DeploymentStateService;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -992,6 +994,9 @@ public class Node implements Closeable {
             clusterService.setRerouteService(rerouteService);
             clusterModule.setRerouteServiceForAllocator(rerouteService);
 
+            final DeploymentStateService deploymentStateService = new DeploymentStateService(() -> clusterService.state());
+            final DeploymentManagerService deploymentManagerService = new DeploymentManagerService(clusterService, rerouteService);
+
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
             final CompositeIndexSettings compositeIndexSettings = new CompositeIndexSettings(settings, settingsModule.getClusterSettings());
@@ -1646,6 +1651,8 @@ public class Node implements Closeable {
                 b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                 b.bind(IngestService.class).toInstance(ingestService);
                 b.bind(SearchPipelineService.class).toInstance(searchPipelineService);
+                b.bind(DeploymentStateService.class).toInstance(deploymentStateService);
+                b.bind(DeploymentManagerService.class).toInstance(deploymentManagerService);
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
