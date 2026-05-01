@@ -186,9 +186,7 @@ public class RemoteFsTranslog extends Translog {
         );
         try {
             if (config.downloadRemoteTranslogOnInit()) {
-                int maxConcurrentStreams = recoverySettings != null
-                    ? recoverySettings.getMaxConcurrentTranslogDownloadStreams()
-                    : 1;
+                int maxConcurrentStreams = recoverySettings != null ? recoverySettings.getMaxConcurrentTranslogDownloadStreams() : 1;
                 download(translogTransferManager, location, logger, config.shouldSeedRemote(), 0, maxConcurrentStreams);
             }
             Checkpoint checkpoint = readCheckpoint(location);

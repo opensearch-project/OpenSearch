@@ -1077,19 +1077,14 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         pairs.add(new org.opensearch.common.collect.Tuple<>("1", "2"));
         pairs.add(new org.opensearch.common.collect.Tuple<>("1", "1"));
 
-        IOException ex = assertThrows(
-            IOException.class,
-            () -> parallelManager.downloadTranslogsParallel(pairs, location, 4)
-        );
+        IOException ex = assertThrows(IOException.class, () -> parallelManager.downloadTranslogsParallel(pairs, location, 4));
         assertTrue(ex.getMessage().contains("Simulated download failure"));
     }
 
     public void testDownloadTranslogsParallelSingleGeneration() throws IOException {
         // With a single generation and maxConcurrentStreams=4, it should fall back to sequential (threads=1)
         Path location = createTempDir();
-        List<org.opensearch.common.collect.Tuple<String, String>> pairs = List.of(
-            new org.opensearch.common.collect.Tuple<>("12", "23")
-        );
+        List<org.opensearch.common.collect.Tuple<String, String>> pairs = List.of(new org.opensearch.common.collect.Tuple<>("12", "23"));
 
         // Use manager without threadPool — single gen forces sequential path regardless
         translogTransferManager.downloadTranslogsParallel(pairs, location, 1);

@@ -67,7 +67,6 @@ import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.EOFException;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -1707,8 +1706,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         // Always File not found
-        doAnswer(invocation -> { throw new NoSuchFileException("File not found"); })
-            .when(mockTransfer).downloadTranslogsParallel(any(), any(), anyInt());
+        doAnswer(invocation -> { throw new NoSuchFileException("File not found"); }).when(mockTransfer)
+            .downloadTranslogsParallel(any(), any(), anyInt());
         TranslogTransferManager finalMockTransfer = mockTransfer;
         assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0));
 

@@ -341,11 +341,8 @@ public class TranslogTransferManager {
      * @param maxConcurrentStreams maximum number of concurrent download threads
      * @throws IOException if any download fails or the operation times out
      */
-    public void downloadTranslogsParallel(
-        List<Tuple<String, String>> generationPrimaryTermPairs,
-        Path location,
-        int maxConcurrentStreams
-    ) throws IOException {
+    public void downloadTranslogsParallel(List<Tuple<String, String>> generationPrimaryTermPairs, Path location, int maxConcurrentStreams)
+        throws IOException {
         if (generationPrimaryTermPairs.isEmpty()) return;
 
         // Determine number of worker threads to use
