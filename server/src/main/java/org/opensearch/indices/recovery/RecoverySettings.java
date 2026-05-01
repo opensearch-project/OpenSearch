@@ -255,7 +255,7 @@ public class RecoverySettings {
     public static final Setting<Integer> INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE = Setting.intSetting(
         "indices.translog_concurrent_recovery.batch_size",
         500000,
-        10000,
+        1000,
         1000000,
         Property.Dynamic,
         Property.NodeScope

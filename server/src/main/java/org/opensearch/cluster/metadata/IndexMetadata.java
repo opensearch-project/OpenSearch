@@ -1032,6 +1032,32 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Defines the maximum time to wait for lag to catch up during warmup phase.
+     * A value of -1 means warmup is disabled (the default). A value >= 0 enables warmup with that timeout.
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_TIMEOUT = "index.ingestion_source.warmup.timeout";
+    public static final Setting<TimeValue> INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING = Setting.timeSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_TIMEOUT,
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Defines the acceptable pointer-based lag threshold. Warmup completes when lag is at or below this value.
+     * A value of 0 means fully caught up (no lag).
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_LAG_THRESHOLD = "index.ingestion_source.warmup.lag_threshold";
+    public static final Setting<Long> INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING = Setting.longSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_LAG_THRESHOLD,
+        100L,
+        0L,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */
     private static final String INDEX_FORMAT = "index.format";
@@ -1276,6 +1302,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Gets the ingestion source.
+     *
      * @return ingestion source, or null if ingestion source is not enabled
      */
     public IngestionSource getIngestionSource() {
@@ -1301,6 +1328,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
             final Map<String, Object> mapperSettings = INGESTION_SOURCE_MAPPER_SETTINGS.getAsMap(settings);
 
+            // Warmup settings
+            final IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(
+                INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.get(settings),
+                INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.get(settings)
+            );
+
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
                 .setErrorStrategy(errorStrategy)
@@ -1312,6 +1345,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .setMapperType(mapperType)
                 .setMapperSettings(mapperSettings)
+                .setWarmupConfig(warmupConfig)
                 .build();
         }
         return null;
@@ -2792,6 +2826,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     private static final ToXContent.Params FORMAT_PARAMS;
+
     static {
         Map<String, String> params = new HashMap<>(2);
         params.put("binary", "true");
@@ -2805,7 +2840,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * This looks for the presence of the {@link Version} object with key {@link IndexMetadata#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(final Settings indexSettings) {
-        final Version indexVersion = SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        final Version indexVersion;
+        try {
+            indexVersion = SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        } catch (Version.UnsupportedVersionException e) {
+            final String message = String.format(
+                Locale.ROOT,
+                "index with UUID [%s] created on version [%s] is not supported by version [%s]",
+                indexSettings.get(IndexMetadata.SETTING_INDEX_UUID),
+                e.getVersionString(),
+                Version.CURRENT.toString()
+            );
+            throw new IllegalArgumentException(message, e);
+        }
         if (indexVersion.equals(Version.V_EMPTY)) {
             final String message = String.format(
                 Locale.ROOT,
@@ -2855,9 +2902,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns the source shard ID to split the given target shard off
-     * @param shardId the id of the target shard to split into
+     *
+     * @param shardId             the id of the target shard to split into
      * @param sourceIndexMetadata the source index metadata
-     * @param numTargetShards the total number of shards in the target index
+     * @param numTargetShards     the total number of shards in the target index
      * @return a the source shard ID to split off from
      */
     public static ShardId selectSplitShard(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
@@ -2874,9 +2922,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns the source shard ID to clone the given target shard off
-     * @param shardId the id of the target shard to clone into
+     *
+     * @param shardId             the id of the target shard to clone into
      * @param sourceIndexMetadata the source index metadata
-     * @param numTargetShards the total number of shards in the target index
+     * @param numTargetShards     the total number of shards in the target index
      * @return a the source shard ID to clone from
      */
     public static ShardId selectCloneShard(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
@@ -2921,9 +2970,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Selects the source shards for a local shard recovery. This might either be a split or a shrink operation.
-     * @param shardId the target shard ID to select the source shards for
+     *
+     * @param shardId             the target shard ID to select the source shards for
      * @param sourceIndexMetadata the source metadata
-     * @param numTargetShards the number of target shards
+     * @param numTargetShards     the number of target shards
      */
     public static Set<ShardId> selectRecoverFromShards(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
         if (sourceIndexMetadata.getNumberOfShards() > numTargetShards) {
@@ -2937,9 +2987,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns the source shard ids to shrink into the given shard id.
-     * @param shardId the id of the target shard to shrink to
+     *
+     * @param shardId             the id of the target shard to shrink to
      * @param sourceIndexMetadata the source index metadata
-     * @param numTargetShards the total number of shards in the target index
+     * @param numTargetShards     the total number of shards in the target index
      * @return a set of shard IDs to shrink into the given shard ID.
      */
     public static Set<ShardId> selectShrinkShards(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
@@ -2975,7 +3026,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @param targetNumberOfShards the total number of shards in the target index
      * @return the routing factor for and shrunk index with the given number of target shards.
      * @throws IllegalArgumentException if the number of source shards is less than the number of target shards or if the source shards
-     * are not divisible by the number of target shards.
+     *                                  are not divisible by the number of target shards.
      */
     public static int getRoutingFactor(int sourceNumberOfShards, int targetNumberOfShards) {
         final int factor;
@@ -3004,8 +3055,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * E.g.
      * - For ".ds-logs-000002" it will return 2
      * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
+     *
      * @throws IllegalArgumentException if the index doesn't contain a "-" separator or if the last token after the separator is not a
-     * number
+     *                                  number
      */
     public static int parseIndexNameCounter(String indexName) {
         int numberIndex = indexName.lastIndexOf("-");

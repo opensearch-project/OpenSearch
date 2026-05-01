@@ -74,6 +74,17 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    /**
+     * Gates the functionality of pluggable dataformat feature.
+     */
+    public static final String PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX + "pluggable.dataformat.enabled";
+
+    public static final Setting<Boolean> PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG,
+        false,
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG,
         false,
@@ -141,6 +152,7 @@ public class FeatureFlags {
                 put(TERM_VERSION_PRECOMMIT_ENABLE_SETTING, TERM_VERSION_PRECOMMIT_ENABLE_SETTING.getDefault(Settings.EMPTY));
                 put(STREAM_TRANSPORT_SETTING, STREAM_TRANSPORT_SETTING.getDefault(Settings.EMPTY));
                 put(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING, CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
+                put(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING, PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
             }
         };
 

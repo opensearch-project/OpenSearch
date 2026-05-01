@@ -172,6 +172,8 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.storage.common.tiering.TieringUtils;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -429,6 +431,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE,
                 HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE,
                 HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED,
+                HttpTransportSettings.SETTING_HTTP_REQUEST_ID_MAX_LENGTH,
                 HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
                 HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                 HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -758,6 +761,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
                 FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
 
+                // Settings related to Tiered Storage
+                TieringUtils.H2W_MAX_CONCURRENT_TIERING_REQUESTS,
+                TieringUtils.W2H_MAX_CONCURRENT_TIERING_REQUESTS,
+                TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT,
+                TieringUtils.FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT,
+
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
                 RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR,
@@ -820,6 +829,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE,
 
                 RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
+                RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING,
@@ -893,7 +903,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
                 StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
-                StreamSearchTransportService.STREAM_SEARCH_ENABLED
+                StreamSearchTransportService.STREAM_SEARCH_ENABLED,
+                TieredStoragePrefetchSettings.READ_AHEAD_BLOCK_COUNT,
+                TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING
             )
         )
     );
