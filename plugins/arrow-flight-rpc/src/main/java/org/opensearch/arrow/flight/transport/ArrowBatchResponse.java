@@ -8,16 +8,13 @@
 
 package org.opensearch.arrow.flight.transport;
 
-import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.util.TransferPair;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Base class for transport responses carrying native Arrow data.
@@ -96,13 +93,7 @@ public abstract class ArrowBatchResponse extends ActionResponse {
      * @param target the channel's shared root (bound to the Flight stream via start())
      */
     void transferTo(VectorSchemaRoot target) {
-        List<FieldVector> sourceVectors = producerRoot.getFieldVectors();
-        List<FieldVector> targetVectors = target.getFieldVectors();
-        for (int i = 0; i < sourceVectors.size(); i++) {
-            TransferPair transfer = sourceVectors.get(i).makeTransferPair(targetVectors.get(i));
-            transfer.transfer();
-        }
-        target.setRowCount(producerRoot.getRowCount());
+        FlightUtils.transferRoot(producerRoot, target);
     }
 
     @Override
