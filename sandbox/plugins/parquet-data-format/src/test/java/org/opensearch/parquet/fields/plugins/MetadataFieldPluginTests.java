@@ -30,7 +30,7 @@ public class MetadataFieldPluginTests extends OpenSearchTestCase {
     }
 
     public void testFieldCount() {
-        assertEquals(8, fields.size());
+        assertEquals(7, fields.size());
     }
 
     public void testAllMetadataTypesPresent() {

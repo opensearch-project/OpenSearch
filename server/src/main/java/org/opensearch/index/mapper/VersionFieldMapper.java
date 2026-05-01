@@ -40,6 +40,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.Collections;
 
 /**
@@ -93,6 +94,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         final Field version = new NumericDocValuesField(NAME, -1L);
         context.version(version);
         context.doc().add(version);
+    }
+
+    @Override
+    public void preParseForPluggableFormat(ParseContext context) throws IOException {
+        context.documentInput().addField(fieldType(), -1L);
     }
 
     @Override

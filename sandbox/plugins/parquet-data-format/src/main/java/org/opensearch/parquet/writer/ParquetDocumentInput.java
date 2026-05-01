@@ -38,6 +38,15 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     }
 
     @Override
+    public void updateField(String fieldName, Object value) {
+        FieldValuePair pair = collectedFields.stream()
+            .filter(fvp -> fvp.getFieldType().name().equals(fieldName))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Field [" + fieldName + "] not found"));
+        pair.setValue(value);
+    }
+
+    @Override
     public void setRowId(String rowIdFieldName, long rowId) {
         this.rowId = rowId;
     }

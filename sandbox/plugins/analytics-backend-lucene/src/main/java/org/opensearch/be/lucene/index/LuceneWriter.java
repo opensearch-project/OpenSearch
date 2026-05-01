@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Per-generation Lucene writer that creates segments in an isolated temporary directory.
@@ -72,7 +71,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Path tempDirectory;
     private final Directory directory;
     private final IndexWriter indexWriter;
-    private final ReentrantLock lock;
     private volatile long docCount;
 
     /**
@@ -88,7 +86,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         throws IOException {
         this.writerGeneration = writerGeneration;
         this.dataFormat = dataFormat;
-        this.lock = new ReentrantLock();
         this.docCount = 0;
 
         // Create an isolated temp directory for this writer's segment
@@ -172,9 +169,8 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             }
         }
 
-        // Since flush is once only, we can close the write post this.
+        // Since flush is once only, close the IndexWriter but keep directory open for close()
         indexWriter.close();
-        directory.close();
 
         return FileInfos.builder().putWriterFileSet(dataFormat, wfsBuilder.build()).build();
     }
@@ -194,24 +190,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     @Override
     public long generation() {
         return writerGeneration;
-    }
-
-    /** Acquires the writer's reentrant lock. Used by the writer pool to serialize access. */
-    @Override
-    public void lock() {
-        lock.lock();
-    }
-
-    /** Attempts to acquire the writer's reentrant lock without blocking. */
-    @Override
-    public boolean tryLock() {
-        return lock.tryLock();
-    }
-
-    /** Releases the writer's reentrant lock. */
-    @Override
-    public void unlock() {
-        lock.unlock();
     }
 
     /**

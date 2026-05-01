@@ -302,6 +302,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
+    public void preParseForPluggableFormat(ParseContext context) throws IOException {
+        BytesRef id = Uid.encodeId(context.sourceToParse().id());
+        context.documentInput().addField(fieldType(), id);
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

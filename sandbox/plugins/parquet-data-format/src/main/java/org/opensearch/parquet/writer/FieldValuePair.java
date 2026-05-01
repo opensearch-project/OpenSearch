@@ -24,7 +24,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 public class FieldValuePair {
 
     private final MappedFieldType fieldType;
-    private final Object value;
+    private volatile Object value;
 
     /**
      * Creates a new FieldValuePair.
@@ -47,6 +47,13 @@ public class FieldValuePair {
      */
     public MappedFieldType getFieldType() {
         return fieldType;
+    }
+
+    void setValue(Object value) {
+        if (value.getClass() != this.value.getClass()) {
+            throw new IllegalArgumentException("Cannot change value type");
+        }
+        this.value = value;
     }
 
     /**

@@ -40,6 +40,14 @@ public interface DocumentInput<T> extends AutoCloseable {
     void addField(MappedFieldType fieldType, Object value);
 
     /**
+     * Updates a field in the document.
+     *
+     * @param fieldName the mapped field type
+     * @param value the field value
+     */
+    default void updateField(String fieldName, Object value) {}
+
+    /**
      * Adds a row ID field to the document.
      *
      * @param rowIdFieldName the name of the row ID field

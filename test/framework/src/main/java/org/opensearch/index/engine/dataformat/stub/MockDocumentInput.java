@@ -32,6 +32,11 @@ public class MockDocumentInput implements DocumentInput<Map<String, Object>> {
     }
 
     @Override
+    public void updateField(String fieldName, Object value) {
+        fields.put(fieldName, value);
+    }
+
+    @Override
     public void setRowId(String rowIdFieldName, long rowId) {
         fields.put(rowIdFieldName, rowId);
     }

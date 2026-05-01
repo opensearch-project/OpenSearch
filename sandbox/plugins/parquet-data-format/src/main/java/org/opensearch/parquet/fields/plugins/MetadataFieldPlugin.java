@@ -15,6 +15,7 @@ import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.SeqNoParquetField;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 import org.opensearch.parquet.fields.core.metadata.IdParquetField;
 import org.opensearch.parquet.fields.core.metadata.IgnoredParquetField;
@@ -40,8 +41,7 @@ public class MetadataFieldPlugin implements ParquetFieldPlugin {
         fieldMap.put(RoutingFieldMapper.CONTENT_TYPE, new RoutingParquetField());
         fieldMap.put(IgnoredFieldMapper.CONTENT_TYPE, new IgnoredParquetField());
         fieldMap.put(IdFieldMapper.CONTENT_TYPE, new IdParquetField());
-        fieldMap.put(SeqNoFieldMapper.CONTENT_TYPE, new LongParquetField());
-        fieldMap.put(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField());
+        fieldMap.put(SeqNoFieldMapper.CONTENT_TYPE, new SeqNoParquetField());
         fieldMap.put(VersionFieldMapper.CONTENT_TYPE, new LongParquetField());
         return fieldMap;
     }

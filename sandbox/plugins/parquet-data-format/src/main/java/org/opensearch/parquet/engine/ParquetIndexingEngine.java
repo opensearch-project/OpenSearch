@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_DATA_FORMAT;
+
 /**
  * Per-shard Parquet indexing execution engine.
  *
@@ -64,9 +66,9 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private static final Logger logger = LogManager.getLogger(ParquetIndexingEngine.class);
 
     /** Prefix for generated Parquet file names. */
-    public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
+    static final String FILE_NAME_PREFIX = "_parquet_file_generation";
     /** File extension for Parquet files. */
-    public static final String FILE_NAME_EXT = ".parquet";
+    static final String FILE_NAME_EXT = ".parquet";
 
     private final ParquetDataFormat dataFormat;
     private final ShardPath shardPath;
@@ -132,14 +134,14 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.threadPool = threadPool;
         this.checksumStrategy = checksumStrategy;
         try {
-            Files.createDirectory(shardPath.resolve("parquet"));
+            Files.createDirectory(shardPath.resolve(dataFormat.name()));
         } catch (FileAlreadyExistsException ex) {
             logger.warn("Directory already exists: {}", shardPath.resolve("parquet"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         this.parquetMerger = new ParquetMergeExecutor(
-            new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath.getDataPath())
+            new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath, checksumStrategy::registerChecksum)
         );
         pushSettingsToRust();
     }
@@ -181,11 +183,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
-        Path filePath = Path.of(
-            shardPath.getDataPath().toString(),
-            dataFormat.name(),
-            FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT
-        );
+        Path filePath = buildParquetFilePath(shardPath, writerGeneration, null);
         return new ParquetWriter(
             filePath.toString(),
             writerGeneration,
@@ -237,7 +235,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         }
         Collection<String> failed = new ArrayList<>();
         for (String fileName : parquetFiles) {
-            Path filePath = Path.of(fileName);
+            // Resolve relative file names against the shard's parquet directory
+            Path filePath = shardPath.getDataPath().resolve(dataFormat.name()).resolve(fileName);
             logger.debug("Deleting parquet file: {}", filePath);
             if (Files.deleteIfExists(filePath) == false) {
                 logger.warn("Failed to delete parquet file: {}", filePath);
@@ -269,5 +268,34 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             );
         }
         bufferPool.close();
+    }
+
+    /**
+     * Builds a full file path for a Parquet file within the shard's data directory.
+     *
+     * @param shardPath        the shard's directory path
+     * @param writerGeneration the writer generation number
+     * @param additionalPrefix an optional prefix to append (e.g., "merged")
+     * @return the full file path
+     */
+    public static Path buildParquetFilePath(ShardPath shardPath, long writerGeneration, String additionalPrefix) {
+        String subDirectory = PARQUET_DATA_FORMAT.name();
+        return shardPath.getDataPath().resolve(subDirectory).resolve(buildParquetFileName(writerGeneration, additionalPrefix));
+    }
+
+    /**
+     * Builds a Parquet file name with optional additional prefix.
+     *
+     * @param writerGeneration the writer generation number
+     * @param additionalPrefix an optional prefix to append (e.g., "merged")
+     * @return the formatted file name
+     */
+    public static String buildParquetFileName(long writerGeneration, String additionalPrefix) {
+        StringBuilder fileNameBuilder = new StringBuilder(FILE_NAME_PREFIX);
+        if (additionalPrefix != null) {
+            fileNameBuilder.append("_").append(additionalPrefix);
+        }
+        fileNameBuilder.append("_").append(Long.toHexString(writerGeneration)).append(FILE_NAME_EXT);
+        return fileNameBuilder.toString();
     }
 }

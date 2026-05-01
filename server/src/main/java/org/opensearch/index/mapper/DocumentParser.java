@@ -144,7 +144,7 @@ final class DocumentParser {
         final boolean emptyDoc = isEmptyDoc(mapping, parser);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
-            metadataMapper.preParse(context);
+            metadataMapper.preParse(context, "parser");
         }
 
         if (mapping.root.isEnabled() == false) {
@@ -157,7 +157,7 @@ final class DocumentParser {
         applyExtraFieldValues(context);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
-            metadataMapper.postParse(context);
+            metadataMapper.postParse(context, "parser");
         }
     }
 

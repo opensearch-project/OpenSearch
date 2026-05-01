@@ -51,7 +51,7 @@ public final class ArrowSchemaBuilder {
             }
             ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
             if (parquetField != null) {
-                fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
+                fields.add(new Field(mapper.name(), parquetField.getFieldType(), parquetField.children()));
             } else {
                 logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
             }

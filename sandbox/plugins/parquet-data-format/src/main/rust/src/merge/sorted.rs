@@ -29,7 +29,7 @@ pub fn merge_sorted(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
-) -> super::MergeResult<u32> {
+) -> super::MergeResult<(parquet::file::metadata::ParquetMetaData, u32)> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
         .map(|r| r.clone())
@@ -39,7 +39,9 @@ pub fn merge_sorted(
     let rayon_threads = config.get_merge_rayon_threads();
     let io_threads = config.get_merge_io_threads();
     if input_files.is_empty() {
-        return Ok(0);
+        return Err(super::MergeError::Logic(
+            "merge_sorted called with empty input_files".into(),
+        ));
     }
 
     if sort_columns.is_empty() {
@@ -210,16 +212,16 @@ pub fn merge_sorted(
     }
 
     // ── Phase 5: Close ──────────────────────────────────────────────────
-    let (_metadata, crc32) = ctx.finish()?;
+    let (metadata, crc32) = ctx.finish()?;
 
     log_debug!(
         "[RUST] Merge complete ({}): {} total rows written to '{}' in {} row groups, crc32={:#010x}",
         direction_label,
-        _metadata.file_metadata().num_rows(),
+        metadata.file_metadata().num_rows(),
         output_path,
-        _metadata.num_row_groups(),
+        metadata.num_row_groups(),
         crc32
     );
 
-    Ok(crc32)
+    Ok((metadata, crc32))
 }

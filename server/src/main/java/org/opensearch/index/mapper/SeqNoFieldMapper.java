@@ -39,6 +39,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -215,6 +216,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
+    public void preParseForPluggableFormat(ParseContext context) throws IOException {
+        context.documentInput().addField(fieldType(), new SequenceIdentifiers(SequenceNumbers.UNASSIGNED_SEQ_NO, 0L));
+    }
+
+    @Override
     public void postParse(ParseContext context) throws IOException {
         // In the case of nested docs, let's fill nested docs with the original
         // so that Lucene doesn't write a Bitset for documents that
@@ -232,6 +238,15 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    /**
+     * Encapsulation maintain seq no related details
+     * @param sequenceNumber sequence number for the document
+     * @param primaryTerm primary term for the shard
+     */
+    @InternalApi
+    public record SequenceIdentifiers(long sequenceNumber, long primaryTerm) {
     }
 
 }

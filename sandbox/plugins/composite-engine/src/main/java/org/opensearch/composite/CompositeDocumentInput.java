@@ -76,6 +76,28 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
     }
 
     @Override
+    public void updateField(String fieldName, Object value) {
+        try {
+            primaryDocumentInput.updateField(fieldName, value);
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                "Failed to update field [" + fieldName + "] in primary format [" + primaryFormat.name() + "]",
+                e
+            );
+        }
+        for (Map.Entry<DataFormat, DocumentInput<?>> entry : secondaryDocumentInputs.entrySet()) {
+            try {
+                entry.getValue().updateField(fieldName, value);
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                    "Failed to update field [" + fieldName + "] in secondary format [" + entry.getKey().name() + "]",
+                    e
+                );
+            }
+        }
+    }
+
+    @Override
     public void setRowId(String rowIdFieldName, long rowId) {
         primaryDocumentInput.setRowId(rowIdFieldName, rowId);
         for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
