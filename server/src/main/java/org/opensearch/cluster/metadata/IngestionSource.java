@@ -224,8 +224,8 @@ public class IngestionSource {
      */
     @PublicApi(since = "3.7.0")
     public enum PartitionStrategy {
-        FIXED("fixed"),
-        AUTO("auto");
+        SIMPLE("simple"),
+        MODULO("modulo");
 
         private final String name;
 
@@ -243,7 +243,7 @@ public class IngestionSource {
                     return strategy;
                 }
             }
-            throw new IllegalArgumentException("Unknown partition strategy: [" + name + "]. Valid values are [fixed, auto]");
+            throw new IllegalArgumentException("Unknown partition strategy: [" + name + "]. Valid values are [simple, modulo]");
         }
 
         @Override

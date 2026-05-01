@@ -962,13 +962,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Defines the strategy for mapping source stream partitions to OpenSearch shards.
-     * "fixed" (default): 1:1 mapping where shard N consumes partition N.
-     * "auto": each shard consumes all partitions where partition % numShards == shardId.
+     * "simple" (default): 1:1 mapping where shard N consumes partition N.
+     * "modulo": each shard consumes all partitions where partition % numShards == shardId.
      */
     public static final String SETTING_INGESTION_SOURCE_PARTITION_STRATEGY = "index.ingestion_source.partition_strategy";
     public static final Setting<IngestionSource.PartitionStrategy> INGESTION_SOURCE_PARTITION_STRATEGY_SETTING = new Setting<>(
         SETTING_INGESTION_SOURCE_PARTITION_STRATEGY,
-        IngestionSource.PartitionStrategy.FIXED.getName(),
+        IngestionSource.PartitionStrategy.SIMPLE.getName(),
         IngestionSource.PartitionStrategy::fromString,
         Property.IndexScope,
         Property.Final

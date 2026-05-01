@@ -1320,7 +1320,7 @@ public class MetadataCreateIndexService {
         // Partition strategy validation
         if (IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
             // The setting key itself was introduced in V_3_7_0. Reject any explicit value (including
-            // [fixed], the default) on mixed clusters where some nodes don't recognize the key —
+            // [simple], the default) on mixed clusters where some nodes don't recognize the key —
             // otherwise index metadata replicated to older nodes would carry an unknown setting.
             Version minNodeVersion = state.nodes().getMinNodeVersion();
             if (minNodeVersion.before(Version.V_3_7_0)) {
@@ -1332,7 +1332,7 @@ public class MetadataCreateIndexService {
                         + "]"
                 );
             }
-            // TODO: For partition_strategy=fixed, surface a warning when numSourcePartitions > numShards
+            // TODO: For partition_strategy=simple, surface a warning when numSourcePartitions > numShards
             // (excess source partitions are silently never consumed) and an error when
             // numSourcePartitions < numShards (shards beyond numSourcePartitions-1 fail to initialize).
             // Requires consumerFactory.getSourcePartitionCount() which is added in a follow-up PR

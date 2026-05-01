@@ -18,9 +18,9 @@ import java.util.List;
  * Computes which source stream partitions a given OpenSearch shard should consume,
  * based on the configured {@link PartitionStrategy}.
  */
-public class StreamPartitionAssignment {
+public class SourcePartitionAssignment {
 
-    private StreamPartitionAssignment() {
+    private SourcePartitionAssignment() {
         // utility class
     }
 
@@ -32,7 +32,7 @@ public class StreamPartitionAssignment {
      * @param numSourcePartitions total number of partitions in the source stream
      * @param strategy            the partition assignment strategy
      * @return unmodifiable list of partition IDs assigned to this shard
-     * @throws IllegalArgumentException if numSourcePartitions is less than numShards for FIXED strategy,
+     * @throws IllegalArgumentException if numSourcePartitions is less than numShards for SIMPLE strategy,
      *                                  or if no partitions are assigned to the shard
      */
     public static List<Integer> assignPartitions(int shardId, int numShards, int numSourcePartitions, PartitionStrategy strategy) {
@@ -43,7 +43,7 @@ public class StreamPartitionAssignment {
 
         // TODO - support "RANGE" below when we implement https://github.com/opensearch-project/OpenSearch/issues/21267
         switch (strategy) {
-            case FIXED:
+            case SIMPLE:
                 if (shardId >= numSourcePartitions) {
                     throw new IllegalArgumentException(
                         "Shard ["
@@ -52,19 +52,19 @@ public class StreamPartitionAssignment {
                             + numSourcePartitions
                             + "] partitions but shard ID requires partition ["
                             + shardId
-                            + "]. Use partition_strategy=auto to map multiple partitions per shard."
+                            + "]. Use partition_strategy=modulo to map multiple partitions per shard."
                     );
                 }
                 return List.of(shardId);
 
-            case AUTO:
+            case MODULO:
                 if (numSourcePartitions < numShards) {
                     throw new IllegalArgumentException(
                         "Number of source partitions ["
                             + numSourcePartitions
                             + "] must be >= number of shards ["
                             + numShards
-                            + "] for auto partition strategy"
+                            + "] for modulo partition strategy"
                     );
                 }
                 List<Integer> result = new ArrayList<>();
