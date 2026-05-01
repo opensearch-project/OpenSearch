@@ -24,11 +24,19 @@ import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.analytics.schema.SchemaProvider;
+import org.opensearch.analytics.spi.AnalyticsFrontEndExtension;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.AnalyticsServices;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.matcher.Matchers;
+import org.opensearch.common.inject.spi.InjectionListener;
+import org.opensearch.common.inject.spi.TypeEncounter;
+import org.opensearch.common.inject.spi.TypeListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -66,12 +74,14 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public AnalyticsPlugin() {}
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
+    private final List<AnalyticsFrontEndExtension> frontEnds = new ArrayList<>();
     private SqlOperatorTable operatorTable;
 
     @SuppressWarnings("rawtypes")
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         backEnds.addAll(loader.loadExtensions(AnalyticsSearchBackendPlugin.class));
+        frontEnds.addAll(loader.loadExtensions(AnalyticsFrontEndExtension.class));
     }
 
     @Override
@@ -112,7 +122,38 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             }).to(DefaultPlanExecutor.class);
             b.bind(EngineContext.class).to(DefaultEngineContext.class);
             b.bind(Scheduler.class).to(QueryScheduler.class);
+            // Push the executor + schemaProvider bundle to every registered AnalyticsFrontEndExtension
+            // once Guice constructs DefaultPlanExecutor. The InjectionListener fires on the singleton
+            // construction; pushAnalyticsServices guards against re-firing if Guice ever instantiates
+            // more than once.
+            b.bindListener(Matchers.any(), new TypeListener() {
+                @Override
+                public <I> void hear(TypeLiteral<I> type, TypeEncounter<I> encounter) {
+                    if (!DefaultPlanExecutor.class.isAssignableFrom(type.getRawType())) {
+                        return;
+                    }
+                    encounter.register((InjectionListener<I>) instance -> pushAnalyticsServices((DefaultPlanExecutor) instance));
+                }
+            });
         });
+    }
+
+    private boolean servicesPushed = false;
+
+    private synchronized void pushAnalyticsServices(DefaultPlanExecutor executor) {
+        if (servicesPushed) {
+            return;
+        }
+        servicesPushed = true;
+        SchemaProvider schemaProvider = clusterState -> OpenSearchSchemaBuilder.buildSchema((ClusterState) clusterState);
+        AnalyticsServices services = new AnalyticsServices(executor, schemaProvider);
+        for (AnalyticsFrontEndExtension consumer : frontEnds) {
+            try {
+                consumer.setAnalyticsServices(services);
+            } catch (Exception e) {
+                logger.warn("AnalyticsFrontEndExtension {} threw on setAnalyticsServices", consumer.getClass().getName(), e);
+            }
+        }
     }
 
     @Override
