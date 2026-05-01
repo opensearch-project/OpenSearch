@@ -724,7 +724,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         boolean success = false;
         try {
             assert metadata.writtenBy() != null;
-            output = new LuceneVerifyingIndexOutput(metadata, output);
+            final DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(directory);
+            if (dfasd != null && DataFormatAwareStoreDirectory.isDefaultFormat(FileMetadata.parseDataFormat(fileName)) == false) {
+                output = new DataFormatVerifyingIndexOutput(metadata, output);
+            } else {
+                output = new LuceneVerifyingIndexOutput(metadata, output);
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -1778,6 +1783,87 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             } else {
                 out.writeBytes(b, offset, length);
                 writtenBytes += length;
+            }
+        }
+    }
+
+    /**
+     * {@link VerifyingIndexOutput} for files managed by a {@link DataFormatAwareStoreDirectory}
+     * that lack a Lucene CRC32 footer (e.g. Parquet segment files).
+     *
+     * <p>Unlike {@link LuceneVerifyingIndexOutput}, which inspects the last 8 bytes as a Lucene
+     * footer, this output relies on the fact that every {@link IndexOutput} returned by an
+     * {@code FSDirectory}-backed directory — including through {@link DataFormatAwareStoreDirectory}
+     * and {@code MockDirectoryWrapper} — is ultimately an
+     * {@link org.apache.lucene.store.OutputStreamIndexOutput}, which maintains a running
+     * {@link java.util.zip.CRC32} via a {@link java.util.zip.CheckedOutputStream} on every byte
+     * written. At {@link #verify()} time we call {@code out.getChecksum()} (which flushes the
+     * stream buffer and returns the CRC32 of every byte written so far), convert it to the same
+     * decimal-string format produced by {@link DataFormatAwareStoreDirectory#calculateUploadChecksum},
+     * and compare it against the expected metadata checksum.
+     *
+     * <p>Advantages over a close-then-reread approach:
+     * <ul>
+     *   <li>No file-handle contention — we never reopen the file while its writer handle is
+     *       still open (which some directory impls like {@code MockDirectoryWrapper} reject).</li>
+     *   <li>No extra I/O — the CRC32 is maintained as a side effect of the writes.</li>
+     *   <li>Verification happens before {@code close()}, matching the Lucene verifier pattern
+     *       and the protocol documented on {@link Store#verify(IndexOutput)}.</li>
+     * </ul>
+     *
+     * <p>Throws {@link CorruptIndexException} if the running CRC32 disagrees with the expected
+     * metadata checksum or if the total byte count doesn't match {@link StoreFileMetadata#length}.
+     * Errors propagate identically to {@link LuceneVerifyingIndexOutput} errors so
+     * recovery/replication error-handling classifies them uniformly (transit corruption is
+     * retried, source-disk corruption fails the source shard).
+     *
+     * @opensearch.internal
+     */
+    public static class DataFormatVerifyingIndexOutput extends VerifyingIndexOutput {
+
+        private final StoreFileMetadata metadata;
+        private long writtenBytes;
+
+        public DataFormatVerifyingIndexOutput(StoreFileMetadata metadata, IndexOutput out) {
+            super(out);
+            this.metadata = metadata;
+        }
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            out.writeByte(b);
+            writtenBytes++;
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) throws IOException {
+            out.writeBytes(b, offset, length);
+            writtenBytes += length;
+        }
+
+        @Override
+        public void verify() throws IOException {
+            if (writtenBytes != metadata.length()) {
+                throw new CorruptIndexException(
+                    "verification failed: written length [" + writtenBytes + "] does not match expected length [" + metadata.length() + "]",
+                    "VerifyingIndexOutput(" + metadata.name() + ")"
+                );
+            }
+            // getChecksum() flushes the buffered stream and returns the running CRC32 of every
+            // byte written through the underlying OutputStreamIndexOutput. Matches the decimal
+            // format produced by DataFormatAwareStoreDirectory.calculateUploadChecksum.
+            final String actualChecksum = Long.toString(out.getChecksum());
+            if (metadata.checksum().equals(actualChecksum) == false) {
+                throw new CorruptIndexException(
+                    "checksum failed (hardware problem?) : expected="
+                        + metadata.checksum()
+                        + " actual="
+                        + actualChecksum
+                        + " (resource="
+                        + metadata.toString()
+                        + ")",
+                    "VerifyingIndexOutput(" + metadata.name() + ")"
+                );
             }
         }
     }
