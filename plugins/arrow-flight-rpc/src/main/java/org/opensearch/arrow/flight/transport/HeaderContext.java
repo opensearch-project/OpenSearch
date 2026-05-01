@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 class HeaderContext {
     private final ConcurrentHashMap<Long, Header> headerMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, String> encodingMap = new ConcurrentHashMap<>();
 
     void setHeader(long correlationId, Header header) {
         headerMap.put(correlationId, header);
@@ -21,5 +22,13 @@ class HeaderContext {
 
     Header getHeader(long correlationId) {
         return headerMap.remove(correlationId);
+    }
+
+    void setEncoding(long correlationId, String encoding) {
+        encodingMap.put(correlationId, encoding);
+    }
+
+    String getEncoding(long correlationId) {
+        return encodingMap.remove(correlationId);
     }
 }

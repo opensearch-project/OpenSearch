@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 
 import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.CORRELATION_ID_KEY;
+import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.ENCODING_KEY;
 import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.RAW_HEADER_KEY;
 
 /**
@@ -27,6 +28,7 @@ import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.RAW_H
  */
 class ServerHeaderMiddleware implements FlightServerMiddleware {
     private ByteBuffer headerBuffer;
+    private String encoding;
     private final String requestId;
 
     ServerHeaderMiddleware(String requestId) {
@@ -35,6 +37,10 @@ class ServerHeaderMiddleware implements FlightServerMiddleware {
 
     void setHeader(ByteBuffer headerBuffer) {
         this.headerBuffer = headerBuffer;
+    }
+
+    void setEncoding(String encoding) {
+        this.encoding = encoding;
     }
 
     String getCorrelationId() {
@@ -53,6 +59,9 @@ class ServerHeaderMiddleware implements FlightServerMiddleware {
         } else {
             outgoingHeaders.insert(RAW_HEADER_KEY, "");
             outgoingHeaders.insert(CORRELATION_ID_KEY, requestId);
+        }
+        if (encoding != null) {
+            outgoingHeaders.insert(ENCODING_KEY, encoding);
         }
     }
 

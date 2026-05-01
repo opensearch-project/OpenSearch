@@ -53,6 +53,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private volatile boolean closed;
     private volatile boolean prefetchStarted;
     private volatile Header initialHeader;
+    private volatile String encoding;
 
     FlightTransportResponse(
         TransportResponseHandler<T> handler,
@@ -97,6 +98,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                     elapsedMs = (System.nanoTime() - start) / 1_000_000;
                     logger.debug("First FlightClient.next() for correlationId: {} took {}ms", correlationId, elapsedMs);
                     initialHeader = headerContext.getHeader(correlationId);
+                    encoding = headerContext.getEncoding(correlationId);
                     future.complete(initialHeader);
                 } catch (FlightRuntimeException e) {
                     future.completeExceptionally(FlightErrorMapper.fromFlightException(e));
@@ -123,8 +125,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
             VectorSchemaRoot sharedRoot = flightStream.getRoot();
             currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(sharedRoot);
-            VectorSchemaRoot ownedRoot = transferToOwnedRoot(sharedRoot);
-            try (VectorStreamInput input = new VectorStreamInput(ownedRoot, namedWriteableRegistry)) {
+            try (VectorStreamInput input = openInput(sharedRoot)) {
                 input.setVersion(initialHeader.getVersion());
                 return handler.read(input);
             }
@@ -146,18 +147,21 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     }
 
     /**
-     * Transfers the shared root's vectors into a response-owned root so the returned response
-     * is independent of FlightStream's lifecycle. The next call to {@code flightStream.next()}
-     * clears the shared root, and {@code stream.close()} releases its vectors — both would wipe
-     * the data out from under an async listener if we handed back a reference to the shared root.
+     * Picks the right {@link VectorStreamInput} factory based on the {@code opensearch-encoding}
+     * header stashed by {@link ClientHeaderMiddleware}. A missing value is treated as
+     * byte-serialized for backward compatibility with senders that predate the header.
+     *
+     * <p>The native path transfers the shared root into a response-owned root so the returned
+     * response is independent of FlightStream's lifecycle. The next call to
+     * {@code flightStream.next()} clears the shared root, and {@code stream.close()} releases
+     * its vectors — both would wipe the data out from under an async listener if we handed
+     * back a reference to the shared root.
      */
-    private static VectorSchemaRoot transferToOwnedRoot(VectorSchemaRoot sharedRoot) {
-        VectorSchemaRoot ownedRoot = VectorSchemaRoot.create(
-            sharedRoot.getSchema(),
-            sharedRoot.getFieldVectors().getFirst().getAllocator()
-        );
-        FlightUtils.transferRoot(sharedRoot, ownedRoot);
-        return ownedRoot;
+    private VectorStreamInput openInput(VectorSchemaRoot sharedRoot) {
+        if (ClientHeaderMiddleware.ENCODING_NATIVE_ARROW.equals(encoding)) {
+            return VectorStreamInput.forNativeArrow(sharedRoot, namedWriteableRegistry);
+        }
+        return VectorStreamInput.forByteSerialized(sharedRoot, namedWriteableRegistry);
     }
 
     @Override

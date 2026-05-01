@@ -35,6 +35,15 @@ import java.util.Objects;
 class ClientHeaderMiddleware implements FlightClientMiddleware {
     static final String RAW_HEADER_KEY = "raw-header";
     static final String CORRELATION_ID_KEY = "correlation-id";
+    /**
+     * Names the wire format of the batch payload so the receiver can pick the right
+     * {@link VectorStreamInput} path. Values: {@link #ENCODING_BYTE_SERIALIZED} or
+     * {@link #ENCODING_NATIVE_ARROW}. The sender always sets this; a missing value is
+     * treated as byte-serialized for backward compatibility.
+     */
+    static final String ENCODING_KEY = "opensearch-encoding";
+    static final String ENCODING_BYTE_SERIALIZED = "byte-serialized";
+    static final String ENCODING_NATIVE_ARROW = "native-arrow";
 
     private final HeaderContext context;
     private final Version version;
@@ -86,8 +95,13 @@ class ClientHeaderMiddleware implements FlightClientMiddleware {
                 throw new StreamException(StreamErrorCode.INTERNAL, "Received error response with status: " + header.getStatus());
             }
 
+            long correlationIdLong = Long.parseLong(correlationId);
             // Store the header in context for later retrieval
-            context.setHeader(Long.parseLong(correlationId), header);
+            context.setHeader(correlationIdLong, header);
+            String encoding = incomingHeaders.get(ENCODING_KEY);
+            if (encoding != null) {
+                context.setEncoding(correlationIdLong, encoding);
+            }
         } catch (IOException e) {
             throw new StreamException(StreamErrorCode.INTERNAL, "Failed to decode header", e);
         } catch (NumberFormatException e) {

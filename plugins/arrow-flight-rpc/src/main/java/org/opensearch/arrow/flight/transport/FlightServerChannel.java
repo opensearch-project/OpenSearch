@@ -90,6 +90,14 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     }
 
     /**
+     * Declares the wire format for this stream's batches. Flushed to the client in the header
+     * of the first batch by {@link ServerHeaderMiddleware}.
+     */
+    public void setEncoding(String encoding) {
+        middleware.setEncoding(encoding);
+    }
+
+    /**
      * Gets the executor for this channel
      */
     public ExecutorService getExecutor() {

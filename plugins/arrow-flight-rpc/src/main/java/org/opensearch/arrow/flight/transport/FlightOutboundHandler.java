@@ -169,9 +169,11 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                 arrowResponse.transferTo(sharedRoot);
                 arrowResponse.getRoot().close();  // release producer's buffers — safe, they've been moved
                 out = VectorStreamOutput.forNativeArrow(sharedRoot);
+                flightChannel.setEncoding(ClientHeaderMiddleware.ENCODING_NATIVE_ARROW);
             } else {
                 out = VectorStreamOutput.create(flightChannel.getAllocator(), flightChannel.getRoot());
                 task.response().writeTo(out);
+                flightChannel.setEncoding(ClientHeaderMiddleware.ENCODING_BYTE_SERIALIZED);
             }
             try (out) {
                 flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out);
