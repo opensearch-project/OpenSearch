@@ -106,7 +106,7 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         assertTrue(descriptors.isEmpty());
     }
 
-    public void testGetFormatDirectoryFactoriesReturnsEmptyWhenNoSubPlugins() {
+    public void testGetDataFormatAwareStoreHandlerReturnsNullWhenNoSubPlugins() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
 
@@ -124,14 +124,12 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         // No plugin registered for "parquet"
         when(registry.getPlugin("parquet")).thenReturn(null);
 
-        Map<String, org.opensearch.index.engine.dataformat.FormatDirectoryFactory> factories = plugin.getFormatDirectoryFactories(
-            indexSettings,
-            registry
-        );
-        assertTrue("Should return empty when no sub-plugin found", factories.isEmpty());
+        java.util.Map<DataFormat, org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler> result = plugin
+            .getDataFormatAwareStoreHandlers(indexSettings, registry);
+        assertTrue("Should return empty when no sub-plugin found", result.isEmpty());
     }
 
-    public void testGetFormatDirectoryFactoriesCollectsFromSubPlugin() {
+    public void testGetDataFormatAwareStoreHandlerDelegatesToSubPlugin() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
 
@@ -146,30 +144,29 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        // Mock a sub-plugin that provides a factory
+        // Mock a sub-plugin that provides a handler
         org.opensearch.index.engine.dataformat.DataFormatPlugin subPlugin = mock(
             org.opensearch.index.engine.dataformat.DataFormatPlugin.class
         );
-        org.opensearch.index.engine.dataformat.FormatDirectoryFactory mockFactory = mock(
-            org.opensearch.index.engine.dataformat.FormatDirectoryFactory.class
+        org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler mockHandler = mock(
+            org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler.class
         );
-        when(subPlugin.getFormatDirectoryFactories(indexSettings, registry)).thenReturn(Map.of("parquet", mockFactory));
+        DataFormat mockDataFormat = mock(DataFormat.class);
+        when(subPlugin.getDataFormatAwareStoreHandlers(indexSettings, registry)).thenReturn(java.util.Map.of(mockDataFormat, mockHandler));
         when(registry.getPlugin("parquet")).thenReturn(subPlugin);
 
-        Map<String, org.opensearch.index.engine.dataformat.FormatDirectoryFactory> factories = plugin.getFormatDirectoryFactories(
-            indexSettings,
-            registry
-        );
-        assertEquals(1, factories.size());
-        assertTrue(factories.containsKey("parquet"));
-        assertSame(mockFactory, factories.get("parquet"));
+        java.util.Map<DataFormat, org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler> result = plugin
+            .getDataFormatAwareStoreHandlers(indexSettings, registry);
+        assertNotNull("Should return handler from sub-plugin", result);
+        assertEquals(1, result.size());
+        assertSame(mockHandler, result.get(mockDataFormat));
     }
 
-    public void testGetFormatDirectoryFactoriesSkipsNullFormatName() {
+    public void testGetDataFormatAwareStoreHandlerReturnsNullForDefaultPrimary() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
 
-        // Default primary is "lucene", no secondary — collectFactories should handle gracefully
+        // Default primary is "lucene", no sub-plugin registered
         Settings settings = Settings.builder()
             .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
             .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -180,13 +177,10 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        // "lucene" plugin not registered — should return empty, not NPE
         when(registry.getPlugin("lucene")).thenReturn(null);
 
-        Map<String, org.opensearch.index.engine.dataformat.FormatDirectoryFactory> factories = plugin.getFormatDirectoryFactories(
-            indexSettings,
-            registry
-        );
-        assertTrue("Should return empty when sub-plugin not found", factories.isEmpty());
+        java.util.Map<DataFormat, org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler> result = plugin
+            .getDataFormatAwareStoreHandlers(indexSettings, registry);
+        assertTrue("Should return empty when lucene sub-plugin not found", result.isEmpty());
     }
 }

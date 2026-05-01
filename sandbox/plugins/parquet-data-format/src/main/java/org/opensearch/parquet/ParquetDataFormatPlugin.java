@@ -19,6 +19,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -28,6 +29,7 @@ import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
+import org.opensearch.parquet.store.ParquetDataFormatAwareStoreHandler;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -120,6 +122,14 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     @Override
     public List<Setting<?>> getSettings() {
         return ParquetSettings.getSettings();
+    }
+
+    @Override
+    public Map<DataFormat, DataFormatAwareStoreHandler> getDataFormatAwareStoreHandlers(
+        IndexSettings indexSettings,
+        DataFormatRegistry registry
+    ) {
+        return Map.of(dataFormat, new ParquetDataFormatAwareStoreHandler());
     }
 
     @Override

@@ -316,7 +316,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         assertTrue(descriptors.isEmpty());
     }
 
-    public void testGetTieredDirectoriesReturnsEmptyWhenNoPluggableDataformat() {
+    public void testGetDataFormatAwareStoreHandlerReturnsNullWhenNoPluggableDataformat() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
@@ -325,11 +325,11 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        Map<String, FormatDirectoryFactory> result = registry.getFormatDirectoryFactories(indexSettings);
+        Map<DataFormat, DataFormatAwareStoreHandler> result = registry.getDataFormatAwareStoreHandlers(indexSettings);
         assertTrue("Should return empty map when no pluggable_dataformat setting", result.isEmpty());
     }
 
-    public void testGetFormatDirectoryFactoriesReturnsEmptyWhenPluginReturnsEmpty() {
+    public void testGetDataFormatAwareStoreHandlerReturnsNullWhenPluginReturnsNull() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
@@ -347,12 +347,12 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
             .build();
         IndexSettings settingsWithFormat = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
 
-        // MockDataFormatPlugin.getFormatDirectoryFactories returns empty map by default
-        Map<String, FormatDirectoryFactory> result = registry.getFormatDirectoryFactories(settingsWithFormat);
-        assertTrue("Should return empty map when plugin returns no factories", result.isEmpty());
+        // MockDataFormatPlugin.getDataFormatAwareStoreHandlers returns empty map by default
+        Map<DataFormat, DataFormatAwareStoreHandler> result = registry.getDataFormatAwareStoreHandlers(settingsWithFormat);
+        assertTrue("Should return empty map when plugin returns no handler", result.isEmpty());
     }
 
-    public void testGetFormatDirectoryFactoriesReturnsEmptyWhenFormatNameNotRegistered() {
+    public void testGetDataFormatAwareStoreHandlerReturnsNullWhenFormatNameNotRegistered() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
@@ -370,7 +370,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
             .build();
         IndexSettings settingsWithFormat = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
 
-        Map<String, FormatDirectoryFactory> result = registry.getFormatDirectoryFactories(settingsWithFormat);
+        Map<DataFormat, DataFormatAwareStoreHandler> result = registry.getDataFormatAwareStoreHandlers(settingsWithFormat);
         assertTrue("Should return empty map when format name not registered", result.isEmpty());
     }
 
@@ -410,6 +410,6 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        assertNull("Should return null for null name", registry.getPlugin(null));
+        assertNull("Should return empty map for null name", registry.getPlugin(null));
     }
 }

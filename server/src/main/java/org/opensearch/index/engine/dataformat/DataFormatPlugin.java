@@ -10,7 +10,6 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.store.FormatChecksumStrategy;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -57,19 +56,18 @@ public interface DataFormatPlugin {
     }
 
     /**
-     * Returns format-specific directory factories keyed by file format name.
+     * Returns format store handlers for file location tracking on tiered storage.
+     * Called once per shard at shard open time — each handler owns a per-shard native store.
      *
-     * <p>Override this to provide factories that create custom directories for this format's
-     * files. The map keys must match the file format names used in file paths (e.g., {@code "parquet"}
-     * for files like {@code "parquet/seg.parquet"}).
-     *
-     * <p>Return an empty map if the format uses the default directory handling.
+     * <p>After obtaining handlers, the caller must invoke
+     * {@link DataFormatAwareStoreHandler#create(boolean, NativeStoreRepository)} on each
+     * handler to initialize per-shard native resources.
      *
      * @param indexSettings       the index settings for this shard
      * @param dataFormatRegistry  the registry for looking up sub-format plugins
-     * @return map of file format name to directory factory, or empty map
+     * @return map of data format to handler (one handler per format per shard), or empty map
      */
-    default Map<String, FormatDirectoryFactory> getFormatDirectoryFactories(
+    default Map<DataFormat, DataFormatAwareStoreHandler> getDataFormatAwareStoreHandlers(
         IndexSettings indexSettings,
         DataFormatRegistry dataFormatRegistry
     ) {

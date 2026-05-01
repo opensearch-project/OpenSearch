@@ -17,7 +17,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.RemoteDirectory;
@@ -54,7 +53,6 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
     private ShardId shardId;
     private ShardPath shardPath;
     private IndexStorePlugin.DirectoryFactory localDirectoryFactory;
-    private DataFormatRegistry dataFormatRegistry;
     private RemoteSegmentStoreDirectory remoteDirectory;
     private FileCache fileCache;
     private ThreadPool threadPool;
@@ -98,10 +96,6 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
         localDirectoryFactory = mock(IndexStorePlugin.DirectoryFactory.class);
         when(localDirectoryFactory.newDirectory(any(), any())).thenReturn(fsDir);
 
-        dataFormatRegistry = mock(DataFormatRegistry.class);
-        when(dataFormatRegistry.getFormatDirectoryFactories(any())).thenReturn(new HashMap<>());
-        when(dataFormatRegistry.getFormatDescriptors(any())).thenReturn(new HashMap<>());
-
         remoteDirectory = createRealRemoteSegmentStoreDirectory(shardId);
         fileCache = FileCacheFactory.createConcurrentLRUFileCache(10_000_000, 1);
         threadPool = mock(ThreadPool.class);
@@ -118,6 +112,11 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
             org.opensearch.index.store.lockmanager.RemoteStoreLockManager.class
         );
         ThreadPool tp = mock(ThreadPool.class);
+
+        org.opensearch.common.blobstore.BlobContainer mockBlobContainer = mock(org.opensearch.common.blobstore.BlobContainer.class);
+        when(mockBlobContainer.path()).thenReturn(new org.opensearch.common.blobstore.BlobPath().add("test-base-path"));
+        when(remoteDataDir.getBlobContainer()).thenReturn(mockBlobContainer);
+
         return new RemoteSegmentStoreDirectory(remoteDataDir, remoteMetadataDir, lockManager, tp, shardId, new HashMap<>());
     }
 
@@ -131,7 +130,8 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
             shardId,
             shardPath,
             localDirectoryFactory,
-            dataFormatRegistry,
+            Map.of(),
+            Map.of(),
             remoteDirectory,
             fileCache,
             threadPool
@@ -161,7 +161,8 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
             shardId,
             shardPath,
             localDirectoryFactory,
-            dataFormatRegistry,
+            Map.of(),
+            Map.of(),
             remoteDirectory,
             fileCache,
             threadPool
@@ -186,14 +187,13 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
      * the factory still creates a valid directory stack with no format directories.
      */
     public void testEmptyFormatDirectoriesWhenNoPluginProvides() throws IOException {
-        when(dataFormatRegistry.getFormatDirectoryFactories(any())).thenReturn(Map.of());
-
         DataFormatAwareStoreDirectory result = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
             shardId,
             shardPath,
             localDirectoryFactory,
-            dataFormatRegistry,
+            Map.of(),
+            Map.of(),
             remoteDirectory,
             fileCache,
             threadPool
@@ -214,7 +214,7 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
     public void testHotPathThrowsUnsupportedOperation() {
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> factory.newDataFormatAwareStoreDirectory(indexSettings, shardId, shardPath, localDirectoryFactory, dataFormatRegistry)
+            () -> factory.newDataFormatAwareStoreDirectory(indexSettings, shardId, shardPath, localDirectoryFactory, Map.of())
         );
 
         assertTrue("Exception message should mention warm parameters", exception.getMessage().contains("warm"));

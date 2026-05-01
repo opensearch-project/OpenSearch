@@ -13,11 +13,12 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.RemoteDirectory;
@@ -87,11 +88,6 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-degradation").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        // Simulate sandbox not loaded: DataFormatRegistry returns empty tiered directories
-        DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.getFormatDirectoryFactories(any())).thenReturn(Map.of());
-        when(registry.getFormatDescriptors(any())).thenReturn(Map.of());
-
         FSDirectory fsDir = FSDirectory.open(shardPath.resolveIndex());
         IndexStorePlugin.DirectoryFactory localDirFactory = mock(IndexStorePlugin.DirectoryFactory.class);
         when(localDirFactory.newDirectory(any(), any())).thenReturn(fsDir);
@@ -109,7 +105,8 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
             shardId,
             shardPath,
             localDirFactory,
-            registry,
+            Map.of(),
+            Map.of(),
             remoteDir,
             fileCache,
             null
@@ -152,15 +149,15 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir(shardId);
         FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(10_000_000, 1);
 
-        // Empty format directories — simulates no sandbox plugins
-        Map<String, Directory> emptyFormats = new HashMap<>();
+        // Empty format store handlers — simulates no sandbox plugins
 
         TieredSubdirectoryAwareDirectory tieredSubdir = new TieredSubdirectoryAwareDirectory(
             subdirAware,
             remoteDir,
             fileCache,
             null,
-            emptyFormats,
+            Map.of(),
+            shardPath,
             getMockPrefetchSettingsSupplier()
         );
 
@@ -188,6 +185,11 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
         RemoteDirectory remoteMetadataDir = mock(RemoteDirectory.class);
         RemoteStoreLockManager lockManager = mock(RemoteStoreLockManager.class);
         ThreadPool tp = mock(ThreadPool.class);
+
+        BlobContainer mockBlobContainer = mock(BlobContainer.class);
+        when(mockBlobContainer.path()).thenReturn(new BlobPath().add("test-base-path"));
+        when(remoteDataDir.getBlobContainer()).thenReturn(mockBlobContainer);
+
         return new RemoteSegmentStoreDirectory(remoteDataDir, remoteMetadataDir, lockManager, tp, shardId, new HashMap<>());
     }
 }

@@ -78,6 +78,8 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.IndexerFactory;
@@ -120,7 +122,9 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.threadpool.ThreadPool;
@@ -783,13 +787,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 && this.indexSettings.isWarmIndex()
                 && this.indexSettings.isPluggableDataFormatEnabled()
                 && this.dataFormatAwareStoreDirectoryFactory != null) {
-                // Warm + format-aware: use warm-aware factory overload
+                // Warm + format-aware: create per-shard handlers with native store from repository
+                Map<DataFormat, DataFormatAwareStoreHandler> formatStoreHandlers = createFormatStoreHandlers(repositoriesService, true);
                 directory = dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
                     this.indexSettings,
                     shardId,
                     path,
                     directoryFactory,
-                    dataFormatRegistry,
+                    checksumStrategies,
+                    formatStoreHandlers,
                     (RemoteSegmentStoreDirectory) remoteDirectory,
                     fileCache,
                     threadPool
@@ -797,20 +803,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } else if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isWarmIndex()) {
-                directory = compositeDirectoryFactory.newDirectory(
-                    this.indexSettings,
-                    path,
-                    directoryFactory,
-                    remoteDirectory,
-                    fileCache,
-                    threadPool
-                );
-            } else if (this.indexSettings.isPluggableDataFormatEnabled() == false) {
-                directory = directoryFactory.newDirectory(this.indexSettings, path);
-            } else {
-                // Will be enabled in case of formatAware indices.
-                directory = createDataFormatAwareStoreDirectory(shardId, path, checksumStrategies);
-            }
+                    directory = compositeDirectoryFactory.newDirectory(
+                        this.indexSettings,
+                        path,
+                        directoryFactory,
+                        remoteDirectory,
+                        fileCache,
+                        threadPool
+                    );
+                } else if (this.indexSettings.isPluggableDataFormatEnabled() == false) {
+                    directory = directoryFactory.newDirectory(this.indexSettings, path);
+                } else {
+                    // Will be enabled in case of formatAware indices.
+                    directory = createDataFormatAwareStoreDirectory(shardId, path, checksumStrategies);
+                }
             store = storeFactory.newStore(
                 shardId,
                 this.indexSettings,
@@ -1384,6 +1390,41 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         logger.debug("No DataFormatAwareStoreDirectoryFactory available, Store will handle internal creation for: {}", shardPath);
         return null;
+    }
+
+    /**
+     * Creates per-shard format store handlers for tiered storage routing.
+     * Resolves the native object store from the index's remote store repository and passes it
+     * to the format plugin so each handler owns a per-shard native TieredObjectStore.
+     *
+     * @param repositoriesService the repositories service for resolving native stores
+     * @param isWarm              true if the shard is on a warm node
+     * @return map of data format to handler (one per format per shard), or empty map
+     */
+    private Map<DataFormat, DataFormatAwareStoreHandler> createFormatStoreHandlers(
+        RepositoriesService repositoriesService,
+        boolean isWarm
+    ) {
+        assert dataFormatRegistry != null;
+        Map<DataFormat, DataFormatAwareStoreHandler> handlers = dataFormatRegistry.getDataFormatAwareStoreHandlers(this.indexSettings);
+        if (handlers.isEmpty()) {
+            return handlers;
+        }
+        // Resolve native store from repository and initialize per-shard native resources
+        NativeStoreRepository repoStore = NativeStoreRepository.EMPTY;
+        String repoName = this.indexSettings.getRemoteStoreRepository();
+        if (repoName != null && repositoriesService != null) {
+            try {
+                repoStore = repositoriesService.repository(repoName).getNativeStore();
+            } catch (RepositoryMissingException e) {
+                logger.warn("Native store not available for repository [{}]", repoName);
+            }
+        }
+        for (DataFormatAwareStoreHandler handler : handlers.values()) {
+            // Todo: Add ILE buffer and block cache later
+            handler.create(isWarm, repoStore);
+        }
+        return handlers;
     }
 
     private void updateFsyncTaskIfNecessary() {

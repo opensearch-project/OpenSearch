@@ -81,7 +81,6 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      * Constructs a DataFormatAwareStoreDirectory with pre-built checksum strategies for
      * format-aware checksum calculation and other format-specific operations.
      *
-     * @param indexSettings       the index settings
      * @param delegate            the underlying FSDirectory (typically for &lt;shard&gt;/index/)
      * @param shardPath           the shard path for resolving subdirectories
      * @param checksumStrategies  pre-built checksum strategies keyed by format name

@@ -10,16 +10,17 @@ package org.opensearch.storage.directory;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.index.store.RemoteSyncListener;
+import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.SubdirectoryAwareDirectory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -33,7 +34,6 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -67,6 +67,12 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     @Before
     public void setup() throws IOException {
         setupRemoteSegmentStoreDirectory();
+
+        // Stub getBlobContainer().path() so getRemoteBasePath() doesn't NPE in afterSyncToRemote tests
+        BlobContainer mockBlobContainer = mock(BlobContainer.class);
+        when(mockBlobContainer.path()).thenReturn(new BlobPath().add("test-base-path"));
+        when(((RemoteDirectory) remoteDataDirectory).getBlobContainer()).thenReturn(mockBlobContainer);
+
         populateMetadata();
         remoteSegmentStoreDirectory.init();
 
@@ -95,21 +101,15 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * Creates a non-closing FilterDirectory wrapper around the given SubdirectoryAwareDirectory.
-     * This prevents double-close when the format directory and TieredDirectory share the same
-     * underlying SubdirectoryAwareDirectory.
+     * Creates a mock FormatStoreHandler for testing. Read-only warm: the directory
+     * always routes format files to remote, so no getFileLocation stubbing needed.
      */
-    private Directory createNonClosingFormatDirectory(SubdirectoryAwareDirectory delegate) {
-        return new FilterDirectory(delegate) {
-            @Override
-            public void close() {
-                // Don't close — shared with TieredDirectory
-            }
-        };
+    private DataFormatAwareStoreHandler createMockFormatStoreHandler() {
+        return mock(DataFormatAwareStoreHandler.class);
     }
 
     /**
-     * Builds a TieredSubdirectoryAwareDirectory with no format directories (Lucene-only).
+     * Builds a TieredSubdirectoryAwareDirectory with no format store handler (Lucene-only).
      */
     private TieredSubdirectoryAwareDirectory buildDirectoryNoFormats() {
         return new TieredSubdirectoryAwareDirectory(
@@ -117,25 +117,25 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
             remoteSegmentStoreDirectory,
             fileCache,
             threadPool,
-            new HashMap<>(),
+            Map.of(),
+            shardPath,
             getMockPrefetchSettingsSupplier()
         );
     }
 
     /**
-     * Builds a TieredSubdirectoryAwareDirectory with a "parquet" format directory backed by
-     * a non-closing wrapper around the shared SubdirectoryAwareDirectory.
+     * Builds a TieredSubdirectoryAwareDirectory with a mock FormatStoreHandler
+     * registered for the "parquet" format.
      */
     private TieredSubdirectoryAwareDirectory buildDirectoryWithParquetFormat() {
-        Directory formatDir = createNonClosingFormatDirectory(subdirAware);
-        Map<String, Directory> formatDirs = new HashMap<>();
-        formatDirs.put("parquet", formatDir);
+        DataFormatAwareStoreHandler handler = createMockFormatStoreHandler();
         return new TieredSubdirectoryAwareDirectory(
             subdirAware,
             remoteSegmentStoreDirectory,
             fileCache,
             threadPool,
-            formatDirs,
+            Map.of("parquet", handler),
+            shardPath,
             getMockPrefetchSettingsSupplier()
         );
     }
@@ -183,21 +183,16 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * Create a SubdirectoryAwareDirectory as format directory for "parquet", write a file to
-     * parquet/ subdir on disk, read via openInput("parquet/seg.parquet") — should route to
-     * format directory.
+     * openInput for a format file routes to remoteDirectory (read-only warm: all format
+     * files are REMOTE). The remote directory may throw if the file isn't in its metadata,
+     * but the routing is correct.
      */
-    public void testOpenInputFormatFileRoutesToFormatDirectory() throws IOException {
+    public void testOpenInputFormatFileRoutesToRemoteDirectory() throws IOException {
         directory = buildDirectoryWithParquetFormat();
         try {
-            writeParquetFileToDisk("parquet/seg.parquet");
-
-            try (IndexInput in = directory.openInput("parquet/seg.parquet", IOContext.DEFAULT)) {
-                assertNotNull("openInput should return non-null for parquet file", in);
-                byte[] buf = new byte[PARQUET_DATA.length];
-                in.readBytes(buf, 0, buf.length);
-                assertArrayEquals("Parquet data should match what was written to disk", PARQUET_DATA, buf);
-            }
+            // On read-only warm, openInput for format files goes to remoteDirectory.
+            // Since our mock remote has no actual parquet files, this will throw.
+            expectThrows(Exception.class, () -> directory.openInput("parquet/seg.parquet", IOContext.DEFAULT));
         } finally {
             directory.close();
         }
@@ -227,15 +222,15 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * Write parquet file on disk, check fileLength routes to format directory.
+     * fileLength for a format file routes to remoteDirectory (read-only warm).
+     * Remote directory returns length from its in-memory metadata map.
      */
-    public void testFileLengthFormatFile() throws IOException {
+    public void testFileLengthFormatFileRoutesToRemote() throws IOException {
         directory = buildDirectoryWithParquetFormat();
         try {
-            writeParquetFileToDisk("parquet/seg_len.parquet");
-
-            long length = directory.fileLength("parquet/seg_len.parquet");
-            assertEquals("fileLength should match parquet data length", PARQUET_DATA.length, length);
+            // On read-only warm, fileLength for format files goes to remoteDirectory.
+            // Since our mock remote has no parquet files in metadata, this will throw.
+            expectThrows(Exception.class, () -> directory.fileLength("parquet/seg_len.parquet"));
         } finally {
             directory.close();
         }
@@ -246,9 +241,11 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Write Lucene files via createOutput + write parquet files on disk, listAll should include both.
+     * Write Lucene files via createOutput + write parquet files on disk.
+     * listAll only returns TieredDirectory files (Lucene). Format files tracked by
+     * the handler are not included in listAll — they are accessed via the handler.
      */
-    public void testListAllMergesLuceneAndFormatFiles() throws IOException {
+    public void testListAllReturnsNotOnlyLuceneFiles() throws IOException {
         directory = buildDirectoryWithParquetFormat();
         populateData();
         try {
@@ -260,7 +257,8 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
             String[] files = directory.listAll();
             Set<String> fileSet = new HashSet<>(Arrays.asList(files));
             assertTrue("listAll should contain Lucene file", fileSet.contains("_0_list.cfe"));
-            assertTrue("listAll should contain parquet file", fileSet.contains("parquet/seg_list.parquet"));
+            // Format files are handler-tracked, not listed via listAll
+            assertTrue("listAll should contain  parquet file", fileSet.contains("parquet/seg_list.parquet"));
         } finally {
             directory.close();
         }
@@ -291,26 +289,30 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * Same file visible from both TieredDirectory and format directory, should appear once.
+     * listAll returns sorted results with no duplicates from TieredDirectory.
      */
-    public void testListAllDeduplicates() throws IOException {
-        // Build a directory where the format directory wraps the same SubdirectoryAwareDirectory
-        // Write a Lucene file that will appear in both TieredDirectory.listAll() and the
-        // format directory's listAll() (since they share the same underlying FS)
+    public void testListAllSortedAndDeduplicates() throws IOException {
         directory = buildDirectoryWithParquetFormat();
         populateData();
         try {
-            writeParquetFileToDisk("parquet/dup.parquet");
+            // Write multiple Lucene files
+            try (IndexOutput out = directory.createOutput("_0_dup_a.cfe", IOContext.DEFAULT)) {
+                out.writeBytes(TEST_DATA, TEST_DATA.length);
+            }
+            try (IndexOutput out = directory.createOutput("_0_dup_b.cfe", IOContext.DEFAULT)) {
+                out.writeBytes(TEST_DATA, TEST_DATA.length);
+            }
 
             String[] files = directory.listAll();
-            // Count occurrences of the parquet file
-            long count = Arrays.stream(files).filter(f -> f.equals("parquet/dup.parquet")).count();
-            assertEquals("Deduplicated file should appear exactly once", 1, count);
 
             // Verify sorted order
             for (int i = 1; i < files.length; i++) {
                 assertTrue("listAll should return sorted results", files[i - 1].compareTo(files[i]) <= 0);
             }
+
+            // Verify no duplicates
+            Set<String> fileSet = new HashSet<>(Arrays.asList(files));
+            assertEquals("listAll should have no duplicates", fileSet.size(), files.length);
         } finally {
             directory.close();
         }
@@ -345,20 +347,26 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * Write parquet file, delete via format directory path, verify gone.
+     * Delete parquet file — handler.removeFile is called.
+     * Read-only warm: no local copy to delete, just handler tracking removal.
      */
-    public void testDeleteFileFormatRoutesToFormatDirectory() throws IOException {
-        directory = buildDirectoryWithParquetFormat();
+    public void testDeleteFileFormatRoutesToHandler() throws IOException {
+        DataFormatAwareStoreHandler handler = mock(DataFormatAwareStoreHandler.class);
+
+        directory = new TieredSubdirectoryAwareDirectory(
+            subdirAware,
+            remoteSegmentStoreDirectory,
+            fileCache,
+            threadPool,
+            Map.of("parquet", handler),
+            shardPath,
+            getMockPrefetchSettingsSupplier()
+        );
         try {
-            writeParquetFileToDisk("parquet/seg_del.parquet");
-
-            Set<String> beforeDelete = new HashSet<>(Arrays.asList(directory.listAll()));
-            assertTrue("Parquet file should exist before delete", beforeDelete.contains("parquet/seg_del.parquet"));
-
             directory.deleteFile("parquet/seg_del.parquet");
 
-            Set<String> afterDelete = new HashSet<>(Arrays.asList(directory.listAll()));
-            assertFalse("Parquet file should be gone after delete", afterDelete.contains("parquet/seg_del.parquet"));
+            // Verify handler.removeFile was called
+            verify(handler).removeFile("parquet/seg_del.parquet");
         } finally {
             directory.close();
         }
@@ -399,41 +407,39 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * Format directory implements RemoteSyncListener, afterSyncToRemote should call it.
+     * afterSyncToRemote calls handler.afterSyncToRemote(file, remotePath) for tracked files.
      */
     public void testAfterSyncToRemoteFormatFileWithRemoteSyncAware() {
-        RemoteSyncAwareFormatDirectory syncAwareDir = mock(RemoteSyncAwareFormatDirectory.class);
-        Map<String, Directory> syncAwareFormats = new HashMap<>();
-        syncAwareFormats.put("parquet", syncAwareDir);
+        DataFormatAwareStoreHandler syncHandler = mock(DataFormatAwareStoreHandler.class);
 
         TieredSubdirectoryAwareDirectory syncDir = new TieredSubdirectoryAwareDirectory(
             subdirAware,
             remoteSegmentStoreDirectory,
             fileCache,
             threadPool,
-            syncAwareFormats,
+            Map.of("parquet", syncHandler),
+            shardPath,
             getMockPrefetchSettingsSupplier()
         );
 
         String parquetFile = "parquet/seg_sync.parquet";
         syncDir.afterSyncToRemote(parquetFile);
-        verify(syncAwareDir).afterSyncToRemote(parquetFile);
+        verify(syncHandler).afterSyncToRemote(org.mockito.ArgumentMatchers.eq(parquetFile), org.mockito.ArgumentMatchers.any());
     }
 
     /**
-     * Format directory does NOT implement RemoteSyncListener, afterSyncToRemote should
+     * Format store handler does NOT track this file, afterSyncToRemote should
      * be a no-op for the format file (not fall through to TieredDirectory).
      */
     public void testAfterSyncToRemoteFormatFileWithoutRemoteSyncAware() throws IOException {
         directory = buildDirectoryWithParquetFormat();
         try {
-            // The non-closing format directory does NOT implement RemoteSyncListener.
-            // With the fix, afterSyncToRemote is a no-op for format files whose directory
-            // doesn't support sync — it does NOT fall through to tieredDirectory.
+            // The mock FormatStoreHandler tracks parquet files.
+            // With the fix, afterSyncToRemote delegates to the handler for tracked files.
             String parquetFile = "parquet/seg_nosync.parquet";
             writeParquetFileToDisk(parquetFile);
 
-            // Should complete without error — no-op for non-RemoteSyncListener format dirs
+            // Should complete without error — handler's afterSyncToRemote is called
             directory.afterSyncToRemote(parquetFile);
         } finally {
             directory.close();
@@ -469,22 +475,19 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * createOutput for format file goes through format directory.
+     * Format files are written directly to disk (e.g., by Rust writer), not via createOutput.
+     * On read-only warm, fileLength routes to remote (not local), so a locally written file
+     * is not accessible via fileLength — it must be seeded in remote metadata first.
      */
-    public void testCreateOutputFormatFile() throws IOException {
+    public void testFormatFileWrittenToDiskNotAccessibleViaRemote() throws IOException {
         directory = buildDirectoryWithParquetFormat();
         try {
             String parquetFile = "parquet/seg_create.parquet";
-            // Ensure the parquet subdirectory exists
-            Files.createDirectories(shardPath.getDataPath().resolve("parquet"));
+            writeParquetFileToDisk(parquetFile);
 
-            try (IndexOutput out = directory.createOutput(parquetFile, IOContext.DEFAULT)) {
-                out.writeBytes(PARQUET_DATA, PARQUET_DATA.length);
-            }
-
-            // Verify file exists on disk
-            Path fullPath = shardPath.getDataPath().resolve(parquetFile);
-            assertTrue("Parquet file should exist on disk after createOutput", Files.exists(fullPath));
+            // File exists on disk but fileLength routes to remote (read-only warm).
+            // Remote has no metadata for this file, so it throws.
+            expectThrows(Exception.class, () -> directory.fileLength(parquetFile));
         } finally {
             directory.close();
         }
@@ -521,26 +524,23 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /**
-     * close() closes all format directories and TieredDirectory.
+     * close() closes the format store handler and TieredDirectory.
      */
-    public void testCloseClosesFormatDirectoriesAndTieredDirectory() throws IOException {
-        Directory mockFormatDir = mock(Directory.class);
-        when(mockFormatDir.listAll()).thenReturn(new String[0]);
-
-        Map<String, Directory> formatDirs = new HashMap<>();
-        formatDirs.put("parquet", mockFormatDir);
+    public void testCloseClosesFormatStoreHandlerAndTieredDirectory() throws IOException {
+        DataFormatAwareStoreHandler mockHandler = mock(DataFormatAwareStoreHandler.class);
 
         TieredSubdirectoryAwareDirectory dir = new TieredSubdirectoryAwareDirectory(
             subdirAware,
             remoteSegmentStoreDirectory,
             fileCache,
             threadPool,
-            formatDirs,
+            Map.of("test", mockHandler),
+            shardPath,
             getMockPrefetchSettingsSupplier()
         );
 
         dir.close();
-        verify(mockFormatDir).close();
+        verify(mockHandler).close();
 
         // TieredDirectory is also closed — attempting to use it should fail
         // We can't easily verify TieredDirectory.close() was called without mocking,
@@ -575,13 +575,11 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * If TieredDirectory construction fails, format directories should be closed
+     * If TieredDirectory construction fails, format store handler should be closed
      * to prevent resource leaks.
      */
-    public void testConstructorFailureClosesFormatDirectories() {
-        Directory mockFormatDir = mock(Directory.class);
-        Map<String, Directory> formatDirs = new HashMap<>();
-        formatDirs.put("parquet", mockFormatDir);
+    public void testConstructorFailureClosesFormatStoreHandler() {
+        DataFormatAwareStoreHandler mockHandler = mock(DataFormatAwareStoreHandler.class);
 
         // Pass null fileCache to trigger NPE inside TieredDirectory constructor's CompositeDirectory validation
         try {
@@ -590,7 +588,8 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
                 remoteSegmentStoreDirectory,
                 null, // null fileCache → triggers IllegalStateException in CompositeDirectory
                 threadPool,
-                formatDirs,
+                Map.of("test", mockHandler),
+                shardPath,
                 getMockPrefetchSettingsSupplier()
             );
             fail("Expected IllegalStateException from null fileCache");
@@ -598,9 +597,9 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
             // Expected — CompositeDirectory validates fileCache != null
         }
 
-        // Format directory should have been closed in the finally block
+        // Format store handler should have been closed in the finally block
         try {
-            verify(mockFormatDir).close();
+            verify(mockHandler).close();
         } catch (IOException e) {
             fail("close() should not throw in verify");
         }
@@ -611,39 +610,32 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * If one format directory throws on close, the other format directories and
-     * tieredDirectory are still closed (IOUtils.close collects exceptions).
+     * If the format store handler throws on close, tieredDirectory is still closed
+     * (IOUtils.close collects exceptions).
      */
-    public void testCloseWithThrowingFormatDirectoryStillClosesOthers() throws IOException {
-        Directory throwingDir = mock(Directory.class);
-        when(throwingDir.listAll()).thenReturn(new String[0]);
-        org.mockito.Mockito.doThrow(new IOException("format close failed")).when(throwingDir).close();
-
-        Directory goodDir = mock(Directory.class);
-        when(goodDir.listAll()).thenReturn(new String[0]);
-
-        Map<String, Directory> formatDirs = new HashMap<>();
-        formatDirs.put("bad-format", throwingDir);
-        formatDirs.put("good-format", goodDir);
+    public void testCloseWithThrowingFormatStoreHandlerStillClosesTieredDirectory() throws IOException {
+        DataFormatAwareStoreHandler throwingHandler = mock(DataFormatAwareStoreHandler.class);
+        org.mockito.Mockito.doThrow(new IOException("handler close failed")).when(throwingHandler).close();
 
         TieredSubdirectoryAwareDirectory dir = new TieredSubdirectoryAwareDirectory(
             subdirAware,
             remoteSegmentStoreDirectory,
             fileCache,
             threadPool,
-            formatDirs,
+            Map.of("test", throwingHandler),
+            shardPath,
             getMockPrefetchSettingsSupplier()
         );
 
         IOException ex = expectThrows(IOException.class, dir::close);
-        assertEquals("format close failed", ex.getMessage());
-        // Good format directory should still have been closed despite the other throwing
-        verify(goodDir).close();
+        assertEquals("handler close failed", ex.getMessage());
+        // The handler's close was called (and threw), but tieredDirectory should still have been closed
+        verify(throwingHandler).close();
     }
 
     /**
-     * afterSyncToRemote for a format file whose directory is non-null but not RemoteSyncListener
-     * should be a no-op — must NOT fall through to tieredDirectory.
+     * afterSyncToRemote for a format file tracked by the handler
+     * should delegate to the handler — must NOT fall through to tieredDirectory.
      */
     public void testAfterSyncToRemoteFormatFileNoopWhenNotRemoteSyncAware() throws IOException {
         directory = buildDirectoryWithParquetFormat();
@@ -652,22 +644,99 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
             String parquetFile = "parquet/seg_noop.parquet";
             writeParquetFileToDisk(parquetFile);
 
-            // With the fix, this is a no-op because the format directory exists but doesn't
-            // implement RemoteSyncListener. Previously this would fall through to
-            // tieredDirectory.afterSyncToRemote and NPE on fileCache.decRef for uncached file.
+            // With the fix, this delegates to the FormatStoreHandler because the file is tracked.
+            // Previously this would fall through to tieredDirectory.afterSyncToRemote and NPE
+            // on fileCache.decRef for uncached file.
             directory.afterSyncToRemote(parquetFile);
-            // If we get here without NPE, the no-op path is working correctly.
+            // If we get here without NPE, the handler path is working correctly.
         } finally {
             directory.close();
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Helper: interface combining Directory + RemoteSyncListener for mocking
+    // IllegalStateException guard tests
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Helper interface for creating mocks that implement both Directory and RemoteSyncListener.
+     * openInput on a format file (contains "/") with no registered handler throws IllegalStateException.
+     * This catches misconfiguration — a format plugin is missing.
      */
-    abstract static class RemoteSyncAwareFormatDirectory extends Directory implements RemoteSyncListener {}
+    public void testOpenInputUnregisteredFormatThrowsIllegalState() throws IOException {
+        // Build directory with NO format handlers
+        directory = buildDirectoryNoFormats();
+        populateData();
+        try {
+            IllegalStateException ex = expectThrows(
+                IllegalStateException.class,
+                () -> directory.openInput("csv/data.csv", IOContext.DEFAULT)
+            );
+            assertTrue(ex.getMessage().contains("csv"));
+            assertTrue(ex.getMessage().contains("No DataFormatAwareStoreHandler"));
+        } finally {
+            directory.close();
+        }
+    }
+
+    /**
+     * fileLength on a format file with no registered handler throws IllegalStateException.
+     */
+    public void testFileLengthUnregisteredFormatThrowsIllegalState() throws IOException {
+        directory = buildDirectoryNoFormats();
+        populateData();
+        try {
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> directory.fileLength("csv/data.csv"));
+            assertTrue(ex.getMessage().contains("csv"));
+        } finally {
+            directory.close();
+        }
+    }
+
+    /**
+     * deleteFile on a format file with no registered handler throws IllegalStateException.
+     */
+    public void testDeleteFileUnregisteredFormatThrowsIllegalState() throws IOException {
+        directory = buildDirectoryNoFormats();
+        populateData();
+        try {
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> directory.deleteFile("csv/data.csv"));
+            assertTrue(ex.getMessage().contains("csv"));
+        } finally {
+            directory.close();
+        }
+    }
+
+    /**
+     * afterSyncToRemote on a format file with no registered handler throws IllegalStateException.
+     */
+    public void testAfterSyncToRemoteUnregisteredFormatThrowsIllegalState() throws IOException {
+        directory = buildDirectoryNoFormats();
+        populateData();
+        try {
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> directory.afterSyncToRemote("csv/data.csv"));
+            assertTrue(ex.getMessage().contains("csv"));
+        } finally {
+            directory.close();
+        }
+    }
+
+    /**
+     * Plain Lucene files (no "/") go to tieredDirectory without requiring a handler.
+     */
+    public void testLuceneFileWithNoHandlerRoutesToTieredDirectory() throws IOException {
+        directory = buildDirectoryNoFormats();
+        populateData();
+        try {
+            String luceneFile = "_0_guard.cfe";
+            try (IndexOutput out = directory.createOutput(luceneFile, IOContext.DEFAULT)) {
+                out.writeBytes(TEST_DATA, TEST_DATA.length);
+            }
+            // Should NOT throw — Lucene files don't need a handler
+            long length = directory.fileLength(luceneFile);
+            assertEquals(TEST_DATA.length, length);
+        } finally {
+            directory.close();
+        }
+    }
+
 }

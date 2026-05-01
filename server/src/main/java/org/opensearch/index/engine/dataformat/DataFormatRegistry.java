@@ -19,6 +19,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -151,21 +152,20 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns format-specific directory factories from the active format plugin.
-     * Called by directory factories at shard open time.
-     * Follows the same pattern as {@link #getFormatDescriptors(IndexSettings)}.
+     * Returns format store handlers from the active format plugin.
+     * Called once per shard at shard open time — each handler owns a per-shard native store.
      *
-     * @param indexSettings the index settings for this shard
-     * @return map of file format name to directory factory, or empty map
+     * @param indexSettings          the index settings for this shard
+     * @return map of data format to handler (one per format per shard), or empty map
      */
-    public Map<String, FormatDirectoryFactory> getFormatDirectoryFactories(IndexSettings indexSettings) {
+    public Map<DataFormat, DataFormatAwareStoreHandler> getDataFormatAwareStoreHandlers(IndexSettings indexSettings) {
         String dataformatName = indexSettings.pluggableDataFormat();
         if (dataformatName != null && dataformatName.isEmpty() == false) {
             DataFormat format = dataFormats.get(dataformatName);
             if (format != null) {
                 DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
                 if (plugin != null) {
-                    return plugin.getFormatDirectoryFactories(indexSettings, this);
+                    return plugin.getDataFormatAwareStoreHandlers(indexSettings, this);
                 }
             }
         }

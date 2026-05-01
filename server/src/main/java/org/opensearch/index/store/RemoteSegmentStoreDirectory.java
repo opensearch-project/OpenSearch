@@ -1085,6 +1085,16 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return segmentsUploadedToRemoteStore.size();
     }
 
+    /**
+     * Returns the base blob path for this shard's remote segment data.
+     * E.g., "clusterUUID/indexUUID/shardId/segments/data/"
+     *
+     * @return the base path as a string
+     */
+    public String getRemoteBasePath() {
+        return remoteDataDirectory.getBlobContainer().path().buildAsString();
+    }
+
     // Visible for testing
     Set<String> getMetadataFilesToFilterActiveSegments(
         final int lastNMetadataFilesToKeep,

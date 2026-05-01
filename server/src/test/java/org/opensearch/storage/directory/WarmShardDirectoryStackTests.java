@@ -13,12 +13,14 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.RemoteDirectory;
@@ -116,10 +118,6 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
         IndexStorePlugin.DirectoryFactory localDirFactory = mock(IndexStorePlugin.DirectoryFactory.class);
         when(localDirFactory.newDirectory(any(), any())).thenReturn(fsDir);
 
-        DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.getFormatDirectoryFactories(any())).thenReturn(new HashMap<>());
-        when(registry.getFormatDescriptors(any())).thenReturn(new HashMap<>());
-
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir(shardPath.getShardId());
 
         DataFormatAwareStoreDirectory storeDir = factory.newDataFormatAwareStoreDirectory(
@@ -127,7 +125,8 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
             shardPath.getShardId(),
             shardPath,
             localDirFactory,
-            registry,
+            Map.of(),
+            Map.of(),
             remoteDir,
             fileCache,
             null // threadPool
@@ -151,28 +150,12 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
      */
     @LockFeatureFlag(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     public void testWarmDirectoryStackWithFormatDirectory() throws IOException {
-        // Create a parquet file on disk in the shard's parquet subdirectory
-        Path parquetPath = shardPath.getDataPath().resolve("parquet");
-        Files.createDirectories(parquetPath);
-        // Write the file directly to disk (simulating Rust writer)
-        Files.write(parquetPath.resolve("seg.parquet"), new byte[] { 1, 2, 3, 4 });
-
-        // Build the directory stack with SubdirectoryAwareDirectory as the format directory
-        // (same as production — ParquetTieredDirectory wraps SubdirectoryAwareDirectory)
+        // Build the directory stack with SubdirectoryAwareDirectory
         FSDirectory localFsDir = FSDirectory.open(shardPath.resolveIndex());
         SubdirectoryAwareDirectory subdirAware = new SubdirectoryAwareDirectory(localFsDir, shardPath);
 
-        // Use the same SubdirectoryAwareDirectory as the format directory
-        // (in production, ParquetTieredDirectory wraps it via FilterDirectory)
-        // Use a non-closing wrapper so the shared SubdirectoryAwareDirectory isn't double-closed
-        // (in production, ParquetTieredDirectory.close() only cleans FFM resources, not super.close())
-        Map<String, Directory> formatDirs = new HashMap<>();
-        formatDirs.put("parquet", new FilterDirectory(subdirAware) {
-            @Override
-            public void close() {
-                // Don't close — SubdirectoryAwareDirectory is shared with TieredDirectory
-            }
-        });
+        // Create a mock FormatStoreHandler — read-only warm, no getFileLocation needed
+        DataFormatAwareStoreHandler handler = mock(DataFormatAwareStoreHandler.class);
 
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir(shardPath.getShardId());
 
@@ -181,18 +164,19 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
             remoteDir,
             fileCache,
             null,
-            formatDirs,
+            Map.of("parquet", handler),
+            shardPath,
             getMockPrefetchSettingsSupplier()
         );
 
-        // Verify the parquet file is accessible through the stack
-        long length = tieredSubdir.fileLength("parquet/seg.parquet");
-        assertEquals("Parquet file should be 4 bytes", 4L, length);
+        // Read-only warm: fileLength for format files routes to remote.
+        // Mock remote has no parquet metadata, so this throws.
+        expectThrows(Exception.class, () -> tieredSubdir.fileLength("parquet/seg.parquet"));
 
-        // Verify listAll includes parquet files
+        // Format files are handler-tracked, not listed via listAll.
         String[] allFiles = tieredSubdir.listAll();
         Set<String> fileSet = new HashSet<>(Arrays.asList(allFiles));
-        assertTrue("listAll should include parquet file", fileSet.contains("parquet/seg.parquet"));
+        assertFalse("listAll should NOT include handler-tracked parquet file", fileSet.contains("parquet/seg.parquet"));
 
         tieredSubdir.close();
     }
@@ -202,6 +186,12 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
         RemoteDirectory remoteMetadataDir = mock(RemoteDirectory.class);
         RemoteStoreLockManager lockManager = mock(RemoteStoreLockManager.class);
         ThreadPool tp = mock(ThreadPool.class);
+
+        // Stub getBlobContainer().path() so getRemoteBasePath() doesn't NPE
+        BlobContainer mockBlobContainer = mock(BlobContainer.class);
+        when(mockBlobContainer.path()).thenReturn(new BlobPath().add("test-base-path"));
+        when(remoteDataDir.getBlobContainer()).thenReturn(mockBlobContainer);
+
         return new RemoteSegmentStoreDirectory(remoteDataDir, remoteMetadataDir, lockManager, tp, shardId, new HashMap<>());
     }
 }

@@ -11,6 +11,8 @@ package org.opensearch.index.store;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -73,7 +75,8 @@ public interface DataFormatAwareStoreDirectoryFactory {
      * @param shardId                the shard identifier
      * @param shardPath              the path the shard is using for file storage
      * @param localDirectoryFactory  the factory for creating the underlying local directory
-     * @param dataFormatRegistry     registry of available data format plugins
+     * @param checksumStrategies     pre-built checksum strategies keyed by format name
+     * @param formatStoreHandlers    per-format store handlers (keyed by DataFormat) for tiered storage routing
      * @param remoteDirectory        the remote segment store directory
      * @param fileCache              the file cache for warm node caching
      * @param threadPool             the thread pool for async operations
@@ -85,11 +88,12 @@ public interface DataFormatAwareStoreDirectoryFactory {
         ShardId shardId,
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
-        DataFormatRegistry dataFormatRegistry,
+        Map<String, FormatChecksumStrategy> checksumStrategies,
+        Map<DataFormat, DataFormatAwareStoreHandler> formatStoreHandlers,
         RemoteSegmentStoreDirectory remoteDirectory,
         FileCache fileCache,
         ThreadPool threadPool
     ) throws IOException {
-        return newDataFormatAwareStoreDirectory(indexSettings, shardId, shardPath, localDirectoryFactory, dataFormatRegistry);
+        throw new UnsupportedOperationException("Warm-aware directory creation not supported by this factory");
     }
 }

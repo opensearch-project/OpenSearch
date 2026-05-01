@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.CRC32;
 
+import static org.mockito.Mockito.mock;
+
 public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
 
     private Path tempDir;
@@ -975,56 +977,18 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
     }
 
     public void testAfterSyncToRemoteWithRemoteSyncAwareDelegate() {
-        // Create a DataFormatAwareStoreDirectory with a RemoteSyncListener delegate
-        RemoteSyncListener mockDelegate = mock(RemoteSyncListener.class);
-        org.apache.lucene.store.Directory mockDir = mock(org.apache.lucene.store.Directory.class);
-
         // We need a Directory that is also RemoteSyncListener — use the abstract helper
         RemoteSyncListenerMockDirectory syncAwareDir = mock(RemoteSyncListenerMockDirectory.class);
 
-        PluginsService pluginsService = mock(PluginsService.class);
-        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
-        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
-        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
-
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test-index").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        IndexSettings idxSettings = new IndexSettings(metadata, Settings.EMPTY);
-
-        DataFormatAwareStoreDirectory dir = DataFormatAwareStoreDirectory.withDirectoryDelegate(
-            idxSettings,
-            syncAwareDir,
-            shardPath,
-            registry
-        );
+        DataFormatAwareStoreDirectory dir = DataFormatAwareStoreDirectory.withDirectoryDelegate(syncAwareDir, shardPath, Map.of());
         dir.afterSyncToRemote("_0.cfe");
         org.mockito.Mockito.verify(syncAwareDir).afterSyncToRemote("_0.cfe");
     }
 
     public void testDirectDelegateConstructorDoesNotDoubleWrap() throws IOException {
         // withDirectDelegate should use the delegate as-is
-        PluginsService pluginsService = mock(PluginsService.class);
-        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
-        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
-        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
-
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test-index").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        IndexSettings idxSettings = new IndexSettings(metadata, Settings.EMPTY);
-
         SubdirectoryAwareDirectory subdirAware = new SubdirectoryAwareDirectory(fsDirectory, shardPath);
-        DataFormatAwareStoreDirectory dir = DataFormatAwareStoreDirectory.withDirectoryDelegate(
-            idxSettings,
-            subdirAware,
-            shardPath,
-            registry
-        );
+        DataFormatAwareStoreDirectory dir = DataFormatAwareStoreDirectory.withDirectoryDelegate(subdirAware, shardPath, Map.of());
 
         // The delegate should be the SubdirectoryAwareDirectory directly, not wrapped again
         org.apache.lucene.store.Directory delegate = org.apache.lucene.store.FilterDirectory.unwrap(dir);

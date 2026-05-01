@@ -15,11 +15,12 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
-import org.opensearch.index.engine.dataformat.FormatDirectoryFactory;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.SubdirectoryAwareDirectory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -35,126 +36,84 @@ import java.util.function.Supplier;
 /**
  * Factory for creating the warm+format directory stack.
  *
- * <p>This factory builds the full tiered directory stack for warm nodes with pluggable data format
- * support. The resulting directory stack is:
- * <pre>
- *   DataFormatAwareStoreDirectory (checksums, format metadata)
- *     → TieredSubdirectoryAwareDirectory (format routing + tiered storage)
- *       ├── wraps: SubdirectoryAwareDirectory → FSDirectory
- *       ├── holds: TieredDirectory(SubdirectoryAwareDirectory, RemoteDir, FileCache, ThreadPool)
- *       └── holds: Map&lt;String, DataFormatDirectoryDelegator&gt;
- * </pre>
- *
- * <p>This factory is only used for warm+format indices. It is always registered in Node.java
- * under the key "dataformat-tiered", but IndexModule only selects it when both
- * {@code isWarmIndex()} and {@code isPluggableDataFormatEnabled()} are true.
- *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public class TieredDataFormatAwareStoreDirectoryFactory implements DataFormatAwareStoreDirectoryFactory {
 
-    /** Factory key for the warm+format tiered directory stack. */
     public static final String FACTORY_KEY = "dataformat-tiered";
 
     private static final Logger logger = LogManager.getLogger(TieredDataFormatAwareStoreDirectoryFactory.class);
 
     private final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
 
-    /**
-     * Creates a new TieredDataFormatAwareStoreDirectoryFactory with the given prefetch settings supplier.
-     *
-     * @param tieredStoragePrefetchSettingsSupplier supplier for tiered storage prefetch settings
-     */
     public TieredDataFormatAwareStoreDirectoryFactory(Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier) {
         this.tieredStoragePrefetchSettingsSupplier = tieredStoragePrefetchSettingsSupplier;
     }
 
-    /**
-     * Hot path: not supported by this factory. This factory is only for warm+format indices.
-     *
-     * @throws UnsupportedOperationException always — use the warm-aware overload instead
-     */
     @Override
     public DataFormatAwareStoreDirectory newDataFormatAwareStoreDirectory(
         IndexSettings indexSettings,
         ShardId shardId,
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
-        DataFormatRegistry dataFormatRegistry
+        Map<String, FormatChecksumStrategy> checksumStrategies
     ) throws IOException {
         throw new UnsupportedOperationException(
-            "TieredDataFormatAwareStoreDirectoryFactory requires warm parameters "
-                + "(remoteDirectory, fileCache, threadPool). Use the warm-aware overload."
+            "TieredDataFormatAwareStoreDirectoryFactory requires warm parameters. Use the warm-aware overload."
         );
     }
 
-    /**
-     * Creates the warm+format directory stack.
-     *
-     * <p>Builds: FSDirectory → SubdirectoryAwareDirectory → TieredSubdirectoryAwareDirectory
-     * → DataFormatAwareStoreDirectory (direct delegate constructor).
-     *
-     * @param indexSettings          the shard's index settings
-     * @param shardId                the shard identifier
-     * @param shardPath              the path the shard is using for file storage
-     * @param localDirectoryFactory  the factory for creating the underlying local directory
-     * @param dataFormatRegistry     registry of available data format plugins
-     * @param remoteDirectory        the remote segment store directory
-     * @param fileCache              the file cache for warm node caching
-     * @param threadPool             the thread pool for async operations
-     * @return a new DataFormatAwareStoreDirectory wrapping the tiered directory stack
-     * @throws IOException if directory creation fails
-     */
     @Override
     public DataFormatAwareStoreDirectory newDataFormatAwareStoreDirectory(
         IndexSettings indexSettings,
         ShardId shardId,
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
-        DataFormatRegistry dataFormatRegistry,
+        Map<String, FormatChecksumStrategy> checksumStrategies,
+        Map<DataFormat, DataFormatAwareStoreHandler> formatStoreHandlers,
         RemoteSegmentStoreDirectory remoteDirectory,
         FileCache fileCache,
         ThreadPool threadPool
     ) throws IOException {
         logger.debug("Creating warm+format directory stack for shard [{}]", shardId);
 
-        // 1. Create local directory via factory
         Directory localDir = localDirectoryFactory.newDirectory(indexSettings, shardPath);
-
-        // 2. Wrap in SubdirectoryAwareDirectory for path routing
         SubdirectoryAwareDirectory subdirAware = new SubdirectoryAwareDirectory(localDir, shardPath);
 
-        // 3. Get format directory factories and create directories for warm
-        Map<String, FormatDirectoryFactory> factories = dataFormatRegistry.getFormatDirectoryFactories(indexSettings);
-        Map<String, Directory> formatDirectories = new HashMap<>();
-        for (Map.Entry<String, FormatDirectoryFactory> entry : factories.entrySet()) {
-            formatDirectories.put(
-                entry.getKey(),
-                entry.getValue().create(subdirAware, indexSettings, remoteDirectory, fileCache, threadPool)
-            );
+        // Convert DataFormat-keyed map to String-keyed map for directory routing (resolves by format name from file path)
+        Map<String, DataFormatAwareStoreHandler> handlersByName = new HashMap<>();
+        for (Map.Entry<DataFormat, DataFormatAwareStoreHandler> entry : formatStoreHandlers.entrySet()) {
+            handlersByName.put(entry.getKey().name(), entry.getValue());
         }
 
-        // 4. Create TieredSubdirectoryAwareDirectory
+        // Seed handlers from remote metadata — register all format files as REMOTE with full remote path.
+        // Initial seed needed because RemoteSegmentStoreDirectory.init() runs before we register listeners.
+        if (handlersByName.isEmpty() == false) {
+            seedHandlersFromRemoteMetadata(remoteDirectory, handlersByName);
+            // TODO (writable warm): also scan local disk for format files that exist locally
+            // (e.g., after a crash before sync completed) and seed them as LOCAL:
+            // seedHandlersFromLocalFiles(subdirAware, shardPath, handlersByName);
+        }
+
         TieredSubdirectoryAwareDirectory tieredSubdir = new TieredSubdirectoryAwareDirectory(
             subdirAware,
             remoteDirectory,
             fileCache,
             threadPool,
-            formatDirectories,
+            handlersByName,
+            shardPath,
             tieredStoragePrefetchSettingsSupplier
         );
 
-        logger.debug("Created warm+format directory stack for shard [{}] with format directories: {}", shardId, formatDirectories.keySet());
+        logger.debug("Created warm+format directory stack for shard [{}] with format handlers: {}", shardId, handlersByName.keySet());
 
-        // 5. Wrap in DataFormatAwareStoreDirectory (direct delegate — no double wrapping)
         boolean success = false;
         try {
             DataFormatAwareStoreDirectory result = DataFormatAwareStoreDirectory.withDirectoryDelegate(
-                indexSettings,
                 tieredSubdir,
                 shardPath,
-                dataFormatRegistry
+                checksumStrategies
             );
             success = true;
             return result;
@@ -162,6 +121,35 @@ public class TieredDataFormatAwareStoreDirectoryFactory implements DataFormatAwa
             if (success == false) {
                 IOUtils.closeWhileHandlingException(tieredSubdir);
             }
+        }
+    }
+
+    /**
+     * Seeds format store handlers from remote segment metadata.
+     * Registers all format files as REMOTE with full remote path (basePath + format/ + blobKey).
+     */
+    private static void seedHandlersFromRemoteMetadata(
+        RemoteSegmentStoreDirectory remoteDirectory,
+        Map<String, DataFormatAwareStoreHandler> handlers
+    ) {
+        String basePath = remoteDirectory.getRemoteBasePath();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata = remoteDirectory.getSegmentsUploadedToRemoteStore();
+
+        Map<DataFormatAwareStoreHandler, Map<String, String>> handlerFiles = new HashMap<>();
+        for (Map.Entry<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> entry : metadata.entrySet()) {
+            String file = entry.getKey();
+            String format = DataFormatAwareStoreDirectory.toFileMetadata(file).dataFormat();
+            DataFormatAwareStoreHandler handler = handlers.get(format);
+            if (handler != null) {
+                String blobKey = entry.getValue().getUploadedFilename();
+                String remotePath = basePath + ((format != null && format.isEmpty() == false) ? format + "/" : "") + blobKey;
+                handlerFiles.computeIfAbsent(handler, k -> new HashMap<>()).put(file, remotePath);
+            }
+        }
+
+        for (Map.Entry<DataFormatAwareStoreHandler, Map<String, String>> entry : handlerFiles.entrySet()) {
+            entry.getKey().seedFileLocations(entry.getValue(), DataFormatAwareStoreHandler.FileLocation.REMOTE);
+            logger.debug("Seeded {} format files from remote metadata", entry.getValue().size());
         }
     }
 }
