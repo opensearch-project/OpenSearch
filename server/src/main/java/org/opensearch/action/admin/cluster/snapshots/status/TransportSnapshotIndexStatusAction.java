@@ -151,26 +151,17 @@ public class TransportSnapshotIndexStatusAction extends TransportClusterManagerN
         if (nodeIds.isEmpty()) {
             // No in-progress shards on any node — build response from cluster state alone.
             threadPool.generic()
-                .execute(
-                    ActionRunnable.wrap(
-                        listener,
-                        l -> l.onResponse(buildRunningSnapshotResponse(entry, Collections.emptyMap()))
-                    )
-                );
+                .execute(ActionRunnable.wrap(listener, l -> l.onResponse(buildRunningSnapshotResponse(entry, Collections.emptyMap()))));
             return;
         }
 
         transportNodesSnapshotsStatus.execute(
-            new TransportNodesSnapshotsStatus.Request(nodeIds.toArray(Strings.EMPTY_ARRAY)).snapshots(
-                new Snapshot[] { entry.snapshot() }
-            ).timeout(request.clusterManagerNodeTimeout()),
+            new TransportNodesSnapshotsStatus.Request(nodeIds.toArray(Strings.EMPTY_ARRAY)).snapshots(new Snapshot[] { entry.snapshot() })
+                .timeout(request.clusterManagerNodeTimeout()),
             ActionListener.wrap(
                 nodeStatuses -> threadPool.generic()
                     .execute(
-                        ActionRunnable.wrap(
-                            listener,
-                            l -> l.onResponse(buildRunningSnapshotResponse(entry, nodeStatuses.getNodesMap()))
-                        )
+                        ActionRunnable.wrap(listener, l -> l.onResponse(buildRunningSnapshotResponse(entry, nodeStatuses.getNodesMap())))
                     ),
                 listener::onFailure
             )
@@ -259,23 +250,14 @@ public class TransportSnapshotIndexStatusAction extends TransportClusterManagerN
             distinctIndices.add(shardId.getIndexName());
         }
 
-        return new SnapshotIndexStatusResponse(
-            entry.state(),
-            distinctIndices.size(),
-            0,
-            distinctIndices.size(),
-            shardStatusList
-        );
+        return new SnapshotIndexStatusResponse(entry.state(), distinctIndices.size(), 0, distinctIndices.size(), shardStatusList);
     }
 
     // -----------------------------------------------------------------------
     // Completed snapshot path (paginated)
     // -----------------------------------------------------------------------
 
-    private void handleCompletedSnapshot(
-        SnapshotIndexStatusRequest request,
-        ActionListener<SnapshotIndexStatusResponse> listener
-    ) {
+    private void handleCompletedSnapshot(SnapshotIndexStatusRequest request, ActionListener<SnapshotIndexStatusResponse> listener) {
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
         repositoriesService.getRepositoryData(request.repository(), repositoryDataListener);
 
@@ -353,7 +335,10 @@ public class TransportSnapshotIndexStatusAction extends TransportClusterManagerN
             final IndexId indexId = entry.getKey();
             final IndexMetadata indexMetadata = entry.getValue();
             final int numberOfShards = indexMetadata.getNumberOfShards();
-            final Map<Integer, SnapshotShardFailure> indexFailures = failuresByIndex.getOrDefault(indexId.getName(), Collections.emptyMap());
+            final Map<Integer, SnapshotShardFailure> indexFailures = failuresByIndex.getOrDefault(
+                indexId.getName(),
+                Collections.emptyMap()
+            );
 
             for (int i = 0; i < numberOfShards; i++) {
                 final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);

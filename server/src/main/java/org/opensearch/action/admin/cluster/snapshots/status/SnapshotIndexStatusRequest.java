@@ -64,10 +64,7 @@ public class SnapshotIndexStatusRequest extends ClusterManagerNodeRequest<Snapsh
         if (repository == null || repository.isEmpty()) {
             validationException = addValidationError("repository is missing", validationException);
         } else if ("_all".equals(repository)) {
-            validationException = addValidationError(
-                "repository must be a specific repository name, not [_all]",
-                validationException
-            );
+            validationException = addValidationError("repository must be a specific repository name, not [_all]", validationException);
         }
         if (snapshot == null || snapshot.isEmpty()) {
             validationException = addValidationError("snapshot is missing", validationException);

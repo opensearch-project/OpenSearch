@@ -54,13 +54,7 @@ public class SnapshotIndexStatusResponse extends ActionResponse implements ToXCo
      */
     private volatile Map<String, SnapshotIndexStatus> indicesStatus;
 
-    public SnapshotIndexStatusResponse(
-        State snapshotState,
-        int totalIndices,
-        int from,
-        int size,
-        List<SnapshotIndexShardStatus> shards
-    ) {
+    public SnapshotIndexStatusResponse(State snapshotState, int totalIndices, int from, int size, List<SnapshotIndexShardStatus> shards) {
         this.snapshotState = snapshotState;
         this.totalIndices = totalIndices;
         this.from = from;
