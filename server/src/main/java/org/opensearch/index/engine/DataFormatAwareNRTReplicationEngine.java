@@ -105,7 +105,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     private final WriteOnlyTranslogManager translogManager;
     private final Lock flushLock = new ReentrantLock();
 
-    private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
+    private volatile long lastReceivedPrimaryCommitGen = SequenceNumbers.NO_OPS_PERFORMED;
 
     private static final int SI_COUNTER_INCREMENT = 100000;
 
@@ -286,7 +286,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             final long maxSeqNo = Long.parseLong(incoming.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-            final long incomingGeneration = incoming.getGeneration();
+            final long incomingCommitGeneration = incoming.getLastCommitGeneration();
 
             applySnapshotAndNotifyReaders(incoming);
 
@@ -297,14 +297,12 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
             invokeRefreshListeners(true);
 
-            // Commit on generation change
-            // Todo:need to some SnapshotCatalog property that changes on per flush.
-            if (incomingGeneration != lastReceivedPrimaryGen) {
+            if (incomingCommitGeneration != lastReceivedPrimaryCommitGen) {
                 flush(false, true);
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }
-            lastReceivedPrimaryGen = incomingGeneration;
+            lastReceivedPrimaryCommitGen = incomingCommitGeneration;
             localCheckpointTracker.fastForwardProcessedSeqNo(maxSeqNo);
         }
     }
