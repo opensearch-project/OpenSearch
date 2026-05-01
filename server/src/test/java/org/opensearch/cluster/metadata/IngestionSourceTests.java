@@ -317,20 +317,25 @@ public class IngestionSourceTests extends OpenSearchTestCase {
     }
 
     public void testSourcePartitionStrategySetAndGet() {
-        IngestionSource source = new IngestionSource.Builder("type").setSourcePartitionStrategy(IngestionSource.SourcePartitionStrategy.MODULO).build();
+        IngestionSource source = new IngestionSource.Builder("type").setSourcePartitionStrategy(
+            IngestionSource.SourcePartitionStrategy.MODULO
+        ).build();
         assertEquals(IngestionSource.SourcePartitionStrategy.MODULO, source.getSourcePartitionStrategy());
     }
 
     public void testSourcePartitionStrategyAffectsEquals() {
-        IngestionSource simpleSource = new IngestionSource.Builder("type").setSourcePartitionStrategy(IngestionSource.SourcePartitionStrategy.SIMPLE)
-            .build();
-        IngestionSource moduloSource = new IngestionSource.Builder("type").setSourcePartitionStrategy(IngestionSource.SourcePartitionStrategy.MODULO)
-            .build();
+        IngestionSource simpleSource = new IngestionSource.Builder("type").setSourcePartitionStrategy(
+            IngestionSource.SourcePartitionStrategy.SIMPLE
+        ).build();
+        IngestionSource moduloSource = new IngestionSource.Builder("type").setSourcePartitionStrategy(
+            IngestionSource.SourcePartitionStrategy.MODULO
+        ).build();
         assertNotEquals(simpleSource, moduloSource);
         assertNotEquals(simpleSource.hashCode(), moduloSource.hashCode());
 
-        IngestionSource moduloSource2 = new IngestionSource.Builder("type").setSourcePartitionStrategy(IngestionSource.SourcePartitionStrategy.MODULO)
-            .build();
+        IngestionSource moduloSource2 = new IngestionSource.Builder("type").setSourcePartitionStrategy(
+            IngestionSource.SourcePartitionStrategy.MODULO
+        ).build();
         assertEquals(moduloSource, moduloSource2);
         assertEquals(moduloSource.hashCode(), moduloSource2.hashCode());
     }

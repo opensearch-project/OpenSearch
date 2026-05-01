@@ -127,7 +127,12 @@ public class SourcePartitionAssignmentTests extends OpenSearchTestCase {
         boolean[] covered = new boolean[numPartitions];
 
         for (int s = 0; s < numShards; s++) {
-            List<Integer> assigned = SourcePartitionAssignment.assignPartitions(s, numShards, numPartitions, SourcePartitionStrategy.MODULO);
+            List<Integer> assigned = SourcePartitionAssignment.assignPartitions(
+                s,
+                numShards,
+                numPartitions,
+                SourcePartitionStrategy.MODULO
+            );
             for (int p : assigned) {
                 assertFalse("Partition " + p + " assigned to multiple shards", covered[p]);
                 covered[p] = true;

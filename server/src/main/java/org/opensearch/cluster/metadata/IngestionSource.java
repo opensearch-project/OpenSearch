@@ -25,9 +25,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_INT
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING;
 
