@@ -128,7 +128,7 @@ public class DocumentMapperParser {
             queryShardContextSupplier,
             null,
             scriptService,
-            dataFormatRegistry
+            Mapper.isPluggableDataFormatEnabled(mapperService.getIndexSettings().getSettings()) ? dataFormatRegistry : null
         );
     }
 
@@ -141,7 +141,7 @@ public class DocumentMapperParser {
             queryShardContextSupplier,
             dateFormatter,
             scriptService,
-            dataFormatRegistry
+            Mapper.isPluggableDataFormatEnabled(mapperService.getIndexSettings().getSettings()) ? dataFormatRegistry : null
         );
     }
 

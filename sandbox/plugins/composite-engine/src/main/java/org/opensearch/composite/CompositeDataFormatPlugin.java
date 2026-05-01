@@ -43,6 +43,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -297,6 +298,41 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             }
         }
         return Map.copyOf(descriptors);
+    }
+
+    /**
+     * Returns the data formats configured for this composite index in priority-walk order:
+     * the primary format first (regardless of its priority value), followed by secondaries sorted
+     * by {@link DataFormat#priority()} ascending. Used by capability coverage validation in
+     * {@link org.opensearch.index.mapper.Mapper.BuilderContext#assignCapabilities}.
+     *
+     * <p>Skips any format names that are missing from the registry — those are reported by
+     * other validation paths and would only confuse a coverage error here.
+     */
+    @Override
+    public List<DataFormat> getConfiguredFormats(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        Settings settings = indexSettings.getSettings();
+        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
+
+        List<DataFormat> configured = new ArrayList<>();
+        if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
+            DataFormat primary = dataFormatRegistry.getRegisteredFormats()
+                .stream()
+                .filter(f -> f.name().equals(primaryFormatName))
+                .findFirst()
+                .orElse(null);
+            if (primary != null) {
+                configured.add(primary);
+            }
+        }
+        secondaryFormatNames.stream()
+            .filter(name -> name != null && name.isEmpty() == false)
+            .map(name -> dataFormatRegistry.getRegisteredFormats().stream().filter(f -> f.name().equals(name)).findFirst().orElse(null))
+            .filter(f -> f != null)
+            .sorted(Comparator.comparingLong(DataFormat::priority))
+            .forEach(configured::add);
+        return List.copyOf(configured);
     }
 
     /**

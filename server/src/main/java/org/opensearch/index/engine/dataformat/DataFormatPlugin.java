@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.Committer;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -62,6 +63,23 @@ public interface DataFormatPlugin {
         DataFormatRegistry dataFormatRegistry
     ) {
         return Map.of();
+    }
+
+    /**
+     * Returns the data formats configured for use by the given index, in priority-walk order:
+     * the primary format first (the format the index designates as authoritative), followed by
+     * any secondary formats sorted by {@link DataFormat#priority()} ascending. Used by capability
+     * coverage validation to scope checks to formats that actually participate in this index.
+     *
+     * <p>Single-format plugins return a singleton list containing their own format. Composite
+     * plugins override this to return primary + secondaries in declared/priority order.
+     *
+     * @param indexSettings      the index settings
+     * @param dataFormatRegistry the registry, used by composite plugins to resolve sub-format plugins
+     * @return ordered list of configured formats; never {@code null}
+     */
+    default List<DataFormat> getConfiguredFormats(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        return List.of(getDataFormat());
     }
 
     /**

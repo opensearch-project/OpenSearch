@@ -164,6 +164,20 @@ public class DataFormatRegistry {
     }
 
     /**
+     * Returns all registered data formats sorted by {@link DataFormat#priority()} ascending
+     * (lowest priority value = highest preference). Used by capability coverage validation
+     * to walk formats in primary-first order.
+     *
+     * @return list of data formats sorted by priority ascending
+     */
+    public List<DataFormat> getRegisteredFormatsByPriority() {
+        return dataFormatPluginRegistry.keySet()
+            .stream()
+            .sorted(Comparator.comparingLong(DataFormat::priority))
+            .collect(Collectors.toList());
+    }
+
+    /**
      * Computes the capability map for a given field type name across all registered data formats.
      * Convenience overload that passes no default or requested capabilities.
      *
@@ -281,6 +295,38 @@ public class DataFormatRegistry {
             }
         }
         return Map.of();
+    }
+
+    /**
+     * Returns the data formats configured for use by the given index, in priority-walk order
+     * (primary first, then secondaries by priority ascending). Resolves the active data format
+     * plugin from index settings via the {@code pluggable_dataformat} setting and delegates to
+     * {@link DataFormatPlugin#getConfiguredFormats(IndexSettings, DataFormatRegistry)}.
+     *
+     * <p>Used by capability coverage validation in
+     * {@link org.opensearch.index.mapper.Mapper.BuilderContext#assignCapabilities} to scope
+     * checks to formats that actually participate in this index, not every format registered
+     * on the node.
+     *
+     * @param indexSettings the index settings used to determine the active data format plugin
+     * @return ordered list of configured formats, or an empty list if no pluggable data format
+     *         is configured
+     */
+    public List<DataFormat> getConfiguredFormats(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName == null || dataformatName.isEmpty()) {
+            return List.of();
+        }
+        DataFormat format = dataFormats.get(dataformatName);
+        if (format == null) {
+            return List.of();
+        }
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+        if (plugin == null) {
+            return List.of();
+        }
+        List<DataFormat> configured = plugin.getConfiguredFormats(indexSettings, this);
+        return configured == null ? List.of() : List.copyOf(configured);
     }
 
     /**

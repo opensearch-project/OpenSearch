@@ -52,6 +52,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -97,8 +98,13 @@ public class DocumentMapper implements ToXContentFragment {
         }
 
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService, @Nullable DataFormatRegistry dataFormatRegistry) {
-            final Settings indexSettings = mapperService.getIndexSettings().getSettings();
-            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1), dataFormatRegistry);
+            final IndexSettings is = mapperService.getIndexSettings();
+            final Settings indexSettings = is.getSettings();
+            // Resolve the index's configured data formats once at mapping build time. The list is
+            // empty when the index has no pluggable data format configured; in that case validation
+            // and capability map assignment are skipped downstream.
+            final List<DataFormat> configuredFormats = dataFormatRegistry == null ? List.of() : dataFormatRegistry.getConfiguredFormats(is);
+            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1), dataFormatRegistry, configuredFormats);
             this.rootObjectMapper = builder.build(builderContext);
 
             final DocumentMapper existingMapper = mapperService.documentMapper();
@@ -119,22 +125,23 @@ public class DocumentMapper implements ToXContentFragment {
             }
 
             // Assign capability maps to all field types during mapper building.
-            // Each field type (including metadata) participates in capability-based routing:
-            // the registry assigns each capability to the highest-priority format that supports it.
+            // Each field type (including metadata) participates in capability-based routing.
+            // Non-metadata fields go through single-format coverage validation; metadata fields
+            // use the existing per-capability priority-winner algorithm with defaults.
             if (dataFormatRegistry != null) {
                 assignCapabilitiesRecursive(rootObjectMapper, builderContext);
                 for (MetadataFieldMapper metadataMapper : metadataMappers.values()) {
-                    builderContext.assignCapabilities(metadataMapper.fieldType());
+                    builderContext.assignCapabilities(metadataMapper.fieldType(), /* isMetadataField */ true);
                 }
             }
         }
 
         /**
-         * Recursively walks the mapper tree and assigns capability maps to all field types.
+         * Recursively walks the mapper tree and assigns capability maps to all non-metadata field types.
          */
         private static void assignCapabilitiesRecursive(Mapper mapper, Mapper.BuilderContext context) {
             if (mapper instanceof FieldMapper) {
-                context.assignCapabilities(((FieldMapper) mapper).fieldType());
+                context.assignCapabilities(((FieldMapper) mapper).fieldType(), /* isMetadataField */ false);
             }
             for (Mapper child : mapper) {
                 assignCapabilitiesRecursive(child, context);

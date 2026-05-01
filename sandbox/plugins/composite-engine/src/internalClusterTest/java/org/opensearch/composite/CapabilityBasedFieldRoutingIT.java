@@ -8,7 +8,6 @@
 
 package org.opensearch.composite;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
@@ -28,18 +27,25 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-
-import static org.hamcrest.Matchers.hasItem;
 
 /**
- * Integration tests verifying that capability maps are correctly assigned to field types
- * when creating composite indices with pluggable data formats.
+ * Integration tests verifying capability-based field routing for composite indices.
  * <p>
- * Each test creates an index, then inspects the actual {@link MappedFieldType#getCapabilityMap()}
- * to verify that the right data format owns the right capabilities for each field.
+ * Validation rule: a field's full set of requested capabilities must be served by exactly one
+ * configured data format. The system walks the index's configured formats in priority-walk order
+ * (primary first, then secondaries by priority ascending) and selects the first format whose
+ * {@code supportedFields()} declares support for every requested capability for the field's type.
+ * If no single configured format covers the full set, {@link MapperParsingException} is thrown
+ * at index creation time.
+ * <p>
+ * Each test creates an index, then either
+ * <ul>
+ *   <li>Asserts on the {@link MappedFieldType#getCapabilityMap()} structure for the covering
+ *       format, or
+ *   <li>Asserts that index creation fails with the expected message when no single format covers
+ *       the field's requested capabilities.
+ * </ul>
  */
-@AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/TBD - DataFormatRegistry not wired to DocumentMapper.Builder in composite path")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class CapabilityBasedFieldRoutingIT extends OpenSearchIntegTestCase {
 
@@ -85,7 +91,6 @@ public class CapabilityBasedFieldRoutingIT extends OpenSearchIntegTestCase {
      * Helper to get the capability map for a field from the index's MapperService.
      */
     private Map<DataFormat, Set<Capability>> getCapabilityMap(String indexName, String fieldName) {
-        // Get a data node that holds the index
         Set<String> dataNodes = internalCluster().getDataNodeNames();
         assertFalse("Should have at least one data node", dataNodes.isEmpty());
         String node = dataNodes.iterator().next();
@@ -97,207 +102,187 @@ public class CapabilityBasedFieldRoutingIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Helper to extract format names from a capability map.
+     * Asserts that the capability map contains exactly one entry, owned by the named format,
+     * and that the owned capability set equals the expected set.
      */
-    private Set<String> formatNames(Map<DataFormat, Set<Capability>> capMap) {
-        return capMap.keySet().stream().map(DataFormat::name).collect(Collectors.toSet());
+    private void assertSingleFormatOwns(Map<DataFormat, Set<Capability>> capMap, String expectedFormatName, Set<Capability> expectedCaps) {
+        assertEquals("Capability map should contain exactly one format entry", 1, capMap.size());
+        DataFormat owner = capMap.keySet().iterator().next();
+        assertEquals("Capability map should be owned by [" + expectedFormatName + "]", expectedFormatName, owner.name());
+        assertEquals("Owned capabilities should match requested", expectedCaps, capMap.get(owner));
     }
+
+    // ---- Parquet-only configured: full default mapping rejected for unsupported capabilities ----
 
     /**
-     * Helper to get capabilities owned by a specific format name.
+     * Parquet supports {@code COLUMNAR_STORAGE, BLOOM_FILTER} for keyword. With default mapping
+     * ({@code index:true, doc_values:true}) the field requests {@code FULL_TEXT_SEARCH +
+     * COLUMNAR_STORAGE}. Parquet doesn't cover {@code FULL_TEXT_SEARCH} and Lucene isn't a
+     * configured secondary, so index creation must fail.
      */
-    private Set<Capability> capsForFormat(Map<DataFormat, Set<Capability>> capMap, String formatName) {
-        return capMap.entrySet()
-            .stream()
-            .filter(e -> e.getKey().name().equals(formatName))
-            .map(Map.Entry::getValue)
-            .findFirst()
-            .orElse(Set.of());
-    }
-
-    // ---- Parquet-only tests ----
-
-    public void testKeywordFieldParquetOnly() {
-        String idx = "test-kw-parquet";
-        createAndVerifyIndex(idx, parquetOnlySettings(), "status", "type=keyword");
-
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "status");
-
-        // Parquet is the only format — it should own all capabilities it supports for keyword
-        // keyword defaults: isSearchable=true (FULL_TEXT_SEARCH), hasDocValues=true (COLUMNAR_STORAGE)
-        // Parquet declares: COLUMNAR_STORAGE, BLOOM_FILTER for keyword
-        // So Parquet wins COLUMNAR_STORAGE. FULL_TEXT_SEARCH is requested but Parquet doesn't support it — no one gets it.
-        assertEquals("Only parquet should be in the map", Set.of(PARQUET), formatNames(capMap));
-        Set<Capability> parquetCaps = capsForFormat(capMap, PARQUET);
-        assertTrue("Parquet should own COLUMNAR_STORAGE", parquetCaps.contains(Capability.COLUMNAR_STORAGE));
-        assertFalse(
-            "FULL_TEXT_SEARCH should not be assigned (parquet doesn't support it)",
-            parquetCaps.contains(Capability.FULL_TEXT_SEARCH)
+    public void testKeywordFieldRejectedOnParquetOnly() {
+        String idx = "test-kw-parquet-rejected";
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().admin()
+                .indices()
+                .prepareCreate(idx)
+                .setSettings(parquetOnlySettings())
+                .setMapping("status", "type=keyword")
+                .get()
+        );
+        assertTrue(
+            "expected coverage error mentioning the field, got: " + ex.getMessage(),
+            ex.getMessage().contains("status") && ex.getMessage().contains("no single configured data format")
         );
     }
 
-    public void testIntegerFieldParquetOnly() {
-        String idx = "test-int-parquet";
-        createAndVerifyIndex(idx, parquetOnlySettings(), "count", "type=integer");
-
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "count");
-
-        // integer defaults: isSearchable=true (POINT_RANGE via override), hasDocValues=true (COLUMNAR_STORAGE)
-        // Parquet declares: COLUMNAR_STORAGE, BLOOM_FILTER for integer
-        assertEquals(Set.of(PARQUET), formatNames(capMap));
-        Set<Capability> parquetCaps = capsForFormat(capMap, PARQUET);
-        assertTrue("Parquet should own COLUMNAR_STORAGE", parquetCaps.contains(Capability.COLUMNAR_STORAGE));
-        // POINT_RANGE is requested but Parquet doesn't declare it — should not be in the map
-        assertFalse("POINT_RANGE should not be assigned", parquetCaps.contains(Capability.POINT_RANGE));
+    /**
+     * Parquet doesn't support {@code POINT_RANGE} for integer, and Lucene isn't configured.
+     * Default integer mapping requests {@code POINT_RANGE + COLUMNAR_STORAGE}, so index creation
+     * must fail.
+     */
+    public void testIntegerFieldRejectedOnParquetOnly() {
+        String idx = "test-int-parquet-rejected";
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().admin().indices().prepareCreate(idx).setSettings(parquetOnlySettings()).setMapping("count", "type=integer").get()
+        );
+        assertTrue(
+            "expected coverage error mentioning the field, got: " + ex.getMessage(),
+            ex.getMessage().contains("count") && ex.getMessage().contains("no single configured data format")
+        );
     }
 
-    public void testDateFieldParquetOnly() {
-        String idx = "test-date-parquet";
-        createAndVerifyIndex(idx, parquetOnlySettings(), "timestamp", "type=date");
-
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "timestamp");
-
-        assertEquals(Set.of(PARQUET), formatNames(capMap));
-        Set<Capability> parquetCaps = capsForFormat(capMap, PARQUET);
-        assertTrue("Parquet should own COLUMNAR_STORAGE", parquetCaps.contains(Capability.COLUMNAR_STORAGE));
-        assertFalse("POINT_RANGE should not be assigned", parquetCaps.contains(Capability.POINT_RANGE));
+    /**
+     * Parquet doesn't support {@code FULL_TEXT_SEARCH} for text. Default text mapping requests
+     * {@code FULL_TEXT_SEARCH}, so index creation must fail when only Parquet is configured.
+     */
+    public void testTextFieldRejectedOnParquetOnly() {
+        String idx = "test-text-parquet-rejected";
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().admin()
+                .indices()
+                .prepareCreate(idx)
+                .setSettings(parquetOnlySettings())
+                .setMapping("description", "type=text")
+                .get()
+        );
+        assertTrue(
+            "expected coverage error mentioning the field, got: " + ex.getMessage(),
+            ex.getMessage().contains("description") && ex.getMessage().contains("no single configured data format")
+        );
     }
 
-    public void testTextFieldParquetOnly() {
-        String idx = "test-text-parquet";
-        createAndVerifyIndex(idx, parquetOnlySettings(), "description", "type=text");
+    // ---- Parquet-only configured: doc_values-only mappings should pass and route to Parquet ----
 
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "description");
+    public void testKeywordDocValuesOnlyOnParquetOnly() {
+        String idx = "test-kw-dv-parquet";
+        createAndVerifyIndex(idx, parquetOnlySettings(), "status", "type=keyword,index=false,doc_values=true");
 
-        // text defaults: isSearchable=true (FULL_TEXT_SEARCH), hasDocValues=false, isStored=false
-        // Parquet declares: COLUMNAR_STORAGE, BLOOM_FILTER for text — but FULL_TEXT_SEARCH is not declared
-        // requestedCapabilities = {FULL_TEXT_SEARCH} — Parquet doesn't support it, so map may be empty
-        // or Parquet gets COLUMNAR_STORAGE if it's in requested (it's not — text has no docValues)
-        // Actually: text isSearchable=true, hasDocValues=false → requested = {FULL_TEXT_SEARCH}
-        // Parquet doesn't support FULL_TEXT_SEARCH for text → empty map
-        assertTrue("Text field with parquet-only should have empty capability map (no format supports FULL_TEXT_SEARCH)", capMap.isEmpty());
+        assertSingleFormatOwns(getCapabilityMap(idx, "status"), PARQUET, Set.of(Capability.COLUMNAR_STORAGE));
     }
 
-    // ---- Parquet + Lucene tests: verify only one format wins each capability ----
+    public void testIntegerDocValuesOnlyOnParquetOnly() {
+        String idx = "test-int-dv-parquet";
+        createAndVerifyIndex(idx, parquetOnlySettings(), "count", "type=integer,index=false,doc_values=true");
 
-    public void testKeywordFieldParquetWithLucene() {
-        String idx = "test-kw-both";
+        assertSingleFormatOwns(getCapabilityMap(idx, "count"), PARQUET, Set.of(Capability.COLUMNAR_STORAGE));
+    }
+
+    public void testDateDocValuesOnlyOnParquetOnly() {
+        String idx = "test-date-dv-parquet";
+        createAndVerifyIndex(idx, parquetOnlySettings(), "timestamp", "type=date,index=false,doc_values=true");
+
+        assertSingleFormatOwns(getCapabilityMap(idx, "timestamp"), PARQUET, Set.of(Capability.COLUMNAR_STORAGE));
+    }
+
+    // ---- Parquet + Lucene configured: full mapping passes, routes to single covering format ----
+
+    /**
+     * Both formats are configured. {@code keyword} with defaults requests
+     * {@code FULL_TEXT_SEARCH + COLUMNAR_STORAGE}. Walk: Parquet (primary) doesn't cover
+     * {@code FULL_TEXT_SEARCH} → reject; Lucene covers both → wins. Single-format coverage
+     * means Lucene owns both capabilities.
+     */
+    public void testKeywordRoutedToLuceneOnParquetWithLucene() {
+        String idx = "test-kw-routed-lucene";
         createAndVerifyIndex(idx, parquetWithLuceneSettings(), "status", "type=keyword");
 
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "status");
-
-        // keyword requested: FULL_TEXT_SEARCH (isSearchable=true), COLUMNAR_STORAGE (hasDocValues=true)
-        // Parquet (priority 0): supports COLUMNAR_STORAGE, BLOOM_FILTER
-        // Lucene (priority 50): supports COLUMNAR_STORAGE, STORED_FIELDS
-        // COLUMNAR_STORAGE: both support it, Parquet wins (lower priority)
-        // FULL_TEXT_SEARCH: only Lucene supports it for keyword? Let's check...
-        // Actually Lucene declares COLUMNAR_STORAGE + STORED_FIELDS for keyword, not FULL_TEXT_SEARCH
-        // So FULL_TEXT_SEARCH is requested but no format supports it → not assigned
-        assertThat("Parquet should be in the map", formatNames(capMap), hasItem(PARQUET));
-        Set<Capability> parquetCaps = capsForFormat(capMap, PARQUET);
-        assertTrue("Parquet should own COLUMNAR_STORAGE (lower priority wins)", parquetCaps.contains(Capability.COLUMNAR_STORAGE));
-
-        // Lucene should NOT get COLUMNAR_STORAGE since Parquet won it
-        Set<Capability> luceneCaps = capsForFormat(capMap, LUCENE);
-        assertFalse("Lucene should NOT own COLUMNAR_STORAGE (Parquet won it)", luceneCaps.contains(Capability.COLUMNAR_STORAGE));
+        assertSingleFormatOwns(getCapabilityMap(idx, "status"), LUCENE, Set.of(Capability.FULL_TEXT_SEARCH, Capability.COLUMNAR_STORAGE));
     }
 
-    public void testTextFieldParquetWithLucene() {
-        String idx = "test-text-both";
+    /**
+     * {@code text} with defaults requests {@code FULL_TEXT_SEARCH}. Parquet doesn't cover it;
+     * Lucene does. Lucene wins.
+     */
+    public void testTextRoutedToLuceneOnParquetWithLucene() {
+        String idx = "test-text-routed-lucene";
         createAndVerifyIndex(idx, parquetWithLuceneSettings(), "description", "type=text");
 
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "description");
-
-        // text requested: FULL_TEXT_SEARCH (isSearchable=true)
-        // Parquet: supports COLUMNAR_STORAGE, BLOOM_FILTER for text — not FULL_TEXT_SEARCH
-        // Lucene: supports FULL_TEXT_SEARCH, STORED_FIELDS for text
-        // FULL_TEXT_SEARCH → Lucene wins (only supporter)
-        assertThat("Lucene should be in the map", formatNames(capMap), hasItem(LUCENE));
-        Set<Capability> luceneCaps = capsForFormat(capMap, LUCENE);
-        assertTrue("Lucene should own FULL_TEXT_SEARCH", luceneCaps.contains(Capability.FULL_TEXT_SEARCH));
-
-        // Parquet should NOT be in the map — text doesn't request COLUMNAR_STORAGE (no docValues)
-        assertFalse("Parquet should not be in the map for text", formatNames(capMap).contains(PARQUET));
+        assertSingleFormatOwns(getCapabilityMap(idx, "description"), LUCENE, Set.of(Capability.FULL_TEXT_SEARCH));
     }
 
-    public void testIntegerFieldParquetWithLucene() {
-        String idx = "test-int-both";
+    /**
+     * {@code integer} with defaults requests {@code POINT_RANGE + COLUMNAR_STORAGE}. Parquet
+     * doesn't cover {@code POINT_RANGE}; Lucene covers both. Lucene wins.
+     */
+    public void testIntegerRoutedToLuceneOnParquetWithLucene() {
+        String idx = "test-int-routed-lucene";
         createAndVerifyIndex(idx, parquetWithLuceneSettings(), "count", "type=integer");
 
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "count");
-
-        // integer requested: POINT_RANGE (isSearchable=true, override), COLUMNAR_STORAGE (hasDocValues=true)
-        // Parquet: supports COLUMNAR_STORAGE, BLOOM_FILTER for integer
-        // Lucene: does NOT declare support for integer at all
-        // COLUMNAR_STORAGE → Parquet wins
-        // POINT_RANGE → no format supports it → not assigned
-        assertEquals(Set.of(PARQUET), formatNames(capMap));
-        assertTrue("Parquet should own COLUMNAR_STORAGE", capsForFormat(capMap, PARQUET).contains(Capability.COLUMNAR_STORAGE));
+        assertSingleFormatOwns(getCapabilityMap(idx, "count"), LUCENE, Set.of(Capability.POINT_RANGE, Capability.COLUMNAR_STORAGE));
     }
 
-    // ---- Verify only one format wins when both support the same capability ----
+    // ---- Different fields can pick different formats in the same index ----
 
-    public void testOnlyOneFormatWinsSharedCapability() {
-        String idx = "test-one-winner";
-        createAndVerifyIndex(idx, parquetWithLuceneSettings(), "tag", "type=keyword");
-
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "tag");
-
-        // Both Parquet and Lucene support COLUMNAR_STORAGE for keyword
-        // Parquet (priority 0) should win — verify Lucene does NOT also get it
-        for (Map.Entry<DataFormat, Set<Capability>> entry : capMap.entrySet()) {
-            if (entry.getKey().name().equals(LUCENE)) {
-                assertFalse(
-                    "Lucene should NOT own COLUMNAR_STORAGE when Parquet has higher priority",
-                    entry.getValue().contains(Capability.COLUMNAR_STORAGE)
-                );
-            }
-        }
-    }
-
-    // ---- Negative: field with index:false should NOT get FULL_TEXT_SEARCH ----
-
-    public void testFieldWithIndexFalseNoSearchCapability() {
-        String idx = "test-no-index";
+    /**
+     * Verifies that within a single composite index, fields with different capability needs
+     * route to different formats: a doc_values-only field stays on Parquet (primary, lower
+     * priority), while a fully-indexed field falls through to Lucene.
+     */
+    public void testDifferentFieldsPickDifferentFormats() {
+        String idx = "test-mixed-routing";
         CreateIndexResponse response = client().admin()
             .indices()
             .prepareCreate(idx)
             .setSettings(parquetWithLuceneSettings())
-            .setMapping("tag", "type=keyword,index=false")
+            .setMapping("tag", "type=keyword,index=false,doc_values=true", "title", "type=keyword,index=true,doc_values=true")
             .get();
         assertTrue(response.isAcknowledged());
         ensureGreen(idx);
 
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "tag");
+        // tag → only COLUMNAR_STORAGE requested → Parquet (primary) covers → Parquet wins.
+        assertSingleFormatOwns(getCapabilityMap(idx, "tag"), PARQUET, Set.of(Capability.COLUMNAR_STORAGE));
 
-        // keyword with index:false → requestedCapabilities = {COLUMNAR_STORAGE} (no FULL_TEXT_SEARCH)
-        for (Map.Entry<DataFormat, Set<Capability>> entry : capMap.entrySet()) {
-            assertFalse("No format should own FULL_TEXT_SEARCH when index=false", entry.getValue().contains(Capability.FULL_TEXT_SEARCH));
-        }
-        // COLUMNAR_STORAGE should still be assigned (hasDocValues defaults to true)
-        assertTrue("COLUMNAR_STORAGE should be assigned", capsForFormat(capMap, PARQUET).contains(Capability.COLUMNAR_STORAGE));
+        // title → FULL_TEXT_SEARCH + COLUMNAR_STORAGE requested → Parquet rejects → Lucene wins.
+        assertSingleFormatOwns(getCapabilityMap(idx, "title"), LUCENE, Set.of(Capability.FULL_TEXT_SEARCH, Capability.COLUMNAR_STORAGE));
     }
 
-    public void testFieldWithDocValuesFalseNoColumnarCapability() {
-        String idx = "test-no-dv";
-        CreateIndexResponse response = client().admin()
-            .indices()
-            .prepareCreate(idx)
-            .setSettings(parquetWithLuceneSettings())
-            .setMapping("tag", "type=keyword,doc_values=false")
-            .get();
-        assertTrue(response.isAcknowledged());
-        ensureGreen(idx);
+    /**
+     * Doc-values-only keyword on Parquet+Lucene goes to Parquet because Parquet has lower
+     * priority and covers the requested set. A field is never split — Lucene does not also
+     * appear in the capability map.
+     */
+    public void testKeywordDocValuesOnlyPicksPrimary() {
+        String idx = "test-kw-dv-primary";
+        createAndVerifyIndex(idx, parquetWithLuceneSettings(), "tag", "type=keyword,index=false,doc_values=true");
 
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "tag");
+        assertSingleFormatOwns(getCapabilityMap(idx, "tag"), PARQUET, Set.of(Capability.COLUMNAR_STORAGE));
+    }
 
-        // keyword with doc_values:false → no COLUMNAR_STORAGE requested
-        for (Map.Entry<DataFormat, Set<Capability>> entry : capMap.entrySet()) {
-            assertFalse(
-                "No format should own COLUMNAR_STORAGE when doc_values=false",
-                entry.getValue().contains(Capability.COLUMNAR_STORAGE)
-            );
-        }
+    // ---- Negative settings: empty requested capabilities yields empty map ----
+
+    /**
+     * A field with all of {@code index:false, doc_values:false, store:false} requests no
+     * capabilities. Validation is skipped and the capability map is empty.
+     */
+    public void testEmptyRequestedCapabilitiesYieldsEmptyMap() {
+        String idx = "test-empty-caps";
+        createAndVerifyIndex(idx, parquetWithLuceneSettings(), "ignored", "type=keyword,index=false,doc_values=false,store=false");
+
+        assertTrue("Capability map should be empty when no capabilities are requested", getCapabilityMap(idx, "ignored").isEmpty());
     }
 
     // ---- Non-composite index: capability map should be empty ----
@@ -318,8 +303,7 @@ public class CapabilityBasedFieldRoutingIT extends OpenSearchIntegTestCase {
         assertTrue(response.isAcknowledged());
         ensureGreen(idx);
 
-        Map<DataFormat, Set<Capability>> capMap = getCapabilityMap(idx, "name");
-        assertTrue("Non-composite index should have empty capability map", capMap.isEmpty());
+        assertTrue("Non-composite index should have empty capability map", getCapabilityMap(idx, "name").isEmpty());
     }
 
     private void createAndVerifyIndex(String indexName, Settings settings, String... mapping) {
