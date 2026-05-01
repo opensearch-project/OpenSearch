@@ -8,7 +8,7 @@
 
 package org.opensearch.indices.pollingingest;
 
-import org.opensearch.cluster.metadata.IngestionSource.PartitionStrategy;
+import org.opensearch.cluster.metadata.IngestionSource.SourcePartitionStrategy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * Computes which source stream partitions a given OpenSearch shard should consume,
- * based on the configured {@link PartitionStrategy}.
+ * based on the configured {@link SourcePartitionStrategy}.
  */
 public class SourcePartitionAssignment {
 
@@ -35,7 +35,7 @@ public class SourcePartitionAssignment {
      * @throws IllegalArgumentException if numSourcePartitions is less than numShards for SIMPLE strategy,
      *                                  or if no partitions are assigned to the shard
      */
-    public static List<Integer> assignPartitions(int shardId, int numShards, int numSourcePartitions, PartitionStrategy strategy) {
+    public static List<Integer> assignPartitions(int shardId, int numShards, int numSourcePartitions, SourcePartitionStrategy strategy) {
         if (numSourcePartitions <= 0) {
             throw new IllegalArgumentException("Number of source partitions must be positive, got: " + numSourcePartitions);
         }
@@ -52,7 +52,7 @@ public class SourcePartitionAssignment {
                             + numSourcePartitions
                             + "] partitions but shard ID requires partition ["
                             + shardId
-                            + "]. Use partition_strategy=modulo to map multiple partitions per shard."
+                            + "]. Use source_partition_strategy=modulo to map multiple partitions per shard."
                     );
                 }
                 return List.of(shardId);

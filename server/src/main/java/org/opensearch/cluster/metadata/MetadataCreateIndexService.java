@@ -1277,38 +1277,22 @@ public class MetadataCreateIndexService {
      * Also validates that mapper_settings keys are recognized for the configured mapper_type.
      */
     static void validateIngestionSourceSettings(Settings settings, ClusterState state) {
-        // General multi-shard pull-based ingestion warning.
-        String ingestionSourceType = IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.get(settings);
-        boolean isPullBasedIngestion = ingestionSourceType != null
-            && IndexMetadata.NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType) == false;
-        if (isPullBasedIngestion) {
-            int numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
-            if (numShards > 1) {
-                logger.warn(
-                    "Multi-shard pull-based ingestion with [{}] shards requires the source topic to be "
-                        + "key-partitioned by the document ID field for correctness. If the same document "
-                        + "appears in multiple source partitions, it may be indexed into multiple shards.",
-                    numShards
-                );
-            }
-        }
-
         // Partition strategy validation. The setting key itself was introduced in V_3_7_0; reject any explicit
         // value (including [simple], the default) on mixed clusters where some nodes don't
         // recognize the key — otherwise index metadata replicated to older nodes would carry
         // an unknown setting.
-        if (IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
+        if (IndexMetadata.INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
             Version minNodeVersion = state.nodes().getMinNodeVersion();
             if (minNodeVersion.before(Version.V_3_7_0)) {
                 throw new IllegalArgumentException(
-                    "index.ingestion_source.partition_strategy requires all nodes in the cluster to be on version ["
+                    "index.ingestion_source.source_partition_strategy requires all nodes in the cluster to be on version ["
                         + Version.V_3_7_0
                         + "] or later, but the minimum node version is ["
                         + minNodeVersion
                         + "]"
                 );
             }
-            // TODO: For partition_strategy=simple, surface a warning when numSourcePartitions > numShards
+            // TODO: For source_partition_strategy=simple, surface a warning when numSourcePartitions > numShards
             // (excess source partitions are silently never consumed) and an error when
             // numSourcePartitions < numShards (shards beyond numSourcePartitions-1 fail to initialize).
             // Requires consumerFactory.getSourcePartitionCount() which is added in a follow-up PR

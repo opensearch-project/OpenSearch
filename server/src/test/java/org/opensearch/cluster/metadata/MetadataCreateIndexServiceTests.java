@@ -3912,14 +3912,14 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("cannot be the same"));
     }
 
-    // ---- partition_strategy validation tests ----
+    // ---- source_partition_strategy validation tests ----
 
     public void testValidateIngestionSourceSettingsPartitionStrategyOnCurrentVersion() {
-        // partition_strategy explicitly set on a current-version cluster — should pass
+        // source_partition_strategy explicitly set on a current-version cluster — should pass
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "modulo").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY, "modulo").build();
 
         // Should not throw
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
@@ -3930,13 +3930,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "simple").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY, "simple").build();
 
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
     }
 
     public void testValidateIngestionSourceSettingsPartitionStrategyOnMixedClusterRejected() {
-        // partition_strategy setting key was introduced in V_3_7_0. Any explicit value (including
+        // source_partition_strategy setting key was introduced in V_3_7_0. Any explicit value (including
         // the default 'simple') should be rejected if the cluster has nodes < V_3_7_0 — otherwise
         // those nodes would receive replicated index metadata containing an unknown setting key.
         final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
@@ -3946,13 +3946,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "modulo").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY, "modulo").build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
         );
-        assertTrue(e.getMessage().contains("index.ingestion_source.partition_strategy requires all nodes"));
+        assertTrue(e.getMessage().contains("index.ingestion_source.source_partition_strategy requires all nodes"));
         assertTrue(e.getMessage().contains(Version.V_3_7_0.toString()));
         assertTrue(e.getMessage().contains(Version.V_3_5_0.toString()));
     }
@@ -3967,17 +3967,17 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "simple").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY, "simple").build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
         );
-        assertTrue(e.getMessage().contains("index.ingestion_source.partition_strategy requires all nodes"));
+        assertTrue(e.getMessage().contains("index.ingestion_source.source_partition_strategy requires all nodes"));
     }
 
     public void testValidateIngestionSourceSettingsPartitionStrategyAbsentOnMixedClusterPasses() {
-        // Without the explicit partition_strategy setting, no metadata is replicated — old nodes are unaffected.
+        // Without the explicit source_partition_strategy setting, no metadata is replicated — old nodes are unaffected.
         final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
         );
@@ -3985,20 +3985,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        // No partition_strategy in settings — validation should pass even on mixed cluster
+        // No source_partition_strategy in settings — validation should pass even on mixed cluster
         Settings settings = Settings.builder().build();
 
-        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
-    }
-
-    public void testValidateIngestionSourceSettingsNonPullBasedSkipsWarning() {
-        // Non-pull-based index (no ingestion source type) should skip the multi-shard warning
-        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
-
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4).build();
-
-        // Should not throw and should not log the multi-shard warning (no ingestion source)
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
     }
 }
