@@ -169,9 +169,12 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
             // Catalog file sets agree across nodes.
             assertEquals(
                 "primary/replica catalog files must agree",
-                DataFormatAwareITUtils.catalogFiles(primary),
-                DataFormatAwareITUtils.catalogFiles(replica)
+                DataFormatAwareITUtils.catalogFilesExcludingSegments(primary),
+                DataFormatAwareITUtils.catalogFilesExcludingSegments(replica)
             );
+
+            // Every data file the primary uploaded must be present on the replica's disk.
+            DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, replica);
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -212,9 +215,10 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
                 DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(replica);
                 assertEquals(
                     "primary/replica catalog files must agree at cycle " + iteration,
-                    DataFormatAwareITUtils.catalogFiles(primary),
-                    DataFormatAwareITUtils.catalogFiles(replica)
+                    DataFormatAwareITUtils.catalogFilesExcludingSegments(primary),
+                    DataFormatAwareITUtils.catalogFilesExcludingSegments(replica)
                 );
+                DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, replica);
             }, 60, TimeUnit.SECONDS);
 
             previousVersion = getIndexShard(primaryNodeName(), INDEX_NAME).getRemoteDirectory()
@@ -267,9 +271,10 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
             );
             assertEquals(
                 "primary/replica catalog files must agree after recovery",
-                DataFormatAwareITUtils.catalogFiles(primary),
-                DataFormatAwareITUtils.catalogFiles(recoveredReplica)
+                DataFormatAwareITUtils.catalogFilesExcludingSegments(primary),
+                DataFormatAwareITUtils.catalogFilesExcludingSegments(recoveredReplica)
             );
+            DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, recoveredReplica);
         }, 90, TimeUnit.SECONDS);
     }
 
@@ -337,9 +342,10 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
             }
             assertEquals(
                 "primary/replica catalog files must agree after recovery",
-                DataFormatAwareITUtils.catalogFiles(primary),
-                catalogAfter
+                DataFormatAwareITUtils.catalogFilesExcludingSegments(primary),
+                DataFormatAwareITUtils.catalogFilesExcludingSegments(recoveredReplica)
             );
+            DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, recoveredReplica);
         }, 90, TimeUnit.SECONDS);
     }
 
@@ -358,7 +364,7 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
         assertBusy(() -> {
             IndexShard primary = getIndexShard(primaryNodeName(), INDEX_NAME);
             long primaryVersion = primary.getRemoteDirectory().readLatestMetadataFile().getReplicationCheckpoint().getSegmentInfosVersion();
-            Set<String> primaryCatalog = DataFormatAwareITUtils.catalogFiles(primary);
+            Set<String> primaryCatalog = DataFormatAwareITUtils.catalogFilesExcludingSegments(primary);
             List<String> replicaNodes = replicaNodeNames();
             assertEquals("expected 2 replicas, got " + replicaNodes, 2, replicaNodes.size());
             for (String replicaNode : replicaNodes) {
@@ -373,9 +379,10 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
                 assertEquals(
                     "replica " + replicaNode + " catalog must match primary",
                     primaryCatalog,
-                    DataFormatAwareITUtils.catalogFiles(replica)
+                    DataFormatAwareITUtils.catalogFilesExcludingSegments(replica)
                 );
                 DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(replica);
+                DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, replica);
             }
         }, 90, TimeUnit.SECONDS);
     }
