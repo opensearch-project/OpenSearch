@@ -27,10 +27,10 @@ import org.apache.parquet.schema.Types;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
-import io.trino.hive.thrift.metastore.Partition;
-import io.trino.hive.thrift.metastore.ThriftHiveMetastore;
-import io.trino.hive.thrift.metastore.FieldSchema;
-import io.trino.hive.thrift.metastore.Table;
+import org.opensearch.plugin.hive.metastore.Partition;
+import org.opensearch.plugin.hive.metastore.ThriftHiveMetastore;
+import org.opensearch.plugin.hive.metastore.FieldSchema;
+import org.opensearch.plugin.hive.metastore.Table;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
@@ -137,7 +137,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             logger.info("HiveShardConsumer initialized successfully for shard {}", shardId);
 
             // Fetch table schema from Metastore and convert to Parquet MessageType
-            Table table = metastoreClient.getTable(config.getDatabase(), config.getTable());
+            Table table = metastoreClient.get_table(config.getDatabase(), config.getTable());
             tableSchema = hiveSchemaToParquet(table.getSd().getCols());
             partitionKeys = table.getPartitionKeys().stream()
                 .map(FieldSchema::getName)
@@ -232,11 +232,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         List<Partition> partitions;
         if (watermark == null || watermark.isEmpty()) {
             // First time: get all partitions
-            partitions = metastoreClient.getPartitions(config.getDatabase(), config.getTable(), (short) -1);
+            partitions = metastoreClient.get_partitions(config.getDatabase(), config.getTable(), (short) -1);
         } else {
             // Incremental: filter by partition value > watermark
             String filter = buildPartitionFilter(watermark);
-            partitions = metastoreClient.getPartitionsByFilter(config.getDatabase(), config.getTable(), filter, (short) -1);
+            partitions = metastoreClient.get_partitions_by_filter(config.getDatabase(), config.getTable(), filter, (short) -1);
         }
 
         logger.info("Shard {} discovered {} partitions from Metastore", shardId, partitions.size());
