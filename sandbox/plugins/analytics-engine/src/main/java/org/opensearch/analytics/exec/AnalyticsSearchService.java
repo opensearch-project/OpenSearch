@@ -9,7 +9,6 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.RootAllocator;
-import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
@@ -25,6 +24,7 @@ import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,7 +82,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
         ResolvedFragment resolved = resolveFragment(request, shard);
         long startNanos = System.nanoTime();
-        try (FragmentResources ctx = startFragment(request, resolved)) {
+        try (FragmentResources ctx = startFragment(request, resolved, task)) {
             FragmentExecutionResponse response = collectResponse(ctx.stream(), task);
             long tookNanos = System.nanoTime() - startNanos;
             listener.onFragmentSuccess(resolved.queryId, resolved.stageId, resolved.shardIdStr, tookNanos, response.getRows().size());
@@ -96,10 +96,10 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
     }
 
-    public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard) {
+    public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
         ResolvedFragment resolved = resolveFragment(request, shard);
         try {
-            return startFragment(request, resolved);
+            return startFragment(request, resolved, task);
         } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw e;
@@ -109,12 +109,12 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
     }
 
-    private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved) throws IOException {
+    private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, Task task) throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
         SearchExecEngine<ExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         try {
-            ExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan);
+            ExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx);
             stream = engine.execute(ctx);
@@ -162,9 +162,13 @@ public class AnalyticsSearchService implements AutoCloseable {
         return new ResolvedFragment(readerProvider, selectedPlan, request.getQueryId(), request.getStageId(), shardIdStr);
     }
 
-    private ExecutionContext buildContext(FragmentExecutionRequest request, Reader reader, FragmentExecutionRequest.PlanAlternative plan) {
-        SearchShardTask searchShardTask = null; // TODO: real task for cancellation
-        ExecutionContext ctx = new ExecutionContext(request.getShardId().getIndexName(), searchShardTask, reader);
+    private ExecutionContext buildContext(
+        FragmentExecutionRequest request,
+        Reader reader,
+        FragmentExecutionRequest.PlanAlternative plan,
+        Task task
+    ) {
+        ExecutionContext ctx = new ExecutionContext(request.getShardId().getIndexName(), task, reader);
         ctx.setFragmentBytes(plan.getFragmentBytes());
         ctx.setAllocator(allocator);
         return ctx;
