@@ -29,6 +29,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -614,9 +615,15 @@ public class DataFormatAwareEngine implements Indexer {
             final Translog.Location location;
             if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
                 location = translogManager.add(new Translog.Index(index, indexResult));
-            } else {
-                location = null;
-            }
+            } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
+                && indexResult.getFailure() != null
+                && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
+                    location = translogManager.add(
+                        new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().toString())
+                    );
+                } else {
+                    location = null;
+                }
             indexResult.setTranslogLocation(location);
         }
         // Non-translog-origin successful operations must be recorded in the translog for durability
@@ -923,9 +930,7 @@ public class DataFormatAwareEngine implements Indexer {
                 failOnTragicEvent(e);
                 throw e;
             } catch (Exception e) {
-                if (maybeFailEngine("flush", e)) {
-                    throw new FlushFailedEngineException(shardId, e);
-                }
+                maybeFailEngine("flush", e);
                 throw new FlushFailedEngineException(shardId, e);
             } finally {
                 flushLock.unlock();

@@ -129,9 +129,12 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
     }
 
     static WriteResult checkFailure() {
-        int remaining = failOnNextNDocs.get();
+        int remaining;
+        do {
+            remaining = failOnNextNDocs.get();
+            if (remaining <= 0) break;
+        } while (failOnNextNDocs.compareAndSet(remaining, remaining - 1) == false);
         if (remaining > 0) {
-            failOnNextNDocs.decrementAndGet();
             return new WriteResult.Failure(new IOException("filebacked injected failure"), -1, -1, -1);
         }
         int count = docCounter.incrementAndGet();
