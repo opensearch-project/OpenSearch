@@ -35,7 +35,7 @@ public class SourcePartitionAssignment {
      * @throws IllegalArgumentException if numSourcePartitions is less than numShards for SIMPLE strategy,
      *                                  or if no partitions are assigned to the shard
      */
-    public static List<Integer> assignPartitions(int shardId, int numShards, int numSourcePartitions, SourcePartitionStrategy strategy) {
+    public static List<Integer> assignSourcePartitions(int shardId, int numShards, int numSourcePartitions, SourcePartitionStrategy strategy) {
         if (numSourcePartitions <= 0) {
             throw new IllegalArgumentException("Number of source partitions must be positive, got: " + numSourcePartitions);
         }
