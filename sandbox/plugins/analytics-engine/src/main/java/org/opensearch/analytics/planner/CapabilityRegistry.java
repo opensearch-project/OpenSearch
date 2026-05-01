@@ -14,9 +14,9 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
-import org.opensearch.analytics.spi.FilterOperator;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
@@ -48,7 +48,7 @@ public class CapabilityRegistry {
     // Per-capability indexes: (capability key, format) → backends
     // Shape: Map<Key, Map<format, List<backendName>>>
     private final Map<ScanKey, Map<String, List<String>>> scanIndex = new HashMap<>();
-    private final Map<FilterKey, Map<String, List<String>>> filterIndex = new HashMap<>();
+    private final Map<ScalarKey, Map<String, List<String>>> filterIndex = new HashMap<>();
     private final Map<AggregateKey, Map<String, List<String>>> aggregateIndex = new HashMap<>();
     private final Map<ScalarKey, Map<String, List<String>>> scalarIndex = new HashMap<>();
     // Backends that declared supportsLiteralEvaluation=true for a (function, fieldType)
@@ -100,13 +100,13 @@ public class CapabilityRegistry {
                 switch (cap) {
                     case FilterCapability.Standard standard -> {
                         for (FieldType fieldType : standard.fieldTypes()) {
-                            addToFormatMap(filterIndex, new FilterKey(standard.operator(), fieldType), standard.formats(), name);
+                            addToFormatMap(filterIndex, new ScalarKey(standard.function(), fieldType), standard.formats(), name);
                         }
                     }
                     case FilterCapability.FullText fullText -> {
-                        addToFormatMap(filterIndex, new FilterKey(fullText.operator(), fullText.fieldType()), fullText.formats(), name);
+                        addToFormatMap(filterIndex, new ScalarKey(fullText.function(), fullText.fieldType()), fullText.formats(), name);
                         fullTextParamIndex.put(
-                            new FullTextParamKey(fullText.operator(), fullText.fieldType(), name),
+                            new FullTextParamKey(fullText.function(), fullText.fieldType(), name),
                             fullText.supportedParams()
                         );
                     }
@@ -182,8 +182,8 @@ public class CapabilityRegistry {
 
     // ---- Single-format lookups ----
 
-    public List<String> filterBackends(FilterOperator operator, FieldType fieldType, String format) {
-        return filterIndex.getOrDefault(new FilterKey(operator, fieldType), Map.of()).getOrDefault(format, List.of());
+    public List<String> filterBackends(ScalarFunction function, FieldType fieldType, String format) {
+        return filterIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of()).getOrDefault(format, List.of());
     }
 
     public List<String> aggregateBackends(AggregateFunction function, FieldType fieldType, String format) {
@@ -197,14 +197,14 @@ public class CapabilityRegistry {
     // ---- Field-level lookups (iterates all formats a field has) ----
 
     /** All backends that can filter on this field across all its storage formats. */
-    public List<String> filterBackendsForField(FilterOperator operator, FieldStorageInfo field) {
+    public List<String> filterBackendsForField(ScalarFunction function, FieldStorageInfo field) {
         FieldType fieldType = field.getFieldType();
         List<String> result = new ArrayList<>();
         for (String format : field.getDocValueFormats()) {
-            result.addAll(filterBackends(operator, fieldType, format));
+            result.addAll(filterBackends(function, fieldType, format));
         }
         for (String format : field.getIndexFormats()) {
-            result.addAll(filterBackends(operator, fieldType, format));
+            result.addAll(filterBackends(function, fieldType, format));
         }
         return result;
     }
@@ -301,15 +301,12 @@ public class CapabilityRegistry {
     private record ScanKey(Class<? extends ScanCapability> kind, FieldType fieldType) {
     }
 
-    private record FilterKey(FilterOperator operator, FieldType fieldType) {
-    }
-
     private record AggregateKey(AggregateFunction function, FieldType fieldType) {
     }
 
     private record ScalarKey(ScalarFunction function, FieldType fieldType) {
     }
 
-    private record FullTextParamKey(FilterOperator operator, FieldType fieldType, String backendName) {
+    private record FullTextParamKey(ScalarFunction function, FieldType fieldType, String backendName) {
     }
 }

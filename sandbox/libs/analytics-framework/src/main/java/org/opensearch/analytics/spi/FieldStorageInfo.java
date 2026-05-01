@@ -6,10 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.planner;
+package org.opensearch.analytics.spi;
 
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.opensearch.analytics.spi.FieldType;
 
 import java.util.List;
 

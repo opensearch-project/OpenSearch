@@ -17,8 +17,8 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
 import java.util.List;

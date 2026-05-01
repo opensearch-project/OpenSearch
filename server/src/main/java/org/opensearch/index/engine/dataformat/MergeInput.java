@@ -10,9 +10,11 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * input data for a merge operation.
@@ -29,6 +31,16 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
 
     private MergeInput(Builder builder) {
         this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration);
+    }
+
+    /**
+     * Returns the {@link WriterFileSet} for the given data format from each segment.
+     *
+     * @param formatName the data format name (e.g. "parquet")
+     * @return list of writer file sets for the format across all segments
+     */
+    public List<WriterFileSet> getFilesForFormat(String formatName) {
+        return segments.stream().map(seg -> seg.dfGroupedSearchableFiles().get(formatName)).filter(Objects::nonNull).toList();
     }
 
     /**

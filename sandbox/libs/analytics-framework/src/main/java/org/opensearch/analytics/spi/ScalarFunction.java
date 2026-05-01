@@ -8,56 +8,104 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlKind;
 
+import java.util.Locale;
+
 /**
- * Scalar functions that a backend may support in projections and expressions.
- * Used by the project rule to verify the backend can evaluate each expression
- * in the SELECT clause.
+ * All scalar functions a backend may support — comparisons, full-text search,
+ * math, string, conditional, date/time, and cast operations. Used across filter,
+ * project, and aggregate expression capability declarations.
+ *
+ * <p>Each function carries a {@link Category} indicating its type and whether
+ * it supports parameters (e.g., full-text operators accept analyzer, slop, etc.).
  *
  * @opensearch.internal
  */
 public enum ScalarFunction {
-    // String
-    UPPER(SqlKind.OTHER),
-    LOWER(SqlKind.OTHER),
-    TRIM(SqlKind.TRIM),
-    SUBSTRING(SqlKind.OTHER),
-    CONCAT(SqlKind.OTHER),
-    CHAR_LENGTH(SqlKind.OTHER),
 
-    // Math
-    PLUS(SqlKind.PLUS),
-    MINUS(SqlKind.MINUS),
-    TIMES(SqlKind.TIMES),
-    DIVIDE(SqlKind.DIVIDE),
-    MOD(SqlKind.MOD),
-    ABS(SqlKind.OTHER),
-    CEIL(SqlKind.CEIL),
-    FLOOR(SqlKind.FLOOR),
+    // ── Comparisons ──────────────────────────────────────────────────
+    EQUALS(Category.COMPARISON, SqlKind.EQUALS),
+    NOT_EQUALS(Category.COMPARISON, SqlKind.NOT_EQUALS),
+    GREATER_THAN(Category.COMPARISON, SqlKind.GREATER_THAN),
+    GREATER_THAN_OR_EQUAL(Category.COMPARISON, SqlKind.GREATER_THAN_OR_EQUAL),
+    LESS_THAN(Category.COMPARISON, SqlKind.LESS_THAN),
+    LESS_THAN_OR_EQUAL(Category.COMPARISON, SqlKind.LESS_THAN_OR_EQUAL),
+    IS_NULL(Category.COMPARISON, SqlKind.IS_NULL),
+    IS_NOT_NULL(Category.COMPARISON, SqlKind.IS_NOT_NULL),
+    IN(Category.COMPARISON, SqlKind.IN),
+    LIKE(Category.COMPARISON, SqlKind.LIKE),
+    PREFIX(Category.COMPARISON, SqlKind.OTHER),
 
-    // Cast / type
-    CAST(SqlKind.CAST),
+    // ── Full-text search ─────────────────────────────────────────────
+    MATCH(Category.FULL_TEXT, SqlKind.OTHER),
+    MATCH_PHRASE(Category.FULL_TEXT, SqlKind.OTHER),
+    FUZZY(Category.FULL_TEXT, SqlKind.OTHER),
+    WILDCARD(Category.FULL_TEXT, SqlKind.OTHER),
+    REGEXP(Category.FULL_TEXT, SqlKind.OTHER),
 
-    // Conditional
-    CASE(SqlKind.CASE),
-    COALESCE(SqlKind.COALESCE),
-    NULLIF(SqlKind.NULLIF),
+    // ── String ───────────────────────────────────────────────────────
+    UPPER(Category.STRING, SqlKind.OTHER),
+    LOWER(Category.STRING, SqlKind.OTHER),
+    TRIM(Category.STRING, SqlKind.TRIM),
+    SUBSTRING(Category.STRING, SqlKind.OTHER),
+    CONCAT(Category.STRING, SqlKind.OTHER),
+    CHAR_LENGTH(Category.STRING, SqlKind.OTHER),
 
-    // Date/time
-    EXTRACT(SqlKind.EXTRACT);
+    // ── Math ─────────────────────────────────────────────────────────
+    PLUS(Category.MATH, SqlKind.PLUS),
+    MINUS(Category.MATH, SqlKind.MINUS),
+    TIMES(Category.MATH, SqlKind.TIMES),
+    DIVIDE(Category.MATH, SqlKind.DIVIDE),
+    MOD(Category.MATH, SqlKind.MOD),
+    ABS(Category.MATH, SqlKind.OTHER),
+    SIN(Category.MATH, SqlKind.OTHER),
+    CEIL(Category.MATH, SqlKind.CEIL),
+    FLOOR(Category.MATH, SqlKind.FLOOR),
 
+    // ── Cast / type ──────────────────────────────────────────────────
+    CAST(Category.SCALAR, SqlKind.CAST),
+
+    // ── Conditional ──────────────────────────────────────────────────
+    CASE(Category.SCALAR, SqlKind.CASE),
+    COALESCE(Category.SCALAR, SqlKind.COALESCE),
+    NULLIF(Category.SCALAR, SqlKind.NULLIF),
+
+    EXTRACT(Category.SCALAR, SqlKind.EXTRACT);
+
+    /**
+     * Category of scalar function.
+     */
+    public enum Category {
+        COMPARISON,
+        FULL_TEXT,
+        STRING,
+        MATH,
+        /** Catch-all for functions that don't fit other categories (CAST, CASE, COALESCE, EXTRACT, etc.). */
+        SCALAR
+    }
+
+    private final Category category;
     private final SqlKind sqlKind;
 
-    ScalarFunction(SqlKind sqlKind) {
+    ScalarFunction(Category category, SqlKind sqlKind) {
+        this.category = category;
         this.sqlKind = sqlKind;
+    }
+
+    public Category getCategory() {
+        return category;
     }
 
     public SqlKind getSqlKind() {
         return sqlKind;
     }
 
-    /** Maps a Calcite SqlKind to a ScalarFunction, or null if not recognized. Skips OTHER. */
+    /**
+     * Maps a Calcite SqlKind to a ScalarFunction, or null if not recognized.
+     * Skips OTHER to avoid ambiguity (multiple functions share OTHER).
+     */
     public static ScalarFunction fromSqlKind(SqlKind kind) {
         for (ScalarFunction func : values()) {
             if (func.sqlKind == kind && func.sqlKind != SqlKind.OTHER) {
@@ -67,12 +115,10 @@ public enum ScalarFunction {
         return null;
     }
 
-    /** Maps a function name to a ScalarFunction. Throws if not recognized. */
-    public static ScalarFunction fromNameOrError(String name) {
-        try {
-            return valueOf(name);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Unrecognized scalar function [" + name + "]", e);
-        }
+    /** Maps a Calcite SqlFunction to a ScalarFunction by name, or throws if not recognized. */
+    public static ScalarFunction fromSqlFunction(SqlFunction function) {
+        // TODO: Add an explicit functionName field per enum constant instead of relying on
+        // valueOf(toUpperCase). This couples enum constant naming to SQL function naming convention.
+        return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
     }
 }
