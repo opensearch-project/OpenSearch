@@ -1197,6 +1197,166 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertTrue(nonExistentDependents.v2().isEmpty());
     }
 
+    public void testExtensiblePluginWithMultipleExtendedParents() {
+        // Scenario: a child plugin declares TWO parents in extended.plugins and provides
+        // an extension for each parent's extension point. This exercises the multi-parent
+        // classloader/loadExtensions dispatch that the foyer-block-cache-plugin-restructure
+        // spec depends on. Pre-existing testExtensiblePlugin above covers only the single-parent
+        // case; no existing test exercised two parents receiving independent extension lists
+        // from the same child.
+        TestExtensiblePlugin parentA = new TestExtensiblePlugin();
+        TestSecondExtensiblePlugin parentB = new TestSecondExtensiblePlugin();
+        TestPlugin child = new TestPlugin();
+
+        PluginInfo parentAInfo = new PluginInfo(
+            "parent-a",
+            null,
+            null,
+            Version.CURRENT,
+            null,
+            null,
+            Collections.emptyList(),
+            false
+        );
+        PluginInfo parentBInfo = new PluginInfo(
+            "parent-b",
+            null,
+            null,
+            Version.CURRENT,
+            null,
+            null,
+            Collections.emptyList(),
+            false
+        );
+        // extended.plugins = [parent-a, parent-b] — the configuration that was never
+        // exercised end-to-end before this refactor.
+        PluginInfo childInfo = new PluginInfo(
+            "child",
+            null,
+            null,
+            Version.CURRENT,
+            null,
+            null,
+            Arrays.asList("parent-a", "parent-b"),
+            false
+        );
+
+        PluginsService.loadExtensions(
+            Arrays.asList(Tuple.tuple(parentAInfo, parentA), Tuple.tuple(parentBInfo, parentB), Tuple.tuple(childInfo, child))
+        );
+
+        // Parent-A must receive the child's TestExtensionPoint implementations (both).
+        assertThat(parentA.extensions, notNullValue());
+        assertThat(parentA.extensions, hasSize(2));
+        assertThat(parentA.extensions.get(0), instanceOf(TestExtension1.class));
+        assertThat(parentA.extensions.get(1), instanceOf(TestExtension2.class));
+
+        // Parent-B must receive its own extension point (TestSecondExtensionPoint), from
+        // the same child. This is the part that proves loadExtensions dispatches to
+        // BOTH parents independently when a single child extends both.
+        assertThat(parentB.extensions, notNullValue());
+        assertThat(parentB.extensions, hasSize(1));
+        assertThat(parentB.extensions.get(0), instanceOf(TestSecondExtension.class));
+    }
+
+    public void testSortBundlesMultipleExtendedParents() throws Exception {
+        // Scenario: the child bundle declares two parents in extended.plugins. sortBundles
+        // must place BOTH parents before the child, regardless of the iteration order in
+        // which the bundles are encountered.
+        Path pluginDir = createTempDir();
+        Set<PluginsService.Bundle> bundles = new LinkedHashSet<>();
+
+        // Deliberately add the child first so we exercise the recursion path.
+        PluginInfo childInfo = new PluginInfo(
+            "child",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "ChildPlugin",
+            Arrays.asList("parent-a", "parent-b"),
+            false
+        );
+        bundles.add(new PluginsService.Bundle(childInfo, pluginDir));
+
+        PluginInfo parentAInfo = new PluginInfo(
+            "parent-a",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "ParentAPlugin",
+            Collections.emptyList(),
+            false
+        );
+        bundles.add(new PluginsService.Bundle(parentAInfo, pluginDir));
+
+        PluginInfo parentBInfo = new PluginInfo(
+            "parent-b",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "ParentBPlugin",
+            Collections.emptyList(),
+            false
+        );
+        bundles.add(new PluginsService.Bundle(parentBInfo, pluginDir));
+
+        List<PluginsService.Bundle> sorted = PluginsService.sortBundles(bundles);
+        assertThat(sorted, hasSize(3));
+
+        int parentAIdx = -1;
+        int parentBIdx = -1;
+        int childIdx = -1;
+        for (int i = 0; i < sorted.size(); i++) {
+            String name = sorted.get(i).plugin.getName();
+            if ("parent-a".equals(name)) parentAIdx = i;
+            else if ("parent-b".equals(name)) parentBIdx = i;
+            else if ("child".equals(name)) childIdx = i;
+        }
+        assertTrue("parent-a must be present", parentAIdx >= 0);
+        assertTrue("parent-b must be present", parentBIdx >= 0);
+        assertTrue("child must be present", childIdx >= 0);
+        assertTrue("parent-a must precede child in load order", parentAIdx < childIdx);
+        assertTrue("parent-b must precede child in load order", parentBIdx < childIdx);
+    }
+
+    public void testSortBundlesMultipleExtendedParentsMissingOne() throws Exception {
+        // If one of the two declared parents is missing (and not optional), sortBundles
+        // must throw IllegalArgumentException pointing at the missing parent. Regression
+        // guard for partial-installation scenarios of multi-extendedPlugins children.
+        Path pluginDir = createTempDir();
+        Set<PluginsService.Bundle> bundles = new LinkedHashSet<>();
+
+        PluginInfo parentAInfo = new PluginInfo(
+            "parent-a",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "ParentAPlugin",
+            Collections.emptyList(),
+            false
+        );
+        bundles.add(new PluginsService.Bundle(parentAInfo, pluginDir));
+
+        PluginInfo childInfo = new PluginInfo(
+            "child",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "ChildPlugin",
+            Arrays.asList("parent-a", "parent-b"),
+            false
+        );
+        bundles.add(new PluginsService.Bundle(childInfo, pluginDir));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.sortBundles(bundles));
+        assertEquals("Missing plugin [parent-b], dependency of [child]", e.getMessage());
+    }
+
     private PluginInfo getPluginInfoWithWithSemverRange(String semverRange) {
         return new PluginInfo(
             "my_plugin",
@@ -1222,6 +1382,26 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             expectThrows(UnsupportedOperationException.class, () -> extensions.add(new TestExtension1()));
         }
     }
+
+    /**
+     * Second extensible plugin with its own extension point. Used together with
+     * {@link TestExtensiblePlugin} to exercise the case where a single child plugin
+     * declares two parents in {@code extended.plugins}, and each parent loads its own
+     * extension-point list from the child's {@code META-INF/services} entries.
+     */
+    private static class TestSecondExtensiblePlugin extends Plugin implements ExtensiblePlugin {
+        private List<TestSecondExtensionPoint> extensions;
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            assert extensions == null;
+            extensions = loader.loadExtensions(TestSecondExtensionPoint.class);
+        }
+    }
+
+    public interface TestSecondExtensionPoint {}
+
+    public static class TestSecondExtension implements TestSecondExtensionPoint {}
 
     public static class TestPlugin extends Plugin {}
 

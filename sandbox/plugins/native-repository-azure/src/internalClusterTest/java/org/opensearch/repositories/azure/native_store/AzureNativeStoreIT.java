@@ -9,6 +9,7 @@
 package org.opensearch.repositories.azure.native_store;
 
 import org.opensearch.Version;
+import org.opensearch.blockcache.foyer.BlockCacheFoyerPlugin;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -38,6 +39,17 @@ public class AzureNativeStoreIT extends OpenSearchIntegTestCase {
     protected Collection<PluginInfo> additionalNodePlugins() {
         return List.of(
             new PluginInfo(
+                BlockCacheFoyerPlugin.class.getName(),
+                "foyer-backed block cache (parent plugin for native repositories)",
+                "NA",
+                Version.CURRENT,
+                "1.8",
+                BlockCacheFoyerPlugin.class.getName(),
+                null,
+                List.of(),
+                false
+            ),
+            new PluginInfo(
                 AzureNativeObjectStorePlugin.class.getName(),
                 "native Azure object store provider",
                 "NA",
@@ -45,7 +57,7 @@ public class AzureNativeStoreIT extends OpenSearchIntegTestCase {
                 "1.8",
                 AzureNativeObjectStorePlugin.class.getName(),
                 null,
-                List.of(AzureRepositoryPlugin.class.getName()),
+                List.of(AzureRepositoryPlugin.class.getName(), BlockCacheFoyerPlugin.class.getName()),
                 false
             )
         );

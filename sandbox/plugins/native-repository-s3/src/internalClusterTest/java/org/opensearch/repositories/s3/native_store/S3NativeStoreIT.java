@@ -10,6 +10,7 @@ package org.opensearch.repositories.s3.native_store;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.blockcache.foyer.BlockCacheFoyerPlugin;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -46,6 +47,17 @@ public class S3NativeStoreIT extends OpenSearchIntegTestCase {
     protected Collection<PluginInfo> additionalNodePlugins() {
         return List.of(
             new PluginInfo(
+                BlockCacheFoyerPlugin.class.getName(),
+                "foyer-backed block cache (parent plugin for native repositories)",
+                "NA",
+                Version.CURRENT,
+                "1.8",
+                BlockCacheFoyerPlugin.class.getName(),
+                null,
+                List.of(),
+                false
+            ),
+            new PluginInfo(
                 S3NativeObjectStorePlugin.class.getName(),
                 "native S3 object store provider",
                 "NA",
@@ -53,7 +65,7 @@ public class S3NativeStoreIT extends OpenSearchIntegTestCase {
                 "1.8",
                 S3NativeObjectStorePlugin.class.getName(),
                 null,
-                List.of(S3RepositoryPlugin.class.getName()),
+                List.of(S3RepositoryPlugin.class.getName(), BlockCacheFoyerPlugin.class.getName()),
                 false
             )
         );

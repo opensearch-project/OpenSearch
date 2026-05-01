@@ -9,7 +9,7 @@
 opensearchplugin {
   description = 'Native (Rust) ObjectStore backend for the GCS repository plugin.'
   classname = 'org.opensearch.repositories.gcs.native_store.GcsNativeObjectStorePlugin'
-  extendedPlugins = ['repository-gcs']
+  extendedPlugins = ['repository-gcs', 'block-cache-foyer']
 }
 
 apply plugin: 'opensearch.internal-cluster-test'
@@ -17,10 +17,15 @@ apply plugin: 'opensearch.internal-cluster-test'
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
-  implementation project(':sandbox:libs:dataformat-native')
+  // FFM helpers inherited at runtime from block-cache-foyer parent via extendedPlugins.
+  compileOnly project(':sandbox:libs:dataformat-native')
+  // SPI classes also inherited from block-cache-foyer parent.
+  compileOnly project(':sandbox:libs:block-cache')
   compileOnly project(':plugins:repository-gcs')
+  compileOnly project(':sandbox:plugins:block-cache-foyer')
   internalClusterTestImplementation project(':test:framework')
   internalClusterTestImplementation project(':plugins:repository-gcs')
+  internalClusterTestImplementation project(':sandbox:plugins:block-cache-foyer')
 }
 
 testingConventions.enabled = false

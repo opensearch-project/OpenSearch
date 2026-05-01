@@ -1,0 +1,1 @@
+org.opensearch.repositories.s3.native_store.S3BlockCacheProvider

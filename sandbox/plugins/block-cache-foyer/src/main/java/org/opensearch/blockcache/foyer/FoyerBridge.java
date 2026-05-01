@@ -44,12 +44,12 @@ public final class FoyerBridge {
     private static final MethodHandle FOYER_DESTROY_CACHE;
 
     static {
-        SymbolLookup lib    = NativeLibraryLoader.symbolLookup();
-        Linker       linker = Linker.nativeLinker();
+        SymbolLookup lib = NativeLibraryLoader.symbolLookup();
+        Linker linker = Linker.nativeLinker();
 
         // i64 foyer_create_cache(u64 disk_bytes, *const u8 dir_ptr, u64 dir_len,
-        //                        u64 block_size_bytes,
-        //                        *const u8 io_engine_ptr, u64 io_engine_len)
+        // u64 block_size_bytes,
+        // *const u8 io_engine_ptr, u64 io_engine_len)
         FOYER_CREATE_CACHE = linker.downcallHandle(
             lib.find("foyer_create_cache").orElseThrow(),
             FunctionDescriptor.of(
@@ -63,7 +63,7 @@ public final class FoyerBridge {
             )
         );
 
-        // i64 foyer_destroy_cache(i64 ptr)  — 0=success, <0=error pointer
+        // i64 foyer_destroy_cache(i64 ptr) — 0=success, <0=error pointer
         FOYER_DESTROY_CACHE = linker.downcallHandle(
             lib.find("foyer_destroy_cache").orElseThrow(),
             FunctionDescriptor.of(
@@ -87,21 +87,18 @@ public final class FoyerBridge {
      */
     public static long createCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
         try (var call = new NativeCall()) {
-            var dir      = call.str(diskDir);
-            var engine   = call.str(ioEngine);
-            long ptr = call.invoke(
-                FOYER_CREATE_CACHE,
-                diskBytes,
-                dir.segment(), dir.len(),
-                blockSizeBytes,
-                engine.segment(), engine.len()
-            );
+            var dir = call.str(diskDir);
+            var engine = call.str(ioEngine);
+            long ptr = call.invoke(FOYER_CREATE_CACHE, diskBytes, dir.segment(), dir.len(), blockSizeBytes, engine.segment(), engine.len());
             if (ptr <= 0) {
                 throw new IllegalStateException("foyer_create_cache returned invalid pointer: " + ptr);
             }
             logger.info(
                 "Foyer block cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, dir={}",
-                diskBytes, blockSizeBytes, ioEngine, diskDir
+                diskBytes,
+                blockSizeBytes,
+                ioEngine,
+                diskDir
             );
             return ptr;
         }

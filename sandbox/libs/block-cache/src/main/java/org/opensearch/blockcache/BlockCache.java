@@ -10,7 +10,6 @@ package org.opensearch.blockcache;
 
 import java.io.Closeable;
 
-
 /**
  * A node-level cache for variable-size blocks of data read from remote storage.
  *
