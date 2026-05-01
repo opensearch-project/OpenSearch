@@ -1455,9 +1455,9 @@ public class StoreTests extends OpenSearchTestCase {
             -1L,
             Map.of()
         );
-        assertNull("DFA getSegmentsFileName must be null", empty.getSegmentsFileName());
+        assertNull("DFA getLastCommitFileName must be null for empty snapshot", empty.getLastCommitFileName());
 
-        // ignoreSegmentsFile=false still succeeds because getSegmentsFileName()==null skips that step.
+        // ignoreSegmentsFile=false still succeeds because getLastCommitFileName()==null skips that step.
         Store.MetadataSnapshot.LoadedMetadata loaded = Store.MetadataSnapshot.loadMetadata(empty, store.directory(), logger, false);
         assertTrue("file metadata must be empty for a snapshot with no segments", loaded.fileMetadata.isEmpty());
         assertEquals("numDocs must be 0 for DFA", 0L, loaded.numDocs);

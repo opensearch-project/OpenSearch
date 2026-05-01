@@ -188,7 +188,7 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
         return Lucene.getNumDocs(segmentInfos);
     }
 
-    @Override
+    /** Lucene-specific accessor. Prefer {@link #getLastCommitFileName()} for the format-neutral API. */
     public String getSegmentsFileName() {
         return segmentInfos.getSegmentsFileName();
     }

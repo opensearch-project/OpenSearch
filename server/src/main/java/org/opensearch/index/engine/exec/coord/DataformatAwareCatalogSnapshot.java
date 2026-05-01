@@ -267,11 +267,6 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         return 0L;
     }
 
-    @Override
-    public synchronized String getSegmentsFileName() {
-        return getLastCommitFileName();
-    }
-
     /**
      * Returns the {@code segments_N} filename associated with this snapshot's Lucene commit,
      * or {@code null} if this snapshot has not yet been committed (e.g., refresh-only snapshots).

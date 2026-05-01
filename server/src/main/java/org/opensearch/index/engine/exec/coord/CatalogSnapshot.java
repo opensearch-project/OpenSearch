@@ -322,17 +322,10 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     public abstract long getNumDocs();
 
     /**
-     * Name of the top-level segments-file for this snapshot, or {@code null} if none.
-     * SI → {@code segments_N}; DFA → {@code null} (generation counter drifts from Lucene's).
-     * {@code loadMetadata} skips the hash-full-file step when {@code null}.
-     */
-    public abstract String getSegmentsFileName();
-
-    /**
-     * Returns the last committed file name for this snapshot.
-     * For DFA snapshots this is set via {@link DataformatAwareCatalogSnapshot#setLastCommitInfo}
-     * after a flush or replication commit. For SI snapshots this delegates to
-     * {@link #getSegmentsFileName()}.
+     * Name of the top-level commit file, or {@code null} if not yet committed.
+     * Format-neutral: Lucene-backed snapshots use {@code segments_N} but callers must not
+     * assume any naming convention. {@code MetadataSnapshot.loadMetadata} skips the
+     * hash-full-file step when this is {@code null}.
      */
     public abstract String getLastCommitFileName();
 

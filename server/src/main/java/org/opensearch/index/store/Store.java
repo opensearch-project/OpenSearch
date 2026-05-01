@@ -713,10 +713,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * The returned IndexOutput validates the files checksum.
-     * <p>
-     * Note: Checksums are calculated by default since version 4.8.0. This method only adds the
-     * verification against the checksum in the given metadata and does not add any significant overhead.
+     * Returns an {@link IndexOutput} that validates the file's checksum and length against
+     * {@code metadata} on {@link Store#verify(IndexOutput)}. Dispatches to
+     * {@link DataFormatVerifyingIndexOutput} for DFA-format files (no Lucene footer) and
+     * {@link LuceneVerifyingIndexOutput} otherwise.
      */
     public IndexOutput createVerifyingOutput(String fileName, final StoreFileMetadata metadata, final IOContext context)
         throws IOException {
@@ -1335,7 +1335,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
 
             if (ignoreSegmentsFile == false) {
-                final String segmentsFile = catalogSnapshot.getSegmentsFileName();
+                final String segmentsFile = catalogSnapshot.getLastCommitFileName();
                 if (segmentsFile != null) {
                     checksumFromFile(directory, segmentsFile, builder, logger, maxVersion, true);
                 }
@@ -1788,34 +1788,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * {@link VerifyingIndexOutput} for files managed by a {@link DataFormatAwareStoreDirectory}
-     * that lack a Lucene CRC32 footer (e.g. Parquet segment files).
+     * {@link VerifyingIndexOutput} for DFA-format files (e.g. Parquet) that lack a Lucene CRC32 footer.
      *
-     * <p>Unlike {@link LuceneVerifyingIndexOutput}, which inspects the last 8 bytes as a Lucene
-     * footer, this output relies on the fact that every {@link IndexOutput} returned by an
-     * {@code FSDirectory}-backed directory — including through {@link DataFormatAwareStoreDirectory}
-     * and {@code MockDirectoryWrapper} — is ultimately an
-     * {@link org.apache.lucene.store.OutputStreamIndexOutput}, which maintains a running
-     * {@link java.util.zip.CRC32} via a {@link java.util.zip.CheckedOutputStream} on every byte
-     * written. At {@link #verify()} time we call {@code out.getChecksum()} (which flushes the
-     * stream buffer and returns the CRC32 of every byte written so far), convert it to the same
-     * decimal-string format produced by {@link DataFormatAwareStoreDirectory#calculateUploadChecksum},
-     * and compare it against the expected metadata checksum.
+     * <p>Relies on {@link org.apache.lucene.store.OutputStreamIndexOutput} maintaining a running
+     * CRC32 via {@link java.util.zip.CheckedOutputStream}. {@link #verify()} reads that running
+     * value via {@code out.getChecksum()} and compares it (decimal string) against
+     * {@link StoreFileMetadata#checksum()}. No extra I/O, no file-handle contention.
      *
-     * <p>Advantages over a close-then-reread approach:
-     * <ul>
-     *   <li>No file-handle contention — we never reopen the file while its writer handle is
-     *       still open (which some directory impls like {@code MockDirectoryWrapper} reject).</li>
-     *   <li>No extra I/O — the CRC32 is maintained as a side effect of the writes.</li>
-     *   <li>Verification happens before {@code close()}, matching the Lucene verifier pattern
-     *       and the protocol documented on {@link Store#verify(IndexOutput)}.</li>
-     * </ul>
-     *
-     * <p>Throws {@link CorruptIndexException} if the running CRC32 disagrees with the expected
-     * metadata checksum or if the total byte count doesn't match {@link StoreFileMetadata#length}.
-     * Errors propagate identically to {@link LuceneVerifyingIndexOutput} errors so
-     * recovery/replication error-handling classifies them uniformly (transit corruption is
-     * retried, source-disk corruption fails the source shard).
+     * <p>Mismatches surface as {@link CorruptIndexException} so recovery error handling treats
+     * them identically to Lucene checksum failures.
      *
      * @opensearch.internal
      */
@@ -1849,9 +1830,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     "VerifyingIndexOutput(" + metadata.name() + ")"
                 );
             }
-            // getChecksum() flushes the buffered stream and returns the running CRC32 of every
-            // byte written through the underlying OutputStreamIndexOutput. Matches the decimal
-            // format produced by DataFormatAwareStoreDirectory.calculateUploadChecksum.
+            // Running CRC32 from the underlying OutputStreamIndexOutput's CheckedOutputStream.
             final String actualChecksum = Long.toString(out.getChecksum());
             if (metadata.checksum().equals(actualChecksum) == false) {
                 throw new CorruptIndexException(
