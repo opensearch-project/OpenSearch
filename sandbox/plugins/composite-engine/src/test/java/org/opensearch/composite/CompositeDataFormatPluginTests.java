@@ -22,7 +22,6 @@ import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -352,12 +351,6 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
     }
 
     private static void setClusterServiceField(CompositeDataFormatPlugin plugin, ClusterService clusterService) {
-        try {
-            Field f = CompositeDataFormatPlugin.class.getDeclaredField("clusterService");
-            f.setAccessible(true);
-            f.set(plugin, clusterService);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError("failed to inject clusterService into CompositeDataFormatPlugin", e);
-        }
+        plugin.createComponents(null, clusterService, null, null, null, null, null, null, null, null, null);
     }
 }
