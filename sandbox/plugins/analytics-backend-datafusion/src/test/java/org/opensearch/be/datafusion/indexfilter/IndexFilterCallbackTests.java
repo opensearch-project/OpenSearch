@@ -52,12 +52,7 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
             assertTrue("collectorKey >= 0", collectorKey >= 0);
 
             MemorySegment buf = arena.allocate(Long.BYTES);
-            int n = provider.collectDocs(
-                collectors.collector(collectorKey).innerCollectorKey(),
-                0,
-                64,
-                buf
-            );
+            int n = provider.collectDocs(collectors.collector(collectorKey).innerCollectorKey(), 0, 64, buf);
             assertEquals(1, n);
             assertEquals(0x5L, buf.getAtIndex(ValueLayout.JAVA_LONG, 0));
 

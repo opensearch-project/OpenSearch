@@ -35,7 +35,8 @@ public final class FilterTreeCallbacks {
     private static final Logger LOGGER = LogManager.getLogger(FilterTreeCallbacks.class);
 
     /** Both registries in one snapshot — one AtomicReference read per upcall. */
-    record Registries(FilterProviderRegistry providers, CollectorRegistry collectors) {}
+    record Registries(FilterProviderRegistry providers, CollectorRegistry collectors) {
+    }
 
     private static final AtomicReference<Registries> REGISTRIES = new AtomicReference<>();
 

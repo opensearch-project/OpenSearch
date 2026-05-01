@@ -23,6 +23,7 @@ public class ExecutionContext {
     private final Reader reader;
     private final SearchShardTask task;
     private byte[] fragmentBytes;
+
     /**
      * Constructs an execution context.
      * @param tableName the target table name

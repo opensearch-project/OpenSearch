@@ -48,5 +48,6 @@ public final class CollectorRegistry {
      * Maps an outer collector key to the provider instance + the
      * provider's own inner collector key.
      */
-    record CollectorHandle(IndexFilterProvider provider, int innerCollectorKey) {}
+    record CollectorHandle(IndexFilterProvider provider, int innerCollectorKey) {
+    }
 }

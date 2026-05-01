@@ -234,11 +234,7 @@ public final class NativeBridge {
             MethodHandle createProvider = lookup.findStatic(
                 cb,
                 "createProvider",
-                java.lang.invoke.MethodType.methodType(
-                    int.class,
-                    java.lang.foreign.MemorySegment.class,
-                    long.class
-                )
+                java.lang.invoke.MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, long.class)
             );
             MethodHandle releaseProvider = lookup.findStatic(
                 cb,
@@ -425,7 +421,6 @@ public final class NativeBridge {
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
     }
-
 
     // ---- Stubs ----
 
