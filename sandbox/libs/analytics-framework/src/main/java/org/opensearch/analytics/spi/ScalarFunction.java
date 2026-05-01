@@ -36,22 +36,22 @@ public enum ScalarFunction {
     IS_NOT_NULL(Category.COMPARISON, SqlKind.IS_NOT_NULL),
     IN(Category.COMPARISON, SqlKind.IN),
     LIKE(Category.COMPARISON, SqlKind.LIKE),
-    PREFIX(Category.COMPARISON, SqlKind.OTHER),
+    PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
 
     // ── Full-text search ─────────────────────────────────────────────
-    MATCH(Category.FULL_TEXT, SqlKind.OTHER),
-    MATCH_PHRASE(Category.FULL_TEXT, SqlKind.OTHER),
-    FUZZY(Category.FULL_TEXT, SqlKind.OTHER),
-    WILDCARD(Category.FULL_TEXT, SqlKind.OTHER),
-    REGEXP(Category.FULL_TEXT, SqlKind.OTHER),
+    MATCH(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCH_PHRASE(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    FUZZY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    WILDCARD(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    REGEXP(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
 
     // ── String ───────────────────────────────────────────────────────
-    UPPER(Category.STRING, SqlKind.OTHER),
-    LOWER(Category.STRING, SqlKind.OTHER),
+    UPPER(Category.STRING, SqlKind.OTHER_FUNCTION),
+    LOWER(Category.STRING, SqlKind.OTHER_FUNCTION),
     TRIM(Category.STRING, SqlKind.TRIM),
-    SUBSTRING(Category.STRING, SqlKind.OTHER),
-    CONCAT(Category.STRING, SqlKind.OTHER),
-    CHAR_LENGTH(Category.STRING, SqlKind.OTHER),
+    SUBSTRING(Category.STRING, SqlKind.OTHER_FUNCTION),
+    CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Math ─────────────────────────────────────────────────────────
     PLUS(Category.MATH, SqlKind.PLUS),
@@ -59,8 +59,8 @@ public enum ScalarFunction {
     TIMES(Category.MATH, SqlKind.TIMES),
     DIVIDE(Category.MATH, SqlKind.DIVIDE),
     MOD(Category.MATH, SqlKind.MOD),
-    ABS(Category.MATH, SqlKind.OTHER),
-    SIN(Category.MATH, SqlKind.OTHER),
+    ABS(Category.MATH, SqlKind.OTHER_FUNCTION),
+    SIN(Category.MATH, SqlKind.OTHER_FUNCTION),
     CEIL(Category.MATH, SqlKind.CEIL),
     FLOOR(Category.MATH, SqlKind.FLOOR),
 
@@ -107,11 +107,12 @@ public enum ScalarFunction {
 
     /**
      * Maps a Calcite SqlKind to a ScalarFunction, or null if not recognized.
-     * Skips OTHER to avoid ambiguity (multiple functions share OTHER).
+     * Skips OTHER_FUNCTION — multiple functions share this kind,
+     * so they must be resolved by name via {@link #fromSqlFunction(SqlFunction)}.
      */
     public static ScalarFunction fromSqlKind(SqlKind kind) {
         for (ScalarFunction func : values()) {
-            if (func.sqlKind == kind && func.sqlKind != SqlKind.OTHER) {
+            if (func.sqlKind == kind && func.sqlKind != SqlKind.OTHER_FUNCTION) {
                 return func;
             }
         }
