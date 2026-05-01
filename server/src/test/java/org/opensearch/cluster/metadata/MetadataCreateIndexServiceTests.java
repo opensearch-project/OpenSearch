@@ -3919,7 +3919,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY, "modulo").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "modulo").build();
 
         // Should not throw
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
@@ -3930,7 +3930,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY, "simple").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "simple").build();
 
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
     }
@@ -3946,7 +3946,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY, "modulo").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "modulo").build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -3958,8 +3958,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidateIngestionSourceSettingsPartitionStrategySimpleAlsoRejectedOnMixedCluster() {
-        // Even the default value 'simple' set explicitly is rejected on a mixed cluster — the
-        // setting KEY itself is unknown to older nodes, regardless of the value.
+        // Even the default value 'simple' set explicitly is rejected on a mixed cluster — the version
+        // check guards the setting KEY itself, regardless of value. Once any non-default strategy can
+        // be set, older nodes that don't recognize the key would fall back to the default 1:1 mapping
+        // and read from the wrong source partitions until upgraded.
         final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
         );
@@ -3967,7 +3969,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY, "simple").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "simple").build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

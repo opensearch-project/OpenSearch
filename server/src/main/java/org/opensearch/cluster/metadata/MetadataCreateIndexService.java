@@ -1278,10 +1278,11 @@ public class MetadataCreateIndexService {
      */
     static void validateIngestionSourceSettings(Settings settings, ClusterState state) {
         // Partition strategy validation. The setting key itself was introduced in V_3_7_0; reject any explicit
-        // value (including [simple], the default) on mixed clusters where some nodes don't
-        // recognize the key — otherwise index metadata replicated to older nodes would carry
-        // an unknown setting.
-        if (IndexMetadata.INGESTION_SOURCE_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
+        // value (including [simple], the default) on mixed clusters where some nodes don't recognize the key.
+        // And in that case the index metadata replicated to older nodes would carry unknown settings.
+        // Also, older nodes would silently fall back to the default mapping while the user configured
+        // a different strategy (e.g., modulo), which might cause correctness issues.
+        if (IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
             Version minNodeVersion = state.nodes().getMinNodeVersion();
             if (minNodeVersion.before(Version.V_3_7_0)) {
                 throw new IllegalArgumentException(
