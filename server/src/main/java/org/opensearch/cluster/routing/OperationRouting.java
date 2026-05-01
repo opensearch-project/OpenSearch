@@ -34,6 +34,8 @@ package org.opensearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.deployment.DeploymentState;
+import org.opensearch.cluster.deployment.DeploymentStateService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.VirtualShardRoutingHelper;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
@@ -260,11 +262,19 @@ public class OperationRouting {
         @Nullable SliceBuilder slice
     ) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
+        final Map<String, DeploymentState> drainedNodes = DeploymentStateService.getNodeDeploymentStates(clusterState);
 
         Map<Index, List<ShardIterator>> shardIterators = new HashMap<>();
         for (IndexShardRoutingTable shard : shards) {
+            IndexShardRoutingTable effectiveShard = shard;
+            if (!drainedNodes.isEmpty()) {
+                effectiveShard = filterDrainedNodes(shard, drainedNodes);
+                if (effectiveShard == null) {
+                    continue;
+                }
+            }
 
-            IndexMetadata indexMetadataForShard = indexMetadata(clusterState, shard.shardId.getIndex().getName());
+            IndexMetadata indexMetadataForShard = indexMetadata(clusterState, effectiveShard.shardId.getIndex().getName());
             if (indexMetadataForShard.isRemoteSnapshot() && (preference == null || preference.isEmpty())) {
                 preference = Preference.PRIMARY.type();
             }
@@ -282,7 +292,7 @@ public class OperationRouting {
             }
 
             ShardIterator iterator = preferenceActiveShardIterator(
-                shard,
+                effectiveShard,
                 clusterState.nodes().getLocalNodeId(),
                 clusterState.nodes(),
                 preference,
@@ -324,6 +334,20 @@ public class OperationRouting {
     }
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
+
+    private static IndexShardRoutingTable filterDrainedNodes(IndexShardRoutingTable shard, Map<String, DeploymentState> drainedNodes) {
+        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shard.shardId);
+        for (ShardRouting shardRouting : shard) {
+            if (!drainedNodes.containsKey(shardRouting.currentNodeId())) {
+                builder.addShard(shardRouting);
+            }
+        }
+        IndexShardRoutingTable filtered = builder.build();
+        if (filtered.size() == 0) {
+            return null;
+        }
+        return filtered;
+    }
 
     private Set<IndexShardRoutingTable> computeTargetedShards(
         ClusterState clusterState,
