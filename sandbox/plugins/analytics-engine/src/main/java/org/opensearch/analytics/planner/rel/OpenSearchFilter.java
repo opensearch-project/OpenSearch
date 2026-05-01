@@ -25,6 +25,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.function.Function;
 
 /**
  * OpenSearch custom Filter carrying viable backend list and per-predicate annotations.
@@ -96,7 +97,12 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        return LogicalFilter.create(strippedChildren.getFirst(), stripCondition(getCondition()));
+        return stripAnnotations(strippedChildren, OperatorAnnotation::unwrap);
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
+        return LogicalFilter.create(strippedChildren.getFirst(), resolveCondition(getCondition(), annotationResolver));
     }
 
     private RexNode replaceAnnotations(RexNode node, ListIterator<OperatorAnnotation> annotationIterator) {
@@ -115,15 +121,15 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
         return node;
     }
 
-    private RexNode stripCondition(RexNode node) {
-        if (node instanceof AnnotatedPredicate predicate) return predicate.unwrap();
+    private RexNode resolveCondition(RexNode node, Function<OperatorAnnotation, RexNode> annotationResolver) {
+        if (node instanceof AnnotatedPredicate predicate) return annotationResolver.apply(predicate);
         if (node instanceof RexCall call) {
             List<RexNode> newOperands = new ArrayList<>();
             boolean changed = false;
             for (RexNode operand : call.getOperands()) {
-                RexNode stripped = stripCondition(operand);
-                newOperands.add(stripped);
-                if (stripped != operand) changed = true;
+                RexNode resolved = resolveCondition(operand, annotationResolver);
+                newOperands.add(resolved);
+                if (resolved != operand) changed = true;
             }
             return changed ? call.clone(call.getType(), newOperands) : call;
         }

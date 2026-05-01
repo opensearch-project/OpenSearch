@@ -90,6 +90,10 @@ public class CapabilityRegistry {
             for (DelegationType type : caps.acceptedDelegations()) {
                 delegationAcceptors.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
+            // Runtime validation in FragmentConversionDriver ensures a DelegatedPredicateSerializer
+            // exists for each function actually delegated to this backend. Startup validation is
+            // intentionally omitted — a backend may accept delegation for a subset of its filter
+            // capabilities, and which functions are delegated depends on the query.
             for (ScanCapability cap : caps.scanCapabilities()) {
                 for (FieldType fieldType : cap.supportedFieldTypes()) {
                     addToFormatMap(scanIndex, new ScanKey(cap.getClass(), fieldType), cap.formats(), name);

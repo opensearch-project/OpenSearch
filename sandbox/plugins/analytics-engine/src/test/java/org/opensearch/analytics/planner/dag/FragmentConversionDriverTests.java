@@ -11,11 +11,19 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.BasePlannerRulesTests;
 import org.opensearch.analytics.planner.MockDataFusionBackend;
+import org.opensearch.analytics.planner.MockLuceneBackend;
 import org.opensearch.analytics.planner.rel.AggregateCallAnnotation;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
@@ -24,10 +32,19 @@ import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.DelegatedPredicateFunction;
+import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
+import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -205,6 +222,255 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertEquals(1, dag.rootStage().getChildStages().size());
         assertReduceStageConverted(convertor, dag.rootStage());
         assertShardScanConverted(convertor, dag.rootStage().getChildStages().getFirst());
+    }
+
+    // ---- Delegation tagging tests ----
+
+    private static final SqlFunction MATCH_PHRASE_FUNCTION = new SqlFunction(
+        "MATCH_PHRASE",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    private static final SqlFunction FUZZY_FUNCTION = new SqlFunction(
+        "FUZZY",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    /** Records serialization calls for delegation tests. */
+    private static class RecordingSerializer implements DelegatedPredicateSerializer {
+        int callCount;
+        final List<String> serializedFunctions = new ArrayList<>();
+
+        @Override
+        public byte[] serialize(RexCall call, List<FieldStorageInfo> fieldStorage) {
+            callCount++;
+            serializedFunctions.add(call.getOperator().getName());
+            return ("delegated:" + call.getOperator().getName()).getBytes(StandardCharsets.UTF_8);
+        }
+    }
+
+    private List<AnalyticsSearchBackendPlugin> delegationBackends(RecordingConvertor dfConvertor, RecordingSerializer serializer) {
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            public FragmentConvertor getFragmentConvertor() {
+                return dfConvertor;
+            }
+        };
+        MockLuceneBackend lucene = new MockLuceneBackend() {
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            protected Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+                Map<ScalarFunction, DelegatedPredicateSerializer> map = new HashMap<>(super.delegatedPredicateSerializers());
+                map.put(ScalarFunction.MATCH_PHRASE, serializer);
+                map.put(ScalarFunction.FUZZY, serializer);
+                map.put(ScalarFunction.MATCH, serializer);
+                map.put(ScalarFunction.WILDCARD, serializer);
+                map.put(ScalarFunction.REGEXP, serializer);
+                return map;
+            }
+        };
+        return List.of(df, lucene);
+    }
+
+    private QueryDAG buildDelegationDag(
+        RexNode condition,
+        RecordingConvertor dfConvertor,
+        RecordingSerializer serializer,
+        String[] fieldNames,
+        SqlTypeName[] fieldTypes,
+        Map<String, Map<String, Object>> fields
+    ) {
+        var backends = delegationBackends(dfConvertor, serializer);
+        var context = buildContext("parquet", fields, backends);
+        LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", fieldNames, fieldTypes)), condition);
+        RelNode cboOutput = runPlanner(filter, context);
+        LOGGER.info("Marked+CBO:\n{}", RelOptUtil.toString(cboOutput));
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        return dag;
+    }
+
+    /** Single-field delegation helper. */
+    private QueryDAG buildSingleFieldDelegationDag(RexNode condition, RecordingConvertor dfConvertor, RecordingSerializer serializer) {
+        return buildDelegationDag(
+            condition,
+            dfConvertor,
+            serializer,
+            new String[] { "message" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR },
+            Map.of("message", Map.of("type", "keyword", "index", true))
+        );
+    }
+
+    /** Two-field delegation helper (integer status + keyword message). */
+    private QueryDAG buildTwoFieldDelegationDag(RexNode condition, RecordingConvertor dfConvertor, RecordingSerializer serializer) {
+        return buildDelegationDag(
+            condition,
+            dfConvertor,
+            serializer,
+            new String[] { "status", "message" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR },
+            Map.of("status", Map.of("type", "integer", "index", true), "message", Map.of("type", "keyword", "index", true))
+        );
+    }
+
+    // ---- Shared delegation assertions ----
+
+    private static Stage leafStage(QueryDAG dag) {
+        Stage stage = dag.rootStage();
+        while (!stage.getChildStages().isEmpty()) {
+            stage = stage.getChildStages().getFirst();
+        }
+        return stage;
+    }
+
+    private void assertDelegationResult(
+        StagePlan plan,
+        RecordingConvertor dfConvertor,
+        RecordingSerializer serializer,
+        int expectedDelegatedCount,
+        boolean expectPlaceholder,
+        boolean expectNativeEquals,
+        List<String> expectedFunctions
+    ) {
+        assertEquals("delegatedQueries count", expectedDelegatedCount, plan.delegatedQueries().size());
+        assertEquals("serializer call count", expectedDelegatedCount, serializer.callCount);
+        assertEquals("serialized functions", expectedFunctions, serializer.serializedFunctions);
+
+        String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
+        LOGGER.info("Stripped plan:\n{}", strippedPlan);
+
+        if (expectPlaceholder) {
+            assertTrue(
+                "Stripped plan should contain " + DelegatedPredicateFunction.NAME,
+                strippedPlan.contains(DelegatedPredicateFunction.NAME)
+            );
+            assertFalse("Stripped plan should not contain MATCH_PHRASE", strippedPlan.contains("MATCH_PHRASE"));
+            assertFalse("Stripped plan should not contain FUZZY", strippedPlan.contains("FUZZY"));
+        } else {
+            assertFalse(
+                "Stripped plan should not contain " + DelegatedPredicateFunction.NAME,
+                strippedPlan.contains(DelegatedPredicateFunction.NAME)
+            );
+        }
+
+        if (expectNativeEquals) {
+            assertTrue("Stripped plan should contain native equals", strippedPlan.contains("="));
+        }
+
+        // No annotation markers should survive stripping
+        assertDoesntContainOperators(dfConvertor.shardScanFragment, ANNOTATION_MARKERS);
+    }
+
+    // ---- Single predicate ----
+
+    /** Single delegated MATCH_PHRASE — replaced with placeholder, one entry in delegatedQueries. */
+    public void testSingleDelegatedPredicate() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        QueryDAG dag = buildSingleFieldDelegationDag(makeFullTextCall(MATCH_PHRASE_FUNCTION, 0, "hello world"), dfConvertor, serializer);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+        assertDelegationResult(plan, dfConvertor, serializer, 1, true, false, List.of("MATCH_PHRASE"));
+    }
+
+    /** Single native equals — no delegation, empty delegatedQueries. */
+    public void testSingleNativePredicate() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        QueryDAG dag = buildTwoFieldDelegationDag(makeEquals(0, SqlTypeName.INTEGER, 200), dfConvertor, serializer);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+        assertDelegationResult(plan, dfConvertor, serializer, 0, false, true, List.of());
+    }
+
+    // ---- AND conditions ----
+
+    /** AND(native, delegated) — equals unwrapped, MATCH_PHRASE replaced. */
+    public void testAndNativeAndDelegated() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        QueryDAG dag = buildTwoFieldDelegationDag(
+            makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error")),
+            dfConvertor,
+            serializer
+        );
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+        assertDelegationResult(plan, dfConvertor, serializer, 1, true, true, List.of("MATCH_PHRASE"));
+    }
+
+    /** AND(delegated, delegated) — both replaced, two entries in delegatedQueries. */
+    public void testAndTwoDelegated() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        QueryDAG dag = buildSingleFieldDelegationDag(
+            makeAnd(makeFullTextCall(MATCH_PHRASE_FUNCTION, 0, "hello"), makeFullTextCall(FUZZY_FUNCTION, 0, "wrld")),
+            dfConvertor,
+            serializer
+        );
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+        assertDelegationResult(plan, dfConvertor, serializer, 2, true, false, List.of("MATCH_PHRASE", "FUZZY"));
+    }
+
+    // ---- OR conditions ----
+
+    /** OR(native, delegated) — structure preserved, delegated replaced. */
+    public void testOrNativeAndDelegated() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        QueryDAG dag = buildTwoFieldDelegationDag(
+            rexBuilder.makeCall(
+                org.apache.calcite.sql.fun.SqlStdOperatorTable.OR,
+                makeEquals(0, SqlTypeName.INTEGER, 200),
+                makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error")
+            ),
+            dfConvertor,
+            serializer
+        );
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+        assertDelegationResult(plan, dfConvertor, serializer, 1, true, true, List.of("MATCH_PHRASE"));
+        assertTrue("OR structure should be preserved", RelOptUtil.toString(dfConvertor.shardScanFragment).contains("OR"));
+    }
+
+    // ---- Interleaved AND/OR/NOT ----
+
+    /** AND(native, OR(delegated, NOT(delegated))) — nested boolean structure with delegation. */
+    public void testInterleavedAndOrNot() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        RexNode notFuzzy = rexBuilder.makeCall(
+            org.apache.calcite.sql.fun.SqlStdOperatorTable.NOT,
+            makeFullTextCall(FUZZY_FUNCTION, 1, "wrld")
+        );
+        RexNode orClause = rexBuilder.makeCall(
+            org.apache.calcite.sql.fun.SqlStdOperatorTable.OR,
+            makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error"),
+            notFuzzy
+        );
+        RexNode condition = makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), orClause);
+        QueryDAG dag = buildTwoFieldDelegationDag(condition, dfConvertor, serializer);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+        assertDelegationResult(plan, dfConvertor, serializer, 2, true, true, List.of("MATCH_PHRASE", "FUZZY"));
+        String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
+        assertTrue("AND structure should be preserved", strippedPlan.contains("AND"));
+        assertTrue("OR structure should be preserved", strippedPlan.contains("OR"));
+        assertTrue("NOT structure should be preserved", strippedPlan.contains("NOT"));
     }
 
     // ---- RecordingConvertor ----
