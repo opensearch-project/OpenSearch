@@ -316,7 +316,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         assertTrue(descriptors.isEmpty());
     }
 
-    public void testGetDataFormatAwareStoreHandlerReturnsNullWhenNoPluggableDataformat() {
+    public void testGetStoreStrategiesEmptyWhenNoPluggableDataformat() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
@@ -325,11 +325,11 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        Map<DataFormat, DataFormatAwareStoreHandler> result = registry.getDataFormatAwareStoreHandlers(indexSettings);
-        assertTrue("Should return empty map when no pluggable_dataformat setting", result.isEmpty());
+        List<StoreStrategy> result = registry.getStoreStrategies(indexSettings);
+        assertTrue("Should return empty list when no pluggable_dataformat setting", result.isEmpty());
     }
 
-    public void testGetDataFormatAwareStoreHandlerReturnsNullWhenPluginReturnsNull() {
+    public void testGetStoreStrategiesEmptyWhenPluginReturnsNone() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
@@ -347,12 +347,13 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
             .build();
         IndexSettings settingsWithFormat = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
 
-        // MockDataFormatPlugin.getDataFormatAwareStoreHandlers returns empty map by default
-        Map<DataFormat, DataFormatAwareStoreHandler> result = registry.getDataFormatAwareStoreHandlers(settingsWithFormat);
-        assertTrue("Should return empty map when plugin returns no handler", result.isEmpty());
+        // MockDataFormatPlugin does not override getStoreStrategy, so the default returns null
+        // and getStoreStrategies returns an empty list.
+        List<StoreStrategy> result = registry.getStoreStrategies(settingsWithFormat);
+        assertTrue("Should return empty list when plugin provides no strategy", result.isEmpty());
     }
 
-    public void testGetDataFormatAwareStoreHandlerReturnsNullWhenFormatNameNotRegistered() {
+    public void testGetStoreStrategiesEmptyWhenFormatNameNotRegistered() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
@@ -370,8 +371,8 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
             .build();
         IndexSettings settingsWithFormat = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
 
-        Map<DataFormat, DataFormatAwareStoreHandler> result = registry.getDataFormatAwareStoreHandlers(settingsWithFormat);
-        assertTrue("Should return empty map when format name not registered", result.isEmpty());
+        List<StoreStrategy> result = registry.getStoreStrategies(settingsWithFormat);
+        assertTrue("Should return empty list when format name not registered", result.isEmpty());
     }
 
     public void testGetPluginReturnsPluginForRegisteredFormat() {

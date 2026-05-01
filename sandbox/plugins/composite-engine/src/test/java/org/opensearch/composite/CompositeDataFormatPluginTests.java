@@ -8,11 +8,16 @@
 
 package org.opensearch.composite;
 
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
+import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -48,18 +53,12 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
     public void testGetFormatDescriptorsDelegatestoPlugins() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
 
-        // Build index settings with parquet as secondary
-        Settings settings = Settings.builder()
-            .put("index.composite.primary_data_format", "lucene")
-            .putList("index.composite.secondary_data_formats", "parquet")
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put("index.composite.primary_data_format", "lucene")
+                .putList("index.composite.secondary_data_formats", "parquet")
+                .build()
+        );
 
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
         DataFormat parquetFormat = CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of());
@@ -68,18 +67,14 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         when(registry.getFormatDescriptors(indexSettings, parquetFormat)).thenReturn(
             Map.of(
                 "parquet",
-                (Supplier<
-                    org.opensearch.index.engine.dataformat.DataFormatDescriptor>) () -> new org.opensearch.index.engine.dataformat.DataFormatDescriptor(
-                        "parquet",
-                        new org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler()
-                    )
+                (Supplier<DataFormatDescriptor>) () -> new DataFormatDescriptor(
+                    "parquet",
+                    new org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler()
+                )
             )
         );
 
-        Map<String, Supplier<org.opensearch.index.engine.dataformat.DataFormatDescriptor>> descriptors = plugin.getFormatDescriptors(
-            indexSettings,
-            registry
-        );
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = plugin.getFormatDescriptors(indexSettings, registry);
         assertEquals(1, descriptors.size());
         assertTrue(descriptors.containsKey("parquet"));
         assertEquals("parquet", descriptors.get("parquet").get().getFormatName());
@@ -89,98 +84,86 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
 
-        Settings settings = Settings.builder()
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        IndexSettings indexSettings = buildIndexSettings(Settings.EMPTY);
 
-        Map<String, Supplier<org.opensearch.index.engine.dataformat.DataFormatDescriptor>> descriptors = plugin.getFormatDescriptors(
-            indexSettings,
-            registry
-        );
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = plugin.getFormatDescriptors(indexSettings, registry);
         assertTrue(descriptors.isEmpty());
     }
 
-    public void testGetDataFormatAwareStoreHandlerReturnsNullWhenNoSubPlugins() {
+    public void testGetStoreStrategiesEmptyWhenNoSubPlugins() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
 
-        Settings settings = Settings.builder()
-            .put("index.composite.primary_data_format", "parquet")
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-
-        // No plugin registered for "parquet"
+        IndexSettings indexSettings = buildIndexSettings(Settings.builder().put("index.composite.primary_data_format", "parquet").build());
         when(registry.getPlugin("parquet")).thenReturn(null);
 
-        java.util.Map<DataFormat, org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler> result = plugin
-            .getDataFormatAwareStoreHandlers(indexSettings, registry);
+        List<StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
         assertTrue("Should return empty when no sub-plugin found", result.isEmpty());
     }
 
-    public void testGetDataFormatAwareStoreHandlerDelegatesToSubPlugin() {
+    public void testGetStoreStrategiesCollectsFromPrimaryPlugin() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
 
-        Settings settings = Settings.builder()
-            .put("index.composite.primary_data_format", "parquet")
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        IndexSettings indexSettings = buildIndexSettings(Settings.builder().put("index.composite.primary_data_format", "parquet").build());
 
-        // Mock a sub-plugin that provides a handler
-        org.opensearch.index.engine.dataformat.DataFormatPlugin subPlugin = mock(
-            org.opensearch.index.engine.dataformat.DataFormatPlugin.class
-        );
-        org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler mockHandler = mock(
-            org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler.class
-        );
-        DataFormat mockDataFormat = mock(DataFormat.class);
-        when(subPlugin.getDataFormatAwareStoreHandlers(indexSettings, registry)).thenReturn(java.util.Map.of(mockDataFormat, mockHandler));
+        DataFormatPlugin subPlugin = mock(DataFormatPlugin.class);
+        StoreStrategy parquetStrategy = mock(StoreStrategy.class);
+        when(parquetStrategy.name()).thenReturn("parquet");
+        when(subPlugin.getStoreStrategies(indexSettings, registry)).thenReturn(List.of(parquetStrategy));
         when(registry.getPlugin("parquet")).thenReturn(subPlugin);
 
-        java.util.Map<DataFormat, org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler> result = plugin
-            .getDataFormatAwareStoreHandlers(indexSettings, registry);
-        assertNotNull("Should return handler from sub-plugin", result);
+        List<StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
         assertEquals(1, result.size());
-        assertSame(mockHandler, result.get(mockDataFormat));
+        assertSame(parquetStrategy, result.get(0));
     }
 
-    public void testGetDataFormatAwareStoreHandlerReturnsNullForDefaultPrimary() {
+    public void testGetStoreStrategiesCollectsPrimaryAndSecondary() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
 
-        // Default primary is "lucene", no sub-plugin registered
-        Settings settings = Settings.builder()
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put("index.composite.primary_data_format", "lucene")
+                .putList("index.composite.secondary_data_formats", "parquet")
+                .build()
+        );
 
+        DataFormatPlugin luceneSubPlugin = mock(DataFormatPlugin.class);
+        when(luceneSubPlugin.getStoreStrategies(indexSettings, registry)).thenReturn(List.of());
+
+        DataFormatPlugin parquetSubPlugin = mock(DataFormatPlugin.class);
+        StoreStrategy parquetStrategy = mock(StoreStrategy.class);
+        when(parquetStrategy.name()).thenReturn("parquet");
+        when(parquetSubPlugin.getStoreStrategies(indexSettings, registry)).thenReturn(List.of(parquetStrategy));
+
+        when(registry.getPlugin("lucene")).thenReturn(luceneSubPlugin);
+        when(registry.getPlugin("parquet")).thenReturn(parquetSubPlugin);
+
+        List<StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
+        assertEquals(1, result.size());
+        assertSame(parquetStrategy, result.get(0));
+    }
+
+    public void testGetStoreStrategiesEmptyForDefaultPrimaryWithoutPlugin() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+
+        IndexSettings indexSettings = buildIndexSettings(Settings.EMPTY); // defaults: primary=lucene, secondary=[]
         when(registry.getPlugin("lucene")).thenReturn(null);
 
-        java.util.Map<DataFormat, org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler> result = plugin
-            .getDataFormatAwareStoreHandlers(indexSettings, registry);
+        List<StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
         assertTrue("Should return empty when lucene sub-plugin not found", result.isEmpty());
+    }
+
+    private static IndexSettings buildIndexSettings(Settings extra) {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(extra)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
+        return new IndexSettings(indexMetadata, Settings.EMPTY);
     }
 }

@@ -20,7 +20,9 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler;
+import org.opensearch.index.engine.dataformat.NativeFileRegistry;
+import org.opensearch.index.engine.dataformat.NativeFileRegistryFactory;
+import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.RemoteDirectory;
@@ -30,6 +32,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -40,7 +43,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -51,9 +55,10 @@ import static org.mockito.Mockito.when;
 /**
  * Integration-level tests for the warm shard directory stack.
  *
- * <p>These tests verify that the full directory stack (FSDirectory → SubdirectoryAwareDirectory
- * → TieredSubdirectoryAwareDirectory → DataFormatAwareStoreDirectory) is wired correctly
- * and that file operations flow through the correct layers.
+ * <p>Verifies that the full directory stack (FSDirectory → SubdirectoryAwareDirectory
+ * → TieredSubdirectoryAwareDirectory → DataFormatAwareStoreDirectory) is wired
+ * correctly via {@link TieredDataFormatAwareStoreDirectoryFactory} and that file
+ * operations flow through the correct layers.
  */
 public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
 
@@ -69,7 +74,6 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
         Index index = new Index("test-warm-index", "test-uuid");
         ShardId shardId = new ShardId(index, 0);
 
-        // ShardPath requires: dataPath ends with <index-uuid>/<shard-id>
         Path shardStatePath = tempDir.resolve("state").resolve("test-uuid").resolve("0");
         Path shardDataPath = tempDir.resolve("data").resolve("test-uuid").resolve("0");
         Path indexPath = shardDataPath.resolve("index");
@@ -101,12 +105,9 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that the full warm directory stack is created correctly via the factory
-     * and that basic write operations flow through all layers.
-     *
-     * <p>Verifies: FSDirectory → SubdirectoryAwareDirectory → TieredSubdirectoryAwareDirectory
-     * → DataFormatAwareStoreDirectory, and that a file written through the stack is
-     * visible via listAll.
+     * Exercises the factory end-to-end with no store strategies — verifies the stack
+     * nests FSDirectory → SubdirectoryAwareDirectory → TieredSubdirectoryAwareDirectory
+     * → DataFormatAwareStoreDirectory.
      */
     @LockFeatureFlag(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     public void testWarmDirectoryStackCreationAndWrite() throws IOException {
@@ -125,16 +126,17 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
             shardPath.getShardId(),
             shardPath,
             localDirFactory,
-            Map.of(),
-            Map.of(),
+            java.util.Map.of(),
+            List.of(),             // no strategies
+            NativeStoreRepository.EMPTY,
+            true,
             remoteDir,
             fileCache,
-            null // threadPool
+            null
         );
 
         assertNotNull("Directory stack should be created", storeDir);
 
-        // Verify the stack structure
         Directory delegate = ((FilterDirectory) storeDir).getDelegate();
         assertTrue("Should have TieredSubdirectoryAwareDirectory", delegate instanceof TieredSubdirectoryAwareDirectory);
 
@@ -145,38 +147,54 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that a format directory registered in the stack receives file operations
-     * for files with the matching format prefix.
+     * Exercises the stack with a parquet strategy. File ops on {@code parquet/…} route
+     * to the remote store; the mock remote has no parquet metadata so {@code fileLength}
+     * throws. {@code listAll} reflects whatever is on disk (format files included).
      */
     @LockFeatureFlag(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
-    public void testWarmDirectoryStackWithFormatDirectory() throws IOException {
-        // Build the directory stack with SubdirectoryAwareDirectory
+    public void testWarmDirectoryStackWithFormatStrategy() throws IOException {
         FSDirectory localFsDir = FSDirectory.open(shardPath.resolveIndex());
         SubdirectoryAwareDirectory subdirAware = new SubdirectoryAwareDirectory(localFsDir, shardPath);
 
-        // Create a mock FormatStoreHandler — read-only warm, no getFileLocation needed
-        DataFormatAwareStoreHandler handler = mock(DataFormatAwareStoreHandler.class);
-
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir(shardPath.getShardId());
+
+        NativeFileRegistry nativeRegistry = mock(NativeFileRegistry.class);
+        NativeFileRegistryFactory factory = (sid, isWarm, repo) -> nativeRegistry;
+        StoreStrategy parquet = new StoreStrategy() {
+            @Override
+            public String name() {
+                return "parquet";
+            }
+
+            @Override
+            public Optional<NativeFileRegistryFactory> nativeFileRegistry() {
+                return Optional.of(factory);
+            }
+        };
+
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath.getShardId(),
+            true,
+            NativeStoreRepository.EMPTY,
+            List.of(parquet),
+            remoteDir
+        );
 
         TieredSubdirectoryAwareDirectory tieredSubdir = new TieredSubdirectoryAwareDirectory(
             subdirAware,
             remoteDir,
             fileCache,
             null,
-            Map.of("parquet", handler),
+            registry,
             shardPath,
             getMockPrefetchSettingsSupplier()
         );
 
-        // Read-only warm: fileLength for format files routes to remote.
-        // Mock remote has no parquet metadata, so this throws.
         expectThrows(Exception.class, () -> tieredSubdir.fileLength("parquet/seg.parquet"));
 
-        // Format files are handler-tracked, not listed via listAll.
         String[] allFiles = tieredSubdir.listAll();
         Set<String> fileSet = new HashSet<>(Arrays.asList(allFiles));
-        assertFalse("listAll should NOT include handler-tracked parquet file", fileSet.contains("parquet/seg.parquet"));
+        assertFalse("listAll should not surface an unwritten parquet file", fileSet.contains("parquet/seg.parquet"));
 
         tieredSubdir.close();
     }
@@ -187,7 +205,6 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
         RemoteStoreLockManager lockManager = mock(RemoteStoreLockManager.class);
         ThreadPool tp = mock(ThreadPool.class);
 
-        // Stub getBlobContainer().path() so getRemoteBasePath() doesn't NPE
         BlobContainer mockBlobContainer = mock(BlobContainer.class);
         when(mockBlobContainer.path()).thenReturn(new BlobPath().add("test-base-path"));
         when(remoteDataDir.getBlobContainer()).thenReturn(mockBlobContainer);

@@ -106,7 +106,9 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
             shardPath,
             localDirFactory,
             Map.of(),
-            Map.of(),
+            java.util.List.of(),
+            org.opensearch.repositories.NativeStoreRepository.EMPTY,
+            true,
             remoteDir,
             fileCache,
             null
@@ -149,14 +151,14 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir(shardId);
         FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(10_000_000, 1);
 
-        // Empty format store handlers — simulates no sandbox plugins
+        // Empty strategies — simulates no sandbox plugins
 
         TieredSubdirectoryAwareDirectory tieredSubdir = new TieredSubdirectoryAwareDirectory(
             subdirAware,
             remoteDir,
             fileCache,
             null,
-            Map.of(),
+            StoreStrategyRegistry.EMPTY,
             shardPath,
             getMockPrefetchSettingsSupplier()
         );

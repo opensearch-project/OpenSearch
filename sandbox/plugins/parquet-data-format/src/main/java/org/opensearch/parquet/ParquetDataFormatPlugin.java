@@ -19,17 +19,17 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
-import org.opensearch.parquet.store.ParquetDataFormatAwareStoreHandler;
+import org.opensearch.parquet.store.ParquetStoreStrategy;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -48,18 +48,16 @@ import java.util.function.Supplier;
 /**
  * OpenSearch plugin providing the Parquet data format for indexing operations.
  *
- * <p>Implements {@link DataFormatPlugin} to register the Parquet format with OpenSearch's
- * data format framework. On node startup, captures cluster settings via
- * {@link #createComponents} and passes them to the per-shard
+ * <p>Implements {@link DataFormatPlugin} to register the Parquet format with
+ * OpenSearch's data format framework. On node startup, captures cluster
+ * settings via {@link #createComponents} and passes them to the per-shard
  * {@link ParquetIndexingEngine} instances created in {@link #indexingEngine}.
  *
- * <p>The descriptor provides a {@link PrecomputedChecksumStrategy} that is created once
- * per shard during initialization. The same strategy instance is shared between the
- * directory and the {@link ParquetIndexingEngine} via the checksum strategies map,
- * so pre-computed CRC32 values registered during write are directly visible to the
- * upload path — no post-construction wiring needed.
- *
- * <p>Registers plugin settings defined in {@link ParquetSettings}.
+ * <p>For tiered storage, returns a {@link ParquetStoreStrategy} from
+ * {@link #getStoreStrategy()}. The composite store layer takes it from there —
+ * construction of per-shard native registries, seeding from remote metadata,
+ * routing directory events, and closing native resources are all handled
+ * there. The plugin stays purely declarative.
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
 
@@ -67,6 +65,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";
 
     private static final ParquetDataFormat dataFormat = new ParquetDataFormat();
+    private static final StoreStrategy storeStrategy = new ParquetStoreStrategy();
+
     /** Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents(). */
     private Settings settings = Settings.EMPTY;
     private ThreadPool threadPool;
@@ -120,16 +120,13 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
-    public List<Setting<?>> getSettings() {
-        return ParquetSettings.getSettings();
+    public StoreStrategy getStoreStrategy() {
+        return storeStrategy;
     }
 
     @Override
-    public Map<DataFormat, DataFormatAwareStoreHandler> getDataFormatAwareStoreHandlers(
-        IndexSettings indexSettings,
-        DataFormatRegistry registry
-    ) {
-        return Map.of(dataFormat, new ParquetDataFormatAwareStoreHandler());
+    public List<Setting<?>> getSettings() {
+        return ParquetSettings.getSettings();
     }
 
     @Override

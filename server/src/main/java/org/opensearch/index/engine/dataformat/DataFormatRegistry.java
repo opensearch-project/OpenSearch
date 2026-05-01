@@ -152,24 +152,31 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns format store handlers from the active format plugin.
-     * Called once per shard at shard open time — each handler owns a per-shard native store.
+     * Returns all {@link StoreStrategy} instances that apply to the active
+     * data format of the given index.
      *
-     * @param indexSettings          the index settings for this shard
-     * @return map of data format to handler (one per format per shard), or empty map
+     * <p>Called once per shard at open time. The store layer uses the returned
+     * strategies to construct per-shard native file registries, seed them from
+     * remote metadata, and route directory events.
+     *
+     * @param indexSettings the index settings for this shard
+     * @return the list of applicable strategies, or an empty list when no
+     *         pluggable data format is configured or the configured format
+     *         does not participate in the tiered store
      */
-    public Map<DataFormat, DataFormatAwareStoreHandler> getDataFormatAwareStoreHandlers(IndexSettings indexSettings) {
+    public List<StoreStrategy> getStoreStrategies(IndexSettings indexSettings) {
         String dataformatName = indexSettings.pluggableDataFormat();
         if (dataformatName != null && dataformatName.isEmpty() == false) {
             DataFormat format = dataFormats.get(dataformatName);
             if (format != null) {
                 DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
                 if (plugin != null) {
-                    return plugin.getDataFormatAwareStoreHandlers(indexSettings, this);
+                    List<StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+                    return strategies == null ? List.of() : List.copyOf(strategies);
                 }
             }
         }
-        return Map.of();
+        return List.of();
     }
 
     /**

@@ -78,9 +78,8 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.DataFormatAwareStoreHandler;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -787,15 +786,21 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 && this.indexSettings.isWarmIndex()
                 && this.indexSettings.isPluggableDataFormatEnabled()
                 && this.dataFormatAwareStoreDirectoryFactory != null) {
-                // Warm + format-aware: create per-shard handlers with native store from repository
-                Map<DataFormat, DataFormatAwareStoreHandler> formatStoreHandlers = createFormatStoreHandlers(repositoriesService, true);
+                // Warm + format-aware: resolve per-shard store strategies and native store,
+                // then let the factory build the StoreStrategyRegistry and directory stack.
+                List<StoreStrategy> storeStrategies = dataFormatRegistry.getStoreStrategies(
+                    this.indexSettings
+                );
+                NativeStoreRepository nativeStore = resolveNativeStore(repositoriesService);
                 directory = dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
                     this.indexSettings,
                     shardId,
                     path,
                     directoryFactory,
                     checksumStrategies,
-                    formatStoreHandlers,
+                    storeStrategies,
+                    nativeStore,
+                    true,
                     (RemoteSegmentStoreDirectory) remoteDirectory,
                     fileCache,
                     threadPool
@@ -1393,38 +1398,24 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     /**
-     * Creates per-shard format store handlers for tiered storage routing.
-     * Resolves the native object store from the index's remote store repository and passes it
-     * to the format plugin so each handler owns a per-shard native TieredObjectStore.
+     * Resolves the native object store for the index's remote store repository.
+     * Returns {@link NativeStoreRepository#EMPTY} when no repository is configured
+     * or the repository is missing.
      *
-     * @param repositoriesService the repositories service for resolving native stores
-     * @param isWarm              true if the shard is on a warm node
-     * @return map of data format to handler (one per format per shard), or empty map
+     * @param repositoriesService the repositories service, may be {@code null}
+     * @return a live native store or {@link NativeStoreRepository#EMPTY}
      */
-    private Map<DataFormat, DataFormatAwareStoreHandler> createFormatStoreHandlers(
-        RepositoriesService repositoriesService,
-        boolean isWarm
-    ) {
-        assert dataFormatRegistry != null;
-        Map<DataFormat, DataFormatAwareStoreHandler> handlers = dataFormatRegistry.getDataFormatAwareStoreHandlers(this.indexSettings);
-        if (handlers.isEmpty()) {
-            return handlers;
-        }
-        // Resolve native store from repository and initialize per-shard native resources
-        NativeStoreRepository repoStore = NativeStoreRepository.EMPTY;
+    private NativeStoreRepository resolveNativeStore(RepositoriesService repositoriesService) {
         String repoName = this.indexSettings.getRemoteStoreRepository();
-        if (repoName != null && repositoriesService != null) {
-            try {
-                repoStore = repositoriesService.repository(repoName).getNativeStore();
-            } catch (RepositoryMissingException e) {
-                logger.warn("Native store not available for repository [{}]", repoName);
-            }
+        if (repoName == null || repositoriesService == null) {
+            return NativeStoreRepository.EMPTY;
         }
-        for (DataFormatAwareStoreHandler handler : handlers.values()) {
-            // Todo: Add ILE buffer and block cache later
-            handler.create(isWarm, repoStore);
+        try {
+            return repositoriesService.repository(repoName).getNativeStore();
+        } catch (RepositoryMissingException e) {
+            logger.warn("Native store not available for repository [{}]", repoName);
+            return NativeStoreRepository.EMPTY;
         }
-        return handlers;
     }
 
     private void updateFsyncTaskIfNecessary() {

@@ -131,7 +131,9 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
             shardPath,
             localDirectoryFactory,
             Map.of(),
-            Map.of(),
+            java.util.List.of(),
+            org.opensearch.repositories.NativeStoreRepository.EMPTY,
+            true,
             remoteDirectory,
             fileCache,
             threadPool
@@ -162,7 +164,9 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
             shardPath,
             localDirectoryFactory,
             Map.of(),
-            Map.of(),
+            java.util.List.of(),
+            org.opensearch.repositories.NativeStoreRepository.EMPTY,
+            true,
             remoteDirectory,
             fileCache,
             threadPool
@@ -193,7 +197,9 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
             shardPath,
             localDirectoryFactory,
             Map.of(),
-            Map.of(),
+            java.util.List.of(),
+            org.opensearch.repositories.NativeStoreRepository.EMPTY,
+            true,
             remoteDirectory,
             fileCache,
             threadPool
