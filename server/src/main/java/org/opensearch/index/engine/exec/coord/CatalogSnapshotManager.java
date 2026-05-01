@@ -178,7 +178,7 @@ public class CatalogSnapshotManager implements Closeable {
      *
      * @param refreshedSegments the segments produced by the latest refresh
      */
-    public synchronized void commitNewSnapshot(List<Segment> refreshedSegments) {
+    public synchronized void commitNewSnapshot(List<Segment> refreshedSegments) throws IOException {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
@@ -187,6 +187,9 @@ public class CatalogSnapshotManager implements Closeable {
         // that readers and the commit path depend on
         long prevGen = latestCatalogSnapshot.getGeneration();
 
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.beforeRefresh();
+        }
         DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
             latestCatalogSnapshot.getId() + 1,
             latestCatalogSnapshot.getGeneration() + 1,
@@ -195,6 +198,9 @@ public class CatalogSnapshotManager implements Closeable {
             latestCatalogSnapshot.getLastWriterGeneration() + 1,
             latestCatalogSnapshot.getUserData()
         );
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.afterRefresh(true, newSnapshot);
+        }
 
         // New snapshot generation must be strictly greater than the previous
         assert newSnapshot.getGeneration() > prevGen : "new snapshot generation ["
