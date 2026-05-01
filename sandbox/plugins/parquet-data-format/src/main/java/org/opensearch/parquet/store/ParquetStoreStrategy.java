@@ -10,29 +10,24 @@ package org.opensearch.parquet.store;
 
 import org.opensearch.index.engine.dataformat.NativeFileRegistryFactory;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
-import org.opensearch.parquet.engine.ParquetDataFormat;
 
 import java.util.Optional;
 
 /**
  * Store strategy for the parquet data format.
  *
- * <p>Declares the parquet file-naming convention (files live under the
- * {@code "parquet/"} subdirectory) and provides a factory for the per-shard
- * native file registry that tracks parquet files for the Rust reader.
+ * <p>Uses the default {@code owns} / {@code remotePath} behaviour inherited
+ * from {@link StoreStrategy} (files live under {@code "parquet/"} prefix, blobs
+ * are laid out at {@code basePath + "parquet/" + blobKey}). The store layer
+ * supplies the format name when it invokes those methods, so the strategy
+ * itself does not carry the name.
  *
- * <p>All other behaviour (per-shard construction, remote-metadata seeding,
- * directory routing, close ordering) is handled by the store layer. This
- * class is a pure declaration.
+ * <p>Provides a factory for the per-shard native file registry that tracks
+ * parquet files for the Rust reader.
  */
 public final class ParquetStoreStrategy implements StoreStrategy {
 
     private static final NativeFileRegistryFactory FACTORY = ParquetNativeFileRegistry::new;
-
-    @Override
-    public String name() {
-        return ParquetDataFormat.PARQUET_DATA_FORMAT_NAME;
-    }
 
     @Override
     public Optional<NativeFileRegistryFactory> nativeFileRegistry() {

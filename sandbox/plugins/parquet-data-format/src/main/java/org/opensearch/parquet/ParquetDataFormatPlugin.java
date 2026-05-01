@@ -54,7 +54,7 @@ import java.util.function.Supplier;
  * {@link ParquetIndexingEngine} instances created in {@link #indexingEngine}.
  *
  * <p>For tiered storage, returns a {@link ParquetStoreStrategy} from
- * {@link #getStoreStrategy()}. The composite store layer takes it from there —
+ * {@link #getStoreStrategies}. The composite store layer takes it from there —
  * construction of per-shard native registries, seeding from remote metadata,
  * routing directory events, and closing native resources are all handled
  * there. The plugin stays purely declarative.
@@ -120,8 +120,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
-    public StoreStrategy getStoreStrategy() {
-        return storeStrategy;
+    public Map<String, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry registry) {
+        return Map.of(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, storeStrategy);
     }
 
     @Override

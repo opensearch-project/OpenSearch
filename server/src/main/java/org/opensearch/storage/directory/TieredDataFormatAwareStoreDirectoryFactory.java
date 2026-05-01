@@ -29,7 +29,6 @@ import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -71,7 +70,7 @@ public class TieredDataFormatAwareStoreDirectoryFactory implements DataFormatAwa
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
         Map<String, FormatChecksumStrategy> checksumStrategies,
-        List<StoreStrategy> storeStrategies,
+        Map<String, StoreStrategy> storeStrategies,
         NativeStoreRepository nativeStore,
         boolean isWarm,
         RemoteSegmentStoreDirectory remoteDirectory,

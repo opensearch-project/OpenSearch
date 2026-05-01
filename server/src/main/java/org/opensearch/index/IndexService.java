@@ -788,7 +788,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 && this.dataFormatAwareStoreDirectoryFactory != null) {
                 // Warm + format-aware: resolve per-shard store strategies and native store,
                 // then let the factory build the StoreStrategyRegistry and directory stack.
-                List<StoreStrategy> storeStrategies = dataFormatRegistry.getStoreStrategies(
+                Map<String, StoreStrategy> storeStrategies = dataFormatRegistry.getStoreStrategies(
                     this.indexSettings
                 );
                 NativeStoreRepository nativeStore = resolveNativeStore(repositoriesService);

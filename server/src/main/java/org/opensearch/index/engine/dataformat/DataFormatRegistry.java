@@ -153,30 +153,49 @@ public class DataFormatRegistry {
 
     /**
      * Returns all {@link StoreStrategy} instances that apply to the active
-     * data format of the given index.
+     * data format of the given index, keyed by the format name the strategy
+     * applies to.
      *
      * <p>Called once per shard at open time. The store layer uses the returned
      * strategies to construct per-shard native file registries, seed them from
      * remote metadata, and route directory events.
      *
      * @param indexSettings the index settings for this shard
-     * @return the list of applicable strategies, or an empty list when no
+     * @return the map of applicable strategies, or an empty map when no
      *         pluggable data format is configured or the configured format
      *         does not participate in the tiered store
      */
-    public List<StoreStrategy> getStoreStrategies(IndexSettings indexSettings) {
+    public Map<String, StoreStrategy> getStoreStrategies(IndexSettings indexSettings) {
         String dataformatName = indexSettings.pluggableDataFormat();
         if (dataformatName != null && dataformatName.isEmpty() == false) {
             DataFormat format = dataFormats.get(dataformatName);
             if (format != null) {
                 DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
                 if (plugin != null) {
-                    List<StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
-                    return strategies == null ? List.of() : List.copyOf(strategies);
+                    Map<String, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+                    return strategies == null ? Map.of() : Map.copyOf(strategies);
                 }
             }
         }
-        return List.of();
+        return Map.of();
+    }
+
+    /**
+     * Returns store strategies for a specific data format, bypassing the
+     * {@code pluggable_dataformat} index setting lookup. Used by composite
+     * plugins to resolve child strategies without recursion.
+     *
+     * @param indexSettings the index settings
+     * @param dataFormat    the specific data format to get strategies for
+     * @return map of format name to strategy, or empty map if the format is not registered
+     */
+    public Map<String, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormat dataFormat) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return Map.of();
+        }
+        Map<String, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+        return strategies == null ? Map.of() : strategies;
     }
 
     /**

@@ -160,8 +160,8 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
         if (shardPath.resolveIndex().resolve(name).getParent().equals(shardPath.resolveIndex())) {
             return false;
         }
-        StoreStrategy strategy = strategies.strategyFor(name);
-        if (strategy == null) {
+        StoreStrategyRegistry.Match match = strategies.matchFor(name);
+        if (match == null) {
             throw new IllegalStateException(
                 "No StoreStrategy registered for file [" + name + "]. Ensure the format plugin is installed."
             );

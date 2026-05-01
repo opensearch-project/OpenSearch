@@ -106,7 +106,7 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
             shardPath,
             localDirFactory,
             Map.of(),
-            java.util.List.of(),
+            java.util.Map.of(),
             org.opensearch.repositories.NativeStoreRepository.EMPTY,
             true,
             remoteDir,

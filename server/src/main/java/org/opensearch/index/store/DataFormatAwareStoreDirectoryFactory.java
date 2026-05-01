@@ -19,7 +19,6 @@ import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -86,7 +85,7 @@ public interface DataFormatAwareStoreDirectoryFactory {
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
         Map<String, FormatChecksumStrategy> checksumStrategies,
-        List<StoreStrategy> storeStrategies,
+        Map<String, StoreStrategy> storeStrategies,
         NativeStoreRepository nativeStore,
         boolean isWarm,
         RemoteSegmentStoreDirectory remoteDirectory,

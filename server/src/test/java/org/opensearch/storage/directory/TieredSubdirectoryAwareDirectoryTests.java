@@ -38,7 +38,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -136,7 +136,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
             shardPath.getShardId(),
             true,
             NativeStoreRepository.EMPTY,
-            List.of(parquet),
+            Map.of("parquet", parquet),
             remoteSegmentStoreDirectory
         );
         TieredSubdirectoryAwareDirectory dir = new TieredSubdirectoryAwareDirectory(
@@ -460,7 +460,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
             shardPath.getShardId(),
             true,
             NativeStoreRepository.EMPTY,
-            List.of(parquet),
+            Map.of("parquet", parquet),
             remoteSegmentStoreDirectory
         );
 
@@ -584,11 +584,6 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
 
         TestParquetStrategy(NativeFileRegistryFactory factory) {
             this.factory = factory;
-        }
-
-        @Override
-        public String name() {
-            return "parquet";
         }
 
         @Override

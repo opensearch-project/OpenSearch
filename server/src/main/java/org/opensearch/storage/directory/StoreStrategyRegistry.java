@@ -52,16 +52,27 @@ public final class StoreStrategyRegistry implements Closeable {
 
     /** Sentinel for "no strategies registered on this shard". Safe to close. */
     public static final StoreStrategyRegistry EMPTY = new StoreStrategyRegistry(
-        Collections.emptyList(),
+        Collections.emptyMap(),
         Collections.emptyMap()
     );
 
-    private final List<StoreStrategy> strategies;
+    /** Strategies keyed by format name. */
+    private final Map<String, StoreStrategy> strategies;
     /** Native registries keyed by format name. Absent for strategies without one. */
     private final Map<String, NativeFileRegistry> nativeRegistries;
 
-    private StoreStrategyRegistry(List<StoreStrategy> strategies, Map<String, NativeFileRegistry> nativeRegistries) {
-        this.strategies = List.copyOf(strategies);
+    /**
+     * A strategy paired with the format name it is registered under. Used
+     * internally for routing decisions so callers never need to re-derive the
+     * name from the strategy.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public record Match(String name, StoreStrategy strategy) {}
+
+    private StoreStrategyRegistry(Map<String, StoreStrategy> strategies, Map<String, NativeFileRegistry> nativeRegistries) {
+        this.strategies = Map.copyOf(strategies);
         this.nativeRegistries = Map.copyOf(nativeRegistries);
     }
 
@@ -76,7 +87,7 @@ public final class StoreStrategyRegistry implements Closeable {
      * @param isWarm          true on warm nodes
      * @param nativeStore     the repository's native store, or
      *                        {@link NativeStoreRepository#EMPTY}
-     * @param strategies      the strategies that apply to this shard (primary + secondary)
+     * @param strategies      the strategies that apply to this shard, keyed by format name
      * @param remoteDirectory the remote segment store directory used to seed initial state
      * @return a fully-initialised registry
      */
@@ -84,7 +95,7 @@ public final class StoreStrategyRegistry implements Closeable {
         ShardId shardId,
         boolean isWarm,
         NativeStoreRepository nativeStore,
-        List<StoreStrategy> strategies,
+        Map<String, StoreStrategy> strategies,
         RemoteSegmentStoreDirectory remoteDirectory
     ) {
         if (strategies == null || strategies.isEmpty()) {
@@ -95,14 +106,16 @@ public final class StoreStrategyRegistry implements Closeable {
         List<NativeFileRegistry> created = new ArrayList<>();
         boolean success = false;
         try {
-            for (StoreStrategy strategy : strategies) {
+            for (Map.Entry<String, StoreStrategy> entry : strategies.entrySet()) {
+                String name = entry.getKey();
+                StoreStrategy strategy = entry.getValue();
                 NativeFileRegistryFactory factory = strategy.nativeFileRegistry().orElse(null);
                 if (factory == null) {
                     continue;
                 }
                 NativeFileRegistry registry = factory.create(shardId, isWarm, nativeStore);
                 if (registry != null) {
-                    nativeRegistries.put(strategy.name(), registry);
+                    nativeRegistries.put(name, registry);
                     created.add(registry);
                 }
             }
@@ -121,15 +134,16 @@ public final class StoreStrategyRegistry implements Closeable {
 
     /**
      * Returns the strategy that owns {@code file}, or {@code null} if no
-     * registered strategy claims it.
+     * registered strategy claims it. The returned {@link Match} carries both
+     * the registered name and the strategy object.
      */
-    public StoreStrategy strategyFor(String file) {
+    public Match matchFor(String file) {
         if (file == null) {
             return null;
         }
-        for (StoreStrategy strategy : strategies) {
-            if (strategy.owns(file)) {
-                return strategy;
+        for (Map.Entry<String, StoreStrategy> entry : strategies.entrySet()) {
+            if (entry.getValue().owns(entry.getKey(), file)) {
+                return new Match(entry.getKey(), entry.getValue());
             }
         }
         return null;
@@ -153,15 +167,15 @@ public final class StoreStrategyRegistry implements Closeable {
      *         registry
      */
     public boolean onUploaded(String file, String basePath, String uploadedBlobKey) {
-        StoreStrategy strategy = strategyFor(file);
-        if (strategy == null) {
+        Match match = matchFor(file);
+        if (match == null) {
             return false;
         }
-        NativeFileRegistry registry = nativeRegistries.get(strategy.name());
+        NativeFileRegistry registry = nativeRegistries.get(match.name());
         if (registry == null) {
             return false;
         }
-        registry.onUploaded(file, strategy.remotePath(basePath, file, uploadedBlobKey));
+        registry.onUploaded(file, match.strategy().remotePath(match.name(), basePath, file, uploadedBlobKey));
         return true;
     }
 
@@ -169,11 +183,11 @@ public final class StoreStrategyRegistry implements Closeable {
      * Forwards a removal event. Returns true if dispatched, false otherwise.
      */
     public boolean onRemoved(String file) {
-        StoreStrategy strategy = strategyFor(file);
-        if (strategy == null) {
+        Match match = matchFor(file);
+        if (match == null) {
             return false;
         }
-        NativeFileRegistry registry = nativeRegistries.get(strategy.name());
+        NativeFileRegistry registry = nativeRegistries.get(match.name());
         if (registry == null) {
             return false;
         }
@@ -187,7 +201,7 @@ public final class StoreStrategyRegistry implements Closeable {
     }
 
     private static void seedFromRemoteMetadata(
-        List<StoreStrategy> strategies,
+        Map<String, StoreStrategy> strategies,
         Map<String, NativeFileRegistry> nativeRegistries,
         RemoteSegmentStoreDirectory remoteDirectory
     ) {
@@ -203,20 +217,22 @@ public final class StoreStrategyRegistry implements Closeable {
         Map<String, Map<String, String>> perStrategy = new HashMap<>();
         for (Map.Entry<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> entry : uploaded.entrySet()) {
             String file = entry.getKey();
+            String owningName = null;
             StoreStrategy owning = null;
-            for (StoreStrategy strategy : strategies) {
-                if (strategy.owns(file)) {
-                    owning = strategy;
+            for (Map.Entry<String, StoreStrategy> s : strategies.entrySet()) {
+                if (s.getValue().owns(s.getKey(), file)) {
+                    owningName = s.getKey();
+                    owning = s.getValue();
                     break;
                 }
             }
-            if (owning == null || nativeRegistries.containsKey(owning.name()) == false) {
+            if (owning == null || nativeRegistries.containsKey(owningName) == false) {
                 continue;
             }
             String blobKey = entry.getValue().getUploadedFilename();
             perStrategy
-                .computeIfAbsent(owning.name(), k -> new HashMap<>())
-                .put(file, owning.remotePath(basePath, file, blobKey));
+                .computeIfAbsent(owningName, k -> new HashMap<>())
+                .put(file, owning.remotePath(owningName, basePath, file, blobKey));
         }
 
         for (Map.Entry<String, Map<String, String>> entry : perStrategy.entrySet()) {

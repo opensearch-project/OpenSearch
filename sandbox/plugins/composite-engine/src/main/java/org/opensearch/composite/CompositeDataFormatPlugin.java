@@ -24,7 +24,6 @@ import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -127,39 +126,25 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
 
     /**
      * Returns the store strategies from every participating sub-format plugin
-     * (primary + secondary). Sub-plugins that do not implement
-     * {@link DataFormatPlugin#getStoreStrategy()} contribute nothing.
+     * (primary + secondary), keyed by format name. Mirrors {@link #getFormatDescriptors}:
+     * each participating format is resolved through the registry, which delegates
+     * to the sub-plugin without re-entering this composite.
      */
     @Override
-    public List<StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    public Map<String, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         Settings settings = indexSettings.getSettings();
         String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
         List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
 
-        List<StoreStrategy> out = new ArrayList<>();
-        collectStrategy(dataFormatRegistry, primaryFormatName, out, indexSettings);
-        for (String secondary : secondaryFormatNames) {
-            collectStrategy(dataFormatRegistry, secondary, out, indexSettings);
+        Map<String, StoreStrategy> strategies = new HashMap<>();
+        if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
+            strategies.putAll(dataFormatRegistry.getStoreStrategies(indexSettings, dataFormatRegistry.format(primaryFormatName)));
         }
-        return List.copyOf(out);
-    }
-
-    private static void collectStrategy(
-        DataFormatRegistry registry,
-        String formatName,
-        List<StoreStrategy> out,
-        IndexSettings indexSettings
-    ) {
-        if (formatName == null || formatName.isEmpty()) {
-            return;
+        for (String secondaryName : secondaryFormatNames) {
+            if (secondaryName != null && secondaryName.isEmpty() == false) {
+                strategies.putAll(dataFormatRegistry.getStoreStrategies(indexSettings, dataFormatRegistry.format(secondaryName)));
+            }
         }
-        DataFormatPlugin plugin = registry.getPlugin(formatName);
-        if (plugin == null) {
-            return;
-        }
-        List<StoreStrategy> contributed = plugin.getStoreStrategies(indexSettings, registry);
-        if (contributed != null) {
-            out.addAll(contributed);
-        }
+        return Map.copyOf(strategies);
     }
 }

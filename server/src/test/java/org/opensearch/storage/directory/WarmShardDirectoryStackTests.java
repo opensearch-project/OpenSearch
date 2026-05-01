@@ -43,7 +43,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -127,7 +127,7 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
             shardPath,
             localDirFactory,
             java.util.Map.of(),
-            List.of(),             // no strategies
+            java.util.Map.of(),             // no strategies
             NativeStoreRepository.EMPTY,
             true,
             remoteDir,
@@ -162,11 +162,6 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
         NativeFileRegistryFactory factory = (sid, isWarm, repo) -> nativeRegistry;
         StoreStrategy parquet = new StoreStrategy() {
             @Override
-            public String name() {
-                return "parquet";
-            }
-
-            @Override
             public Optional<NativeFileRegistryFactory> nativeFileRegistry() {
                 return Optional.of(factory);
             }
@@ -176,7 +171,7 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
             shardPath.getShardId(),
             true,
             NativeStoreRepository.EMPTY,
-            List.of(parquet),
+            Map.of("parquet", parquet),
             remoteDir
         );
 
