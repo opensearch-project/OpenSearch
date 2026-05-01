@@ -1208,26 +1208,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         TestSecondExtensiblePlugin parentB = new TestSecondExtensiblePlugin();
         TestPlugin child = new TestPlugin();
 
-        PluginInfo parentAInfo = new PluginInfo(
-            "parent-a",
-            null,
-            null,
-            Version.CURRENT,
-            null,
-            null,
-            Collections.emptyList(),
-            false
-        );
-        PluginInfo parentBInfo = new PluginInfo(
-            "parent-b",
-            null,
-            null,
-            Version.CURRENT,
-            null,
-            null,
-            Collections.emptyList(),
-            false
-        );
+        PluginInfo parentAInfo = new PluginInfo("parent-a", null, null, Version.CURRENT, null, null, Collections.emptyList(), false);
+        PluginInfo parentBInfo = new PluginInfo("parent-b", null, null, Version.CURRENT, null, null, Collections.emptyList(), false);
         // extended.plugins = [parent-a, parent-b] — the configuration that was never
         // exercised end-to-end before this refactor.
         PluginInfo childInfo = new PluginInfo(

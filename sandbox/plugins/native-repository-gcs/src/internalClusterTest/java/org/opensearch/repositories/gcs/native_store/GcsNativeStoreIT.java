@@ -9,7 +9,6 @@
 package org.opensearch.repositories.gcs.native_store;
 
 import org.opensearch.Version;
-import org.opensearch.blockcache.foyer.BlockCacheFoyerPlugin;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
@@ -38,17 +37,6 @@ public class GcsNativeStoreIT extends OpenSearchIntegTestCase {
     protected Collection<PluginInfo> additionalNodePlugins() {
         return List.of(
             new PluginInfo(
-                BlockCacheFoyerPlugin.class.getName(),
-                "foyer-backed block cache (parent plugin for native repositories)",
-                "NA",
-                Version.CURRENT,
-                "1.8",
-                BlockCacheFoyerPlugin.class.getName(),
-                null,
-                List.of(),
-                false
-            ),
-            new PluginInfo(
                 GcsNativeObjectStorePlugin.class.getName(),
                 "native GCS object store provider",
                 "NA",
@@ -56,7 +44,7 @@ public class GcsNativeStoreIT extends OpenSearchIntegTestCase {
                 "1.8",
                 GcsNativeObjectStorePlugin.class.getName(),
                 null,
-                List.of(GoogleCloudStoragePlugin.class.getName(), BlockCacheFoyerPlugin.class.getName()),
+                List.of(GoogleCloudStoragePlugin.class.getName()),
                 false
             )
         );

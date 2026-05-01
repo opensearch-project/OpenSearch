@@ -9,7 +9,7 @@
 opensearchplugin {
   description = 'Native (Rust) ObjectStore backend for the S3 repository plugin.'
   classname = 'org.opensearch.repositories.s3.native_store.S3NativeObjectStorePlugin'
-  extendedPlugins = ['repository-s3', 'block-cache-foyer']
+  extendedPlugins = ['repository-s3']
 }
 
 apply plugin: 'opensearch.internal-cluster-test'
@@ -17,17 +17,10 @@ apply plugin: 'opensearch.internal-cluster-test'
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
-  // FFM helpers (NativeCall, NativeLibraryLoader) inherited at runtime from the
-  // block-cache-foyer parent classloader via extendedPlugins. compileOnly here avoids
-  // jar hell in checkBundleJarHell when both parent and child bundles carry the same classes.
-  compileOnly project(':sandbox:libs:dataformat-native')
-  // SPI classes (BlockCache, BlockCacheHandle, spi/*) also inherited from block-cache-foyer.
-  compileOnly project(':sandbox:libs:block-cache')
+  implementation project(':sandbox:libs:dataformat-native')
   compileOnly project(':plugins:repository-s3')
-  compileOnly project(':sandbox:plugins:block-cache-foyer')
   internalClusterTestImplementation project(':test:framework')
   internalClusterTestImplementation project(':plugins:repository-s3')
-  internalClusterTestImplementation project(':sandbox:plugins:block-cache-foyer')
 }
 
 testingConventions.enabled = false

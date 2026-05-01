@@ -20,7 +20,6 @@ java {
 }
 
 dependencies {
-  implementation project(':sandbox:libs:block-cache')
   implementation project(':sandbox:libs:dataformat-native')
   compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   testImplementation project(':test:framework')

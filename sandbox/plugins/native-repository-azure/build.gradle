@@ -9,7 +9,7 @@
 opensearchplugin {
   description = 'Native (Rust) ObjectStore backend for the Azure repository plugin.'
   classname = 'org.opensearch.repositories.azure.native_store.AzureNativeObjectStorePlugin'
-  extendedPlugins = ['repository-azure', 'block-cache-foyer']
+  extendedPlugins = ['repository-azure']
 }
 
 apply plugin: 'opensearch.internal-cluster-test'
@@ -17,15 +17,10 @@ apply plugin: 'opensearch.internal-cluster-test'
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
-  // FFM helpers inherited at runtime from block-cache-foyer parent via extendedPlugins.
-  compileOnly project(':sandbox:libs:dataformat-native')
-  // SPI classes also inherited from block-cache-foyer parent.
-  compileOnly project(':sandbox:libs:block-cache')
+  implementation project(':sandbox:libs:dataformat-native')
   compileOnly project(':plugins:repository-azure')
-  compileOnly project(':sandbox:plugins:block-cache-foyer')
   internalClusterTestImplementation project(':test:framework')
   internalClusterTestImplementation project(':plugins:repository-azure')
-  internalClusterTestImplementation project(':sandbox:plugins:block-cache-foyer')
 }
 
 testingConventions.enabled = false

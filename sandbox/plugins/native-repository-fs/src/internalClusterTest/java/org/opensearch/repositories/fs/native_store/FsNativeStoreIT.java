@@ -8,12 +8,9 @@
 
 package org.opensearch.repositories.fs.native_store;
 
-import org.opensearch.Version;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.blockcache.foyer.BlockCacheFoyerPlugin;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -39,23 +36,6 @@ public class FsNativeStoreIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(FsNativeObjectStorePlugin.class);
-    }
-
-    @Override
-    protected Collection<PluginInfo> additionalNodePlugins() {
-        return List.of(
-            new PluginInfo(
-                BlockCacheFoyerPlugin.class.getName(),
-                "foyer-backed block cache (parent plugin for native repositories)",
-                "NA",
-                Version.CURRENT,
-                "1.8",
-                BlockCacheFoyerPlugin.class.getName(),
-                null,
-                List.of(),
-                false
-            )
-        );
     }
 
     @Override
