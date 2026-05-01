@@ -1059,10 +1059,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 final Directory finalDirectory = directory;
                 logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
             }
-            if (length == 0L) {
+            if (length == 0L || extension == null) {
                 continue;
             }
-            map.put(extension, length);
+            map.merge(extension, length, Long::sum);
         }
 
         if (useCompoundFile) {

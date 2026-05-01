@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.composite.merge.CompositeMerger;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -21,9 +22,11 @@ import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -33,6 +36,7 @@ import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -42,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A composite {@link IndexingExecutionEngine} that orchestrates indexing across
@@ -110,7 +115,14 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         validateFormatsRegistered(dataFormatRegistry, primaryFormatName, secondaryFormatNames);
 
         Map<String, FormatChecksumStrategy> strategies = checksumStrategies != null ? checksumStrategies : Map.of();
-        IndexingEngineConfig engineSettings = new IndexingEngineConfig(committer, mapperService, indexSettings, store, dataFormatRegistry);
+        IndexingEngineConfig engineSettings = new IndexingEngineConfig(
+            committer,
+            mapperService,
+            indexSettings,
+            store,
+            dataFormatRegistry,
+            strategies
+        );
 
         List<DataFormat> allFormats = new ArrayList<>();
         DataFormat primaryFormat = dataFormatRegistry.format(primaryFormatName);
@@ -125,7 +137,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
         this.secondaryEngines = Set.copyOf(secondaries);
 
-        this.compositeDataFormat = new CompositeDataFormat(allFormats);
+        this.compositeDataFormat = new CompositeDataFormat(primaryFormat, allFormats);
         this.committer = committer;
     }
 
@@ -163,16 +175,32 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
     }
 
+    /**
+     * Creates a {@link CompositeWriter} that fans out writes to all per-format engines.
+     *
+     * @param writerGeneration the generation number for the new writer
+     * @return a composite writer bound to this engine
+     */
     @Override
     public Writer<CompositeDocumentInput> createWriter(long writerGeneration) {
         return new CompositeWriter(this, writerGeneration);
     }
 
+    /** {@inheritDoc} Delegates to the primary engine's merger. */
     @Override
     public Merger getMerger() {
-        return primaryEngine.getMerger();
+        return new CompositeMerger(this, compositeDataFormat);
     }
 
+    /**
+     * Refreshes all per-format engines and merges their results into a unified list of
+     * {@link Segment} instances. Each segment groups its per-format {@link WriterFileSet}
+     * entries by writer generation.
+     *
+     * @param refreshInput the refresh input containing existing and new segments
+     * @return the merged refresh result across all formats
+     * @throws IOException if any per-format refresh fails
+     */
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
         RefreshResult primary = primaryEngine.refresh(refreshInput);
@@ -191,6 +219,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         for (Segment.Builder builder : mergedByGen.values()) {
             merged.add(builder.build());
         }
+
         return new RefreshResult(merged);
     }
 
@@ -203,16 +232,27 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
     }
 
+    /**
+     * Not supported — writer generation is managed by the {@code DataFormatAwareEngine}.
+     *
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public long getNextWriterGeneration() {
         throw new UnsupportedOperationException();
     }
 
+    /** {@inheritDoc} Returns the composite data format representing all per-format capabilities. */
     @Override
     public CompositeDataFormat getDataFormat() {
         return compositeDataFormat;
     }
 
+    /**
+     * Returns the total native memory bytes used across all per-format engines.
+     *
+     * @return the sum of native bytes used by primary and secondary engines
+     */
     @Override
     public long getNativeBytesUsed() {
         long total = primaryEngine.getNativeBytesUsed();
@@ -222,6 +262,13 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return total;
     }
 
+    /**
+     * Deletes files from all per-format engines. If any engine fails, the first exception
+     * is thrown with subsequent failures added as suppressed exceptions.
+     *
+     * @param filesToDelete map of format name to collection of file names to delete
+     * @throws IOException if any per-format engine fails to delete files
+     */
     @Override
     public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
         Map<String, Collection<String>> allFailed = new HashMap<>();
@@ -252,6 +299,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return allFailed;
     }
 
+    /**
+     * Creates a {@link CompositeDocumentInput} that fans out field additions to the primary
+     * and all secondary per-format document inputs.
+     *
+     * @return a new composite document input
+     */
     @Override
     public CompositeDocumentInput newDocumentInput() {
         DocumentInput<?> primaryInput = primaryEngine.newDocumentInput();
@@ -262,6 +315,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return new CompositeDocumentInput(primaryEngine.getDataFormat(), primaryInput, secondaryInputMap);
     }
 
+    /**
+     * Closes all per-format engines and the committer. Exceptions from secondary engines
+     * are handled gracefully to ensure all resources are released.
+     *
+     * @throws IOException if closing the primary engine or committer fails
+     */
     @Override
     public void close() throws IOException {
         IOUtils.closeWhileHandlingException(primaryEngine);
@@ -278,9 +337,47 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return primaryEngine;
     }
 
+    /**
+     * Returns a composite {@link IndexStoreProvider} that delegates to each per-format
+     * engine's provider based on the requested data format.
+     *
+     * @return the composite store provider
+     */
     @Override
     public IndexStoreProvider getProvider() {
-        return primaryEngine.getProvider();
+        return new IndexStoreProvider() {
+            private final Map<DataFormat, IndexStoreProvider> providers;
+            {
+                Map<DataFormat, IndexStoreProvider> tempProviders = new HashMap<>();
+                tempProviders.put(primaryEngine.getDataFormat(), primaryEngine.getProvider());
+                tempProviders.putAll(
+                    secondaryEngines.stream()
+                        .map(eng -> new AbstractMap.SimpleEntry<>(eng.getDataFormat(), eng.getProvider()))
+                        .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue))
+                );
+                providers = tempProviders;
+            }
+
+            @Override
+            public FormatStore getStore(DataFormat dataFormat) {
+                return providers.get(dataFormat).getStore(dataFormat);
+            }
+        };
+    }
+
+    @Override
+    public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
+        Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>(
+            config.registry().getReaderManager(readerManagerConfig(config, primaryEngine.getDataFormat()))
+        );
+        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+            readerManagers.putAll(config.registry().getReaderManager(readerManagerConfig(config, engine.getDataFormat())));
+        }
+        return Map.copyOf(readerManagers);
+    }
+
+    private ReaderManagerConfig readerManagerConfig(ReaderManagerConfig config, DataFormat toAugment) {
+        return new ReaderManagerConfig(config.indexStoreProvider(), toAugment, config.registry(), config.shardPath());
     }
 
     /**

@@ -9,6 +9,7 @@
 package org.opensearch.dsl.executor;
 
 import org.apache.calcite.rel.logical.LogicalTableScan;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.result.ExecutionResult;
 import org.opensearch.test.OpenSearchTestCase;
@@ -28,10 +29,12 @@ public class DslQueryPlanExecutorTests extends OpenSearchTestCase {
     public void testExecuteDelegatesEachPlanToExecutor() {
         List<Object[]> expectedRows = List.<Object[]>of(new Object[] { "laptop", 1200 });
 
-        DslQueryPlanExecutor executor = new DslQueryPlanExecutor((plan, ctx) -> expectedRows);
+        DslQueryPlanExecutor executor = new DslQueryPlanExecutor((plan, ctx, listener) -> listener.onResponse(expectedRows));
         QueryPlans plans = new QueryPlans.Builder().add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, scan)).build();
 
-        List<ExecutionResult> results = executor.execute(plans);
+        PlainActionFuture<List<ExecutionResult>> future = new PlainActionFuture<>();
+        executor.execute(plans, future);
+        List<ExecutionResult> results = future.actionGet();
 
         assertEquals(1, results.size());
         ExecutionResult result = results.get(0);

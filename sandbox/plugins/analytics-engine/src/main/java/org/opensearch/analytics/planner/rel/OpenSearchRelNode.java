@@ -9,7 +9,7 @@
 package org.opensearch.analytics.planner.rel;
 
 import org.apache.calcite.rel.RelNode;
-import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
 import java.util.List;

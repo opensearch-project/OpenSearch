@@ -19,12 +19,16 @@ import java.util.List;
  * intact, multiple viableBackends per operator/expression), a {@link TargetResolver}
  * for the Scheduler to resolve execution targets lazily, and references to child stages.
  *
- * <p>The Scheduler determines how to execute a stage from two fields:
- * <ul>
- *   <li>{@link #getTargetResolver()} non-null → dispatch fragment to data nodes</li>
- *   <li>{@link #getExchangeSinkProvider()} non-null → create a backend compute sink at the coordinator</li>
- *   <li>Both null → single-stage query, use a simple {@code RowProducingSink} at the coordinator</li>
- * </ul>
+ * <p>Execution shape is surfaced explicitly via {@link #getExecutionType()}, derived
+ * at construction in priority order:
+ * <ol>
+ *   <li>{@link #getTargetResolver()} non-null → {@link StageExecutionType#SHARD_FRAGMENT}
+ *       — dispatch fragment per-shard to data nodes.</li>
+ *   <li>{@link #getExchangeSinkProvider()} non-null → {@link StageExecutionType#COORDINATOR_REDUCE}
+ *       — coordinator-side reduction via backend sink.</li>
+ *   <li>Otherwise → {@link StageExecutionType#LOCAL_PASSTHROUGH} — coordinator gather
+ *       via {@code RowProducingSink}.</li>
+ * </ol>
  *
  * <p>After plan forking, {@code planAlternatives} contains resolved variants
  * where every viableBackends is narrowed to exactly one backend.
@@ -39,6 +43,7 @@ public class Stage {
     private final ExchangeInfo exchangeInfo;
     private final ExchangeSinkProvider exchangeSinkProvider;
     private final TargetResolver targetResolver;
+    private final StageExecutionType executionType;
     private List<StagePlan> planAlternatives;
 
     public Stage(
@@ -55,6 +60,7 @@ public class Stage {
         this.exchangeInfo = exchangeInfo;
         this.exchangeSinkProvider = exchangeSinkProvider;
         this.targetResolver = targetResolver;
+        this.executionType = setStageExecutionType(exchangeSinkProvider, targetResolver);
         this.planAlternatives = List.of();
     }
 
@@ -96,11 +102,29 @@ public class Stage {
         return targetResolver;
     }
 
+    /**
+     * Returns where this stage's compute runs. Derived at construction from the
+     * target resolver / sink provider pair — see the class-level javadoc.
+     */
+    public StageExecutionType getExecutionType() {
+        return executionType;
+    }
+
     public List<StagePlan> getPlanAlternatives() {
         return planAlternatives;
     }
 
     public void setPlanAlternatives(List<StagePlan> planAlternatives) {
         this.planAlternatives = planAlternatives;
+    }
+
+    private StageExecutionType setStageExecutionType(ExchangeSinkProvider exchangeSinkProvider, TargetResolver targetResolver) {
+        if (targetResolver != null) {
+            return StageExecutionType.SHARD_FRAGMENT;
+        } else if (exchangeSinkProvider != null) {
+            return StageExecutionType.COORDINATOR_REDUCE;
+        } else {
+            return StageExecutionType.LOCAL_PASSTHROUGH;
+        }
     }
 }

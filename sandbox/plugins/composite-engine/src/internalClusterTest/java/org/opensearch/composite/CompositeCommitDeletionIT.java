@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -35,6 +36,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -50,7 +52,7 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class);
+        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class);
     }
 
     @Override
@@ -113,7 +115,13 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
 
     private int commitCount(IndexShard shard) throws IOException {
         List<IndexCommit> commits = DirectoryReader.listCommits(shard.store().directory());
-        return commits.size();
+        return (int) commits.stream().map(c -> {
+            try {
+                return c.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_ID);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).filter(Objects::nonNull).distinct().count();
     }
 
     // ---- Test 1: Old commit files deleted after flush ----

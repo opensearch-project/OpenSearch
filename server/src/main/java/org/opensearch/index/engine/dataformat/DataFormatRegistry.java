@@ -8,24 +8,24 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -37,9 +37,6 @@ import java.util.stream.Collectors;
 @ExperimentalApi
 public class DataFormatRegistry {
 
-    /** Index setting name that specifies the active pluggable data format. */
-    public static final String PLUGGABLE_DATAFORMAT_SETTING = "pluggable_dataformat";
-
     /** Map from data format to the plugin that provides its indexing engine. */
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
 
@@ -47,6 +44,8 @@ public class DataFormatRegistry {
     private final Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
+
+    private static final Logger logger = LogManager.getLogger(DataFormatRegistry.class);
 
     /**
      * Creates a registry by discovering all {@link DataFormatPlugin} and {@link SearchBackEndPlugin} implementations
@@ -71,8 +70,11 @@ public class DataFormatRegistry {
         }
 
         for (SearchBackEndPlugin<?> plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
-            for (DataFormat format : plugin.getSupportedFormats()) {
-                readerManagerBuilders.put(format, settings -> plugin.createReaderManager(settings));
+            for (String formatName : plugin.getSupportedFormats()) {
+                DataFormat format = dataFormats.get(formatName);
+                if (format != null) {
+                    readerManagerBuilders.put(format, settings -> plugin.createReaderManager(settings));
+                }
             }
         }
 
@@ -94,10 +96,7 @@ public class DataFormatRegistry {
         if (plugin == null) {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
         }
-        Map<String, DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(settings.indexSettings(), this);
-        DataFormatDescriptor descriptor = descriptors.get(format.name());
-        FormatChecksumStrategy checksumStrategy = descriptor != null ? descriptor.getChecksumStrategy() : null;
-        return plugin.indexingEngine(settings, checksumStrategy);
+        return plugin.indexingEngine(settings);
     }
 
     public DataFormat format(String name) {
@@ -137,16 +136,17 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns format descriptors for the active data format of the given index.
+     * Returns format descriptor suppliers for the active data format of the given index.
      * Resolves the data format from index settings via the {@code pluggable_dataformat} setting,
      * then delegates to {@link DataFormatPlugin#getFormatDescriptors(IndexSettings, DataFormatRegistry)}.
+     * Callers that only need format names can use {@code keySet()} without triggering descriptor creation.
      *
      * @param indexSettings the index settings used to determine the active data format
-     * @return unmodifiable map of format name to descriptor, or empty map if no pluggable data format is configured
+     * @return map of format name to descriptor supplier, or empty map if no pluggable data format is configured
      */
-    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings) {
-        String dataformatName = indexSettings.getSettings().get(PLUGGABLE_DATAFORMAT_SETTING);
-        if (dataformatName != null) {
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
             DataFormat format = dataFormats.get(dataformatName);
             if (format != null) {
                 DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
@@ -159,30 +159,61 @@ public class DataFormatRegistry {
     }
 
     /**
+     * Returns format descriptor suppliers for a specific data format, bypassing the
+     * {@code pluggable_dataformat} index setting lookup. This is used by composite
+     * plugins to resolve child format descriptors without recursion.
+     *
+     * @param indexSettings the index settings
+     * @param dataFormat the specific data format to get descriptors for
+     * @return map of format name to descriptor supplier, or empty map if the format is not registered
+     */
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings, DataFormat dataFormat) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return Map.of();
+        }
+        return plugin.getFormatDescriptors(indexSettings, this);
+    }
+
+    /**
+     * Creates checksum strategies for all formats of the given index, intended to be called
+     * once per shard during initialization. The returned map should be shared between the
+     * directory and the engine so that pre-computed checksums registered during write are
+     * visible to the upload path.
+     *
+     * @param indexSettings the index settings used to determine the active data format
+     * @return unmodifiable map of format name to checksum strategy
+     */
+    public Map<String, FormatChecksumStrategy> createChecksumStrategies(IndexSettings indexSettings) {
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = getFormatDescriptors(indexSettings);
+        Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
+        for (Map.Entry<String, Supplier<DataFormatDescriptor>> entry : descriptors.entrySet()) {
+            FormatChecksumStrategy strategy = entry.getValue().get().getChecksumStrategy();
+            if (strategy != null) {
+                strategies.put(entry.getKey(), strategy);
+            }
+        }
+        return Collections.unmodifiableMap(strategies);
+    }
+
+    /**
      * Creates {@link EngineReaderManager} instances for all applicable data formats based on index settings/mappings.
      * Each reader manager is instantiated by applying the store provider and shard path to the factory registered
      * by the corresponding {@link SearchBackEndPlugin}.
      *
-     * @param indexStoreProvider the store provider, or empty if not available
-     * @param mapperService the mapper service for field mapping resolution (reserved for future filtering)
-     * @param indexSettings the index settings (reserved for future filtering)
-     * @param shardPath the shard path used to create reader managers
+     * @param readerManagerConfig config containing details about how to construct reader manager
      * @return a map from data format to its reader manager
      * @throws IOException if reader manager creation fails
      */
-    public Map<DataFormat, EngineReaderManager<?>> getReaderManagers(
-        Optional<IndexStoreProvider> indexStoreProvider,
-        MapperService mapperService,
-        IndexSettings indexSettings,
-        ShardPath shardPath
-    ) throws IOException {
-        // TODO: Filter based on index settings
-        Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
-        for (Map.Entry<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
-            .entrySet()) {
-            ReaderManagerConfig settings = new ReaderManagerConfig(indexStoreProvider, entry.getKey(), shardPath);
-            readerManagers.put(entry.getKey(), entry.getValue().apply(settings));
+    public Map<DataFormat, EngineReaderManager<?>> getReaderManager(ReaderManagerConfig readerManagerConfig) throws IOException {
+        if (!readerManagerBuilders.containsKey(readerManagerConfig.format())) {
+            throw new IllegalArgumentException(
+                "Unsupported format: ["
+                    + readerManagerConfig.format()
+                    + "]. Reader Manager can be built only for: "
+                    + readerManagerBuilders.keySet()
+            );
         }
-        return readerManagers;
+        return Map.of(readerManagerConfig.format(), readerManagerBuilders.get(readerManagerConfig.format()).apply(readerManagerConfig));
     }
 }

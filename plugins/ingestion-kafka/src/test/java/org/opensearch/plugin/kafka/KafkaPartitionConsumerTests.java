@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
@@ -212,5 +213,20 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
 
         // Should return -1 on exception
         assertEquals(-1, lag);
+    }
+
+    public void testTopicMetadataFetchTimeoutUsedFromConfig() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("topic", "test-topic");
+        params.put("bootstrap_servers", "localhost:9092");
+        params.put("topic_metadata_fetch_timeout_ms", 5000);
+
+        KafkaSourceConfig customConfig = new KafkaSourceConfig(1000, params);
+        PartitionInfo partitionInfo = new PartitionInfo("test-topic", 0, null, null, null);
+        when(mockConsumer.partitionsFor(eq("test-topic"), any(Duration.class))).thenReturn(Collections.singletonList(partitionInfo));
+
+        new KafkaPartitionConsumer("client1", customConfig, 0, mockConsumer);
+
+        verify(mockConsumer).partitionsFor(eq("test-topic"), eq(Duration.ofMillis(5000)));
     }
 }

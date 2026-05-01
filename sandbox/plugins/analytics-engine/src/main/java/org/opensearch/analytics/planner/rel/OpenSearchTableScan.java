@@ -17,7 +17,7 @@ import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
-import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.List;
 

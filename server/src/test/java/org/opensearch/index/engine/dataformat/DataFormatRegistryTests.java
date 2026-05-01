@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -61,7 +62,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
             Set.of(new FieldTypeCapabilities("integer", Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
         );
         MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format);
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
@@ -86,7 +87,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         );
         MockDataFormatPlugin plugin1 = MockDataFormatPlugin.of(format1);
         MockDataFormatPlugin plugin2 = MockDataFormatPlugin.of(format2);
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format1, format2));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format1.name(), format2.name()));
 
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin1, plugin2));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
@@ -126,7 +127,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         MockDataFormat format1 = new MockDataFormat("columnar", 100L, Set.of());
         MockDataFormat format2 = new MockDataFormat("lucene", 50L, Set.of());
         MockDataFormatPlugin plugin1 = MockDataFormatPlugin.of(format1);
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format2));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format2.name()));
 
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin1));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
@@ -138,7 +139,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
     public void testGetIndexingEngine() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format);
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
@@ -146,7 +147,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
         IndexingExecutionEngine<?, ?> engine = registry.getIndexingEngine(
-            new IndexingEngineConfig(null, mapperService, indexSettings, null, null),
+            new IndexingEngineConfig(null, mapperService, indexSettings, null, null, Map.of()),
             format
         );
         assertNotNull(engine);
@@ -162,7 +163,10 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> registry.getIndexingEngine(new IndexingEngineConfig(null, mapperService, indexSettings, null, null), unregistered)
+            () -> registry.getIndexingEngine(
+                new IndexingEngineConfig(null, mapperService, indexSettings, null, null, Map.of()),
+                unregistered
+            )
         );
         assertTrue(e.getMessage().contains("unknown"));
     }
@@ -180,7 +184,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         );
         MockDataFormatPlugin plugin1 = MockDataFormatPlugin.of(lowPriority);
         MockDataFormatPlugin plugin2 = MockDataFormatPlugin.of(highPriority);
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(lowPriority, highPriority));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(lowPriority.name(), highPriority.name()));
 
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin1, plugin2));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
@@ -204,7 +208,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
             50L,
             Set.of(new FieldTypeCapabilities("text", Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)))
         );
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(columnar, textSearch));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(columnar.name(), textSearch.name()));
 
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(
             List.of(MockDataFormatPlugin.of(columnar), MockDataFormatPlugin.of(textSearch))
@@ -244,7 +248,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
                 new FieldTypeCapabilities("text", Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH))
             )
         );
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
@@ -260,18 +264,15 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
     public void testGetReaderManagers() throws IOException {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format);
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        Map<DataFormat, EngineReaderManager<?>> managers = registry.getReaderManagers(
-            Optional.empty(),
-            mapperService,
-            indexSettings,
-            shardPath
+        Map<DataFormat, EngineReaderManager<?>> managers = registry.getReaderManager(
+            new ReaderManagerConfig(Optional.empty(), format, registry, shardPath)
         );
         assertEquals(1, managers.size());
         assertNotNull(managers.get(format));
@@ -279,7 +280,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
     public void testGetRegisteredFormatsIsUnmodifiable() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
-        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format));
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
 
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
@@ -288,5 +289,30 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         Set<DataFormat> formats = registry.getRegisteredFormats();
 
         expectThrows(UnsupportedOperationException.class, () -> formats.add(new MockDataFormat("new", 1L, Set.of())));
+    }
+
+    public void testGetFormatDescriptorsByDataFormatReturnsDescriptors() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format);
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of("columnar"));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(indexSettings, format);
+        assertNotNull(descriptors);
+    }
+
+    public void testGetFormatDescriptorsByDataFormatReturnsEmptyForUnregisteredFormat() {
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+        MockDataFormat unregistered = new MockDataFormat("unknown", 1L, Set.of());
+
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(indexSettings, unregistered);
+        assertTrue(descriptors.isEmpty());
     }
 }

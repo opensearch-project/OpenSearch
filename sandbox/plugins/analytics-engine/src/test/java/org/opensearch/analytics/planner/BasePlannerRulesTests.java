@@ -36,6 +36,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -47,7 +48,6 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -381,23 +381,8 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         }
 
         @Override
-        public List<DataFormat> getSupportedFormats() {
-            return List.of(new DataFormat() {
-                @Override
-                public String name() {
-                    return formatName;
-                }
-
-                @Override
-                public long priority() {
-                    return 0;
-                }
-
-                @Override
-                public Set<FieldTypeCapabilities> supportedFields() {
-                    return fieldCaps;
-                }
-            });
+        public List<String> getSupportedFormats() {
+            return List.of(formatName);
         }
 
         @Override

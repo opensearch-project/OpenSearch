@@ -29,12 +29,15 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -83,9 +86,10 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             buildEngineContext(),
-            (plan, ctx) -> Collections.emptyList(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
-            resolver
+            resolver,
+            mockThreadPool()
         );
 
         TestListener listener = executeWith(action, "bogus-index");
@@ -115,9 +119,10 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             buildEngineContext(),
-            (plan, ctx) -> Collections.emptyList(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
-            resolver
+            resolver,
+            mockThreadPool()
         );
     }
 
@@ -145,6 +150,17 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             }
         });
         return schema;
+    }
+
+    private static ThreadPool mockThreadPool() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = mock(ExecutorService.class);
+        when(threadPool.executor(any())).thenReturn(executorService);
+        doAnswer(invocation -> {
+            ((Runnable) invocation.getArgument(0)).run();
+            return null;
+        }).when(executorService).execute(any());
+        return threadPool;
     }
 
     private static class TestListener implements ActionListener<SearchResponse> {

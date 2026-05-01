@@ -13,10 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
+import org.opensearch.storage.action.tiering.IndexTieringRequest;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -31,9 +33,6 @@ import static org.opensearch.index.IndexModule.TieringState.WARM_TO_HOT;
 
 /**
  * Utility class for handling tiering operations in OpenSearch Warm.
- * Utility methods (resolveRequestIndex, isMigrationAllowed, getTieringSourceType, isShardStateValidForTier,
- * getTieringStatefromIndexSettings, getTierPairForTargetTier, getTieringStatefromTargetTier, isTerminalTier,
- * getTieringStartTime, isCCRFollowerIndex) will be added in the implementation PR.
  */
 public class TieringUtils {
 
@@ -48,17 +47,24 @@ public class TieringUtils {
     public static final String W2H_TIERING_START_TIME_KEY = "w2h_start_time";
     /** Custom metadata key for tiering information. */
     public static final String TIERING_CUSTOM_KEY = "tiering";
+
+    /** Composite index type for tiered storage. */
+    public static final String TIERED_COMPOSITE_INDEX_TYPE = "tiered-storage";
     /** Tiering type identifier for hot-to-warm tiering. */
     public static final String H2W_TIERING_TYPE_KEY = "hot to warm tiering";
     /** Tiering type identifier for warm-to-hot tiering. */
     public static final String W2H_TIERING_TYPE_KEY = "warm to hot tiering";
 
+    /**
+     * The maximum number of in-flight hot to warm tiering requests.
+     * Setting this to 0 allows us to block customers from making any migrations.
+     */
     static final int DEFAULT_H2W_MAX_CONCURRENT_TIERING_REQUESTS = 200;
     /** Setting key for maximum concurrent hot-to-warm tiering requests. */
-    public static final String H2W_MAX_CONCURRENT_TIEIRNG_REQUESTS_KEY = "cluster.tiering.max_concurrent_hot_to_warm_requests";
+    public static final String H2W_MAX_CONCURRENT_TIERING_REQUESTS_KEY = "cluster.tiering.max_concurrent_hot_to_warm_requests";
     /** Setting for maximum concurrent hot-to-warm tiering requests. */
-    public static final Setting<Integer> H2W_MAX_CONCURRENT_TIEIRNG_REQUESTS = Setting.intSetting(
-        H2W_MAX_CONCURRENT_TIEIRNG_REQUESTS_KEY,
+    public static final Setting<Integer> H2W_MAX_CONCURRENT_TIERING_REQUESTS = Setting.intSetting(
+        H2W_MAX_CONCURRENT_TIERING_REQUESTS_KEY,
         DEFAULT_H2W_MAX_CONCURRENT_TIERING_REQUESTS,
         0,
         1000,
@@ -66,12 +72,16 @@ public class TieringUtils {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The maximum number of in-flight warm to hot tiering requests.
+     * Setting this to 0 allows us to block customers from making any migrations.
+     */
     private static final int DEFAULT_W2H_MAX_CONCURRENT_TIERING_REQUESTS = 10;
     /** Setting key for maximum concurrent warm-to-hot tiering requests. */
-    public static final String W2H_MAX_CONCURRENT_TIEIRNG_REQUESTS_KEY = "cluster.tiering.max_concurrent_warm_to_hot_requests";
+    public static final String W2H_MAX_CONCURRENT_TIERING_REQUESTS_KEY = "cluster.tiering.max_concurrent_warm_to_hot_requests";
     /** Setting for maximum concurrent warm-to-hot tiering requests. */
-    public static final Setting<Integer> W2H_MAX_CONCURRENT_TIEIRNG_REQUESTS = Setting.intSetting(
-        W2H_MAX_CONCURRENT_TIEIRNG_REQUESTS_KEY,
+    public static final Setting<Integer> W2H_MAX_CONCURRENT_TIERING_REQUESTS = Setting.intSetting(
+        W2H_MAX_CONCURRENT_TIERING_REQUESTS_KEY,
         DEFAULT_W2H_MAX_CONCURRENT_TIERING_REQUESTS,
         0,
         1000,
@@ -79,6 +89,10 @@ public class TieringUtils {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The threshold of active usage to avoid fileCacheUsage overload while accepting tiering requests.
+     * We reject requests once the fileCache active usage has more than this percent.
+     */
     private static final int DEFAULT_FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT = 90;
     /** Setting key for file cache active usage tiering threshold percentage. */
     public static final String FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_KEY = "cluster.tiering.filecache_active_threshold_percent";
@@ -92,6 +106,10 @@ public class TieringUtils {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The threshold of the JVM Usage Percent to avoid cluster overload while accepting index tiering requests.
+     * We reject requests if the JVM Usage of all target tier nodes has more than this percent.
+     */
     private static final int DEFAULT_JVM_USAGE_TIERING_THRESHOLD_PERCENT = 95;
     /** Setting key for JVM usage tiering threshold percentage. */
     public static final String JVM_USAGE_TIERING_THRESHOLD_PERCENT_KEY = "cluster.tiering.jvm_usage_threshold_percent";
@@ -105,9 +123,41 @@ public class TieringUtils {
         Setting.Property.NodeScope
     );
 
+    /**
+     * List of index name prefixes that should be allowed to be migrated.
+     * This takes precedence over the 'block-listed' index prefixes.
+     */
     private static final Set<String> ALLOWLISTED_INDEX_PREFIXES = Set.of(".ds-");
+
+    /**
+     * List of index name prefixes that should not be allowed to be migrated. We chose the prefix as "." since that covers most
+     * metadata indices like the ones created by kibana, search guard etc.
+     */
     private static final Set<String> BLOCKLISTED_INDEX_PREFIXES = Set.of(".");
+
+    /**
+     * CCR index settings.
+     */
     private static final String CCR_LEADER_INDEX_SETTING_KEY = "index.plugins.replication.follower.leader_index";
+
+    /**
+     * Checks if migration is allowed for the given index name.
+     *
+     * @param indexName the name of the index to check
+     * @return true if migration is allowed, false otherwise
+     * @throws IllegalArgumentException if indexName is null
+     */
+    public static boolean isMigrationAllowed(String indexName) {
+        if (indexName == null) {
+            throw new IllegalArgumentException("index name cannot be null");
+        }
+        if (indexName.isBlank()) {
+            throw new IllegalArgumentException("Index name cannot be empty");
+        }
+
+        return ALLOWLISTED_INDEX_PREFIXES.stream().anyMatch(indexName::startsWith) ||  // either the index is explicitly allow-listed, or
+            BLOCKLISTED_INDEX_PREFIXES.stream().noneMatch(indexName::startsWith);  // it is not block-listed.
+    }
 
     /**
      * Resolves the concrete index from a request index name.
@@ -122,6 +172,8 @@ public class TieringUtils {
         String requestIndex,
         ClusterState currentState
     ) {
+        // This will throw an exception if the index doesn't exist or if it maps to multiple indices.
+        // This will also resolve aliases, if any.
         try {
             final Index[] requestIndices = indexNameExpressionResolver.concreteIndices(
                 currentState,
@@ -139,6 +191,18 @@ public class TieringUtils {
             logger.error(() -> String.format(Locale.ROOT, "Failed to resolve index: [%s]", requestIndex), e);
             throw new IllegalArgumentException("Failed to resolve index: " + requestIndex, e);
         }
+    }
+
+    /**
+     * Returns the tiering source type string for a given request.
+     * @param request the tiering request
+     * @return the tiering source type key
+     */
+    public static String getTieringSourceType(IndexTieringRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Tiering request cannot be null");
+        }
+        return (request.tier() == Tier.WARM) ? H2W_TIERING_TYPE_KEY : W2H_TIERING_TYPE_KEY;
     }
 
     /**
@@ -160,6 +224,52 @@ public class TieringUtils {
             default:
                 throw new IllegalArgumentException("Unsupported index migration state: " + tieringState);
         }
+    }
+
+    /**
+     * Returns the tiering source type string for a given target tiering state.
+     * @param targetTieringState the target tiering state
+     * @return the tiering source type key
+     */
+    public static String getTieringSourceType(IndexModule.TieringState targetTieringState) {
+        return (targetTieringState.equals(WARM)) ? H2W_TIERING_TYPE_KEY : W2H_TIERING_TYPE_KEY;
+    }
+
+    /**
+     * Checks if a shard is in the correct state for the target tier.
+     * @param shard the shard routing
+     * @param clusterState the cluster state
+     * @param targetTier the target tier
+     * @return true if the shard is valid for the target tier
+     * @throws IllegalArgumentException if targetTier is neither HOT nor WARM
+     */
+    public static boolean isShardStateValidForTier(
+        final ShardRouting shard,
+        final ClusterState clusterState,
+        final IndexModule.TieringState targetTier
+    ) {
+        if (shard.unassigned()) {
+            // Ignore unassigned replica shard status - only primary shard placement determines migration completion
+            return shard.primary() == false;
+        }
+        final boolean isShardStartedOnWarmNode = shard.started() && clusterState.getNodes().get(shard.currentNodeId()).isWarmNode();
+        if (targetTier.equals(WARM)) {
+            return isShardStartedOnWarmNode;
+        } else if (targetTier.equals(HOT)) {
+            return isShardStartedOnWarmNode == false;
+        } else {
+            throw new IllegalArgumentException("Target tier must be either HOT or WARM, but was: " + targetTier);
+        }
+    }
+
+    /**
+     * Checks if the index is a CCR follower index.
+     * @param settings the index settings
+     * @return true if the index is a CCR follower
+     */
+    public static boolean isCCRFollowerIndex(final Settings settings) {
+        final String ccrLeaderIndexSettingValue = settings.get(CCR_LEADER_INDEX_SETTING_KEY, "");
+        return !ccrLeaderIndexSettingValue.isEmpty();
     }
 
     /**
@@ -222,7 +332,11 @@ public class TieringUtils {
         return Long.parseLong(customData.get(tieringStartTimeKey));
     }
 
-    /** Represents the storage tiers available in tiered storage. */
+    /**
+     * Represents the target tiers available for tiering requests via REST API.
+     * This enum is specifically used during request handling to validate and process
+     * the tier parameter in REST endpoints.
+     */
     public enum Tier {
         /** Hot tier for frequently accessed data. */
         HOT,
@@ -232,6 +346,8 @@ public class TieringUtils {
         /**
          * Converts a string to a Tier enum value.
          * @param name the string name
+         * @return the corresponding Tier enum value
+         * @throws IllegalArgumentException if the name is invalid
          */
         public static Tier fromString(final String name) {
             if (name == null) {
@@ -255,4 +371,5 @@ public class TieringUtils {
             return name().toLowerCase(Locale.ROOT);
         }
     }
+
 }

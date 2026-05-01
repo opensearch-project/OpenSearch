@@ -23,6 +23,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.filecache.CachedFullFileIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.TransferManager;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 
 /**
  * IndexInput that provides a hook for switching from full file based local index input to block based remote index input
@@ -64,6 +66,7 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
     private volatile boolean hasSwitchedToRemote;
     private volatile boolean cachedFromRemote;
     private final ConcurrentMap<SwitchableIndexInput, Boolean> clones;
+    private final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
     private final ThreadPool threadPool;
 
     /*
@@ -100,7 +103,8 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
         RemoteSegmentStoreDirectory remoteDirectory,
         TransferManager transferManager,
         boolean cacheFromRemote,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier
     ) throws IOException {
         this(
             resourceDescription,
@@ -119,7 +123,8 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
             null,
             null,
             null,
-            threadPool
+            threadPool,
+            tieredStoragePrefetchSettingsSupplier
         );
     }
 
@@ -141,7 +146,8 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
         IndexInput clonedRemoteIndexInput,
         ConcurrentMap<SwitchableIndexInput, Boolean> clones,
         ReadWriteLock sharedLock,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier
     ) throws IOException {
         super(resourceDescription);
         this.fileCache = fileCache;
@@ -158,6 +164,7 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
         this.hasSwitchedToRemote = cacheFromRemote;
         this.isClosed = false;
         this.threadPool = threadPool;
+        this.tieredStoragePrefetchSettingsSupplier = tieredStoragePrefetchSettingsSupplier;
         this.objectLock = new ReentrantLock();
         if (!isClone) {
             this.sharedLock = new ReentrantReadWriteLock();
@@ -298,7 +305,8 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
                         (hasSwitchedToRemote && remoteIndexInput.get() != null) ? remoteIndexInput.get().clone() : null,
                         clones,
                         sharedLock,
-                        threadPool
+                        threadPool,
+                        tieredStoragePrefetchSettingsSupplier
                     );
                     clonedIndexInput.seek(getFilePointer());
                     clones.put(clonedIndexInput, true);
@@ -340,7 +348,8 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
                             : null,
                         clones,
                         sharedLock,
-                        threadPool
+                        threadPool,
+                        tieredStoragePrefetchSettingsSupplier
                     );
                     slicedIndexInput.seek(0);
                     clones.put(slicedIndexInput, true);
@@ -430,7 +439,8 @@ public class SwitchableIndexInput extends IndexInput implements Runnable, Random
             localDirectory,
             transferManager,
             threadPool,
-            fileCache
+            fileCache,
+            tieredStoragePrefetchSettingsSupplier
         );
     }
 

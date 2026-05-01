@@ -14,9 +14,11 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * Factory for creating {@link TieredDirectory} instances that combine local and remote storage.
@@ -25,7 +27,15 @@ public class TieredDirectoryFactory implements IndexStorePlugin.CompositeDirecto
 
     private static final Logger logger = LogManager.getLogger(TieredDirectoryFactory.class);
 
-    public TieredDirectoryFactory() {}
+    private final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
+
+    /**
+     * Creates a new TieredDirectoryFactory.
+     * @param tieredStoragePrefetchSettingsSupplier supplier for prefetch settings
+     */
+    public TieredDirectoryFactory(Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier) {
+        this.tieredStoragePrefetchSettingsSupplier = tieredStoragePrefetchSettingsSupplier;
+    }
 
     @Override
     public Directory newDirectory(
@@ -38,6 +48,6 @@ public class TieredDirectoryFactory implements IndexStorePlugin.CompositeDirecto
     ) throws IOException {
         logger.trace("Creating composite directory from TieredDirectoryFactory");
         Directory localDirectory = localDirectoryFactory.newDirectory(indexSettings, shardPath);
-        return new TieredDirectory(localDirectory, remoteDirectory, fileCache, threadPool);
+        return new TieredDirectory(localDirectory, remoteDirectory, fileCache, threadPool, tieredStoragePrefetchSettingsSupplier);
     }
 }

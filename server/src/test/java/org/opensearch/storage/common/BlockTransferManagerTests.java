@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
@@ -23,6 +22,7 @@ import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.node.Node;
 import org.opensearch.storage.indexinput.BlockFetchRequest;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Assert;
@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
  * Tests cover single block downloads, failure scenarios, duplicate handling, and concurrent operations.
  */
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
-public class BlockTransferManagerTests extends LuceneTestCase {
+public class BlockTransferManagerTests extends OpenSearchTestCase {
 
     // Node and index configuration constants
     private static final String TEST_NODE_NAME = "test-node";

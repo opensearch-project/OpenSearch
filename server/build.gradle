@@ -31,7 +31,7 @@
 import groovy.xml.XmlParser
 
 plugins {
-  id('com.google.protobuf') version '0.9.6'
+  id('com.google.protobuf') version '0.10.0'
   id('opensearch.build')
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
@@ -272,7 +272,9 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
             'com.fasterxml.jackson.databind.ser.std.StdSerializer',
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
+            'com.fasterxml.jackson.dataformat.xml.XmlFactory',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
+            'com.fasterxml.jackson.dataformat.xml.XmlNameProcessor',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
             'com.fasterxml.jackson.databind.node.ObjectNode',
             'io.micrometer.context.ContextAccessor',
@@ -340,6 +342,8 @@ tasks.named("thirdPartyAudit").configure {
             'org.apache.kafka.clients.producer.RecordMetadata',
             'org.apache.kafka.common.serialization.ByteArraySerializer',
             'org.codehaus.stax2.XMLStreamWriter2',
+            'org.codehaus.stax2.ri.Stax2WriterAdapter',
+            'org.codehaus.stax2.util.StreamWriter2Delegate',
             'org.jctools.queues.MpscArrayQueue',
             'org.osgi.framework.Bundle',
             'org.osgi.framework.BundleActivator',
