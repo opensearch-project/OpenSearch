@@ -24,6 +24,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
@@ -44,6 +45,8 @@ import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
 import io.substrait.isthmus.expression.ScalarFunctionConverter;
 import io.substrait.isthmus.expression.WindowFunctionConverter;
+import io.substrait.relation.RelCopyOnWriteVisitor;
+import io.substrait.util.EmptyVisitationContext;
 import io.substrait.plan.Plan;
 import io.substrait.plan.PlanProtoConverter;
 import io.substrait.plan.ProtoPlanConverter;
@@ -52,9 +55,7 @@ import io.substrait.relation.Filter;
 import io.substrait.relation.NamedScan;
 import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
-import io.substrait.relation.RelCopyOnWriteVisitor;
 import io.substrait.relation.Sort;
-import io.substrait.util.EmptyVisitationContext;
 
 /**
  * Converts Calcite RelNode fragments to Substrait protobuf bytes
@@ -94,17 +95,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         LOGGER.debug("Attaching partial aggregate on top of {} inner bytes", innerBytes.length);
         Plan inner = decodePlan(innerBytes);
         Rel wrapper = convertStandalone(partialAggFragment);
-        Plan rewired = rewire(inner, withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE));
+        Plan rewired = rewire(inner, wrapper);
         return serializePlan(rewired);
     }
 
     @Override
     public byte[] convertFinalAggFragment(RelNode fragment) {
         LOGGER.debug("Converting final-aggregate fragment");
-        // Rewrite any OpenSearchStageInputScan leaves to plain TableScan nodes so the
-        // isthmus visitor (which only knows about Calcite core / Logical RelNodes)
-        // emits a ReadRel with the stage-input-id as the named table.
-        RelNode rewritten = rewriteStageInputScans(fragment);
+        RelNode fixed = fixApproxCountDistinctInputType(fragment);
+        RelNode rewritten = rewriteStageInputScans(fixed);
         return convertToSubstrait(rewritten);
     }
 
@@ -112,7 +111,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     public byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
         LOGGER.debug("Attaching generic fragment [{}] on top of {} inner bytes", fragment.getClass().getSimpleName(), innerBytes.length);
         Plan inner = decodePlan(innerBytes);
-        Rel wrapper = convertStandalone(fragment);
+        // Replace the fragment's child with a dummy TableScan so the Substrait visitor
+        // doesn't traverse into nodes it can't handle (e.g. StageInputScan from stripped
+        // reduce-stage trees). The rewire step replaces this dummy with the actual inner plan.
+        RelNode dummyChild = new StageInputTableScan(
+            fragment.getCluster(), fragment.getTraitSet(),
+            "dummy", fragment.getInputs().getFirst().getRowType()
+        );
+        RelNode withDummy = fragment.copy(fragment.getTraitSet(), List.of(dummyChild));
+        Rel wrapper = convertStandalone(withDummy);
         return serializePlan(rewire(inner, wrapper));
     }
 
@@ -162,7 +169,38 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         Plan.Root innerRoot = inner.getRoots().get(0);
         Rel innerRel = innerRoot.getInput();
         Rel rewired = replaceInput(wrapper, innerRel);
-        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(innerRoot.getNames()).build()).build();
+        // Use the wrapper's output field names when the wrapper changes the schema
+        // (e.g. Aggregate produces different fields than its input). Fall back to
+        // inner names for schema-preserving wrappers (Sort, Filter).
+        List<String> names = deriveNames(rewired, innerRoot.getNames());
+        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(names).build()).build();
+    }
+
+    /**
+     * Derives output field names for the rewired plan. For Aggregates, the output
+     * schema differs from the input — use the measure names. For other wrappers
+     * (Sort, Filter, Project), the inner names are preserved.
+     */
+    private static List<String> deriveNames(Rel rel, List<String> innerNames) {
+        if (rel instanceof Aggregate agg) {
+            List<String> names = new ArrayList<>();
+            for (io.substrait.expression.Expression expr : agg.getGroupings().stream()
+                .flatMap(g -> g.getExpressions().stream()).toList()) {
+                names.add("group_" + names.size());
+            }
+            for (Aggregate.Measure m : agg.getMeasures()) {
+                names.add("agg_" + names.size());
+            }
+            return names;
+        }
+        if (rel instanceof Project proj) {
+            List<String> names = new ArrayList<>();
+            for (int i = 0; i < proj.getExpressions().size(); i++) {
+                names.add("proj_" + i);
+            }
+            return names;
+        }
+        return innerNames;
     }
 
     private static Rel replaceInput(Rel wrapper, Rel newInput) {
@@ -197,11 +235,19 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         if (!(rel instanceof Aggregate agg)) {
             return rel;
         }
+        // Only set INITIAL_TO_INTERMEDIATE for functions that have meaningful intermediate state.
+        // MIN and MAX don't benefit from partial mode in DataFusion's Substrait consumer —
+        // setting INITIAL_TO_INTERMEDIATE on them causes type errors.
+        java.util.Set<String> partialFunctions = java.util.Set.of("sum", "count", "approx_count_distinct");
         List<Aggregate.Measure> newMeasures = new ArrayList<>(agg.getMeasures().size());
         for (Aggregate.Measure m : agg.getMeasures()) {
-            AggregateFunctionInvocation fn = m.getFunction();
-            AggregateFunctionInvocation rephased = AggregateFunctionInvocation.builder().from(fn).aggregationPhase(phase).build();
-            newMeasures.add(Aggregate.Measure.builder().from(m).function(rephased).build());
+            String funcName = m.getFunction().declaration().name().toLowerCase(java.util.Locale.ROOT);
+            if (partialFunctions.contains(funcName)) {
+                AggregateFunctionInvocation rephased = AggregateFunctionInvocation.builder().from(m.getFunction()).aggregationPhase(phase).build();
+                newMeasures.add(Aggregate.Measure.builder().from(m).function(rephased).build());
+            } else {
+                newMeasures.add(m);
+            }
         }
         return Aggregate.builder().from(agg).measures(newMeasures).build();
     }
@@ -217,6 +263,50 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * carrying per-input ids through {@link io.substrait.relation.NamedScan} once
      * implemented.
      */
+    /**
+     * For FINAL aggregates containing approx_count_distinct, the StageInputScan's row type
+     * has BIGINT for those columns (from the PARTIAL aggregate's declared output type).
+     * But the PARTIAL actually emits binary HLL sketches. This method rewrites the
+     * StageInputScan's row type to use VARBINARY for approx_count_distinct columns so
+     * the Substrait NamedScan schema matches the actual streaming table schema.
+     */
+    private static RelNode fixApproxCountDistinctInputType(RelNode node) {
+        if (!(node instanceof org.apache.calcite.rel.core.Aggregate agg)) {
+            return node;
+        }
+        // Find approx_count_distinct positions in the aggregate call list
+        java.util.Set<Integer> approxPositions = new java.util.HashSet<>();
+        int groupCount = agg.getGroupSet().cardinality();
+        for (int i = 0; i < agg.getAggCallList().size(); i++) {
+            org.apache.calcite.rel.core.AggregateCall call = agg.getAggCallList().get(i);
+            if (call.getAggregation().getKind() == org.apache.calcite.sql.SqlKind.COUNT && call.isApproximate()) {
+                approxPositions.add(groupCount + i);
+            }
+        }
+        if (approxPositions.isEmpty()) return node;
+
+        // Rewrite the child (StageInputScan) row type
+        RelNode child = agg.getInput();
+        if (!(child instanceof OpenSearchStageInputScan scan)) return node;
+
+        RelDataTypeFactory typeFactory = scan.getCluster().getTypeFactory();
+        RelDataType origType = scan.getRowType();
+        List<RelDataTypeField> fields = origType.getFieldList();
+        List<String> names = new java.util.ArrayList<>();
+        List<RelDataType> types = new java.util.ArrayList<>();
+        for (int i = 0; i < fields.size(); i++) {
+            names.add(fields.get(i).getName());
+            if (approxPositions.contains(i)) {
+                types.add(typeFactory.createSqlType(org.apache.calcite.sql.type.SqlTypeName.VARBINARY, Integer.MAX_VALUE));
+            } else {
+                types.add(fields.get(i).getType());
+            }
+        }
+        RelDataType newRowType = typeFactory.createStructType(types, names);
+        OpenSearchStageInputScan newScan = scan.withRowType(newRowType);
+        return agg.copy(agg.getTraitSet(), List.of(newScan));
+    }
+
     private static RelNode rewriteStageInputScans(RelNode node) {
         if (node instanceof OpenSearchStageInputScan scan) {
             return new StageInputTableScan(scan.getCluster(), scan.getTraitSet(), DatafusionReduceSink.INPUT_ID, scan.getRowType());

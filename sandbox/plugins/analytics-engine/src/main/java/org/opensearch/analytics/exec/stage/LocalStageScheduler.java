@@ -9,6 +9,10 @@
 package org.opensearch.analytics.exec.stage;
 
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Aggregate;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.sql.SqlKind;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
@@ -73,6 +77,50 @@ final class LocalStageScheduler implements StageScheduler {
             + stage.getStageId()
             + " expected exactly one child stage, got "
             + children.size();
-        return ArrowSchemaFromCalcite.arrowSchemaFromRowType(children.getFirst().getFragment().getRowType());
+        Stage child = children.getFirst();
+        RelNode childFragment = child.getPlanAlternatives().isEmpty()
+            ? child.getFragment()
+            : child.getPlanAlternatives().getFirst().resolvedFragment();
+
+        // Find the aggregate in the child fragment to check for functions with
+        // non-trivial intermediate state (e.g. approx_count_distinct emits binary).
+        Aggregate agg = findAggregate(childFragment);
+        if (agg == null) {
+            return ArrowSchemaFromCalcite.arrowSchemaFromRowType(childFragment.getRowType());
+        }
+
+        // Build the Arrow schema, overriding types for functions with intermediate state.
+        List<org.apache.arrow.vector.types.pojo.Field> fields = new java.util.ArrayList<>();
+        int groupCount = agg.getGroupSet().cardinality();
+        // Group-by columns use the Calcite type
+        for (int i = 0; i < groupCount; i++) {
+            org.apache.calcite.rel.type.RelDataTypeField f = childFragment.getRowType().getFieldList().get(i);
+            fields.add(ArrowSchemaFromCalcite.fieldFromCalcite(f));
+        }
+        // Aggregate output columns: check for intermediate-state functions
+        for (int i = 0; i < agg.getAggCallList().size(); i++) {
+            AggregateCall call = agg.getAggCallList().get(i);
+            org.apache.calcite.rel.type.RelDataTypeField f = childFragment.getRowType().getFieldList().get(groupCount + i);
+            if (call.getAggregation().getKind() == SqlKind.COUNT && call.isApproximate()) {
+                // approx_count_distinct partial emits binary (HLL sketch)
+                fields.add(new org.apache.arrow.vector.types.pojo.Field(
+                    f.getName(),
+                    new org.apache.arrow.vector.types.pojo.FieldType(true, org.apache.arrow.vector.types.pojo.ArrowType.Binary.INSTANCE, null),
+                    null
+                ));
+            } else {
+                fields.add(ArrowSchemaFromCalcite.fieldFromCalcite(f));
+            }
+        }
+        return new Schema(fields);
+    }
+
+    private static Aggregate findAggregate(RelNode node) {
+        if (node instanceof Aggregate agg) return agg;
+        for (RelNode input : node.getInputs()) {
+            Aggregate found = findAggregate(input);
+            if (found != null) return found;
+        }
+        return null;
     }
 }

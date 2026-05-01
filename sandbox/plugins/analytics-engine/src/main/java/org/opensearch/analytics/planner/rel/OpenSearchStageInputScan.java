@@ -62,6 +62,10 @@ public class OpenSearchStageInputScan extends AbstractRelNode implements OpenSea
         return List.of();
     }
 
+    public OpenSearchStageInputScan withRowType(RelDataType newRowType) {
+        return new OpenSearchStageInputScan(getCluster(), getTraitSet(), childStageId, newRowType, viableBackends);
+    }
+
     @Override
     public OpenSearchStageInputScan copy(RelTraitSet traitSet, java.util.List<org.apache.calcite.rel.RelNode> inputs) {
         return new OpenSearchStageInputScan(getCluster(), traitSet, childStageId, rowType, viableBackends);

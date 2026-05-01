@@ -40,10 +40,14 @@ final class ArrowSchemaFromCalcite {
     public static Schema arrowSchemaFromRowType(RelDataType rowType) {
         List<Field> fields = new ArrayList<>();
         for (RelDataTypeField f : rowType.getFieldList()) {
-            ArrowType arrowType = toArrowType(f.getType().getSqlTypeName());
-            fields.add(new Field(f.getName(), new FieldType(true, arrowType, null), null));
+            fields.add(fieldFromCalcite(f));
         }
         return new Schema(fields);
+    }
+
+    public static Field fieldFromCalcite(RelDataTypeField f) {
+        ArrowType arrowType = toArrowType(f.getType().getSqlTypeName());
+        return new Field(f.getName(), new FieldType(true, arrowType, null), null);
     }
 
     private static ArrowType toArrowType(SqlTypeName sqlTypeName) {

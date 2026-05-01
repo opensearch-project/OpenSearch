@@ -192,8 +192,8 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertFalse("aggregate must have at least one measure", agg.getMeasuresList().isEmpty());
         AggregateFunction fn = agg.getMeasures(0).getMeasure();
         assertEquals(
-            "partial-agg phase must be INITIAL_TO_INTERMEDIATE",
-            AggregationPhase.AGGREGATION_PHASE_INITIAL_TO_INTERMEDIATE,
+            "partial-agg phase must be INITIAL_TO_RESULT (analytics-engine handles partial/final split at Calcite level)",
+            AggregationPhase.AGGREGATION_PHASE_INITIAL_TO_RESULT,
             fn.getPhase()
         );
         // Aggregate is rewired over the inner plan's root ReadRel.

@@ -292,3 +292,4 @@ pub unsafe extern "C" fn df_register_memtable(
         .map(|_| 0)
         .map_err(|e| e.to_string())
 }
+

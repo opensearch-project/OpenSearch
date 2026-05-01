@@ -163,7 +163,10 @@ public class OpenSearchProjectRule extends RelOptRule {
             scalarFunc = ScalarFunction.fromSqlFunction(sqlFunction);
         }
         if (scalarFunc == null) {
-            return List.of();
+            // Standard SQL operations not explicitly modeled in ScalarFunction (e.g. EQUALS,
+            // NOT_EQUALS introduced by Calcite rewrite rules like AggregateReduceFunctionsRule)
+            // are assumed to be handled natively by any backend that supports Substrait.
+            return new ArrayList<>(childViableBackends);
         }
         FieldType fieldType = FieldType.fromSqlTypeName(rexCall.getType().getSqlTypeName());
         if (fieldType == null) {

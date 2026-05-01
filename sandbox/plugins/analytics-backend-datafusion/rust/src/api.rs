@@ -702,3 +702,4 @@ pub unsafe fn register_memtable(
 
     session.register_memtable(input_id, table_schema, batches)
 }
+

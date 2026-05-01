@@ -205,8 +205,6 @@ public final class NativeBridge {
         );
     }
 
-    private NativeBridge() {}
-
     // ---- Tokio runtime management (no Arena needed — no string/buffer args) ----
 
     public static void initTokioRuntimeManager(int cpuThreads) {

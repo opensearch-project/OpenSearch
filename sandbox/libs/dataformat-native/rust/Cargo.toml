@@ -23,11 +23,13 @@ parquet = "57.3.0"
 
 # DataFusion
 datafusion = "52.1.0"
+datafusion-functions-aggregate = "52.1.0"
 datafusion-expr = "52.1.0"
 datafusion-datasource = "52.1.0"
 datafusion-common = "52.1.0"
 datafusion-execution = "52.1.0"
 datafusion-physical-expr = "52.1.0"
+datafusion-physical-optimizer = "52.1.0"
 datafusion-substrait = "52.1.0"
 
 # Async

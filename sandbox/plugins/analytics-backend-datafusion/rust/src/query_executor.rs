@@ -90,9 +90,11 @@ pub async fn execute_query(
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
+        .with_physical_optimizer_rules(crate::local_executor::shard_physical_optimizer_rules())
         .build();
 
     let ctx = SessionContext::new_with_state(state);
+    crate::local_executor::register_approx_count_distinct_alias(&ctx);
 
     // Register table via ListingTable — all IO goes through object store
     let file_format = ParquetFormat::new();
@@ -146,3 +148,4 @@ pub async fn execute_query(
 
     Ok(Box::into_raw(Box::new(wrapped)) as i64)
 }
+
