@@ -205,6 +205,9 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
     let bool_tree = Arc::new(bool_tree);
     let num_tags = tags.len();
     let seed = _corpus.config.seed;
+    let cfg_max_parallelism = _corpus.config.max_collector_parallelism;
+    let cfg_batch_size = _corpus.config.batch_size;
+    let cfg_target_partitions = _corpus.config.target_partitions;
 
     let factory: EvaluatorFactory = {
         let per_leaf = per_leaf.clone();
@@ -241,13 +244,14 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
-                max_collector_parallelism: if num_tags > 1 {
-                    // Multi-collector tree: randomly pick 1 (sequential) or
-                    // up to 4 (parallel) to exercise PrecomputedLeafCache.
-                    [1, 1, 2, 4][seed as usize % 4]
-                } else {
-                    1
-                },
+                max_collector_parallelism: cfg_max_parallelism
+                    .unwrap_or(if num_tags > 1 {
+                        // Multi-collector tree: randomly pick 1 (sequential) or
+                        // up to 4 (parallel) to exercise PrecomputedLeafCache.
+                        [1, 1, 2, 4][seed as usize % 4]
+                    } else {
+                        1
+                    }),
                 pruning_predicates: Arc::clone(&pruning_predicates),
                 page_prune_metrics: Some(
                     crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(
@@ -268,14 +272,15 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: _corpus.config.target_partitions.max(1),
+        target_partitions: cfg_target_partitions.max(1),
         force_strategy,
         force_pushdown,
         pushdown_predicate: None,
         query_config: Arc::new({
             let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::default();
             // Vary batch_size to exercise the coalescer at different boundaries.
-            qc.batch_size = [128, 1024, 8192][seed as usize % 3];
+            qc.batch_size = cfg_batch_size
+                .unwrap_or([128, 1024, 8192][seed as usize % 3]);
             qc
         }),
         predicate_columns: collect_predicate_column_indices(&bool_tree),
@@ -803,6 +808,26 @@ async fn run_iteration_impl(
                     diff_info,
                 ));
             }
+        }
+    }
+    // Dispatch fuzz: verify classify_filter's decision is consistent
+    // with the evaluator paths. Tree-classified trees must NOT be
+    // accepted by execute_tree_single_collector (which guards on
+    // classify_filter internally). SingleCollector-classified trees
+    // that the harness can handle (AND(Collector, predicates...)) are
+    // already cross-checked above; bare Collectors and AND-of-only-
+    // Collectors are valid SingleCollector shapes that the harness
+    // doesn't implement, so we don't assert on those.
+    let classification = classify_filter(&tree.tree);
+    if classification == FilterClass::Tree {
+        let sc_result =
+            execute_tree_single_collector(corpus, loaded, tree, None).await;
+        if sc_result.is_some() {
+            return Err(format!(
+                "classify_filter returned Tree but execute_tree_single_collector \
+                 accepted the tree (should have returned None):\n  tree = {}\n",
+                format_tree(&tree.tree),
+            ));
         }
     }
     Ok(())

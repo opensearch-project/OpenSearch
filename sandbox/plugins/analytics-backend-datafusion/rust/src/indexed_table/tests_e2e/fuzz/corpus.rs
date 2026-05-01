@@ -82,8 +82,13 @@ pub(in crate::indexed_table::tests_e2e) fn build_corpus(config: FixtureConfig) -
         .map(|i| CellValue::Int32(Some(i as i32)))
         .collect();
     cells.push(doc_id_col);
-    for (_, kind) in &config.columns {
-        let col = gen_column_cells(&mut rng, *kind, config.num_rows, config.null_pct);
+    for (name, kind) in &config.columns {
+        let col_null_pct = config
+            .null_pct_overrides
+            .get(name)
+            .copied()
+            .unwrap_or(config.null_pct);
+        let col = gen_column_cells(&mut rng, *kind, config.num_rows, col_null_pct);
         cells.push(col);
     }
 

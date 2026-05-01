@@ -116,3 +116,42 @@ async fn fuzz_concurrency() {
     )
     .await;
 }
+
+/// batch_size=1: every row is its own batch. Stresses coalescer and
+/// mask-slicing at every row boundary — catches off-by-one bugs in
+/// `current_mask` indexing.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_batch_size_one() {
+    run_fuzz("fuzz_batch_size_one", 50, FixtureConfig::batch_size_one).await;
+}
+
+/// All-null columns: `brand` and `qty` are 100% null. Exercises page
+/// stats with absent min/max and `IS NULL` predicates that always
+/// return TRUE on those columns.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_all_null_columns() {
+    run_fuzz("fuzz_all_null_columns", 50, FixtureConfig::all_null_columns).await;
+}
+
+/// Empty-result stress: 0.1% collector density + single collector.
+/// Most trees produce zero matching rows, exercising short-circuit
+/// and empty-batch paths in the streaming pipeline.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_empty_result() {
+    run_fuzz("fuzz_empty_result", 50, FixtureConfig::empty_result).await;
+}
+
+/// Single row group: entire segment is one RG. No RG boundary
+/// transitions in the streaming loop.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_single_row_group() {
+    run_fuzz("fuzz_single_row_group", 50, FixtureConfig::single_row_group).await;
+}
+
+/// Always-parallel collectors: `max_collector_parallelism = 4` so
+/// `PrecomputedLeafCache` concurrent path is always exercised,
+/// regardless of seed.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_parallel_collectors() {
+    run_fuzz("fuzz_parallel_collectors", 50, FixtureConfig::parallel_collectors).await;
+}
