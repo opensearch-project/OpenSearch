@@ -83,11 +83,10 @@ public enum Transports {
 
     public static boolean assertDefaultThreadContext(ThreadContext threadContext) {
         final Map<String, String> requestHeaders = threadContext.getRequestHeadersOnly();
-        assert requestHeaders.isEmpty()
-            || Task.REQUEST_HEADERS.containsAll(requestHeaders.keySet()) : "expected empty context but was "
-                + requestHeaders
-                + " on "
-                + Thread.currentThread().getName();
+        assert requestHeaders.isEmpty() || Task.REQUEST_HEADERS.containsAll(requestHeaders.keySet()) : "expected empty context but was "
+            + requestHeaders
+            + " on "
+            + Thread.currentThread().getName();
         return true;
     }
 }
