@@ -108,7 +108,7 @@ public class IngestionSourceTests extends OpenSearchTestCase {
             .setErrorStrategy(DROP)
             .build();
         String expected =
-            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100, allActiveIngestion=false, pointerBasedLagUpdateInterval=10s, mapperType='DEFAULT', mapperSettings={}, warmupConfig=WarmupConfig[timeout=-1, lagThreshold=100]}";
+            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100, allActiveIngestion=false, pointerBasedLagUpdateInterval=10s, mapperType='DEFAULT', mapperSettings={}, warmupConfig=WarmupConfig[timeout=-1, lagThreshold=100], sourcePartitionStrategy='simple'}";
         assertEquals(expected, source.toString());
     }
 
@@ -273,5 +273,70 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         assertTrue(source.getWarmupConfig().isEnabled());
         assertEquals(TimeValue.timeValueMinutes(15), source.getWarmupConfig().timeout());
         assertEquals(200, source.getWarmupConfig().lagThreshold());
+    }
+
+    // ---- SourcePartitionStrategy enum tests ----
+
+    public void testSourcePartitionStrategyGetName() {
+        assertEquals("simple", IngestionSource.SourcePartitionStrategy.SIMPLE.getName());
+        assertEquals("modulo", IngestionSource.SourcePartitionStrategy.MODULO.getName());
+    }
+
+    public void testSourcePartitionStrategyToString() {
+        // toString() should match getName()
+        assertEquals("simple", IngestionSource.SourcePartitionStrategy.SIMPLE.toString());
+        assertEquals("modulo", IngestionSource.SourcePartitionStrategy.MODULO.toString());
+    }
+
+    public void testSourcePartitionStrategyFromString() {
+        assertEquals(IngestionSource.SourcePartitionStrategy.SIMPLE, IngestionSource.SourcePartitionStrategy.fromString("simple"));
+        assertEquals(IngestionSource.SourcePartitionStrategy.MODULO, IngestionSource.SourcePartitionStrategy.fromString("modulo"));
+    }
+
+    public void testSourcePartitionStrategyFromStringIsCaseInsensitive() {
+        assertEquals(IngestionSource.SourcePartitionStrategy.SIMPLE, IngestionSource.SourcePartitionStrategy.fromString("SIMPLE"));
+        assertEquals(IngestionSource.SourcePartitionStrategy.SIMPLE, IngestionSource.SourcePartitionStrategy.fromString("Simple"));
+        assertEquals(IngestionSource.SourcePartitionStrategy.MODULO, IngestionSource.SourcePartitionStrategy.fromString("MODULO"));
+        assertEquals(IngestionSource.SourcePartitionStrategy.MODULO, IngestionSource.SourcePartitionStrategy.fromString("Modulo"));
+    }
+
+    public void testSourcePartitionStrategyFromStringInvalid() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IngestionSource.SourcePartitionStrategy.fromString("unknown_strategy")
+        );
+        assertTrue(e.getMessage().contains("Unknown partition strategy"));
+    }
+
+    // ---- IngestionSource sourcePartitionStrategy field tests ----
+
+    public void testSourcePartitionStrategyDefault() {
+        // Default builder should produce SIMPLE strategy
+        IngestionSource source = new IngestionSource.Builder("type").build();
+        assertEquals(IngestionSource.SourcePartitionStrategy.SIMPLE, source.getSourcePartitionStrategy());
+    }
+
+    public void testSourcePartitionStrategySetAndGet() {
+        IngestionSource source = new IngestionSource.Builder("type").setSourcePartitionStrategy(
+            IngestionSource.SourcePartitionStrategy.MODULO
+        ).build();
+        assertEquals(IngestionSource.SourcePartitionStrategy.MODULO, source.getSourcePartitionStrategy());
+    }
+
+    public void testSourcePartitionStrategyAffectsEquals() {
+        IngestionSource simpleSource = new IngestionSource.Builder("type").setSourcePartitionStrategy(
+            IngestionSource.SourcePartitionStrategy.SIMPLE
+        ).build();
+        IngestionSource moduloSource = new IngestionSource.Builder("type").setSourcePartitionStrategy(
+            IngestionSource.SourcePartitionStrategy.MODULO
+        ).build();
+        assertNotEquals(simpleSource, moduloSource);
+        assertNotEquals(simpleSource.hashCode(), moduloSource.hashCode());
+
+        IngestionSource moduloSource2 = new IngestionSource.Builder("type").setSourcePartitionStrategy(
+            IngestionSource.SourcePartitionStrategy.MODULO
+        ).build();
+        assertEquals(moduloSource, moduloSource2);
+        assertEquals(moduloSource.hashCode(), moduloSource2.hashCode());
     }
 }
