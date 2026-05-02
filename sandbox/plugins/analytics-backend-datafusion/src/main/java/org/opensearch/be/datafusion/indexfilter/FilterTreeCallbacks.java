@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion.indexfilter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.be.datafusion.indexfilter.CollectorRegistry.CollectorHandle;
 
 import java.lang.foreign.MemorySegment;
@@ -80,7 +81,7 @@ public final class FilterTreeCallbacks {
                 reg.providers().releaseProvider(providerKey);
             }
         } catch (Throwable t) {
-            LOGGER.error("releaseProvider({}) failed", providerKey, t);
+            LOGGER.error(new ParameterizedMessage("releaseProvider({}) failed", providerKey), t);
         }
     }
 
@@ -97,7 +98,16 @@ public final class FilterTreeCallbacks {
             }
             return reg.providers().createCollector(providerKey, segmentOrd, minDoc, maxDoc);
         } catch (Throwable t) {
-            LOGGER.error("createCollector(providerKey={}, seg={}, [{}, {})) failed", providerKey, segmentOrd, minDoc, maxDoc, t);
+            LOGGER.error(
+                new ParameterizedMessage(
+                    "createCollector(providerKey={}, seg={}, [{}, {})) failed",
+                    providerKey,
+                    segmentOrd,
+                    minDoc,
+                    maxDoc
+                ),
+                t
+            );
             return -1;
         }
     }
@@ -123,7 +133,7 @@ public final class FilterTreeCallbacks {
             int n = handle.provider().collectDocs(handle.innerCollectorKey(), minDoc, maxDoc, view);
             return (n < 0) ? -1L : n;
         } catch (Throwable t) {
-            LOGGER.error("collectDocs(collectorKey={}, [{}, {})) failed", collectorKey, minDoc, maxDoc, t);
+            LOGGER.error(new ParameterizedMessage("collectDocs(collectorKey={}, [{}, {})) failed", collectorKey, minDoc, maxDoc), t);
             return -1L;
         }
     }
@@ -144,7 +154,7 @@ public final class FilterTreeCallbacks {
             handle.provider().releaseCollector(handle.innerCollectorKey());
             reg.collectors().unregisterCollector(collectorKey);
         } catch (Throwable t) {
-            LOGGER.error("releaseCollector({}) failed", collectorKey, t);
+            LOGGER.error(new ParameterizedMessage("releaseCollector({}) failed", collectorKey), t);
         }
     }
 }
