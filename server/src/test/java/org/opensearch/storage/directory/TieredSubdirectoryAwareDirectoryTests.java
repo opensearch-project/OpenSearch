@@ -14,15 +14,18 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.engine.dataformat.NativeFileRegistry;
-import org.opensearch.index.engine.dataformat.NativeFileRegistryFactory;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatStoreHandler;
+import org.opensearch.index.engine.dataformat.DataFormatStoreHandlerFactory;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.RemoteDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.SubdirectoryAwareDirectory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -53,8 +56,8 @@ import static org.mockito.Mockito.when;
  * through the full directory stack (FSDirectory → SubdirectoryAwareDirectory → TieredDirectory).
  *
  * <p>Format routing is verified via a real {@link StoreStrategyRegistry} built from a
- * {@link StoreStrategy} whose {@link NativeFileRegistryFactory} returns a Mockito-mocked
- * {@link NativeFileRegistry} — the mock verifies {@code onUploaded} / {@code onRemoved} /
+ * {@link StoreStrategy} whose {@link DataFormatStoreHandlerFactory} returns a Mockito-mocked
+ * {@link DataFormatStoreHandler} — the mock verifies {@code onUploaded} / {@code onRemoved} /
  * {@code close} calls. Lucene files skip the strategy lookup entirely.
  */
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
@@ -68,6 +71,22 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
 
     private static final byte[] TEST_DATA = "hello-tiered".getBytes(StandardCharsets.UTF_8);
     private static final byte[] PARQUET_DATA = "parquet-payload".getBytes(StandardCharsets.UTF_8);
+    private static final DataFormat PARQUET_FORMAT = new DataFormat() {
+        @Override
+        public String name() {
+            return "parquet";
+        }
+
+        @Override
+        public long priority() {
+            return 2;
+        }
+
+        @Override
+        public java.util.Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities> supportedFields() {
+            return java.util.Set.of();
+        }
+    };
 
     @Before
     public void setup() throws IOException {
@@ -126,17 +145,17 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
      * verify calls routed to the registry.
      */
     private WithRegistry buildDirectoryWithParquetFormat() {
-        return buildDirectoryWithParquetFormat(mock(NativeFileRegistry.class));
+        return buildDirectoryWithParquetFormat(mock(DataFormatStoreHandler.class));
     }
 
-    private WithRegistry buildDirectoryWithParquetFormat(NativeFileRegistry nativeRegistry) {
-        NativeFileRegistryFactory factory = (sid, warm, repo) -> nativeRegistry;
+    private WithRegistry buildDirectoryWithParquetFormat(DataFormatStoreHandler nativeRegistry) {
+        DataFormatStoreHandlerFactory factory = (sid, warm, repo) -> nativeRegistry;
         StoreStrategy parquet = new TestParquetStrategy(factory);
         StoreStrategyRegistry registry = StoreStrategyRegistry.open(
-            shardPath.getShardId(),
+            shardPath,
             true,
             NativeStoreRepository.EMPTY,
-            Map.of("parquet", parquet),
+            Map.of(PARQUET_FORMAT, parquet),
             remoteSegmentStoreDirectory
         );
         TieredSubdirectoryAwareDirectory dir = new TieredSubdirectoryAwareDirectory(
@@ -156,6 +175,30 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
         Path fullPath = shardPath.getDataPath().resolve(relativePath);
         Files.createDirectories(fullPath.getParent());
         Files.write(fullPath, PARQUET_DATA);
+    }
+
+    /**
+     * Directly adds a parquet file entry to the remote metadata map.
+     * Parquet files don't have Lucene codec footers, so we can't use copyFrom.
+     * In production, the upload path adds entries via a separate mechanism.
+     */
+    @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "test needs reflection to inject parquet metadata without full upload pipeline")
+    private void addParquetMetadataEntry(String localFilename, String uploadedFilename) {
+        try {
+            java.lang.reflect.Field field = RemoteSegmentStoreDirectory.class.getDeclaredField("segmentsUploadedToRemoteStore");
+            field.setAccessible(true);
+            java.util.concurrent.ConcurrentHashMap<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> map =
+                (java.util.concurrent.ConcurrentHashMap<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata>) field.get(
+                    remoteSegmentStoreDirectory
+                );
+            RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(
+                localFilename + "::" + uploadedFilename + "::checksum123::100::" + org.apache.lucene.util.Version.LATEST.major
+            );
+            map.put(localFilename, metadata);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add parquet metadata entry", e);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -318,7 +361,8 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
         WithRegistry w = buildDirectoryWithParquetFormat();
         try {
             w.directory.deleteFile("parquet/seg_del.parquet");
-            verify(w.nativeRegistry).onRemoved("parquet/seg_del.parquet");
+            String expectedDelKey = shardPath.getDataPath().resolve("parquet/seg_del.parquet").toString();
+            verify(w.storeHandler).onRemoved(expectedDelKey);
         } finally {
             w.directory.close();
         }
@@ -350,13 +394,16 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
         }
     }
 
-    public void testAfterSyncToRemoteFormatFileRoutesToNativeRegistry() {
+    public void testAfterSyncToRemoteFormatFileRoutesToNativeRegistry() throws IOException {
         WithRegistry w = buildDirectoryWithParquetFormat();
         String parquetFile = "parquet/seg_sync.parquet";
+        addParquetMetadataEntry(parquetFile, "seg_sync.parquet__UUID1");
         w.directory.afterSyncToRemote(parquetFile);
-        verify(w.nativeRegistry).onUploaded(
-            org.mockito.ArgumentMatchers.eq(parquetFile),
-            org.mockito.ArgumentMatchers.any()
+        String expectedUploadKey = shardPath.getDataPath().resolve(parquetFile).toString();
+        verify(w.storeHandler).onUploaded(
+            org.mockito.ArgumentMatchers.eq(expectedUploadKey),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyLong()
         );
     }
 
@@ -364,8 +411,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
         directory = buildDirectoryWithParquetFormat().directory;
         try {
             String parquetFile = "parquet/seg_nosync.parquet";
-            writeParquetFileToDisk(parquetFile);
-            // Delegates to the native registry (even if the file isn't tracked).
+            addParquetMetadataEntry(parquetFile, "seg_nosync.parquet__UUID2");
             directory.afterSyncToRemote(parquetFile);
         } finally {
             directory.close();
@@ -433,7 +479,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     public void testCloseClosesNativeRegistryAndTieredDirectory() throws IOException {
         WithRegistry w = buildDirectoryWithParquetFormat();
         w.directory.close();
-        verify(w.nativeRegistry).close();
+        verify(w.storeHandler).close();
     }
 
     public void testCloseDoesNotDoubleCloseSharedSubdirectoryAwareDirectory() throws IOException {
@@ -453,14 +499,14 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     // ═══════════════════════════════════════════════════════════════
 
     public void testConstructorFailureClosesStrategyRegistry() throws IOException {
-        NativeFileRegistry nativeRegistry = mock(NativeFileRegistry.class);
-        NativeFileRegistryFactory factory = (sid, warm, repo) -> nativeRegistry;
+        DataFormatStoreHandler nativeRegistry = mock(DataFormatStoreHandler.class);
+        DataFormatStoreHandlerFactory factory = (sid, warm, repo) -> nativeRegistry;
         StoreStrategy parquet = new TestParquetStrategy(factory);
         StoreStrategyRegistry registry = StoreStrategyRegistry.open(
-            shardPath.getShardId(),
+            shardPath,
             true,
             NativeStoreRepository.EMPTY,
-            Map.of("parquet", parquet),
+            Map.of(PARQUET_FORMAT, parquet),
             remoteSegmentStoreDirectory
         );
 
@@ -489,7 +535,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     // ═══════════════════════════════════════════════════════════════
 
     public void testCloseWithThrowingNativeRegistryStillClosesTieredDirectory() throws IOException {
-        NativeFileRegistry throwingRegistry = mock(NativeFileRegistry.class);
+        DataFormatStoreHandler throwingRegistry = mock(DataFormatStoreHandler.class);
         org.mockito.Mockito.doThrow(new IOException("native close failed")).when(throwingRegistry).close();
 
         WithRegistry w = buildDirectoryWithParquetFormat(throwingRegistry);
@@ -503,7 +549,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
         directory = buildDirectoryWithParquetFormat().directory;
         try {
             String parquetFile = "parquet/seg_noop.parquet";
-            writeParquetFileToDisk(parquetFile);
+            addParquetMetadataEntry(parquetFile, "seg_noop.parquet__UUID3");
             // Delegates to the native registry — must NOT fall through to tieredDirectory.
             directory.afterSyncToRemote(parquetFile);
         } finally {
@@ -580,25 +626,108 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
 
     /** Minimal test strategy for "parquet" wiring. */
     private static final class TestParquetStrategy implements StoreStrategy {
-        private final NativeFileRegistryFactory factory;
+        private final DataFormatStoreHandlerFactory factory;
 
-        TestParquetStrategy(NativeFileRegistryFactory factory) {
+        TestParquetStrategy(DataFormatStoreHandlerFactory factory) {
             this.factory = factory;
         }
 
         @Override
-        public Optional<NativeFileRegistryFactory> nativeFileRegistry() {
+        public Optional<DataFormatStoreHandlerFactory> storeHandler() {
             return Optional.of(factory);
         }
     }
 
     private static final class WithRegistry {
         final TieredSubdirectoryAwareDirectory directory;
-        final NativeFileRegistry nativeRegistry;
+        final DataFormatStoreHandler storeHandler;
 
-        WithRegistry(TieredSubdirectoryAwareDirectory directory, NativeFileRegistry nativeRegistry) {
+        WithRegistry(TieredSubdirectoryAwareDirectory directory, DataFormatStoreHandler storeHandler) {
             this.directory = directory;
-            this.nativeRegistry = nativeRegistry;
+            this.storeHandler = storeHandler;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // sync() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testSyncIsNoOp() throws IOException {
+        directory = buildDirectoryNoFormats();
+        try {
+            // sync should not throw even with non-existent files — it's a no-op on warm
+            directory.sync(java.util.List.of("_0.cfe", "parquet/seg_0.parquet", "nonexistent.file"));
+        } finally {
+            directory.close();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // rename() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testRenameLuceneFileDelegatesToTieredDirectory() throws IOException {
+        directory = buildDirectoryNoFormats();
+        try {
+            // Write a file, then rename it (simulates Lucene commit: pending_segments → segments)
+            try (IndexOutput out = directory.createOutput("pending_segments_1", IOContext.DEFAULT)) {
+                out.writeBytes(TEST_DATA, TEST_DATA.length);
+            }
+            directory.rename("pending_segments_1", "segments_1");
+            // Original gone, new name exists
+            assertTrue(Arrays.asList(directory.listAll()).contains("segments_1"));
+        } finally {
+            directory.close();
+        }
+    }
+
+    public void testRenameFormatFileThrowsIllegalState() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        try {
+            IllegalStateException ex = expectThrows(
+                IllegalStateException.class,
+                () -> w.directory.rename("parquet/seg_0.parquet", "parquet/seg_1.parquet")
+            );
+            assertTrue(ex.getMessage().contains("parquet/seg_0.parquet"));
+            assertTrue(ex.getMessage().contains("write-once"));
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // listAll() tests
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testListAllIncludesLuceneFiles() throws IOException {
+        directory = buildDirectoryNoFormats();
+        populateData();
+        try {
+            String[] files = directory.listAll();
+            // Should contain Lucene files from remote metadata (populated in setup)
+            assertTrue("Should contain _0.si", Arrays.asList(files).contains("_0.si"));
+        } finally {
+            directory.close();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // afterSyncToRemote() — null blobKey test
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testAfterSyncToRemoteThrowsWhenBlobKeyNull() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        try {
+            // "parquet/unknown.parquet" is a format file but has no remote metadata entry
+            // → getExistingRemoteFilename returns null → should throw
+            IllegalStateException ex = expectThrows(
+                IllegalStateException.class,
+                () -> w.directory.afterSyncToRemote("parquet/unknown.parquet")
+            );
+            assertTrue(ex.getMessage().contains("parquet/unknown.parquet"));
+            assertTrue(ex.getMessage().contains("no remote filename"));
+        } finally {
+            w.directory.close();
         }
     }
 }

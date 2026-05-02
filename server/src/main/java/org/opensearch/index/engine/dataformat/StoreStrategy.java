@@ -24,7 +24,7 @@ import java.util.Optional;
  * <ul>
  *   <li>{@link #owns} — which files in the directory belong to this format</li>
  *   <li>{@link #remotePath} — how the format lays out blobs on the remote store</li>
- *   <li>optionally, {@link #nativeFileRegistry()} for formats with a native reader</li>
+ *   <li>optionally, {@link #storeHandler()} for formats with a native reader</li>
  * </ul>
  *
  * <p>All cross-cutting work (per-shard lifecycle, seeding from remote metadata,
@@ -83,7 +83,7 @@ public interface StoreStrategy {
      * registry. Formats without a native reader return
      * {@link Optional#empty()}.
      */
-    default Optional<NativeFileRegistryFactory> nativeFileRegistry() {
+    default Optional<DataFormatStoreHandlerFactory> storeHandler() {
         return Optional.empty();
     }
 }

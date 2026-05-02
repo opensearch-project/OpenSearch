@@ -13,9 +13,9 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.repositories.NativeStoreRepository;
 
 /**
- * Per-format factory that produces a {@link NativeFileRegistry} for a shard.
+ * Per-format factory that produces a {@link DataFormatStoreHandler} for a shard.
  *
- * <p>Returned by {@link StoreStrategy#nativeFileRegistry()} for formats that
+ * <p>Returned by {@link StoreStrategy#storeHandler()} for formats that
  * need native file tracking (e.g. parquet with a Rust reader). The store
  * layer invokes {@link #create} once per shard.
  *
@@ -23,16 +23,16 @@ import org.opensearch.repositories.NativeStoreRepository;
  */
 @ExperimentalApi
 @FunctionalInterface
-public interface NativeFileRegistryFactory {
+public interface DataFormatStoreHandlerFactory {
 
     /**
-     * Creates a per-shard native file registry.
+     * Creates a per-shard store handler.
      *
      * @param shardId the shard id
      * @param isWarm  true if the shard is on a warm node
      * @param repo    the native remote store repository, or {@link NativeStoreRepository#EMPTY}
      *                when no native store is available
-     * @return a live registry; the caller owns it and must close it
+     * @return a live handler; the caller owns it and must close it
      */
-    NativeFileRegistry create(ShardId shardId, boolean isWarm, NativeStoreRepository repo);
+    DataFormatStoreHandler create(ShardId shardId, boolean isWarm, NativeStoreRepository repo);
 }

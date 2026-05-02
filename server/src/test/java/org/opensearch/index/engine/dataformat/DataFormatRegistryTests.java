@@ -325,7 +325,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        Map<String, StoreStrategy> result = registry.getStoreStrategies(indexSettings);
+        Map<DataFormat, StoreStrategy> result = registry.getStoreStrategies(indexSettings);
         assertTrue("Should return empty map when no pluggable_dataformat setting", result.isEmpty());
     }
 
@@ -349,7 +349,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         // MockDataFormatPlugin does not override getStoreStrategies, so the default returns
         // an empty map.
-        Map<String, StoreStrategy> result = registry.getStoreStrategies(settingsWithFormat);
+        Map<DataFormat, StoreStrategy> result = registry.getStoreStrategies(settingsWithFormat);
         assertTrue("Should return empty map when plugin provides no strategy", result.isEmpty());
     }
 
@@ -371,7 +371,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
             .build();
         IndexSettings settingsWithFormat = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
 
-        Map<String, StoreStrategy> result = registry.getStoreStrategies(settingsWithFormat);
+        Map<DataFormat, StoreStrategy> result = registry.getStoreStrategies(settingsWithFormat);
         assertTrue("Should return empty map when format name not registered", result.isEmpty());
     }
 

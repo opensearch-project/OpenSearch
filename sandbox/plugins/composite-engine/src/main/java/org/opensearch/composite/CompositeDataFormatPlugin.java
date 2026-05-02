@@ -131,12 +131,12 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * to the sub-plugin without re-entering this composite.
      */
     @Override
-    public Map<String, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         Settings settings = indexSettings.getSettings();
         String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
         List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
 
-        Map<String, StoreStrategy> strategies = new HashMap<>();
+        Map<DataFormat, StoreStrategy> strategies = new HashMap<>();
         if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
             strategies.putAll(dataFormatRegistry.getStoreStrategies(indexSettings, dataFormatRegistry.format(primaryFormatName)));
         }

@@ -165,14 +165,14 @@ public class DataFormatRegistry {
      *         pluggable data format is configured or the configured format
      *         does not participate in the tiered store
      */
-    public Map<String, StoreStrategy> getStoreStrategies(IndexSettings indexSettings) {
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings) {
         String dataformatName = indexSettings.pluggableDataFormat();
         if (dataformatName != null && dataformatName.isEmpty() == false) {
             DataFormat format = dataFormats.get(dataformatName);
             if (format != null) {
                 DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
                 if (plugin != null) {
-                    Map<String, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+                    Map<DataFormat, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
                     return strategies == null ? Map.of() : Map.copyOf(strategies);
                 }
             }
@@ -187,14 +187,14 @@ public class DataFormatRegistry {
      *
      * @param indexSettings the index settings
      * @param dataFormat    the specific data format to get strategies for
-     * @return map of format name to strategy, or empty map if the format is not registered
+     * @return map of data format to strategy, or empty map if the format is not registered
      */
-    public Map<String, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormat dataFormat) {
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormat dataFormat) {
         DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
         if (plugin == null) {
             return Map.of();
         }
-        Map<String, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+        Map<DataFormat, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
         return strategies == null ? Map.of() : strategies;
     }
 

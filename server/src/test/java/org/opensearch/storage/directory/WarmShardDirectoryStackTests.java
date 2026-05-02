@@ -20,8 +20,9 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.NativeFileRegistry;
-import org.opensearch.index.engine.dataformat.NativeFileRegistryFactory;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatStoreHandler;
+import org.opensearch.index.engine.dataformat.DataFormatStoreHandlerFactory;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
@@ -61,6 +62,23 @@ import static org.mockito.Mockito.when;
  * operations flow through the correct layers.
  */
 public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
+
+    private static final DataFormat PARQUET_FORMAT = new DataFormat() {
+        @Override
+        public String name() {
+            return "parquet";
+        }
+
+        @Override
+        public long priority() {
+            return 2;
+        }
+
+        @Override
+        public java.util.Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities> supportedFields() {
+            return java.util.Set.of();
+        }
+    };
 
     private Path tempDir;
     private ShardPath shardPath;
@@ -158,20 +176,20 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
 
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir(shardPath.getShardId());
 
-        NativeFileRegistry nativeRegistry = mock(NativeFileRegistry.class);
-        NativeFileRegistryFactory factory = (sid, isWarm, repo) -> nativeRegistry;
+        DataFormatStoreHandler nativeRegistry = mock(DataFormatStoreHandler.class);
+        DataFormatStoreHandlerFactory factory = (sid, isWarm, repo) -> nativeRegistry;
         StoreStrategy parquet = new StoreStrategy() {
             @Override
-            public Optional<NativeFileRegistryFactory> nativeFileRegistry() {
+            public Optional<DataFormatStoreHandlerFactory> storeHandler() {
                 return Optional.of(factory);
             }
         };
 
         StoreStrategyRegistry registry = StoreStrategyRegistry.open(
-            shardPath.getShardId(),
+            shardPath,
             true,
             NativeStoreRepository.EMPTY,
-            Map.of("parquet", parquet),
+            Map.of(PARQUET_FORMAT, parquet),
             remoteDir
         );
 

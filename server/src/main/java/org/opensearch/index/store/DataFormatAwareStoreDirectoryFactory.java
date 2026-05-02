@@ -11,6 +11,7 @@ package org.opensearch.index.store;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -85,7 +86,7 @@ public interface DataFormatAwareStoreDirectoryFactory {
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
         Map<String, FormatChecksumStrategy> checksumStrategies,
-        Map<String, StoreStrategy> storeStrategies,
+        Map<DataFormat, StoreStrategy> storeStrategies,
         NativeStoreRepository nativeStore,
         boolean isWarm,
         RemoteSegmentStoreDirectory remoteDirectory,

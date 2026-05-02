@@ -15,6 +15,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
@@ -70,7 +71,7 @@ public class TieredDataFormatAwareStoreDirectoryFactory implements DataFormatAwa
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
         Map<String, FormatChecksumStrategy> checksumStrategies,
-        Map<String, StoreStrategy> storeStrategies,
+        Map<DataFormat, StoreStrategy> storeStrategies,
         NativeStoreRepository nativeStore,
         boolean isWarm,
         RemoteSegmentStoreDirectory remoteDirectory,
@@ -90,7 +91,7 @@ public class TieredDataFormatAwareStoreDirectoryFactory implements DataFormatAwa
         TieredSubdirectoryAwareDirectory tieredSubdir = null;
         boolean success = false;
         try {
-            strategies = StoreStrategyRegistry.open(shardId, isWarm, nativeStore, storeStrategies, remoteDirectory);
+            strategies = StoreStrategyRegistry.open(shardPath, isWarm, nativeStore, storeStrategies, remoteDirectory);
             tieredSubdir = new TieredSubdirectoryAwareDirectory(
                 subdirAware,
                 remoteDirectory,

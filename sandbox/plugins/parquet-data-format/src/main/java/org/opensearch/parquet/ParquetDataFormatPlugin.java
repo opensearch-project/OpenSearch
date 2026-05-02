@@ -120,8 +120,12 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
-    public Map<String, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry registry) {
-        return Map.of(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, storeStrategy);
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry registry) {
+        DataFormat parquetFormat = registry.format(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME);
+        if (parquetFormat == null) {
+            return Map.of();
+        }
+        return Map.of(parquetFormat, storeStrategy);
     }
 
     @Override

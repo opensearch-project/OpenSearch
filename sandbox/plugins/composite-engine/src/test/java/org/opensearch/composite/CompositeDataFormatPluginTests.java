@@ -99,7 +99,7 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         when(registry.format("parquet")).thenReturn(parquetFormat);
         when(registry.getStoreStrategies(indexSettings, parquetFormat)).thenReturn(Map.of());
 
-        Map<String, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
+        Map<DataFormat, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
         assertTrue("Should return empty when no sub-plugin found", result.isEmpty());
     }
 
@@ -112,11 +112,11 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         DataFormat parquetFormat = CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of());
         StoreStrategy parquetStrategy = mock(StoreStrategy.class);
         when(registry.format("parquet")).thenReturn(parquetFormat);
-        when(registry.getStoreStrategies(indexSettings, parquetFormat)).thenReturn(Map.of("parquet", parquetStrategy));
+        when(registry.getStoreStrategies(indexSettings, parquetFormat)).thenReturn(Map.of(parquetFormat, parquetStrategy));
 
-        Map<String, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
+        Map<DataFormat, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
         assertEquals(1, result.size());
-        assertSame(parquetStrategy, result.get("parquet"));
+        assertSame(parquetStrategy, result.get(parquetFormat));
     }
 
     public void testGetStoreStrategiesCollectsPrimaryAndSecondary() {
@@ -137,11 +137,11 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         when(registry.format("lucene")).thenReturn(luceneFormat);
         when(registry.format("parquet")).thenReturn(parquetFormat);
         when(registry.getStoreStrategies(indexSettings, luceneFormat)).thenReturn(Map.of());
-        when(registry.getStoreStrategies(indexSettings, parquetFormat)).thenReturn(Map.of("parquet", parquetStrategy));
+        when(registry.getStoreStrategies(indexSettings, parquetFormat)).thenReturn(Map.of(parquetFormat, parquetStrategy));
 
-        Map<String, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
+        Map<DataFormat, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
         assertEquals(1, result.size());
-        assertSame(parquetStrategy, result.get("parquet"));
+        assertSame(parquetStrategy, result.get(parquetFormat));
     }
 
     public void testGetStoreStrategiesEmptyForDefaultPrimaryWithoutPlugin() {
@@ -153,7 +153,7 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         when(registry.format("lucene")).thenReturn(luceneFormat);
         when(registry.getStoreStrategies(indexSettings, luceneFormat)).thenReturn(Map.of());
 
-        Map<String, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
+        Map<DataFormat, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
         assertTrue("Should return empty when lucene sub-plugin not found", result.isEmpty());
     }
 

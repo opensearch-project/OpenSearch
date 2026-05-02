@@ -78,6 +78,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
@@ -788,9 +789,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 && this.dataFormatAwareStoreDirectoryFactory != null) {
                 // Warm + format-aware: resolve per-shard store strategies and native store,
                 // then let the factory build the StoreStrategyRegistry and directory stack.
-                Map<String, StoreStrategy> storeStrategies = dataFormatRegistry.getStoreStrategies(
-                    this.indexSettings
-                );
+                Map<DataFormat, StoreStrategy> storeStrategies = dataFormatRegistry.getStoreStrategies(this.indexSettings);
                 NativeStoreRepository nativeStore = resolveNativeStore(repositoriesService);
                 directory = dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
                     this.indexSettings,

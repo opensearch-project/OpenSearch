@@ -77,9 +77,9 @@ public interface DataFormatPlugin {
      * @param indexSettings      the index settings
      * @param dataFormatRegistry the registry, used by composite plugins to resolve
      *                           sub-format plugins
-     * @return the strategies that apply, keyed by format name; never {@code null}
+     * @return the strategies that apply, keyed by data format; never {@code null}
      */
-    default Map<String, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    default Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         return Map.of();
     }
 }

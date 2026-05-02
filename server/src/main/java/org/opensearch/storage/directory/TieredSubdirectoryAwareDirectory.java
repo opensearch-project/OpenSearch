@@ -28,6 +28,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -83,7 +84,7 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
                 threadPool,
                 tieredStoragePrefetchSettingsSupplier
             );
-            logger.debug("Created TieredSubdirectoryAwareDirectory (hasNativeRegistries={})", this.strategies.hasNativeRegistries());
+            logger.debug("Created TieredSubdirectoryAwareDirectory (hasStoreHandlers={})", this.strategies.hasStoreHandlers());
             success = true;
         } finally {
             if (success == false) {
@@ -95,6 +96,9 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
         if (isFormatFile(name)) {
+            // TODO (writable warm): when LOCAL format files exist, add acquireRead/releaseRead
+            // ref counting. Pattern: acquireRead → localDirectory.openInput → wrap in
+            // RefCountedIndexInput → releaseRead on close. Currently all format files are REMOTE.
             return remoteDirectory.openInput(name, context);
         }
         return tieredDirectory.openInput(name, context);
@@ -103,6 +107,8 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
     @Override
     public long fileLength(String name) throws IOException {
         if (isFormatFile(name)) {
+            // TODO (writable warm): route LOCAL → localDirectory, REMOTE → remoteDirectory
+            // based on registry location. Currently all format files are REMOTE.
             return remoteDirectory.fileLength(name);
         }
         return tieredDirectory.fileLength(name);
@@ -137,10 +143,38 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
     public void afterSyncToRemote(String file) {
         if (isFormatFile(file)) {
             String blobKey = remoteDirectory.getExistingRemoteFilename(file);
-            strategies.onUploaded(file, remoteDirectory.getRemoteBasePath(), blobKey);
+            if (blobKey == null) {
+                throw new IllegalStateException(
+                    "afterSyncToRemote called for format file [" + file + "] but no remote filename found in metadata"
+                );
+            }
+            long size;
+            try {
+                size = remoteDirectory.fileLength(file);
+            } catch (IOException e) {
+                size = 0;
+            }
+            strategies.onUploaded(file, remoteDirectory.getRemoteBasePath(), blobKey, size);
             return;
         }
         tieredDirectory.afterSyncToRemote(file);
+    }
+
+    @Override
+    public void sync(Collection<String> names) {
+        // Skip — same as TieredDirectory (CompositeDirectory). On warm, files are
+        // either remote-only (format files) or cached from remote.
+        // No local writes to fsync. Writable warm will need to revisit this.
+    }
+
+    @Override
+    public void rename(String source, String dest) throws IOException {
+        // Rename is only called by Lucene's IndexWriter during commit
+        // (pending_segments_N → segments_N). Format files are never renamed.
+        if (isFormatFile(source)) {
+            throw new IllegalStateException("Rename not supported for format file [" + source + "]. Format files are write-once.");
+        }
+        tieredDirectory.rename(source, dest);
     }
 
     @Override
@@ -155,6 +189,11 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
      * registered {@link StoreStrategy}). Plain Lucene/metadata files — those
      * whose path resolves directly under the shard index directory — are not
      * format files and skip the strategy lookup.
+     *
+     * <p>The {@code shardPath.resolveIndex()} guard is a fast-path: files without
+     * a subdirectory component (e.g. {@code "_0.cfe"}) are always Lucene files.
+     * Only files under a subdirectory (e.g. {@code "parquet/seg_0.parquet"}) go
+     * through the strategy lookup via {@link StoreStrategyRegistry#matchFor}.
      */
     private boolean isFormatFile(String name) {
         if (shardPath.resolveIndex().resolve(name).getParent().equals(shardPath.resolveIndex())) {
@@ -162,9 +201,7 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
         }
         StoreStrategyRegistry.Match match = strategies.matchFor(name);
         if (match == null) {
-            throw new IllegalStateException(
-                "No StoreStrategy registered for file [" + name + "]. Ensure the format plugin is installed."
-            );
+            throw new IllegalStateException("No StoreStrategy registered for file [" + name + "]. Ensure the format plugin is installed.");
         }
         return true;
     }

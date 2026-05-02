@@ -8,7 +8,7 @@
 
 package org.opensearch.parquet.store;
 
-import org.opensearch.index.engine.dataformat.NativeFileRegistryFactory;
+import org.opensearch.index.engine.dataformat.DataFormatStoreHandlerFactory;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 
 import java.util.Optional;
@@ -27,10 +27,10 @@ import java.util.Optional;
  */
 public final class ParquetStoreStrategy implements StoreStrategy {
 
-    private static final NativeFileRegistryFactory FACTORY = ParquetNativeFileRegistry::new;
+    private static final DataFormatStoreHandlerFactory FACTORY = ParquetDataFormatStoreHandler::new;
 
     @Override
-    public Optional<NativeFileRegistryFactory> nativeFileRegistry() {
+    public Optional<DataFormatStoreHandlerFactory> storeHandler() {
         return Optional.of(FACTORY);
     }
 }

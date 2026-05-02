@@ -10,7 +10,7 @@
 //! based on [`TieredStorageRegistry`] metadata.
 //!
 //! On every read, it checks the file registry:
-//! - **Remote** → delegates to the remote backend via the store in the entry
+//! - **Remote** → delegates to the store-level remote backend
 //! - **Local / Both / not registered** → falls through to the local store
 //!
 //! # Thread Safety
@@ -42,11 +42,12 @@ use crate::types::{FileLocation, TieredFileEntry};
 /// ObjectStore implementation that routes reads between local and remote
 /// stores based on [`TieredStorageRegistry`] metadata.
 ///
-/// File tracking is delegated to the registry. Remote stores are passed
-/// directly when registering files.
+/// Per-shard model: one remote store is set once via [`set_remote()`] and
+/// shared across all entries.
 pub struct TieredObjectStore {
     registry: Arc<TieredStorageRegistry>,
     local: Arc<dyn ObjectStore>,
+    remote: std::sync::OnceLock<Arc<dyn ObjectStore>>,
 }
 
 impl TieredObjectStore {
@@ -54,7 +55,11 @@ impl TieredObjectStore {
     #[must_use]
     pub fn new(registry: Arc<TieredStorageRegistry>, local: Arc<dyn ObjectStore>) -> Self {
         native_bridge_common::log_info!("TieredObjectStore: created");
-        Self { registry, local }
+        Self {
+            registry,
+            local,
+            remote: std::sync::OnceLock::new(),
+        }
     }
 
     /// Reference to the underlying registry.
@@ -63,52 +68,27 @@ impl TieredObjectStore {
         &self.registry
     }
 
-    /// Validate that Remote/Both locations have required remote metadata.
-    fn validate_remote_fields(
-        path: &str,
-        location: FileLocation,
-        remote_path: &Option<String>,
-        repo_key: &Option<String>,
-        store: &Option<Arc<dyn ObjectStore>>,
-    ) -> Result<(), crate::types::FileRegistryError> {
-        if matches!(location, FileLocation::Remote | FileLocation::Both) {
-            if remote_path.is_none() {
-                return Err(crate::types::FileRegistryError::InvalidRegistration {
-                    path: path.to_string(),
-                    reason: format!("remote_path required for location={}", location),
-                });
-            }
-            if repo_key.is_none() {
-                return Err(crate::types::FileRegistryError::InvalidRegistration {
-                    path: path.to_string(),
-                    reason: format!("repo_key required for location={}", location),
-                });
-            }
-            if store.is_none() {
-                return Err(crate::types::FileRegistryError::InvalidRegistration {
-                    path: path.to_string(),
-                    reason: format!("store required for location={}", location),
-                });
-            }
-        }
-        Ok(())
+    /// Set the remote store (once). Subsequent calls are ignored.
+    pub fn set_remote(&self, store: Arc<dyn ObjectStore>) {
+        self.remote.set(store).ok(); // ignore if already set
     }
 
     /// Register a file in the registry. For Remote/Both locations, the caller
-    /// must provide the resolved `store` directly.
+    /// must provide a `remote_path`.
     pub fn register_file(
         &self,
         path: &str,
         location: FileLocation,
         remote_path: Option<String>,
-        repo_key: Option<String>,
-        store: Option<Arc<dyn ObjectStore>>,
     ) -> Result<(), crate::types::FileRegistryError> {
-        Self::validate_remote_fields(path, location, &remote_path, &repo_key, &store)?;
+        if matches!(location, FileLocation::Remote) && remote_path.is_none() {
+            return Err(crate::types::FileRegistryError::InvalidRegistration {
+                path: path.to_string(),
+                reason: format!("remote_path required for location={}", location),
+            });
+        }
 
-        let remote_arc: Option<Arc<str>> = remote_path.map(Arc::from);
-
-        let entry = TieredFileEntry::new(location, remote_arc, repo_key, store, None);
+        let entry = TieredFileEntry::new(location, remote_path.map(Arc::from));
         self.registry.register(path, entry);
 
         native_bridge_common::log_debug!(
@@ -125,19 +105,19 @@ impl TieredObjectStore {
         path: &str,
         location: FileLocation,
         remote_path: Option<String>,
-        repo_key: Option<String>,
-        store: Option<Arc<dyn ObjectStore>>,
     ) -> Result<(), crate::types::FileRegistryError> {
-        Self::validate_remote_fields(path, location, &remote_path, &repo_key, &store)?;
+        if matches!(location, FileLocation::Remote) && remote_path.is_none() {
+            return Err(crate::types::FileRegistryError::InvalidRegistration {
+                path: path.to_string(),
+                reason: format!("remote_path required for location={}", location),
+            });
+        }
 
         let remote_arc: Option<Arc<str>> = remote_path.map(Arc::from);
-        let repo_arc: Option<Arc<str>> = repo_key.map(Arc::from);
 
         self.registry.update(path, move |e| {
             e.location = location;
             e.remote_path = remote_arc;
-            e.repo_key = repo_arc;
-            e.remote_store = store;
         });
 
         native_bridge_common::log_debug!(
@@ -152,16 +132,16 @@ impl TieredObjectStore {
     // TODO: Add schedule_eviction(path) and sweep() for deferred eviction lifecycle.
 
     // NOTE: The guard is intentionally dropped before I/O. The Arc<dyn ObjectStore>
-    // keeps the store alive independently. If eviction lifecycle is added in the future,
-    // this method should return the guard alongside the resolved path/store to pin the
-    // entry for the duration of the I/O operation.
+    // keeps the store alive independently. On writable warm, the guard must be held
+    // during I/O to prevent eviction race — resolve_remote should return the guard
+    // alongside the resolved path/store to pin the entry for the I/O duration.
     fn resolve_remote(&self, path: &str) -> Option<(Path, Arc<dyn ObjectStore>)> {
         let guard = self.registry.get(path)?;
         if guard.location() != FileLocation::Remote {
             return None;
         }
         let remote_path = guard.remote_path()?;
-        let store = Arc::clone(guard.remote_store()?);
+        let store = Arc::clone(self.remote.get()?); // use store-level remote
         let rp = Path::from(remote_path);
         drop(guard); // release before I/O — Arc keeps store alive
         Some((rp, store))
@@ -189,23 +169,23 @@ impl fmt::Display for TieredObjectStore {
 #[async_trait]
 impl ObjectStore for TieredObjectStore {
     /// Write to local store and register the file as [`FileLocation::Local`].
+    /// On writable warm, caller must pin the file to prevent eviction before
+    /// sync completes.
     async fn put_opts(
         &self,
         location: &Path,
         payload: PutPayload,
         opts: PutOptions,
     ) -> OsResult<PutResult> {
-        let size = payload.content_length() as u64;
         let result = self.local.put_opts(location, payload, opts).await?;
 
         let path_str = location.as_ref();
-        let entry = TieredFileEntry::new(FileLocation::Local, None, None, None, Some(size));
+        let entry = TieredFileEntry::new(FileLocation::Local, None);
         self.registry.register(path_str, entry);
 
         native_bridge_common::log_debug!(
-            "TieredObjectStore: put_opts registered LOCAL path='{}', size={}",
+            "TieredObjectStore: put_opts registered LOCAL path='{}'",
             path_str,
-            size
         );
         Ok(result)
     }
@@ -261,37 +241,45 @@ impl ObjectStore for TieredObjectStore {
         self.local.get_ranges(location, ranges).await
     }
 
-    /// Head: try local first, fall back to remote if not found locally.
+    /// Head: check registry first (cached size), then local, then remote.
+    /// Head: check registry for cached size first (no I/O), then route via resolve_remote.
     async fn head(&self, location: &Path) -> OsResult<ObjectMeta> {
         let path_str = location.as_ref();
 
-        match self.local.head(location).await {
-            Ok(meta) => return Ok(meta),
-            Err(object_store::Error::NotFound { .. }) => {}
-            Err(other) => return Err(other),
+        // Check registry for cached size — return immediately if available
+        if let Some(guard) = self.registry.get(path_str) {
+            let size = guard.size();
+            if size > 0 {
+                return Ok(ObjectMeta {
+                    location: location.clone(),
+                    last_modified: chrono::DateTime::<chrono::Utc>::default(),
+                    size,
+                    e_tag: None,
+                    version: None,
+                });
+            }
         }
 
+        // Size not cached — route via resolve_remote (REMOTE → remote store)
         if let Some((rp, store)) = self.resolve_remote(path_str) {
             return store.head(&rp).await;
         }
 
-        Err(object_store::Error::NotFound {
-            path: path_str.to_string(),
-            source: "TieredObjectStore: not found locally or in registry".into(),
-        })
+        // Not remote — try local
+        self.local.head(location).await
     }
 
     /// Delete: remove from registry only, NO local delete.
-    /// Local file deletion is handled by the Java layer (CompositeDirectory).
-    // TODO: Consider deferred removal (schedule + sweep) instead of force-remove
-    // when eviction lifecycle is added.
+    /// Local file deletion is handled by the Java layer
+    /// (TieredSubdirectoryAwareDirectory.deleteFile). Eviction (local copy
+    /// removal after sync) is a writable warm concern — not implemented.
     async fn delete(&self, location: &Path) -> OsResult<()> {
         let path_str = location.as_ref();
         self.registry.remove(path_str, true);
         Ok(())
     }
 
-    /// List: local entries first, then remote-only entries from registry.
+    /// List: local entries first, then remote-only entries from registry (deduplicated).
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, OsResult<ObjectMeta>> {
         let prefix_str = prefix.map(|p| p.as_ref().to_string()).unwrap_or_default();
         let registry = Arc::clone(&self.registry);
@@ -305,7 +293,7 @@ impl ObjectStore for TieredObjectStore {
                 Ok(ObjectMeta {
                     location: Path::from(path),
                     last_modified: chrono::DateTime::<chrono::Utc>::default(),
-                    size: size.unwrap_or(0),
+                    size,
                     e_tag: None,
                     version: None,
                 })
@@ -316,7 +304,7 @@ impl ObjectStore for TieredObjectStore {
         Box::pin(local_stream.chain(remote_stream))
     }
 
-    /// List with delimiter: local entries first, then merge remote-only entries.
+    /// List with delimiter: local entries first, then merge remote-only entries (deduplicated).
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> OsResult<ListResult> {
         let mut result = self.local.list_with_delimiter(prefix).await?;
 
@@ -333,7 +321,7 @@ impl ObjectStore for TieredObjectStore {
                 result.objects.push(ObjectMeta {
                     location: Path::from(path),
                     last_modified: chrono::DateTime::<chrono::Utc>::default(),
-                    size: size.unwrap_or(0),
+                    size,
                     e_tag: None,
                     version: None,
                 });
