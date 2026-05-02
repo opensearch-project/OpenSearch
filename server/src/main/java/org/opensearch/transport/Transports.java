@@ -37,6 +37,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.tasks.Task;
 
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * Utility class for transport
@@ -81,9 +82,12 @@ public enum Transports {
     }
 
     public static boolean assertDefaultThreadContext(ThreadContext threadContext) {
-        assert threadContext.getRequestHeadersOnly().isEmpty()
-            || threadContext.getRequestHeadersOnly().size() == 1 && threadContext.getRequestHeadersOnly().containsKey(Task.X_OPAQUE_ID)
-            : "expected empty context but was " + threadContext.getRequestHeadersOnly() + " on " + Thread.currentThread().getName();
+        final Map<String, String> requestHeaders = threadContext.getRequestHeadersOnly();
+        assert requestHeaders.isEmpty()
+            || Task.REQUEST_HEADERS.containsAll(requestHeaders.keySet()) : "expected empty context but was "
+                + requestHeaders
+                + " on "
+                + Thread.currentThread().getName();
         return true;
     }
 }
