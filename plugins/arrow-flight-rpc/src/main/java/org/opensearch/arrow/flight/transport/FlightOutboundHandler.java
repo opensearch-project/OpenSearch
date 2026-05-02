@@ -154,21 +154,19 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         try {
             VectorStreamOutput out;
             if (task.response() instanceof ArrowBatchResponse arrowResponse) {
-                // Native Arrow path: zero-copy transfer producer's vectors into shared root
-                VectorSchemaRoot sharedRoot = flightChannel.getRoot();
-                if (sharedRoot == null) {
-                    // Create shared root using the producer's allocator for same-allocator transfer.
-                    // This avoids an Arrow bug where cross-allocator transferOwnership of foreign-backed
-                    // buffers (from C data import) doesn't properly free the ArrowArray C struct.
-                    // The producer's allocator must be long-lived (not closed per-request).
-                    sharedRoot = VectorSchemaRoot.create(
+                // Native Arrow path: zero-copy transfer producer's vectors into stream root
+                VectorSchemaRoot streamRoot = flightChannel.getRoot();
+                if (streamRoot == null) {
+                    // Create stream root from the producer's allocator — same root required
+                    // for Arrow's AllocationManager associate check (see ArrowAllocatorProvider).
+                    streamRoot = VectorSchemaRoot.create(
                         arrowResponse.getRoot().getSchema(),
                         arrowResponse.getRoot().getFieldVectors().get(0).getAllocator()
                     );
                 }
-                arrowResponse.transferTo(sharedRoot);
-                arrowResponse.getRoot().close();  // release producer's buffers — safe, they've been moved
-                out = VectorStreamOutput.forNativeArrow(sharedRoot);
+                arrowResponse.transferTo(streamRoot);
+                arrowResponse.getRoot().close();
+                out = VectorStreamOutput.forNativeArrow(streamRoot);
             } else {
                 out = VectorStreamOutput.create(flightChannel.getAllocator(), flightChannel.getRoot());
                 task.response().writeTo(out);

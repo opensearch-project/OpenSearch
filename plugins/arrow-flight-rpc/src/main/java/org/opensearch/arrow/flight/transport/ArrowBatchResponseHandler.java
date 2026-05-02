@@ -20,6 +20,9 @@ import org.opensearch.transport.StreamTransportResponseHandler;
  */
 @ExperimentalApi
 public abstract class ArrowBatchResponseHandler<T extends ArrowBatchResponse> implements StreamTransportResponseHandler<T> {
+    /** Constructor. */
+    protected ArrowBatchResponseHandler() {}
+
     @Override
     public final boolean skipsDeserialization() {
         return true;

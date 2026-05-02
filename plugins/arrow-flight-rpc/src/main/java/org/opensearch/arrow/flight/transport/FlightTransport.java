@@ -16,7 +16,6 @@ import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.OSFlightClient;
 import org.apache.arrow.flight.OSFlightServer;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -54,8 +53,6 @@ import org.opensearch.transport.TransportKeepAlive;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -97,7 +94,7 @@ class FlightTransport extends TcpTransport {
     private final AtomicInteger nextExecutorIndex = new AtomicInteger(0);
 
     private final ThreadPool threadPool;
-    private RootAllocator rootAllocator;
+    private BufferAllocator rootAllocator;
     private BufferAllocator serverAllocator;
     private BufferAllocator clientAllocator;
 
@@ -146,7 +143,7 @@ class FlightTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            rootAllocator = AccessController.doPrivileged((PrivilegedAction<RootAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
+            rootAllocator = ArrowAllocatorProvider.newChildAllocator("flight", Long.MAX_VALUE);
             serverAllocator = rootAllocator.newChildAllocator("server", 0, rootAllocator.getLimit());
             clientAllocator = rootAllocator.newChildAllocator("client", 0, rootAllocator.getLimit());
             if (statsCollector != null) {

@@ -24,10 +24,10 @@ import java.nio.ByteBuffer;
  *
  * <p>Two factories, mirroring {@link VectorStreamOutput}:
  * <ul>
- *   <li>{@link #forByteSerialized} — reads bytes directly from the shared root. Used when the
+ *   <li>{@link #forByteSerialized} — reads bytes directly from the stream root. Used when the
  *       response is not an {@link ArrowBatchResponse}: {@code handler.read()} copies bytes into
  *       the response's Java fields, so no ownership transfer is needed.</li>
- *   <li>{@link #forNativeArrow} — zero-copy transfers the shared root's vectors into a
+ *   <li>{@link #forNativeArrow} — zero-copy transfers the stream root's vectors into a
  *       response-owned root before reading, so the returned {@link ArrowBatchResponse} is
  *       independent of the FlightStream lifecycle.</li>
  * </ul>
@@ -48,8 +48,8 @@ abstract class VectorStreamInput extends StreamInput {
     }
 
     /**
-     * Byte-serialized path: the shared root carries a single {@code VarBinary} column of chunked
-     * bytes written by {@link VectorStreamOutput.ByteSerialized}. Reads are over the shared root;
+     * Byte-serialized path: the stream root carries a single {@code VarBinary} column of chunked
+     * bytes written by {@link VectorStreamOutput.ByteSerialized}. Reads are over the stream root;
      * FlightStream retains ownership.
      */
     static VectorStreamInput forByteSerialized(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry) {
@@ -183,7 +183,7 @@ abstract class VectorStreamInput extends StreamInput {
         }
 
         /**
-         * No-op: the shared root belongs to {@link org.apache.arrow.flight.FlightStream}, which
+         * No-op: the stream root belongs to {@link org.apache.arrow.flight.FlightStream}, which
          * clears the vectors on the next {@code next()} and closes them on stream close.
          */
         @Override

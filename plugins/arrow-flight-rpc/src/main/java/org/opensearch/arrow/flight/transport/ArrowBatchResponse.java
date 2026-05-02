@@ -44,11 +44,18 @@ import java.io.IOException;
  * a {@link VectorStreamInput.NativeArrow} holding vectors transferred from the Flight stream.
  * The {@link #ArrowBatchResponse(StreamInput)} constructor claims ownership of those vectors.
  *
- * <p><b>Allocator guidelines:</b> The allocator for producer roots must outlive the gRPC
- * stream. gRPC's zero-copy write path retains buffer references beyond stream completion;
- * closing the allocator early causes memory accounting errors. Use the channel allocator
- * ({@code ArrowFlightChannel.from(channel).getAllocator()}) or a long-lived application
- * allocator.
+ * <p><b>Allocator rules:</b>
+ * <ul>
+ *   <li><b>Send side:</b> Use the channel allocator
+ *       ({@code ArrowFlightChannel.from(channel).getAllocator()}) or a child of
+ *       {@link ArrowAllocatorProvider}. All allocators must share the same root so
+ *       zero-copy transfers pass Arrow's {@code AllocationManager} associate check.</li>
+ *   <li><b>Receive side:</b> The framework transfers vectors from the Flight stream's
+ *       allocator into the response. The consumer can then transfer them into its own
+ *       allocator — which must also be a child of {@link ArrowAllocatorProvider}.</li>
+ *   <li>Allocators must outlive the gRPC stream — gRPC's zero-copy write path retains
+ *       buffer references beyond stream completion.</li>
+ * </ul>
  *
  * @opensearch.experimental
  */

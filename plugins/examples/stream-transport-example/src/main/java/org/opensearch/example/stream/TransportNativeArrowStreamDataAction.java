@@ -45,8 +45,8 @@ import java.util.List;
  *   <li>The producer root is closed by the framework after transfer — don't reuse it</li>
  * </ol>
  *
- * <p>The channel allocator must be used directly (not a per-request child allocator)
- * because gRPC's zero-copy write path retains buffer references beyond stream completion.
+ * <p>The channel allocator is a child of {@link org.opensearch.arrow.flight.transport.ArrowAllocatorProvider},
+ * ensuring all Arrow buffers share the same root for zero-copy transfers.
  */
 public class TransportNativeArrowStreamDataAction extends TransportAction<NativeArrowStreamDataRequest, NativeArrowStreamDataResponse> {
 
@@ -69,8 +69,7 @@ public class TransportNativeArrowStreamDataAction extends TransportAction<Native
     }
 
     private void handleStreamRequest(NativeArrowStreamDataRequest request, TransportChannel channel, Task task) throws IOException {
-        // Get the channel's allocator. Use this directly for producer roots to ensure
-        // same-allocator transfer (avoids Arrow's cross-allocator foreign buffer bug).
+        // Channel allocator shares the same root as the Flight transport (ArrowAllocatorProvider).
         BufferAllocator allocator = ArrowFlightChannel.from(channel).getAllocator();
 
         Schema schema = new Schema(
