@@ -56,6 +56,8 @@ import java.util.List;
  *   <li>{@code testSecondaryFailureEngineStaysOpen} — multi-format, secondary fails, cross-format data consistency verified</li>
  *   <li>{@code testIntermittentSecondaryFailures} — multi-format, 3 secondary failures, cross-format consistency verified</li>
  *   <li>{@code testPrimaryFailureInMultiFormatEngineStaysOpen} — multi-format, primary fails, engine stays open</li>
+ *   <li>{@code testBurstIOFailuresThenRecovery} — 5 consecutive I/O failures, engine recovers</li>
+ *   <li>{@code testIOFailureOnSecondaryMaintainsConsistency} — I/O failure on secondary, cross-format consistency verified</li>
  * </ul>
  * <p>
  * Cross-format consistency verification reads Lucene's DirectoryReader and filebacked files
@@ -261,6 +263,56 @@ public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
         DataFormatAwareEngine engine = getEngine();
         assertNotNull("engine should be healthy", engine.commitStats());
         assertTrue("seqNo should have advanced", engine.getSeqNoStats(-1).getMaxSeqNo() > seqBefore);
+    }
+
+    // --- I/O error simulation ---
+
+    /** Burst of I/O failures followed by recovery — engine survives and committed data is consistent. */
+    public void testBurstIOFailuresThenRecovery() {
+        createCompositeIndex("filebacked");
+        indexDocs(5);
+        flush();
+
+        // Burst: 5 consecutive failures
+        FileBackedDataFormatPlugin.setFailOnNextNDocs(5);
+        int failures = 0;
+        for (int i = 0; i < 5; i++) {
+            BulkItemResponse item = indexSingleDoc("io-fail-" + i);
+            if (item.isFailed()) failures++;
+        }
+        assertEquals("all 5 docs should fail during burst", 5, failures);
+        FileBackedDataFormatPlugin.clearFailure();
+
+        // Engine should recover — new indexing works
+        indexDocs(5);
+        flush();
+        DataFormatAwareEngine engine = getEngine();
+        assertNotNull("engine should be healthy after I/O burst", engine.commitStats());
+        assertTrue("seqNo should reflect all ops", engine.getSeqNoStats(-1).getMaxSeqNo() >= 14);
+    }
+
+    /** I/O failure on secondary in multi-format — engine stays open, cross-format consistency maintained. */
+    public void testIOFailureOnSecondaryMaintainsConsistency() throws Exception {
+        createCompositeIndex("lucene", "filebacked");
+        indexDocs(5);
+        flush();
+
+        // Fail 3 docs on secondary (simulates intermittent disk errors)
+        FileBackedDataFormatPlugin.setFailOnNextNDocs(3);
+        int failures = 0;
+        for (int i = 0; i < 3; i++) {
+            BulkItemResponse item = indexSingleDoc("io-sec-fail-" + i);
+            if (item.isFailed()) failures++;
+        }
+        assertEquals("all 3 should fail on secondary", 3, failures);
+        FileBackedDataFormatPlugin.clearFailure();
+
+        // Index more after recovery
+        indexDocs(5);
+        flush();
+
+        // Cross-format consistency
+        assertCrossFormatDataConsistency();
     }
 
     // --- Helpers ---

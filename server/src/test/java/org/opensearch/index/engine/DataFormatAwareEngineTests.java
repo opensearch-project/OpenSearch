@@ -2853,6 +2853,137 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     // ========================================================================================
+    // Tests: I/O errors and disk full simulation
+    // ========================================================================================
+
+    public void testIOExceptionDuringRefreshFailsEngine() throws IOException {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            for (int i = 0; i < 10; i++) {
+                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+            }
+
+            // Inject IOException on refresh
+            MockIndexingExecutionEngine mockExecEngine = getMockExecutionEngine(engine);
+            mockExecEngine.setRefreshFailure(() -> new IOException("disk full during refresh"));
+
+            // Refresh should fail the engine
+            try {
+                engine.refresh("test");
+            } catch (Exception e) {
+                // expected
+            }
+
+            // Engine should be failed
+            assertNotNull(
+                "engine should have failed from refresh IOException",
+                new FailableDataFormatAwareEngine(engine).getFailedEngine()
+            );
+            expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDoc("post-fail", null))));
+        } finally {
+            engine.close();
+        }
+    }
+
+    public void testIOExceptionDuringCommitFailsEngineOnCorruption() throws IOException {
+        Path translogPath = createTempDir();
+        FailingEngineResult fer = createDFAEngineWithFailingCommitter(store, translogPath);
+        DataFormatAwareEngine engine = fer.engine();
+        FailureInjectingCommitter failingCommitter = fer.committer();
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            for (int i = 0; i < 5; i++) {
+                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+            }
+
+            // Simulate disk full as CorruptIndexException during commit
+            failingCommitter.setCommitFailure(new org.apache.lucene.index.CorruptIndexException("No space left on device", "test"));
+
+            // Flush triggers commit which fails
+            expectThrows(FlushFailedEngineException.class, () -> engine.flush(false, true));
+
+            // Engine should be failed and store marked corrupted
+            assertNotNull("engine should have failed", new FailableDataFormatAwareEngine(engine).getFailedEngine());
+            assertTrue("store should be marked corrupted", store.isMarkedCorrupted());
+        } finally {
+            engine.close();
+        }
+    }
+
+    public void testIOExceptionDuringCommitEngineStaysOpenForNonCorruption() throws IOException {
+        Path translogPath = createTempDir();
+        FailingEngineResult fer = createDFAEngineWithFailingCommitter(store, translogPath);
+        DataFormatAwareEngine engine = fer.engine();
+        FailureInjectingCommitter failingCommitter = fer.committer();
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            for (int i = 0; i < 5; i++) {
+                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+            }
+
+            // Simulate disk full as plain IOException (not corruption)
+            failingCommitter.setCommitFailure(new IOException("No space left on device"));
+
+            // Flush fails but engine stays open (non-corruption)
+            expectThrows(FlushFailedEngineException.class, () -> engine.flush(false, true));
+
+            // Engine should still be open
+            assertNull(
+                "engine should not have failed for non-corruption IO error",
+                new FailableDataFormatAwareEngine(engine).getFailedEngine()
+            );
+            assertFalse("store should NOT be corrupted", store.isMarkedCorrupted());
+
+            // Clear failure and flush again — should succeed
+            failingCommitter.setCommitFailure(null);
+            engine.flush(false, true);
+        } finally {
+            engine.close();
+        }
+    }
+
+    public void testIOExceptionDuringWriteOnPrimaryEngineStaysOpen() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            for (int i = 0; i < 5; i++) {
+                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+            }
+
+            // Inject IOException (simulating disk full) on write
+            MockWriter writer = getPooledMockWriter(engine);
+            writer.setWriteResultSupplier(() -> new WriteResult.Failure(new IOException("No space left on device"), -1, -1, -1));
+
+            // Doc fails on primary — engine stays open
+            Engine.IndexResult result = engine.index(indexOp(createParsedDoc("5", null)));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+
+            // Engine still operational
+            writer.setWriteResultSupplier(null);
+            Engine.IndexResult result2 = engine.index(indexOp(createParsedDoc("6", null)));
+            assertThat(result2.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertNull("engine should not have failed", new FailableDataFormatAwareEngine(engine).getFailedEngine());
+        }
+    }
+
+    public void testIOExceptionDuringWriteOnReplicaFailsEngine() throws IOException {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            for (int i = 0; i < 3; i++) {
+                engine.index(replicaIndexOp(createParsedDoc(Integer.toString(i), null), i));
+            }
+
+            // Inject IOException on write
+            MockWriter writer = getPooledMockWriter(engine);
+            writer.setWriteResultSupplier(() -> new WriteResult.Failure(new IOException("No space left on device"), -1, -1, -1));
+
+            // Doc fails on replica — engine fails
+            expectThrows(AlreadyClosedException.class, () -> engine.index(replicaIndexOp(createParsedDoc("3", null), 3)));
+            assertNotNull("engine should have failed on replica", new FailableDataFormatAwareEngine(engine).getFailedEngine());
+        } finally {
+            engine.close();
+        }
+    }
+
+    // ========================================================================================
     // Test Helper — FailableDataFormatAwareEngine
     // ========================================================================================
 
