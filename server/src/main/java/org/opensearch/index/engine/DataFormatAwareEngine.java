@@ -1635,4 +1635,30 @@ public class DataFormatAwareEngine implements Indexer {
         }
     }
 
+    // -- Visible for testing --
+
+    /** Returns the writer pool. Visible for testing only. */
+    Iterable<Writer<?>> getWriterPool() {
+        return writerPool;
+    }
+
+    /** Returns whether the writer is registered in the pool. Visible for testing only. */
+    boolean isWriterRegistered(Writer<?> writer) {
+        return writerPool.isRegistered(writer);
+    }
+
+    /** Returns the indexing execution engine. Visible for testing only. */
+    IndexingExecutionEngine<?, ?> getIndexingExecutionEngine() {
+        return indexingExecutionEngine;
+    }
+
+    /** Returns the failed engine exception, or null. Visible for testing only. */
+    Exception getFailedEngine() {
+        return failedEngine.get();
+    }
+
+    /** Returns the store. Visible for testing only. */
+    Store getStore() {
+        return store;
+    }
 }

@@ -17,7 +17,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.SetOnce;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.uid.Versions;
@@ -1960,19 +1959,11 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      * Returns the first MockWriter currently in the engine's writer pool via reflection.
      * The engine must have indexed at least one doc so a writer exists in the pool.
      */
-    @SuppressWarnings("unchecked")
     private MockWriter getPooledMockWriter(DataFormatAwareEngine engine) {
-        try {
-            java.lang.reflect.Field wpField = DataFormatAwareEngine.class.getDeclaredField("writerPool");
-            wpField.setAccessible(true);
-            Iterable<Writer<?>> pool = (Iterable<Writer<?>>) wpField.get(engine);
-            for (Writer<?> w : pool) {
-                if (w instanceof MockWriter mw) return mw;
-            }
-            throw new AssertionError("No MockWriter found in writer pool");
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
+        for (Writer<?> w : engine.getWriterPool()) {
+            if (w instanceof MockWriter mw) return mw;
         }
+        throw new AssertionError("No MockWriter found in writer pool");
     }
 
     // ========================================================================================
@@ -2355,15 +2346,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     // Tests: Refresh with tragic source (Task 41)
     // ========================================================================================
 
-    @SuppressWarnings("unchecked")
     private MockIndexingExecutionEngine getMockExecutionEngine(DataFormatAwareEngine engine) {
-        try {
-            java.lang.reflect.Field field = DataFormatAwareEngine.class.getDeclaredField("indexingExecutionEngine");
-            field.setAccessible(true);
-            return (MockIndexingExecutionEngine) field.get(engine);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
+        return (MockIndexingExecutionEngine) engine.getIndexingExecutionEngine();
     }
 
     public void testRefreshAlreadyClosedWithTragicSourceFailsEngine() throws IOException {
@@ -2480,10 +2464,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             // Store should be marked corrupted (maybeFailEngine → Lucene.isCorruptionException → failEngine → markStoreCorrupted)
             assertTrue("store should be marked corrupted", store.isMarkedCorrupted());
-
-            // Verify maybeFailEngine returns true for corruption (via reflection)
-            FailableDataFormatAwareEngine failable = new FailableDataFormatAwareEngine(engine);
-            assertTrue("maybeFailEngine should return true for corruption", failable.maybeFailEngine("flush-verify", corruption));
 
             // No further operations possible
             expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDoc("20", null))));
@@ -2984,6 +2964,51 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     // ========================================================================================
+    // Tests: OutOfMemoryError simulation
+    // ========================================================================================
+
+    public void testOutOfMemoryErrorDuringWritePropagates() throws IOException {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            engine.index(indexOp(createParsedDoc("1", null)));
+
+            MockWriter writer = getPooledMockWriter(engine);
+            writer.setWriteResultSupplier(() -> { throw new RuntimeException(new OutOfMemoryError("fake OOM")); });
+
+            // OOM wrapped in RuntimeException is caught and returned as failure result
+            Engine.IndexResult result = engine.index(indexOp(createParsedDoc("2", null)));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertTrue("cause should wrap OOM", result.getFailure().getCause() instanceof OutOfMemoryError);
+
+            // Engine stays open on primary
+            writer.setWriteResultSupplier(null);
+            assertThat(engine.index(indexOp(createParsedDoc("3", null))).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        } finally {
+            engine.close();
+        }
+    }
+
+    public void testOutOfMemoryErrorDuringFlushViaCommitter() throws IOException {
+        Path translogPath = createTempDir();
+        FailingEngineResult fer = createDFAEngineWithFailingCommitter(store, translogPath);
+        DataFormatAwareEngine engine = fer.engine();
+        FailureInjectingCommitter failingCommitter = fer.committer();
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            for (int i = 0; i < 5; i++) {
+                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+            }
+
+            failingCommitter.setCommitFailure(new IOException(new OutOfMemoryError("fake OOM during commit")));
+
+            FlushFailedEngineException ex = expectThrows(FlushFailedEngineException.class, () -> engine.flush(false, true));
+            assertTrue("root cause should be OOM", ex.getCause().getCause() instanceof OutOfMemoryError);
+        } finally {
+            engine.close();
+        }
+    }
+
+    // ========================================================================================
     // Test Helper — FailableDataFormatAwareEngine
     // ========================================================================================
 
@@ -2994,79 +3019,23 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      */
     static class FailableDataFormatAwareEngine implements java.io.Closeable {
         private final DataFormatAwareEngine engine;
-        private final java.lang.reflect.Method failOnTragicEventMethod;
-        private final java.lang.reflect.Method maybeFailEngineMethod;
-        private final java.lang.reflect.Field failedEngineField;
-        private final java.lang.reflect.Field storeField;
 
         FailableDataFormatAwareEngine(DataFormatAwareEngine engine) {
             this.engine = engine;
-            try {
-                failOnTragicEventMethod = DataFormatAwareEngine.class.getDeclaredMethod("failOnTragicEvent", AlreadyClosedException.class);
-                failOnTragicEventMethod.setAccessible(true);
-                maybeFailEngineMethod = DataFormatAwareEngine.class.getDeclaredMethod("maybeFailEngine", String.class, Exception.class);
-                maybeFailEngineMethod.setAccessible(true);
-                failedEngineField = DataFormatAwareEngine.class.getDeclaredField("failedEngine");
-                failedEngineField.setAccessible(true);
-                storeField = DataFormatAwareEngine.class.getDeclaredField("store");
-                storeField.setAccessible(true);
-            } catch (ReflectiveOperationException e) {
-                throw new AssertionError("Failed to access DataFormatAwareEngine internals", e);
-            }
         }
 
-        /** Delegates to the public {@code failEngine()} method. */
         void failEngine(String reason, Exception failure) {
             engine.failEngine(reason, failure);
         }
 
-        /** Invokes the private {@code failOnTragicEvent()} method. */
-        boolean failOnTragicEvent(AlreadyClosedException ex) {
-            try {
-                return (boolean) failOnTragicEventMethod.invoke(engine, ex);
-            } catch (java.lang.reflect.InvocationTargetException e) {
-                if (e.getCause() instanceof RuntimeException) throw (RuntimeException) e.getCause();
-                if (e.getCause() instanceof Error) throw (Error) e.getCause();
-                throw new AssertionError(e.getCause());
-            } catch (IllegalAccessException e) {
-                throw new AssertionError(e);
-            }
-        }
-
-        /** Invokes the private {@code maybeFailEngine()} method. */
-        boolean maybeFailEngine(String source, Exception e) {
-            try {
-                return (boolean) maybeFailEngineMethod.invoke(engine, source, e);
-            } catch (java.lang.reflect.InvocationTargetException ex) {
-                if (ex.getCause() instanceof RuntimeException) throw (RuntimeException) ex.getCause();
-                if (ex.getCause() instanceof Error) throw (Error) ex.getCause();
-                throw new AssertionError(ex.getCause());
-            } catch (IllegalAccessException ex) {
-                throw new AssertionError(ex);
-            }
-        }
-
-        /** Returns the failed engine exception, or {@code null} if the engine has not failed. */
-        @SuppressWarnings("unchecked")
         Exception getFailedEngine() {
-            try {
-                SetOnce<Exception> setOnce = (SetOnce<Exception>) failedEngineField.get(engine);
-                return setOnce.get();
-            } catch (IllegalAccessException e) {
-                throw new AssertionError(e);
-            }
+            return engine.getFailedEngine();
         }
 
-        /** Returns the engine's store for corruption assertions. */
         Store getStore() {
-            try {
-                return (Store) storeField.get(engine);
-            } catch (IllegalAccessException e) {
-                throw new AssertionError(e);
-            }
+            return engine.getStore();
         }
 
-        /** Returns the underlying engine for standard operations (index, refresh, flush, etc.). */
         DataFormatAwareEngine getEngine() {
             return engine;
         }

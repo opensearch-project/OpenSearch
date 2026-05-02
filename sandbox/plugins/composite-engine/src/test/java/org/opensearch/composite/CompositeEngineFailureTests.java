@@ -20,7 +20,6 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.common.queue.LockablePool;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -38,7 +37,6 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
-import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.stub.FileBackedFailableIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.FileBackedFailableWriter;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
@@ -77,17 +75,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests verifying file-level data consistency and writer pool lifecycle through
- * the full stack: DataFormatAwareEngine → CompositeIndexingExecutionEngine →
- * CompositeWriter → FileBackedFailableWriter.
+ * Unit tests verifying file-level data consistency through the full stack:
+ * DataFormatAwareEngine → CompositeIndexingExecutionEngine → CompositeWriter → FileBackedFailableWriter.
  * <p>
  * Tests:
  * <ul>
  *   <li>{@code testSuccessfulIndexProducesConsistentFiles} — both format files have N lines, cross-format match</li>
  *   <li>{@code testSecondaryFailureFlushesNMinus1AndClosesWriter} — flushed file has N-1 docs after rollback,
- *       CompositeWriter deregistered from pool, inner writer closed, fresh writer created</li>
- *   <li>{@code testPrimaryFailureWriterStaysOpenInPool} — writer NOT closed, CompositeWriter stays in pool</li>
- *   <li>{@code testAbortedWriterClosedNoFileOnDisk} — no file on disk (not flushed), CompositeWriter deregistered</li>
+ *       inner writer closed, fresh writer created for next doc</li>
+ *   <li>{@code testPrimaryFailureWriterStaysOpenInPool} — inner writer NOT closed, same writer reused</li>
+ *   <li>{@code testAbortedWriterClosedNoFileOnDisk} — inner writer closed, no file on disk (not flushed)</li>
  *   <li>{@code testIntermittentFailuresProduceConsistentFiles} — total rows across all files match successes,
  *       cross-format consistency across multiple writer generations</li>
  * </ul>
@@ -264,17 +261,6 @@ public class CompositeEngineFailureTests extends OpenSearchTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
-    private LockablePool<Writer<?>> getWriterPool(DataFormatAwareEngine engine) {
-        try {
-            java.lang.reflect.Field f = DataFormatAwareEngine.class.getDeclaredField("writerPool");
-            f.setAccessible(true);
-            return (LockablePool<Writer<?>>) f.get(engine);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
-    }
-
     // --- Tests ---
 
     public void testSuccessfulIndexProducesConsistentFiles() throws IOException {
@@ -303,10 +289,6 @@ public class CompositeEngineFailureTests extends OpenSearchTestCase {
             }
 
             FileBackedFailableWriter innerWriter = fbPrimary.getLastCreatedWriter();
-            LockablePool<Writer<?>> pool = getWriterPool(engine);
-            Writer<?> compositeWriter = null;
-            for (Writer<?> w : pool)
-                compositeWriter = w;
 
             fbSecondary.getLastCreatedWriter().writeResultSupplier = () -> new WriteResult.Failure(
                 new IOException("secondary failed"),
@@ -321,7 +303,6 @@ public class CompositeEngineFailureTests extends OpenSearchTestCase {
 
             // Writer closed and removed from pool
             assertTrue("inner writer closed", innerWriter.isClosed());
-            assertFalse("CompositeWriter removed from pool", pool.isRegistered(compositeWriter));
 
             // Flushed file has N-1 docs, cross-format consistent
             List<String> primary = FileBackedFailableIndexingExecutionEngine.readFlushedFile(innerWriter.getFilePath());
@@ -346,10 +327,6 @@ public class CompositeEngineFailureTests extends OpenSearchTestCase {
             }
 
             FileBackedFailableWriter innerWriter = fbPrimary.getLastCreatedWriter();
-            LockablePool<Writer<?>> pool = getWriterPool(engine);
-            Writer<?> compositeWriter = null;
-            for (Writer<?> w : pool)
-                compositeWriter = w;
 
             innerWriter.writeResultSupplier = () -> new WriteResult.Failure(new IOException("primary full"), -1, -1, -1);
 
@@ -359,7 +336,6 @@ public class CompositeEngineFailureTests extends OpenSearchTestCase {
 
             // Writer NOT closed, still in pool
             assertFalse("inner writer still open", innerWriter.isClosed());
-            assertTrue("CompositeWriter still in pool", pool.isRegistered(compositeWriter));
 
             innerWriter.writeResultSupplier = null;
             assertThat(engine.index(indexOp(doc("6"))).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -373,10 +349,6 @@ public class CompositeEngineFailureTests extends OpenSearchTestCase {
             }
 
             FileBackedFailableWriter innerWriter = fbPrimary.getLastCreatedWriter();
-            LockablePool<Writer<?>> pool = getWriterPool(engine);
-            Writer<?> compositeWriter = null;
-            for (Writer<?> w : pool)
-                compositeWriter = w;
 
             fbSecondary.getLastCreatedWriter().writeResultSupplier = () -> new WriteResult.Failure(
                 new IOException("secondary failed"),
@@ -391,7 +363,6 @@ public class CompositeEngineFailureTests extends OpenSearchTestCase {
             } catch (UnsupportedOperationException e) { /* expected */ }
 
             assertTrue("inner writer closed", innerWriter.isClosed());
-            assertFalse("CompositeWriter removed from pool", pool.isRegistered(compositeWriter));
             assertFalse("no file on disk (not flushed)", java.nio.file.Files.exists(innerWriter.getFilePath()));
 
             assertThat(engine.index(indexOp(doc("6"))).getResultType(), equalTo(Engine.Result.Type.SUCCESS));

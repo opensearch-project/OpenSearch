@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexResponse;
@@ -83,6 +84,12 @@ public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
     }
 
     @Override
+    public void setUp() throws Exception {
+        FileBackedDataFormatPlugin.clearFailure();
+        super.setUp();
+    }
+
+    @Override
     public void tearDown() throws Exception {
         FileBackedDataFormatPlugin.clearFailure();
         super.tearDown();
@@ -130,7 +137,7 @@ public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
                 } else {
                     failures++;
                 }
-            } catch (Exception e) {
+            } catch (OpenSearchException e) {
                 failures++;
             }
         }
@@ -221,7 +228,7 @@ public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
                 } else {
                     failures++;
                 }
-            } catch (Exception e) {
+            } catch (OpenSearchException e) {
                 failures++;
             }
         }

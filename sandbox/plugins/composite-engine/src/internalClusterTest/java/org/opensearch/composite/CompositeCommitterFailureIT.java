@@ -8,12 +8,14 @@
 
 package org.opensearch.composite;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.FlushFailedEngineException;
 import org.opensearch.index.engine.dataformat.stub.FileBackedDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
@@ -32,13 +34,14 @@ import java.util.function.Supplier;
 
 /**
  * IT for committer failure injection. Uses {@link FailureInjectingCommitterPlugin} which provides
- * an {@link InMemoryCommitter} with configurable commit failures.
+ * an {@link InMemoryCommitter} with configurable commit failures via static supplier.
  * <p>
  * Tests:
  * <ul>
- *   <li>{@code testCommitCorruptionFailsEngineAndMarksStore} — CorruptIndexException during commit</li>
- *   <li>{@code testCommitIOExceptionEngineStaysOpen} — plain IOException during commit, engine recovers</li>
- *   <li>{@code testCommitFailureThenRecovery} — commit fails, clear, flush succeeds</li>
+ *   <li>{@code testCommitCorruptionFailsEngine} — CorruptIndexException during commit fails the engine</li>
+ *   <li>{@code testCommitIOExceptionEngineStaysOpen} — plain IOException (disk full) during commit,
+ *       engine stays open, retry succeeds</li>
+ *   <li>{@code testCommitFailureThenRecovery} — commit fails, clear failure, new docs indexed and flushed</li>
  * </ul>
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
@@ -60,6 +63,13 @@ public class CompositeCommitterFailureIT extends OpenSearchIntegTestCase {
     }
 
     @Override
+    public void setUp() throws Exception {
+        FailureInjectingCommitterPlugin.clearFailure();
+        FileBackedDataFormatPlugin.clearFailure();
+        super.setUp();
+    }
+
+    @Override
     public void tearDown() throws Exception {
         FailureInjectingCommitterPlugin.clearFailure();
         FileBackedDataFormatPlugin.clearFailure();
@@ -77,19 +87,14 @@ public class CompositeCommitterFailureIT extends OpenSearchIntegTestCase {
 
         try {
             flush();
-        } catch (Exception e) {
-            // expected — FlushFailedEngineException
+        } catch (FlushFailedEngineException e) {
+            assertTrue("cause should be CorruptIndexException", e.getCause() instanceof org.apache.lucene.index.CorruptIndexException);
         }
 
         FailureInjectingCommitterPlugin.clearFailure();
 
         // Engine should be failed — subsequent ops throw
-        try {
-            indexDocs(1);
-            fail("expected exception after engine failure");
-        } catch (Exception e) {
-            // expected
-        }
+        expectThrows(Exception.class, () -> indexDocs(1));
     }
 
     /** Plain IOException during commit → engine stays open, retry succeeds. */
@@ -101,8 +106,8 @@ public class CompositeCommitterFailureIT extends OpenSearchIntegTestCase {
 
         try {
             flush();
-        } catch (Exception e) {
-            // expected — FlushFailedEngineException
+        } catch (FlushFailedEngineException e) {
+            assertTrue("cause should be IOException", e.getCause() instanceof IOException);
         }
 
         // Engine should still be open — verify by indexing
@@ -124,8 +129,8 @@ public class CompositeCommitterFailureIT extends OpenSearchIntegTestCase {
         FailureInjectingCommitterPlugin.setCommitFailure(() -> new IOException("disk full"));
         try {
             flush();
-        } catch (Exception e) {
-            // expected
+        } catch (OpenSearchException e) {
+            assertTrue("should contain IOException", e.getMessage().contains("disk full") || e.getCause() instanceof IOException);
         }
 
         FailureInjectingCommitterPlugin.clearFailure();
