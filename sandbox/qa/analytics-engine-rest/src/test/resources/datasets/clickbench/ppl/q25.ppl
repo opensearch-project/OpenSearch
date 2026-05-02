@@ -1,0 +1,1 @@
+source = clickbench | where SearchPhrase != '' | sort EventTime | fields SearchPhrase | head 10

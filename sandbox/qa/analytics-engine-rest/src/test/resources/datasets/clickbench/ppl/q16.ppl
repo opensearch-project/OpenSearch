@@ -1,0 +1,1 @@
+source = clickbench | stats count() by UserID | sort - `count()` | head 10
