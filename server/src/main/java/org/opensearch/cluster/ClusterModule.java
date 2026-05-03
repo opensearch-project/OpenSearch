@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.catalog.CatalogPublishesInProgress;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.index.NodeMappingRefreshAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
@@ -226,6 +227,12 @@ public class ClusterModule extends AbstractModule {
         );
 
         registerMetadataCustom(entries, WorkloadGroupMetadata.TYPE, WorkloadGroupMetadata::new, WorkloadGroupMetadata::readDiffFrom);
+        registerMetadataCustom(
+            entries,
+            CatalogPublishesInProgress.TYPE,
+            CatalogPublishesInProgress::new,
+            CatalogPublishesInProgress::readDiffFrom
+        );
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
@@ -336,6 +343,13 @@ public class ClusterModule extends AbstractModule {
                 Metadata.Custom.class,
                 new ParseField(WorkloadGroupMetadata.TYPE),
                 WorkloadGroupMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(CatalogPublishesInProgress.TYPE),
+                CatalogPublishesInProgress::fromXContent
             )
         );
         return entries;

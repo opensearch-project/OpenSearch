@@ -741,6 +741,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Node.CATALOG_REPOSITORY_TYPE_SETTING,
                 Node.CATALOG_REPOSITORY_SETTINGS,
                 Node.CATALOG_PUBLISH_TIMEOUT_SETTING,
+                Node.CATALOG_PUBLISH_RETRY_COUNT_SETTING,
+                Node.CATALOG_PUBLISH_BACKOFF_INTERVAL_SETTING,
+                Node.CATALOG_PUBLISH_MAX_CONCURRENT_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,

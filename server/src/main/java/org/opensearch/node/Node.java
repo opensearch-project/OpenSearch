@@ -467,6 +467,31 @@ public class Node implements Closeable {
         Property.NodeScope
     );
 
+    /** Max retries per phase-processor attempt before the entry is moved to {@code FAILED}. */
+    public static final Setting<Integer> CATALOG_PUBLISH_RETRY_COUNT_SETTING = Setting.intSetting(
+        "catalog.publish.retry_count",
+        5,
+        0,
+        20,
+        Property.NodeScope
+    );
+
+    /** Base interval for exponential backoff between retry attempts: {@code base × 2^retryCount}. */
+    public static final Setting<TimeValue> CATALOG_PUBLISH_BACKOFF_INTERVAL_SETTING = Setting.timeSetting(
+        "catalog.publish.backoff_interval",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
+
+    /** Soft cap on in-flight publishes; submits above this return 429. */
+    public static final Setting<Integer> CATALOG_PUBLISH_MAX_CONCURRENT_SETTING = Setting.intSetting(
+        "catalog.publish.max_concurrent_publishes",
+        10,
+        1,
+        Property.NodeScope
+    );
+
     public static final String CATALOG_REPOSITORY_NAME = "_catalog";
 
     private static final String CLIENT_TYPE = "node";
@@ -1464,8 +1489,14 @@ public class Node implements Closeable {
                 clusterService,
                 client,
                 catalogMetadataClient,
-                CATALOG_PUBLISH_TIMEOUT_SETTING.get(settings)
+                threadPool,
+                CATALOG_PUBLISH_TIMEOUT_SETTING.get(settings),
+                CATALOG_PUBLISH_RETRY_COUNT_SETTING.get(settings),
+                CATALOG_PUBLISH_BACKOFF_INTERVAL_SETTING.get(settings),
+                CATALOG_PUBLISH_MAX_CONCURRENT_SETTING.get(settings)
             );
+            clusterService.addListener(remoteCatalogService);
+            resourcesToClose.add(() -> clusterService.removeListener(remoteCatalogService));
             SnapshotsService snapshotsService = new SnapshotsService(
                 settings,
                 clusterService,
@@ -1813,6 +1844,15 @@ public class Node implements Closeable {
                 b.bind(MergedSegmentPublisher.class).asEagerSingleton();
 
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
+
+                // TransportPublishShardAction is injected lazily; a null provider is safe
+                // because no caller reaches it when the catalog is not configured.
+                if (catalogMetadataClient != null) {
+                    b.bind(CatalogMetadataClient.class).toInstance(catalogMetadataClient);
+                } else {
+                    b.bind(CatalogMetadataClient.class).toProvider(Providers.of(null));
+                }
+                b.bind(RemoteCatalogService.class).toInstance(remoteCatalogService);
             });
             injector = modules.createInjector();
 
