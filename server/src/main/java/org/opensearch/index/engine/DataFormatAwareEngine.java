@@ -581,7 +581,7 @@ public class DataFormatAwareEngine implements Indexer {
                 // Three cases for write failure:
                 // 1. Aborted: writer state inconsistent (rollback failed) — retire without flush
                 // 2. FlushAndCloseWriterException: rollback succeeded — flush N-1 consistent docs, then retire
-                // 3. Other: writer still usable — leave in pool
+                // 3. Other: primary engine failed, writer still usable — leave in pool
                 boolean retireWriter = currentWriter.isAborted() || f.cause() instanceof FlushAndCloseWriterException;
                 if (retireWriter) {
                     writerPool.checkout(currentWriter);
@@ -594,6 +594,7 @@ public class DataFormatAwareEngine implements Indexer {
                         currentWriter.unlock();
                         IOUtils.closeWhileHandlingException(currentWriter);
                     }
+                    assert writerPool.isRegistered(currentWriter) == false : "retired writer must not be in pool";
                 }
                 if (treatDocumentFailureAsTragicError(index)) {
                     failEngine("document failure on replica (id: " + index.id() + ")", f.cause());
