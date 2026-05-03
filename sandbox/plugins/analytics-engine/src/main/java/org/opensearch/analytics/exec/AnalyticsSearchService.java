@@ -8,7 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
-import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
@@ -18,6 +18,7 @@ import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -41,16 +42,11 @@ import java.util.Map;
  * <p>Does NOT hold {@code IndicesService} — receives an already-resolved
  * {@link IndexShard} from the transport action.
  *
- * <p>Owns a service-lifetime {@link RootAllocator} shared by every fragment —
- * both the row-path {@link #executeFragment} and the streaming
- * {@link #executeFragmentStreaming}. One allocator per service means memory
- * accounting is reported at the service level, and — because the allocator
- * outlives any single request — no per-request close-time leak check fires.
- * For the streaming path, Arrow Flight's outbound handler co-locates its
- * transfer target on this same allocator
- * (see {@code FlightOutboundHandler#processBatchTask}), keeping transfers
- * same-allocator and avoiding the known cross-allocator bug with
- * foreign-backed buffers from the C Data Interface.
+ * <p>Owns a service-lifetime {@link BufferAllocator} shared by every fragment, obtained as a child of the
+ * node-level root via {@link ArrowAllocatorProvider}. One allocator per service means memory accounting is
+ * reported at the service level. For the streaming path, Arrow Flight's outbound handler co-locates its
+ * transfer target on the same root (see {@code FlightOutboundHandler#processBatchTask}), keeping transfers
+ * same-root and avoiding the known cross-allocator bug with foreign-backed buffers from the C Data Interface.
  *
  * @opensearch.internal
  */
@@ -58,7 +54,7 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
-    private final RootAllocator allocator;
+    private final BufferAllocator allocator;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
         this(backends, List.of());
@@ -67,7 +63,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, List<AnalyticsOperationListener> listeners) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
-        this.allocator = new RootAllocator(Long.MAX_VALUE);
+        this.allocator = ArrowAllocatorProvider.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
     }
 
     @Override

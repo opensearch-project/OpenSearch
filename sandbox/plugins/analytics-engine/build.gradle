@@ -22,8 +22,7 @@ opensearchplugin {
   classname = 'org.opensearch.analytics.AnalyticsPlugin'
   // Extend arrow-flight-rpc so analytics-engine and arrow-flight-rpc share one classloader.
   // Cross-plugin Arrow types (VectorSchemaRoot, ArrowBatchResponse) only work when loaded
-  // by the same classloader, and zero-copy transfer requires identical class identity on
-  // both sides. See Projects/mustang/streaming/stream-transport-integration.md § Classloader.
+  // by the same classloader, and zero-copy transfer requires identical class identity on both sides.
   extendedPlugins = ['arrow-flight-rpc']
 }
 
