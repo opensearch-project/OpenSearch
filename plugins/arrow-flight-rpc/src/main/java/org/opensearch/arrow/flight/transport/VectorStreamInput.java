@@ -114,6 +114,11 @@ abstract class VectorStreamInput extends StreamInput {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * No-op: bounds checks happen at read time, not as a pre-check.
+     * {@link ByteSerialized#readByte} and {@link ByteSerialized#readBytes} throw
+     * {@link EOFException} when the column is exhausted.
+     */
     @Override
     protected void ensureCanReadBytes(int length) {}
 
