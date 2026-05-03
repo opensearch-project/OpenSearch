@@ -12,6 +12,7 @@ import org.opensearch.action.StepListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.RecoveryEngineException;
@@ -59,24 +60,27 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         // It is always file based recovery while recovering replicas which are not relocating primary where the
         // underlying indices are backed by remote store for storing segments and translog
 
-        final GatedCloseable<CatalogSnapshot> wrappedSafeCommit;
+        final GatedCloseable<CatalogSnapshot> wrappedSafeSnapshot;
         try {
-            wrappedSafeCommit = acquireSafeCatalogSnapshot(shard);
-            resources.add(wrappedSafeCommit);
+            wrappedSafeSnapshot = acquireSafeCatalogSnapshot(shard);
+            resources.add(wrappedSafeSnapshot);
         } catch (final Exception e) {
+            if (Lucene.isCorruptionException(e)) {
+                shard.failShard("recovery", e);
+            }
             throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
         }
 
-        final long startingSeqNo = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
+        final long startingSeqNo = Long.parseLong(wrappedSafeSnapshot.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
         logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
 
         try {
             final Releasable releaseStore = acquireStore(shard.store());
             resources.add(releaseStore);
-            onSendFileStepCompleteCatalogSnapshot(sendFileStep, wrappedSafeCommit, releaseStore);
+            onSendFileStepCompleteCatalogSnapshot(sendFileStep, wrappedSafeSnapshot, releaseStore);
 
             assert Transports.assertNotTransportThread(this + "[phase1]");
-            phase1(wrappedSafeCommit.get(), startingSeqNo, () -> 0, sendFileStep, true);
+            phase1(wrappedSafeSnapshot.get(), startingSeqNo, () -> 0, sendFileStep, true);
         } catch (final Exception e) {
             throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);
         }

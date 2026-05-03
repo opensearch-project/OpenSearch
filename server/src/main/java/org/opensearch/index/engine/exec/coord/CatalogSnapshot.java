@@ -26,7 +26,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Abstract base class representing a snapshot of the catalog state at a specific point in time.
@@ -99,25 +98,6 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
                 CatalogSnapshot.this.closeInternal();
             }
         };
-    }
-
-    /**
-     * Builds the appropriate {@link CatalogSnapshot} subclass from {@link SegmentInfos}: a DFA
-     * snapshot deserialized from {@link #CATALOG_SNAPSHOT_KEY} userData if present, otherwise a
-     * {@link SegmentInfosCatalogSnapshot} wrapping the input. {@code directoryResolver} maps
-     * format names to absolute on-disk directories — use
-     * {@link org.opensearch.index.store.Store#shardFormatDirectoryResolver}.
-     */
-    public static CatalogSnapshot fromSegmentInfos(SegmentInfos segmentInfos, Function<String, String> directoryResolver)
-        throws IOException {
-        Map<String, String> userData = segmentInfos.getUserData();
-        String serialized = userData.get(CATALOG_SNAPSHOT_KEY);
-        if (serialized != null && serialized.isEmpty() == false) {
-            DataformatAwareCatalogSnapshot dfa = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, directoryResolver);
-            dfa.setLastCommitInfo(segmentInfos.getSegmentsFileName(), segmentInfos.getGeneration());
-            return dfa;
-        }
-        return new SegmentInfosCatalogSnapshot(segmentInfos);
     }
 
     @Override
