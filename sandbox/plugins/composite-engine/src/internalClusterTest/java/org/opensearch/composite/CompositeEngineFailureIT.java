@@ -86,6 +86,7 @@ public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
     @Override
     public void setUp() throws Exception {
         FileBackedDataFormatPlugin.clearFailure();
+        FileBackedDataFormatPlugin.setDataDirectory(createTempDir("filebacked"));
         super.setUp();
     }
 

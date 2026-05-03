@@ -66,6 +66,7 @@ public class CompositeCommitterFailureIT extends OpenSearchIntegTestCase {
     public void setUp() throws Exception {
         FailureInjectingCommitterPlugin.clearFailure();
         FileBackedDataFormatPlugin.clearFailure();
+        FileBackedDataFormatPlugin.setDataDirectory(createTempDir("filebacked"));
         super.setUp();
     }
 

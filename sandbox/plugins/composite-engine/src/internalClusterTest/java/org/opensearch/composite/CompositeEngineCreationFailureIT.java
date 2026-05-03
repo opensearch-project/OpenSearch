@@ -51,6 +51,7 @@ public class CompositeEngineCreationFailureIT extends OpenSearchIntegTestCase {
     @Override
     public void setUp() throws Exception {
         failOnCreation.set(false);
+        FileBackedDataFormatPlugin.setDataDirectory(createTempDir("filebacked"));
         super.setUp();
     }
 

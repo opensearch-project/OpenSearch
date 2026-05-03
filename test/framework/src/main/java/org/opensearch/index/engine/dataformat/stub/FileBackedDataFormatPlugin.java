@@ -77,6 +77,10 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
     private static volatile boolean failOnNextRollback;
     private static volatile Path dataDirectory;
 
+    public static void setDataDirectory(Path dir) {
+        dataDirectory = dir;
+    }
+
     public static void setFailOnNextNDocs(int n) {
         failOnNextNDocs.set(n);
     }
@@ -180,12 +184,10 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
 
         private Path ensureDirectory() {
             if (directory == null) {
-                try {
-                    directory = Files.createTempDirectory("filebacked");
-                    dataDirectory = directory;
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                if (dataDirectory == null) {
+                    throw new IllegalStateException("FileBackedDataFormatPlugin.setDataDirectory() must be called before use");
                 }
+                directory = dataDirectory;
             }
             return directory;
         }
