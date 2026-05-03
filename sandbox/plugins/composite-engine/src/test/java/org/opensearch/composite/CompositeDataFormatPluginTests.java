@@ -184,7 +184,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
             Settings.EMPTY,
             Set.of(
                 CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT,
-                CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS
+                CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS,
+                CompositeDataFormatPlugin.CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
             )
         );
         ClusterService clusterService = mock(ClusterService.class);
@@ -343,7 +344,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
             clusterBag,
             Set.of(
                 CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT,
-                CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS
+                CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS,
+                CompositeDataFormatPlugin.CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
             )
         );
         ClusterService clusterService = mock(ClusterService.class);

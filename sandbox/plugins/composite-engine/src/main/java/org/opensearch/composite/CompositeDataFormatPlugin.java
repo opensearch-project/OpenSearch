@@ -192,6 +192,9 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         return Collections.singletonList(new IndexSettingProvider() {
             @Override
             public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings templateAndRequestSettings) {
+                if (clusterService == null) {
+                    return Settings.EMPTY;
+                }
                 ClusterSettings clusterSettings = clusterService.getClusterSettings();
                 boolean restrict = clusterSettings.get(CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING);
                 String clusterPrimary = clusterSettings.get(CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT);
