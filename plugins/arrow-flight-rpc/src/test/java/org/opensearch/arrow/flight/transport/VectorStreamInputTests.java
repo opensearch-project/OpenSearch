@@ -65,17 +65,17 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
 
         VectorStreamInput.NativeArrow input = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry);
         try {
-            assertNotSame("NativeArrow transfers into a fresh owned root", shared, input.getRoot());
+            assertNotSame("NativeArrow transfers into a fresh consumer root", shared, input.getRoot());
             IntVector dstVec = (IntVector) input.getRoot().getVector("val");
             assertEquals(1, input.getRoot().getRowCount());
             assertEquals(42, dstVec.get(0));
             assertEquals("source must be drained", 0, shared.getRowCount());
 
-            // Close the shared root immediately — owned root must survive.
+            // Close the stream root immediately — consumer root must survive.
             shared.close();
-            assertEquals("owned root survives shared-root close", 42, dstVec.get(0));
+            assertEquals("consumer root survives stream root close", 42, dstVec.get(0));
 
-            // Simulate ArrowBatchResponse taking ownership, then close the owned root on the response side.
+            // Simulate ArrowBatchResponse taking ownership, then close the consumer root on the response side.
             input.claimOwnership();
         } finally {
             input.close(); // no-op after claimOwnership
@@ -101,7 +101,7 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
     }
 
     public void testNativeArrowCloseReleasesRootIfNotTransferred() throws IOException {
-        // read() throws or never runs: the owned root must be released by close(), not leaked.
+        // read() throws or never runs: the consumer root must be released by close(), not leaked.
         VectorSchemaRoot shared = newNativeArrowRoot();
         IntVector srcVec = (IntVector) shared.getVector("val");
         srcVec.allocateNew();
@@ -112,11 +112,11 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
         long beforeClose;
         try (VectorStreamInput.NativeArrow input = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry)) {
             beforeClose = allocator.getAllocatedMemory();
-            assertTrue("owned root should hold memory before close", beforeClose > 0);
+            assertTrue("consumer root should hold memory before close", beforeClose > 0);
         }
         // After try-with-resources: close() ran, transferred==false, root should be released.
         assertTrue(
-            "owned root must be released when not transferred (was " + beforeClose + ", now " + allocator.getAllocatedMemory() + ")",
+            "consumer root must be released when not transferred (was " + beforeClose + ", now " + allocator.getAllocatedMemory() + ")",
             allocator.getAllocatedMemory() < beforeClose
         );
         shared.close();
@@ -133,14 +133,14 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
         shared.setRowCount(1);
 
         VectorStreamInput.NativeArrow input = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry);
-        VectorSchemaRoot owned = input.getRoot();
+        VectorSchemaRoot consumerRoot = input.getRoot();
         input.claimOwnership();
         input.close();
 
-        // Owned root must remain usable — ArrowBatchResponse owns it after handoff.
-        assertEquals(1, owned.getRowCount());
-        assertEquals(7, ((IntVector) owned.getVector("val")).get(0));
-        owned.close();
+        // Consumer root must remain usable — ArrowBatchResponse owns it after handoff.
+        assertEquals(1, consumerRoot.getRowCount());
+        assertEquals(7, ((IntVector) consumerRoot.getVector("val")).get(0));
+        consumerRoot.close();
         shared.close();
     }
 
@@ -177,7 +177,7 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
             expectThrows(UnsupportedOperationException.class, input::readByte);
             expectThrows(UnsupportedOperationException.class, () -> input.readBytes(new byte[1], 0, 1));
             // Do not call input.getRoot().close() — the try-with-resources close() releases the
-            // owned root (transferred==false).
+            // consumer root (transferred==false).
         }
         shared.close();
     }

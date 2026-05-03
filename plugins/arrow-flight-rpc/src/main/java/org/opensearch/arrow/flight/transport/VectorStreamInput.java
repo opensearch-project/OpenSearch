@@ -28,7 +28,7 @@ import java.nio.ByteBuffer;
  *       response is not an {@link ArrowBatchResponse}: {@code handler.read()} copies bytes into
  *       the response's Java fields, so no ownership transfer is needed.</li>
  *   <li>{@link #forNativeArrow} — zero-copy transfers the stream root's vectors into a
- *       response-owned root before reading, so the returned {@link ArrowBatchResponse} is
+ *       consumer root before reading, so the returned {@link ArrowBatchResponse} is
  *       independent of the FlightStream lifecycle.</li>
  * </ul>
  *
@@ -57,30 +57,30 @@ abstract class VectorStreamInput extends StreamInput {
     }
 
     /**
-     * Transfers the stream root's vectors into a response-owned root so the returned response
-     * outlives the next FlightStream batch. Owned root is released by {@link NativeArrow#close()}
+     * Transfers the stream root's vectors into a consumer root so the returned response
+     * outlives the next FlightStream batch. The consumer root is released by {@link NativeArrow#close()}
      * unless the response takes ownership via {@link NativeArrow#claimOwnership()}.
      */
     static VectorStreamInput forNativeArrow(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry) {
         if (streamRoot.getFieldVectors().isEmpty()) {
             throw new IllegalStateException("Native Arrow batch has no field vectors");
         }
-        VectorSchemaRoot ownedRoot = VectorSchemaRoot.create(
+        VectorSchemaRoot consumerRoot = VectorSchemaRoot.create(
             streamRoot.getSchema(),
             streamRoot.getFieldVectors().getFirst().getAllocator()
         );
         try {
-            FlightUtils.transferRoot(streamRoot, ownedRoot);
+            FlightUtils.transferRoot(streamRoot, consumerRoot);
         } catch (Throwable t) {
-            ownedRoot.close();
+            consumerRoot.close();
             throw t;
         }
-        return new NativeArrow(ownedRoot, registry);
+        return new NativeArrow(consumerRoot, registry);
     }
 
     /**
      * Returns the underlying {@link VectorSchemaRoot}. For {@link NativeArrow} this is the
-     * response-owned root; {@link ArrowBatchResponse} grabs it via the receive-side constructor.
+     * consumer root; {@link ArrowBatchResponse} grabs it via the receive-side constructor.
      */
     public VectorSchemaRoot getRoot() {
         return root;
@@ -209,12 +209,12 @@ abstract class VectorStreamInput extends StreamInput {
             throw new UnsupportedOperationException("Native Arrow responses read vectors directly from getRoot()");
         }
 
-        /** Response claims the owned root; {@link #close()} becomes a no-op. */
+        /** Response claims the consumer root; {@link #close()} becomes a no-op. */
         void claimOwnership() {
             transferred = true;
         }
 
-        /** Releases the owned root unless {@link #claimOwnership()} was called. */
+        /** Releases the consumer root unless {@link #claimOwnership()} was called. */
         @Override
         public void close() {
             if (!transferred && root != null) {

@@ -29,11 +29,10 @@ import java.io.IOException;
  * }</pre>
  *
  * <p><b>Send side:</b> The producer populates a {@link VectorSchemaRoot} and wraps it.
- * The framework zero-copy transfers the vectors into the Flight stream via
- * {@link #transferTo(VectorSchemaRoot)} — no memcpy, no serialization.
+ * The framework zero-copy transfers the vectors into the Flight stream — no memcpy,
+ * no serialization.
  *
  * <pre>{@code
- * BufferAllocator allocator = ArrowFlightChannel.from(channel).getAllocator();
  * VectorSchemaRoot producerRoot = VectorSchemaRoot.create(schema, allocator);
  * // populate producerRoot...
  * channel.sendResponseBatch(new MyResponse(producerRoot));
@@ -46,10 +45,9 @@ import java.io.IOException;
  *
  * <p><b>Allocator rules:</b>
  * <ul>
- *   <li><b>Send side:</b> Use the channel allocator
- *       ({@code ArrowFlightChannel.from(channel).getAllocator()}) or a child of
- *       {@link ArrowAllocatorProvider}. All allocators must share the same root so
- *       zero-copy transfers pass Arrow's {@code AllocationManager} associate check.</li>
+ *   <li><b>Send side:</b> Use a child of {@link ArrowAllocatorProvider}. All allocators
+ *       must share the same root so zero-copy transfers pass Arrow's
+ *       {@code AllocationManager} associate check.</li>
  *   <li><b>Receive side:</b> The framework transfers vectors from the Flight stream's
  *       allocator into the response. The consumer can then transfer them into its own
  *       allocator — which must also be a child of {@link ArrowAllocatorProvider}.</li>
@@ -62,25 +60,25 @@ import java.io.IOException;
 @ExperimentalApi
 public abstract class ArrowBatchResponse extends ActionResponse {
 
-    private final VectorSchemaRoot producerRoot;
+    private final VectorSchemaRoot batch;
 
     /**
-     * Send-side constructor: wraps a root populated by the producer.
-     * @param producerRoot the root to send; ownership transfers to the framework
+     * Send-side constructor: wraps a batch populated by the producer.
+     * @param batch the batch to send; ownership transfers to the transport
      */
-    protected ArrowBatchResponse(VectorSchemaRoot producerRoot) {
-        this.producerRoot = producerRoot;
+    protected ArrowBatchResponse(VectorSchemaRoot batch) {
+        this.batch = batch;
     }
 
     /**
-     * Receive-side constructor: claims ownership of the Arrow vectors from the input.
+     * Receive-side constructor: claims ownership of the consumer batch from the input.
      * @param in must be a {@link VectorStreamInput.NativeArrow}; throws otherwise
      * @throws IOException if reading fails
      */
     protected ArrowBatchResponse(StreamInput in) throws IOException {
         super(in);
         if (in instanceof VectorStreamInput.NativeArrow nativeIn) {
-            this.producerRoot = nativeIn.getRoot();
+            this.batch = nativeIn.getRoot();
             nativeIn.claimOwnership();
         } else {
             throw new IllegalStateException(
@@ -92,21 +90,13 @@ public abstract class ArrowBatchResponse extends ActionResponse {
         }
     }
 
-    /** Returns the Arrow root holding the response vectors. */
+    /** Returns the Arrow batch holding the response vectors. */
     public VectorSchemaRoot getRoot() {
-        return producerRoot;
-    }
-
-    /**
-     * Zero-copy transfers the producer's vectors into the target root.
-     * @param target the channel's stream root (bound to the Flight stream via start())
-     */
-    void transferTo(VectorSchemaRoot target) {
-        FlightUtils.transferRoot(producerRoot, target);
+        return batch;
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        // no-op: the framework handles transfer via transferTo()
+        // no-op: the framework transfers vectors directly via FlightUtils.transferRoot()
     }
 }

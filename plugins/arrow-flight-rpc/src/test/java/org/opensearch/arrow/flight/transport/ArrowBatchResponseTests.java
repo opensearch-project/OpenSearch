@@ -84,8 +84,7 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         src.setRowCount(2);
 
         VectorSchemaRoot dst = VectorSchemaRoot.create(schema, allocator);
-        TestResponse response = new TestResponse(src);
-        response.transferTo(dst);
+        FlightUtils.transferRoot(src, dst);
 
         assertEquals(2, dst.getRowCount());
         IntVector dstVec = (IntVector) dst.getVector("val");
@@ -115,9 +114,9 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         src.setRowCount(2);
 
         VectorSchemaRoot dst = VectorSchemaRoot.create(schema, allocator);
-        new TestResponse(src).transferTo(dst);
+        FlightUtils.transferRoot(src, dst);
 
-        // Close the source — simulates FlightStream clearing/closing its shared root.
+        // Close the source — simulates FlightStream clearing/closing its stream root.
         src.close();
 
         assertEquals(2, dst.getRowCount());
@@ -139,13 +138,12 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         org.opensearch.core.common.io.stream.NamedWriteableRegistry registry =
             new org.opensearch.core.common.io.stream.NamedWriteableRegistry(java.util.Collections.emptyList());
         VectorStreamInput.NativeArrow in = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry);
-        VectorSchemaRoot ownedRoot = in.getRoot();
+        VectorSchemaRoot consumerRoot = in.getRoot();
 
         TestResponse response = new TestResponse(in);
-        // Root reference captured from the input.
-        assertSame(ownedRoot, response.getRoot());
+        assertSame(consumerRoot, response.getRoot());
 
-        // claimOwnership must have fired — close() is a no-op, owned root survives.
+        // claimOwnership must have fired — close() is a no-op, consumer root survives.
         in.close();
         assertEquals(42, ((IntVector) response.getRoot().getVector("val")).get(0));
 
@@ -186,7 +184,7 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         src.setRowCount(1);
 
         VectorSchemaRoot dst = VectorSchemaRoot.create(multiSchema, allocator);
-        new TestResponse(src).transferTo(dst);
+        FlightUtils.transferRoot(src, dst);
 
         assertEquals(1, dst.getRowCount());
         assertEquals(1, ((IntVector) dst.getVector("a")).get(0));

@@ -164,7 +164,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                         arrowResponse.getRoot().getFieldVectors().get(0).getAllocator()
                     );
                 }
-                arrowResponse.transferTo(streamRoot);
+                FlightUtils.transferRoot(arrowResponse.getRoot(), streamRoot);
                 arrowResponse.getRoot().close();
                 out = VectorStreamOutput.forNativeArrow(streamRoot);
             } else {
