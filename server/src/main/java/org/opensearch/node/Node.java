@@ -250,6 +250,10 @@ import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.catalog.CatalogMetadataClient;
+import org.opensearch.catalog.RemoteCatalogService;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.plugins.CatalogPlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -442,6 +446,53 @@ public class Node implements Closeable {
         Node::validateFileCacheSize,
         Property.NodeScope
     );
+
+    /** Type of the catalog registered at node startup (e.g., {@code iceberg_s3tables}). */
+    public static final Setting<String> CATALOG_REPOSITORY_TYPE_SETTING = Setting.simpleString(
+        "catalog.repository.type",
+        Property.NodeScope
+    );
+
+    /** Settings forwarded verbatim to the catalog plugin under this prefix. */
+    public static final Setting.AffixSetting<String> CATALOG_REPOSITORY_SETTINGS = Setting.prefixKeySetting(
+        "catalog.repository.settings.",
+        (key) -> Setting.simpleString(key, Property.NodeScope)
+    );
+
+    /** Upper bound for an end-to-end catalog publish. */
+    public static final Setting<TimeValue> CATALOG_PUBLISH_TIMEOUT_SETTING = Setting.timeSetting(
+        "catalog.publish.timeout",
+        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
+
+    /** Max retries per phase-processor attempt before the entry is moved to {@code FAILED}. */
+    public static final Setting<Integer> CATALOG_PUBLISH_RETRY_COUNT_SETTING = Setting.intSetting(
+        "catalog.publish.retry_count",
+        5,
+        0,
+        20,
+        Property.NodeScope
+    );
+
+    /** Base interval for exponential backoff between retry attempts: {@code base × 2^retryCount}. */
+    public static final Setting<TimeValue> CATALOG_PUBLISH_BACKOFF_INTERVAL_SETTING = Setting.timeSetting(
+        "catalog.publish.backoff_interval",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
+
+    /** Soft cap on in-flight publishes; submits above this return 429. */
+    public static final Setting<Integer> CATALOG_PUBLISH_MAX_CONCURRENT_SETTING = Setting.intSetting(
+        "catalog.publish.max_concurrent_publishes",
+        10,
+        1,
+        Property.NodeScope
+    );
+
+    public static final String CATALOG_REPOSITORY_NAME = "_catalog";
 
     private static final String CLIENT_TYPE = "node";
 
@@ -1430,6 +1481,22 @@ public class Node implements Closeable {
             );
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
+
+            final CatalogMetadataClient catalogMetadataClient = createCatalogMetadataClient(
+                settings, pluginsService, this.environment
+            );
+            final RemoteCatalogService remoteCatalogService = new RemoteCatalogService(
+                clusterService,
+                client,
+                catalogMetadataClient,
+                threadPool,
+                CATALOG_PUBLISH_TIMEOUT_SETTING.get(settings),
+                CATALOG_PUBLISH_RETRY_COUNT_SETTING.get(settings),
+                CATALOG_PUBLISH_BACKOFF_INTERVAL_SETTING.get(settings),
+                CATALOG_PUBLISH_MAX_CONCURRENT_SETTING.get(settings)
+            );
+            clusterService.addListener(remoteCatalogService);
+            resourcesToClose.add(() -> clusterService.removeListener(remoteCatalogService));
             SnapshotsService snapshotsService = new SnapshotsService(
                 settings,
                 clusterService,
@@ -1777,6 +1844,15 @@ public class Node implements Closeable {
                 b.bind(MergedSegmentPublisher.class).asEagerSingleton();
 
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
+
+                // TransportPublishShardAction is injected lazily; a null provider is safe
+                // because no caller reaches it when the catalog is not configured.
+                if (catalogMetadataClient != null) {
+                    b.bind(CatalogMetadataClient.class).toInstance(catalogMetadataClient);
+                } else {
+                    b.bind(CatalogMetadataClient.class).toProvider(Providers.of(null));
+                }
+                b.bind(RemoteCatalogService.class).toInstance(remoteCatalogService);
             });
             injector = modules.createInjector();
 
@@ -2528,6 +2604,36 @@ public class Node implements Closeable {
     private static String validateFileCacheSize(String capacityRaw) {
         calculateFileCacheSize(capacityRaw, 0L);
         return capacityRaw;
+    }
+
+    private static CatalogMetadataClient createCatalogMetadataClient(
+        Settings settings,
+        PluginsService pluginsService,
+        Environment environment
+    ) {
+        String catalogType = CATALOG_REPOSITORY_TYPE_SETTING.get(settings);
+        if (catalogType == null || catalogType.isEmpty()) {
+            return null;
+        }
+
+        List<CatalogPlugin> catalogPlugins = pluginsService.filterPlugins(CatalogPlugin.class);
+        if (catalogPlugins.isEmpty()) {
+            throw new IllegalStateException(
+                "[" + CATALOG_REPOSITORY_TYPE_SETTING.getKey() + "] is set to [" + catalogType
+                    + "] but no CatalogPlugin is installed"
+            );
+        }
+        if (catalogPlugins.size() > 1) {
+            throw new IllegalStateException(
+                "only one CatalogPlugin is allowed but found [" + catalogPlugins.size() + "]"
+            );
+        }
+
+        // Strip the "catalog.repository.settings." prefix and forward the rest to the plugin.
+        Settings repoSettings = settings.getByPrefix("catalog.repository.settings.");
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata(CATALOG_REPOSITORY_NAME, catalogType, repoSettings);
+
+        return catalogPlugins.get(0).createMetadataClient(repositoryMetadata, environment);
     }
 
     /**
