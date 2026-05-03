@@ -23,9 +23,9 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
+import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
 import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
 import org.opensearch.arrow.flight.transport.ArrowBatchResponseHandler;
-import org.opensearch.arrow.flight.transport.ArrowFlightChannel;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.inject.Inject;
@@ -264,7 +264,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
     }
 
-    /** Deep-copies data from a VectorSchemaRoot. */
+    /** Deep-copies data out of the Arrow batch so the root can be closed immediately. */
     static class ReceivedBatch {
         final int rowCount;
         final int batchId;
@@ -272,11 +272,11 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         final List<String> names;
         final List<Integer> values;
 
-        ReceivedBatch(VectorSchemaRoot root) {
-            this.rowCount = root.getRowCount();
-            IntVector batchIdVector = (IntVector) root.getVector("batch_id");
-            VarCharVector nameVector = (VarCharVector) root.getVector("name");
-            IntVector valueVector = (IntVector) root.getVector("value");
+        ReceivedBatch(VectorSchemaRoot batch) {
+            this.rowCount = batch.getRowCount();
+            IntVector batchIdVector = (IntVector) batch.getVector("batch_id");
+            VarCharVector nameVector = (VarCharVector) batch.getVector("name");
+            IntVector valueVector = (IntVector) batch.getVector("value");
             this.batchIds = new ArrayList<>();
             this.names = new ArrayList<>();
             this.values = new ArrayList<>();
@@ -350,10 +350,12 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
      * on the executor thread.
      */
     public static class TransportTestArrowAction extends TransportAction<TestArrowRequest, TestArrowResponse> {
+        private final BufferAllocator allocator;
 
         @Inject
         public TransportTestArrowAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
             super(TestArrowAction.NAME, actionFilters, streamTransportService.getTaskManager());
+            this.allocator = ArrowAllocatorProvider.newChildAllocator("native-arrow-test", Long.MAX_VALUE);
             streamTransportService.registerRequestHandler(
                 TestArrowAction.NAME,
                 ThreadPool.Names.GENERIC,
@@ -368,7 +370,6 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
 
         private void handleStreamRequest(TestArrowRequest request, TransportChannel channel, Task task) throws IOException {
-            BufferAllocator allocator = ArrowFlightChannel.from(channel).getAllocator();
 
             try {
                 if (request.parallelism <= 1) {
@@ -453,13 +454,15 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
             try {
                 TestArrowResponse response;
                 while ((response = streamResponse.nextResponse()) != null) {
-                    batches.add(new ReceivedBatch(response.getRoot()));
+                    try (VectorSchemaRoot batch = response.getRoot()) {
+                        batches.add(new ReceivedBatch(batch));
+                    }
                 }
                 streamResponse.close();
-                latch.countDown();
             } catch (Exception e) {
                 failure.set(e);
                 streamResponse.cancel("Test error", e);
+            } finally {
                 latch.countDown();
             }
         }

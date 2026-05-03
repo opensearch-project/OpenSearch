@@ -50,7 +50,7 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
         VectorSchemaRoot shared = newByteSerializedRoot();
         try (VectorStreamInput input = VectorStreamInput.forByteSerialized(shared, registry)) {
             assertTrue(input instanceof VectorStreamInput.ByteSerialized);
-            assertSame("ByteSerialized holds the shared root — no transfer", shared, input.getRoot());
+            assertSame("ByteSerialized holds the stream root — no transfer", shared, input.getRoot());
         }
         shared.close();
     }

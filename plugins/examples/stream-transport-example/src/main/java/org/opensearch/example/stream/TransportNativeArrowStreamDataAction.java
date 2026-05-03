@@ -18,7 +18,7 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
-import org.opensearch.arrow.flight.transport.ArrowFlightChannel;
+import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
@@ -37,24 +37,22 @@ import java.util.List;
  *
  * <p>Demonstrates the pipelined producer pattern:
  * <ol>
- *   <li>Get the channel's allocator via {@link ArrowFlightChannel#from(TransportChannel)}</li>
- *   <li>For each batch, create a producer root using the channel allocator</li>
- *   <li>Populate the root with typed vectors (VarChar, Int, etc.)</li>
- *   <li>Send via {@code sendResponseBatch()} — the framework does zero-copy transfer
- *       of the producer's buffers into the channel's shared root on the executor thread</li>
- *   <li>The producer root is closed by the framework after transfer — don't reuse it</li>
+ *   <li>Get an allocator via {@link ArrowAllocatorProvider#newChildAllocator}</li>
+ *   <li>For each batch, create a {@link VectorSchemaRoot}, populate it, and wrap it in a response</li>
+ *   <li>Send via {@code sendResponseBatch()} — the framework zero-copy transfers
+ *       the vectors into the Flight stream on the executor thread</li>
+ *   <li>Call {@code completeStream()} when done</li>
  * </ol>
- *
- * <p>The channel allocator is a child of {@link org.opensearch.arrow.flight.transport.ArrowAllocatorProvider},
- * ensuring all Arrow buffers share the same root for zero-copy transfers.
  */
 public class TransportNativeArrowStreamDataAction extends TransportAction<NativeArrowStreamDataRequest, NativeArrowStreamDataResponse> {
 
     private static final String[] NAMES = { "Alice", "Bob", "Carol", "Dave", "Eve" };
+    private final BufferAllocator allocator;
 
     @Inject
     public TransportNativeArrowStreamDataAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
         super(NativeArrowStreamDataAction.NAME, actionFilters, streamTransportService.getTaskManager());
+        this.allocator = ArrowAllocatorProvider.newChildAllocator("native-arrow-example", Long.MAX_VALUE);
         streamTransportService.registerRequestHandler(
             NativeArrowStreamDataAction.NAME,
             ThreadPool.Names.GENERIC,
@@ -69,9 +67,6 @@ public class TransportNativeArrowStreamDataAction extends TransportAction<Native
     }
 
     private void handleStreamRequest(NativeArrowStreamDataRequest request, TransportChannel channel, Task task) throws IOException {
-        // Channel allocator shares the same root as the Flight transport (ArrowAllocatorProvider).
-        BufferAllocator allocator = ArrowFlightChannel.from(channel).getAllocator();
-
         Schema schema = new Schema(
             List.of(
                 new Field("name", FieldType.nullable(new ArrowType.Utf8()), null),
