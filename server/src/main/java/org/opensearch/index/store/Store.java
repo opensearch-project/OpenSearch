@@ -94,6 +94,8 @@ import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
@@ -970,6 +972,25 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public void beforeClose() {
         shardLock.setDetails("closing shard");
+    }
+
+    /**
+     * Builds the appropriate {@link CatalogSnapshot} subclass from {@link SegmentInfos}: a DFA
+     * snapshot deserialized from {@link CatalogSnapshot#CATALOG_SNAPSHOT_KEY} userData if present, otherwise a
+     * {@link SegmentInfosCatalogSnapshot} wrapping the input. {@code directoryResolver} maps
+     * format names to absolute on-disk directories — use
+     * {@link org.opensearch.index.store.Store#shardFormatDirectoryResolver}.
+     */
+    public static CatalogSnapshot fromSegmentInfos(SegmentInfos segmentInfos, Function<String, String> directoryResolver)
+        throws IOException {
+        Map<String, String> userData = segmentInfos.getUserData();
+        String serialized = userData.get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+        if (serialized != null && serialized.isEmpty() == false) {
+            DataformatAwareCatalogSnapshot dfa = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, directoryResolver);
+            dfa.setLastCommitInfo(segmentInfos.getSegmentsFileName(), segmentInfos.getGeneration());
+            return dfa;
+        }
+        return new SegmentInfosCatalogSnapshot(segmentInfos);
     }
 
     /**
