@@ -10,7 +10,7 @@ package org.opensearch.example.stream;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
+import org.opensearch.arrow.transport.ArrowAllocatorProvider;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionResponse;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.flight.transport;
+package org.opensearch.arrow.transport;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -43,6 +43,56 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         }
     }
 
+    /** Fake StreamInput that also carries an Arrow batch — the contract ArrowBatchResponse consumes. */
+    static class FakeArrowStreamInput extends StreamInput implements ArrowStreamInput {
+        private final VectorSchemaRoot root;
+        private boolean claimed = false;
+
+        FakeArrowStreamInput(VectorSchemaRoot root) {
+            this.root = root;
+        }
+
+        @Override
+        public VectorSchemaRoot getRoot() {
+            return root;
+        }
+
+        @Override
+        public void claimOwnership() {
+            claimed = true;
+        }
+
+        boolean wasClaimed() {
+            return claimed;
+        }
+
+        @Override
+        public byte readByte() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int read() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int available() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        protected void ensureCanReadBytes(int length) {}
+    }
+
     @Before
     @Override
     public void setUp() throws Exception {
@@ -74,7 +124,29 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         root.close();
     }
 
-    public void testTransferToMovesBuffers() {
+    public void testStreamInputConstructorCapturesRootAndClaimsOwnership() throws IOException {
+        VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
+        ((IntVector) root.getVector("val")).allocateNew();
+        ((IntVector) root.getVector("val")).setSafe(0, 42);
+        ((IntVector) root.getVector("val")).setValueCount(1);
+        root.setRowCount(1);
+
+        FakeArrowStreamInput in = new FakeArrowStreamInput(root);
+        TestResponse response = new TestResponse(in);
+
+        assertSame(root, response.getRoot());
+        assertTrue("claimOwnership must fire", in.wasClaimed());
+
+        root.close();
+    }
+
+    public void testStreamInputConstructorRejectsNonArrowInput() {
+        StreamInput notArrow = StreamInput.wrap(new byte[0]);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new TestResponse(notArrow));
+        assertTrue("message should point at skipsDeserialization()", e.getMessage().contains("skipsDeserialization"));
+    }
+
+    public void testTransferRootMovesBuffers() {
         VectorSchemaRoot src = VectorSchemaRoot.create(schema, allocator);
         IntVector srcVec = (IntVector) src.getVector("val");
         srcVec.allocateNew();
@@ -84,14 +156,14 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         src.setRowCount(2);
 
         VectorSchemaRoot dst = VectorSchemaRoot.create(schema, allocator);
-        FlightUtils.transferRoot(src, dst);
+        VectorTransfer.transferRoot(src, dst);
 
         assertEquals(2, dst.getRowCount());
         IntVector dstVec = (IntVector) dst.getVector("val");
         assertEquals(42, dstVec.get(0));
         assertEquals(99, dstVec.get(1));
 
-        // Source should be empty after transfer — both at vector and root level
+        // Source should be empty after transfer
         assertEquals(0, srcVec.getValueCount());
         assertEquals(0, src.getRowCount());
 
@@ -99,12 +171,7 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         dst.close();
     }
 
-    /**
-     * After transfer, closing the source must not affect the destination — the destination owns
-     * its buffers. This is the invariant FlightTransportResponse relies on to decouple the
-     * returned response from FlightStream's shared, reused root.
-     */
-    public void testDestinationSurvivesSourceClose() {
+    public void testTransferRootDestinationSurvivesSourceClose() {
         VectorSchemaRoot src = VectorSchemaRoot.create(schema, allocator);
         IntVector srcVec = (IntVector) src.getVector("val");
         srcVec.allocateNew();
@@ -114,9 +181,9 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         src.setRowCount(2);
 
         VectorSchemaRoot dst = VectorSchemaRoot.create(schema, allocator);
-        FlightUtils.transferRoot(src, dst);
+        VectorTransfer.transferRoot(src, dst);
 
-        // Close the source — simulates FlightStream clearing/closing its stream root.
+        // Close the source — destination owns the buffers now.
         src.close();
 
         assertEquals(2, dst.getRowCount());
@@ -128,45 +195,7 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         dst.close();
     }
 
-    public void testStreamInputConstructorCapturesRootAndMarksTransferred() throws IOException {
-        VectorSchemaRoot shared = VectorSchemaRoot.create(schema, allocator);
-        ((IntVector) shared.getVector("val")).allocateNew();
-        ((IntVector) shared.getVector("val")).setSafe(0, 42);
-        ((IntVector) shared.getVector("val")).setValueCount(1);
-        shared.setRowCount(1);
-
-        org.opensearch.core.common.io.stream.NamedWriteableRegistry registry =
-            new org.opensearch.core.common.io.stream.NamedWriteableRegistry(java.util.Collections.emptyList());
-        VectorStreamInput.NativeArrow in = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry);
-        VectorSchemaRoot consumerRoot = in.getRoot();
-
-        TestResponse response = new TestResponse(in);
-        assertSame(consumerRoot, response.getRoot());
-
-        // claimOwnership must have fired — close() is a no-op, consumer root survives.
-        in.close();
-        assertEquals(42, ((IntVector) response.getRoot().getVector("val")).get(0));
-
-        response.getRoot().close();
-        shared.close();
-    }
-
-    public void testStreamInputConstructorRejectsByteSerializedInput() throws IOException {
-        VectorSchemaRoot shared = VectorSchemaRoot.create(
-            new Schema(List.of(new Field("0", FieldType.nullable(new ArrowType.Binary()), null))),
-            allocator
-        );
-        org.opensearch.core.common.io.stream.NamedWriteableRegistry registry =
-            new org.opensearch.core.common.io.stream.NamedWriteableRegistry(java.util.Collections.emptyList());
-        try (VectorStreamInput in = VectorStreamInput.forByteSerialized(shared, registry)) {
-            IllegalStateException e = expectThrows(IllegalStateException.class, () -> new TestResponse(in));
-            assertTrue("message should point at skipsDeserialization()", e.getMessage().contains("skipsDeserialization"));
-        } finally {
-            shared.close();
-        }
-    }
-
-    public void testTransferToWithMultipleVectors() {
+    public void testTransferRootWithMultipleVectors() {
         Schema multiSchema = new Schema(
             List.of(
                 new Field("a", FieldType.nullable(new ArrowType.Int(32, true)), null),
@@ -184,7 +213,7 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         src.setRowCount(1);
 
         VectorSchemaRoot dst = VectorSchemaRoot.create(multiSchema, allocator);
-        FlightUtils.transferRoot(src, dst);
+        VectorTransfer.transferRoot(src, dst);
 
         assertEquals(1, dst.getRowCount());
         assertEquals(1, ((IntVector) dst.getVector("a")).get(0));

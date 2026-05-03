@@ -12,8 +12,9 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
-import org.opensearch.arrow.flight.transport.ArrowBatchResponseHandler;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
+import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.transport.ArrowBatchResponseHandler;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugins.Plugin;
@@ -46,7 +47,7 @@ public class NativeArrowStreamTransportExampleIT extends OpenSearchIntegTestCase
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(StreamTransportExamplePlugin.class, FlightStreamPlugin.class);
+        return List.of(StreamTransportExamplePlugin.class, ArrowBasePlugin.class, FlightStreamPlugin.class);
     }
 
     @AwaitsFix(bugUrl = "")

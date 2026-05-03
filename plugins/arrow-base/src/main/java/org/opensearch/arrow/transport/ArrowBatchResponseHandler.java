@@ -6,15 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.flight.transport;
+package org.opensearch.arrow.transport;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.transport.StreamTransportResponseHandler;
 
 /**
  * Receive-side base for handlers that consume {@link ArrowBatchResponse}. Pins
- * {@link #skipsDeserialization()} to {@code true} so the Flight transport routes to the native
- * Arrow path.
+ * {@link #skipsDeserialization()} to {@code true} so an Arrow-aware transport routes to
+ * the native Arrow path instead of byte deserialization.
  *
  * @opensearch.experimental
  */

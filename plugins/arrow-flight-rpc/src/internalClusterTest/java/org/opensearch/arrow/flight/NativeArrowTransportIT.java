@@ -23,10 +23,11 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
-import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
-import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
-import org.opensearch.arrow.flight.transport.ArrowBatchResponseHandler;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
+import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.transport.ArrowAllocatorProvider;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
+import org.opensearch.arrow.transport.ArrowBatchResponseHandler;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -88,7 +89,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(NativeArrowTestPlugin.class, FlightStreamPlugin.class);
+        return List.of(NativeArrowTestPlugin.class, ArrowBasePlugin.class, FlightStreamPlugin.class);
     }
 
     // ── Tests ──

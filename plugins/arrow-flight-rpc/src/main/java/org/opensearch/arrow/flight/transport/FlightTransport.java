@@ -22,6 +22,7 @@ import org.opensearch.Version;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
+import org.opensearch.arrow.transport.ArrowAllocatorProvider;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;

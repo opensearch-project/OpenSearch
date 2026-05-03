@@ -13,41 +13,37 @@ apply plugin: 'opensearch.internal-cluster-test'
 apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
-  description = 'Arrow flight based transport and stream implementation. It also provides Arrow vector and memory dependencies as' +
-    'an extended-plugin at runtime; consumers should take a compile time dependency and not runtime on this project.\'\n'
+  description = 'Arrow Flight transport implementation built on top of arrow-base.'
   classname = 'org.opensearch.arrow.flight.transport.FlightStreamPlugin'
+  extendedPlugins = ['arrow-base']
 }
 
 dependencies {
-  // all transitive dependencies exported to use arrow-vector and arrow-memory-core
-  api "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
-  api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  api "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
-  api "io.netty:netty-buffer:${versions.netty}"
-  api "io.netty:netty-common:${versions.netty}"
+  // arrow-base provides the Arrow + Netty core / Jackson / flatbuffers / slf4j / commons-codec
+  // jars at runtime via classloader delegation. Declare them compileOnly here.
+  compileOnly project(':plugins:arrow-base')
+  compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
+  compileOnly "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
+  compileOnly "io.netty:netty-buffer:${versions.netty}"
+  compileOnly "io.netty:netty-common:${versions.netty}"
+  compileOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  compileOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  compileOnly "commons-codec:commons-codec:${versions.commonscodec}"
+
+  // Netty codec libs used directly by grpc-netty / flight-core.
   api "io.netty:netty-codec-base:${versions.netty}"
   api "io.netty:netty-codec-compression:${versions.netty}"
-  api "org.apache.arrow:arrow-vector:${versions.arrow}"
-  api "org.apache.arrow:arrow-format:${versions.arrow}"
 
   compileOnly 'org.checkerframework:checker-qual:3.44.0'
-  api "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
-  // arrow-vector's JsonStringArrayList static-initializes a Jackson ObjectMapper that registers
-  // JavaTimeModule. Without jsr310 on arrow-flight-rpc's classpath, any reader of an Arrow
-  // ListVector (e.g. DataFusion's array-returning UDFs flowing through analytics-engine) hits
-  // a fatal NoClassDefFoundError that exits the JVM.
-  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // arrow flight dependencies.
   implementation "org.apache.arrow:flight-core:${versions.arrow}"
 
-  // since netty-common will be added by opensearch-arrow-core at runtime, so declaring them as compileOnly
-  // compileOnly "io.netty:netty-common:${versions.netty}"
   implementation "io.netty:netty-codec:${versions.netty}"
   implementation "io.netty:netty-codec-http:${versions.netty}"
   implementation "io.netty:netty-codec-http2:${versions.netty}"
@@ -137,15 +133,6 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
-    'org.apache.commons.logging.Log',
-    'org.apache.commons.logging.LogFactory',
-
-    // from Log4j (deliberate, Netty will fallback to Log4j 2)
-    'org.apache.log4j.Level',
-    'org.apache.log4j.Logger',
-
-    'reactor.blockhound.BlockHound$Builder',
-    'reactor.blockhound.integration.BlockHoundIntegration',
     'com.google.gson.stream.JsonReader',
     'com.google.gson.stream.JsonToken',
     'org.apache.parquet.schema.GroupType',
@@ -223,18 +210,6 @@ tasks.named('thirdPartyAudit').configure {
     'com.google.protobuf.util.Timestamps'
   )
   ignoreViolations(
-    'io.netty.buffer.AbstractAllocatorEvent',
-    'io.netty.buffer.AbstractBufferEvent',
-    'io.netty.buffer.AbstractChunkEvent',
-    'io.netty.buffer.AdaptivePoolingAllocator$AdaptiveByteBuf',
-    'io.netty.buffer.AdaptivePoolingAllocator$Chunk',
-    'io.netty.buffer.AllocateBufferEvent',
-    'io.netty.buffer.AllocateChunkEvent',
-    'io.netty.buffer.FreeBufferEvent',
-    'io.netty.buffer.FreeChunkEvent',
-    'io.netty.buffer.PooledByteBufAllocator',
-    'io.netty.buffer.ReallocateBufferEvent',
-
     // Guava internal classes
     'com.google.common.cache.Striped64',
     'com.google.common.cache.Striped64$1',
@@ -248,50 +223,6 @@ tasks.named('thirdPartyAudit').configure {
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-
-    'io.netty.util.internal.PlatformDependent0',
-    'io.netty.util.internal.PlatformDependent0$1',
-    'io.netty.util.internal.PlatformDependent0$2',
-    'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'io.netty.util.internal.PlatformDependent0',
-    'io.netty.util.internal.PlatformDependent0$1',
-    'io.netty.util.internal.PlatformDependent0$2',
-    'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
-    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1'
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
 }
