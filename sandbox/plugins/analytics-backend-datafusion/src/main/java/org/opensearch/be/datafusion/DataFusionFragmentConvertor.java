@@ -238,12 +238,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      */
     private static RelNode rewriteStageInputScans(RelNode node) {
         if (node instanceof OpenSearchStageInputScan scan) {
-            return new StageInputTableScan(
-                scan.getCluster(),
-                scan.getTraitSet(),
-                "input-" + scan.getChildStageId(),
-                scan.getRowType()
-            );
+            return new StageInputTableScan(scan.getCluster(), scan.getTraitSet(), "input-" + scan.getChildStageId(), scan.getRowType());
         }
         List<RelNode> newInputs = new ArrayList<>(node.getInputs().size());
         boolean changed = false;

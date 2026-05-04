@@ -94,16 +94,16 @@ public class PlanForker {
             } else if (childAlt.chosenBackend != null
                 && !childAlt.chosenBackend.isEmpty()
                 && !childAlt.chosenBackend.equals(agreedBackend)) {
-                throw new IllegalStateException(
-                    "Multi-input operator ["
-                        + node.getClass().getSimpleName()
-                        + "] requires all children to share a backend; got ["
-                        + agreedBackend
-                        + "] vs ["
-                        + childAlt.chosenBackend
-                        + "]"
-                );
-            }
+                    throw new IllegalStateException(
+                        "Multi-input operator ["
+                            + node.getClass().getSimpleName()
+                            + "] requires all children to share a backend; got ["
+                            + agreedBackend
+                            + "] vs ["
+                            + childAlt.chosenBackend
+                            + "]"
+                    );
+                }
         }
         return resolveOperator(node, resolvedChildren, agreedBackend);
     }

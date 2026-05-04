@@ -207,11 +207,15 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
     /**
      * A final-agg fragment whose leaf is an {@link OpenSearchStageInputScan}
-     * converts to {@code AggregateRel(ReadRel(namedTable=[__stage_<id>_input__]))}.
+     * converts to {@code AggregateRel(ReadRel(namedTable=["input-<childStageId>"]))}.
+     * The stage-input id is per-child so multi-input shapes (Union) get distinct names
+     * for each registered DataFusion partition; single-input shapes still arrive at
+     * the conventional {@code "input-0"} when childStageId is 0.
      */
     public void testConvertFinalAggFragment_WithStageInputScanLeaf() throws Exception {
         RelDataType stageRowType = rowType("A");
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 7, stageRowType, List.of("datafusion"));
+        int childStageId = 7;
+        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), childStageId, stageRowType, List.of("datafusion"));
         LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
 
         byte[] bytes = newConvertor().convertFinalAggFragment(finalAgg);
@@ -227,8 +231,8 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         Rel inner = agg.getInput();
         assertTrue("Aggregate input must be a ReadRel", inner.hasRead());
         assertEquals(
-            "StageInputScan must be emitted as a ReadRel with the stage-input id",
-            List.of(DatafusionReduceSink.INPUT_ID),
+            "StageInputScan must be emitted as a ReadRel with the per-child stage-input id",
+            List.of("input-" + childStageId),
             inner.getRead().getNamedTable().getNamesList()
         );
     }
@@ -242,7 +246,8 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         // Inner: final-agg over stage-input.
         RelDataType stageRowType = rowType("A");
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, stageRowType, List.of("datafusion"));
+        int childStageId = 3;
+        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), childStageId, stageRowType, List.of("datafusion"));
         LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
         byte[] innerBytes = convertor.convertFinalAggFragment(finalAgg);
 
@@ -264,7 +269,7 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("Sort input must be an AggregateRel", inner.hasAggregate());
         Rel aggInput = inner.getAggregate().getInput();
         assertTrue("Agg input must be a ReadRel", aggInput.hasRead());
-        assertEquals(List.of(DatafusionReduceSink.INPUT_ID), aggInput.getRead().getNamedTable().getNamesList());
+        assertEquals(List.of("input-" + childStageId), aggInput.getRead().getNamedTable().getNamesList());
     }
 
     /**

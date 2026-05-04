@@ -11,14 +11,12 @@ package org.opensearch.analytics.planner.rules;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
-import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Union;
 import org.apache.calcite.rel.core.Values;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
-import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
@@ -70,7 +68,9 @@ public class OpenSearchUnionRule extends RelOptRule {
             }
             if (!(unwrapped instanceof OpenSearchRelNode openSearchInput)) {
                 throw new IllegalStateException(
-                    "Union rule encountered unmarked input [" + unwrapped.getClass().getSimpleName() + "]. "
+                    "Union rule encountered unmarked input ["
+                        + unwrapped.getClass().getSimpleName()
+                        + "]. "
                         + "All inputs must be converted to OpenSearchRelNode before union."
                 );
             }

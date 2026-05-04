@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * input, pushes each fed batch through a tokio mpsc-backed sender, and on close drains
  * the native output stream into {@link ExchangeSinkContext#downstream()}.
  *
- * <p>Single-input shapes register one partition under {@link #INPUT_ID} and accept
+ * <p>Single-input shapes register one partition under {@link AbstractDatafusionReduceSink#INPUT_ID} and accept
  * batches via the inherited {@link #feed(VectorSchemaRoot)} method. Multi-input shapes
  * (Union) register one partition per child stage and require callers to obtain a
  * per-child wrapper via {@link #sinkForChild(int)} — feeds via the bare
@@ -249,9 +249,9 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     protected Throwable closeUnderLock() {
         Throwable failure = null;
         // 1. Signal EOF on every still-open sender. The drain thread, which is already
-        //    polling the output stream, will receive the final batches and then EOF, then
-        //    exit cleanly. Senders that were already closed by their ChildSink wrapper are
-        //    no-ops (the underlying senderClose is idempotent on the Rust side).
+        // polling the output stream, will receive the final batches and then EOF, then
+        // exit cleanly. Senders that were already closed by their ChildSink wrapper are
+        // no-ops (the underlying senderClose is idempotent on the Rust side).
         for (DatafusionPartitionSender sender : sendersByChildStageId.values()) {
             try {
                 sender.close();
