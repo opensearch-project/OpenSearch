@@ -16,9 +16,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler;
 import org.opensearch.index.store.checksum.LuceneChecksumHandler;
@@ -81,32 +78,22 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
     private static final FormatChecksumStrategy DEFAULT_CHECKSUM_STRATEGY = new GenericCRC32ChecksumHandler();
 
     /**
-     * Constructs a DataFormatAwareStoreDirectory with a {@link DataFormatRegistry} for format-aware
-     * checksum calculation and other format-specific operations.
+     * Constructs a DataFormatAwareStoreDirectory with pre-built checksum strategies for
+     * format-aware checksum calculation and other format-specific operations.
      *
      * @param delegate            the underlying FSDirectory (typically for &lt;shard&gt;/index/)
      * @param shardPath           the shard path for resolving subdirectories
-     * @param dataFormatRegistry  registry providing format-specific checksum handlers
+     * @param checksumStrategies  pre-built checksum strategies keyed by format name
      */
-    public DataFormatAwareStoreDirectory(
-        IndexSettings indexSettings,
-        Directory delegate,
-        ShardPath shardPath,
-        DataFormatRegistry dataFormatRegistry
-    ) {
+    public DataFormatAwareStoreDirectory(Directory delegate, ShardPath shardPath, Map<String, FormatChecksumStrategy> checksumStrategies) {
         super(new SubdirectoryAwareDirectory(delegate, shardPath));
         this.shardPath = shardPath;
-        Map<String, DataFormatDescriptor> descriptors = dataFormatRegistry.getFormatDescriptors(indexSettings);
-        this.checksumStrategies = new HashMap<>();
-        for (Map.Entry<String, DataFormatDescriptor> entry : descriptors.entrySet()) {
-            this.checksumStrategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
-        }
+        this.checksumStrategies = new HashMap<>(checksumStrategies);
         this.checksumStrategies.put(DEFAULT_FORMAT, new LuceneChecksumHandler());
-
         logger.debug(
             "Created DataFormatAwareStoreDirectory for shard {} with checksum strategies for formats: {}",
             shardPath.getShardId(),
-            checksumStrategies.keySet()
+            this.checksumStrategies.keySet()
         );
     }
 
@@ -244,24 +231,6 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory {
      */
     public String calculateUploadChecksum(String name) throws IOException {
         return Long.toString(calculateChecksum(name));
-    }
-
-    /**
-     * Registers a {@link FormatChecksumStrategy} for a data format.
-     * Overrides any existing strategy
-     *
-     * <p>Use this to register strategies that support pre-computed checksums (e.g.,
-     * {@link PrecomputedChecksumStrategy} for Parquet files whose CRC32 is computed
-     * during write by the Rust writer).
-     *
-     * @param format the data format name (e.g., "parquet")
-     * @param strategy the checksum strategy to use for this format
-     */
-    public void registerChecksumStrategy(String format, FormatChecksumStrategy strategy) {
-        if (format != null && strategy != null) {
-            checksumStrategies.put(format, strategy);
-            logger.debug("Registered FormatChecksumStrategy for format [{}]", format);
-        }
     }
 
     /**

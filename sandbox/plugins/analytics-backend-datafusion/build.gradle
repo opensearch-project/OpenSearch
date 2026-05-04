@@ -82,6 +82,11 @@ dependencies {
   calciteCompile "com.google.guava:guava:${versions.guava}"
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
 
+  // Planner + Lucene backend for end-to-end delegation unit tests
+  testImplementation project(':sandbox:plugins:analytics-engine')
+  testImplementation project(':sandbox:plugins:analytics-backend-lucene')
+  testCompileOnly 'org.immutables:value-annotations:2.8.8'
+
   // ── internalClusterTest: end-to-end coordinator-reduce IT ───────────────────
   // Pulls in every sibling plugin needed to construct a parquet-backed composite
   // index, dispatch a multi-shard PPL aggregate, and exercise DatafusionReduceSink.
@@ -163,6 +168,8 @@ configurations.all {
     force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
     force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
     force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
+    force "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+    force "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   }
 }
 

@@ -79,6 +79,12 @@ public class AggregateCallAnnotation extends RexCall implements OperatorAnnotati
         return null;
     }
 
+    @Override
+    public RexNode withAdaptedOriginal(RexNode adaptedOriginal) {
+        // AggregateCallAnnotation is a marker, not a wrapper — adaptation does not apply.
+        return this;
+    }
+
     /** Extracts the annotation from an AggregateCall's rexList, or null if absent.
      *
      * <p>TODO: window function aggregate calls may have ORDER BY expressions in rexList

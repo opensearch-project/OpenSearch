@@ -16,8 +16,8 @@ import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rex.RexNode;
-import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.List;
 

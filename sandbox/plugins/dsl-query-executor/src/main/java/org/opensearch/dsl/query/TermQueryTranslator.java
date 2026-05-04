@@ -8,7 +8,6 @@
 
 package org.opensearch.dsl.query;
 
-import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.converter.ConversionContext;
@@ -36,13 +35,8 @@ public class TermQueryTranslator implements QueryTranslator {
         String fieldName = termQuery.fieldName();
         Object value = termQuery.value();
 
-        RelDataTypeField field = ctx.getRowType().getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Field '" + fieldName + "' not found in schema");
-        }
-
-        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
-        RexNode literal = ctx.getRexBuilder().makeLiteral(value, field.getType(), true);
+        RexNode fieldRef = ctx.makeFieldRef(fieldName);
+        RexNode literal = ctx.getRexBuilder().makeLiteral(value, ctx.getField(fieldName).getType(), true);
 
         return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.EQUALS, fieldRef, literal);
     }

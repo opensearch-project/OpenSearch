@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner;
 
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.settings.Settings;

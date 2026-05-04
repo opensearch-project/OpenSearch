@@ -22,7 +22,6 @@ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
-import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -66,15 +65,11 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
      * Requires the committer to be a {@link LuceneCommitter}.
      *
      * @param indexingEngineConfig the engine configuration containing committer, mapper service, and store
-     * @param checksumStrategy     the checksum strategy for the format (unused by Lucene)
      * @return a new Lucene indexing execution engine
      * @throws IllegalStateException if the committer is not a {@link LuceneCommitter}
      */
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(
-        IndexingEngineConfig indexingEngineConfig,
-        FormatChecksumStrategy checksumStrategy
-    ) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig indexingEngineConfig) {
         Committer committer = indexingEngineConfig.committer();
         if (committer instanceof LuceneCommitter luceneCommitter) {
             return new LuceneIndexingExecutionEngine(

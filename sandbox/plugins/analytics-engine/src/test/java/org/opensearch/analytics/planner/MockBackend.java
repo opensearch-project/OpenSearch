@@ -11,12 +11,16 @@ package org.opensearch.analytics.planner;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
+import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -66,6 +70,16 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             public Set<DelegationType> acceptedDelegations() {
                 return self.acceptedDelegations();
             }
+
+            @Override
+            public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+                return self.scalarFunctionAdapters();
+            }
+
+            @Override
+            public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+                return self.delegatedPredicateSerializers();
+            }
         };
     }
 
@@ -96,5 +110,13 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
 
     protected Set<DelegationType> acceptedDelegations() {
         return Set.of();
+    }
+
+    protected Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+        return Map.of();
+    }
+
+    protected Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return Map.of();
     }
 }

@@ -121,9 +121,10 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             boolean hasNext = firstBatchConsumed ? flightStream.next() : (firstBatchConsumed = true);
             if (!hasNext) return null;
 
-            VectorSchemaRoot root = flightStream.getRoot();
-            currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(root);
-            try (VectorStreamInput input = new VectorStreamInput(root, namedWriteableRegistry)) {
+            VectorSchemaRoot sharedRoot = flightStream.getRoot();
+            currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(sharedRoot);
+            VectorSchemaRoot ownedRoot = transferToOwnedRoot(sharedRoot);
+            try (VectorStreamInput input = new VectorStreamInput(ownedRoot, namedWriteableRegistry)) {
                 input.setVersion(initialHeader.getVersion());
                 return handler.read(input);
             }
@@ -142,6 +143,21 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
     long getCurrentBatchSize() {
         return currentBatchSize;
+    }
+
+    /**
+     * Transfers the shared root's vectors into a response-owned root so the returned response
+     * is independent of FlightStream's lifecycle. The next call to {@code flightStream.next()}
+     * clears the shared root, and {@code stream.close()} releases its vectors — both would wipe
+     * the data out from under an async listener if we handed back a reference to the shared root.
+     */
+    private static VectorSchemaRoot transferToOwnedRoot(VectorSchemaRoot sharedRoot) {
+        VectorSchemaRoot ownedRoot = VectorSchemaRoot.create(
+            sharedRoot.getSchema(),
+            sharedRoot.getFieldVectors().getFirst().getAllocator()
+        );
+        FlightUtils.transferRoot(sharedRoot, ownedRoot);
+        return ownedRoot;
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.spi;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -60,5 +61,24 @@ public interface BackendCapabilityProvider {
      */
     default Set<DelegationType> acceptedDelegations() {
         return Set.of();
+    }
+
+    /**
+     * Per-function adapters for transforming backend-agnostic scalar function RexCalls
+     * into backend-compatible forms before fragment conversion. Keyed by {@link ScalarFunction}.
+     * Applied regardless of operator context (filter, project, aggregate expression).
+     * Empty map means no adaptation needed.
+     */
+    default Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+        return Map.of();
+    }
+
+    /**
+     * Per-function serializers for delegated predicates this backend can accept.
+     * Keyed by {@link ScalarFunction} — the framework dispatches to the matching
+     * serializer during fragment conversion when a predicate is delegated to this backend.
+     */
+    default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return Map.of();
     }
 }
