@@ -349,13 +349,29 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
      * batches via sendResponseBatch(). The framework does zero-copy transfer
      * on the executor thread.
      */
+    public static class TestAllocatorHolder {
+        private final BufferAllocator allocator;
+
+        TestAllocatorHolder(BufferAllocator allocator) {
+            this.allocator = allocator;
+        }
+
+        BufferAllocator get() {
+            return allocator;
+        }
+    }
+
     public static class TransportTestArrowAction extends TransportAction<TestArrowRequest, TestArrowResponse> {
         private final BufferAllocator allocator;
 
         @Inject
-        public TransportTestArrowAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
+        public TransportTestArrowAction(
+            StreamTransportService streamTransportService,
+            ActionFilters actionFilters,
+            TestAllocatorHolder allocatorHolder
+        ) {
             super(TestArrowAction.NAME, actionFilters, streamTransportService.getTaskManager());
-            this.allocator = ArrowAllocatorProvider.newChildAllocator("native-arrow-test", Long.MAX_VALUE);
+            this.allocator = allocatorHolder.get();
             streamTransportService.registerRequestHandler(
                 TestArrowAction.NAME,
                 ThreadPool.Names.GENERIC,
@@ -485,11 +501,35 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
     }
 
     public static class NativeArrowTestPlugin extends Plugin implements ActionPlugin {
+        private final BufferAllocator allocator = ArrowAllocatorProvider.newChildAllocator("native-arrow-test", Long.MAX_VALUE);
+
         public NativeArrowTestPlugin() {}
+
+        @Override
+        public Collection<Object> createComponents(
+            org.opensearch.transport.client.Client client,
+            org.opensearch.cluster.service.ClusterService clusterService,
+            ThreadPool threadPool,
+            org.opensearch.watcher.ResourceWatcherService resourceWatcherService,
+            org.opensearch.script.ScriptService scriptService,
+            org.opensearch.core.xcontent.NamedXContentRegistry xContentRegistry,
+            org.opensearch.env.Environment environment,
+            org.opensearch.env.NodeEnvironment nodeEnvironment,
+            org.opensearch.core.common.io.stream.NamedWriteableRegistry namedWriteableRegistry,
+            org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver,
+            java.util.function.Supplier<org.opensearch.repositories.RepositoriesService> repositoriesServiceSupplier
+        ) {
+            return List.of(new TestAllocatorHolder(allocator));
+        }
 
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             return List.of(new ActionHandler<>(TestArrowAction.INSTANCE, TransportTestArrowAction.class));
+        }
+
+        @Override
+        public void close() {
+            allocator.close();
         }
     }
 }
