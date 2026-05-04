@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -48,6 +50,10 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
 
     @Override
     public void close() throws IOException {
+        // Signal cancellation to any in-flight Rust tasks for this query.
+        if (datafusionQuery != null && datafusionQuery.getContextId() != 0) {
+            NativeBridge.cancelQuery(datafusionQuery.getContextId());
+        }
         try {
             if (streamHandle != null) {
                 streamHandle.close();
@@ -68,6 +74,16 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
                 engineSearcher.close();
             }
         }
+    }
+
+    /** Returns true if the underlying task has been cancelled. */
+    public boolean isCancelled() {
+        return task instanceof SearchShardTask sst && sst.isCancelled();
+    }
+
+    /** Returns the context ID for this query, or 0 if not set. */
+    public long getContextId() {
+        return datafusionQuery != null ? datafusionQuery.getContextId() : 0L;
     }
 
     /**

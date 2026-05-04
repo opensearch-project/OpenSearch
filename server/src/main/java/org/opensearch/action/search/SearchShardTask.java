@@ -41,6 +41,7 @@ import org.opensearch.tasks.SearchBackpressureTask;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -53,6 +54,14 @@ import java.util.function.Supplier;
 public class SearchShardTask extends WorkloadGroupTask implements SearchBackpressureTask {
     // generating metadata in a lazy way since source can be quite big
     private final MemoizedSupplier<String> metadataSupplier;
+
+    /**
+     * Optional listener invoked immediately when this task is cancelled.
+     * Used by execution engines (e.g. DataFusion) to propagate cancellation
+     * to native runtimes as soon as the OpenSearch task is cancelled
+     * (HTTP disconnect, _tasks/_cancel, timeout).
+     */
+    private final AtomicReference<Runnable> cancellationListener = new AtomicReference<>();
 
     public SearchShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, () -> "");
@@ -83,5 +92,31 @@ public class SearchShardTask extends WorkloadGroupTask implements SearchBackpres
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return false;
+    }
+
+    /**
+     * Registers a listener that is called immediately when this task is cancelled.
+     * Only one listener is supported; registering a second one replaces the first.
+     * If the task is already cancelled when the listener is registered, it fires immediately.
+     */
+    public void setCancellationListener(Runnable listener) {
+        cancellationListener.set(listener);
+        if (isCancelled() && listener != null) {
+            listener.run();
+        }
+    }
+
+    /** Removes the cancellation listener, e.g. after the query completes normally. */
+    public void clearCancellationListener() {
+        cancellationListener.set(null);
+    }
+
+    @Override
+    protected void onCancelled() {
+        super.onCancelled();
+        Runnable listener = cancellationListener.get();
+        if (listener != null) {
+            listener.run();
+        }
     }
 }

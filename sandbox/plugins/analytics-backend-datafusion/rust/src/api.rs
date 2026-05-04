@@ -346,6 +346,7 @@ pub async unsafe fn execute_query(
                 cpu_executor,
                 query_memory_pool,
                 &query_config,
+                context_id,
             ).await
         }
     };
