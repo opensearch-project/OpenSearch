@@ -46,3 +46,6 @@ for f in "${OUTPUT_DIR}"/*.java; do
 done
 
 echo "Done. Generated $(ls "${OUTPUT_DIR}"/*.java | wc -l | tr -d ' ') files in ${OUTPUT_DIR}/"
+echo "Running spotlessApply..."
+cd "${BASH_SOURCE%/*}/.."
+../../gradlew :plugins:ingestion-hive:spotlessApply -q

@@ -82,15 +82,26 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
         assertEquals("dt=2026-04-01", config.getConsumeStartOffset());
     }
 
-    public void testNumShards() {
+    public void testNumShardsFromFramework() {
         Map<String, Object> params = new HashMap<>();
         params.put("metastore_uri", "thrift://localhost:9083");
         params.put("database", "db");
         params.put("table", "tbl");
-        params.put("num_shards", "5");
+        params.put("_number_of_shards", 5);
 
         HiveSourceConfig config = new HiveSourceConfig(params);
 
         assertEquals(5, config.getNumShards());
+    }
+
+    public void testNumShardsFallback() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+
+        HiveSourceConfig config = new HiveSourceConfig(params);
+
+        assertEquals(1, config.getNumShards());
     }
 }

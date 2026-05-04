@@ -14,1530 +14,1623 @@
  */
 package org.opensearch.plugin.hive.metastore;
 
-@SuppressWarnings({"cast", "rawtypes", "serial", "unchecked", "unused"})
-public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescriptor, StorageDescriptor._Fields>, java.io.Serializable, Cloneable, Comparable<StorageDescriptor> {
-  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("StorageDescriptor");
+@SuppressWarnings({ "cast", "rawtypes", "serial", "unchecked", "unused" })
+public class StorageDescriptor
+    implements
+        org.apache.thrift.TBase<StorageDescriptor, StorageDescriptor._Fields>,
+        java.io.Serializable,
+        Cloneable,
+        Comparable<StorageDescriptor> {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("StorageDescriptor");
 
-  private static final org.apache.thrift.protocol.TField COLS_FIELD_DESC = new org.apache.thrift.protocol.TField("cols", org.apache.thrift.protocol.TType.LIST, (short)1);
-  private static final org.apache.thrift.protocol.TField LOCATION_FIELD_DESC = new org.apache.thrift.protocol.TField("location", org.apache.thrift.protocol.TType.STRING, (short)2);
-  private static final org.apache.thrift.protocol.TField INPUT_FORMAT_FIELD_DESC = new org.apache.thrift.protocol.TField("inputFormat", org.apache.thrift.protocol.TType.STRING, (short)3);
-  private static final org.apache.thrift.protocol.TField OUTPUT_FORMAT_FIELD_DESC = new org.apache.thrift.protocol.TField("outputFormat", org.apache.thrift.protocol.TType.STRING, (short)4);
-  private static final org.apache.thrift.protocol.TField COMPRESSED_FIELD_DESC = new org.apache.thrift.protocol.TField("compressed", org.apache.thrift.protocol.TType.BOOL, (short)5);
-  private static final org.apache.thrift.protocol.TField NUM_BUCKETS_FIELD_DESC = new org.apache.thrift.protocol.TField("numBuckets", org.apache.thrift.protocol.TType.I32, (short)6);
-  private static final org.apache.thrift.protocol.TField SERDE_INFO_FIELD_DESC = new org.apache.thrift.protocol.TField("serdeInfo", org.apache.thrift.protocol.TType.STRUCT, (short)7);
-  private static final org.apache.thrift.protocol.TField BUCKET_COLS_FIELD_DESC = new org.apache.thrift.protocol.TField("bucketCols", org.apache.thrift.protocol.TType.LIST, (short)8);
-  private static final org.apache.thrift.protocol.TField SORT_COLS_FIELD_DESC = new org.apache.thrift.protocol.TField("sortCols", org.apache.thrift.protocol.TType.LIST, (short)9);
-  private static final org.apache.thrift.protocol.TField PARAMETERS_FIELD_DESC = new org.apache.thrift.protocol.TField("parameters", org.apache.thrift.protocol.TType.MAP, (short)10);
+    private static final org.apache.thrift.protocol.TField COLS_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "cols",
+        org.apache.thrift.protocol.TType.LIST,
+        (short) 1
+    );
+    private static final org.apache.thrift.protocol.TField LOCATION_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "location",
+        org.apache.thrift.protocol.TType.STRING,
+        (short) 2
+    );
+    private static final org.apache.thrift.protocol.TField INPUT_FORMAT_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "inputFormat",
+        org.apache.thrift.protocol.TType.STRING,
+        (short) 3
+    );
+    private static final org.apache.thrift.protocol.TField OUTPUT_FORMAT_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "outputFormat",
+        org.apache.thrift.protocol.TType.STRING,
+        (short) 4
+    );
+    private static final org.apache.thrift.protocol.TField COMPRESSED_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "compressed",
+        org.apache.thrift.protocol.TType.BOOL,
+        (short) 5
+    );
+    private static final org.apache.thrift.protocol.TField NUM_BUCKETS_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "numBuckets",
+        org.apache.thrift.protocol.TType.I32,
+        (short) 6
+    );
+    private static final org.apache.thrift.protocol.TField SERDE_INFO_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "serdeInfo",
+        org.apache.thrift.protocol.TType.STRUCT,
+        (short) 7
+    );
+    private static final org.apache.thrift.protocol.TField BUCKET_COLS_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "bucketCols",
+        org.apache.thrift.protocol.TType.LIST,
+        (short) 8
+    );
+    private static final org.apache.thrift.protocol.TField SORT_COLS_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "sortCols",
+        org.apache.thrift.protocol.TType.LIST,
+        (short) 9
+    );
+    private static final org.apache.thrift.protocol.TField PARAMETERS_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "parameters",
+        org.apache.thrift.protocol.TType.MAP,
+        (short) 10
+    );
 
-  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new StorageDescriptorStandardSchemeFactory();
-  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new StorageDescriptorTupleSchemeFactory();
+    private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new StorageDescriptorStandardSchemeFactory();
+    private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new StorageDescriptorTupleSchemeFactory();
 
-  private @org.apache.thrift.annotation.Nullable java.util.List<FieldSchema> cols; // required
-  private @org.apache.thrift.annotation.Nullable java.lang.String location; // required
-  private @org.apache.thrift.annotation.Nullable java.lang.String inputFormat; // required
-  private @org.apache.thrift.annotation.Nullable java.lang.String outputFormat; // required
-  private boolean compressed; // required
-  private int numBuckets; // required
-  private @org.apache.thrift.annotation.Nullable SerDeInfo serdeInfo; // required
-  private @org.apache.thrift.annotation.Nullable java.util.List<java.lang.String> bucketCols; // required
-  private @org.apache.thrift.annotation.Nullable java.util.List<Order> sortCols; // required
-  private @org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String,java.lang.String> parameters; // required
+    private @org.apache.thrift.annotation.Nullable java.util.List<FieldSchema> cols; // required
+    private @org.apache.thrift.annotation.Nullable java.lang.String location; // required
+    private @org.apache.thrift.annotation.Nullable java.lang.String inputFormat; // required
+    private @org.apache.thrift.annotation.Nullable java.lang.String outputFormat; // required
+    private boolean compressed; // required
+    private int numBuckets; // required
+    private @org.apache.thrift.annotation.Nullable SerDeInfo serdeInfo; // required
+    private @org.apache.thrift.annotation.Nullable java.util.List<java.lang.String> bucketCols; // required
+    private @org.apache.thrift.annotation.Nullable java.util.List<Order> sortCols; // required
+    private @org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String, java.lang.String> parameters; // required
 
-  /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-    COLS((short)1, "cols"),
-    LOCATION((short)2, "location"),
-    INPUT_FORMAT((short)3, "inputFormat"),
-    OUTPUT_FORMAT((short)4, "outputFormat"),
-    COMPRESSED((short)5, "compressed"),
-    NUM_BUCKETS((short)6, "numBuckets"),
-    SERDE_INFO((short)7, "serdeInfo"),
-    BUCKET_COLS((short)8, "bucketCols"),
-    SORT_COLS((short)9, "sortCols"),
-    PARAMETERS((short)10, "parameters");
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements org.apache.thrift.TFieldIdEnum {
+        COLS((short) 1, "cols"),
+        LOCATION((short) 2, "location"),
+        INPUT_FORMAT((short) 3, "inputFormat"),
+        OUTPUT_FORMAT((short) 4, "outputFormat"),
+        COMPRESSED((short) 5, "compressed"),
+        NUM_BUCKETS((short) 6, "numBuckets"),
+        SERDE_INFO((short) 7, "serdeInfo"),
+        BUCKET_COLS((short) 8, "bucketCols"),
+        SORT_COLS((short) 9, "sortCols"),
+        PARAMETERS((short) 10, "parameters");
 
-    private static final java.util.Map<java.lang.String, _Fields> byName = new java.util.HashMap<java.lang.String, _Fields>();
+        private static final java.util.Map<java.lang.String, _Fields> byName = new java.util.HashMap<java.lang.String, _Fields>();
 
+        static {
+            for (_Fields field : java.util.EnumSet.allOf(_Fields.class)) {
+                byName.put(field.getFieldName(), field);
+            }
+        }
+
+        /**
+         * Find the _Fields constant that matches fieldId, or null if its not found.
+         */
+        @org.apache.thrift.annotation.Nullable
+        public static _Fields findByThriftId(int fieldId) {
+            switch (fieldId) {
+                case 1: // COLS
+                    return COLS;
+                case 2: // LOCATION
+                    return LOCATION;
+                case 3: // INPUT_FORMAT
+                    return INPUT_FORMAT;
+                case 4: // OUTPUT_FORMAT
+                    return OUTPUT_FORMAT;
+                case 5: // COMPRESSED
+                    return COMPRESSED;
+                case 6: // NUM_BUCKETS
+                    return NUM_BUCKETS;
+                case 7: // SERDE_INFO
+                    return SERDE_INFO;
+                case 8: // BUCKET_COLS
+                    return BUCKET_COLS;
+                case 9: // SORT_COLS
+                    return SORT_COLS;
+                case 10: // PARAMETERS
+                    return PARAMETERS;
+                default:
+                    return null;
+            }
+        }
+
+        /**
+         * Find the _Fields constant that matches fieldId, throwing an exception
+         * if it is not found.
+         */
+        public static _Fields findByThriftIdOrThrow(int fieldId) {
+            _Fields fields = findByThriftId(fieldId);
+            if (fields == null) throw new java.lang.IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+            return fields;
+        }
+
+        /**
+         * Find the _Fields constant that matches name, or null if its not found.
+         */
+        @org.apache.thrift.annotation.Nullable
+        public static _Fields findByName(java.lang.String name) {
+            return byName.get(name);
+        }
+
+        private final short _thriftId;
+        private final java.lang.String _fieldName;
+
+        _Fields(short thriftId, java.lang.String fieldName) {
+            _thriftId = thriftId;
+            _fieldName = fieldName;
+        }
+
+        @Override
+        public short getThriftFieldId() {
+            return _thriftId;
+        }
+
+        @Override
+        public java.lang.String getFieldName() {
+            return _fieldName;
+        }
+    }
+
+    // isset id assignments
+    private static final int __COMPRESSED_ISSET_ID = 0;
+    private static final int __NUMBUCKETS_ISSET_ID = 1;
+    private byte __isset_bitfield = 0;
+    public static final java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
-      for (_Fields field : java.util.EnumSet.allOf(_Fields.class)) {
-        byName.put(field.getFieldName(), field);
-      }
+        java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new java.util.EnumMap<
+            _Fields,
+            org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+        tmpMap.put(
+            _Fields.COLS,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "cols",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.ListMetaData(
+                    org.apache.thrift.protocol.TType.LIST,
+                    new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, FieldSchema.class)
+                )
+            )
+        );
+        tmpMap.put(
+            _Fields.LOCATION,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "location",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)
+            )
+        );
+        tmpMap.put(
+            _Fields.INPUT_FORMAT,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "inputFormat",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)
+            )
+        );
+        tmpMap.put(
+            _Fields.OUTPUT_FORMAT,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "outputFormat",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)
+            )
+        );
+        tmpMap.put(
+            _Fields.COMPRESSED,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "compressed",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)
+            )
+        );
+        tmpMap.put(
+            _Fields.NUM_BUCKETS,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "numBuckets",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)
+            )
+        );
+        tmpMap.put(
+            _Fields.SERDE_INFO,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "serdeInfo",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SerDeInfo.class)
+            )
+        );
+        tmpMap.put(
+            _Fields.BUCKET_COLS,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "bucketCols",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.ListMetaData(
+                    org.apache.thrift.protocol.TType.LIST,
+                    new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)
+                )
+            )
+        );
+        tmpMap.put(
+            _Fields.SORT_COLS,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "sortCols",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.ListMetaData(
+                    org.apache.thrift.protocol.TType.LIST,
+                    new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Order.class)
+                )
+            )
+        );
+        tmpMap.put(
+            _Fields.PARAMETERS,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "parameters",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.MapMetaData(
+                    org.apache.thrift.protocol.TType.MAP,
+                    new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING),
+                    new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)
+                )
+            )
+        );
+        metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);
+        org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(StorageDescriptor.class, metaDataMap);
+    }
+
+    public StorageDescriptor() {}
+
+    public StorageDescriptor(
+        java.util.List<FieldSchema> cols,
+        java.lang.String location,
+        java.lang.String inputFormat,
+        java.lang.String outputFormat,
+        boolean compressed,
+        int numBuckets,
+        SerDeInfo serdeInfo,
+        java.util.List<java.lang.String> bucketCols,
+        java.util.List<Order> sortCols,
+        java.util.Map<java.lang.String, java.lang.String> parameters
+    ) {
+        this();
+        this.cols = cols;
+        this.location = location;
+        this.inputFormat = inputFormat;
+        this.outputFormat = outputFormat;
+        this.compressed = compressed;
+        setCompressedIsSet(true);
+        this.numBuckets = numBuckets;
+        setNumBucketsIsSet(true);
+        this.serdeInfo = serdeInfo;
+        this.bucketCols = bucketCols;
+        this.sortCols = sortCols;
+        this.parameters = parameters;
     }
 
     /**
-     * Find the _Fields constant that matches fieldId, or null if its not found.
+     * Performs a deep copy on <i>other</i>.
      */
+    public StorageDescriptor(StorageDescriptor other) {
+        __isset_bitfield = other.__isset_bitfield;
+        if (other.isSetCols()) {
+            java.util.List<FieldSchema> __this__cols = new java.util.ArrayList<FieldSchema>(other.cols.size());
+            for (FieldSchema other_element : other.cols) {
+                __this__cols.add(new FieldSchema(other_element));
+            }
+            this.cols = __this__cols;
+        }
+        if (other.isSetLocation()) {
+            this.location = other.location;
+        }
+        if (other.isSetInputFormat()) {
+            this.inputFormat = other.inputFormat;
+        }
+        if (other.isSetOutputFormat()) {
+            this.outputFormat = other.outputFormat;
+        }
+        this.compressed = other.compressed;
+        this.numBuckets = other.numBuckets;
+        if (other.isSetSerdeInfo()) {
+            this.serdeInfo = new SerDeInfo(other.serdeInfo);
+        }
+        if (other.isSetBucketCols()) {
+            java.util.List<java.lang.String> __this__bucketCols = new java.util.ArrayList<java.lang.String>(other.bucketCols);
+            this.bucketCols = __this__bucketCols;
+        }
+        if (other.isSetSortCols()) {
+            java.util.List<Order> __this__sortCols = new java.util.ArrayList<Order>(other.sortCols.size());
+            for (Order other_element : other.sortCols) {
+                __this__sortCols.add(new Order(other_element));
+            }
+            this.sortCols = __this__sortCols;
+        }
+        if (other.isSetParameters()) {
+            java.util.Map<java.lang.String, java.lang.String> __this__parameters = new java.util.TreeMap<
+                java.lang.String,
+                java.lang.String>(other.parameters);
+            this.parameters = __this__parameters;
+        }
+    }
+
+    @Override
+    public StorageDescriptor deepCopy() {
+        return new StorageDescriptor(this);
+    }
+
+    @Override
+    public void clear() {
+        this.cols = null;
+        this.location = null;
+        this.inputFormat = null;
+        this.outputFormat = null;
+        setCompressedIsSet(false);
+        this.compressed = false;
+        setNumBucketsIsSet(false);
+        this.numBuckets = 0;
+        this.serdeInfo = null;
+        this.bucketCols = null;
+        this.sortCols = null;
+        this.parameters = null;
+    }
+
+    public int getColsSize() {
+        return (this.cols == null) ? 0 : this.cols.size();
+    }
+
     @org.apache.thrift.annotation.Nullable
-    public static _Fields findByThriftId(int fieldId) {
-      switch(fieldId) {
-        case 1: // COLS
-          return COLS;
-        case 2: // LOCATION
-          return LOCATION;
-        case 3: // INPUT_FORMAT
-          return INPUT_FORMAT;
-        case 4: // OUTPUT_FORMAT
-          return OUTPUT_FORMAT;
-        case 5: // COMPRESSED
-          return COMPRESSED;
-        case 6: // NUM_BUCKETS
-          return NUM_BUCKETS;
-        case 7: // SERDE_INFO
-          return SERDE_INFO;
-        case 8: // BUCKET_COLS
-          return BUCKET_COLS;
-        case 9: // SORT_COLS
-          return SORT_COLS;
-        case 10: // PARAMETERS
-          return PARAMETERS;
-        default:
-          return null;
-      }
+    public java.util.Iterator<FieldSchema> getColsIterator() {
+        return (this.cols == null) ? null : this.cols.iterator();
     }
 
-    /**
-     * Find the _Fields constant that matches fieldId, throwing an exception
-     * if it is not found.
-     */
-    public static _Fields findByThriftIdOrThrow(int fieldId) {
-      _Fields fields = findByThriftId(fieldId);
-      if (fields == null) throw new java.lang.IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-      return fields;
+    public void addToCols(FieldSchema elem) {
+        if (this.cols == null) {
+            this.cols = new java.util.ArrayList<FieldSchema>();
+        }
+        this.cols.add(elem);
     }
 
-    /**
-     * Find the _Fields constant that matches name, or null if its not found.
-     */
     @org.apache.thrift.annotation.Nullable
-    public static _Fields findByName(java.lang.String name) {
-      return byName.get(name);
+    public java.util.List<FieldSchema> getCols() {
+        return this.cols;
     }
 
-    private final short _thriftId;
-    private final java.lang.String _fieldName;
-
-    _Fields(short thriftId, java.lang.String fieldName) {
-      _thriftId = thriftId;
-      _fieldName = fieldName;
-    }
-
-    @Override
-    public short getThriftFieldId() {
-      return _thriftId;
-    }
-
-    @Override
-    public java.lang.String getFieldName() {
-      return _fieldName;
-    }
-  }
-
-  // isset id assignments
-  private static final int __COMPRESSED_ISSET_ID = 0;
-  private static final int __NUMBUCKETS_ISSET_ID = 1;
-  private byte __isset_bitfield = 0;
-  public static final java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
-  static {
-    java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new java.util.EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.COLS, new org.apache.thrift.meta_data.FieldMetaData("cols", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
-            new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, FieldSchema.class))));
-    tmpMap.put(_Fields.LOCATION, new org.apache.thrift.meta_data.FieldMetaData("location", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.INPUT_FORMAT, new org.apache.thrift.meta_data.FieldMetaData("inputFormat", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.OUTPUT_FORMAT, new org.apache.thrift.meta_data.FieldMetaData("outputFormat", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.COMPRESSED, new org.apache.thrift.meta_data.FieldMetaData("compressed", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
-    tmpMap.put(_Fields.NUM_BUCKETS, new org.apache.thrift.meta_data.FieldMetaData("numBuckets", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-    tmpMap.put(_Fields.SERDE_INFO, new org.apache.thrift.meta_data.FieldMetaData("serdeInfo", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SerDeInfo.class)));
-    tmpMap.put(_Fields.BUCKET_COLS, new org.apache.thrift.meta_data.FieldMetaData("bucketCols", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
-    tmpMap.put(_Fields.SORT_COLS, new org.apache.thrift.meta_data.FieldMetaData("sortCols", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
-            new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Order.class))));
-    tmpMap.put(_Fields.PARAMETERS, new org.apache.thrift.meta_data.FieldMetaData("parameters", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
-    metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);
-    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(StorageDescriptor.class, metaDataMap);
-  }
-
-  public StorageDescriptor() {
-  }
-
-  public StorageDescriptor(
-    java.util.List<FieldSchema> cols,
-    java.lang.String location,
-    java.lang.String inputFormat,
-    java.lang.String outputFormat,
-    boolean compressed,
-    int numBuckets,
-    SerDeInfo serdeInfo,
-    java.util.List<java.lang.String> bucketCols,
-    java.util.List<Order> sortCols,
-    java.util.Map<java.lang.String,java.lang.String> parameters)
-  {
-    this();
-    this.cols = cols;
-    this.location = location;
-    this.inputFormat = inputFormat;
-    this.outputFormat = outputFormat;
-    this.compressed = compressed;
-    setCompressedIsSet(true);
-    this.numBuckets = numBuckets;
-    setNumBucketsIsSet(true);
-    this.serdeInfo = serdeInfo;
-    this.bucketCols = bucketCols;
-    this.sortCols = sortCols;
-    this.parameters = parameters;
-  }
-
-  /**
-   * Performs a deep copy on <i>other</i>.
-   */
-  public StorageDescriptor(StorageDescriptor other) {
-    __isset_bitfield = other.__isset_bitfield;
-    if (other.isSetCols()) {
-      java.util.List<FieldSchema> __this__cols = new java.util.ArrayList<FieldSchema>(other.cols.size());
-      for (FieldSchema other_element : other.cols) {
-        __this__cols.add(new FieldSchema(other_element));
-      }
-      this.cols = __this__cols;
-    }
-    if (other.isSetLocation()) {
-      this.location = other.location;
-    }
-    if (other.isSetInputFormat()) {
-      this.inputFormat = other.inputFormat;
-    }
-    if (other.isSetOutputFormat()) {
-      this.outputFormat = other.outputFormat;
-    }
-    this.compressed = other.compressed;
-    this.numBuckets = other.numBuckets;
-    if (other.isSetSerdeInfo()) {
-      this.serdeInfo = new SerDeInfo(other.serdeInfo);
-    }
-    if (other.isSetBucketCols()) {
-      java.util.List<java.lang.String> __this__bucketCols = new java.util.ArrayList<java.lang.String>(other.bucketCols);
-      this.bucketCols = __this__bucketCols;
-    }
-    if (other.isSetSortCols()) {
-      java.util.List<Order> __this__sortCols = new java.util.ArrayList<Order>(other.sortCols.size());
-      for (Order other_element : other.sortCols) {
-        __this__sortCols.add(new Order(other_element));
-      }
-      this.sortCols = __this__sortCols;
-    }
-    if (other.isSetParameters()) {
-      java.util.Map<java.lang.String,java.lang.String> __this__parameters = new java.util.TreeMap<java.lang.String,java.lang.String>(other.parameters);
-      this.parameters = __this__parameters;
-    }
-  }
-
-  @Override
-  public StorageDescriptor deepCopy() {
-    return new StorageDescriptor(this);
-  }
-
-  @Override
-  public void clear() {
-    this.cols = null;
-    this.location = null;
-    this.inputFormat = null;
-    this.outputFormat = null;
-    setCompressedIsSet(false);
-    this.compressed = false;
-    setNumBucketsIsSet(false);
-    this.numBuckets = 0;
-    this.serdeInfo = null;
-    this.bucketCols = null;
-    this.sortCols = null;
-    this.parameters = null;
-  }
-
-  public int getColsSize() {
-    return (this.cols == null) ? 0 : this.cols.size();
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.Iterator<FieldSchema> getColsIterator() {
-    return (this.cols == null) ? null : this.cols.iterator();
-  }
-
-  public void addToCols(FieldSchema elem) {
-    if (this.cols == null) {
-      this.cols = new java.util.ArrayList<FieldSchema>();
-    }
-    this.cols.add(elem);
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.List<FieldSchema> getCols() {
-    return this.cols;
-  }
-
-  public StorageDescriptor setCols(@org.apache.thrift.annotation.Nullable java.util.List<FieldSchema> cols) {
-    this.cols = cols;
-    return this;
-  }
-
-  public void unsetCols() {
-    this.cols = null;
-  }
-
-  /** Returns true if field cols is set (has been assigned a value) and false otherwise */
-  public boolean isSetCols() {
-    return this.cols != null;
-  }
-
-  public void setColsIsSet(boolean value) {
-    if (!value) {
-      this.cols = null;
-    }
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.lang.String getLocation() {
-    return this.location;
-  }
-
-  public StorageDescriptor setLocation(@org.apache.thrift.annotation.Nullable java.lang.String location) {
-    this.location = location;
-    return this;
-  }
-
-  public void unsetLocation() {
-    this.location = null;
-  }
-
-  /** Returns true if field location is set (has been assigned a value) and false otherwise */
-  public boolean isSetLocation() {
-    return this.location != null;
-  }
-
-  public void setLocationIsSet(boolean value) {
-    if (!value) {
-      this.location = null;
-    }
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.lang.String getInputFormat() {
-    return this.inputFormat;
-  }
-
-  public StorageDescriptor setInputFormat(@org.apache.thrift.annotation.Nullable java.lang.String inputFormat) {
-    this.inputFormat = inputFormat;
-    return this;
-  }
-
-  public void unsetInputFormat() {
-    this.inputFormat = null;
-  }
-
-  /** Returns true if field inputFormat is set (has been assigned a value) and false otherwise */
-  public boolean isSetInputFormat() {
-    return this.inputFormat != null;
-  }
-
-  public void setInputFormatIsSet(boolean value) {
-    if (!value) {
-      this.inputFormat = null;
-    }
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.lang.String getOutputFormat() {
-    return this.outputFormat;
-  }
-
-  public StorageDescriptor setOutputFormat(@org.apache.thrift.annotation.Nullable java.lang.String outputFormat) {
-    this.outputFormat = outputFormat;
-    return this;
-  }
-
-  public void unsetOutputFormat() {
-    this.outputFormat = null;
-  }
-
-  /** Returns true if field outputFormat is set (has been assigned a value) and false otherwise */
-  public boolean isSetOutputFormat() {
-    return this.outputFormat != null;
-  }
-
-  public void setOutputFormatIsSet(boolean value) {
-    if (!value) {
-      this.outputFormat = null;
-    }
-  }
-
-  public boolean isCompressed() {
-    return this.compressed;
-  }
-
-  public StorageDescriptor setCompressed(boolean compressed) {
-    this.compressed = compressed;
-    setCompressedIsSet(true);
-    return this;
-  }
-
-  public void unsetCompressed() {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.clearBit(__isset_bitfield, __COMPRESSED_ISSET_ID);
-  }
-
-  /** Returns true if field compressed is set (has been assigned a value) and false otherwise */
-  public boolean isSetCompressed() {
-    return org.apache.thrift.EncodingUtils.testBit(__isset_bitfield, __COMPRESSED_ISSET_ID);
-  }
-
-  public void setCompressedIsSet(boolean value) {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.setBit(__isset_bitfield, __COMPRESSED_ISSET_ID, value);
-  }
-
-  public int getNumBuckets() {
-    return this.numBuckets;
-  }
-
-  public StorageDescriptor setNumBuckets(int numBuckets) {
-    this.numBuckets = numBuckets;
-    setNumBucketsIsSet(true);
-    return this;
-  }
-
-  public void unsetNumBuckets() {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.clearBit(__isset_bitfield, __NUMBUCKETS_ISSET_ID);
-  }
-
-  /** Returns true if field numBuckets is set (has been assigned a value) and false otherwise */
-  public boolean isSetNumBuckets() {
-    return org.apache.thrift.EncodingUtils.testBit(__isset_bitfield, __NUMBUCKETS_ISSET_ID);
-  }
-
-  public void setNumBucketsIsSet(boolean value) {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.setBit(__isset_bitfield, __NUMBUCKETS_ISSET_ID, value);
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public SerDeInfo getSerdeInfo() {
-    return this.serdeInfo;
-  }
-
-  public StorageDescriptor setSerdeInfo(@org.apache.thrift.annotation.Nullable SerDeInfo serdeInfo) {
-    this.serdeInfo = serdeInfo;
-    return this;
-  }
-
-  public void unsetSerdeInfo() {
-    this.serdeInfo = null;
-  }
-
-  /** Returns true if field serdeInfo is set (has been assigned a value) and false otherwise */
-  public boolean isSetSerdeInfo() {
-    return this.serdeInfo != null;
-  }
-
-  public void setSerdeInfoIsSet(boolean value) {
-    if (!value) {
-      this.serdeInfo = null;
-    }
-  }
-
-  public int getBucketColsSize() {
-    return (this.bucketCols == null) ? 0 : this.bucketCols.size();
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.Iterator<java.lang.String> getBucketColsIterator() {
-    return (this.bucketCols == null) ? null : this.bucketCols.iterator();
-  }
-
-  public void addToBucketCols(java.lang.String elem) {
-    if (this.bucketCols == null) {
-      this.bucketCols = new java.util.ArrayList<java.lang.String>();
-    }
-    this.bucketCols.add(elem);
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.List<java.lang.String> getBucketCols() {
-    return this.bucketCols;
-  }
-
-  public StorageDescriptor setBucketCols(@org.apache.thrift.annotation.Nullable java.util.List<java.lang.String> bucketCols) {
-    this.bucketCols = bucketCols;
-    return this;
-  }
-
-  public void unsetBucketCols() {
-    this.bucketCols = null;
-  }
-
-  /** Returns true if field bucketCols is set (has been assigned a value) and false otherwise */
-  public boolean isSetBucketCols() {
-    return this.bucketCols != null;
-  }
-
-  public void setBucketColsIsSet(boolean value) {
-    if (!value) {
-      this.bucketCols = null;
-    }
-  }
-
-  public int getSortColsSize() {
-    return (this.sortCols == null) ? 0 : this.sortCols.size();
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.Iterator<Order> getSortColsIterator() {
-    return (this.sortCols == null) ? null : this.sortCols.iterator();
-  }
-
-  public void addToSortCols(Order elem) {
-    if (this.sortCols == null) {
-      this.sortCols = new java.util.ArrayList<Order>();
-    }
-    this.sortCols.add(elem);
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.List<Order> getSortCols() {
-    return this.sortCols;
-  }
-
-  public StorageDescriptor setSortCols(@org.apache.thrift.annotation.Nullable java.util.List<Order> sortCols) {
-    this.sortCols = sortCols;
-    return this;
-  }
-
-  public void unsetSortCols() {
-    this.sortCols = null;
-  }
-
-  /** Returns true if field sortCols is set (has been assigned a value) and false otherwise */
-  public boolean isSetSortCols() {
-    return this.sortCols != null;
-  }
-
-  public void setSortColsIsSet(boolean value) {
-    if (!value) {
-      this.sortCols = null;
-    }
-  }
-
-  public int getParametersSize() {
-    return (this.parameters == null) ? 0 : this.parameters.size();
-  }
-
-  public void putToParameters(java.lang.String key, java.lang.String val) {
-    if (this.parameters == null) {
-      this.parameters = new java.util.TreeMap<java.lang.String,java.lang.String>();
-    }
-    this.parameters.put(key, val);
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.Map<java.lang.String,java.lang.String> getParameters() {
-    return this.parameters;
-  }
-
-  public StorageDescriptor setParameters(@org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String,java.lang.String> parameters) {
-    this.parameters = parameters;
-    return this;
-  }
-
-  public void unsetParameters() {
-    this.parameters = null;
-  }
-
-  /** Returns true if field parameters is set (has been assigned a value) and false otherwise */
-  public boolean isSetParameters() {
-    return this.parameters != null;
-  }
-
-  public void setParametersIsSet(boolean value) {
-    if (!value) {
-      this.parameters = null;
-    }
-  }
-
-  @Override
-  public void setFieldValue(_Fields field, @org.apache.thrift.annotation.Nullable java.lang.Object value) {
-    switch (field) {
-    case COLS:
-      if (value == null) {
-        unsetCols();
-      } else {
-        setCols((java.util.List<FieldSchema>)value);
-      }
-      break;
-
-    case LOCATION:
-      if (value == null) {
-        unsetLocation();
-      } else {
-        setLocation((java.lang.String)value);
-      }
-      break;
-
-    case INPUT_FORMAT:
-      if (value == null) {
-        unsetInputFormat();
-      } else {
-        setInputFormat((java.lang.String)value);
-      }
-      break;
-
-    case OUTPUT_FORMAT:
-      if (value == null) {
-        unsetOutputFormat();
-      } else {
-        setOutputFormat((java.lang.String)value);
-      }
-      break;
-
-    case COMPRESSED:
-      if (value == null) {
-        unsetCompressed();
-      } else {
-        setCompressed((java.lang.Boolean)value);
-      }
-      break;
-
-    case NUM_BUCKETS:
-      if (value == null) {
-        unsetNumBuckets();
-      } else {
-        setNumBuckets((java.lang.Integer)value);
-      }
-      break;
-
-    case SERDE_INFO:
-      if (value == null) {
-        unsetSerdeInfo();
-      } else {
-        setSerdeInfo((SerDeInfo)value);
-      }
-      break;
-
-    case BUCKET_COLS:
-      if (value == null) {
-        unsetBucketCols();
-      } else {
-        setBucketCols((java.util.List<java.lang.String>)value);
-      }
-      break;
-
-    case SORT_COLS:
-      if (value == null) {
-        unsetSortCols();
-      } else {
-        setSortCols((java.util.List<Order>)value);
-      }
-      break;
-
-    case PARAMETERS:
-      if (value == null) {
-        unsetParameters();
-      } else {
-        setParameters((java.util.Map<java.lang.String,java.lang.String>)value);
-      }
-      break;
-
-    }
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  @Override
-  public java.lang.Object getFieldValue(_Fields field) {
-    switch (field) {
-    case COLS:
-      return getCols();
-
-    case LOCATION:
-      return getLocation();
-
-    case INPUT_FORMAT:
-      return getInputFormat();
-
-    case OUTPUT_FORMAT:
-      return getOutputFormat();
-
-    case COMPRESSED:
-      return isCompressed();
-
-    case NUM_BUCKETS:
-      return getNumBuckets();
-
-    case SERDE_INFO:
-      return getSerdeInfo();
-
-    case BUCKET_COLS:
-      return getBucketCols();
-
-    case SORT_COLS:
-      return getSortCols();
-
-    case PARAMETERS:
-      return getParameters();
-
-    }
-    throw new java.lang.IllegalStateException();
-  }
-
-  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
-  @Override
-  public boolean isSet(_Fields field) {
-    if (field == null) {
-      throw new java.lang.IllegalArgumentException();
-    }
-
-    switch (field) {
-    case COLS:
-      return isSetCols();
-    case LOCATION:
-      return isSetLocation();
-    case INPUT_FORMAT:
-      return isSetInputFormat();
-    case OUTPUT_FORMAT:
-      return isSetOutputFormat();
-    case COMPRESSED:
-      return isSetCompressed();
-    case NUM_BUCKETS:
-      return isSetNumBuckets();
-    case SERDE_INFO:
-      return isSetSerdeInfo();
-    case BUCKET_COLS:
-      return isSetBucketCols();
-    case SORT_COLS:
-      return isSetSortCols();
-    case PARAMETERS:
-      return isSetParameters();
-    }
-    throw new java.lang.IllegalStateException();
-  }
-
-  @Override
-  public boolean equals(java.lang.Object that) {
-    if (that instanceof StorageDescriptor)
-      return this.equals((StorageDescriptor)that);
-    return false;
-  }
-
-  public boolean equals(StorageDescriptor that) {
-    if (that == null)
-      return false;
-    if (this == that)
-      return true;
-
-    boolean this_present_cols = true && this.isSetCols();
-    boolean that_present_cols = true && that.isSetCols();
-    if (this_present_cols || that_present_cols) {
-      if (!(this_present_cols && that_present_cols))
-        return false;
-      if (!this.cols.equals(that.cols))
-        return false;
-    }
-
-    boolean this_present_location = true && this.isSetLocation();
-    boolean that_present_location = true && that.isSetLocation();
-    if (this_present_location || that_present_location) {
-      if (!(this_present_location && that_present_location))
-        return false;
-      if (!this.location.equals(that.location))
-        return false;
-    }
-
-    boolean this_present_inputFormat = true && this.isSetInputFormat();
-    boolean that_present_inputFormat = true && that.isSetInputFormat();
-    if (this_present_inputFormat || that_present_inputFormat) {
-      if (!(this_present_inputFormat && that_present_inputFormat))
-        return false;
-      if (!this.inputFormat.equals(that.inputFormat))
-        return false;
-    }
-
-    boolean this_present_outputFormat = true && this.isSetOutputFormat();
-    boolean that_present_outputFormat = true && that.isSetOutputFormat();
-    if (this_present_outputFormat || that_present_outputFormat) {
-      if (!(this_present_outputFormat && that_present_outputFormat))
-        return false;
-      if (!this.outputFormat.equals(that.outputFormat))
-        return false;
-    }
-
-    boolean this_present_compressed = true;
-    boolean that_present_compressed = true;
-    if (this_present_compressed || that_present_compressed) {
-      if (!(this_present_compressed && that_present_compressed))
-        return false;
-      if (this.compressed != that.compressed)
-        return false;
-    }
-
-    boolean this_present_numBuckets = true;
-    boolean that_present_numBuckets = true;
-    if (this_present_numBuckets || that_present_numBuckets) {
-      if (!(this_present_numBuckets && that_present_numBuckets))
-        return false;
-      if (this.numBuckets != that.numBuckets)
-        return false;
-    }
-
-    boolean this_present_serdeInfo = true && this.isSetSerdeInfo();
-    boolean that_present_serdeInfo = true && that.isSetSerdeInfo();
-    if (this_present_serdeInfo || that_present_serdeInfo) {
-      if (!(this_present_serdeInfo && that_present_serdeInfo))
-        return false;
-      if (!this.serdeInfo.equals(that.serdeInfo))
-        return false;
-    }
-
-    boolean this_present_bucketCols = true && this.isSetBucketCols();
-    boolean that_present_bucketCols = true && that.isSetBucketCols();
-    if (this_present_bucketCols || that_present_bucketCols) {
-      if (!(this_present_bucketCols && that_present_bucketCols))
-        return false;
-      if (!this.bucketCols.equals(that.bucketCols))
-        return false;
-    }
-
-    boolean this_present_sortCols = true && this.isSetSortCols();
-    boolean that_present_sortCols = true && that.isSetSortCols();
-    if (this_present_sortCols || that_present_sortCols) {
-      if (!(this_present_sortCols && that_present_sortCols))
-        return false;
-      if (!this.sortCols.equals(that.sortCols))
-        return false;
-    }
-
-    boolean this_present_parameters = true && this.isSetParameters();
-    boolean that_present_parameters = true && that.isSetParameters();
-    if (this_present_parameters || that_present_parameters) {
-      if (!(this_present_parameters && that_present_parameters))
-        return false;
-      if (!this.parameters.equals(that.parameters))
-        return false;
-    }
-
-    return true;
-  }
-
-  @Override
-  public int hashCode() {
-    int hashCode = 1;
-
-    hashCode = hashCode * 8191 + ((isSetCols()) ? 131071 : 524287);
-    if (isSetCols())
-      hashCode = hashCode * 8191 + cols.hashCode();
-
-    hashCode = hashCode * 8191 + ((isSetLocation()) ? 131071 : 524287);
-    if (isSetLocation())
-      hashCode = hashCode * 8191 + location.hashCode();
-
-    hashCode = hashCode * 8191 + ((isSetInputFormat()) ? 131071 : 524287);
-    if (isSetInputFormat())
-      hashCode = hashCode * 8191 + inputFormat.hashCode();
-
-    hashCode = hashCode * 8191 + ((isSetOutputFormat()) ? 131071 : 524287);
-    if (isSetOutputFormat())
-      hashCode = hashCode * 8191 + outputFormat.hashCode();
-
-    hashCode = hashCode * 8191 + ((compressed) ? 131071 : 524287);
-
-    hashCode = hashCode * 8191 + numBuckets;
-
-    hashCode = hashCode * 8191 + ((isSetSerdeInfo()) ? 131071 : 524287);
-    if (isSetSerdeInfo())
-      hashCode = hashCode * 8191 + serdeInfo.hashCode();
-
-    hashCode = hashCode * 8191 + ((isSetBucketCols()) ? 131071 : 524287);
-    if (isSetBucketCols())
-      hashCode = hashCode * 8191 + bucketCols.hashCode();
-
-    hashCode = hashCode * 8191 + ((isSetSortCols()) ? 131071 : 524287);
-    if (isSetSortCols())
-      hashCode = hashCode * 8191 + sortCols.hashCode();
-
-    hashCode = hashCode * 8191 + ((isSetParameters()) ? 131071 : 524287);
-    if (isSetParameters())
-      hashCode = hashCode * 8191 + parameters.hashCode();
-
-    return hashCode;
-  }
-
-  @Override
-  public int compareTo(StorageDescriptor other) {
-    if (!getClass().equals(other.getClass())) {
-      return getClass().getName().compareTo(other.getClass().getName());
-    }
-
-    int lastComparison = 0;
-
-    lastComparison = java.lang.Boolean.compare(isSetCols(), other.isSetCols());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetCols()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.cols, other.cols);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetLocation(), other.isSetLocation());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetLocation()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.location, other.location);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetInputFormat(), other.isSetInputFormat());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetInputFormat()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.inputFormat, other.inputFormat);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetOutputFormat(), other.isSetOutputFormat());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetOutputFormat()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.outputFormat, other.outputFormat);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetCompressed(), other.isSetCompressed());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetCompressed()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.compressed, other.compressed);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetNumBuckets(), other.isSetNumBuckets());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetNumBuckets()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.numBuckets, other.numBuckets);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetSerdeInfo(), other.isSetSerdeInfo());
-    if (lastComparison != 0) {
-      return lastComparison;
+    public StorageDescriptor setCols(@org.apache.thrift.annotation.Nullable java.util.List<FieldSchema> cols) {
+        this.cols = cols;
+        return this;
     }
-    if (isSetSerdeInfo()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.serdeInfo, other.serdeInfo);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetBucketCols(), other.isSetBucketCols());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetBucketCols()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.bucketCols, other.bucketCols);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetSortCols(), other.isSetSortCols());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetSortCols()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.sortCols, other.sortCols);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetParameters(), other.isSetParameters());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetParameters()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.parameters, other.parameters);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    return 0;
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  @Override
-  public _Fields fieldForId(int fieldId) {
-    return _Fields.findByThriftId(fieldId);
-  }
-
-  @Override
-  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
-    scheme(iprot).read(iprot, this);
-  }
-
-  @Override
-  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
-    scheme(oprot).write(oprot, this);
-  }
-
-  @Override
-  public java.lang.String toString() {
-    java.lang.StringBuilder sb = new java.lang.StringBuilder("StorageDescriptor(");
-    boolean first = true;
-
-    sb.append("cols:");
-    if (this.cols == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.cols);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("location:");
-    if (this.location == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.location);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("inputFormat:");
-    if (this.inputFormat == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.inputFormat);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("outputFormat:");
-    if (this.outputFormat == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.outputFormat);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("compressed:");
-    sb.append(this.compressed);
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("numBuckets:");
-    sb.append(this.numBuckets);
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("serdeInfo:");
-    if (this.serdeInfo == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.serdeInfo);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("bucketCols:");
-    if (this.bucketCols == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.bucketCols);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("sortCols:");
-    if (this.sortCols == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.sortCols);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("parameters:");
-    if (this.parameters == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.parameters);
-    }
-    first = false;
-    sb.append(")");
-    return sb.toString();
-  }
-
-  public void validate() throws org.apache.thrift.TException {
-    // check for required fields
-    // check for sub-struct validity
-    if (serdeInfo != null) {
-      serdeInfo.validate();
-    }
-  }
-
-  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-    try {
-      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
-    }
-  }
 
-  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, java.lang.ClassNotFoundException {
-    try {
-      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-      __isset_bitfield = 0;
-      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
+    public void unsetCols() {
+        this.cols = null;
     }
-  }
 
-  private static class StorageDescriptorStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
-    @Override
-    public StorageDescriptorStandardScheme getScheme() {
-      return new StorageDescriptorStandardScheme();
+    /** Returns true if field cols is set (has been assigned a value) and false otherwise */
+    public boolean isSetCols() {
+        return this.cols != null;
     }
-  }
-
-  private static class StorageDescriptorStandardScheme extends org.apache.thrift.scheme.StandardScheme<StorageDescriptor> {
 
-    @Override
-    public void read(org.apache.thrift.protocol.TProtocol iprot, StorageDescriptor struct) throws org.apache.thrift.TException {
-      org.apache.thrift.protocol.TField schemeField;
-      iprot.readStructBegin();
-      while (true)
-      {
-        schemeField = iprot.readFieldBegin();
-        if (schemeField.type == org.apache.thrift.protocol.TType.STOP) { 
-          break;
+    public void setColsIsSet(boolean value) {
+        if (!value) {
+            this.cols = null;
         }
-        switch (schemeField.id) {
-          case 1: // COLS
-            if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
-              {
-                org.apache.thrift.protocol.TList _list10 = iprot.readListBegin();
-                struct.cols = new java.util.ArrayList<FieldSchema>(_list10.size);
-                @org.apache.thrift.annotation.Nullable FieldSchema _elem11;
-                for (int _i12 = 0; _i12 < _list10.size; ++_i12)
-                {
-                  _elem11 = new FieldSchema();
-                  _elem11.read(iprot);
-                  struct.cols.add(_elem11);
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.lang.String getLocation() {
+        return this.location;
+    }
+
+    public StorageDescriptor setLocation(@org.apache.thrift.annotation.Nullable java.lang.String location) {
+        this.location = location;
+        return this;
+    }
+
+    public void unsetLocation() {
+        this.location = null;
+    }
+
+    /** Returns true if field location is set (has been assigned a value) and false otherwise */
+    public boolean isSetLocation() {
+        return this.location != null;
+    }
+
+    public void setLocationIsSet(boolean value) {
+        if (!value) {
+            this.location = null;
+        }
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.lang.String getInputFormat() {
+        return this.inputFormat;
+    }
+
+    public StorageDescriptor setInputFormat(@org.apache.thrift.annotation.Nullable java.lang.String inputFormat) {
+        this.inputFormat = inputFormat;
+        return this;
+    }
+
+    public void unsetInputFormat() {
+        this.inputFormat = null;
+    }
+
+    /** Returns true if field inputFormat is set (has been assigned a value) and false otherwise */
+    public boolean isSetInputFormat() {
+        return this.inputFormat != null;
+    }
+
+    public void setInputFormatIsSet(boolean value) {
+        if (!value) {
+            this.inputFormat = null;
+        }
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.lang.String getOutputFormat() {
+        return this.outputFormat;
+    }
+
+    public StorageDescriptor setOutputFormat(@org.apache.thrift.annotation.Nullable java.lang.String outputFormat) {
+        this.outputFormat = outputFormat;
+        return this;
+    }
+
+    public void unsetOutputFormat() {
+        this.outputFormat = null;
+    }
+
+    /** Returns true if field outputFormat is set (has been assigned a value) and false otherwise */
+    public boolean isSetOutputFormat() {
+        return this.outputFormat != null;
+    }
+
+    public void setOutputFormatIsSet(boolean value) {
+        if (!value) {
+            this.outputFormat = null;
+        }
+    }
+
+    public boolean isCompressed() {
+        return this.compressed;
+    }
+
+    public StorageDescriptor setCompressed(boolean compressed) {
+        this.compressed = compressed;
+        setCompressedIsSet(true);
+        return this;
+    }
+
+    public void unsetCompressed() {
+        __isset_bitfield = org.apache.thrift.EncodingUtils.clearBit(__isset_bitfield, __COMPRESSED_ISSET_ID);
+    }
+
+    /** Returns true if field compressed is set (has been assigned a value) and false otherwise */
+    public boolean isSetCompressed() {
+        return org.apache.thrift.EncodingUtils.testBit(__isset_bitfield, __COMPRESSED_ISSET_ID);
+    }
+
+    public void setCompressedIsSet(boolean value) {
+        __isset_bitfield = org.apache.thrift.EncodingUtils.setBit(__isset_bitfield, __COMPRESSED_ISSET_ID, value);
+    }
+
+    public int getNumBuckets() {
+        return this.numBuckets;
+    }
+
+    public StorageDescriptor setNumBuckets(int numBuckets) {
+        this.numBuckets = numBuckets;
+        setNumBucketsIsSet(true);
+        return this;
+    }
+
+    public void unsetNumBuckets() {
+        __isset_bitfield = org.apache.thrift.EncodingUtils.clearBit(__isset_bitfield, __NUMBUCKETS_ISSET_ID);
+    }
+
+    /** Returns true if field numBuckets is set (has been assigned a value) and false otherwise */
+    public boolean isSetNumBuckets() {
+        return org.apache.thrift.EncodingUtils.testBit(__isset_bitfield, __NUMBUCKETS_ISSET_ID);
+    }
+
+    public void setNumBucketsIsSet(boolean value) {
+        __isset_bitfield = org.apache.thrift.EncodingUtils.setBit(__isset_bitfield, __NUMBUCKETS_ISSET_ID, value);
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public SerDeInfo getSerdeInfo() {
+        return this.serdeInfo;
+    }
+
+    public StorageDescriptor setSerdeInfo(@org.apache.thrift.annotation.Nullable SerDeInfo serdeInfo) {
+        this.serdeInfo = serdeInfo;
+        return this;
+    }
+
+    public void unsetSerdeInfo() {
+        this.serdeInfo = null;
+    }
+
+    /** Returns true if field serdeInfo is set (has been assigned a value) and false otherwise */
+    public boolean isSetSerdeInfo() {
+        return this.serdeInfo != null;
+    }
+
+    public void setSerdeInfoIsSet(boolean value) {
+        if (!value) {
+            this.serdeInfo = null;
+        }
+    }
+
+    public int getBucketColsSize() {
+        return (this.bucketCols == null) ? 0 : this.bucketCols.size();
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.util.Iterator<java.lang.String> getBucketColsIterator() {
+        return (this.bucketCols == null) ? null : this.bucketCols.iterator();
+    }
+
+    public void addToBucketCols(java.lang.String elem) {
+        if (this.bucketCols == null) {
+            this.bucketCols = new java.util.ArrayList<java.lang.String>();
+        }
+        this.bucketCols.add(elem);
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.util.List<java.lang.String> getBucketCols() {
+        return this.bucketCols;
+    }
+
+    public StorageDescriptor setBucketCols(@org.apache.thrift.annotation.Nullable java.util.List<java.lang.String> bucketCols) {
+        this.bucketCols = bucketCols;
+        return this;
+    }
+
+    public void unsetBucketCols() {
+        this.bucketCols = null;
+    }
+
+    /** Returns true if field bucketCols is set (has been assigned a value) and false otherwise */
+    public boolean isSetBucketCols() {
+        return this.bucketCols != null;
+    }
+
+    public void setBucketColsIsSet(boolean value) {
+        if (!value) {
+            this.bucketCols = null;
+        }
+    }
+
+    public int getSortColsSize() {
+        return (this.sortCols == null) ? 0 : this.sortCols.size();
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.util.Iterator<Order> getSortColsIterator() {
+        return (this.sortCols == null) ? null : this.sortCols.iterator();
+    }
+
+    public void addToSortCols(Order elem) {
+        if (this.sortCols == null) {
+            this.sortCols = new java.util.ArrayList<Order>();
+        }
+        this.sortCols.add(elem);
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.util.List<Order> getSortCols() {
+        return this.sortCols;
+    }
+
+    public StorageDescriptor setSortCols(@org.apache.thrift.annotation.Nullable java.util.List<Order> sortCols) {
+        this.sortCols = sortCols;
+        return this;
+    }
+
+    public void unsetSortCols() {
+        this.sortCols = null;
+    }
+
+    /** Returns true if field sortCols is set (has been assigned a value) and false otherwise */
+    public boolean isSetSortCols() {
+        return this.sortCols != null;
+    }
+
+    public void setSortColsIsSet(boolean value) {
+        if (!value) {
+            this.sortCols = null;
+        }
+    }
+
+    public int getParametersSize() {
+        return (this.parameters == null) ? 0 : this.parameters.size();
+    }
+
+    public void putToParameters(java.lang.String key, java.lang.String val) {
+        if (this.parameters == null) {
+            this.parameters = new java.util.TreeMap<java.lang.String, java.lang.String>();
+        }
+        this.parameters.put(key, val);
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.util.Map<java.lang.String, java.lang.String> getParameters() {
+        return this.parameters;
+    }
+
+    public StorageDescriptor setParameters(
+        @org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String, java.lang.String> parameters
+    ) {
+        this.parameters = parameters;
+        return this;
+    }
+
+    public void unsetParameters() {
+        this.parameters = null;
+    }
+
+    /** Returns true if field parameters is set (has been assigned a value) and false otherwise */
+    public boolean isSetParameters() {
+        return this.parameters != null;
+    }
+
+    public void setParametersIsSet(boolean value) {
+        if (!value) {
+            this.parameters = null;
+        }
+    }
+
+    @Override
+    public void setFieldValue(_Fields field, @org.apache.thrift.annotation.Nullable java.lang.Object value) {
+        switch (field) {
+            case COLS:
+                if (value == null) {
+                    unsetCols();
+                } else {
+                    setCols((java.util.List<FieldSchema>) value);
                 }
-                iprot.readListEnd();
-              }
-              struct.setColsIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 2: // LOCATION
-            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-              struct.location = iprot.readString();
-              struct.setLocationIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 3: // INPUT_FORMAT
-            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-              struct.inputFormat = iprot.readString();
-              struct.setInputFormatIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 4: // OUTPUT_FORMAT
-            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-              struct.outputFormat = iprot.readString();
-              struct.setOutputFormatIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 5: // COMPRESSED
-            if (schemeField.type == org.apache.thrift.protocol.TType.BOOL) {
-              struct.compressed = iprot.readBool();
-              struct.setCompressedIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 6: // NUM_BUCKETS
-            if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
-              struct.numBuckets = iprot.readI32();
-              struct.setNumBucketsIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 7: // SERDE_INFO
-            if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
-              struct.serdeInfo = new SerDeInfo();
-              struct.serdeInfo.read(iprot);
-              struct.setSerdeInfoIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 8: // BUCKET_COLS
-            if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
-              {
-                org.apache.thrift.protocol.TList _list13 = iprot.readListBegin();
-                struct.bucketCols = new java.util.ArrayList<java.lang.String>(_list13.size);
-                @org.apache.thrift.annotation.Nullable java.lang.String _elem14;
-                for (int _i15 = 0; _i15 < _list13.size; ++_i15)
-                {
-                  _elem14 = iprot.readString();
-                  struct.bucketCols.add(_elem14);
+                break;
+
+            case LOCATION:
+                if (value == null) {
+                    unsetLocation();
+                } else {
+                    setLocation((java.lang.String) value);
                 }
-                iprot.readListEnd();
-              }
-              struct.setBucketColsIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 9: // SORT_COLS
-            if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
-              {
-                org.apache.thrift.protocol.TList _list16 = iprot.readListBegin();
-                struct.sortCols = new java.util.ArrayList<Order>(_list16.size);
-                @org.apache.thrift.annotation.Nullable Order _elem17;
-                for (int _i18 = 0; _i18 < _list16.size; ++_i18)
-                {
-                  _elem17 = new Order();
-                  _elem17.read(iprot);
-                  struct.sortCols.add(_elem17);
+                break;
+
+            case INPUT_FORMAT:
+                if (value == null) {
+                    unsetInputFormat();
+                } else {
+                    setInputFormat((java.lang.String) value);
                 }
-                iprot.readListEnd();
-              }
-              struct.setSortColsIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 10: // PARAMETERS
-            if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
-              {
-                org.apache.thrift.protocol.TMap _map19 = iprot.readMapBegin();
-                struct.parameters = new java.util.TreeMap<java.lang.String,java.lang.String>();
-                @org.apache.thrift.annotation.Nullable java.lang.String _key20;
-                @org.apache.thrift.annotation.Nullable java.lang.String _val21;
-                for (int _i22 = 0; _i22 < _map19.size; ++_i22)
-                {
-                  _key20 = iprot.readString();
-                  _val21 = iprot.readString();
-                  struct.parameters.put(_key20, _val21);
+                break;
+
+            case OUTPUT_FORMAT:
+                if (value == null) {
+                    unsetOutputFormat();
+                } else {
+                    setOutputFormat((java.lang.String) value);
                 }
-                iprot.readMapEnd();
-              }
-              struct.setParametersIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                break;
+
+            case COMPRESSED:
+                if (value == null) {
+                    unsetCompressed();
+                } else {
+                    setCompressed((java.lang.Boolean) value);
+                }
+                break;
+
+            case NUM_BUCKETS:
+                if (value == null) {
+                    unsetNumBuckets();
+                } else {
+                    setNumBuckets((java.lang.Integer) value);
+                }
+                break;
+
+            case SERDE_INFO:
+                if (value == null) {
+                    unsetSerdeInfo();
+                } else {
+                    setSerdeInfo((SerDeInfo) value);
+                }
+                break;
+
+            case BUCKET_COLS:
+                if (value == null) {
+                    unsetBucketCols();
+                } else {
+                    setBucketCols((java.util.List<java.lang.String>) value);
+                }
+                break;
+
+            case SORT_COLS:
+                if (value == null) {
+                    unsetSortCols();
+                } else {
+                    setSortCols((java.util.List<Order>) value);
+                }
+                break;
+
+            case PARAMETERS:
+                if (value == null) {
+                    unsetParameters();
+                } else {
+                    setParameters((java.util.Map<java.lang.String, java.lang.String>) value);
+                }
+                break;
+
+        }
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    @Override
+    public java.lang.Object getFieldValue(_Fields field) {
+        switch (field) {
+            case COLS:
+                return getCols();
+
+            case LOCATION:
+                return getLocation();
+
+            case INPUT_FORMAT:
+                return getInputFormat();
+
+            case OUTPUT_FORMAT:
+                return getOutputFormat();
+
+            case COMPRESSED:
+                return isCompressed();
+
+            case NUM_BUCKETS:
+                return getNumBuckets();
+
+            case SERDE_INFO:
+                return getSerdeInfo();
+
+            case BUCKET_COLS:
+                return getBucketCols();
+
+            case SORT_COLS:
+                return getSortCols();
+
+            case PARAMETERS:
+                return getParameters();
+
+        }
+        throw new java.lang.IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    @Override
+    public boolean isSet(_Fields field) {
+        if (field == null) {
+            throw new java.lang.IllegalArgumentException();
+        }
+
+        switch (field) {
+            case COLS:
+                return isSetCols();
+            case LOCATION:
+                return isSetLocation();
+            case INPUT_FORMAT:
+                return isSetInputFormat();
+            case OUTPUT_FORMAT:
+                return isSetOutputFormat();
+            case COMPRESSED:
+                return isSetCompressed();
+            case NUM_BUCKETS:
+                return isSetNumBuckets();
+            case SERDE_INFO:
+                return isSetSerdeInfo();
+            case BUCKET_COLS:
+                return isSetBucketCols();
+            case SORT_COLS:
+                return isSetSortCols();
+            case PARAMETERS:
+                return isSetParameters();
+        }
+        throw new java.lang.IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(java.lang.Object that) {
+        if (that instanceof StorageDescriptor) return this.equals((StorageDescriptor) that);
+        return false;
+    }
+
+    public boolean equals(StorageDescriptor that) {
+        if (that == null) return false;
+        if (this == that) return true;
+
+        boolean this_present_cols = true && this.isSetCols();
+        boolean that_present_cols = true && that.isSetCols();
+        if (this_present_cols || that_present_cols) {
+            if (!(this_present_cols && that_present_cols)) return false;
+            if (!this.cols.equals(that.cols)) return false;
+        }
+
+        boolean this_present_location = true && this.isSetLocation();
+        boolean that_present_location = true && that.isSetLocation();
+        if (this_present_location || that_present_location) {
+            if (!(this_present_location && that_present_location)) return false;
+            if (!this.location.equals(that.location)) return false;
+        }
+
+        boolean this_present_inputFormat = true && this.isSetInputFormat();
+        boolean that_present_inputFormat = true && that.isSetInputFormat();
+        if (this_present_inputFormat || that_present_inputFormat) {
+            if (!(this_present_inputFormat && that_present_inputFormat)) return false;
+            if (!this.inputFormat.equals(that.inputFormat)) return false;
+        }
+
+        boolean this_present_outputFormat = true && this.isSetOutputFormat();
+        boolean that_present_outputFormat = true && that.isSetOutputFormat();
+        if (this_present_outputFormat || that_present_outputFormat) {
+            if (!(this_present_outputFormat && that_present_outputFormat)) return false;
+            if (!this.outputFormat.equals(that.outputFormat)) return false;
+        }
+
+        boolean this_present_compressed = true;
+        boolean that_present_compressed = true;
+        if (this_present_compressed || that_present_compressed) {
+            if (!(this_present_compressed && that_present_compressed)) return false;
+            if (this.compressed != that.compressed) return false;
+        }
+
+        boolean this_present_numBuckets = true;
+        boolean that_present_numBuckets = true;
+        if (this_present_numBuckets || that_present_numBuckets) {
+            if (!(this_present_numBuckets && that_present_numBuckets)) return false;
+            if (this.numBuckets != that.numBuckets) return false;
+        }
+
+        boolean this_present_serdeInfo = true && this.isSetSerdeInfo();
+        boolean that_present_serdeInfo = true && that.isSetSerdeInfo();
+        if (this_present_serdeInfo || that_present_serdeInfo) {
+            if (!(this_present_serdeInfo && that_present_serdeInfo)) return false;
+            if (!this.serdeInfo.equals(that.serdeInfo)) return false;
+        }
+
+        boolean this_present_bucketCols = true && this.isSetBucketCols();
+        boolean that_present_bucketCols = true && that.isSetBucketCols();
+        if (this_present_bucketCols || that_present_bucketCols) {
+            if (!(this_present_bucketCols && that_present_bucketCols)) return false;
+            if (!this.bucketCols.equals(that.bucketCols)) return false;
+        }
+
+        boolean this_present_sortCols = true && this.isSetSortCols();
+        boolean that_present_sortCols = true && that.isSetSortCols();
+        if (this_present_sortCols || that_present_sortCols) {
+            if (!(this_present_sortCols && that_present_sortCols)) return false;
+            if (!this.sortCols.equals(that.sortCols)) return false;
+        }
+
+        boolean this_present_parameters = true && this.isSetParameters();
+        boolean that_present_parameters = true && that.isSetParameters();
+        if (this_present_parameters || that_present_parameters) {
+            if (!(this_present_parameters && that_present_parameters)) return false;
+            if (!this.parameters.equals(that.parameters)) return false;
+        }
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hashCode = 1;
+
+        hashCode = hashCode * 8191 + ((isSetCols()) ? 131071 : 524287);
+        if (isSetCols()) hashCode = hashCode * 8191 + cols.hashCode();
+
+        hashCode = hashCode * 8191 + ((isSetLocation()) ? 131071 : 524287);
+        if (isSetLocation()) hashCode = hashCode * 8191 + location.hashCode();
+
+        hashCode = hashCode * 8191 + ((isSetInputFormat()) ? 131071 : 524287);
+        if (isSetInputFormat()) hashCode = hashCode * 8191 + inputFormat.hashCode();
+
+        hashCode = hashCode * 8191 + ((isSetOutputFormat()) ? 131071 : 524287);
+        if (isSetOutputFormat()) hashCode = hashCode * 8191 + outputFormat.hashCode();
+
+        hashCode = hashCode * 8191 + ((compressed) ? 131071 : 524287);
+
+        hashCode = hashCode * 8191 + numBuckets;
+
+        hashCode = hashCode * 8191 + ((isSetSerdeInfo()) ? 131071 : 524287);
+        if (isSetSerdeInfo()) hashCode = hashCode * 8191 + serdeInfo.hashCode();
+
+        hashCode = hashCode * 8191 + ((isSetBucketCols()) ? 131071 : 524287);
+        if (isSetBucketCols()) hashCode = hashCode * 8191 + bucketCols.hashCode();
+
+        hashCode = hashCode * 8191 + ((isSetSortCols()) ? 131071 : 524287);
+        if (isSetSortCols()) hashCode = hashCode * 8191 + sortCols.hashCode();
+
+        hashCode = hashCode * 8191 + ((isSetParameters()) ? 131071 : 524287);
+        if (isSetParameters()) hashCode = hashCode * 8191 + parameters.hashCode();
+
+        return hashCode;
+    }
+
+    @Override
+    public int compareTo(StorageDescriptor other) {
+        if (!getClass().equals(other.getClass())) {
+            return getClass().getName().compareTo(other.getClass().getName());
+        }
+
+        int lastComparison = 0;
+
+        lastComparison = java.lang.Boolean.compare(isSetCols(), other.isSetCols());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetCols()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.cols, other.cols);
+            if (lastComparison != 0) {
+                return lastComparison;
             }
-            break;
-          default:
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
         }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
+        lastComparison = java.lang.Boolean.compare(isSetLocation(), other.isSetLocation());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetLocation()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.location, other.location);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetInputFormat(), other.isSetInputFormat());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetInputFormat()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.inputFormat, other.inputFormat);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetOutputFormat(), other.isSetOutputFormat());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetOutputFormat()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.outputFormat, other.outputFormat);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetCompressed(), other.isSetCompressed());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetCompressed()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.compressed, other.compressed);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetNumBuckets(), other.isSetNumBuckets());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetNumBuckets()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.numBuckets, other.numBuckets);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetSerdeInfo(), other.isSetSerdeInfo());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetSerdeInfo()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.serdeInfo, other.serdeInfo);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetBucketCols(), other.isSetBucketCols());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetBucketCols()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.bucketCols, other.bucketCols);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetSortCols(), other.isSetSortCols());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetSortCols()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.sortCols, other.sortCols);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetParameters(), other.isSetParameters());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetParameters()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.parameters, other.parameters);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        return 0;
+    }
 
-      // check for required fields of primitive type, which can't be checked in the validate method
-      struct.validate();
+    @org.apache.thrift.annotation.Nullable
+    @Override
+    public _Fields fieldForId(int fieldId) {
+        return _Fields.findByThriftId(fieldId);
     }
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol oprot, StorageDescriptor struct) throws org.apache.thrift.TException {
-      struct.validate();
-
-      oprot.writeStructBegin(STRUCT_DESC);
-      if (struct.cols != null) {
-        oprot.writeFieldBegin(COLS_FIELD_DESC);
-        {
-          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.cols.size()));
-          for (FieldSchema _iter23 : struct.cols)
-          {
-            _iter23.write(oprot);
-          }
-          oprot.writeListEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      if (struct.location != null) {
-        oprot.writeFieldBegin(LOCATION_FIELD_DESC);
-        oprot.writeString(struct.location);
-        oprot.writeFieldEnd();
-      }
-      if (struct.inputFormat != null) {
-        oprot.writeFieldBegin(INPUT_FORMAT_FIELD_DESC);
-        oprot.writeString(struct.inputFormat);
-        oprot.writeFieldEnd();
-      }
-      if (struct.outputFormat != null) {
-        oprot.writeFieldBegin(OUTPUT_FORMAT_FIELD_DESC);
-        oprot.writeString(struct.outputFormat);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldBegin(COMPRESSED_FIELD_DESC);
-      oprot.writeBool(struct.compressed);
-      oprot.writeFieldEnd();
-      oprot.writeFieldBegin(NUM_BUCKETS_FIELD_DESC);
-      oprot.writeI32(struct.numBuckets);
-      oprot.writeFieldEnd();
-      if (struct.serdeInfo != null) {
-        oprot.writeFieldBegin(SERDE_INFO_FIELD_DESC);
-        struct.serdeInfo.write(oprot);
-        oprot.writeFieldEnd();
-      }
-      if (struct.bucketCols != null) {
-        oprot.writeFieldBegin(BUCKET_COLS_FIELD_DESC);
-        {
-          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, struct.bucketCols.size()));
-          for (java.lang.String _iter24 : struct.bucketCols)
-          {
-            oprot.writeString(_iter24);
-          }
-          oprot.writeListEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      if (struct.sortCols != null) {
-        oprot.writeFieldBegin(SORT_COLS_FIELD_DESC);
-        {
-          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.sortCols.size()));
-          for (Order _iter25 : struct.sortCols)
-          {
-            _iter25.write(oprot);
-          }
-          oprot.writeListEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      if (struct.parameters != null) {
-        oprot.writeFieldBegin(PARAMETERS_FIELD_DESC);
-        {
-          oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, struct.parameters.size()));
-          for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter26 : struct.parameters.entrySet())
-          {
-            oprot.writeString(_iter26.getKey());
-            oprot.writeString(_iter26.getValue());
-          }
-          oprot.writeMapEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-  }
-
-  private static class StorageDescriptorTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
-    @Override
-    public StorageDescriptorTupleScheme getScheme() {
-      return new StorageDescriptorTupleScheme();
-    }
-  }
-
-  private static class StorageDescriptorTupleScheme extends org.apache.thrift.scheme.TupleScheme<StorageDescriptor> {
-
-    @Override
-    public void write(org.apache.thrift.protocol.TProtocol prot, StorageDescriptor struct) throws org.apache.thrift.TException {
-      org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
-      java.util.BitSet optionals = new java.util.BitSet();
-      if (struct.isSetCols()) {
-        optionals.set(0);
-      }
-      if (struct.isSetLocation()) {
-        optionals.set(1);
-      }
-      if (struct.isSetInputFormat()) {
-        optionals.set(2);
-      }
-      if (struct.isSetOutputFormat()) {
-        optionals.set(3);
-      }
-      if (struct.isSetCompressed()) {
-        optionals.set(4);
-      }
-      if (struct.isSetNumBuckets()) {
-        optionals.set(5);
-      }
-      if (struct.isSetSerdeInfo()) {
-        optionals.set(6);
-      }
-      if (struct.isSetBucketCols()) {
-        optionals.set(7);
-      }
-      if (struct.isSetSortCols()) {
-        optionals.set(8);
-      }
-      if (struct.isSetParameters()) {
-        optionals.set(9);
-      }
-      oprot.writeBitSet(optionals, 10);
-      if (struct.isSetCols()) {
-        {
-          oprot.writeI32(struct.cols.size());
-          for (FieldSchema _iter27 : struct.cols)
-          {
-            _iter27.write(oprot);
-          }
-        }
-      }
-      if (struct.isSetLocation()) {
-        oprot.writeString(struct.location);
-      }
-      if (struct.isSetInputFormat()) {
-        oprot.writeString(struct.inputFormat);
-      }
-      if (struct.isSetOutputFormat()) {
-        oprot.writeString(struct.outputFormat);
-      }
-      if (struct.isSetCompressed()) {
-        oprot.writeBool(struct.compressed);
-      }
-      if (struct.isSetNumBuckets()) {
-        oprot.writeI32(struct.numBuckets);
-      }
-      if (struct.isSetSerdeInfo()) {
-        struct.serdeInfo.write(oprot);
-      }
-      if (struct.isSetBucketCols()) {
-        {
-          oprot.writeI32(struct.bucketCols.size());
-          for (java.lang.String _iter28 : struct.bucketCols)
-          {
-            oprot.writeString(_iter28);
-          }
-        }
-      }
-      if (struct.isSetSortCols()) {
-        {
-          oprot.writeI32(struct.sortCols.size());
-          for (Order _iter29 : struct.sortCols)
-          {
-            _iter29.write(oprot);
-          }
-        }
-      }
-      if (struct.isSetParameters()) {
-        {
-          oprot.writeI32(struct.parameters.size());
-          for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter30 : struct.parameters.entrySet())
-          {
-            oprot.writeString(_iter30.getKey());
-            oprot.writeString(_iter30.getValue());
-          }
-        }
-      }
+    public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+        scheme(iprot).read(iprot, this);
     }
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol prot, StorageDescriptor struct) throws org.apache.thrift.TException {
-      org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
-      java.util.BitSet incoming = iprot.readBitSet(10);
-      if (incoming.get(0)) {
-        {
-          org.apache.thrift.protocol.TList _list31 = iprot.readListBegin(org.apache.thrift.protocol.TType.STRUCT);
-          struct.cols = new java.util.ArrayList<FieldSchema>(_list31.size);
-          @org.apache.thrift.annotation.Nullable FieldSchema _elem32;
-          for (int _i33 = 0; _i33 < _list31.size; ++_i33)
-          {
-            _elem32 = new FieldSchema();
-            _elem32.read(iprot);
-            struct.cols.add(_elem32);
-          }
-        }
-        struct.setColsIsSet(true);
-      }
-      if (incoming.get(1)) {
-        struct.location = iprot.readString();
-        struct.setLocationIsSet(true);
-      }
-      if (incoming.get(2)) {
-        struct.inputFormat = iprot.readString();
-        struct.setInputFormatIsSet(true);
-      }
-      if (incoming.get(3)) {
-        struct.outputFormat = iprot.readString();
-        struct.setOutputFormatIsSet(true);
-      }
-      if (incoming.get(4)) {
-        struct.compressed = iprot.readBool();
-        struct.setCompressedIsSet(true);
-      }
-      if (incoming.get(5)) {
-        struct.numBuckets = iprot.readI32();
-        struct.setNumBucketsIsSet(true);
-      }
-      if (incoming.get(6)) {
-        struct.serdeInfo = new SerDeInfo();
-        struct.serdeInfo.read(iprot);
-        struct.setSerdeInfoIsSet(true);
-      }
-      if (incoming.get(7)) {
-        {
-          org.apache.thrift.protocol.TList _list34 = iprot.readListBegin(org.apache.thrift.protocol.TType.STRING);
-          struct.bucketCols = new java.util.ArrayList<java.lang.String>(_list34.size);
-          @org.apache.thrift.annotation.Nullable java.lang.String _elem35;
-          for (int _i36 = 0; _i36 < _list34.size; ++_i36)
-          {
-            _elem35 = iprot.readString();
-            struct.bucketCols.add(_elem35);
-          }
-        }
-        struct.setBucketColsIsSet(true);
-      }
-      if (incoming.get(8)) {
-        {
-          org.apache.thrift.protocol.TList _list37 = iprot.readListBegin(org.apache.thrift.protocol.TType.STRUCT);
-          struct.sortCols = new java.util.ArrayList<Order>(_list37.size);
-          @org.apache.thrift.annotation.Nullable Order _elem38;
-          for (int _i39 = 0; _i39 < _list37.size; ++_i39)
-          {
-            _elem38 = new Order();
-            _elem38.read(iprot);
-            struct.sortCols.add(_elem38);
-          }
-        }
-        struct.setSortColsIsSet(true);
-      }
-      if (incoming.get(9)) {
-        {
-          org.apache.thrift.protocol.TMap _map40 = iprot.readMapBegin(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING); 
-          struct.parameters = new java.util.TreeMap<java.lang.String,java.lang.String>();
-          @org.apache.thrift.annotation.Nullable java.lang.String _key41;
-          @org.apache.thrift.annotation.Nullable java.lang.String _val42;
-          for (int _i43 = 0; _i43 < _map40.size; ++_i43)
-          {
-            _key41 = iprot.readString();
-            _val42 = iprot.readString();
-            struct.parameters.put(_key41, _val42);
-          }
-        }
-        struct.setParametersIsSet(true);
-      }
+    public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
+        scheme(oprot).write(oprot, this);
     }
-  }
 
-  private static <S extends org.apache.thrift.scheme.IScheme> S scheme(org.apache.thrift.protocol.TProtocol proto) {
-    return (org.apache.thrift.scheme.StandardScheme.class.equals(proto.getScheme()) ? STANDARD_SCHEME_FACTORY : TUPLE_SCHEME_FACTORY).getScheme();
-  }
+    @Override
+    public java.lang.String toString() {
+        java.lang.StringBuilder sb = new java.lang.StringBuilder("StorageDescriptor(");
+        boolean first = true;
+
+        sb.append("cols:");
+        if (this.cols == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.cols);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("location:");
+        if (this.location == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.location);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("inputFormat:");
+        if (this.inputFormat == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.inputFormat);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("outputFormat:");
+        if (this.outputFormat == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.outputFormat);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("compressed:");
+        sb.append(this.compressed);
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("numBuckets:");
+        sb.append(this.numBuckets);
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("serdeInfo:");
+        if (this.serdeInfo == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.serdeInfo);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("bucketCols:");
+        if (this.bucketCols == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.bucketCols);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("sortCols:");
+        if (this.sortCols == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.sortCols);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("parameters:");
+        if (this.parameters == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.parameters);
+        }
+        first = false;
+        sb.append(")");
+        return sb.toString();
+    }
+
+    public void validate() throws org.apache.thrift.TException {
+        // check for required fields
+        // check for sub-struct validity
+        if (serdeInfo != null) {
+            serdeInfo.validate();
+        }
+    }
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+        try {
+            write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+        } catch (org.apache.thrift.TException te) {
+            throw new java.io.IOException(te);
+        }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, java.lang.ClassNotFoundException {
+        try {
+            // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+            __isset_bitfield = 0;
+            read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+        } catch (org.apache.thrift.TException te) {
+            throw new java.io.IOException(te);
+        }
+    }
+
+    private static class StorageDescriptorStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+        @Override
+        public StorageDescriptorStandardScheme getScheme() {
+            return new StorageDescriptorStandardScheme();
+        }
+    }
+
+    private static class StorageDescriptorStandardScheme extends org.apache.thrift.scheme.StandardScheme<StorageDescriptor> {
+
+        @Override
+        public void read(org.apache.thrift.protocol.TProtocol iprot, StorageDescriptor struct) throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TField schemeField;
+            iprot.readStructBegin();
+            while (true) {
+                schemeField = iprot.readFieldBegin();
+                if (schemeField.type == org.apache.thrift.protocol.TType.STOP) {
+                    break;
+                }
+                switch (schemeField.id) {
+                    case 1: // COLS
+                        if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
+                            {
+                                org.apache.thrift.protocol.TList _list10 = iprot.readListBegin();
+                                struct.cols = new java.util.ArrayList<FieldSchema>(_list10.size);
+                                @org.apache.thrift.annotation.Nullable
+                                FieldSchema _elem11;
+                                for (int _i12 = 0; _i12 < _list10.size; ++_i12) {
+                                    _elem11 = new FieldSchema();
+                                    _elem11.read(iprot);
+                                    struct.cols.add(_elem11);
+                                }
+                                iprot.readListEnd();
+                            }
+                            struct.setColsIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 2: // LOCATION
+                        if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+                            struct.location = iprot.readString();
+                            struct.setLocationIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 3: // INPUT_FORMAT
+                        if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+                            struct.inputFormat = iprot.readString();
+                            struct.setInputFormatIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 4: // OUTPUT_FORMAT
+                        if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+                            struct.outputFormat = iprot.readString();
+                            struct.setOutputFormatIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 5: // COMPRESSED
+                        if (schemeField.type == org.apache.thrift.protocol.TType.BOOL) {
+                            struct.compressed = iprot.readBool();
+                            struct.setCompressedIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 6: // NUM_BUCKETS
+                        if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
+                            struct.numBuckets = iprot.readI32();
+                            struct.setNumBucketsIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 7: // SERDE_INFO
+                        if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
+                            struct.serdeInfo = new SerDeInfo();
+                            struct.serdeInfo.read(iprot);
+                            struct.setSerdeInfoIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 8: // BUCKET_COLS
+                        if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
+                            {
+                                org.apache.thrift.protocol.TList _list13 = iprot.readListBegin();
+                                struct.bucketCols = new java.util.ArrayList<java.lang.String>(_list13.size);
+                                @org.apache.thrift.annotation.Nullable
+                                java.lang.String _elem14;
+                                for (int _i15 = 0; _i15 < _list13.size; ++_i15) {
+                                    _elem14 = iprot.readString();
+                                    struct.bucketCols.add(_elem14);
+                                }
+                                iprot.readListEnd();
+                            }
+                            struct.setBucketColsIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 9: // SORT_COLS
+                        if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
+                            {
+                                org.apache.thrift.protocol.TList _list16 = iprot.readListBegin();
+                                struct.sortCols = new java.util.ArrayList<Order>(_list16.size);
+                                @org.apache.thrift.annotation.Nullable
+                                Order _elem17;
+                                for (int _i18 = 0; _i18 < _list16.size; ++_i18) {
+                                    _elem17 = new Order();
+                                    _elem17.read(iprot);
+                                    struct.sortCols.add(_elem17);
+                                }
+                                iprot.readListEnd();
+                            }
+                            struct.setSortColsIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 10: // PARAMETERS
+                        if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
+                            {
+                                org.apache.thrift.protocol.TMap _map19 = iprot.readMapBegin();
+                                struct.parameters = new java.util.TreeMap<java.lang.String, java.lang.String>();
+                                @org.apache.thrift.annotation.Nullable
+                                java.lang.String _key20;
+                                @org.apache.thrift.annotation.Nullable
+                                java.lang.String _val21;
+                                for (int _i22 = 0; _i22 < _map19.size; ++_i22) {
+                                    _key20 = iprot.readString();
+                                    _val21 = iprot.readString();
+                                    struct.parameters.put(_key20, _val21);
+                                }
+                                iprot.readMapEnd();
+                            }
+                            struct.setParametersIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    default:
+                        org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                }
+                iprot.readFieldEnd();
+            }
+            iprot.readStructEnd();
+
+            // check for required fields of primitive type, which can't be checked in the validate method
+            struct.validate();
+        }
+
+        @Override
+        public void write(org.apache.thrift.protocol.TProtocol oprot, StorageDescriptor struct) throws org.apache.thrift.TException {
+            struct.validate();
+
+            oprot.writeStructBegin(STRUCT_DESC);
+            if (struct.cols != null) {
+                oprot.writeFieldBegin(COLS_FIELD_DESC);
+                {
+                    oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.cols.size()));
+                    for (FieldSchema _iter23 : struct.cols) {
+                        _iter23.write(oprot);
+                    }
+                    oprot.writeListEnd();
+                }
+                oprot.writeFieldEnd();
+            }
+            if (struct.location != null) {
+                oprot.writeFieldBegin(LOCATION_FIELD_DESC);
+                oprot.writeString(struct.location);
+                oprot.writeFieldEnd();
+            }
+            if (struct.inputFormat != null) {
+                oprot.writeFieldBegin(INPUT_FORMAT_FIELD_DESC);
+                oprot.writeString(struct.inputFormat);
+                oprot.writeFieldEnd();
+            }
+            if (struct.outputFormat != null) {
+                oprot.writeFieldBegin(OUTPUT_FORMAT_FIELD_DESC);
+                oprot.writeString(struct.outputFormat);
+                oprot.writeFieldEnd();
+            }
+            oprot.writeFieldBegin(COMPRESSED_FIELD_DESC);
+            oprot.writeBool(struct.compressed);
+            oprot.writeFieldEnd();
+            oprot.writeFieldBegin(NUM_BUCKETS_FIELD_DESC);
+            oprot.writeI32(struct.numBuckets);
+            oprot.writeFieldEnd();
+            if (struct.serdeInfo != null) {
+                oprot.writeFieldBegin(SERDE_INFO_FIELD_DESC);
+                struct.serdeInfo.write(oprot);
+                oprot.writeFieldEnd();
+            }
+            if (struct.bucketCols != null) {
+                oprot.writeFieldBegin(BUCKET_COLS_FIELD_DESC);
+                {
+                    oprot.writeListBegin(
+                        new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, struct.bucketCols.size())
+                    );
+                    for (java.lang.String _iter24 : struct.bucketCols) {
+                        oprot.writeString(_iter24);
+                    }
+                    oprot.writeListEnd();
+                }
+                oprot.writeFieldEnd();
+            }
+            if (struct.sortCols != null) {
+                oprot.writeFieldBegin(SORT_COLS_FIELD_DESC);
+                {
+                    oprot.writeListBegin(
+                        new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.sortCols.size())
+                    );
+                    for (Order _iter25 : struct.sortCols) {
+                        _iter25.write(oprot);
+                    }
+                    oprot.writeListEnd();
+                }
+                oprot.writeFieldEnd();
+            }
+            if (struct.parameters != null) {
+                oprot.writeFieldBegin(PARAMETERS_FIELD_DESC);
+                {
+                    oprot.writeMapBegin(
+                        new org.apache.thrift.protocol.TMap(
+                            org.apache.thrift.protocol.TType.STRING,
+                            org.apache.thrift.protocol.TType.STRING,
+                            struct.parameters.size()
+                        )
+                    );
+                    for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter26 : struct.parameters.entrySet()) {
+                        oprot.writeString(_iter26.getKey());
+                        oprot.writeString(_iter26.getValue());
+                    }
+                    oprot.writeMapEnd();
+                }
+                oprot.writeFieldEnd();
+            }
+            oprot.writeFieldStop();
+            oprot.writeStructEnd();
+        }
+
+    }
+
+    private static class StorageDescriptorTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+        @Override
+        public StorageDescriptorTupleScheme getScheme() {
+            return new StorageDescriptorTupleScheme();
+        }
+    }
+
+    private static class StorageDescriptorTupleScheme extends org.apache.thrift.scheme.TupleScheme<StorageDescriptor> {
+
+        @Override
+        public void write(org.apache.thrift.protocol.TProtocol prot, StorageDescriptor struct) throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
+            java.util.BitSet optionals = new java.util.BitSet();
+            if (struct.isSetCols()) {
+                optionals.set(0);
+            }
+            if (struct.isSetLocation()) {
+                optionals.set(1);
+            }
+            if (struct.isSetInputFormat()) {
+                optionals.set(2);
+            }
+            if (struct.isSetOutputFormat()) {
+                optionals.set(3);
+            }
+            if (struct.isSetCompressed()) {
+                optionals.set(4);
+            }
+            if (struct.isSetNumBuckets()) {
+                optionals.set(5);
+            }
+            if (struct.isSetSerdeInfo()) {
+                optionals.set(6);
+            }
+            if (struct.isSetBucketCols()) {
+                optionals.set(7);
+            }
+            if (struct.isSetSortCols()) {
+                optionals.set(8);
+            }
+            if (struct.isSetParameters()) {
+                optionals.set(9);
+            }
+            oprot.writeBitSet(optionals, 10);
+            if (struct.isSetCols()) {
+                {
+                    oprot.writeI32(struct.cols.size());
+                    for (FieldSchema _iter27 : struct.cols) {
+                        _iter27.write(oprot);
+                    }
+                }
+            }
+            if (struct.isSetLocation()) {
+                oprot.writeString(struct.location);
+            }
+            if (struct.isSetInputFormat()) {
+                oprot.writeString(struct.inputFormat);
+            }
+            if (struct.isSetOutputFormat()) {
+                oprot.writeString(struct.outputFormat);
+            }
+            if (struct.isSetCompressed()) {
+                oprot.writeBool(struct.compressed);
+            }
+            if (struct.isSetNumBuckets()) {
+                oprot.writeI32(struct.numBuckets);
+            }
+            if (struct.isSetSerdeInfo()) {
+                struct.serdeInfo.write(oprot);
+            }
+            if (struct.isSetBucketCols()) {
+                {
+                    oprot.writeI32(struct.bucketCols.size());
+                    for (java.lang.String _iter28 : struct.bucketCols) {
+                        oprot.writeString(_iter28);
+                    }
+                }
+            }
+            if (struct.isSetSortCols()) {
+                {
+                    oprot.writeI32(struct.sortCols.size());
+                    for (Order _iter29 : struct.sortCols) {
+                        _iter29.write(oprot);
+                    }
+                }
+            }
+            if (struct.isSetParameters()) {
+                {
+                    oprot.writeI32(struct.parameters.size());
+                    for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter30 : struct.parameters.entrySet()) {
+                        oprot.writeString(_iter30.getKey());
+                        oprot.writeString(_iter30.getValue());
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void read(org.apache.thrift.protocol.TProtocol prot, StorageDescriptor struct) throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
+            java.util.BitSet incoming = iprot.readBitSet(10);
+            if (incoming.get(0)) {
+                {
+                    org.apache.thrift.protocol.TList _list31 = iprot.readListBegin(org.apache.thrift.protocol.TType.STRUCT);
+                    struct.cols = new java.util.ArrayList<FieldSchema>(_list31.size);
+                    @org.apache.thrift.annotation.Nullable
+                    FieldSchema _elem32;
+                    for (int _i33 = 0; _i33 < _list31.size; ++_i33) {
+                        _elem32 = new FieldSchema();
+                        _elem32.read(iprot);
+                        struct.cols.add(_elem32);
+                    }
+                }
+                struct.setColsIsSet(true);
+            }
+            if (incoming.get(1)) {
+                struct.location = iprot.readString();
+                struct.setLocationIsSet(true);
+            }
+            if (incoming.get(2)) {
+                struct.inputFormat = iprot.readString();
+                struct.setInputFormatIsSet(true);
+            }
+            if (incoming.get(3)) {
+                struct.outputFormat = iprot.readString();
+                struct.setOutputFormatIsSet(true);
+            }
+            if (incoming.get(4)) {
+                struct.compressed = iprot.readBool();
+                struct.setCompressedIsSet(true);
+            }
+            if (incoming.get(5)) {
+                struct.numBuckets = iprot.readI32();
+                struct.setNumBucketsIsSet(true);
+            }
+            if (incoming.get(6)) {
+                struct.serdeInfo = new SerDeInfo();
+                struct.serdeInfo.read(iprot);
+                struct.setSerdeInfoIsSet(true);
+            }
+            if (incoming.get(7)) {
+                {
+                    org.apache.thrift.protocol.TList _list34 = iprot.readListBegin(org.apache.thrift.protocol.TType.STRING);
+                    struct.bucketCols = new java.util.ArrayList<java.lang.String>(_list34.size);
+                    @org.apache.thrift.annotation.Nullable
+                    java.lang.String _elem35;
+                    for (int _i36 = 0; _i36 < _list34.size; ++_i36) {
+                        _elem35 = iprot.readString();
+                        struct.bucketCols.add(_elem35);
+                    }
+                }
+                struct.setBucketColsIsSet(true);
+            }
+            if (incoming.get(8)) {
+                {
+                    org.apache.thrift.protocol.TList _list37 = iprot.readListBegin(org.apache.thrift.protocol.TType.STRUCT);
+                    struct.sortCols = new java.util.ArrayList<Order>(_list37.size);
+                    @org.apache.thrift.annotation.Nullable
+                    Order _elem38;
+                    for (int _i39 = 0; _i39 < _list37.size; ++_i39) {
+                        _elem38 = new Order();
+                        _elem38.read(iprot);
+                        struct.sortCols.add(_elem38);
+                    }
+                }
+                struct.setSortColsIsSet(true);
+            }
+            if (incoming.get(9)) {
+                {
+                    org.apache.thrift.protocol.TMap _map40 = iprot.readMapBegin(
+                        org.apache.thrift.protocol.TType.STRING,
+                        org.apache.thrift.protocol.TType.STRING
+                    );
+                    struct.parameters = new java.util.TreeMap<java.lang.String, java.lang.String>();
+                    @org.apache.thrift.annotation.Nullable
+                    java.lang.String _key41;
+                    @org.apache.thrift.annotation.Nullable
+                    java.lang.String _val42;
+                    for (int _i43 = 0; _i43 < _map40.size; ++_i43) {
+                        _key41 = iprot.readString();
+                        _val42 = iprot.readString();
+                        struct.parameters.put(_key41, _val42);
+                    }
+                }
+                struct.setParametersIsSet(true);
+            }
+        }
+    }
+
+    private static <S extends org.apache.thrift.scheme.IScheme> S scheme(org.apache.thrift.protocol.TProtocol proto) {
+        return (org.apache.thrift.scheme.StandardScheme.class.equals(proto.getScheme()) ? STANDARD_SCHEME_FACTORY : TUPLE_SCHEME_FACTORY)
+            .getScheme();
+    }
 }
-

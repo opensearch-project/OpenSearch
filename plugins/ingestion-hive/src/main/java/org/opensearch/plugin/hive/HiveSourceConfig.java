@@ -56,7 +56,9 @@ public class HiveSourceConfig {
         this.partitionOrder = "create-time".equals(order) ? PartitionOrder.CREATE_TIME : PartitionOrder.PARTITION_NAME;
 
         this.consumeStartOffset = (String) params.get("consume_start_offset");
-        this.numShards = Integer.parseInt(String.valueOf(params.getOrDefault("num_shards", "1")));
+        this.numShards = params.containsKey("_number_of_shards")
+            ? ((Number) params.get("_number_of_shards")).intValue()
+            : Integer.parseInt(String.valueOf(params.getOrDefault("num_shards", "1")));
 
         String transport = (String) params.getOrDefault("transport_mode", "unframed");
         this.transportMode = "framed".equals(transport) ? TransportMode.FRAMED : TransportMode.UNFRAMED;

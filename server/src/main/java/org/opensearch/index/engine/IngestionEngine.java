@@ -96,6 +96,7 @@ public class IngestionEngine extends InternalEngine {
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
         // initialize the ingestion consumer factory
+        ingestionSource.params().put("_number_of_shards", indexMetadata.getNumberOfShards());
         this.ingestionConsumerFactory.initialize(ingestionSource);
         String clientId = engineConfig.getIndexSettings().getNodeName()
             + "-"
