@@ -8,6 +8,8 @@
 
 package org.opensearch.be.lucene;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
@@ -121,6 +123,7 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
      * regardless of how many bits are set.
      */
     private static final class LuceneSegmentCollector implements SegmentCollector {
+        private static final Logger logger = LogManager.getLogger(LuceneSegmentCollector.class);
         private final DocIdSetIterator iterator;
         /** Partition bounds — the iterator only produces matches in this range. */
         private final int partitionMinDoc;
@@ -161,14 +164,15 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
                         currentDoc = docId;
                     }
                 } catch (IOException e) {
-                    // Write what we collected so far.
+                    logger.warn("IOException during collectDocs, returning partial bitset", e);
                 }
             }
 
             // Single bulk copy: heap long[] → native MemorySegment.
             long[] words = bits.getBits();
-            MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, words.length);
-            return words.length;
+            int wordCount = (span + 63) >>> 6;
+            MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, wordCount);
+            return wordCount;
         }
     }
 }

@@ -53,7 +53,7 @@ impl Default for DatafusionQueryConfig {
         Self {
             batch_size: 8192,
             // TODO: change this default value ?
-            target_partitions: 1,
+            target_partitions: 4,
             parquet_pushdown_filters: false,
             min_skip_run_default: 1024, // Todo: tune based on benchmarks
             min_skip_run_selectivity_threshold: 0.03, // Todo : tune based on benchmarks
@@ -157,7 +157,7 @@ mod tests {
     fn defaults_match_legacy_constants() {
         let c = DatafusionQueryConfig::default();
         assert_eq!(c.batch_size, 8192);
-        assert_eq!(c.target_partitions, 1);
+        assert_eq!(c.target_partitions, 4);
         assert!(!c.parquet_pushdown_filters);
         assert_eq!(c.min_skip_run_default, 1024);
         assert!((c.min_skip_run_selectivity_threshold - 0.03).abs() < 1e-9);
