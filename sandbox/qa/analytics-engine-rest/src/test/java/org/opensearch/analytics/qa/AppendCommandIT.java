@@ -27,14 +27,19 @@ import java.util.Map;
  * runs the same {@code UnifiedQueryPlanner} → {@code CalciteRelNodeVisitor} → Substrait
  * → DataFusion pipeline as the SQL plugin's force-routed analytics path.
  *
- * <p>Covers the six Append surface forms that exercise:
+ * <p>Covers the Append surface forms that exercise:
  * <ul>
  *   <li>two stats branches sorted + truncated by {@code head N}</li>
  *   <li>cross-index union (a second copy of the same dataset under a different index name)</li>
  *   <li>shared output column name across branches (no auto-rename)</li>
- *   <li>{@code | append [ ]} with several empty-subsearch shapes (bare brackets,
- *       inner stats with no source, {@code | append [ ]} nested inside the subsearch,
- *       inner {@code | join} whose left side is empty)</li>
+ *   <li>{@code | append [ ]} with several empty-subsearch shapes that all collapse to
+ *       the first branch (bare brackets, inner stats with no source, nested
+ *       {@code | append [ ]}, inner {@code | lookup})</li>
+ *   <li>{@code | append [ | <inner|cross|left|semi> join … ]} — empty-left-side joins
+ *       that also collapse to the first branch</li>
+ *   <li>{@code | append [ … | <right|full> join … ]} — joins where the right side
+ *       contributes additional rows under the merged schema even though the left
+ *       side is empty</li>
  *   <li>type-incompatibility error path raised in {@code SchemaUnifier}</li>
  * </ul>
  *
@@ -129,7 +134,7 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    // ── empty subsearch (4 surface forms, all yielding only the first branch) ──
+    // ── empty subsearch — collapses to first branch ────────────────────────────
 
     public void testAppendEmptySearchCommandBareBrackets() throws IOException {
         // `| append [ ]` — fully empty subsearch.
@@ -162,9 +167,23 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    public void testAppendEmptySearchWithJoin() throws IOException {
-        // Subsearch's join has no left source, so the join produces no rows; the
-        // outer Union ends up with just the first branch's results.
+    public void testAppendEmptySearchCommandLookup() throws IOException {
+        // `| append [ | where … | lookup INDEX field as alias ]` — lookup against an
+        // empty implicit source. EmptySourcePropagateVisitor collapses the subsearch
+        // to LogicalValues(empty), which OpenSearchUnionRule then drops.
+        assertEmptyAppendOnlyFirstBranch(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ | where int0 > 5 | lookup "
+                + CALCS.indexName
+                + " str0 as istr0 ]"
+        );
+    }
+
+    // ── empty subsearch with join (5 join types; 4 collapse to first branch) ───
+
+    public void testAppendEmptySearchWithInnerJoin() throws IOException {
         assertEmptyAppendOnlyFirstBranch(
             "source="
                 + CALCS.indexName
@@ -172,6 +191,81 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
                 + " | append [ | join left=L right=R on L.str0 = R.str0 "
                 + CALCS.indexName
                 + " ]"
+        );
+    }
+
+    public void testAppendEmptySearchWithCrossJoin() throws IOException {
+        assertEmptyAppendOnlyFirstBranch(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ | cross join left=L right=R on L.str0 = R.str0 "
+                + CALCS.indexName
+                + " ]"
+        );
+    }
+
+    public void testAppendEmptySearchWithLeftJoin() throws IOException {
+        assertEmptyAppendOnlyFirstBranch(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ | left join left=L right=R on L.str0 = R.str0 "
+                + CALCS.indexName
+                + " ]"
+        );
+    }
+
+    public void testAppendEmptySearchWithSemiJoin() throws IOException {
+        assertEmptyAppendOnlyFirstBranch(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ | semi join left=L right=R on L.str0 = R.str0 "
+                + CALCS.indexName
+                + " ]"
+        );
+    }
+
+    // ── empty subsearch with right/full join — adds rows from the right side ───
+
+    public void testAppendEmptySearchWithRightJoin() throws IOException {
+        // RIGHT JOIN of (empty filtered subset, real subquery) → still emits every
+        // right-side row with NULL on the left columns. The append therefore yields
+        // the first branch's rows plus the right-subquery's rows under the merged
+        // schema (sum_int0_by_str0 / str0 / cnt).
+        assertRows(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ | where str0 = 'OFFICE SUPPLIES' | right join on str0 = str0 [source="
+                + CALCS.indexName
+                + " | stats count() as cnt by str0 | sort str0 ] ]",
+            row(1, "FURNITURE", null),
+            row(18, "OFFICE SUPPLIES", null),
+            row(49, "TECHNOLOGY", null),
+            row(null, "FURNITURE", 2),
+            row(null, "OFFICE SUPPLIES", 6),
+            row(null, "TECHNOLOGY", 9)
+        );
+    }
+
+    public void testAppendEmptySearchWithFullJoin() throws IOException {
+        // Same shape as right join — the empty left side has no rows to match, so
+        // FULL JOIN reduces to RIGHT JOIN here.
+        assertRows(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ | where str0 = 'OFFICE SUPPLIES' | full join on str0 = str0 [source="
+                + CALCS.indexName
+                + " | stats count() as cnt by str0 | sort str0 ] ]",
+            row(1, "FURNITURE", null),
+            row(18, "OFFICE SUPPLIES", null),
+            row(49, "TECHNOLOGY", null),
+            row(null, "FURNITURE", 2),
+            row(null, "OFFICE SUPPLIES", 6),
+            row(null, "TECHNOLOGY", 9)
         );
     }
 
