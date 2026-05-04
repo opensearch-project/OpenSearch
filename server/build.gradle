@@ -54,6 +54,25 @@ base {
   archivesName = 'opensearch'
 }
 
+// ScopedValue is preview in JDK 21-24, final in JDK 25.
+// Match release to compiler JDK so ScopedValue is available.
+java.sourceCompatibility = JavaVersion.current()
+java.targetCompatibility = JavaVersion.current()
+if (JavaVersion.current().majorVersion.toInteger() < 25) {
+  tasks.withType(Test).configureEach {
+    jvmArgs += ['--enable-preview']
+  }
+}
+
+// Advertise JVM 21 compatibility so downstream modules can depend on :server.
+['apiElements', 'runtimeElements'].each { name ->
+  configurations.named(name) { conf ->
+    conf.attributes {
+      attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
+    }
+  }
+}
+
 sourceSets {
   main {
     java {
@@ -147,6 +166,10 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Xlint:cast'
   options.compilerArgs -= '-Xlint:rawtypes'
   options.compilerArgs -= '-Xlint:unchecked'
+  options.compilerArgs -= '-Xlint:removal'
+  options.compilerArgs += ['-Xlint:-removal']
+  options.compilerArgs -= '-Xlint:preview'
+  options.compilerArgs += ['-Xlint:-preview']
 }
 
 compileJava {
