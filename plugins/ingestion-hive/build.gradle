@@ -150,3 +150,13 @@ tasks.withType(JavaCompile).configureEach {
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
   enabled = false
 }
+
+// Generated Thrift code uses Java serialization (ObjectInputStream/ObjectOutputStream)
+tasks.named('forbiddenApisMain').configure {
+  excludes = ['org/opensearch/plugin/hive/metastore/**']
+}
+
+// Map hadoop-client-api and hadoop-client-runtime to shared hadoop license
+tasks.named("dependencyLicenses").configure {
+  mapping from: /hadoop-.*/, to: 'hadoop'
+}

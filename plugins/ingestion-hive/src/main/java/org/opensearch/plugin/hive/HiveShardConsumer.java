@@ -26,21 +26,20 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.apache.thrift.TException;
+import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
+import org.apache.thrift.transport.layered.TFramedTransport;
+import org.opensearch.index.IngestionShardConsumer;
+import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.plugin.hive.metastore.FieldSchema;
 import org.opensearch.plugin.hive.metastore.GetTableRequest;
 import org.opensearch.plugin.hive.metastore.GetTableResult;
 import org.opensearch.plugin.hive.metastore.Partition;
 import org.opensearch.plugin.hive.metastore.Table;
 import org.opensearch.plugin.hive.metastore.ThriftHiveMetastore;
-import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.layered.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
-
-import org.opensearch.index.IngestionShardConsumer;
-import org.opensearch.index.IngestionShardPointer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -144,8 +143,13 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
                 metastoreTransport = transport;
                 metastoreClient = new ThriftHiveMetastore.Client(new TBinaryProtocol(transport));
-                logger.info("Connected to Hive Metastore for shard {} at {}:{} (transport={})",
-                    shardId, host, port, config.getTransportMode());
+                logger.info(
+                    "Connected to Hive Metastore for shard {} at {}:{} (transport={})",
+                    shardId,
+                    host,
+                    port,
+                    config.getTransportMode()
+                );
                 return;
             } catch (TTransportException e) {
                 lastException = e;
@@ -191,9 +195,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         GetTableResult result = metastoreClient.get_table_req(req);
         Table table = result.getTable();
         tableSchema = hiveSchemaToParquet(table.getSd().getCols());
-        partitionKeys = table.getPartitionKeys().stream()
-            .map(FieldSchema::getName)
-            .collect(Collectors.toList());
+        partitionKeys = table.getPartitionKeys().stream().map(FieldSchema::getName).collect(Collectors.toList());
         logger.info("Table schema for shard {}: {}", shardId, tableSchema);
     }
 
@@ -203,30 +205,26 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
             connectToMetastore();
 
-            hadoopConf = java.security.AccessController.doPrivileged(
-                (java.security.PrivilegedExceptionAction<Configuration>) () -> {
-                    ClassLoader original = Thread.currentThread().getContextClassLoader();
-                    try {
-                        Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
-                        Configuration conf = new Configuration();
-                        conf.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem");
-                        return conf;
-                    } finally {
-                        Thread.currentThread().setContextClassLoader(original);
-                    }
+            hadoopConf = java.security.AccessController.doPrivileged((java.security.PrivilegedExceptionAction<Configuration>) () -> {
+                ClassLoader original = Thread.currentThread().getContextClassLoader();
+                try {
+                    Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
+                    Configuration conf = new Configuration();
+                    conf.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem");
+                    return conf;
+                } finally {
+                    Thread.currentThread().setContextClassLoader(original);
                 }
-            );
-            fileSystem = java.security.AccessController.doPrivileged(
-                (java.security.PrivilegedExceptionAction<FileSystem>) () -> {
-                    ClassLoader original = Thread.currentThread().getContextClassLoader();
-                    try {
-                        Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
-                        return FileSystem.get(hadoopConf);
-                    } finally {
-                        Thread.currentThread().setContextClassLoader(original);
-                    }
+            });
+            fileSystem = java.security.AccessController.doPrivileged((java.security.PrivilegedExceptionAction<FileSystem>) () -> {
+                ClassLoader original = Thread.currentThread().getContextClassLoader();
+                try {
+                    Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
+                    return FileSystem.get(hadoopConf);
+                } finally {
+                    Thread.currentThread().setContextClassLoader(original);
                 }
-            );
+            });
 
             fetchTableSchema();
             logger.info("HiveShardConsumer initialized successfully for shard {}", shardId);
@@ -234,20 +232,25 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     }
 
     @Override
-    public List<ReadResult<HivePointer, HiveMessage>> readNext(HivePointer pointer, boolean includeStart, long maxMessages, int timeoutMillis) {
+    public List<ReadResult<HivePointer, HiveMessage>> readNext(
+        HivePointer pointer,
+        boolean includeStart,
+        long maxMessages,
+        int timeoutMillis
+    ) {
         try {
             return doReadNext(maxMessages);
         } catch (TTransportException e) {
-            logger.warn("Metastore connection lost for shard {}, attempting reconnect", shardId, e);
+            logger.warn("Metastore connection lost for shard {}, attempting reconnect: {}", shardId, e.getMessage());
             try {
                 reconnectMetastore();
                 return doReadNext(maxMessages);
             } catch (Exception retryEx) {
-                logger.error("Failed to recover Metastore connection for shard " + shardId, retryEx);
+                logger.error("Failed to recover Metastore connection for shard {}: {}", shardId, retryEx.getMessage());
                 return Collections.emptyList();
             }
         } catch (Throwable e) {
-            logger.error("Error reading from Hive table for shard " + shardId, e);
+            logger.error("Error reading from Hive table for shard {}: {}", shardId, e.getMessage());
             return Collections.emptyList();
         }
     }
@@ -257,16 +260,16 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         try {
             return doReadNext(maxMessages);
         } catch (TTransportException e) {
-            logger.warn("Metastore connection lost for shard {}, attempting reconnect", shardId, e);
+            logger.warn("Metastore connection lost for shard {}, attempting reconnect: {}", shardId, e.getMessage());
             try {
                 reconnectMetastore();
                 return doReadNext(maxMessages);
             } catch (Exception retryEx) {
-                logger.error("Failed to recover Metastore connection for shard " + shardId, retryEx);
+                logger.error("Failed to recover Metastore connection for shard {}: {}", shardId, retryEx.getMessage());
                 return Collections.emptyList();
             }
         } catch (Throwable e) {
-            logger.error("Error reading from Hive table for shard " + shardId, e);
+            logger.error("Error reading from Hive table for shard {}: {}", shardId, e.getMessage());
             return Collections.emptyList();
         }
     }
@@ -376,9 +379,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         if (watermarkCreateTime <= 0 && (watermark == null || watermark.isEmpty())) {
             return all;
         }
-        return all.stream()
-            .filter(p -> p.getCreateTime() > watermarkCreateTime)
-            .collect(Collectors.toList());
+        return all.stream().filter(p -> p.getCreateTime() > watermarkCreateTime).collect(Collectors.toList());
     }
 
     private boolean shouldRefreshPartitions() {
@@ -572,25 +573,17 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             case "string":
             case "varchar":
             case "char":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
-                    .as(LogicalTypeAnnotation.stringType())
-                    .named(name);
+                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
             case "binary":
                 return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(name);
             case "timestamp":
                 return Types.optional(PrimitiveType.PrimitiveTypeName.INT96).named(name);
             case "date":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
-                    .as(LogicalTypeAnnotation.dateType())
-                    .named(name);
+                return Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named(name);
             case "decimal":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
-                    .as(LogicalTypeAnnotation.decimalType(0, 10))
-                    .named(name);
+                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.decimalType(0, 10)).named(name);
             default:
-                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
-                    .as(LogicalTypeAnnotation.stringType())
-                    .named(name);
+                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
         }
     }
 

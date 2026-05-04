@@ -22,9 +22,9 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
-import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.hive.metastore.Database;
@@ -43,7 +43,6 @@ import org.junit.Before;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -60,6 +59,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 /**
  * Integration test for Hive ingestion using Testcontainers with Hive Metastore.
  */
+@SuppressForbidden(reason = "Parquet and Hadoop APIs require java.io.File")
 @ThreadLeakFilters(filters = HiveSingleNodeTests.TestContainerThreadLeakFilter.class)
 public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
@@ -90,7 +90,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
     @Before
     public void setup() throws Exception {
         Assume.assumeTrue("Docker is not available", DockerClientFactory.instance().isDockerAvailable());
-        warehouseDir = Files.createTempDirectory("hive-warehouse").toFile();
+        warehouseDir = createTempDir().toFile();
         generateTestData();
         setupHiveMetastore();
         registerTableAndPartitions();
@@ -254,8 +254,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
     }
 
     private void setupHiveMetastore() {
-        hiveMetastore = new GenericContainer<>("apache/hive:4.0.1")
-            .withEnv("SERVICE_NAME", "metastore")
+        hiveMetastore = new GenericContainer<>("apache/hive:4.0.1").withEnv("SERVICE_NAME", "metastore")
             .withEnv("DB_DRIVER", "derby")
             .withExposedPorts(9083)
             .withFileSystemBind(warehouseDir.getAbsolutePath(), WAREHOUSE_CONTAINER_PATH, BindMode.READ_WRITE)

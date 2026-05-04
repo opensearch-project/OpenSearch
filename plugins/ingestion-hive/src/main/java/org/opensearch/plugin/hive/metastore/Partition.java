@@ -14,1105 +14,1173 @@
  */
 package org.opensearch.plugin.hive.metastore;
 
-@SuppressWarnings({"cast", "rawtypes", "serial", "unchecked", "unused"})
-public class Partition implements org.apache.thrift.TBase<Partition, Partition._Fields>, java.io.Serializable, Cloneable, Comparable<Partition> {
-  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("Partition");
+@SuppressWarnings({ "cast", "rawtypes", "serial", "unchecked", "unused" })
+public class Partition
+    implements
+        org.apache.thrift.TBase<Partition, Partition._Fields>,
+        java.io.Serializable,
+        Cloneable,
+        Comparable<Partition> {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("Partition");
 
-  private static final org.apache.thrift.protocol.TField VALUES_FIELD_DESC = new org.apache.thrift.protocol.TField("values", org.apache.thrift.protocol.TType.LIST, (short)1);
-  private static final org.apache.thrift.protocol.TField DB_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("dbName", org.apache.thrift.protocol.TType.STRING, (short)2);
-  private static final org.apache.thrift.protocol.TField TABLE_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("tableName", org.apache.thrift.protocol.TType.STRING, (short)3);
-  private static final org.apache.thrift.protocol.TField CREATE_TIME_FIELD_DESC = new org.apache.thrift.protocol.TField("createTime", org.apache.thrift.protocol.TType.I32, (short)4);
-  private static final org.apache.thrift.protocol.TField LAST_ACCESS_TIME_FIELD_DESC = new org.apache.thrift.protocol.TField("lastAccessTime", org.apache.thrift.protocol.TType.I32, (short)5);
-  private static final org.apache.thrift.protocol.TField SD_FIELD_DESC = new org.apache.thrift.protocol.TField("sd", org.apache.thrift.protocol.TType.STRUCT, (short)6);
-  private static final org.apache.thrift.protocol.TField PARAMETERS_FIELD_DESC = new org.apache.thrift.protocol.TField("parameters", org.apache.thrift.protocol.TType.MAP, (short)7);
+    private static final org.apache.thrift.protocol.TField VALUES_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "values",
+        org.apache.thrift.protocol.TType.LIST,
+        (short) 1
+    );
+    private static final org.apache.thrift.protocol.TField DB_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "dbName",
+        org.apache.thrift.protocol.TType.STRING,
+        (short) 2
+    );
+    private static final org.apache.thrift.protocol.TField TABLE_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "tableName",
+        org.apache.thrift.protocol.TType.STRING,
+        (short) 3
+    );
+    private static final org.apache.thrift.protocol.TField CREATE_TIME_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "createTime",
+        org.apache.thrift.protocol.TType.I32,
+        (short) 4
+    );
+    private static final org.apache.thrift.protocol.TField LAST_ACCESS_TIME_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "lastAccessTime",
+        org.apache.thrift.protocol.TType.I32,
+        (short) 5
+    );
+    private static final org.apache.thrift.protocol.TField SD_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "sd",
+        org.apache.thrift.protocol.TType.STRUCT,
+        (short) 6
+    );
+    private static final org.apache.thrift.protocol.TField PARAMETERS_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        "parameters",
+        org.apache.thrift.protocol.TType.MAP,
+        (short) 7
+    );
 
-  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new PartitionStandardSchemeFactory();
-  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new PartitionTupleSchemeFactory();
+    private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new PartitionStandardSchemeFactory();
+    private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new PartitionTupleSchemeFactory();
 
-  private @org.apache.thrift.annotation.Nullable java.util.List<java.lang.String> values; // required
-  private @org.apache.thrift.annotation.Nullable java.lang.String dbName; // required
-  private @org.apache.thrift.annotation.Nullable java.lang.String tableName; // required
-  private int createTime; // required
-  private int lastAccessTime; // required
-  private @org.apache.thrift.annotation.Nullable StorageDescriptor sd; // required
-  private @org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String,java.lang.String> parameters; // required
+    private @org.apache.thrift.annotation.Nullable java.util.List<java.lang.String> values; // required
+    private @org.apache.thrift.annotation.Nullable java.lang.String dbName; // required
+    private @org.apache.thrift.annotation.Nullable java.lang.String tableName; // required
+    private int createTime; // required
+    private int lastAccessTime; // required
+    private @org.apache.thrift.annotation.Nullable StorageDescriptor sd; // required
+    private @org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String, java.lang.String> parameters; // required
 
-  /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-    VALUES((short)1, "values"),
-    DB_NAME((short)2, "dbName"),
-    TABLE_NAME((short)3, "tableName"),
-    CREATE_TIME((short)4, "createTime"),
-    LAST_ACCESS_TIME((short)5, "lastAccessTime"),
-    SD((short)6, "sd"),
-    PARAMETERS((short)7, "parameters");
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements org.apache.thrift.TFieldIdEnum {
+        VALUES((short) 1, "values"),
+        DB_NAME((short) 2, "dbName"),
+        TABLE_NAME((short) 3, "tableName"),
+        CREATE_TIME((short) 4, "createTime"),
+        LAST_ACCESS_TIME((short) 5, "lastAccessTime"),
+        SD((short) 6, "sd"),
+        PARAMETERS((short) 7, "parameters");
 
-    private static final java.util.Map<java.lang.String, _Fields> byName = new java.util.HashMap<java.lang.String, _Fields>();
+        private static final java.util.Map<java.lang.String, _Fields> byName = new java.util.HashMap<java.lang.String, _Fields>();
 
+        static {
+            for (_Fields field : java.util.EnumSet.allOf(_Fields.class)) {
+                byName.put(field.getFieldName(), field);
+            }
+        }
+
+        /**
+         * Find the _Fields constant that matches fieldId, or null if its not found.
+         */
+        @org.apache.thrift.annotation.Nullable
+        public static _Fields findByThriftId(int fieldId) {
+            switch (fieldId) {
+                case 1: // VALUES
+                    return VALUES;
+                case 2: // DB_NAME
+                    return DB_NAME;
+                case 3: // TABLE_NAME
+                    return TABLE_NAME;
+                case 4: // CREATE_TIME
+                    return CREATE_TIME;
+                case 5: // LAST_ACCESS_TIME
+                    return LAST_ACCESS_TIME;
+                case 6: // SD
+                    return SD;
+                case 7: // PARAMETERS
+                    return PARAMETERS;
+                default:
+                    return null;
+            }
+        }
+
+        /**
+         * Find the _Fields constant that matches fieldId, throwing an exception
+         * if it is not found.
+         */
+        public static _Fields findByThriftIdOrThrow(int fieldId) {
+            _Fields fields = findByThriftId(fieldId);
+            if (fields == null) throw new java.lang.IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+            return fields;
+        }
+
+        /**
+         * Find the _Fields constant that matches name, or null if its not found.
+         */
+        @org.apache.thrift.annotation.Nullable
+        public static _Fields findByName(java.lang.String name) {
+            return byName.get(name);
+        }
+
+        private final short _thriftId;
+        private final java.lang.String _fieldName;
+
+        _Fields(short thriftId, java.lang.String fieldName) {
+            _thriftId = thriftId;
+            _fieldName = fieldName;
+        }
+
+        @Override
+        public short getThriftFieldId() {
+            return _thriftId;
+        }
+
+        @Override
+        public java.lang.String getFieldName() {
+            return _fieldName;
+        }
+    }
+
+    // isset id assignments
+    private static final int __CREATETIME_ISSET_ID = 0;
+    private static final int __LASTACCESSTIME_ISSET_ID = 1;
+    private byte __isset_bitfield = 0;
+    public static final java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
-      for (_Fields field : java.util.EnumSet.allOf(_Fields.class)) {
-        byName.put(field.getFieldName(), field);
-      }
+        java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new java.util.EnumMap<
+            _Fields,
+            org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+        tmpMap.put(
+            _Fields.VALUES,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "values",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.ListMetaData(
+                    org.apache.thrift.protocol.TType.LIST,
+                    new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)
+                )
+            )
+        );
+        tmpMap.put(
+            _Fields.DB_NAME,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "dbName",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)
+            )
+        );
+        tmpMap.put(
+            _Fields.TABLE_NAME,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "tableName",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)
+            )
+        );
+        tmpMap.put(
+            _Fields.CREATE_TIME,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "createTime",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)
+            )
+        );
+        tmpMap.put(
+            _Fields.LAST_ACCESS_TIME,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "lastAccessTime",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)
+            )
+        );
+        tmpMap.put(
+            _Fields.SD,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "sd",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, StorageDescriptor.class)
+            )
+        );
+        tmpMap.put(
+            _Fields.PARAMETERS,
+            new org.apache.thrift.meta_data.FieldMetaData(
+                "parameters",
+                org.apache.thrift.TFieldRequirementType.DEFAULT,
+                new org.apache.thrift.meta_data.MapMetaData(
+                    org.apache.thrift.protocol.TType.MAP,
+                    new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING),
+                    new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)
+                )
+            )
+        );
+        metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);
+        org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(Partition.class, metaDataMap);
+    }
+
+    public Partition() {}
+
+    public Partition(
+        java.util.List<java.lang.String> values,
+        java.lang.String dbName,
+        java.lang.String tableName,
+        int createTime,
+        int lastAccessTime,
+        StorageDescriptor sd,
+        java.util.Map<java.lang.String, java.lang.String> parameters
+    ) {
+        this();
+        this.values = values;
+        this.dbName = dbName;
+        this.tableName = tableName;
+        this.createTime = createTime;
+        setCreateTimeIsSet(true);
+        this.lastAccessTime = lastAccessTime;
+        setLastAccessTimeIsSet(true);
+        this.sd = sd;
+        this.parameters = parameters;
     }
 
     /**
-     * Find the _Fields constant that matches fieldId, or null if its not found.
+     * Performs a deep copy on <i>other</i>.
      */
+    public Partition(Partition other) {
+        __isset_bitfield = other.__isset_bitfield;
+        if (other.isSetValues()) {
+            java.util.List<java.lang.String> __this__values = new java.util.ArrayList<java.lang.String>(other.values);
+            this.values = __this__values;
+        }
+        if (other.isSetDbName()) {
+            this.dbName = other.dbName;
+        }
+        if (other.isSetTableName()) {
+            this.tableName = other.tableName;
+        }
+        this.createTime = other.createTime;
+        this.lastAccessTime = other.lastAccessTime;
+        if (other.isSetSd()) {
+            this.sd = new StorageDescriptor(other.sd);
+        }
+        if (other.isSetParameters()) {
+            java.util.Map<java.lang.String, java.lang.String> __this__parameters = new java.util.TreeMap<
+                java.lang.String,
+                java.lang.String>(other.parameters);
+            this.parameters = __this__parameters;
+        }
+    }
+
+    @Override
+    public Partition deepCopy() {
+        return new Partition(this);
+    }
+
+    @Override
+    public void clear() {
+        this.values = null;
+        this.dbName = null;
+        this.tableName = null;
+        setCreateTimeIsSet(false);
+        this.createTime = 0;
+        setLastAccessTimeIsSet(false);
+        this.lastAccessTime = 0;
+        this.sd = null;
+        this.parameters = null;
+    }
+
+    public int getValuesSize() {
+        return (this.values == null) ? 0 : this.values.size();
+    }
+
     @org.apache.thrift.annotation.Nullable
-    public static _Fields findByThriftId(int fieldId) {
-      switch(fieldId) {
-        case 1: // VALUES
-          return VALUES;
-        case 2: // DB_NAME
-          return DB_NAME;
-        case 3: // TABLE_NAME
-          return TABLE_NAME;
-        case 4: // CREATE_TIME
-          return CREATE_TIME;
-        case 5: // LAST_ACCESS_TIME
-          return LAST_ACCESS_TIME;
-        case 6: // SD
-          return SD;
-        case 7: // PARAMETERS
-          return PARAMETERS;
-        default:
-          return null;
-      }
+    public java.util.Iterator<java.lang.String> getValuesIterator() {
+        return (this.values == null) ? null : this.values.iterator();
     }
 
-    /**
-     * Find the _Fields constant that matches fieldId, throwing an exception
-     * if it is not found.
-     */
-    public static _Fields findByThriftIdOrThrow(int fieldId) {
-      _Fields fields = findByThriftId(fieldId);
-      if (fields == null) throw new java.lang.IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-      return fields;
+    public void addToValues(java.lang.String elem) {
+        if (this.values == null) {
+            this.values = new java.util.ArrayList<java.lang.String>();
+        }
+        this.values.add(elem);
     }
 
-    /**
-     * Find the _Fields constant that matches name, or null if its not found.
-     */
     @org.apache.thrift.annotation.Nullable
-    public static _Fields findByName(java.lang.String name) {
-      return byName.get(name);
+    public java.util.List<java.lang.String> getValues() {
+        return this.values;
     }
 
-    private final short _thriftId;
-    private final java.lang.String _fieldName;
-
-    _Fields(short thriftId, java.lang.String fieldName) {
-      _thriftId = thriftId;
-      _fieldName = fieldName;
+    public Partition setValues(@org.apache.thrift.annotation.Nullable java.util.List<java.lang.String> values) {
+        this.values = values;
+        return this;
     }
 
-    @Override
-    public short getThriftFieldId() {
-      return _thriftId;
+    public void unsetValues() {
+        this.values = null;
     }
 
-    @Override
-    public java.lang.String getFieldName() {
-      return _fieldName;
-    }
-  }
-
-  // isset id assignments
-  private static final int __CREATETIME_ISSET_ID = 0;
-  private static final int __LASTACCESSTIME_ISSET_ID = 1;
-  private byte __isset_bitfield = 0;
-  public static final java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
-  static {
-    java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new java.util.EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.VALUES, new org.apache.thrift.meta_data.FieldMetaData("values", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
-    tmpMap.put(_Fields.DB_NAME, new org.apache.thrift.meta_data.FieldMetaData("dbName", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.TABLE_NAME, new org.apache.thrift.meta_data.FieldMetaData("tableName", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.CREATE_TIME, new org.apache.thrift.meta_data.FieldMetaData("createTime", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-    tmpMap.put(_Fields.LAST_ACCESS_TIME, new org.apache.thrift.meta_data.FieldMetaData("lastAccessTime", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-    tmpMap.put(_Fields.SD, new org.apache.thrift.meta_data.FieldMetaData("sd", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, StorageDescriptor.class)));
-    tmpMap.put(_Fields.PARAMETERS, new org.apache.thrift.meta_data.FieldMetaData("parameters", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
-    metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);
-    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(Partition.class, metaDataMap);
-  }
-
-  public Partition() {
-  }
-
-  public Partition(
-    java.util.List<java.lang.String> values,
-    java.lang.String dbName,
-    java.lang.String tableName,
-    int createTime,
-    int lastAccessTime,
-    StorageDescriptor sd,
-    java.util.Map<java.lang.String,java.lang.String> parameters)
-  {
-    this();
-    this.values = values;
-    this.dbName = dbName;
-    this.tableName = tableName;
-    this.createTime = createTime;
-    setCreateTimeIsSet(true);
-    this.lastAccessTime = lastAccessTime;
-    setLastAccessTimeIsSet(true);
-    this.sd = sd;
-    this.parameters = parameters;
-  }
-
-  /**
-   * Performs a deep copy on <i>other</i>.
-   */
-  public Partition(Partition other) {
-    __isset_bitfield = other.__isset_bitfield;
-    if (other.isSetValues()) {
-      java.util.List<java.lang.String> __this__values = new java.util.ArrayList<java.lang.String>(other.values);
-      this.values = __this__values;
-    }
-    if (other.isSetDbName()) {
-      this.dbName = other.dbName;
-    }
-    if (other.isSetTableName()) {
-      this.tableName = other.tableName;
-    }
-    this.createTime = other.createTime;
-    this.lastAccessTime = other.lastAccessTime;
-    if (other.isSetSd()) {
-      this.sd = new StorageDescriptor(other.sd);
-    }
-    if (other.isSetParameters()) {
-      java.util.Map<java.lang.String,java.lang.String> __this__parameters = new java.util.TreeMap<java.lang.String,java.lang.String>(other.parameters);
-      this.parameters = __this__parameters;
-    }
-  }
-
-  @Override
-  public Partition deepCopy() {
-    return new Partition(this);
-  }
-
-  @Override
-  public void clear() {
-    this.values = null;
-    this.dbName = null;
-    this.tableName = null;
-    setCreateTimeIsSet(false);
-    this.createTime = 0;
-    setLastAccessTimeIsSet(false);
-    this.lastAccessTime = 0;
-    this.sd = null;
-    this.parameters = null;
-  }
-
-  public int getValuesSize() {
-    return (this.values == null) ? 0 : this.values.size();
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.Iterator<java.lang.String> getValuesIterator() {
-    return (this.values == null) ? null : this.values.iterator();
-  }
-
-  public void addToValues(java.lang.String elem) {
-    if (this.values == null) {
-      this.values = new java.util.ArrayList<java.lang.String>();
-    }
-    this.values.add(elem);
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.List<java.lang.String> getValues() {
-    return this.values;
-  }
-
-  public Partition setValues(@org.apache.thrift.annotation.Nullable java.util.List<java.lang.String> values) {
-    this.values = values;
-    return this;
-  }
-
-  public void unsetValues() {
-    this.values = null;
-  }
-
-  /** Returns true if field values is set (has been assigned a value) and false otherwise */
-  public boolean isSetValues() {
-    return this.values != null;
-  }
-
-  public void setValuesIsSet(boolean value) {
-    if (!value) {
-      this.values = null;
-    }
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.lang.String getDbName() {
-    return this.dbName;
-  }
-
-  public Partition setDbName(@org.apache.thrift.annotation.Nullable java.lang.String dbName) {
-    this.dbName = dbName;
-    return this;
-  }
-
-  public void unsetDbName() {
-    this.dbName = null;
-  }
-
-  /** Returns true if field dbName is set (has been assigned a value) and false otherwise */
-  public boolean isSetDbName() {
-    return this.dbName != null;
-  }
-
-  public void setDbNameIsSet(boolean value) {
-    if (!value) {
-      this.dbName = null;
-    }
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.lang.String getTableName() {
-    return this.tableName;
-  }
-
-  public Partition setTableName(@org.apache.thrift.annotation.Nullable java.lang.String tableName) {
-    this.tableName = tableName;
-    return this;
-  }
-
-  public void unsetTableName() {
-    this.tableName = null;
-  }
-
-  /** Returns true if field tableName is set (has been assigned a value) and false otherwise */
-  public boolean isSetTableName() {
-    return this.tableName != null;
-  }
-
-  public void setTableNameIsSet(boolean value) {
-    if (!value) {
-      this.tableName = null;
-    }
-  }
-
-  public int getCreateTime() {
-    return this.createTime;
-  }
-
-  public Partition setCreateTime(int createTime) {
-    this.createTime = createTime;
-    setCreateTimeIsSet(true);
-    return this;
-  }
-
-  public void unsetCreateTime() {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.clearBit(__isset_bitfield, __CREATETIME_ISSET_ID);
-  }
-
-  /** Returns true if field createTime is set (has been assigned a value) and false otherwise */
-  public boolean isSetCreateTime() {
-    return org.apache.thrift.EncodingUtils.testBit(__isset_bitfield, __CREATETIME_ISSET_ID);
-  }
-
-  public void setCreateTimeIsSet(boolean value) {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.setBit(__isset_bitfield, __CREATETIME_ISSET_ID, value);
-  }
-
-  public int getLastAccessTime() {
-    return this.lastAccessTime;
-  }
-
-  public Partition setLastAccessTime(int lastAccessTime) {
-    this.lastAccessTime = lastAccessTime;
-    setLastAccessTimeIsSet(true);
-    return this;
-  }
-
-  public void unsetLastAccessTime() {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.clearBit(__isset_bitfield, __LASTACCESSTIME_ISSET_ID);
-  }
-
-  /** Returns true if field lastAccessTime is set (has been assigned a value) and false otherwise */
-  public boolean isSetLastAccessTime() {
-    return org.apache.thrift.EncodingUtils.testBit(__isset_bitfield, __LASTACCESSTIME_ISSET_ID);
-  }
-
-  public void setLastAccessTimeIsSet(boolean value) {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.setBit(__isset_bitfield, __LASTACCESSTIME_ISSET_ID, value);
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public StorageDescriptor getSd() {
-    return this.sd;
-  }
-
-  public Partition setSd(@org.apache.thrift.annotation.Nullable StorageDescriptor sd) {
-    this.sd = sd;
-    return this;
-  }
-
-  public void unsetSd() {
-    this.sd = null;
-  }
-
-  /** Returns true if field sd is set (has been assigned a value) and false otherwise */
-  public boolean isSetSd() {
-    return this.sd != null;
-  }
-
-  public void setSdIsSet(boolean value) {
-    if (!value) {
-      this.sd = null;
-    }
-  }
-
-  public int getParametersSize() {
-    return (this.parameters == null) ? 0 : this.parameters.size();
-  }
-
-  public void putToParameters(java.lang.String key, java.lang.String val) {
-    if (this.parameters == null) {
-      this.parameters = new java.util.TreeMap<java.lang.String,java.lang.String>();
-    }
-    this.parameters.put(key, val);
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  public java.util.Map<java.lang.String,java.lang.String> getParameters() {
-    return this.parameters;
-  }
-
-  public Partition setParameters(@org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String,java.lang.String> parameters) {
-    this.parameters = parameters;
-    return this;
-  }
-
-  public void unsetParameters() {
-    this.parameters = null;
-  }
-
-  /** Returns true if field parameters is set (has been assigned a value) and false otherwise */
-  public boolean isSetParameters() {
-    return this.parameters != null;
-  }
-
-  public void setParametersIsSet(boolean value) {
-    if (!value) {
-      this.parameters = null;
-    }
-  }
-
-  @Override
-  public void setFieldValue(_Fields field, @org.apache.thrift.annotation.Nullable java.lang.Object value) {
-    switch (field) {
-    case VALUES:
-      if (value == null) {
-        unsetValues();
-      } else {
-        setValues((java.util.List<java.lang.String>)value);
-      }
-      break;
-
-    case DB_NAME:
-      if (value == null) {
-        unsetDbName();
-      } else {
-        setDbName((java.lang.String)value);
-      }
-      break;
-
-    case TABLE_NAME:
-      if (value == null) {
-        unsetTableName();
-      } else {
-        setTableName((java.lang.String)value);
-      }
-      break;
-
-    case CREATE_TIME:
-      if (value == null) {
-        unsetCreateTime();
-      } else {
-        setCreateTime((java.lang.Integer)value);
-      }
-      break;
-
-    case LAST_ACCESS_TIME:
-      if (value == null) {
-        unsetLastAccessTime();
-      } else {
-        setLastAccessTime((java.lang.Integer)value);
-      }
-      break;
-
-    case SD:
-      if (value == null) {
-        unsetSd();
-      } else {
-        setSd((StorageDescriptor)value);
-      }
-      break;
-
-    case PARAMETERS:
-      if (value == null) {
-        unsetParameters();
-      } else {
-        setParameters((java.util.Map<java.lang.String,java.lang.String>)value);
-      }
-      break;
-
-    }
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  @Override
-  public java.lang.Object getFieldValue(_Fields field) {
-    switch (field) {
-    case VALUES:
-      return getValues();
-
-    case DB_NAME:
-      return getDbName();
-
-    case TABLE_NAME:
-      return getTableName();
-
-    case CREATE_TIME:
-      return getCreateTime();
-
-    case LAST_ACCESS_TIME:
-      return getLastAccessTime();
-
-    case SD:
-      return getSd();
-
-    case PARAMETERS:
-      return getParameters();
-
-    }
-    throw new java.lang.IllegalStateException();
-  }
-
-  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
-  @Override
-  public boolean isSet(_Fields field) {
-    if (field == null) {
-      throw new java.lang.IllegalArgumentException();
+    /** Returns true if field values is set (has been assigned a value) and false otherwise */
+    public boolean isSetValues() {
+        return this.values != null;
     }
 
-    switch (field) {
-    case VALUES:
-      return isSetValues();
-    case DB_NAME:
-      return isSetDbName();
-    case TABLE_NAME:
-      return isSetTableName();
-    case CREATE_TIME:
-      return isSetCreateTime();
-    case LAST_ACCESS_TIME:
-      return isSetLastAccessTime();
-    case SD:
-      return isSetSd();
-    case PARAMETERS:
-      return isSetParameters();
-    }
-    throw new java.lang.IllegalStateException();
-  }
-
-  @Override
-  public boolean equals(java.lang.Object that) {
-    if (that instanceof Partition)
-      return this.equals((Partition)that);
-    return false;
-  }
-
-  public boolean equals(Partition that) {
-    if (that == null)
-      return false;
-    if (this == that)
-      return true;
-
-    boolean this_present_values = true && this.isSetValues();
-    boolean that_present_values = true && that.isSetValues();
-    if (this_present_values || that_present_values) {
-      if (!(this_present_values && that_present_values))
-        return false;
-      if (!this.values.equals(that.values))
-        return false;
-    }
-
-    boolean this_present_dbName = true && this.isSetDbName();
-    boolean that_present_dbName = true && that.isSetDbName();
-    if (this_present_dbName || that_present_dbName) {
-      if (!(this_present_dbName && that_present_dbName))
-        return false;
-      if (!this.dbName.equals(that.dbName))
-        return false;
-    }
-
-    boolean this_present_tableName = true && this.isSetTableName();
-    boolean that_present_tableName = true && that.isSetTableName();
-    if (this_present_tableName || that_present_tableName) {
-      if (!(this_present_tableName && that_present_tableName))
-        return false;
-      if (!this.tableName.equals(that.tableName))
-        return false;
-    }
-
-    boolean this_present_createTime = true;
-    boolean that_present_createTime = true;
-    if (this_present_createTime || that_present_createTime) {
-      if (!(this_present_createTime && that_present_createTime))
-        return false;
-      if (this.createTime != that.createTime)
-        return false;
-    }
-
-    boolean this_present_lastAccessTime = true;
-    boolean that_present_lastAccessTime = true;
-    if (this_present_lastAccessTime || that_present_lastAccessTime) {
-      if (!(this_present_lastAccessTime && that_present_lastAccessTime))
-        return false;
-      if (this.lastAccessTime != that.lastAccessTime)
-        return false;
-    }
-
-    boolean this_present_sd = true && this.isSetSd();
-    boolean that_present_sd = true && that.isSetSd();
-    if (this_present_sd || that_present_sd) {
-      if (!(this_present_sd && that_present_sd))
-        return false;
-      if (!this.sd.equals(that.sd))
-        return false;
-    }
-
-    boolean this_present_parameters = true && this.isSetParameters();
-    boolean that_present_parameters = true && that.isSetParameters();
-    if (this_present_parameters || that_present_parameters) {
-      if (!(this_present_parameters && that_present_parameters))
-        return false;
-      if (!this.parameters.equals(that.parameters))
-        return false;
-    }
-
-    return true;
-  }
-
-  @Override
-  public int hashCode() {
-    int hashCode = 1;
-
-    hashCode = hashCode * 8191 + ((isSetValues()) ? 131071 : 524287);
-    if (isSetValues())
-      hashCode = hashCode * 8191 + values.hashCode();
-
-    hashCode = hashCode * 8191 + ((isSetDbName()) ? 131071 : 524287);
-    if (isSetDbName())
-      hashCode = hashCode * 8191 + dbName.hashCode();
-
-    hashCode = hashCode * 8191 + ((isSetTableName()) ? 131071 : 524287);
-    if (isSetTableName())
-      hashCode = hashCode * 8191 + tableName.hashCode();
-
-    hashCode = hashCode * 8191 + createTime;
-
-    hashCode = hashCode * 8191 + lastAccessTime;
-
-    hashCode = hashCode * 8191 + ((isSetSd()) ? 131071 : 524287);
-    if (isSetSd())
-      hashCode = hashCode * 8191 + sd.hashCode();
-
-    hashCode = hashCode * 8191 + ((isSetParameters()) ? 131071 : 524287);
-    if (isSetParameters())
-      hashCode = hashCode * 8191 + parameters.hashCode();
-
-    return hashCode;
-  }
-
-  @Override
-  public int compareTo(Partition other) {
-    if (!getClass().equals(other.getClass())) {
-      return getClass().getName().compareTo(other.getClass().getName());
-    }
-
-    int lastComparison = 0;
-
-    lastComparison = java.lang.Boolean.compare(isSetValues(), other.isSetValues());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetValues()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.values, other.values);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetDbName(), other.isSetDbName());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetDbName()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.dbName, other.dbName);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetTableName(), other.isSetTableName());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetTableName()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.tableName, other.tableName);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetCreateTime(), other.isSetCreateTime());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetCreateTime()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.createTime, other.createTime);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetLastAccessTime(), other.isSetLastAccessTime());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetLastAccessTime()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.lastAccessTime, other.lastAccessTime);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetSd(), other.isSetSd());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetSd()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.sd, other.sd);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = java.lang.Boolean.compare(isSetParameters(), other.isSetParameters());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetParameters()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.parameters, other.parameters);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    return 0;
-  }
-
-  @org.apache.thrift.annotation.Nullable
-  @Override
-  public _Fields fieldForId(int fieldId) {
-    return _Fields.findByThriftId(fieldId);
-  }
-
-  @Override
-  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
-    scheme(iprot).read(iprot, this);
-  }
-
-  @Override
-  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
-    scheme(oprot).write(oprot, this);
-  }
-
-  @Override
-  public java.lang.String toString() {
-    java.lang.StringBuilder sb = new java.lang.StringBuilder("Partition(");
-    boolean first = true;
-
-    sb.append("values:");
-    if (this.values == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.values);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("dbName:");
-    if (this.dbName == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.dbName);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("tableName:");
-    if (this.tableName == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.tableName);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("createTime:");
-    sb.append(this.createTime);
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("lastAccessTime:");
-    sb.append(this.lastAccessTime);
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("sd:");
-    if (this.sd == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.sd);
-    }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("parameters:");
-    if (this.parameters == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.parameters);
-    }
-    first = false;
-    sb.append(")");
-    return sb.toString();
-  }
-
-  public void validate() throws org.apache.thrift.TException {
-    // check for required fields
-    // check for sub-struct validity
-    if (sd != null) {
-      sd.validate();
-    }
-  }
-
-  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-    try {
-      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
-    }
-  }
-
-  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, java.lang.ClassNotFoundException {
-    try {
-      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-      __isset_bitfield = 0;
-      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
-    }
-  }
-
-  private static class PartitionStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
-    @Override
-    public PartitionStandardScheme getScheme() {
-      return new PartitionStandardScheme();
-    }
-  }
-
-  private static class PartitionStandardScheme extends org.apache.thrift.scheme.StandardScheme<Partition> {
-
-    @Override
-    public void read(org.apache.thrift.protocol.TProtocol iprot, Partition struct) throws org.apache.thrift.TException {
-      org.apache.thrift.protocol.TField schemeField;
-      iprot.readStructBegin();
-      while (true)
-      {
-        schemeField = iprot.readFieldBegin();
-        if (schemeField.type == org.apache.thrift.protocol.TType.STOP) { 
-          break;
+    public void setValuesIsSet(boolean value) {
+        if (!value) {
+            this.values = null;
         }
-        switch (schemeField.id) {
-          case 1: // VALUES
-            if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
-              {
-                org.apache.thrift.protocol.TList _list72 = iprot.readListBegin();
-                struct.values = new java.util.ArrayList<java.lang.String>(_list72.size);
-                @org.apache.thrift.annotation.Nullable java.lang.String _elem73;
-                for (int _i74 = 0; _i74 < _list72.size; ++_i74)
-                {
-                  _elem73 = iprot.readString();
-                  struct.values.add(_elem73);
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.lang.String getDbName() {
+        return this.dbName;
+    }
+
+    public Partition setDbName(@org.apache.thrift.annotation.Nullable java.lang.String dbName) {
+        this.dbName = dbName;
+        return this;
+    }
+
+    public void unsetDbName() {
+        this.dbName = null;
+    }
+
+    /** Returns true if field dbName is set (has been assigned a value) and false otherwise */
+    public boolean isSetDbName() {
+        return this.dbName != null;
+    }
+
+    public void setDbNameIsSet(boolean value) {
+        if (!value) {
+            this.dbName = null;
+        }
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.lang.String getTableName() {
+        return this.tableName;
+    }
+
+    public Partition setTableName(@org.apache.thrift.annotation.Nullable java.lang.String tableName) {
+        this.tableName = tableName;
+        return this;
+    }
+
+    public void unsetTableName() {
+        this.tableName = null;
+    }
+
+    /** Returns true if field tableName is set (has been assigned a value) and false otherwise */
+    public boolean isSetTableName() {
+        return this.tableName != null;
+    }
+
+    public void setTableNameIsSet(boolean value) {
+        if (!value) {
+            this.tableName = null;
+        }
+    }
+
+    public int getCreateTime() {
+        return this.createTime;
+    }
+
+    public Partition setCreateTime(int createTime) {
+        this.createTime = createTime;
+        setCreateTimeIsSet(true);
+        return this;
+    }
+
+    public void unsetCreateTime() {
+        __isset_bitfield = org.apache.thrift.EncodingUtils.clearBit(__isset_bitfield, __CREATETIME_ISSET_ID);
+    }
+
+    /** Returns true if field createTime is set (has been assigned a value) and false otherwise */
+    public boolean isSetCreateTime() {
+        return org.apache.thrift.EncodingUtils.testBit(__isset_bitfield, __CREATETIME_ISSET_ID);
+    }
+
+    public void setCreateTimeIsSet(boolean value) {
+        __isset_bitfield = org.apache.thrift.EncodingUtils.setBit(__isset_bitfield, __CREATETIME_ISSET_ID, value);
+    }
+
+    public int getLastAccessTime() {
+        return this.lastAccessTime;
+    }
+
+    public Partition setLastAccessTime(int lastAccessTime) {
+        this.lastAccessTime = lastAccessTime;
+        setLastAccessTimeIsSet(true);
+        return this;
+    }
+
+    public void unsetLastAccessTime() {
+        __isset_bitfield = org.apache.thrift.EncodingUtils.clearBit(__isset_bitfield, __LASTACCESSTIME_ISSET_ID);
+    }
+
+    /** Returns true if field lastAccessTime is set (has been assigned a value) and false otherwise */
+    public boolean isSetLastAccessTime() {
+        return org.apache.thrift.EncodingUtils.testBit(__isset_bitfield, __LASTACCESSTIME_ISSET_ID);
+    }
+
+    public void setLastAccessTimeIsSet(boolean value) {
+        __isset_bitfield = org.apache.thrift.EncodingUtils.setBit(__isset_bitfield, __LASTACCESSTIME_ISSET_ID, value);
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public StorageDescriptor getSd() {
+        return this.sd;
+    }
+
+    public Partition setSd(@org.apache.thrift.annotation.Nullable StorageDescriptor sd) {
+        this.sd = sd;
+        return this;
+    }
+
+    public void unsetSd() {
+        this.sd = null;
+    }
+
+    /** Returns true if field sd is set (has been assigned a value) and false otherwise */
+    public boolean isSetSd() {
+        return this.sd != null;
+    }
+
+    public void setSdIsSet(boolean value) {
+        if (!value) {
+            this.sd = null;
+        }
+    }
+
+    public int getParametersSize() {
+        return (this.parameters == null) ? 0 : this.parameters.size();
+    }
+
+    public void putToParameters(java.lang.String key, java.lang.String val) {
+        if (this.parameters == null) {
+            this.parameters = new java.util.TreeMap<java.lang.String, java.lang.String>();
+        }
+        this.parameters.put(key, val);
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    public java.util.Map<java.lang.String, java.lang.String> getParameters() {
+        return this.parameters;
+    }
+
+    public Partition setParameters(@org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String, java.lang.String> parameters) {
+        this.parameters = parameters;
+        return this;
+    }
+
+    public void unsetParameters() {
+        this.parameters = null;
+    }
+
+    /** Returns true if field parameters is set (has been assigned a value) and false otherwise */
+    public boolean isSetParameters() {
+        return this.parameters != null;
+    }
+
+    public void setParametersIsSet(boolean value) {
+        if (!value) {
+            this.parameters = null;
+        }
+    }
+
+    @Override
+    public void setFieldValue(_Fields field, @org.apache.thrift.annotation.Nullable java.lang.Object value) {
+        switch (field) {
+            case VALUES:
+                if (value == null) {
+                    unsetValues();
+                } else {
+                    setValues((java.util.List<java.lang.String>) value);
                 }
-                iprot.readListEnd();
-              }
-              struct.setValuesIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 2: // DB_NAME
-            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-              struct.dbName = iprot.readString();
-              struct.setDbNameIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 3: // TABLE_NAME
-            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-              struct.tableName = iprot.readString();
-              struct.setTableNameIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 4: // CREATE_TIME
-            if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
-              struct.createTime = iprot.readI32();
-              struct.setCreateTimeIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 5: // LAST_ACCESS_TIME
-            if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
-              struct.lastAccessTime = iprot.readI32();
-              struct.setLastAccessTimeIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 6: // SD
-            if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
-              struct.sd = new StorageDescriptor();
-              struct.sd.read(iprot);
-              struct.setSdIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 7: // PARAMETERS
-            if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
-              {
-                org.apache.thrift.protocol.TMap _map75 = iprot.readMapBegin();
-                struct.parameters = new java.util.TreeMap<java.lang.String,java.lang.String>();
-                @org.apache.thrift.annotation.Nullable java.lang.String _key76;
-                @org.apache.thrift.annotation.Nullable java.lang.String _val77;
-                for (int _i78 = 0; _i78 < _map75.size; ++_i78)
-                {
-                  _key76 = iprot.readString();
-                  _val77 = iprot.readString();
-                  struct.parameters.put(_key76, _val77);
+                break;
+
+            case DB_NAME:
+                if (value == null) {
+                    unsetDbName();
+                } else {
+                    setDbName((java.lang.String) value);
                 }
-                iprot.readMapEnd();
-              }
-              struct.setParametersIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                break;
+
+            case TABLE_NAME:
+                if (value == null) {
+                    unsetTableName();
+                } else {
+                    setTableName((java.lang.String) value);
+                }
+                break;
+
+            case CREATE_TIME:
+                if (value == null) {
+                    unsetCreateTime();
+                } else {
+                    setCreateTime((java.lang.Integer) value);
+                }
+                break;
+
+            case LAST_ACCESS_TIME:
+                if (value == null) {
+                    unsetLastAccessTime();
+                } else {
+                    setLastAccessTime((java.lang.Integer) value);
+                }
+                break;
+
+            case SD:
+                if (value == null) {
+                    unsetSd();
+                } else {
+                    setSd((StorageDescriptor) value);
+                }
+                break;
+
+            case PARAMETERS:
+                if (value == null) {
+                    unsetParameters();
+                } else {
+                    setParameters((java.util.Map<java.lang.String, java.lang.String>) value);
+                }
+                break;
+
+        }
+    }
+
+    @org.apache.thrift.annotation.Nullable
+    @Override
+    public java.lang.Object getFieldValue(_Fields field) {
+        switch (field) {
+            case VALUES:
+                return getValues();
+
+            case DB_NAME:
+                return getDbName();
+
+            case TABLE_NAME:
+                return getTableName();
+
+            case CREATE_TIME:
+                return getCreateTime();
+
+            case LAST_ACCESS_TIME:
+                return getLastAccessTime();
+
+            case SD:
+                return getSd();
+
+            case PARAMETERS:
+                return getParameters();
+
+        }
+        throw new java.lang.IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    @Override
+    public boolean isSet(_Fields field) {
+        if (field == null) {
+            throw new java.lang.IllegalArgumentException();
+        }
+
+        switch (field) {
+            case VALUES:
+                return isSetValues();
+            case DB_NAME:
+                return isSetDbName();
+            case TABLE_NAME:
+                return isSetTableName();
+            case CREATE_TIME:
+                return isSetCreateTime();
+            case LAST_ACCESS_TIME:
+                return isSetLastAccessTime();
+            case SD:
+                return isSetSd();
+            case PARAMETERS:
+                return isSetParameters();
+        }
+        throw new java.lang.IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(java.lang.Object that) {
+        if (that instanceof Partition) return this.equals((Partition) that);
+        return false;
+    }
+
+    public boolean equals(Partition that) {
+        if (that == null) return false;
+        if (this == that) return true;
+
+        boolean this_present_values = true && this.isSetValues();
+        boolean that_present_values = true && that.isSetValues();
+        if (this_present_values || that_present_values) {
+            if (!(this_present_values && that_present_values)) return false;
+            if (!this.values.equals(that.values)) return false;
+        }
+
+        boolean this_present_dbName = true && this.isSetDbName();
+        boolean that_present_dbName = true && that.isSetDbName();
+        if (this_present_dbName || that_present_dbName) {
+            if (!(this_present_dbName && that_present_dbName)) return false;
+            if (!this.dbName.equals(that.dbName)) return false;
+        }
+
+        boolean this_present_tableName = true && this.isSetTableName();
+        boolean that_present_tableName = true && that.isSetTableName();
+        if (this_present_tableName || that_present_tableName) {
+            if (!(this_present_tableName && that_present_tableName)) return false;
+            if (!this.tableName.equals(that.tableName)) return false;
+        }
+
+        boolean this_present_createTime = true;
+        boolean that_present_createTime = true;
+        if (this_present_createTime || that_present_createTime) {
+            if (!(this_present_createTime && that_present_createTime)) return false;
+            if (this.createTime != that.createTime) return false;
+        }
+
+        boolean this_present_lastAccessTime = true;
+        boolean that_present_lastAccessTime = true;
+        if (this_present_lastAccessTime || that_present_lastAccessTime) {
+            if (!(this_present_lastAccessTime && that_present_lastAccessTime)) return false;
+            if (this.lastAccessTime != that.lastAccessTime) return false;
+        }
+
+        boolean this_present_sd = true && this.isSetSd();
+        boolean that_present_sd = true && that.isSetSd();
+        if (this_present_sd || that_present_sd) {
+            if (!(this_present_sd && that_present_sd)) return false;
+            if (!this.sd.equals(that.sd)) return false;
+        }
+
+        boolean this_present_parameters = true && this.isSetParameters();
+        boolean that_present_parameters = true && that.isSetParameters();
+        if (this_present_parameters || that_present_parameters) {
+            if (!(this_present_parameters && that_present_parameters)) return false;
+            if (!this.parameters.equals(that.parameters)) return false;
+        }
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hashCode = 1;
+
+        hashCode = hashCode * 8191 + ((isSetValues()) ? 131071 : 524287);
+        if (isSetValues()) hashCode = hashCode * 8191 + values.hashCode();
+
+        hashCode = hashCode * 8191 + ((isSetDbName()) ? 131071 : 524287);
+        if (isSetDbName()) hashCode = hashCode * 8191 + dbName.hashCode();
+
+        hashCode = hashCode * 8191 + ((isSetTableName()) ? 131071 : 524287);
+        if (isSetTableName()) hashCode = hashCode * 8191 + tableName.hashCode();
+
+        hashCode = hashCode * 8191 + createTime;
+
+        hashCode = hashCode * 8191 + lastAccessTime;
+
+        hashCode = hashCode * 8191 + ((isSetSd()) ? 131071 : 524287);
+        if (isSetSd()) hashCode = hashCode * 8191 + sd.hashCode();
+
+        hashCode = hashCode * 8191 + ((isSetParameters()) ? 131071 : 524287);
+        if (isSetParameters()) hashCode = hashCode * 8191 + parameters.hashCode();
+
+        return hashCode;
+    }
+
+    @Override
+    public int compareTo(Partition other) {
+        if (!getClass().equals(other.getClass())) {
+            return getClass().getName().compareTo(other.getClass().getName());
+        }
+
+        int lastComparison = 0;
+
+        lastComparison = java.lang.Boolean.compare(isSetValues(), other.isSetValues());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetValues()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.values, other.values);
+            if (lastComparison != 0) {
+                return lastComparison;
             }
-            break;
-          default:
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
         }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
+        lastComparison = java.lang.Boolean.compare(isSetDbName(), other.isSetDbName());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetDbName()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.dbName, other.dbName);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetTableName(), other.isSetTableName());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetTableName()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.tableName, other.tableName);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetCreateTime(), other.isSetCreateTime());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetCreateTime()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.createTime, other.createTime);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetLastAccessTime(), other.isSetLastAccessTime());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetLastAccessTime()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.lastAccessTime, other.lastAccessTime);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetSd(), other.isSetSd());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetSd()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.sd, other.sd);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        lastComparison = java.lang.Boolean.compare(isSetParameters(), other.isSetParameters());
+        if (lastComparison != 0) {
+            return lastComparison;
+        }
+        if (isSetParameters()) {
+            lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.parameters, other.parameters);
+            if (lastComparison != 0) {
+                return lastComparison;
+            }
+        }
+        return 0;
+    }
 
-      // check for required fields of primitive type, which can't be checked in the validate method
-      struct.validate();
+    @org.apache.thrift.annotation.Nullable
+    @Override
+    public _Fields fieldForId(int fieldId) {
+        return _Fields.findByThriftId(fieldId);
     }
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol oprot, Partition struct) throws org.apache.thrift.TException {
-      struct.validate();
-
-      oprot.writeStructBegin(STRUCT_DESC);
-      if (struct.values != null) {
-        oprot.writeFieldBegin(VALUES_FIELD_DESC);
-        {
-          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, struct.values.size()));
-          for (java.lang.String _iter79 : struct.values)
-          {
-            oprot.writeString(_iter79);
-          }
-          oprot.writeListEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      if (struct.dbName != null) {
-        oprot.writeFieldBegin(DB_NAME_FIELD_DESC);
-        oprot.writeString(struct.dbName);
-        oprot.writeFieldEnd();
-      }
-      if (struct.tableName != null) {
-        oprot.writeFieldBegin(TABLE_NAME_FIELD_DESC);
-        oprot.writeString(struct.tableName);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldBegin(CREATE_TIME_FIELD_DESC);
-      oprot.writeI32(struct.createTime);
-      oprot.writeFieldEnd();
-      oprot.writeFieldBegin(LAST_ACCESS_TIME_FIELD_DESC);
-      oprot.writeI32(struct.lastAccessTime);
-      oprot.writeFieldEnd();
-      if (struct.sd != null) {
-        oprot.writeFieldBegin(SD_FIELD_DESC);
-        struct.sd.write(oprot);
-        oprot.writeFieldEnd();
-      }
-      if (struct.parameters != null) {
-        oprot.writeFieldBegin(PARAMETERS_FIELD_DESC);
-        {
-          oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, struct.parameters.size()));
-          for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter80 : struct.parameters.entrySet())
-          {
-            oprot.writeString(_iter80.getKey());
-            oprot.writeString(_iter80.getValue());
-          }
-          oprot.writeMapEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-  }
-
-  private static class PartitionTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
-    @Override
-    public PartitionTupleScheme getScheme() {
-      return new PartitionTupleScheme();
-    }
-  }
-
-  private static class PartitionTupleScheme extends org.apache.thrift.scheme.TupleScheme<Partition> {
-
-    @Override
-    public void write(org.apache.thrift.protocol.TProtocol prot, Partition struct) throws org.apache.thrift.TException {
-      org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
-      java.util.BitSet optionals = new java.util.BitSet();
-      if (struct.isSetValues()) {
-        optionals.set(0);
-      }
-      if (struct.isSetDbName()) {
-        optionals.set(1);
-      }
-      if (struct.isSetTableName()) {
-        optionals.set(2);
-      }
-      if (struct.isSetCreateTime()) {
-        optionals.set(3);
-      }
-      if (struct.isSetLastAccessTime()) {
-        optionals.set(4);
-      }
-      if (struct.isSetSd()) {
-        optionals.set(5);
-      }
-      if (struct.isSetParameters()) {
-        optionals.set(6);
-      }
-      oprot.writeBitSet(optionals, 7);
-      if (struct.isSetValues()) {
-        {
-          oprot.writeI32(struct.values.size());
-          for (java.lang.String _iter81 : struct.values)
-          {
-            oprot.writeString(_iter81);
-          }
-        }
-      }
-      if (struct.isSetDbName()) {
-        oprot.writeString(struct.dbName);
-      }
-      if (struct.isSetTableName()) {
-        oprot.writeString(struct.tableName);
-      }
-      if (struct.isSetCreateTime()) {
-        oprot.writeI32(struct.createTime);
-      }
-      if (struct.isSetLastAccessTime()) {
-        oprot.writeI32(struct.lastAccessTime);
-      }
-      if (struct.isSetSd()) {
-        struct.sd.write(oprot);
-      }
-      if (struct.isSetParameters()) {
-        {
-          oprot.writeI32(struct.parameters.size());
-          for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter82 : struct.parameters.entrySet())
-          {
-            oprot.writeString(_iter82.getKey());
-            oprot.writeString(_iter82.getValue());
-          }
-        }
-      }
+    public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+        scheme(iprot).read(iprot, this);
     }
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol prot, Partition struct) throws org.apache.thrift.TException {
-      org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
-      java.util.BitSet incoming = iprot.readBitSet(7);
-      if (incoming.get(0)) {
-        {
-          org.apache.thrift.protocol.TList _list83 = iprot.readListBegin(org.apache.thrift.protocol.TType.STRING);
-          struct.values = new java.util.ArrayList<java.lang.String>(_list83.size);
-          @org.apache.thrift.annotation.Nullable java.lang.String _elem84;
-          for (int _i85 = 0; _i85 < _list83.size; ++_i85)
-          {
-            _elem84 = iprot.readString();
-            struct.values.add(_elem84);
-          }
-        }
-        struct.setValuesIsSet(true);
-      }
-      if (incoming.get(1)) {
-        struct.dbName = iprot.readString();
-        struct.setDbNameIsSet(true);
-      }
-      if (incoming.get(2)) {
-        struct.tableName = iprot.readString();
-        struct.setTableNameIsSet(true);
-      }
-      if (incoming.get(3)) {
-        struct.createTime = iprot.readI32();
-        struct.setCreateTimeIsSet(true);
-      }
-      if (incoming.get(4)) {
-        struct.lastAccessTime = iprot.readI32();
-        struct.setLastAccessTimeIsSet(true);
-      }
-      if (incoming.get(5)) {
-        struct.sd = new StorageDescriptor();
-        struct.sd.read(iprot);
-        struct.setSdIsSet(true);
-      }
-      if (incoming.get(6)) {
-        {
-          org.apache.thrift.protocol.TMap _map86 = iprot.readMapBegin(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING); 
-          struct.parameters = new java.util.TreeMap<java.lang.String,java.lang.String>();
-          @org.apache.thrift.annotation.Nullable java.lang.String _key87;
-          @org.apache.thrift.annotation.Nullable java.lang.String _val88;
-          for (int _i89 = 0; _i89 < _map86.size; ++_i89)
-          {
-            _key87 = iprot.readString();
-            _val88 = iprot.readString();
-            struct.parameters.put(_key87, _val88);
-          }
-        }
-        struct.setParametersIsSet(true);
-      }
+    public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
+        scheme(oprot).write(oprot, this);
     }
-  }
 
-  private static <S extends org.apache.thrift.scheme.IScheme> S scheme(org.apache.thrift.protocol.TProtocol proto) {
-    return (org.apache.thrift.scheme.StandardScheme.class.equals(proto.getScheme()) ? STANDARD_SCHEME_FACTORY : TUPLE_SCHEME_FACTORY).getScheme();
-  }
+    @Override
+    public java.lang.String toString() {
+        java.lang.StringBuilder sb = new java.lang.StringBuilder("Partition(");
+        boolean first = true;
+
+        sb.append("values:");
+        if (this.values == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.values);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("dbName:");
+        if (this.dbName == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.dbName);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("tableName:");
+        if (this.tableName == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.tableName);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("createTime:");
+        sb.append(this.createTime);
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("lastAccessTime:");
+        sb.append(this.lastAccessTime);
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("sd:");
+        if (this.sd == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.sd);
+        }
+        first = false;
+        if (!first) sb.append(", ");
+        sb.append("parameters:");
+        if (this.parameters == null) {
+            sb.append("null");
+        } else {
+            sb.append(this.parameters);
+        }
+        first = false;
+        sb.append(")");
+        return sb.toString();
+    }
+
+    public void validate() throws org.apache.thrift.TException {
+        // check for required fields
+        // check for sub-struct validity
+        if (sd != null) {
+            sd.validate();
+        }
+    }
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+        try {
+            write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+        } catch (org.apache.thrift.TException te) {
+            throw new java.io.IOException(te);
+        }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, java.lang.ClassNotFoundException {
+        try {
+            // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+            __isset_bitfield = 0;
+            read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+        } catch (org.apache.thrift.TException te) {
+            throw new java.io.IOException(te);
+        }
+    }
+
+    private static class PartitionStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+        @Override
+        public PartitionStandardScheme getScheme() {
+            return new PartitionStandardScheme();
+        }
+    }
+
+    private static class PartitionStandardScheme extends org.apache.thrift.scheme.StandardScheme<Partition> {
+
+        @Override
+        public void read(org.apache.thrift.protocol.TProtocol iprot, Partition struct) throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TField schemeField;
+            iprot.readStructBegin();
+            while (true) {
+                schemeField = iprot.readFieldBegin();
+                if (schemeField.type == org.apache.thrift.protocol.TType.STOP) {
+                    break;
+                }
+                switch (schemeField.id) {
+                    case 1: // VALUES
+                        if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
+                            {
+                                org.apache.thrift.protocol.TList _list72 = iprot.readListBegin();
+                                struct.values = new java.util.ArrayList<java.lang.String>(_list72.size);
+                                @org.apache.thrift.annotation.Nullable
+                                java.lang.String _elem73;
+                                for (int _i74 = 0; _i74 < _list72.size; ++_i74) {
+                                    _elem73 = iprot.readString();
+                                    struct.values.add(_elem73);
+                                }
+                                iprot.readListEnd();
+                            }
+                            struct.setValuesIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 2: // DB_NAME
+                        if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+                            struct.dbName = iprot.readString();
+                            struct.setDbNameIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 3: // TABLE_NAME
+                        if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+                            struct.tableName = iprot.readString();
+                            struct.setTableNameIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 4: // CREATE_TIME
+                        if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
+                            struct.createTime = iprot.readI32();
+                            struct.setCreateTimeIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 5: // LAST_ACCESS_TIME
+                        if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
+                            struct.lastAccessTime = iprot.readI32();
+                            struct.setLastAccessTimeIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 6: // SD
+                        if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
+                            struct.sd = new StorageDescriptor();
+                            struct.sd.read(iprot);
+                            struct.setSdIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    case 7: // PARAMETERS
+                        if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
+                            {
+                                org.apache.thrift.protocol.TMap _map75 = iprot.readMapBegin();
+                                struct.parameters = new java.util.TreeMap<java.lang.String, java.lang.String>();
+                                @org.apache.thrift.annotation.Nullable
+                                java.lang.String _key76;
+                                @org.apache.thrift.annotation.Nullable
+                                java.lang.String _val77;
+                                for (int _i78 = 0; _i78 < _map75.size; ++_i78) {
+                                    _key76 = iprot.readString();
+                                    _val77 = iprot.readString();
+                                    struct.parameters.put(_key76, _val77);
+                                }
+                                iprot.readMapEnd();
+                            }
+                            struct.setParametersIsSet(true);
+                        } else {
+                            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                        }
+                        break;
+                    default:
+                        org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                }
+                iprot.readFieldEnd();
+            }
+            iprot.readStructEnd();
+
+            // check for required fields of primitive type, which can't be checked in the validate method
+            struct.validate();
+        }
+
+        @Override
+        public void write(org.apache.thrift.protocol.TProtocol oprot, Partition struct) throws org.apache.thrift.TException {
+            struct.validate();
+
+            oprot.writeStructBegin(STRUCT_DESC);
+            if (struct.values != null) {
+                oprot.writeFieldBegin(VALUES_FIELD_DESC);
+                {
+                    oprot.writeListBegin(
+                        new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, struct.values.size())
+                    );
+                    for (java.lang.String _iter79 : struct.values) {
+                        oprot.writeString(_iter79);
+                    }
+                    oprot.writeListEnd();
+                }
+                oprot.writeFieldEnd();
+            }
+            if (struct.dbName != null) {
+                oprot.writeFieldBegin(DB_NAME_FIELD_DESC);
+                oprot.writeString(struct.dbName);
+                oprot.writeFieldEnd();
+            }
+            if (struct.tableName != null) {
+                oprot.writeFieldBegin(TABLE_NAME_FIELD_DESC);
+                oprot.writeString(struct.tableName);
+                oprot.writeFieldEnd();
+            }
+            oprot.writeFieldBegin(CREATE_TIME_FIELD_DESC);
+            oprot.writeI32(struct.createTime);
+            oprot.writeFieldEnd();
+            oprot.writeFieldBegin(LAST_ACCESS_TIME_FIELD_DESC);
+            oprot.writeI32(struct.lastAccessTime);
+            oprot.writeFieldEnd();
+            if (struct.sd != null) {
+                oprot.writeFieldBegin(SD_FIELD_DESC);
+                struct.sd.write(oprot);
+                oprot.writeFieldEnd();
+            }
+            if (struct.parameters != null) {
+                oprot.writeFieldBegin(PARAMETERS_FIELD_DESC);
+                {
+                    oprot.writeMapBegin(
+                        new org.apache.thrift.protocol.TMap(
+                            org.apache.thrift.protocol.TType.STRING,
+                            org.apache.thrift.protocol.TType.STRING,
+                            struct.parameters.size()
+                        )
+                    );
+                    for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter80 : struct.parameters.entrySet()) {
+                        oprot.writeString(_iter80.getKey());
+                        oprot.writeString(_iter80.getValue());
+                    }
+                    oprot.writeMapEnd();
+                }
+                oprot.writeFieldEnd();
+            }
+            oprot.writeFieldStop();
+            oprot.writeStructEnd();
+        }
+
+    }
+
+    private static class PartitionTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+        @Override
+        public PartitionTupleScheme getScheme() {
+            return new PartitionTupleScheme();
+        }
+    }
+
+    private static class PartitionTupleScheme extends org.apache.thrift.scheme.TupleScheme<Partition> {
+
+        @Override
+        public void write(org.apache.thrift.protocol.TProtocol prot, Partition struct) throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
+            java.util.BitSet optionals = new java.util.BitSet();
+            if (struct.isSetValues()) {
+                optionals.set(0);
+            }
+            if (struct.isSetDbName()) {
+                optionals.set(1);
+            }
+            if (struct.isSetTableName()) {
+                optionals.set(2);
+            }
+            if (struct.isSetCreateTime()) {
+                optionals.set(3);
+            }
+            if (struct.isSetLastAccessTime()) {
+                optionals.set(4);
+            }
+            if (struct.isSetSd()) {
+                optionals.set(5);
+            }
+            if (struct.isSetParameters()) {
+                optionals.set(6);
+            }
+            oprot.writeBitSet(optionals, 7);
+            if (struct.isSetValues()) {
+                {
+                    oprot.writeI32(struct.values.size());
+                    for (java.lang.String _iter81 : struct.values) {
+                        oprot.writeString(_iter81);
+                    }
+                }
+            }
+            if (struct.isSetDbName()) {
+                oprot.writeString(struct.dbName);
+            }
+            if (struct.isSetTableName()) {
+                oprot.writeString(struct.tableName);
+            }
+            if (struct.isSetCreateTime()) {
+                oprot.writeI32(struct.createTime);
+            }
+            if (struct.isSetLastAccessTime()) {
+                oprot.writeI32(struct.lastAccessTime);
+            }
+            if (struct.isSetSd()) {
+                struct.sd.write(oprot);
+            }
+            if (struct.isSetParameters()) {
+                {
+                    oprot.writeI32(struct.parameters.size());
+                    for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter82 : struct.parameters.entrySet()) {
+                        oprot.writeString(_iter82.getKey());
+                        oprot.writeString(_iter82.getValue());
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void read(org.apache.thrift.protocol.TProtocol prot, Partition struct) throws org.apache.thrift.TException {
+            org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
+            java.util.BitSet incoming = iprot.readBitSet(7);
+            if (incoming.get(0)) {
+                {
+                    org.apache.thrift.protocol.TList _list83 = iprot.readListBegin(org.apache.thrift.protocol.TType.STRING);
+                    struct.values = new java.util.ArrayList<java.lang.String>(_list83.size);
+                    @org.apache.thrift.annotation.Nullable
+                    java.lang.String _elem84;
+                    for (int _i85 = 0; _i85 < _list83.size; ++_i85) {
+                        _elem84 = iprot.readString();
+                        struct.values.add(_elem84);
+                    }
+                }
+                struct.setValuesIsSet(true);
+            }
+            if (incoming.get(1)) {
+                struct.dbName = iprot.readString();
+                struct.setDbNameIsSet(true);
+            }
+            if (incoming.get(2)) {
+                struct.tableName = iprot.readString();
+                struct.setTableNameIsSet(true);
+            }
+            if (incoming.get(3)) {
+                struct.createTime = iprot.readI32();
+                struct.setCreateTimeIsSet(true);
+            }
+            if (incoming.get(4)) {
+                struct.lastAccessTime = iprot.readI32();
+                struct.setLastAccessTimeIsSet(true);
+            }
+            if (incoming.get(5)) {
+                struct.sd = new StorageDescriptor();
+                struct.sd.read(iprot);
+                struct.setSdIsSet(true);
+            }
+            if (incoming.get(6)) {
+                {
+                    org.apache.thrift.protocol.TMap _map86 = iprot.readMapBegin(
+                        org.apache.thrift.protocol.TType.STRING,
+                        org.apache.thrift.protocol.TType.STRING
+                    );
+                    struct.parameters = new java.util.TreeMap<java.lang.String, java.lang.String>();
+                    @org.apache.thrift.annotation.Nullable
+                    java.lang.String _key87;
+                    @org.apache.thrift.annotation.Nullable
+                    java.lang.String _val88;
+                    for (int _i89 = 0; _i89 < _map86.size; ++_i89) {
+                        _key87 = iprot.readString();
+                        _val88 = iprot.readString();
+                        struct.parameters.put(_key87, _val88);
+                    }
+                }
+                struct.setParametersIsSet(true);
+            }
+        }
+    }
+
+    private static <S extends org.apache.thrift.scheme.IScheme> S scheme(org.apache.thrift.protocol.TProtocol proto) {
+        return (org.apache.thrift.scheme.StandardScheme.class.equals(proto.getScheme()) ? STANDARD_SCHEME_FACTORY : TUPLE_SCHEME_FACTORY)
+            .getScheme();
+    }
 }
-
