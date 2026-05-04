@@ -370,6 +370,7 @@ public final class NativeBridge {
         String tableName,
         byte[] substraitPlan,
         long runtimePtr,
+        long contextId,
         long queryConfigPtr,
         ActionListener<Long> listener
     ) {
@@ -390,7 +391,7 @@ public final class NativeBridge {
                 call.bytes(substraitPlan),
                 (long) substraitPlan.length,
                 runtimePtr,
-                0L,
+                contextId,
                 queryConfigPtr
             );
             listener.onResponse(result);
