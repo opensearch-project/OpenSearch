@@ -15,19 +15,19 @@
 package org.opensearch.plugin.hive.metastore;
 
 @SuppressWarnings({"cast", "rawtypes", "serial", "unchecked", "unused"})
-public class MetaException extends org.apache.thrift.TException implements org.apache.thrift.TBase<MetaException, MetaException._Fields>, java.io.Serializable, Cloneable, Comparable<MetaException> {
-  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("MetaException");
+public class GetTableResult implements org.apache.thrift.TBase<GetTableResult, GetTableResult._Fields>, java.io.Serializable, Cloneable, Comparable<GetTableResult> {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("GetTableResult");
 
-  private static final org.apache.thrift.protocol.TField MESSAGE_FIELD_DESC = new org.apache.thrift.protocol.TField("message", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField TABLE_FIELD_DESC = new org.apache.thrift.protocol.TField("table", org.apache.thrift.protocol.TType.STRUCT, (short)1);
 
-  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new MetaExceptionStandardSchemeFactory();
-  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new MetaExceptionTupleSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new GetTableResultStandardSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new GetTableResultTupleSchemeFactory();
 
-  private @org.apache.thrift.annotation.Nullable java.lang.String message; // required
+  private @org.apache.thrift.annotation.Nullable Table table; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-    MESSAGE((short)1, "message");
+    TABLE((short)1, "table");
 
     private static final java.util.Map<java.lang.String, _Fields> byName = new java.util.HashMap<java.lang.String, _Fields>();
 
@@ -43,8 +43,8 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     @org.apache.thrift.annotation.Nullable
     public static _Fields findByThriftId(int fieldId) {
       switch(fieldId) {
-        case 1: // MESSAGE
-          return MESSAGE;
+        case 1: // TABLE
+          return TABLE;
         default:
           return null;
       }
@@ -91,74 +91,74 @@ public class MetaException extends org.apache.thrift.TException implements org.a
   public static final java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new java.util.EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.MESSAGE, new org.apache.thrift.meta_data.FieldMetaData("message", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.TABLE, new org.apache.thrift.meta_data.FieldMetaData("table", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Table.class)));
     metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);
-    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(MetaException.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(GetTableResult.class, metaDataMap);
   }
 
-  public MetaException() {
+  public GetTableResult() {
   }
 
-  public MetaException(
-    java.lang.String message)
+  public GetTableResult(
+    Table table)
   {
     this();
-    this.message = message;
+    this.table = table;
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public MetaException(MetaException other) {
-    if (other.isSetMessage()) {
-      this.message = other.message;
+  public GetTableResult(GetTableResult other) {
+    if (other.isSetTable()) {
+      this.table = new Table(other.table);
     }
   }
 
   @Override
-  public MetaException deepCopy() {
-    return new MetaException(this);
+  public GetTableResult deepCopy() {
+    return new GetTableResult(this);
   }
 
   @Override
   public void clear() {
-    this.message = null;
+    this.table = null;
   }
 
   @org.apache.thrift.annotation.Nullable
-  public java.lang.String getMessage() {
-    return this.message;
+  public Table getTable() {
+    return this.table;
   }
 
-  public MetaException setMessage(@org.apache.thrift.annotation.Nullable java.lang.String message) {
-    this.message = message;
+  public GetTableResult setTable(@org.apache.thrift.annotation.Nullable Table table) {
+    this.table = table;
     return this;
   }
 
-  public void unsetMessage() {
-    this.message = null;
+  public void unsetTable() {
+    this.table = null;
   }
 
-  /** Returns true if field message is set (has been assigned a value) and false otherwise */
-  public boolean isSetMessage() {
-    return this.message != null;
+  /** Returns true if field table is set (has been assigned a value) and false otherwise */
+  public boolean isSetTable() {
+    return this.table != null;
   }
 
-  public void setMessageIsSet(boolean value) {
+  public void setTableIsSet(boolean value) {
     if (!value) {
-      this.message = null;
+      this.table = null;
     }
   }
 
   @Override
   public void setFieldValue(_Fields field, @org.apache.thrift.annotation.Nullable java.lang.Object value) {
     switch (field) {
-    case MESSAGE:
+    case TABLE:
       if (value == null) {
-        unsetMessage();
+        unsetTable();
       } else {
-        setMessage((java.lang.String)value);
+        setTable((Table)value);
       }
       break;
 
@@ -169,8 +169,8 @@ public class MetaException extends org.apache.thrift.TException implements org.a
   @Override
   public java.lang.Object getFieldValue(_Fields field) {
     switch (field) {
-    case MESSAGE:
-      return getMessage();
+    case TABLE:
+      return getTable();
 
     }
     throw new java.lang.IllegalStateException();
@@ -184,31 +184,31 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     }
 
     switch (field) {
-    case MESSAGE:
-      return isSetMessage();
+    case TABLE:
+      return isSetTable();
     }
     throw new java.lang.IllegalStateException();
   }
 
   @Override
   public boolean equals(java.lang.Object that) {
-    if (that instanceof MetaException)
-      return this.equals((MetaException)that);
+    if (that instanceof GetTableResult)
+      return this.equals((GetTableResult)that);
     return false;
   }
 
-  public boolean equals(MetaException that) {
+  public boolean equals(GetTableResult that) {
     if (that == null)
       return false;
     if (this == that)
       return true;
 
-    boolean this_present_message = true && this.isSetMessage();
-    boolean that_present_message = true && that.isSetMessage();
-    if (this_present_message || that_present_message) {
-      if (!(this_present_message && that_present_message))
+    boolean this_present_table = true && this.isSetTable();
+    boolean that_present_table = true && that.isSetTable();
+    if (this_present_table || that_present_table) {
+      if (!(this_present_table && that_present_table))
         return false;
-      if (!this.message.equals(that.message))
+      if (!this.table.equals(that.table))
         return false;
     }
 
@@ -219,27 +219,27 @@ public class MetaException extends org.apache.thrift.TException implements org.a
   public int hashCode() {
     int hashCode = 1;
 
-    hashCode = hashCode * 8191 + ((isSetMessage()) ? 131071 : 524287);
-    if (isSetMessage())
-      hashCode = hashCode * 8191 + message.hashCode();
+    hashCode = hashCode * 8191 + ((isSetTable()) ? 131071 : 524287);
+    if (isSetTable())
+      hashCode = hashCode * 8191 + table.hashCode();
 
     return hashCode;
   }
 
   @Override
-  public int compareTo(MetaException other) {
+  public int compareTo(GetTableResult other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
 
-    lastComparison = java.lang.Boolean.compare(isSetMessage(), other.isSetMessage());
+    lastComparison = java.lang.Boolean.compare(isSetTable(), other.isSetTable());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetMessage()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.message, other.message);
+    if (isSetTable()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.table, other.table);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -265,14 +265,14 @@ public class MetaException extends org.apache.thrift.TException implements org.a
 
   @Override
   public java.lang.String toString() {
-    java.lang.StringBuilder sb = new java.lang.StringBuilder("MetaException(");
+    java.lang.StringBuilder sb = new java.lang.StringBuilder("GetTableResult(");
     boolean first = true;
 
-    sb.append("message:");
-    if (this.message == null) {
+    sb.append("table:");
+    if (this.table == null) {
       sb.append("null");
     } else {
-      sb.append(this.message);
+      sb.append(this.table);
     }
     first = false;
     sb.append(")");
@@ -281,7 +281,13 @@ public class MetaException extends org.apache.thrift.TException implements org.a
 
   public void validate() throws org.apache.thrift.TException {
     // check for required fields
+    if (table == null) {
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'table' was not present! Struct: " + toString());
+    }
     // check for sub-struct validity
+    if (table != null) {
+      table.validate();
+    }
   }
 
   private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
@@ -300,17 +306,17 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     }
   }
 
-  private static class MetaExceptionStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class GetTableResultStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public MetaExceptionStandardScheme getScheme() {
-      return new MetaExceptionStandardScheme();
+    public GetTableResultStandardScheme getScheme() {
+      return new GetTableResultStandardScheme();
     }
   }
 
-  private static class MetaExceptionStandardScheme extends org.apache.thrift.scheme.StandardScheme<MetaException> {
+  private static class GetTableResultStandardScheme extends org.apache.thrift.scheme.StandardScheme<GetTableResult> {
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol iprot, MetaException struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol iprot, GetTableResult struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TField schemeField;
       iprot.readStructBegin();
       while (true)
@@ -320,10 +326,11 @@ public class MetaException extends org.apache.thrift.TException implements org.a
           break;
         }
         switch (schemeField.id) {
-          case 1: // MESSAGE
-            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-              struct.message = iprot.readString();
-              struct.setMessageIsSet(true);
+          case 1: // TABLE
+            if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
+              struct.table = new Table();
+              struct.table.read(iprot);
+              struct.setTableIsSet(true);
             } else { 
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
@@ -340,13 +347,13 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     }
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol oprot, MetaException struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol oprot, GetTableResult struct) throws org.apache.thrift.TException {
       struct.validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (struct.message != null) {
-        oprot.writeFieldBegin(MESSAGE_FIELD_DESC);
-        oprot.writeString(struct.message);
+      if (struct.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        struct.table.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -355,36 +362,27 @@ public class MetaException extends org.apache.thrift.TException implements org.a
 
   }
 
-  private static class MetaExceptionTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class GetTableResultTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public MetaExceptionTupleScheme getScheme() {
-      return new MetaExceptionTupleScheme();
+    public GetTableResultTupleScheme getScheme() {
+      return new GetTableResultTupleScheme();
     }
   }
 
-  private static class MetaExceptionTupleScheme extends org.apache.thrift.scheme.TupleScheme<MetaException> {
+  private static class GetTableResultTupleScheme extends org.apache.thrift.scheme.TupleScheme<GetTableResult> {
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol prot, MetaException struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol prot, GetTableResult struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
-      java.util.BitSet optionals = new java.util.BitSet();
-      if (struct.isSetMessage()) {
-        optionals.set(0);
-      }
-      oprot.writeBitSet(optionals, 1);
-      if (struct.isSetMessage()) {
-        oprot.writeString(struct.message);
-      }
+      struct.table.write(oprot);
     }
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol prot, MetaException struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol prot, GetTableResult struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
-      java.util.BitSet incoming = iprot.readBitSet(1);
-      if (incoming.get(0)) {
-        struct.message = iprot.readString();
-        struct.setMessageIsSet(true);
-      }
+      struct.table = new Table();
+      struct.table.read(iprot);
+      struct.setTableIsSet(true);
     }
   }
 

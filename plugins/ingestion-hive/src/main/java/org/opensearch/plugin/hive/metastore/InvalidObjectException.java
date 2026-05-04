@@ -15,13 +15,13 @@
 package org.opensearch.plugin.hive.metastore;
 
 @SuppressWarnings({"cast", "rawtypes", "serial", "unchecked", "unused"})
-public class MetaException extends org.apache.thrift.TException implements org.apache.thrift.TBase<MetaException, MetaException._Fields>, java.io.Serializable, Cloneable, Comparable<MetaException> {
-  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("MetaException");
+public class InvalidObjectException extends org.apache.thrift.TException implements org.apache.thrift.TBase<InvalidObjectException, InvalidObjectException._Fields>, java.io.Serializable, Cloneable, Comparable<InvalidObjectException> {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("InvalidObjectException");
 
   private static final org.apache.thrift.protocol.TField MESSAGE_FIELD_DESC = new org.apache.thrift.protocol.TField("message", org.apache.thrift.protocol.TType.STRING, (short)1);
 
-  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new MetaExceptionStandardSchemeFactory();
-  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new MetaExceptionTupleSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new InvalidObjectExceptionStandardSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new InvalidObjectExceptionTupleSchemeFactory();
 
   private @org.apache.thrift.annotation.Nullable java.lang.String message; // required
 
@@ -94,13 +94,13 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     tmpMap.put(_Fields.MESSAGE, new org.apache.thrift.meta_data.FieldMetaData("message", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);
-    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(MetaException.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(InvalidObjectException.class, metaDataMap);
   }
 
-  public MetaException() {
+  public InvalidObjectException() {
   }
 
-  public MetaException(
+  public InvalidObjectException(
     java.lang.String message)
   {
     this();
@@ -110,15 +110,15 @@ public class MetaException extends org.apache.thrift.TException implements org.a
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public MetaException(MetaException other) {
+  public InvalidObjectException(InvalidObjectException other) {
     if (other.isSetMessage()) {
       this.message = other.message;
     }
   }
 
   @Override
-  public MetaException deepCopy() {
-    return new MetaException(this);
+  public InvalidObjectException deepCopy() {
+    return new InvalidObjectException(this);
   }
 
   @Override
@@ -131,7 +131,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     return this.message;
   }
 
-  public MetaException setMessage(@org.apache.thrift.annotation.Nullable java.lang.String message) {
+  public InvalidObjectException setMessage(@org.apache.thrift.annotation.Nullable java.lang.String message) {
     this.message = message;
     return this;
   }
@@ -192,12 +192,12 @@ public class MetaException extends org.apache.thrift.TException implements org.a
 
   @Override
   public boolean equals(java.lang.Object that) {
-    if (that instanceof MetaException)
-      return this.equals((MetaException)that);
+    if (that instanceof InvalidObjectException)
+      return this.equals((InvalidObjectException)that);
     return false;
   }
 
-  public boolean equals(MetaException that) {
+  public boolean equals(InvalidObjectException that) {
     if (that == null)
       return false;
     if (this == that)
@@ -227,7 +227,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
   }
 
   @Override
-  public int compareTo(MetaException other) {
+  public int compareTo(InvalidObjectException other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
@@ -265,7 +265,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
 
   @Override
   public java.lang.String toString() {
-    java.lang.StringBuilder sb = new java.lang.StringBuilder("MetaException(");
+    java.lang.StringBuilder sb = new java.lang.StringBuilder("InvalidObjectException(");
     boolean first = true;
 
     sb.append("message:");
@@ -300,17 +300,17 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     }
   }
 
-  private static class MetaExceptionStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class InvalidObjectExceptionStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public MetaExceptionStandardScheme getScheme() {
-      return new MetaExceptionStandardScheme();
+    public InvalidObjectExceptionStandardScheme getScheme() {
+      return new InvalidObjectExceptionStandardScheme();
     }
   }
 
-  private static class MetaExceptionStandardScheme extends org.apache.thrift.scheme.StandardScheme<MetaException> {
+  private static class InvalidObjectExceptionStandardScheme extends org.apache.thrift.scheme.StandardScheme<InvalidObjectException> {
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol iprot, MetaException struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol iprot, InvalidObjectException struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TField schemeField;
       iprot.readStructBegin();
       while (true)
@@ -340,7 +340,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     }
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol oprot, MetaException struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol oprot, InvalidObjectException struct) throws org.apache.thrift.TException {
       struct.validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
@@ -355,17 +355,17 @@ public class MetaException extends org.apache.thrift.TException implements org.a
 
   }
 
-  private static class MetaExceptionTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class InvalidObjectExceptionTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public MetaExceptionTupleScheme getScheme() {
-      return new MetaExceptionTupleScheme();
+    public InvalidObjectExceptionTupleScheme getScheme() {
+      return new InvalidObjectExceptionTupleScheme();
     }
   }
 
-  private static class MetaExceptionTupleScheme extends org.apache.thrift.scheme.TupleScheme<MetaException> {
+  private static class InvalidObjectExceptionTupleScheme extends org.apache.thrift.scheme.TupleScheme<InvalidObjectException> {
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol prot, MetaException struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol prot, InvalidObjectException struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
       java.util.BitSet optionals = new java.util.BitSet();
       if (struct.isSetMessage()) {
@@ -378,7 +378,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     }
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol prot, MetaException struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol prot, InvalidObjectException struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
       java.util.BitSet incoming = iprot.readBitSet(1);
       if (incoming.get(0)) {

@@ -22,31 +22,42 @@ import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.parquet.io.ColumnIOFactory;
 import org.apache.parquet.io.MessageColumnIO;
 import org.apache.parquet.io.RecordReader;
-import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Types;
-import org.apache.parquet.schema.PrimitiveType;
-import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
-import org.opensearch.plugin.hive.metastore.Partition;
-import org.opensearch.plugin.hive.metastore.ThriftHiveMetastore;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Types;
 import org.opensearch.plugin.hive.metastore.FieldSchema;
+import org.opensearch.plugin.hive.metastore.GetTableRequest;
+import org.opensearch.plugin.hive.metastore.GetTableResult;
+import org.opensearch.plugin.hive.metastore.Partition;
 import org.opensearch.plugin.hive.metastore.Table;
+import org.opensearch.plugin.hive.metastore.ThriftHiveMetastore;
+import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.layered.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
 
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Shard consumer that reads from Hive tables. Each shard independently queries
- * Hive Metastore for new partitions (incremental fetch) and reads assigned data files.
+ * Shard consumer that reads from Hive tables via Pull-Based Ingestion.
+ * Each shard independently queries Hive Metastore for new partitions (incremental fetch),
+ * determines ownership via consistent hashing, and reads assigned Parquet data files.
+ * This follows the same pattern as Flink's ContinuousPartitionFetcher.
  */
 @SuppressWarnings("removal")
 public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, HiveMessage> {
@@ -66,8 +77,9 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private MessageType tableSchema;
     private List<String> partitionKeys;
 
-    // Partition tracking (Flink ContinuousPartitionFetcher pattern)
-    private String watermark;  // last fully processed partition name
+    // Partition tracking
+    private String watermark;
+    private long watermarkCreateTime;
     private long lastMetastoreQueryTime;
 
     // Current processing state
@@ -81,34 +93,115 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private String currentFile;
     private long currentRowIndex;
     private long sequenceNumber;
-    private final java.util.Set<String> seenPartitions = new java.util.HashSet<>();
+    private final Set<String> seenPartitions = new HashSet<>();
 
+    /**
+     * Creates a new HiveShardConsumer.
+     *
+     * @param clientId the client identifier for this consumer
+     * @param shardId the shard ID this consumer is responsible for
+     * @param config the Hive source configuration
+     */
     public HiveShardConsumer(String clientId, int shardId, HiveSourceConfig config) {
         this.clientId = clientId;
         this.shardId = shardId;
         this.config = config;
         this.numShards = config.getNumShards();
         this.watermark = config.getConsumeStartOffset();
+        this.watermarkCreateTime = 0;
         this.pendingWork = new ArrayList<>();
         this.currentWorkIndex = 0;
         this.sequenceNumber = 0;
         this.lastMetastoreQueryTime = 0;
     }
 
+    /**
+     * Connects to Hive Metastore with retry logic.
+     * Supports both framed (Hive 3) and unframed (Hive 4) transport modes.
+     */
+    private void connectToMetastore() throws TTransportException {
+        String uri = config.getMetastoreUri().replace("thrift://", "");
+        String[] hostPort = uri.split(":");
+        String host = hostPort[0];
+        int port = Integer.parseInt(hostPort[1]);
+
+        TTransportException lastException = null;
+        for (int attempt = 0; attempt <= config.getMaxRetries(); attempt++) {
+            try {
+                if (attempt > 0) {
+                    logger.info("Retrying Metastore connection for shard {} (attempt {}/{})", shardId, attempt, config.getMaxRetries());
+                    Thread.sleep(config.getRetryIntervalMillis());
+                }
+
+                TSocket socket = new TSocket(host, port, config.getConnectTimeoutMillis());
+                TTransport transport;
+                if (config.getTransportMode() == HiveSourceConfig.TransportMode.FRAMED) {
+                    transport = new TFramedTransport(socket);
+                } else {
+                    transport = socket;
+                }
+                transport.open();
+
+                metastoreTransport = transport;
+                metastoreClient = new ThriftHiveMetastore.Client(new TBinaryProtocol(transport));
+                logger.info("Connected to Hive Metastore for shard {} at {}:{} (transport={})",
+                    shardId, host, port, config.getTransportMode());
+                return;
+            } catch (TTransportException e) {
+                lastException = e;
+                logger.warn("Failed to connect to Metastore for shard {} (attempt {}): {}", shardId, attempt + 1, e.getMessage());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new TTransportException("Interrupted during retry", e);
+            }
+        }
+        throw lastException;
+    }
+
+    /**
+     * Closes and reconnects to Metastore. Used for recovery after connection failures.
+     */
+    private void reconnectMetastore() throws TTransportException {
+        closeMetastore();
+        connectToMetastore();
+        // Re-fetch table schema after reconnect
+        try {
+            fetchTableSchema();
+        } catch (TException e) {
+            throw new TTransportException("Failed to fetch table schema after reconnect", e);
+        }
+    }
+
+    private void closeMetastore() {
+        if (metastoreTransport != null) {
+            try {
+                metastoreTransport.close();
+            } catch (Exception e) {
+                logger.debug("Error closing metastore transport", e);
+            }
+            metastoreTransport = null;
+            metastoreClient = null;
+        }
+    }
+
+    private void fetchTableSchema() throws TException {
+        GetTableRequest req = new GetTableRequest();
+        req.setDbName(config.getDatabase());
+        req.setTblName(config.getTable());
+        GetTableResult result = metastoreClient.get_table_req(req);
+        Table table = result.getTable();
+        tableSchema = hiveSchemaToParquet(table.getSd().getCols());
+        partitionKeys = table.getPartitionKeys().stream()
+            .map(FieldSchema::getName)
+            .collect(Collectors.toList());
+        logger.info("Table schema for shard {}: {}", shardId, tableSchema);
+    }
+
     private void ensureInitialized() throws Exception {
         if (metastoreClient == null) {
             logger.info("Initializing HiveShardConsumer for shard {} with metastore URI: {}", shardId, config.getMetastoreUri());
 
-            // Parse thrift://host:port
-            String uri = config.getMetastoreUri().replace("thrift://", "");
-            String[] hostPort = uri.split(":");
-            String host = hostPort[0];
-            int port = Integer.parseInt(hostPort[1]);
-
-            logger.info("Attempting to connect to Hive Metastore for shard {} at {}:{}", shardId, host, port);
-            metastoreTransport = new TSocket(host, port, 10000);
-            metastoreTransport.open();
-            metastoreClient = new ThriftHiveMetastore.Client(new TBinaryProtocol(metastoreTransport));
+            connectToMetastore();
 
             hadoopConf = java.security.AccessController.doPrivileged(
                 (java.security.PrivilegedExceptionAction<Configuration>) () -> {
@@ -134,15 +227,9 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                     }
                 }
             );
-            logger.info("HiveShardConsumer initialized successfully for shard {}", shardId);
 
-            // Fetch table schema from Metastore and convert to Parquet MessageType
-            Table table = metastoreClient.get_table(config.getDatabase(), config.getTable());
-            tableSchema = hiveSchemaToParquet(table.getSd().getCols());
-            partitionKeys = table.getPartitionKeys().stream()
-                .map(FieldSchema::getName)
-                .collect(Collectors.toList());
-            logger.info("Table schema for shard {}: {}", shardId, tableSchema);
+            fetchTableSchema();
+            logger.info("HiveShardConsumer initialized successfully for shard {}", shardId);
         }
     }
 
@@ -150,6 +237,15 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     public List<ReadResult<HivePointer, HiveMessage>> readNext(HivePointer pointer, boolean includeStart, long maxMessages, int timeoutMillis) {
         try {
             return doReadNext(maxMessages);
+        } catch (TTransportException e) {
+            logger.warn("Metastore connection lost for shard {}, attempting reconnect", shardId, e);
+            try {
+                reconnectMetastore();
+                return doReadNext(maxMessages);
+            } catch (Exception retryEx) {
+                logger.error("Failed to recover Metastore connection for shard " + shardId, retryEx);
+                return Collections.emptyList();
+            }
         } catch (Throwable e) {
             logger.error("Error reading from Hive table for shard " + shardId, e);
             return Collections.emptyList();
@@ -160,6 +256,15 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     public List<ReadResult<HivePointer, HiveMessage>> readNext(long maxMessages, int timeoutMillis) {
         try {
             return doReadNext(maxMessages);
+        } catch (TTransportException e) {
+            logger.warn("Metastore connection lost for shard {}, attempting reconnect", shardId, e);
+            try {
+                reconnectMetastore();
+                return doReadNext(maxMessages);
+            } catch (Exception retryEx) {
+                logger.error("Failed to recover Metastore connection for shard " + shardId, retryEx);
+                return Collections.emptyList();
+            }
         } catch (Throwable e) {
             logger.error("Error reading from Hive table for shard " + shardId, e);
             return Collections.emptyList();
@@ -169,35 +274,26 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private List<ReadResult<HivePointer, HiveMessage>> doReadNext(long maxMessages) throws Exception {
         ensureInitialized();
 
-        logger.debug("doReadNext called for shard {}, shouldRefresh={}, pendingWork={}, currentFileReader={}",
-            shardId, shouldRefreshPartitions(), pendingWork.size(), currentFileReader != null);
-
-        // Check if we should query Metastore for new partitions
         if (shouldRefreshPartitions()) {
             discoverNewPartitions();
         }
 
-        // No work to do
         if (currentWorkIndex >= pendingWork.size() && currentFileReader == null) {
             return Collections.emptyList();
         }
 
-        // Open next file if needed
         if (currentFileReader == null) {
             if (!openNextFile()) {
                 return Collections.emptyList();
             }
         }
 
-        // Read rows
         List<ReadResult<HivePointer, HiveMessage>> results = new ArrayList<>();
         long count = 0;
         while (count < maxMessages) {
-            // Need next row group?
             if (currentRecordReader == null || currentRowGroupRowsRemaining <= 0) {
                 currentRowGroup = currentFileReader.readNextRowGroup();
                 if (currentRowGroup == null) {
-                    // File exhausted, move to next
                     closeCurrentReader();
                     if (!openNextFile()) {
                         break;
@@ -226,38 +322,37 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     /**
      * Incremental partition fetch: query Metastore for partitions added after watermark.
-     * Follows the same pattern as Flink's ContinuousPartitionFetcher.fetchPartitions().
+     * Supports both partition-name and create-time ordering strategies.
      */
     private void discoverNewPartitions() throws Exception {
         List<Partition> partitions;
-        if (watermark == null || watermark.isEmpty()) {
-            // First time: get all partitions
-            partitions = metastoreClient.get_partitions(config.getDatabase(), config.getTable(), (short) -1);
+        if (config.getPartitionOrder() == HiveSourceConfig.PartitionOrder.CREATE_TIME) {
+            partitions = discoverByCreateTime();
         } else {
-            // Incremental: filter by partition value > watermark
-            String filter = buildPartitionFilter(watermark);
-            partitions = metastoreClient.get_partitions_by_filter(config.getDatabase(), config.getTable(), filter, (short) -1);
+            partitions = discoverByPartitionName();
         }
 
-        logger.info("Shard {} discovered {} partitions from Metastore", shardId, partitions.size());
+        logger.info("Shard {} discovered {} candidate partitions from Metastore", shardId, partitions.size());
 
-        // Sort by partition value
-        partitions.sort((a, b) -> {
-            String aVal = String.join("/", a.getValues());
-            String bVal = String.join("/", b.getValues());
-            return aVal.compareTo(bVal);
-        });
+        // Sort partitions according to ordering strategy
+        if (config.getPartitionOrder() == HiveSourceConfig.PartitionOrder.CREATE_TIME) {
+            partitions.sort(Comparator.comparingInt(Partition::getCreateTime));
+        } else {
+            partitions.sort((a, b) -> {
+                String aVal = String.join("/", a.getValues());
+                String bVal = String.join("/", b.getValues());
+                return aVal.compareTo(bVal);
+            });
+        }
 
         // Filter to partitions assigned to this shard
         for (Partition partition : partitions) {
             String partName = partitionToName(partition);
             if (seenPartitions.contains(partName)) continue;
             if (Math.floorMod(partName.hashCode(), numShards) == shardId) {
-                // List files in this partition
-                String location = partition.getSd().getLocation();
-                List<String> files = listDataFiles(location);
+                List<String> files = listDataFiles(partition.getSd().getLocation());
                 if (!files.isEmpty()) {
-                    pendingWork.add(new PartitionWork(partName, files));
+                    pendingWork.add(new PartitionWork(partName, files, partition.getCreateTime()));
                     seenPartitions.add(partName);
                     logger.info("Shard {} assigned partition {} with {} files", shardId, partName, files.size());
                 }
@@ -267,9 +362,27 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         lastMetastoreQueryTime = System.currentTimeMillis();
     }
 
+    private List<Partition> discoverByPartitionName() throws TException {
+        if (watermark == null || watermark.isEmpty()) {
+            return metastoreClient.get_partitions(config.getDatabase(), config.getTable(), (short) -1);
+        }
+        String filter = buildPartitionFilter(watermark);
+        return metastoreClient.get_partitions_by_filter(config.getDatabase(), config.getTable(), filter, (short) -1);
+    }
+
+    private List<Partition> discoverByCreateTime() throws TException {
+        // create-time mode: get all partitions and filter by createTime > watermarkCreateTime
+        List<Partition> all = metastoreClient.get_partitions(config.getDatabase(), config.getTable(), (short) -1);
+        if (watermarkCreateTime <= 0 && (watermark == null || watermark.isEmpty())) {
+            return all;
+        }
+        return all.stream()
+            .filter(p -> p.getCreateTime() > watermarkCreateTime)
+            .collect(Collectors.toList());
+    }
+
     private boolean shouldRefreshPartitions() {
         if (lastMetastoreQueryTime == 0) return true;
-        // Only refresh if we have no pending work and interval has elapsed
         boolean noPendingWork = currentWorkIndex >= pendingWork.size() && currentFileReader == null;
         boolean intervalElapsed = System.currentTimeMillis() - lastMetastoreQueryTime >= config.getMonitorIntervalMillis();
         return noPendingWork && intervalElapsed;
@@ -290,6 +403,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             } else {
                 // Partition complete, update watermark
                 watermark = work.partitionName;
+                watermarkCreateTime = work.createTime;
                 currentWorkIndex++;
             }
         }
@@ -327,13 +441,10 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     }
 
     private String buildPartitionFilter(String watermark) {
-        // For simple single-column partition like dt=2026-04-15,
-        // extract the column name and value to build a filter expression
         if (watermark.contains("=")) {
             String[] parts = watermark.split("=", 2);
             return parts[0] + " > \"" + parts[1] + "\"";
         }
-        // Fallback: no filter, get all
         return "";
     }
 
@@ -382,7 +493,6 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                         sb.append("\"").append(escapeJson(strVal)).append("\"");
                         break;
                     case INT96:
-                        // Timestamp stored as INT96 - output as string
                         sb.append("\"").append(record.getValueToString(i, 0)).append("\"");
                         break;
                     default:
@@ -393,7 +503,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             }
         }
         sb.append("}");
-        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     private static String escapeJson(String value) {
@@ -434,7 +544,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     /**
      * Converts Hive FieldSchema list to Parquet MessageType.
-     * Follows the same type mapping as Hive's HiveSchemaConverter.
+     * Used as the projection schema so that files with fewer columns
+     * return null for missing fields.
      */
     private static MessageType hiveSchemaToParquet(List<FieldSchema> columns) {
         Types.MessageTypeBuilder builder = Types.buildMessage();
@@ -445,7 +556,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     }
 
     private static org.apache.parquet.schema.Type hiveTypeToParquetType(String name, String hiveType) {
-        switch (hiveType.toLowerCase(java.util.Locale.ROOT)) {
+        switch (hiveType.toLowerCase(Locale.ROOT)) {
             case "boolean":
                 return Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(name);
             case "tinyint":
@@ -473,12 +584,10 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                     .as(LogicalTypeAnnotation.dateType())
                     .named(name);
             case "decimal":
-                // Default decimal(10,0) for unparameterized
                 return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
                     .as(LogicalTypeAnnotation.decimalType(0, 10))
                     .named(name);
             default:
-                // Fallback: treat as binary string
                 return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
                     .as(LogicalTypeAnnotation.stringType())
                     .named(name);
@@ -488,9 +597,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     @Override
     public void close() throws IOException {
         closeCurrentReader();
-        if (metastoreTransport != null) {
-            metastoreTransport.close();
-        }
+        closeMetastore();
         if (fileSystem != null) {
             fileSystem.close();
         }
@@ -502,11 +609,13 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private static class PartitionWork {
         final String partitionName;
         final List<String> files;
+        final int createTime;
         int currentFileIndex;
 
-        PartitionWork(String partitionName, List<String> files) {
+        PartitionWork(String partitionName, List<String> files, int createTime) {
             this.partitionName = partitionName;
             this.files = files;
+            this.createTime = createTime;
             this.currentFileIndex = 0;
         }
     }

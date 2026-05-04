@@ -59,6 +59,13 @@ struct StorageDescriptor {
   10: map<string, string> parameters
 }
 
+struct Database {
+  1: string name,
+  2: string description,
+  3: string locationUri,
+  4: map<string, string> parameters
+}
+
 struct Table {
   1: string tableName,
   2: string dbName,
@@ -92,8 +99,25 @@ exception NoSuchObjectException {
   1: string message
 }
 
+exception AlreadyExistsException {
+  1: string message
+}
+
+exception InvalidObjectException {
+  1: string message
+}
+
+struct GetTableRequest {
+  1: required string dbName,
+  2: required string tblName
+}
+
+struct GetTableResult {
+  1: required Table table
+}
+
 service ThriftHiveMetastore {
-  Table get_table(1:string dbname, 2:string tbl_name)
+  GetTableResult get_table_req(1:GetTableRequest req)
     throws (1:MetaException o1, 2:NoSuchObjectException o2)
 
   list<Partition> get_partitions(1:string db_name, 2:string tbl_name, 3:i16 max_parts)
@@ -101,4 +125,13 @@ service ThriftHiveMetastore {
 
   list<Partition> get_partitions_by_filter(1:string db_name, 2:string tbl_name, 3:string filter, 4:i16 max_parts)
     throws (1:MetaException o1, 2:NoSuchObjectException o2)
+
+  void create_database(1:Database database)
+    throws (1:AlreadyExistsException o1, 2:InvalidObjectException o2, 3:MetaException o3)
+
+  void create_table(1:Table tbl)
+    throws (1:AlreadyExistsException o1, 2:InvalidObjectException o2, 3:MetaException o3, 4:NoSuchObjectException o4)
+
+  Partition add_partition(1:Partition new_part)
+    throws (1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
 }

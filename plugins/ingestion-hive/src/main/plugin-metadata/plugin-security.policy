@@ -7,18 +7,20 @@
  */
 
 grant {
-  // Hive Metastore Thrift connection
+  // Hive Metastore Thrift connection (connect to metastore_uri host:port)
   permission java.net.SocketPermission "*", "connect,resolve";
 
-  // Hadoop FileSystem
-  permission java.io.FilePermission "<<ALL FILES>>", "read,write,delete";
+  // Hadoop FileSystem: read data files from local/HDFS/S3 paths
+  permission java.io.FilePermission "<<ALL FILES>>", "read";
 
-  // Hadoop configuration
+  // Hadoop Configuration and ServiceLoader require system property access
   permission java.util.PropertyPermission "*", "read,write";
 
-  // Reflection used by Thrift and Hadoop
+  // Hadoop ServiceLoader and Thrift deserialization use reflection
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+
+  // Hadoop FileSystem SPI loading requires classloader access
   permission java.lang.RuntimePermission "getClassLoader";
   permission java.lang.RuntimePermission "setContextClassLoader";
 };

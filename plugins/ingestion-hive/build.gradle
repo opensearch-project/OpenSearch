@@ -9,6 +9,8 @@
  * GitHub history for details.
  */
 
+apply plugin: 'opensearch.internal-cluster-test'
+
 opensearchplugin {
   description = 'Pull-based ingestion plugin to consume from Hive tables'
   classname = 'org.opensearch.plugin.hive.HiveIngestionPlugin'
@@ -18,6 +20,9 @@ versions << [
   'hadoopCommon': '3.4.1',
   'parquetHadoop': '1.15.0',
   'thrift': '0.22.0',
+  'testcontainers': '1.19.7',
+  'docker': '3.3.6',
+  'ducttape': '1.0.8',
 ]
 
 dependencies {
@@ -34,18 +39,114 @@ dependencies {
 
   // SLF4J required by Hadoop Configuration class initializer
   api "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // test
+  testImplementation "com.github.docker-java:docker-java-api:${versions.docker}"
+  testImplementation "com.github.docker-java:docker-java-transport:${versions.docker}"
+  testImplementation "com.github.docker-java:docker-java-transport-zerodep:${versions.docker}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  testImplementation "org.testcontainers:testcontainers:${versions.testcontainers}"
+  testImplementation "org.rnorth.duct-tape:duct-tape:${versions.ducttape}"
+  testImplementation "org.apache.commons:commons-compress:${versions.commonscompress}"
+  testImplementation "org.apache.commons:commons-lang3:${versions.commonslang}"
+  testImplementation "commons-io:commons-io:${versions.commonsio}"
 }
 
-thirdPartyAudit.enabled = false
+internalClusterTest {
+  environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
+  systemProperty 'tests.security.manager', 'false'
+}
+
+thirdPartyAudit {
+  ignoreMissingClasses()
+  ignoreViolations(
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
+    'org.apache.hadoop.io.nativeio.NativeIO',
+    'org.apache.hadoop.service.launcher.InterruptEscalator',
+    'org.apache.hadoop.service.launcher.IrqHandler',
+    'org.apache.hadoop.shaded.com.google.common.cache.Striped64',
+    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$1',
+    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$Cell',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'org.apache.hadoop.shaded.com.google.common.hash.Striped64',
+    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$1',
+    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$Cell',
+    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$Cell',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$Cell',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
+    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64',
+    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$1',
+    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$Cell',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$1',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$Cell',
+    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
+    'org.apache.hadoop.util.SignalLogger$Handler',
+    'shaded.parquet.net.openhft.hashing.HotSpotPrior7u6StringHash',
+    'shaded.parquet.net.openhft.hashing.LongHashFunction',
+    'shaded.parquet.net.openhft.hashing.LongTupleHashFunction',
+    'shaded.parquet.net.openhft.hashing.ModernCompactStringHash',
+    'shaded.parquet.net.openhft.hashing.ModernHotSpotStringHash',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess$OldUnsafeAccessBigEndian',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess$OldUnsafeAccessLittleEndian',
+    'shaded.parquet.net.openhft.hashing.Util',
+  )
+}
 
 // Suppress warnings in generated Thrift code
 tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Werror'
 }
 
-// PoC: skip javadoc checks
-tasks.matching { it.name == "missingJavadoc" }.configureEach { enabled = false }
-
-// PoC: skip javadoc validation
-tasks.withType(Javadoc).configureEach { enabled = false }
-project.tasks.matching { it.name == "missingJavadoc" }.configureEach { enabled = false }
+// Generated Thrift code lacks Javadoc; exclude from checks (same as ingestion-kafka)
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+  enabled = false
+}

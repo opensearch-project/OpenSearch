@@ -15,25 +15,28 @@
 package org.opensearch.plugin.hive.metastore;
 
 @SuppressWarnings({"cast", "rawtypes", "serial", "unchecked", "unused"})
-public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._Fields>, java.io.Serializable, Cloneable, Comparable<SerDeInfo> {
-  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("SerDeInfo");
+public class Database implements org.apache.thrift.TBase<Database, Database._Fields>, java.io.Serializable, Cloneable, Comparable<Database> {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("Database");
 
   private static final org.apache.thrift.protocol.TField NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("name", org.apache.thrift.protocol.TType.STRING, (short)1);
-  private static final org.apache.thrift.protocol.TField SERIALIZATION_LIB_FIELD_DESC = new org.apache.thrift.protocol.TField("serializationLib", org.apache.thrift.protocol.TType.STRING, (short)2);
-  private static final org.apache.thrift.protocol.TField PARAMETERS_FIELD_DESC = new org.apache.thrift.protocol.TField("parameters", org.apache.thrift.protocol.TType.MAP, (short)3);
+  private static final org.apache.thrift.protocol.TField DESCRIPTION_FIELD_DESC = new org.apache.thrift.protocol.TField("description", org.apache.thrift.protocol.TType.STRING, (short)2);
+  private static final org.apache.thrift.protocol.TField LOCATION_URI_FIELD_DESC = new org.apache.thrift.protocol.TField("locationUri", org.apache.thrift.protocol.TType.STRING, (short)3);
+  private static final org.apache.thrift.protocol.TField PARAMETERS_FIELD_DESC = new org.apache.thrift.protocol.TField("parameters", org.apache.thrift.protocol.TType.MAP, (short)4);
 
-  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new SerDeInfoStandardSchemeFactory();
-  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new SerDeInfoTupleSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new DatabaseStandardSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new DatabaseTupleSchemeFactory();
 
   private @org.apache.thrift.annotation.Nullable java.lang.String name; // required
-  private @org.apache.thrift.annotation.Nullable java.lang.String serializationLib; // required
+  private @org.apache.thrift.annotation.Nullable java.lang.String description; // required
+  private @org.apache.thrift.annotation.Nullable java.lang.String locationUri; // required
   private @org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String,java.lang.String> parameters; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     NAME((short)1, "name"),
-    SERIALIZATION_LIB((short)2, "serializationLib"),
-    PARAMETERS((short)3, "parameters");
+    DESCRIPTION((short)2, "description"),
+    LOCATION_URI((short)3, "locationUri"),
+    PARAMETERS((short)4, "parameters");
 
     private static final java.util.Map<java.lang.String, _Fields> byName = new java.util.HashMap<java.lang.String, _Fields>();
 
@@ -51,9 +54,11 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
       switch(fieldId) {
         case 1: // NAME
           return NAME;
-        case 2: // SERIALIZATION_LIB
-          return SERIALIZATION_LIB;
-        case 3: // PARAMETERS
+        case 2: // DESCRIPTION
+          return DESCRIPTION;
+        case 3: // LOCATION_URI
+          return LOCATION_URI;
+        case 4: // PARAMETERS
           return PARAMETERS;
         default:
           return null;
@@ -103,39 +108,46 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
     java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new java.util.EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
     tmpMap.put(_Fields.NAME, new org.apache.thrift.meta_data.FieldMetaData("name", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.SERIALIZATION_LIB, new org.apache.thrift.meta_data.FieldMetaData("serializationLib", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+    tmpMap.put(_Fields.DESCRIPTION, new org.apache.thrift.meta_data.FieldMetaData("description", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.LOCATION_URI, new org.apache.thrift.meta_data.FieldMetaData("locationUri", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.PARAMETERS, new org.apache.thrift.meta_data.FieldMetaData("parameters", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
     metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);
-    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(SerDeInfo.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(Database.class, metaDataMap);
   }
 
-  public SerDeInfo() {
+  public Database() {
   }
 
-  public SerDeInfo(
+  public Database(
     java.lang.String name,
-    java.lang.String serializationLib,
+    java.lang.String description,
+    java.lang.String locationUri,
     java.util.Map<java.lang.String,java.lang.String> parameters)
   {
     this();
     this.name = name;
-    this.serializationLib = serializationLib;
+    this.description = description;
+    this.locationUri = locationUri;
     this.parameters = parameters;
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public SerDeInfo(SerDeInfo other) {
+  public Database(Database other) {
     if (other.isSetName()) {
       this.name = other.name;
     }
-    if (other.isSetSerializationLib()) {
-      this.serializationLib = other.serializationLib;
+    if (other.isSetDescription()) {
+      this.description = other.description;
+    }
+    if (other.isSetLocationUri()) {
+      this.locationUri = other.locationUri;
     }
     if (other.isSetParameters()) {
       java.util.Map<java.lang.String,java.lang.String> __this__parameters = new java.util.TreeMap<java.lang.String,java.lang.String>(other.parameters);
@@ -144,14 +156,15 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
   }
 
   @Override
-  public SerDeInfo deepCopy() {
-    return new SerDeInfo(this);
+  public Database deepCopy() {
+    return new Database(this);
   }
 
   @Override
   public void clear() {
     this.name = null;
-    this.serializationLib = null;
+    this.description = null;
+    this.locationUri = null;
     this.parameters = null;
   }
 
@@ -160,7 +173,7 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
     return this.name;
   }
 
-  public SerDeInfo setName(@org.apache.thrift.annotation.Nullable java.lang.String name) {
+  public Database setName(@org.apache.thrift.annotation.Nullable java.lang.String name) {
     this.name = name;
     return this;
   }
@@ -181,27 +194,52 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
   }
 
   @org.apache.thrift.annotation.Nullable
-  public java.lang.String getSerializationLib() {
-    return this.serializationLib;
+  public java.lang.String getDescription() {
+    return this.description;
   }
 
-  public SerDeInfo setSerializationLib(@org.apache.thrift.annotation.Nullable java.lang.String serializationLib) {
-    this.serializationLib = serializationLib;
+  public Database setDescription(@org.apache.thrift.annotation.Nullable java.lang.String description) {
+    this.description = description;
     return this;
   }
 
-  public void unsetSerializationLib() {
-    this.serializationLib = null;
+  public void unsetDescription() {
+    this.description = null;
   }
 
-  /** Returns true if field serializationLib is set (has been assigned a value) and false otherwise */
-  public boolean isSetSerializationLib() {
-    return this.serializationLib != null;
+  /** Returns true if field description is set (has been assigned a value) and false otherwise */
+  public boolean isSetDescription() {
+    return this.description != null;
   }
 
-  public void setSerializationLibIsSet(boolean value) {
+  public void setDescriptionIsSet(boolean value) {
     if (!value) {
-      this.serializationLib = null;
+      this.description = null;
+    }
+  }
+
+  @org.apache.thrift.annotation.Nullable
+  public java.lang.String getLocationUri() {
+    return this.locationUri;
+  }
+
+  public Database setLocationUri(@org.apache.thrift.annotation.Nullable java.lang.String locationUri) {
+    this.locationUri = locationUri;
+    return this;
+  }
+
+  public void unsetLocationUri() {
+    this.locationUri = null;
+  }
+
+  /** Returns true if field locationUri is set (has been assigned a value) and false otherwise */
+  public boolean isSetLocationUri() {
+    return this.locationUri != null;
+  }
+
+  public void setLocationUriIsSet(boolean value) {
+    if (!value) {
+      this.locationUri = null;
     }
   }
 
@@ -221,7 +259,7 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
     return this.parameters;
   }
 
-  public SerDeInfo setParameters(@org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String,java.lang.String> parameters) {
+  public Database setParameters(@org.apache.thrift.annotation.Nullable java.util.Map<java.lang.String,java.lang.String> parameters) {
     this.parameters = parameters;
     return this;
   }
@@ -252,11 +290,19 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
       }
       break;
 
-    case SERIALIZATION_LIB:
+    case DESCRIPTION:
       if (value == null) {
-        unsetSerializationLib();
+        unsetDescription();
       } else {
-        setSerializationLib((java.lang.String)value);
+        setDescription((java.lang.String)value);
+      }
+      break;
+
+    case LOCATION_URI:
+      if (value == null) {
+        unsetLocationUri();
+      } else {
+        setLocationUri((java.lang.String)value);
       }
       break;
 
@@ -278,8 +324,11 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
     case NAME:
       return getName();
 
-    case SERIALIZATION_LIB:
-      return getSerializationLib();
+    case DESCRIPTION:
+      return getDescription();
+
+    case LOCATION_URI:
+      return getLocationUri();
 
     case PARAMETERS:
       return getParameters();
@@ -298,8 +347,10 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
     switch (field) {
     case NAME:
       return isSetName();
-    case SERIALIZATION_LIB:
-      return isSetSerializationLib();
+    case DESCRIPTION:
+      return isSetDescription();
+    case LOCATION_URI:
+      return isSetLocationUri();
     case PARAMETERS:
       return isSetParameters();
     }
@@ -308,12 +359,12 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
 
   @Override
   public boolean equals(java.lang.Object that) {
-    if (that instanceof SerDeInfo)
-      return this.equals((SerDeInfo)that);
+    if (that instanceof Database)
+      return this.equals((Database)that);
     return false;
   }
 
-  public boolean equals(SerDeInfo that) {
+  public boolean equals(Database that) {
     if (that == null)
       return false;
     if (this == that)
@@ -328,12 +379,21 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
         return false;
     }
 
-    boolean this_present_serializationLib = true && this.isSetSerializationLib();
-    boolean that_present_serializationLib = true && that.isSetSerializationLib();
-    if (this_present_serializationLib || that_present_serializationLib) {
-      if (!(this_present_serializationLib && that_present_serializationLib))
+    boolean this_present_description = true && this.isSetDescription();
+    boolean that_present_description = true && that.isSetDescription();
+    if (this_present_description || that_present_description) {
+      if (!(this_present_description && that_present_description))
         return false;
-      if (!this.serializationLib.equals(that.serializationLib))
+      if (!this.description.equals(that.description))
+        return false;
+    }
+
+    boolean this_present_locationUri = true && this.isSetLocationUri();
+    boolean that_present_locationUri = true && that.isSetLocationUri();
+    if (this_present_locationUri || that_present_locationUri) {
+      if (!(this_present_locationUri && that_present_locationUri))
+        return false;
+      if (!this.locationUri.equals(that.locationUri))
         return false;
     }
 
@@ -357,9 +417,13 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
     if (isSetName())
       hashCode = hashCode * 8191 + name.hashCode();
 
-    hashCode = hashCode * 8191 + ((isSetSerializationLib()) ? 131071 : 524287);
-    if (isSetSerializationLib())
-      hashCode = hashCode * 8191 + serializationLib.hashCode();
+    hashCode = hashCode * 8191 + ((isSetDescription()) ? 131071 : 524287);
+    if (isSetDescription())
+      hashCode = hashCode * 8191 + description.hashCode();
+
+    hashCode = hashCode * 8191 + ((isSetLocationUri()) ? 131071 : 524287);
+    if (isSetLocationUri())
+      hashCode = hashCode * 8191 + locationUri.hashCode();
 
     hashCode = hashCode * 8191 + ((isSetParameters()) ? 131071 : 524287);
     if (isSetParameters())
@@ -369,7 +433,7 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
   }
 
   @Override
-  public int compareTo(SerDeInfo other) {
+  public int compareTo(Database other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
@@ -386,12 +450,22 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
         return lastComparison;
       }
     }
-    lastComparison = java.lang.Boolean.compare(isSetSerializationLib(), other.isSetSerializationLib());
+    lastComparison = java.lang.Boolean.compare(isSetDescription(), other.isSetDescription());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetSerializationLib()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.serializationLib, other.serializationLib);
+    if (isSetDescription()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.description, other.description);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = java.lang.Boolean.compare(isSetLocationUri(), other.isSetLocationUri());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetLocationUri()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.locationUri, other.locationUri);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -427,7 +501,7 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
 
   @Override
   public java.lang.String toString() {
-    java.lang.StringBuilder sb = new java.lang.StringBuilder("SerDeInfo(");
+    java.lang.StringBuilder sb = new java.lang.StringBuilder("Database(");
     boolean first = true;
 
     sb.append("name:");
@@ -438,11 +512,19 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
     }
     first = false;
     if (!first) sb.append(", ");
-    sb.append("serializationLib:");
-    if (this.serializationLib == null) {
+    sb.append("description:");
+    if (this.description == null) {
       sb.append("null");
     } else {
-      sb.append(this.serializationLib);
+      sb.append(this.description);
+    }
+    first = false;
+    if (!first) sb.append(", ");
+    sb.append("locationUri:");
+    if (this.locationUri == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.locationUri);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -478,17 +560,17 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
     }
   }
 
-  private static class SerDeInfoStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class DatabaseStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public SerDeInfoStandardScheme getScheme() {
-      return new SerDeInfoStandardScheme();
+    public DatabaseStandardScheme getScheme() {
+      return new DatabaseStandardScheme();
     }
   }
 
-  private static class SerDeInfoStandardScheme extends org.apache.thrift.scheme.StandardScheme<SerDeInfo> {
+  private static class DatabaseStandardScheme extends org.apache.thrift.scheme.StandardScheme<Database> {
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol iprot, SerDeInfo struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol iprot, Database struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TField schemeField;
       iprot.readStructBegin();
       while (true)
@@ -506,26 +588,34 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 2: // SERIALIZATION_LIB
+          case 2: // DESCRIPTION
             if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-              struct.serializationLib = iprot.readString();
-              struct.setSerializationLibIsSet(true);
+              struct.description = iprot.readString();
+              struct.setDescriptionIsSet(true);
             } else { 
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 3: // PARAMETERS
+          case 3: // LOCATION_URI
+            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+              struct.locationUri = iprot.readString();
+              struct.setLocationUriIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
+          case 4: // PARAMETERS
             if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map0 = iprot.readMapBegin();
+                org.apache.thrift.protocol.TMap _map44 = iprot.readMapBegin();
                 struct.parameters = new java.util.TreeMap<java.lang.String,java.lang.String>();
-                @org.apache.thrift.annotation.Nullable java.lang.String _key1;
-                @org.apache.thrift.annotation.Nullable java.lang.String _val2;
-                for (int _i3 = 0; _i3 < _map0.size; ++_i3)
+                @org.apache.thrift.annotation.Nullable java.lang.String _key45;
+                @org.apache.thrift.annotation.Nullable java.lang.String _val46;
+                for (int _i47 = 0; _i47 < _map44.size; ++_i47)
                 {
-                  _key1 = iprot.readString();
-                  _val2 = iprot.readString();
-                  struct.parameters.put(_key1, _val2);
+                  _key45 = iprot.readString();
+                  _val46 = iprot.readString();
+                  struct.parameters.put(_key45, _val46);
                 }
                 iprot.readMapEnd();
               }
@@ -546,7 +636,7 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
     }
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol oprot, SerDeInfo struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol oprot, Database struct) throws org.apache.thrift.TException {
       struct.validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
@@ -555,19 +645,24 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
         oprot.writeString(struct.name);
         oprot.writeFieldEnd();
       }
-      if (struct.serializationLib != null) {
-        oprot.writeFieldBegin(SERIALIZATION_LIB_FIELD_DESC);
-        oprot.writeString(struct.serializationLib);
+      if (struct.description != null) {
+        oprot.writeFieldBegin(DESCRIPTION_FIELD_DESC);
+        oprot.writeString(struct.description);
+        oprot.writeFieldEnd();
+      }
+      if (struct.locationUri != null) {
+        oprot.writeFieldBegin(LOCATION_URI_FIELD_DESC);
+        oprot.writeString(struct.locationUri);
         oprot.writeFieldEnd();
       }
       if (struct.parameters != null) {
         oprot.writeFieldBegin(PARAMETERS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, struct.parameters.size()));
-          for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter4 : struct.parameters.entrySet())
+          for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter48 : struct.parameters.entrySet())
           {
-            oprot.writeString(_iter4.getKey());
-            oprot.writeString(_iter4.getValue());
+            oprot.writeString(_iter48.getKey());
+            oprot.writeString(_iter48.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -579,70 +674,80 @@ public class SerDeInfo implements org.apache.thrift.TBase<SerDeInfo, SerDeInfo._
 
   }
 
-  private static class SerDeInfoTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class DatabaseTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public SerDeInfoTupleScheme getScheme() {
-      return new SerDeInfoTupleScheme();
+    public DatabaseTupleScheme getScheme() {
+      return new DatabaseTupleScheme();
     }
   }
 
-  private static class SerDeInfoTupleScheme extends org.apache.thrift.scheme.TupleScheme<SerDeInfo> {
+  private static class DatabaseTupleScheme extends org.apache.thrift.scheme.TupleScheme<Database> {
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol prot, SerDeInfo struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol prot, Database struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
       java.util.BitSet optionals = new java.util.BitSet();
       if (struct.isSetName()) {
         optionals.set(0);
       }
-      if (struct.isSetSerializationLib()) {
+      if (struct.isSetDescription()) {
         optionals.set(1);
       }
-      if (struct.isSetParameters()) {
+      if (struct.isSetLocationUri()) {
         optionals.set(2);
       }
-      oprot.writeBitSet(optionals, 3);
+      if (struct.isSetParameters()) {
+        optionals.set(3);
+      }
+      oprot.writeBitSet(optionals, 4);
       if (struct.isSetName()) {
         oprot.writeString(struct.name);
       }
-      if (struct.isSetSerializationLib()) {
-        oprot.writeString(struct.serializationLib);
+      if (struct.isSetDescription()) {
+        oprot.writeString(struct.description);
+      }
+      if (struct.isSetLocationUri()) {
+        oprot.writeString(struct.locationUri);
       }
       if (struct.isSetParameters()) {
         {
           oprot.writeI32(struct.parameters.size());
-          for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter5 : struct.parameters.entrySet())
+          for (java.util.Map.Entry<java.lang.String, java.lang.String> _iter49 : struct.parameters.entrySet())
           {
-            oprot.writeString(_iter5.getKey());
-            oprot.writeString(_iter5.getValue());
+            oprot.writeString(_iter49.getKey());
+            oprot.writeString(_iter49.getValue());
           }
         }
       }
     }
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol prot, SerDeInfo struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol prot, Database struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
-      java.util.BitSet incoming = iprot.readBitSet(3);
+      java.util.BitSet incoming = iprot.readBitSet(4);
       if (incoming.get(0)) {
         struct.name = iprot.readString();
         struct.setNameIsSet(true);
       }
       if (incoming.get(1)) {
-        struct.serializationLib = iprot.readString();
-        struct.setSerializationLibIsSet(true);
+        struct.description = iprot.readString();
+        struct.setDescriptionIsSet(true);
       }
       if (incoming.get(2)) {
+        struct.locationUri = iprot.readString();
+        struct.setLocationUriIsSet(true);
+      }
+      if (incoming.get(3)) {
         {
-          org.apache.thrift.protocol.TMap _map6 = iprot.readMapBegin(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING); 
+          org.apache.thrift.protocol.TMap _map50 = iprot.readMapBegin(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING); 
           struct.parameters = new java.util.TreeMap<java.lang.String,java.lang.String>();
-          @org.apache.thrift.annotation.Nullable java.lang.String _key7;
-          @org.apache.thrift.annotation.Nullable java.lang.String _val8;
-          for (int _i9 = 0; _i9 < _map6.size; ++_i9)
+          @org.apache.thrift.annotation.Nullable java.lang.String _key51;
+          @org.apache.thrift.annotation.Nullable java.lang.String _val52;
+          for (int _i53 = 0; _i53 < _map50.size; ++_i53)
           {
-            _key7 = iprot.readString();
-            _val8 = iprot.readString();
-            struct.parameters.put(_key7, _val8);
+            _key51 = iprot.readString();
+            _val52 = iprot.readString();
+            struct.parameters.put(_key51, _val52);
           }
         }
         struct.setParametersIsSet(true);

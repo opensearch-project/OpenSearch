@@ -15,13 +15,13 @@
 package org.opensearch.plugin.hive.metastore;
 
 @SuppressWarnings({"cast", "rawtypes", "serial", "unchecked", "unused"})
-public class MetaException extends org.apache.thrift.TException implements org.apache.thrift.TBase<MetaException, MetaException._Fields>, java.io.Serializable, Cloneable, Comparable<MetaException> {
-  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("MetaException");
+public class AlreadyExistsException extends org.apache.thrift.TException implements org.apache.thrift.TBase<AlreadyExistsException, AlreadyExistsException._Fields>, java.io.Serializable, Cloneable, Comparable<AlreadyExistsException> {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("AlreadyExistsException");
 
   private static final org.apache.thrift.protocol.TField MESSAGE_FIELD_DESC = new org.apache.thrift.protocol.TField("message", org.apache.thrift.protocol.TType.STRING, (short)1);
 
-  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new MetaExceptionStandardSchemeFactory();
-  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new MetaExceptionTupleSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new AlreadyExistsExceptionStandardSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new AlreadyExistsExceptionTupleSchemeFactory();
 
   private @org.apache.thrift.annotation.Nullable java.lang.String message; // required
 
@@ -94,13 +94,13 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     tmpMap.put(_Fields.MESSAGE, new org.apache.thrift.meta_data.FieldMetaData("message", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);
-    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(MetaException.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(AlreadyExistsException.class, metaDataMap);
   }
 
-  public MetaException() {
+  public AlreadyExistsException() {
   }
 
-  public MetaException(
+  public AlreadyExistsException(
     java.lang.String message)
   {
     this();
@@ -110,15 +110,15 @@ public class MetaException extends org.apache.thrift.TException implements org.a
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public MetaException(MetaException other) {
+  public AlreadyExistsException(AlreadyExistsException other) {
     if (other.isSetMessage()) {
       this.message = other.message;
     }
   }
 
   @Override
-  public MetaException deepCopy() {
-    return new MetaException(this);
+  public AlreadyExistsException deepCopy() {
+    return new AlreadyExistsException(this);
   }
 
   @Override
@@ -131,7 +131,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     return this.message;
   }
 
-  public MetaException setMessage(@org.apache.thrift.annotation.Nullable java.lang.String message) {
+  public AlreadyExistsException setMessage(@org.apache.thrift.annotation.Nullable java.lang.String message) {
     this.message = message;
     return this;
   }
@@ -192,12 +192,12 @@ public class MetaException extends org.apache.thrift.TException implements org.a
 
   @Override
   public boolean equals(java.lang.Object that) {
-    if (that instanceof MetaException)
-      return this.equals((MetaException)that);
+    if (that instanceof AlreadyExistsException)
+      return this.equals((AlreadyExistsException)that);
     return false;
   }
 
-  public boolean equals(MetaException that) {
+  public boolean equals(AlreadyExistsException that) {
     if (that == null)
       return false;
     if (this == that)
@@ -227,7 +227,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
   }
 
   @Override
-  public int compareTo(MetaException other) {
+  public int compareTo(AlreadyExistsException other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
@@ -265,7 +265,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
 
   @Override
   public java.lang.String toString() {
-    java.lang.StringBuilder sb = new java.lang.StringBuilder("MetaException(");
+    java.lang.StringBuilder sb = new java.lang.StringBuilder("AlreadyExistsException(");
     boolean first = true;
 
     sb.append("message:");
@@ -300,17 +300,17 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     }
   }
 
-  private static class MetaExceptionStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class AlreadyExistsExceptionStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public MetaExceptionStandardScheme getScheme() {
-      return new MetaExceptionStandardScheme();
+    public AlreadyExistsExceptionStandardScheme getScheme() {
+      return new AlreadyExistsExceptionStandardScheme();
     }
   }
 
-  private static class MetaExceptionStandardScheme extends org.apache.thrift.scheme.StandardScheme<MetaException> {
+  private static class AlreadyExistsExceptionStandardScheme extends org.apache.thrift.scheme.StandardScheme<AlreadyExistsException> {
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol iprot, MetaException struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol iprot, AlreadyExistsException struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TField schemeField;
       iprot.readStructBegin();
       while (true)
@@ -340,7 +340,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     }
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol oprot, MetaException struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol oprot, AlreadyExistsException struct) throws org.apache.thrift.TException {
       struct.validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
@@ -355,17 +355,17 @@ public class MetaException extends org.apache.thrift.TException implements org.a
 
   }
 
-  private static class MetaExceptionTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class AlreadyExistsExceptionTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public MetaExceptionTupleScheme getScheme() {
-      return new MetaExceptionTupleScheme();
+    public AlreadyExistsExceptionTupleScheme getScheme() {
+      return new AlreadyExistsExceptionTupleScheme();
     }
   }
 
-  private static class MetaExceptionTupleScheme extends org.apache.thrift.scheme.TupleScheme<MetaException> {
+  private static class AlreadyExistsExceptionTupleScheme extends org.apache.thrift.scheme.TupleScheme<AlreadyExistsException> {
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol prot, MetaException struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol prot, AlreadyExistsException struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
       java.util.BitSet optionals = new java.util.BitSet();
       if (struct.isSetMessage()) {
@@ -378,7 +378,7 @@ public class MetaException extends org.apache.thrift.TException implements org.a
     }
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol prot, MetaException struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol prot, AlreadyExistsException struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
       java.util.BitSet incoming = iprot.readBitSet(1);
       if (incoming.get(0)) {
