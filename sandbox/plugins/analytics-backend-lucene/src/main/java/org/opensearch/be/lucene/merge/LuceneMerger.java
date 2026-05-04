@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergeIndexWriter;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.SuppressForbidden;
@@ -33,21 +34,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
+
 /**
  * Lucene-specific {@link Merger} that merges segments using Lucene's internal
- * {@code merge(OneMerge)} path with a {@link RowIdRemappingSortField} on the writer's
- * IndexSort for document reordering.
+ * {@code merge(OneMerge)} path with IndexSort-based document reordering.
  *
  * <h2>How it works</h2>
  *
  * <ol>
  *   <li><b>Value rewriting</b> — {@link RowIdRemappingOneMerge#wrapForMerge} wraps each
- *       CodecReader with {@link RowIdRemappingCodecReader} to remap {@code ___row_id}
+ *       CodecReader with {@link RowIdRemappingCodecReader} to remap row ID
  *       doc values for the output.</li>
- *   <li><b>Document ordering</b> — The writer's {@link RowIdRemappingSortField} has the
- *       {@link RowIdMapping} set before merge. Its {@code getIndexSorter()} reads original
- *       (unwrapped) row IDs and remaps them. {@code MultiSorter.sort()} uses these to build
- *       DocMaps that reorder all data (stored fields, doc values, postings).</li>
+ *   <li><b>Document ordering</b> — The writer's IndexSort (a {@code SortedNumericSortField}
+ *       on the row ID field) reads the already-remapped values from the wrapped readers.
+ *       {@code MultiSorter.sort()} uses these to build DocMaps that reorder all data
+ *       (stored fields, doc values, postings).</li>
  *   <li><b>Segment lifecycle</b> — Lucene's internal merge path handles reference-counted
  *       file cleanup via {@code IndexFileDeleter}. If the merge fails, old segments are
  *       preserved and the partially-written merged segment is cleaned up.</li>
@@ -59,9 +61,6 @@ import java.util.Set;
 public class LuceneMerger implements Merger {
 
     private static final Logger logger = LogManager.getLogger(LuceneMerger.class);
-
-    static final String ROW_ID_FIELD = "___row_id";
-    static final String WRITER_GENERATION_ATTR = "writer_generation";
 
     private static final Field SEGMENT_INFOS_FIELD = initSegmentInfosField();
 
@@ -77,11 +76,11 @@ public class LuceneMerger implements Merger {
     }
 
     private final MergeIndexWriter indexWriter;
-    private final RowIdRemappingSortField sortField;
     private final DataFormat dataFormat;
     private final Path storeDirectory;
+    private final LuceneMergeStrategy strategy;
 
-    public LuceneMerger(IndexWriter indexWriter, RowIdRemappingSortField sortField, DataFormat dataFormat, Path storeDirectory) {
+    public LuceneMerger(IndexWriter indexWriter, DataFormat dataFormat, Path storeDirectory) {
         if (indexWriter == null) {
             throw new IllegalArgumentException("IndexWriter must not be null");
         }
@@ -89,9 +88,10 @@ public class LuceneMerger implements Merger {
             throw new IllegalArgumentException("IndexWriter must be a MergeIndexWriter, got " + indexWriter.getClass().getName());
         }
         this.indexWriter = (MergeIndexWriter) indexWriter;
-        this.sortField = sortField;
         this.dataFormat = dataFormat;
         this.storeDirectory = storeDirectory;
+        // TODO implement primary and integrate the same here
+        this.strategy = new SecondaryLuceneMergeStrategy();
     }
 
     @Override
@@ -120,66 +120,65 @@ public class LuceneMerger implements Merger {
             return new MergeResult(Map.of());
         }
 
-        List<SegmentCommitInfo> matchingSegments = new ArrayList<>();
-        for (SegmentCommitInfo sci : segmentInfos.asList()) {
-            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTR);
-            if (genAttr != null && generationsToMerge.contains(Long.parseLong(genAttr))) {
-                matchingSegments.add(sci);
-            }
-        }
+        List<SegmentCommitInfo> matchingSegments = findMatchingSegments(segmentInfos, generationsToMerge);
 
         if (matchingSegments.isEmpty()) {
             logger.warn("No segments found matching writer generations {} — skipping merge", generationsToMerge);
             return new MergeResult(Map.of());
         }
 
-        logger.info(
+        logger.debug(
             "LuceneMerger: merging {} segments (generations {}) using merge(OneMerge) + IndexSort",
             matchingSegments.size(),
             generationsToMerge
         );
 
-        // Set the RowIdMapping on the sort field so getIndexSorter() returns remapped
-        // values for MultiSorter to build DocMaps
-        if (rowIdMapping != null && sortField != null) {
-            sortField.setRowIdMapping(rowIdMapping);
-        }
+        // Delegate OneMerge creation to the strategy (primary vs secondary behavior)
+        MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping);
+        indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());
 
-        try {
-            // wrapForMerge remaps ___row_id values for the output,
-            // MultiSorter uses getIndexSorter() to reorder documents,
-            // merge(OneMerge) handles segment lifecycle and file cleanup
-            RowIdRemappingOneMerge oneMerge = new RowIdRemappingOneMerge(matchingSegments, rowIdMapping);
-            indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());
+        // Build the merged WriterFileSet from the output segment info
+        WriterFileSet mergedFileSet = buildMergedFileSet(oneMerge.getMergeInfo(), mergeInput.newWriterGeneration());
 
-            // Build the merged WriterFileSet from the output segment info
-            SegmentCommitInfo mergedInfo = oneMerge.getMergeInfo();
-            long mergedDocCount = mergedInfo.info.maxDoc();
+        // Delegate RowIdMapping production to the strategy
+        RowIdMapping outputMapping = strategy.buildRowIdMapping(oneMerge, mergeInput);
 
-            WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
-                .directory(storeDirectory)
-                .writerGeneration(mergeInput.newWriterGeneration())
-                .addNumRows(mergedDocCount);
+        logger.debug(
+            "LuceneMerger: completed merge of {} segments at generation {} ({} docs, {} files)",
+            matchingSegments.size(),
+            mergeInput.newWriterGeneration(),
+            oneMerge.getMergeInfo().info.maxDoc(),
+            oneMerge.getMergeInfo().files().size()
+        );
 
-            for (String file : mergedInfo.files()) {
-                wfsBuilder.addFile(file);
-            }
+        return new MergeResult(Map.of(dataFormat, mergedFileSet), outputMapping);
+    }
 
-            WriterFileSet mergedFileSet = wfsBuilder.build();
-
-            logger.info(
-                "LuceneMerger: completed merge of {} segments at generation {} ({} docs, {} files)",
-                matchingSegments.size(),
-                mergeInput.newWriterGeneration(),
-                mergedDocCount,
-                mergedInfo.files().size()
-            );
-
-            return new MergeResult(Map.of(dataFormat, mergedFileSet), rowIdMapping);
-        } finally {
-            if (sortField != null) {
-                sortField.clearRowIdMapping();
+    /**
+     * Finds segments in the IndexWriter whose writer generation matches the requested generations.
+     */
+    private List<SegmentCommitInfo> findMatchingSegments(SegmentInfos segmentInfos, Set<Long> generations) {
+        List<SegmentCommitInfo> matching = new ArrayList<>();
+        for (SegmentCommitInfo sci : segmentInfos) {
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+            if (genAttr != null && generations.contains(Long.parseLong(genAttr))) {
+                matching.add(sci);
             }
         }
+        return matching;
+    }
+
+    /**
+     * Builds a {@link WriterFileSet} from the merged segment info.
+     */
+    private WriterFileSet buildMergedFileSet(SegmentCommitInfo mergedInfo, long writerGeneration) throws IOException {
+        WriterFileSet.Builder builder = WriterFileSet.builder()
+            .directory(storeDirectory)
+            .writerGeneration(writerGeneration)
+            .addNumRows(mergedInfo.info.maxDoc());
+        for (String file : mergedInfo.files()) {
+            builder.addFile(file);
+        }
+        return builder.build();
     }
 }

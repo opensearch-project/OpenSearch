@@ -24,12 +24,14 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.be.lucene.merge.LuceneMerger;
-import org.opensearch.be.lucene.merge.RowIdRemappingSortField;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
@@ -45,6 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
+
 /**
  * End-to-end tests for {@link LuceneMerger}.
  *
@@ -53,12 +57,10 @@ import java.util.Set;
  */
 public class LuceneMergerTests extends OpenSearchTestCase {
 
-    private static final String ROW_ID_FIELD = "___row_id";
-    private static final String WRITER_GENERATION_ATTR = "writer_generation";
+    private static final String ROW_ID_FIELD = DocumentInput.ROW_ID_FIELD;
 
     private MergeIndexWriter writer;
     private Directory directory;
-    private RowIdRemappingSortField sortField;
     private Path dataPath;
 
     @Override
@@ -66,11 +68,10 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         super.setUp();
         dataPath = createTempDir();
         directory = NIOFSDirectory.open(dataPath);
-        sortField = new RowIdRemappingSortField(ROW_ID_FIELD);
         IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergeScheduler(new SerialMergeScheduler());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
-        iwc.setIndexSort(new Sort(sortField));
+        iwc.setIndexSort(new Sort(new SortedNumericSortField(ROW_ID_FIELD, SortField.Type.LONG)));
         writer = new MergeIndexWriter(directory, iwc);
     }
 
@@ -91,7 +92,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
      * Merge with empty input returns empty result without error.
      */
     public void testMergeWithEmptyInput() throws IOException {
-        LuceneMerger merger = new LuceneMerger(writer, sortField, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
         MergeInput input = MergeInput.builder().segments(List.of()).newWriterGeneration(99L).build();
 
         MergeResult result = merger.merge(input);
@@ -106,7 +107,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writeSegment(writer, 1L, 0, 3);
         writer.commit();
 
-        LuceneMerger merger = new LuceneMerger(writer, sortField, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
 
         Segment segment = Segment.builder(99L).build();
         MergeInput input = MergeInput.builder().addSegment(segment).newWriterGeneration(100L).build();
@@ -128,7 +129,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         assertEquals(2, infos.size());
         assertEquals(5, writer.getDocStats().numDocs);
 
-        LuceneMerger merger = new LuceneMerger(writer, sortField, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
         List<Segment> segments = buildSegments(infos);
 
         MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(10L).build();
@@ -196,7 +197,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
             return oldId;
         };
 
-        LuceneMerger merger = new LuceneMerger(writer, sortField, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
         SegmentInfos infos = getSegmentInfos(writer);
         List<Segment> segments = buildSegments(infos);
 
@@ -247,7 +248,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writeSegmentWithRichFields(writer, 2L, 3, 2);
         writer.commit();
 
-        LuceneMerger merger = new LuceneMerger(writer, sortField, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
         SegmentInfos infos = getSegmentInfos(writer);
         List<Segment> segments = buildSegments(infos);
 
@@ -276,7 +277,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
      * Constructor with null IndexWriter throws IllegalArgumentException.
      */
     public void testConstructorWithNullIndexWriterThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new LuceneMerger(null, sortField, new LuceneDataFormat(), Path.of(".")));
+        expectThrows(IllegalArgumentException.class, () -> new LuceneMerger(null, new LuceneDataFormat(), Path.of(".")));
     }
 
     // ========== Helper Methods ==========
@@ -317,8 +318,8 @@ public class LuceneMergerTests extends OpenSearchTestCase {
             SegmentInfos segInfos = (SegmentInfos) segInfosField.get(w);
             if (segInfos.size() > 0) {
                 SegmentCommitInfo lastSegment = segInfos.asList().get(segInfos.size() - 1);
-                if (lastSegment.info.getAttribute(WRITER_GENERATION_ATTR) == null) {
-                    lastSegment.info.putAttribute(WRITER_GENERATION_ATTR, String.valueOf(generation));
+                if (lastSegment.info.getAttribute(WRITER_GENERATION_ATTRIBUTE) == null) {
+                    lastSegment.info.putAttribute(WRITER_GENERATION_ATTRIBUTE, String.valueOf(generation));
                 }
             }
         } catch (ReflectiveOperationException e) {
@@ -340,7 +341,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
     private List<Segment> buildSegments(SegmentInfos infos) {
         List<Segment> segments = new ArrayList<>();
         for (SegmentCommitInfo sci : infos.asList()) {
-            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTR);
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
             if (genAttr != null) {
                 long generation = Long.parseLong(genAttr);
                 segments.add(Segment.builder(generation).build());

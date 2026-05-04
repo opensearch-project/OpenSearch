@@ -17,6 +17,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 
 import java.io.IOException;
@@ -62,7 +63,7 @@ class RowIdRemappingDocValuesProducer extends DocValuesProducer {
 
     @Override
     public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-        if (LuceneMerger.ROW_ID_FIELD.equals(field.name)) {
+        if (DocumentInput.ROW_ID_FIELD.equals(field.name)) {
             if (rowIdMapping != null) {
                 return new MappedRowIdDocValues(delegate.getSortedNumeric(field), rowIdMapping, generation);
             }

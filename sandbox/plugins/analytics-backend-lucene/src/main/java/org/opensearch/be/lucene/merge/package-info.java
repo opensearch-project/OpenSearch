@@ -17,10 +17,9 @@
  *       {@link org.opensearch.be.lucene.merge.RowIdRemappingCodecReader} which replaces
  *       {@code ___row_id} doc values with the remapped global values from the RowIdMapping.</li>
  *   <li><b>Document ordering</b> — {@code addIndexes(CodecReader...)} applies the writer's
- *       IndexSort from scratch (full sort, not merge-sort). The standard
- *       {@link org.opensearch.be.lucene.merge.RowIdRemappingSortField} reads the already-remapped
- *       values and sorts all documents by ascending {@code ___row_id}, including cross-segment
- *       interleaving and within-segment reordering.</li>
+ *       IndexSort from scratch (full sort, not merge-sort). The {@code SortedNumericSortField}
+ *       on the row ID field reads the already-remapped values and sorts all documents by
+ *       ascending row ID, including cross-segment interleaving and within-segment reordering.</li>
  *   <li><b>Segment cleanup</b> — Lucene's internal merge path handles segment lifecycle:
  *       {@code commitMerge} removes old segments from the live list and decrements file references.</li>
  * </ul>
@@ -28,8 +27,6 @@
  * <h2>Key classes</h2>
  * <ul>
  *   <li>{@link org.opensearch.be.lucene.merge.LuceneMerger} — Orchestrates the merge.</li>
- *   <li>{@link org.opensearch.be.lucene.merge.RowIdRemappingSortField} — SortField on
- *       {@code ___row_id} for IndexSort-based reordering.</li>
  *   <li>{@link org.opensearch.be.lucene.merge.RowIdRemappingCodecReader} — FilterCodecReader
  *       that remaps {@code ___row_id} doc values.</li>
  *   <li>{@link org.opensearch.be.lucene.merge.RowIdRemappingDocValuesProducer} — DocValuesProducer

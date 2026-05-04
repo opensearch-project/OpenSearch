@@ -20,11 +20,13 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.search.Sort;
-import org.opensearch.be.lucene.merge.RowIdRemappingSortField;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
@@ -226,14 +228,15 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         iwc.setUseCompoundFile(engineConfig.useCompoundFile());
 
         // Determine if Lucene is a secondary format in a composite setup.
-        // When secondary, use RowIdRemappingSortField so MultiSorter can reorder documents
-        // by remapped ___row_id during merge. When primary (or standalone), use the
+        // When secondary, use a SortedNumericSortField on the row ID so MultiSorter can reorder
+        // documents by remapped row ID during merge. When primary (or standalone), use the
         // engine config's IndexSort (which may be user-configured).
+        // TODO Check what is the right way to get this information as the below one is leaky
         List<String> secondaryFormats = engineConfig.getIndexSettings().getSettings().getAsList("index.composite.secondary_data_formats");
         boolean isSecondary = secondaryFormats.contains("lucene");
 
         if (isSecondary) {
-            iwc.setIndexSort(new Sort(new RowIdRemappingSortField("___row_id")));
+            iwc.setIndexSort(new Sort(new SortedNumericSortField(DocumentInput.ROW_ID_FIELD, SortField.Type.LONG)));
         } else if (engineConfig.getIndexSort() != null) {
             iwc.setIndexSort(engineConfig.getIndexSort());
         }

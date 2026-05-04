@@ -20,7 +20,7 @@ import org.opensearch.index.engine.dataformat.RowIdMapping;
  * <p>This ensures the merged segment's {@code ___row_id} field stores the new global row IDs
  * from the {@link RowIdMapping}, not the original per-segment local values.
  *
- * <p>The {@link RowIdRemappingSortField} handles document <em>ordering</em> during merge.
+ * <p>The IndexSort on the writer handles document <em>ordering</em> during merge.
  * This reader handles the <em>values</em> written to the merged segment.
  *
  * @opensearch.experimental

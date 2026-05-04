@@ -24,7 +24,6 @@ import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.merge.LuceneMerger;
-import org.opensearch.be.lucene.merge.RowIdRemappingSortField;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -107,17 +106,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.codec = sharedWriter.getConfig().getCodec();
         this.fieldFactoryRegistry = new LuceneFieldFactoryRegistry();
 
-        // Extract the RowIdRemappingSortField from the writer's IndexSort for the merger
-        RowIdRemappingSortField rowIdSortField = null;
-        if (sharedWriter.getConfig().getIndexSort() != null) {
-            for (var sf : sharedWriter.getConfig().getIndexSort().getSort()) {
-                if (sf instanceof RowIdRemappingSortField rmsf) {
-                    rowIdSortField = rmsf;
-                    break;
-                }
-            }
-        }
-        this.luceneMerger = new LuceneMerger(sharedWriter, rowIdSortField, dataFormat, store.shardPath().resolveIndex());
+        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex());
 
         // Create the lucene subdirectory if it doesn't exist
         try {

@@ -18,14 +18,16 @@ import org.opensearch.index.engine.dataformat.RowIdMapping;
 import java.io.IOException;
 import java.util.List;
 
+import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
+
 /**
  * A custom {@link MergePolicy.OneMerge} that wraps each segment's {@link CodecReader}
  * with a {@link RowIdRemappingCodecReader} during the merge process.
  *
- * <p>The wrapped reader remaps {@code ___row_id} doc values so the merged segment stores
- * the new global row IDs. Document ordering is handled by the {@link RowIdRemappingSortField}
- * on the writer's IndexSort — {@code MultiSorter} reads the original (unwrapped) values
- * via the sort field's {@code getIndexSorter()} and builds DocMaps for reordering.
+ * <p>The wrapped reader remaps row ID doc values so the merged segment stores
+ * the new global row IDs. Document ordering is handled by the IndexSort (a
+ * {@code SortedNumericSortField} on the row ID field) — {@code MultiSorter} reads the
+ * already-remapped values and builds DocMaps for reordering.
  *
  * @opensearch.experimental
  */
@@ -53,7 +55,7 @@ class RowIdRemappingOneMerge extends MergePolicy.OneMerge {
     private long resolveGeneration(CodecReader reader) {
         if (reader instanceof SegmentReader segmentReader) {
             SegmentCommitInfo sci = segmentReader.getSegmentInfo();
-            String genAttr = sci.info.getAttribute(LuceneMerger.WRITER_GENERATION_ATTR);
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
             if (genAttr != null) {
                 return Long.parseLong(genAttr);
             }
@@ -62,7 +64,7 @@ class RowIdRemappingOneMerge extends MergePolicy.OneMerge {
             "Cannot resolve writer generation for reader: "
                 + reader.getClass().getName()
                 + ". Ensure segments have the '"
-                + LuceneMerger.WRITER_GENERATION_ATTR
+                + WRITER_GENERATION_ATTRIBUTE
                 + "' attribute."
         );
     }
