@@ -65,6 +65,8 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
     private int resolveTimestampPrecision(RexCall call, List<FieldStorageInfo> fieldStorage) {
         for (FieldStorageInfo field : fieldStorage) {
             String mappingType = field.getMappingType();
+            // TODO: date_nanos is not yet mapped by OpenSearchSchemaBuilder (falls through to VARCHAR),
+            // so this branch is currently unreachable — kept for when date_nanos schema support lands.
             if ("date_nanos".equals(mappingType)) return 9;
             if ("date".equals(mappingType)) return 3;
         }
