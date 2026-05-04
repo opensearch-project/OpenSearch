@@ -19,6 +19,7 @@ public class QueryRegistryFactory {
     public static QueryRegistry create() {
         QueryRegistry registry = new QueryRegistry();
         registry.register(new TermQueryTranslator());
+        registry.register(new TermsQueryTranslator());
         registry.register(new MatchAllQueryTranslator());
         registry.register(new ExistsQueryTranslator());
         // TODO: add other query translators
