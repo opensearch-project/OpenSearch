@@ -14,11 +14,23 @@ import java.io.IOException;
 import java.util.Collection;
 
 /**
- * Listener for lifecycle of files
+ * Listener notified when files are added to or deleted from a data format's storage.
+ *
+ * @opensearch.experimental
  */
 @ExperimentalApi
 public interface FilesListener {
+    /**
+     * Called when new files become visible (ref count went from 0 to 1).
+     *
+     * @param files the file names that were added
+     */
     void onFilesDeleted(Collection<String> files) throws IOException;
 
+    /**
+     * Called when files are deleted (ref count reached 0).
+     *
+     * @param files the file names that were deleted
+     */
     void onFilesAdded(Collection<String> files) throws IOException;
 }

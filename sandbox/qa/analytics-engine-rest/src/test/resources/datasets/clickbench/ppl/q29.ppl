@@ -1,0 +1,1 @@
+source = clickbench | Referer != '' | eval k = regexp_replace(Referer, '^https?://(?:www\.)?([^/]+)/.*$', '\1') | stats avg(length(Referer)) as l, count() as c, min(Referer) by k | where c > 100000 | sort - l | head 25

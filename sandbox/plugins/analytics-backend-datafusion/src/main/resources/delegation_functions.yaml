@@ -1,0 +1,11 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:delegation_functions
+scalar_functions:
+  - name: delegated_predicate
+    description: Placeholder for a predicate delegated to another backend. Returns TRUE at plan level; at execution time the driving backend calls into the delegation API using the annotationId.
+    impls:
+      - args:
+          - name: annotationId
+            value: i32
+        return: boolean

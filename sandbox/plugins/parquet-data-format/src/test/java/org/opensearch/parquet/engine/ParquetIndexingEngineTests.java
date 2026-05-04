@@ -10,8 +10,11 @@ package org.opensearch.parquet.engine;
 
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
@@ -127,8 +130,8 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
         assertTrue(result.refreshedSegments().isEmpty());
     }
 
-    public void testGetMergerReturnsNull() {
-        assertNull(engine.getMerger());
+    public void testGetMergerReturnsNonNull() {
+        assertNotNull(engine.getMerger());
     }
 
     public void testGetNextWriterGenerationThrows() {
@@ -164,7 +167,14 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             Path dataPath = tempDir.resolve(indexUUID).resolve("0");
             Files.createDirectories(dataPath.resolve("parquet"));
             ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
-            return new ParquetIndexingEngine(Settings.EMPTY, new ParquetDataFormat(), shardPath, () -> schema, null, threadPool);
+            Settings indexSettingsBuilder = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build();
+            IndexMetadata indexMetadata = IndexMetadata.builder("test_index").settings(indexSettingsBuilder).build();
+            IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+            return new ParquetIndexingEngine(Settings.EMPTY, new ParquetDataFormat(), shardPath, () -> schema, indexSettings, threadPool);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

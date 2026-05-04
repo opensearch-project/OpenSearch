@@ -37,6 +37,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -136,7 +137,6 @@ import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
@@ -146,7 +146,11 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.IndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
 import org.opensearch.index.flush.FlushStats;
@@ -180,7 +184,9 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
 import org.opensearch.index.store.RemoteStoreFileDownloader;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
@@ -243,6 +249,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorCompletionService;
@@ -318,12 +325,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> mutex
     private final AtomicReference<Indexer> currentEngineReference = new AtomicReference<>();
-    private final AtomicReference<DataFormatAwareEngine> currentCompositeEngineReference = new AtomicReference<>();
-    final EngineFactory engineFactory;
+    final IndexerFactory indexerFactory;
     final EngineConfigFactory engineConfigFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
+    private final ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache = new ConcurrentHashMap<>();
+    private final Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier;
 
     Runnable getGlobalCheckpointSyncer() {
         return globalCheckpointSyncer;
@@ -409,6 +417,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final DataFormatRegistry dataFormatRegistry;
 
+    private final Map<String, FormatChecksumStrategy> checksumStrategies;
+
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
@@ -419,7 +429,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexCache indexCache,
         final MapperService mapperService,
         final SimilarityService similarityService,
-        final EngineFactory engineFactory,
+        final IndexerFactory indexerFactory,
         final EngineConfigFactory engineConfigFactory,
         final IndexEventListener indexEventListener,
         final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
@@ -449,6 +459,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ClusterApplierService clusterApplierService,
         @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
         @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher,
+        final Map<String, FormatChecksumStrategy> checksumStrategies,
         @Nullable final DataFormatRegistry dataFormatRegistry
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -458,7 +469,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.warmer = warmer;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
-        this.engineFactory = Objects.requireNonNull(engineFactory);
+        this.indexerFactory = Objects.requireNonNull(indexerFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
         this.codecService = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
         this.store = store;
@@ -545,6 +556,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             readerWrapper = indexReaderWrapper;
         }
+
+        nonClosingReaderWrapperSupplier = directoryReader -> {
+            int[] fromCache = new int[] { 0 };
+            try {
+                // To prevent instantiating a new NonClosingReaderWrapper per query/get/update request,
+                // the wrapper can be shared across all uses of the same NonClosingReaderWrapper.
+                return nonClosingReaderWrapperCache.computeIfAbsent(directoryReader, key -> {
+                    try {
+                        NonClosingReaderWrapper closingReaderWrapper = new NonClosingReaderWrapper(key);
+                        fromCache[0] = 1;
+                        return closingReaderWrapper;
+                    } catch (IOException e) {
+                        fromCache[0] = 2;
+                        throw new OpenSearchException("failed to wrap searcher", e);
+                    }
+                });
+            } finally {
+                if (fromCache[0] == 1) {
+                    OpenSearchDirectoryReader.addReaderCloseListener(
+                        directoryReader,
+                        cacheKey -> nonClosingReaderWrapperCache.remove(directoryReader)
+                    );
+                } else if (fromCache[0] == 2) {
+                    nonClosingReaderWrapperCache.remove(directoryReader);
+                }
+            }
+        };
+
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -576,12 +615,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         this.dataFormatRegistry = dataFormatRegistry;
-        if (dataFormatRegistry != null) {
-            // TODO: This should go away and we should use indexer directly.
-            this.currentCompositeEngineReference.set(
-                new DataFormatAwareEngine(dataFormatRegistry.getReaderManagers(mapperService, indexSettings, path))
-            );
-        }
+        this.checksumStrategies = checksumStrategies;
     }
 
     /**
@@ -603,6 +637,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Store store() {
         return this.store;
+    }
+
+    public Map<String, FormatChecksumStrategy> getChecksumStrategies() {
+        return checksumStrategies;
     }
 
     public boolean isMigratingToRemote() {
@@ -1996,6 +2034,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return checkpoint;
     }
 
+    /**
+     * Compute the latest {@link ReplicationCheckpoint} from a CatalogSnapshot.
+     * This function fetches a metadata snapshot from the store that comes with an IO cost.
+     * We will reuse the existing stored checkpoint if it is at the same SI version.
+     *
+     * @param catalogSnapshot {@link CatalogSnapshot} infos to use to compute.
+     * @return {@link ReplicationCheckpoint} Checkpoint computed from the infos.
+     * @throws IOException When there is an error computing segment metadata from the store.
+     */
+    ReplicationCheckpoint computeReplicationCheckpoint(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (catalogSnapshot == null) {
+            return ReplicationCheckpoint.empty(shardId);
+        }
+        final ReplicationCheckpoint latestReplicationCheckpoint = getLatestReplicationCheckpoint();
+        if (latestReplicationCheckpoint.getSegmentInfosVersion() == catalogSnapshot.getVersion()
+            && latestReplicationCheckpoint.getSegmentsGen() == catalogSnapshot.getGeneration()
+            && latestReplicationCheckpoint.getPrimaryTerm() == getOperationPrimaryTerm()) {
+            return latestReplicationCheckpoint;
+        }
+        final Map<String, StoreFileMetadata> metadataMap = store.getSegmentMetadataMap(catalogSnapshot);
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+            this.shardId,
+            getOperationPrimaryTerm(),
+            catalogSnapshot.getGeneration(),
+            catalogSnapshot.getVersion(),
+            metadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+            getIndexer().config().getCodec().getName(),
+            metadataMap
+        );
+        logger.trace("Recomputed ReplicationCheckpoint from CatalogSnapshot for shard {}", checkpoint);
+        return checkpoint;
+    }
+
     public void publishReferencedSegments() throws IOException {
         assert referencedSegmentsPublisher != null;
         referencedSegmentsPublisher.publish(this, computeReferencedSegmentsCheckpoint());
@@ -2217,20 +2288,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
     }
 
-    /**
-     * Returns the current CompositeEngine, or null if no optimized index is active.
-     */
-    public DataFormatAwareEngine getCompositeEngine() {
-        return currentCompositeEngineReference.get();
-    }
-
-    /**
-     * Sets the CompositeEngine for this shard (called during shard initialization for optimized indexes).
-     */
-    public void setCompositeEngine(DataFormatAwareEngine dataFormatAwareEngine) {
-        currentCompositeEngineReference.set(dataFormatAwareEngine);
-    }
-
     private void markSearcherAccessed() {
         lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
     }
@@ -2253,7 +2310,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : "DirectoryReader must be an instance or OpenSearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            final Engine.Searcher newSearcher = readerWrapper == null
+                ? searcher
+                : wrapSearcher(searcher, readerWrapper, nonClosingReaderWrapperSupplier);
             assert newSearcher != null;
             success = true;
             return newSearcher;
@@ -2273,14 +2332,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine.Searcher engineSearcher,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
     ) throws IOException {
+        return wrapSearcher(engineSearcher, readerWrapper, null);
+    }
+
+    public static Engine.Searcher wrapSearcher(
+        Engine.Searcher engineSearcher,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
+        Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier
+    ) throws IOException {
         assert readerWrapper != null;
-        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(
-            engineSearcher.getDirectoryReader()
-        );
+        DirectoryReader directoryReader = engineSearcher.getDirectoryReader();
+        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(directoryReader);
         if (openSearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non opensearch directory reader");
         }
-        NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+
+        DirectoryReader nonClosingReaderWrapper;
+        if (nonClosingReaderWrapperSupplier == null) {
+            nonClosingReaderWrapper = new NonClosingReaderWrapper(directoryReader);
+        } else {
+            nonClosingReaderWrapper = nonClosingReaderWrapperSupplier.apply(directoryReader);
+            assert nonClosingReaderWrapper instanceof NonClosingReaderWrapper;
+        }
         DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
             if (reader.getReaderCacheHelper() != openSearchDirectoryReader.getReaderCacheHelper()) {
@@ -2377,6 +2450,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     changeState(IndexShardState.CLOSED, reason);
                 }
             } finally {
+                nonClosingReaderWrapperCache.clear();
                 final Indexer engine = this.currentEngineReference.getAndSet(null);
                 try {
                     if (engine != null && flushEngine) {
@@ -2970,7 +3044,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             // TODO: For composite engine, this would be replaced by a separate factory.
-            final Indexer newEngine = new EngineBackedIndexer(engineFactory.newReadWriteEngine(config));
+            final Indexer newEngine = indexerFactory.createIndexer(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
 
@@ -4371,6 +4445,36 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
 
+        // After each internal refresh, update the LuceneFieldTracker with merged FieldInfos from
+        // the reader. This lets DocumentParser enforce the per-shard Lucene field-count limit for
+        // dynamic_properties without requiring access to the IndexWriter directly.
+        if (mapperService != null) {
+            internalRefreshListener.add(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() {}
+
+                @Override
+                public void afterRefresh(boolean didRefresh) {
+                    if (!didRefresh) return;
+                    // Use the engine directly (not IndexShard.acquireSearcher) so that we do NOT
+                    // go through IndexShard.wrapSearcher / nonClosingReaderWrapperSupplier.
+                    // Going through the shard-level wrapper would create entries in the
+                    // nonClosingReaderWrapperCache that callers do not expect.
+                    try (
+                        Engine.Searcher searcher = applyOnEngine(
+                            getIndexer(),
+                            engine -> engine.acquireSearcher("lucene_field_count", Engine.SearcherScope.INTERNAL)
+                        )
+                    ) {
+                        FieldInfos fieldInfos = FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
+                        mapperService.getLuceneFieldTracker().setFieldInfos(fieldInfos);
+                    } catch (AlreadyClosedException | IllegalIndexShardStateException e) {
+                        // Shard is closing or not yet readable — skip this refresh cycle.
+                    }
+                }
+            });
+        }
+
         if (isRemoteStoreEnabled() || isMigratingToRemote()) {
             internalRefreshListener.add(
                 new RemoteStoreRefreshListener(
@@ -4426,7 +4530,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             () -> docMapper(),
             mergedSegmentWarmerFactory.get(this),
             clusterApplierService,
-            mergedSegmentTransferTracker
+            mergedSegmentTransferTracker,
+            dataFormatRegistry,
+            mapperService,
+            checksumStrategies
         );
     }
 
@@ -5003,8 +5110,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    EngineFactory getEngineFactory() {
-        return engineFactory;
+    IndexerFactory getIndexerFactory() {
+        return indexerFactory;
     }
 
     EngineConfigFactory getEngineConfigFactory() {
@@ -5346,7 +5453,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if ((indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded()) && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
-            newEngineReference.set(new EngineBackedIndexer(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker))));
+            newEngineReference.set(indexerFactory.createIndexer(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
         final TranslogRecoveryRunner translogRunner = (snapshot) -> {
@@ -5563,8 +5670,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // are uploaded to the remote segment store.
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
-            .getSegmentsUploadedToRemoteStore()
+        Map<String, UploadedSegmentMetadata> uploadedSegments = remoteDirectory.getSegmentsUploadedToRemoteStore()
             .entrySet()
             .stream()
             .filter(entry -> entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
@@ -5640,8 +5746,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteDirectory.init();
             remoteStore.incRef();
         }
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
-            .getSegmentsUploadedToRemoteStore();
+        Map<String, UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory.getSegmentsUploadedToRemoteStore();
         store.incRef();
         try {
             final Directory storeDirectory;
@@ -5714,7 +5819,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Directory storeDirectory,
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
+        Map<String, UploadedSegmentMetadata> uploadedSegments,
         boolean overrideLocal,
         final Runnable onFileSync
     ) throws IOException {
@@ -5843,6 +5948,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         throw new IllegalStateException("Cannot request SegmentInfos directly on IndexShard");
     }
 
+    /**
+     * Returns a reference-counted {@link CatalogSnapshot} for the current shard state.
+     * If a {@link DataFormatAwareEngine} is present,
+     * acquires from there. Otherwise wraps the SegmentInfos into a {@link SegmentInfosCatalogSnapshot}.
+     *
+     * @return a {@link GatedCloseable} wrapping the catalog snapshot
+     */
+    public GatedCloseable<CatalogSnapshot> getCatalogSnapshot() {
+        return getIndexer().acquireSnapshot();
+    }
+
     private TimeValue getRemoteTranslogUploadBufferInterval(Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier) {
         assert Objects.nonNull(clusterRemoteTranslogBufferIntervalSupplier) : "remote translog buffer interval supplier is null";
         if (indexSettings().isRemoteTranslogBufferIntervalExplicit()) {
@@ -5913,6 +6029,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         return ingestionEngine.getIngestionState();
+    }
+
+    public IndexReaderProvider getReaderProvider() {
+        return getIndexer();
     }
 
     /**
@@ -6041,5 +6161,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalStateException("Cannot apply function on indexer " + indexer.getClass() + " directly on IndexShard");
         }
+    }
+
+    // Visible for testing
+    Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier() {
+        return nonClosingReaderWrapperSupplier;
+    }
+
+    // Visible for testing
+    ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache() {
+        return nonClosingReaderWrapperCache;
+    }
+
+    // Below methods exists for bwc only. We should never make indexshard aware of DataFormatAwareEngine directy.
+    // All interactions should happen via indexer only.
+    @Deprecated
+    public DataFormatAwareEngine getCompositeEngine() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Deprecated
+    public void setCompositeEngine(DataFormatAwareEngine unused) {
+        throw new UnsupportedOperationException();
     }
 }

@@ -135,6 +135,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", "test")
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "latest")
+                .put("ingestion_source.param.topic_metadata_fetch_timeout_ms", 5000)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -1383,6 +1384,110 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
 
         // Step 6: Wait for documents to be searchable (handles async refresh)
         waitForSearchableDocs(10, List.of(nodeA));
+    }
+
+    public void testKafkaIngestionWithMappingUpdate() throws Exception {
+        final String nodeA = internalCluster().startNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.error_strategy", "drop")
+                .build(),
+            "{\"dynamic\":\"strict\",\"properties\":{\"product\":{\"type\": \"text\"},"
+                + "\"attributes\":{\"properties\":{\"title\":{\"type\": \"keyword\"}}}}}"
+        );
+        ensureGreen(indexName);
+
+        // Step 1: Publish doc with known fields and wait for it to be searchable
+        produceData(
+            "{\"_id\":\"1\", \"_op_type\":\"index\",\"_source\":"
+                + "{\"product\":\"product1\", \"attributes\":{\"title\":\"Screenshot 2026\"}}}"
+        );
+
+        waitForSearchableDocs(1, List.of(nodeA));
+
+        // Step 2: Publish doc with unknown field - strict mapping should reject it
+        produceData(
+            "{\"_id\":\"2\", \"_op_type\":\"index\",\"_source\":"
+                + "{\"product\":\"product2\", \"attributes\":{\"title\":\"Banner Ad\",\"is_promotional\":true}}}"
+        );
+
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalFailuresDroppedCount() >= 1L;
+        });
+
+        PollingIngestStats statsBeforePutMapping = client().admin()
+            .indices()
+            .prepareStats(indexName)
+            .get()
+            .getIndex(indexName)
+            .getShards()[0].getPollingIngestStats();
+        assertThat(
+            "message2 should fail due to strict mapping",
+            statsBeforePutMapping.getMessageProcessorStats().totalFailedCount(),
+            is(1L)
+        );
+        assertThat("message2 should be dropped", statsBeforePutMapping.getMessageProcessorStats().totalFailuresDroppedCount(), is(1L));
+
+        // Step 3: Add is_promotional to the mapping via PUT mapping API
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutMapping(indexName)
+                .setSource(
+                    "{\"properties\":{\"attributes\":{\"properties\":"
+                        + "{\"is_promotional\":{\"type\":\"boolean\",\"doc_values\":false}}}}}",
+                    org.opensearch.common.xcontent.XContentType.JSON
+                )
+        );
+
+        waitForState(() -> {
+            Map<String, Object> mappings = client().admin()
+                .indices()
+                .prepareGetMappings(indexName)
+                .get()
+                .getMappings()
+                .get(indexName)
+                .getSourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> attrProps = (Map<String, Object>) ((Map<String, Object>) properties.get("attributes")).get("properties");
+            return attrProps.containsKey("is_promotional");
+        });
+
+        // Step 4: Publish doc with is_promotional - should now succeed after the mapping update
+        produceData(
+            "{\"_id\":\"3\", \"_op_type\":\"index\",\"_source\":"
+                + "{\"product\":\"product3\", \"attributes\":{\"title\":\"Holiday Sale\",\"is_promotional\":false}}}"
+        );
+
+        waitForSearchableDocs(2, List.of(nodeA));
+
+        // Step 5: Query on the new boolean field to verify it was indexed correctly
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName)
+                .setQuery(new TermQueryBuilder("attributes.is_promotional", false))
+                .get();
+            return response.getHits().getTotalHits().value() == 1L
+                && "product3".equals(response.getHits().getAt(0).getSourceAsMap().get("product"));
+        });
+
+        // Verify failedCount is still 1 (only message2 failed, message3 succeeded)
+        PollingIngestStats statsAfterPut = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertThat(statsAfterPut.getMessageProcessorStats().totalFailedCount(), is(1L));
     }
 
     public void testDynamicWarmupSettingsUpdate() throws Exception {

@@ -1,38 +1,29 @@
 [package]
-name = "parquet-dataformat-jni"
+name = "opensearch-parquet-format"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+workspace = "../../../../../libs/dataformat-native/rust"
 
 [features]
 test-utils = []
 
 [lib]
-name = "parquet_dataformat_jni"
-crate-type = ["cdylib", "lib"]
+name = "opensearch_parquet_format"
+crate-type = ["rlib"]
 
 [dependencies]
-arrow = { version = "54.0.0", features = ["ffi"] }
-arrow-array = "54.0.0"
-arrow-schema = "54.0.0"
-arrow-buffer = "54.0.0"
-jni = "0.21"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
-thiserror = "1.0"
-log = "0.4"
-parquet = "54.0.0"
-lazy_static = "1.4.0"
-dashmap = "6.1"
-chrono = "0.4"
-mimalloc = { version = "0.1.48", default-features = false }
-tempfile = "3.0"
-
-native-bridge-spi = { path = "../../../../../libs/native-bridge-spi/src/main/rust" }
+arrow = { workspace = true }
+parquet = { workspace = true }
+lazy_static = { workspace = true }
+dashmap = { workspace = true }
+tempfile = { workspace = true }
+native-bridge-common = { workspace = true }
+rayon = { workspace = true }
+tokio = { workspace = true }
+crc32fast = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
-parquet_dataformat_jni = { path = ".", package = "parquet-dataformat-jni", features = ["test-utils"] }
+opensearch-parquet-format = { path = ".", features = ["test-utils"] }
 
-[profile.release]
-debug = "line-tables-only"
-strip = false

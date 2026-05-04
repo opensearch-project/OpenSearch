@@ -25,6 +25,7 @@ import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -503,7 +504,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         final IndexShard primaryTarget = newShard(
             primarySource.routingEntry().getTargetRelocatingShard(),
             getIndexSettings(),
-            new NRTReplicationEngineFactory()
+            new EngineBackedIndexerFactory(new NRTReplicationEngineFactory())
         );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
 
@@ -541,7 +542,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         final RecoverySettings recoverySettings = new RecoverySettings(
             Settings.builder()
                 .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE.getKey(), true)
-                .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE.getKey(), 11000)
+                .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE.getKey(), 1000)
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
@@ -555,7 +556,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 MergedSegmentPublisher.EMPTY
             )
         ) {
-            doPrimaryPromotion(shards, randomInt(10), randomIntBetween(30000, 40000));
+            doPrimaryPromotion(shards, randomInt(10), randomIntBetween(1100, 2000));
         }
     }
 

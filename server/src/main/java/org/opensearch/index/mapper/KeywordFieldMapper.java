@@ -860,25 +860,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = nullValue;
-            } else {
-                value = parser.textOrNull();
-            }
-        }
-
-        if (value == null || value.length() > ignoreAbove) {
+        String value = parseKeywordValue(context);
+        if (value == null) {
             return;
-        }
-
-        NamedAnalyzer normalizer = fieldType().normalizer();
-        if (normalizer != null) {
-            value = normalizeValue(normalizer, name(), value);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
@@ -895,6 +879,39 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        String value = parseKeywordValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private String parseKeywordValue(ParseContext context) throws IOException {
+        String value;
+        if (context.externalValueSet()) {
+            value = context.externalValue().toString();
+        } else {
+            XContentParser parser = context.parser();
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                value = nullValue;
+            } else {
+                value = parser.textOrNull();
+            }
+        }
+
+        if (value == null || value.length() > ignoreAbove) {
+            return null;
+        }
+
+        NamedAnalyzer normalizer = fieldType().normalizer();
+        if (normalizer != null) {
+            value = normalizeValue(normalizer, name(), value);
+        }
+        return value;
     }
 
     static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {

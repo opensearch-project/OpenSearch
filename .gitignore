@@ -67,6 +67,11 @@ testfixtures_shared/
 # These are generated from .ci/jobs.t
 .ci/jobs/
 
+# native build files
+*.dylib
+
 # build files generated
 doc-tools/missing-doclet/bin/
-/sandbox/plugins/engine-datafusion/target/
+**/Cargo.lock
+/sandbox/plugins/analytics-backend-datafusion/target/
+/sandbox/libs/dataformat-native/rust/target

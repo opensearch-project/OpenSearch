@@ -19,10 +19,12 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
@@ -38,6 +40,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -47,6 +50,12 @@ import java.util.function.Supplier;
  * data format framework. On node startup, captures cluster settings via
  * {@link #createComponents} and passes them to the per-shard
  * {@link ParquetIndexingEngine} instances created in {@link #indexingEngine}.
+ *
+ * <p>The descriptor provides a {@link PrecomputedChecksumStrategy} that is created once
+ * per shard during initialization. The same strategy instance is shared between the
+ * directory and the {@link ParquetIndexingEngine} via the checksum strategies map,
+ * so pre-computed CRC32 values registered during write are directly visible to the
+ * upload path — no post-construction wiring needed.
  *
  * <p>Registers plugin settings defined in {@link ParquetSettings}.
  */
@@ -88,14 +97,23 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig) {
         return new ParquetIndexingEngine(
             settings,
             dataFormat,
-            shardPath,
-            () -> ArrowSchemaBuilder.getSchema(mapperService),
-            indexSettings,
-            threadPool
+            engineConfig.store().shardPath(),
+            () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService()),
+            engineConfig.indexSettings(),
+            threadPool,
+            engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME)
+        );
+    }
+
+    @Override
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
+        return Map.of(
+            ParquetDataFormat.PARQUET_DATA_FORMAT_NAME,
+            () -> new DataFormatDescriptor(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, new PrecomputedChecksumStrategy())
         );
     }
 

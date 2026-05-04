@@ -17,6 +17,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -28,6 +30,7 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.CONTENT_TYPE;
@@ -417,4 +420,111 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         // In the future we will want to make sure parameter updates are covered.
     }
 
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatSimpleObject() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "flat_object").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        String json = "{\"field\":{\"foo\":\"bar\"}}";
+        mapper.parse(source(json), docInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields();
+        boolean found = captured.stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals(new BytesRef("field.foo")));
+        assertTrue("Expected flat_object path field captured", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "flat_object").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field for null value", hasField);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNonObjectThrows() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "flat_object").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", "string_value")), docInput)
+        );
+        assertThat(e.getCause().getMessage(), org.hamcrest.Matchers.containsString("unexpected token"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNestedObject() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "flat_object").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        String json = "{\"field\":{\"a\":\"1\",\"b\":\"2\"}}";
+        mapper.parse(source(json), docInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields();
+        assertEquals(2, captured.size());
+        Set<Object> values = Set.of(captured.get(0).getValue(), captured.get(1).getValue());
+        assertTrue(values.contains(new BytesRef("field.a")));
+        assertTrue(values.contains(new BytesRef("field.b")));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatWithNullFieldsInObject() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "flat_object").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        String json = "{\"field\":{\"name\":null,\"age\":3}}";
+        mapper.parse(source(json), docInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields();
+        assertEquals(1, captured.size());
+        assertEquals(new BytesRef("field.age"), captured.get(0).getValue());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDeepNestedObject() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "flat_object").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        String json = "{\"field\":{\"a\":{\"b\":\"val\"}}}";
+        mapper.parse(source(json), docInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields();
+        assertTrue(captured.stream().anyMatch(e -> e.getValue().equals(new BytesRef("field.a"))));
+        assertTrue(captured.stream().anyMatch(e -> e.getValue().equals(new BytesRef("field.b"))));
+    }
+
+    public void testDefaultsDoNotUseDocumentInput() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        String json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field("foo", "bar")
+            .endObject()
+            .endObject()
+            .toString();
+        ParsedDocument doc = mapper.parse(source(json));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+    }
 }

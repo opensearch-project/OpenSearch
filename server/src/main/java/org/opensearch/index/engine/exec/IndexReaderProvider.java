@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -60,5 +61,7 @@ public interface IndexReaderProvider {
          * @return the format-specific reader object
          */
         Object reader(DataFormat format);
+
+        <R> R getReader(DataFormat format, Class<R> readerType);
     }
 }

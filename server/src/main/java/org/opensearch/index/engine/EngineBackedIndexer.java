@@ -9,13 +9,15 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.merge.MergeStats;
@@ -382,9 +384,9 @@ public class EngineBackedIndexer implements Indexer {
     @ExperimentalApi
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
-        // TODO: Replace with a SegmentInfosCatalogSnapshot
-        // For now we throw an exception as this is not yet implemented
-        throw new UnsupportedOperationException("acquireSnapshot is not supported in EngineBackedIndexer");
+        GatedCloseable<SegmentInfos> segmentInfosRef = engine.getSegmentInfosSnapshot();
+        SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfosRef.get());
+        return new GatedCloseable<>(snapshot, segmentInfosRef::close);
     }
 
     @Override

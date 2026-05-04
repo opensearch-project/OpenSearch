@@ -1,0 +1,21 @@
+[package]
+name = "opensearch-native-lib"
+version = "0.1.0"
+edition = "2021"
+description = "Single cdylib linking all native modules"
+license = "Apache-2.0"
+
+[lib]
+name = "opensearch_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+opensearch-datafusion = { path = "../../../../plugins/analytics-backend-datafusion/rust" }
+opensearch-parquet-format = { path = "../../../../plugins/parquet-data-format/src/main/rust" }
+opensearch-repository-s3 = { workspace = true }
+opensearch-repository-gcs = { workspace = true }
+opensearch-repository-azure = { workspace = true }
+opensearch-repository-fs = { workspace = true }
+native-bridge-common = { workspace = true }
+opensearch-tiered-storage = { path = "../../../../libs/tiered-storage/src/main/rust" }
+mimalloc = { workspace = true }

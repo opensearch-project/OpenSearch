@@ -6,8 +6,8 @@
  * compatible open source license.
  */
 
-use parquet_dataformat_jni::test_utils::*;
-use parquet_dataformat_jni::writer::NativeParquetWriter;
+use opensearch_parquet_format::test_utils::*;
+use opensearch_parquet_format::writer::NativeParquetWriter;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -25,17 +25,16 @@ fn test_complete_writer_lifecycle() {
     }
 
     let metadata = close_writer_and_get_metadata(&filename, schema_ptr);
-    assert_eq!(metadata.num_rows, 9); // 3 batches × 3 rows
-    assert!(metadata.version > 0);
-    assert_eq!(metadata.schema.len(), 3); // root + 2 fields
+    assert_eq!(metadata.metadata.file_metadata().num_rows(), 9); // 3 batches × 3 rows
+    assert!(metadata.metadata.file_metadata().version() > 0);
 
     assert!(NativeParquetWriter::sync_to_disk(filename.clone()).is_ok());
     assert!(file_path.exists());
     assert!(file_path.metadata().unwrap().len() > 0);
 
     let read_metadata = NativeParquetWriter::get_file_metadata(filename.clone()).unwrap();
-    assert_eq!(read_metadata.num_rows(), metadata.num_rows);
-    assert_eq!(read_metadata.version(), metadata.version);
+    assert_eq!(read_metadata.num_rows(), metadata.metadata.file_metadata().num_rows());
+    assert_eq!(read_metadata.version(), metadata.metadata.file_metadata().version());
 }
 
 #[test]
@@ -51,7 +50,7 @@ fn test_concurrent_writer_creation() {
             let file_path = temp_dir_path.join(format!("concurrent_{}.parquet", i));
             let filename = file_path.to_string_lossy().to_string();
             let (_schema, schema_ptr) = create_test_ffi_schema();
-            if NativeParquetWriter::create_writer(filename.clone(), schema_ptr).is_ok() {
+            if NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![]).is_ok() {
                 success_count.fetch_add(1, Ordering::SeqCst);
                 let _ = NativeParquetWriter::finalize_writer(filename);
             }
@@ -174,14 +173,14 @@ fn test_concurrent_complete_writer_lifecycle() {
             let filename = file_path.to_string_lossy().to_string();
             let (_schema, schema_ptr) = create_test_ffi_schema();
 
-            if NativeParquetWriter::create_writer(filename.clone(), schema_ptr).is_ok() {
+            if NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![]).is_ok() {
                 let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
                 let write_ok = NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr).is_ok();
                 cleanup_ffi_data(array_ptr, data_schema_ptr);
 
                 if write_ok {
                     if let Ok(Some(metadata)) = NativeParquetWriter::finalize_writer(filename.clone()) {
-                        if metadata.num_rows == 3
+                        if metadata.metadata.file_metadata().num_rows() == 3
                             && NativeParquetWriter::sync_to_disk(filename.clone()).is_ok()
                             && file_path.exists()
                         {
