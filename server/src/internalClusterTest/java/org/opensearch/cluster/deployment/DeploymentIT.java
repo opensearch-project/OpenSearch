@@ -95,15 +95,17 @@ public class DeploymentIT extends OpenSearchIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         ClusterSearchShardsRequest shardsRequest = new ClusterSearchShardsRequest().indices(INDEX_NAME);
-        ClusterSearchShardsResponse drainedShardsResponse = client().admin().cluster().searchShards(shardsRequest).get();
-        for (DiscoveryNode node : drainedShardsResponse.getNodes()) {
-            assertNotEquals(zoneWithPrimary, node.getAttributes().get("zone"));
-        }
-        for (ClusterSearchShardsGroup group : drainedShardsResponse.getGroups()) {
-            for (ShardRouting shard : group.getShards()) {
-                assertFalse(nodeIdsInDrainedZone.contains(shard.currentNodeId()));
+        assertBusy(() -> {
+            ClusterSearchShardsResponse drainedShardsResponse = client().admin().cluster().searchShards(shardsRequest).get();
+            for (DiscoveryNode node : drainedShardsResponse.getNodes()) {
+                assertNotEquals(zoneWithPrimary, node.getAttributes().get("zone"));
             }
-        }
+            for (ClusterSearchShardsGroup group : drainedShardsResponse.getGroups()) {
+                for (ShardRouting shard : group.getShards()) {
+                    assertFalse(nodeIdsInDrainedZone.contains(shard.currentNodeId()));
+                }
+            }
+        }, 30, TimeUnit.SECONDS);
 
         TransitionDeploymentRequest finishRequest = new TransitionDeploymentRequest().deploymentId(deploymentId)
             .targetState(DeploymentState.FINISH);

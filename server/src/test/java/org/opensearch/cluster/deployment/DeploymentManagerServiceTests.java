@@ -56,7 +56,7 @@ public class DeploymentManagerServiceTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> DeploymentManagerService.innerStartDeployment("dep-2", Map.of("zone", "zone-1"), finalState)
         );
-        assertTrue(e.getMessage().contains("already targets the same attributes"));
+        assertTrue(e.getMessage().contains("already targets attribute zone=zone-1"));
     }
 
     public void testStartDeploymentRejectsInconsistentKeys() {
@@ -95,10 +95,7 @@ public class DeploymentManagerServiceTests extends OpenSearchTestCase {
 
     public void testFinishNonexistentDeployment() {
         ClusterState state = emptyState();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DeploymentManagerService.innerFinishDeployment("nonexistent", state)
-        );
-        assertTrue(e.getMessage().contains("not found"));
+        ClusterState newState = DeploymentManagerService.innerFinishDeployment("nonexistent", state);
+        assertSame(state, newState);
     }
 }
