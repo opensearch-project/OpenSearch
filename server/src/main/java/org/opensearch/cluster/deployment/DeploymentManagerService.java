@@ -97,7 +97,6 @@ public class DeploymentManagerService {
             @Override
             public void onAllNodesAcked(Exception e) {
                 super.onAllNodesAcked(e);
-                rerouteService.reroute("deployment finished", Priority.HIGH, ActionListener.wrap(() -> {}));
             }
         });
     }
@@ -125,7 +124,8 @@ public class DeploymentManagerService {
     public static ClusterState innerFinishDeployment(String deploymentId, ClusterState currentState) {
         DeploymentMetadata currentMetadata = currentState.metadata().custom(DeploymentMetadata.TYPE);
         if (currentMetadata == null || !currentMetadata.getDeployments().containsKey(deploymentId)) {
-            throw new IllegalArgumentException("deployment [" + deploymentId + "] not found");
+            // Stopping a non-existent deployment should be a no-op
+            return currentState;
         }
 
         Map<String, Deployment> deployments = new HashMap<>(currentMetadata.getDeployments());
@@ -186,12 +186,26 @@ public class DeploymentManagerService {
     ) {
         for (Map.Entry<String, Deployment> entry : existingDeployments.entrySet()) {
             if (entry.getKey().equals(newDeploymentId)) {
-                continue;
-            }
-            if (entry.getValue().getNodeAttributes().equals(newAttributes)) {
-                throw new IllegalArgumentException(
-                    "deployment [" + entry.getKey() + "] already targets the same attributes " + newAttributes
-                );
+                // We allow idempotent application of start deployment.
+                Deployment existingDeploymentWithSameId = entry.getValue();
+                if (existingDeploymentWithSameId.getState() != DeploymentState.DRAIN) {
+                    throw new IllegalArgumentException(
+                        "deployment [" + entry.getKey() + "] is already in state " + existingDeploymentWithSameId.getState()
+                    );
+                }
+                if (existingDeploymentWithSameId.getNodeAttributes().equals(newAttributes) == false) {
+                    throw new IllegalArgumentException(
+                        "deployment [" + entry.getKey() + "] already targets attributes " + existingDeploymentWithSameId.getNodeAttributes()
+                    );
+                }
+            } else {
+                for (Map.Entry<String, String> nodeAttr : entry.getValue().getNodeAttributes().entrySet()) {
+                    if (nodeAttr.getValue().equals(newAttributes.get(nodeAttr.getKey()))) {
+                        throw new IllegalArgumentException(
+                            "deployment [" + entry.getKey() + "] already targets attribute " + nodeAttr.getKey() + "=" + nodeAttr.getValue()
+                        );
+                    }
+                }
             }
         }
     }

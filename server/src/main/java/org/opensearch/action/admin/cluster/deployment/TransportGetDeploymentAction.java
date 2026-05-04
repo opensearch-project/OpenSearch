@@ -12,6 +12,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.deployment.Deployment;
 import org.opensearch.cluster.deployment.DeploymentStateService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -88,6 +89,6 @@ public class TransportGetDeploymentAction extends TransportClusterManagerNodeRea
 
     @Override
     protected ClusterBlockException checkBlock(GetDeploymentRequest request, ClusterState state) {
-        return null;
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }
