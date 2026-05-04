@@ -10,10 +10,12 @@ package org.opensearch.plugin.hive;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.nio.charset.StandardCharsets;
+
 public class HiveMessageTests extends OpenSearchTestCase {
 
     public void testConstructorAndGetters() {
-        byte[] payload = "{\"name\":\"test\"}".getBytes();
+        byte[] payload = "{\"name\":\"test\"}".getBytes(StandardCharsets.UTF_8);
         HiveMessage message = new HiveMessage(payload, 1000L);
 
         assertArrayEquals(payload, message.getPayload());
@@ -21,7 +23,7 @@ public class HiveMessageTests extends OpenSearchTestCase {
     }
 
     public void testNullTimestamp() {
-        byte[] payload = "{\"name\":\"test\"}".getBytes();
+        byte[] payload = "{\"name\":\"test\"}".getBytes(StandardCharsets.UTF_8);
         HiveMessage message = new HiveMessage(payload, null);
 
         assertArrayEquals(payload, message.getPayload());
