@@ -20,6 +20,7 @@ public class QueryRegistryFactory {
         QueryRegistry registry = new QueryRegistry();
         registry.register(new TermQueryTranslator());
         registry.register(new MatchAllQueryTranslator());
+        registry.register(new RegexpQueryTranslator());
         // TODO: add other query translators
         return registry;
     }

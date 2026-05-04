@@ -41,6 +41,12 @@ public class DslQueryIT extends DslIntegTestBase {
         assertOk(search(new SearchSourceBuilder().query(QueryBuilders.wildcardQuery("name", "lap*"))));
     }
 
+    public void testRegexpQueryWithUnresolvedNode() {
+        createTestIndex();
+        // Regexp query is not converted to standard Rex — wraps in UnresolvedQueryCall.
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.regexpQuery("name", "lap.*"))));
+    }
+
     public void testFailsForNonexistentIndex() {
         expectThrows(
             Exception.class,
