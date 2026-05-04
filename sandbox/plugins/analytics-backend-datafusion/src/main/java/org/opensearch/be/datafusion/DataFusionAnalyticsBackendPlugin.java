@@ -67,7 +67,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     // here only after verifying the function deserializes through Substrait isthmus into a plan
     // DataFusion's native runtime can execute (see DataFusionFragmentConvertor for the conversion
     // path). COALESCE is the lowering target of PPL `fillnull`.
-    private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(ScalarFunction.COALESCE);
+    private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(ScalarFunction.COALESCE, ScalarFunction.CEIL);
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
