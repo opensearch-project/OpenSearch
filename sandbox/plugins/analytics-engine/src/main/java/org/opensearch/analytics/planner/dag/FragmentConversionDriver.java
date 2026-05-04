@@ -222,20 +222,27 @@ public class FragmentConversionDriver {
             RelNode strippedNode = openSearchNode.stripAnnotations(strippedInputs, resolver);
 
             if (!finalAggConverted) {
-                // First OpenSearchRelNode above ExchangeReducer = final agg
-                // Check if child is ExchangeReducer — if so, this is the final agg node
-                boolean childIsExchangeReducer = !node.getInputs().isEmpty()
-                    && node.getInputs().getFirst() instanceof OpenSearchExchangeReducer;
-                if (childIsExchangeReducer) {
-                    // Strip ExchangeReducer, keep StageInputScan as leaf for schema
-                    RelNode stageInputScan = strip(node.getInputs().getFirst().getInputs().getFirst(), delegationBytes);
-                    List<RelNode> finalAggInputs = List.of(stageInputScan);
+                // First OpenSearchRelNode whose ALL inputs are ExchangeReducers is treated as the
+                // boundary between the coordinator-side fragment and the data-node child stages.
+                // For single-input shapes (Sort/Project/Aggregate over a partial agg) this is the
+                // final-aggregate operator; for multi-input shapes (Union) every branch is itself
+                // an ER → StageInputScan, and the entire Union+ER subtree is converted as one
+                // fragment so all branches end up in the same Substrait plan reading from their
+                // respective input partitions.
+                boolean allChildrenAreExchangeReducer = !node.getInputs().isEmpty()
+                    && node.getInputs().stream().allMatch(input -> input instanceof OpenSearchExchangeReducer);
+                if (allChildrenAreExchangeReducer) {
+                    List<RelNode> finalAggInputs = new ArrayList<>(node.getInputs().size());
+                    for (RelNode input : node.getInputs()) {
+                        // Skip the ER, keep StageInputScan below it as the leaf for schema inference.
+                        finalAggInputs.add(strip(input.getInputs().getFirst(), delegationBytes));
+                    }
                     RelNode finalAggFragment = openSearchNode.stripAnnotations(finalAggInputs, resolver);
                     return convertor.convertFinalAggFragment(finalAggFragment);
                 }
             }
 
-            // Operator above final agg — convert child first, then attach
+            // Operator above the final-fragment boundary — convert child first, then attach.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }

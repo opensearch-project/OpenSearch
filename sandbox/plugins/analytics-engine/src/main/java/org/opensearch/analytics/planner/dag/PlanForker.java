@@ -73,9 +73,39 @@ public class PlanForker {
             return results;
         }
 
-        // TODO: multi-input operators (joins) — each side is typically a separate stage
-        // connected via StageInputScan, so this path may not be needed in practice.
-        throw new UnsupportedOperationException("Multi-input plan forking not yet supported for: " + node.getClass().getSimpleName());
+        // Multi-input: take the first alternative from each child. With a single backend
+        // (pure DataFusion), each child has exactly one alternative anyway. For correctness
+        // we require all children to agree on the chosen backend — a multi-input operator
+        // cannot straddle backends within a single stage.
+        // TODO: when multi-backend pipelines are added, fan out the Cartesian product of
+        // child alternatives and prune by backend agreement.
+        List<RelNode> resolvedChildren = new ArrayList<>(childAlternativeSets.size());
+        String agreedBackend = null;
+        for (List<Resolved> childAlts : childAlternativeSets) {
+            if (childAlts.isEmpty()) {
+                throw new IllegalStateException(
+                    "Multi-input child of [" + node.getClass().getSimpleName() + "] produced no plan alternatives"
+                );
+            }
+            Resolved childAlt = childAlts.getFirst();
+            resolvedChildren.add(childAlt.node);
+            if (agreedBackend == null) {
+                agreedBackend = childAlt.chosenBackend;
+            } else if (childAlt.chosenBackend != null
+                && !childAlt.chosenBackend.isEmpty()
+                && !childAlt.chosenBackend.equals(agreedBackend)) {
+                throw new IllegalStateException(
+                    "Multi-input operator ["
+                        + node.getClass().getSimpleName()
+                        + "] requires all children to share a backend; got ["
+                        + agreedBackend
+                        + "] vs ["
+                        + childAlt.chosenBackend
+                        + "]"
+                );
+            }
+        }
+        return resolveOperator(node, resolvedChildren, agreedBackend);
     }
 
     private static List<Resolved> resolveOperator(RelNode node, List<RelNode> children, String childBackend) {

@@ -44,9 +44,18 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
 
     private final List<ArrowArray> arrays = new ArrayList<>();
     private final List<ArrowSchema> schemas = new ArrayList<>();
+    private final byte[] schemaIpc;
 
     public DatafusionMemtableReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         super(ctx, runtimeHandle);
+        if (childInputs.size() != 1) {
+            throw new IllegalStateException(
+                "DatafusionMemtableReduceSink supports a single input only; got "
+                    + childInputs.size()
+                    + " — switch to streaming mode (DatafusionReduceSink) for multi-input shapes"
+            );
+        }
+        this.schemaIpc = childInputs.values().iterator().next();
     }
 
     @Override
@@ -81,7 +90,8 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
                 arrayPtrs[i] = arrays.get(i).memoryAddress();
                 schemaPtrs[i] = schemas.get(i).memoryAddress();
             }
-            NativeBridge.registerMemtable(session.getPointer(), INPUT_ID, schemaIpc, arrayPtrs, schemaPtrs);
+            int singleChildStageId = childInputs.keySet().iterator().next();
+            NativeBridge.registerMemtable(session.getPointer(), inputIdFor(singleChildStageId), schemaIpc, arrayPtrs, schemaPtrs);
 
             streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
             try (StreamHandle outStream = new StreamHandle(streamPtr, runtimeHandle)) {

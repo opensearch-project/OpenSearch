@@ -50,6 +50,7 @@ import io.substrait.plan.Plan;
 import io.substrait.plan.PlanProtoConverter;
 import io.substrait.plan.ProtoPlanConverter;
 import io.substrait.relation.Aggregate;
+import io.substrait.relation.Fetch;
 import io.substrait.relation.Filter;
 import io.substrait.relation.NamedScan;
 import io.substrait.relation.Project;
@@ -119,7 +120,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     public byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
         LOGGER.debug("Attaching generic fragment [{}] on top of {} inner bytes", fragment.getClass().getSimpleName(), innerBytes.length);
         Plan inner = decodePlan(innerBytes);
-        Rel wrapper = convertStandalone(fragment);
+        // Rewrite OpenSearchStageInputScans before standalone conversion so the isthmus
+        // visitor can traverse the fragment without choking on planner-internal leaves.
+        // The standalone conversion's children are discarded by rewire(...) anyway, but
+        // the visitor still walks them top-down to build the wrapper rel.
+        RelNode rewritten = rewriteStageInputScans(fragment);
+        Rel wrapper = convertStandalone(rewritten);
         return serializePlan(rewire(inner, wrapper));
     }
 
@@ -185,6 +191,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         if (wrapper instanceof Project project) {
             return Project.builder().from(project).input(newInput).build();
         }
+        if (wrapper instanceof Fetch fetch) {
+            // SystemLimit + LogicalSort with offset/fetch lower to a Substrait Fetch rel.
+            // Used by the implicit query-size limit at the top of every analytics-engine plan
+            // and by user-level `head N` clauses; both arrive here when attached above a Union.
+            return Fetch.builder().from(fetch).input(newInput).build();
+        }
         throw new UnsupportedOperationException(
             "Cannot attach-on-top a Substrait Rel of type " + wrapper.getClass().getSimpleName() + " — no single-input rewire defined"
         );
@@ -215,18 +227,23 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /**
      * Rewrites every {@link OpenSearchStageInputScan} in the RelNode tree to a plain
-     * Calcite {@link TableScan} whose qualified name matches what
-     * {@link DatafusionReduceSink#INPUT_ID} registers on the native session.
-     * The isthmus visitor then emits a {@link NamedScan} with that name.
+     * Calcite {@link TableScan} whose qualified name matches what the matching
+     * {@link DatafusionReduceSink} input partition registers on the native session.
      *
-     * <p>Single-input simplification: every {@link OpenSearchStageInputScan} maps to
-     * the same {@code "input-0"} table id. Multi-input / join shapes will require
-     * carrying per-input ids through {@link io.substrait.relation.NamedScan} once
-     * implemented.
+     * <p>The table id is {@code "input-<childStageId>"}, mirroring
+     * {@code AbstractDatafusionReduceSink.inputIdFor}. For a single-input fragment the
+     * sole stage id (typically 0) reproduces the conventional {@code "input-0"} name; for
+     * multi-input shapes (Union) each branch refers to its own child stage id and the
+     * isthmus visitor emits one {@link NamedScan} per branch.
      */
     private static RelNode rewriteStageInputScans(RelNode node) {
         if (node instanceof OpenSearchStageInputScan scan) {
-            return new StageInputTableScan(scan.getCluster(), scan.getTraitSet(), DatafusionReduceSink.INPUT_ID, scan.getRowType());
+            return new StageInputTableScan(
+                scan.getCluster(),
+                scan.getTraitSet(),
+                "input-" + scan.getChildStageId(),
+                scan.getRowType()
+            );
         }
         List<RelNode> newInputs = new ArrayList<>(node.getInputs().size());
         boolean changed = false;
