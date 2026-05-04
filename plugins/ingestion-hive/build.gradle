@@ -146,6 +146,11 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Werror'
 }
 
+tasks.register('generateThrift', Exec) {
+  description = 'Regenerate Thrift client code from IDL (requires Docker)'
+  commandLine './bin/generate-thrift.sh'
+}
+
 // Generated Thrift code lacks Javadoc; exclude from checks (same as ingestion-kafka)
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
   enabled = false
