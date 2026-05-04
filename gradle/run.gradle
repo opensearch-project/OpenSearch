@@ -63,6 +63,8 @@ testClusters {
           plugin(':plugins:' + p)
         } else if (project.findProject(':sandbox:plugins:' + p) != null) {
           plugin(':sandbox:plugins:' + p)
+        } else if (project.findProject(':example-plugins:' + p) != null) {
+          plugin(':example-plugins:' + p)
         } else {
           // attempt to fetch it from maven
           project.repositories.mavenLocal()

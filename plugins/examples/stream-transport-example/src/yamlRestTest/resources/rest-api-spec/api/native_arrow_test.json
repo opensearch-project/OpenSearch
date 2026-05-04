@@ -1,0 +1,29 @@
+{
+  "native_arrow_test": {
+    "documentation": {
+      "description": "Tests native Arrow stream transport"
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_native_arrow_test",
+          "methods": ["GET"]
+        }
+      ]
+    },
+    "params": {
+      "batches": {
+        "type": "int",
+        "description": "Number of batches to stream",
+        "default": 2
+      },
+      "rows": {
+        "type": "int",
+        "description": "Number of rows per batch",
+        "default": 3
+      }
+    },
+    "body": null
+  }
+}
