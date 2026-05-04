@@ -54,4 +54,14 @@ public interface DataFormatPlugin {
     ) {
         return Map.of();
     }
+
+    /**
+     * Returns the delete execution engine for this plugin, or {@code null} if not supported.
+     * Only {@link DeleteDataFormatPlugin} implementations override this.
+     *
+     * @return the delete execution engine, or null
+     */
+    default DeleteExecutionEngine<?> deleteEngine() {
+        return null;
+    }
 }

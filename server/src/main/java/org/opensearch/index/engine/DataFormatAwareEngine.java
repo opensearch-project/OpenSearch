@@ -131,7 +131,7 @@ public class DataFormatAwareEngine implements Indexer {
     private final Store store;
 
     private final IndexingExecutionEngine indexingExecutionEngine;
-    private final DeleteExecutionEngine deleteExecutionEngine;
+    private final DeleteExecutionEngine<?> deleteExecutionEngine;
     private final IndexingStrategyPlanner indexingStrategyPlanner;
     private final LockablePool<Writer<?>> writerPool;
     private final AtomicLong writerGenerationCounter;
@@ -248,16 +248,12 @@ public class DataFormatAwareEngine implements Indexer {
 
             this.deleteExecutionEngine = registry.getDeleteEngine();
             this.writerGenerationCounter = new AtomicLong(1L);// committer.getCommitStats().getGeneration());
-            this.writerPool = new LockablePool<>(
-                () -> {
-                    long gen = writerGenerationCounter.getAndIncrement();
-                    Writer<?> writer = indexingExecutionEngine.createWriter(gen);
-                    deleteExecutionEngine.createDeleter(writer, gen);
-                    return writer;
-                },
-                LinkedList::new,
-                Runtime.getRuntime().availableProcessors()
-            );
+            this.writerPool = new LockablePool<>(() -> {
+                long gen = writerGenerationCounter.getAndIncrement();
+                Writer<?> writer = indexingExecutionEngine.createWriter(gen);
+                deleteExecutionEngine.createDeleter(writer);
+                return writer;
+            }, LinkedList::new, Runtime.getRuntime().availableProcessors());
             // Create Reader managers
             // We will pass IndexStoreProvider to this, which would contain store
             // and any index specific attributes useful for reads.

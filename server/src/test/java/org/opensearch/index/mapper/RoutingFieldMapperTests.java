@@ -39,6 +39,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -52,7 +53,7 @@ public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MockDataFormatPlugin.class, MockCommitterEnginePlugin.class);
+        return List.of(MockDataFormatPlugin.class, MockCommitterEnginePlugin.class, MockDeleteDataFormatPlugin.class);
     }
 
     public void testRoutingMapper() throws Exception {

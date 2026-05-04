@@ -28,6 +28,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -47,7 +48,12 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, MockDataFormatPlugin.class, MockCommitterEnginePlugin.class);
+        return pluginList(
+            InternalSettingsPlugin.class,
+            MockDataFormatPlugin.class,
+            MockCommitterEnginePlugin.class,
+            MockDeleteDataFormatPlugin.class
+        );
     }
 
     @Before

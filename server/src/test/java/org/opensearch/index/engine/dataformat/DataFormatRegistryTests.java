@@ -15,6 +15,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.mapper.MapperService;
@@ -314,5 +315,31 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(indexSettings, unregistered);
         assertTrue(descriptors.isEmpty());
+    }
+
+    public void testDeletePluginRegistration() {
+        MockDeleteDataFormatPlugin deletePlugin = new MockDeleteDataFormatPlugin();
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(deletePlugin));
+        when(pluginsService.filterPlugins(DeleteDataFormatPlugin.class)).thenReturn(List.of(deletePlugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        // getDeleteEngine should return a non-null engine
+        DeleteExecutionEngine<?> deleteEngine = registry.getDeleteEngine();
+        assertNotNull(deleteEngine);
+    }
+
+    public void testDuplicateDeletePluginsThrows() {
+        MockDeleteDataFormatPlugin deletePlugin1 = new MockDeleteDataFormatPlugin();
+        MockDeleteDataFormatPlugin deletePlugin2 = new MockDeleteDataFormatPlugin();
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(deletePlugin1, deletePlugin2));
+        when(pluginsService.filterPlugins(DeleteDataFormatPlugin.class)).thenReturn(List.of(deletePlugin1, deletePlugin2));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new DataFormatRegistry(pluginsService));
+        assertTrue(e.getMessage().contains("Only one DeleteDataFormatPlugin allowed"));
     }
 }

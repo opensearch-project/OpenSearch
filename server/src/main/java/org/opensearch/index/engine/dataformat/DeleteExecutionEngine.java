@@ -19,21 +19,19 @@ import java.io.IOException;
  * format-specific delete tracking (e.g., live-doc bitsets for parquet files).
  *
  * @param <T> the data format type
- * @param <P> the document input type
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface DeleteExecutionEngine<T extends DataFormat, P extends DocumentInput<?>> extends Closeable {
+public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
 
     /**
      * Creates a new deleter paired with the given writer.
      * The deleter tracks deletes for documents managed by this writer.
      *
      * @param writer the writer this deleter is paired with
-     * @param writerGeneration the generation number shared with the writer
      * @return a new deleter instance
      */
-    Deleter<P> createDeleter(Writer<P> writer, long writerGeneration);
+    Deleter createDeleter(Writer<?> writer);
 
     /**
      * Refreshes delete state, making buffered deletes visible to readers.
@@ -50,4 +48,12 @@ public interface DeleteExecutionEngine<T extends DataFormat, P extends DocumentI
      * @return the data format
      */
     T getDataFormat();
+
+    /**
+     * Returns the deleter paired with the given writer.
+     *
+     * @param writer the writer whose deleter to retrieve
+     * @return the deleter for the given writer, or {@code null} if no deleter exists
+     */
+    Deleter getDeleter(Writer<?> writer);
 }

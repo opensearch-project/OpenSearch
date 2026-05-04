@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.apache.lucene.index.Term;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.queue.Lockable;
 
@@ -19,11 +20,10 @@ import java.io.IOException;
  * {@link Writer} and shares its generation. Implements {@link Lockable} for thread-safe
  * pooling via {@link org.opensearch.common.queue.LockablePool}.
  *
- * @param <P> the document input type
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface Deleter<P extends DocumentInput<?>> extends Closeable, Lockable {
+public interface Deleter extends Closeable, Lockable {
     /**
      * Returns the generation number of this deleter, matching its paired writer.
      *
@@ -34,9 +34,10 @@ public interface Deleter<P extends DocumentInput<?>> extends Closeable, Lockable
     /**
      * Deletes a document from the underlying format-specific storage.
      *
-     * @param d the document input identifying the document to delete
+     * @param uid the term identifying the document in lucene
+     * @param rowId the row ID of the document for parquet
      * @return the result of the delete operation
      * @throws IOException if an I/O error occurs
      */
-    DeleteResult deleteDoc(P d) throws IOException;
+    DeleteResult deleteDoc(Term uid, Long rowId) throws IOException;
 }

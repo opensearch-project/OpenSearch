@@ -8,11 +8,13 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.apache.lucene.index.Term;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.queue.Lockable;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Interface for writing documents to a data format.
@@ -53,4 +55,26 @@ public interface Writer<P extends DocumentInput<?>> extends Closeable, Lockable 
      * @return the generation number
      */
     long generation();
+
+    /**
+     * Finds a child writer whose data format matches the given format name.
+     * Composite writers override this to search their delegates.
+     *
+     * @param formatName the data format name to match (e.g. "lucene")
+     * @return the matching writer, or empty if not found or not composite
+     */
+    default Optional<Writer<?>> findWriterByFormat(String formatName) {
+        return Optional.empty();
+    }
+
+    /**
+     * Deletes all documents matching the given term from this writer.
+     * Lucene-backed writers override this to delegate to {@code IndexWriter.deleteDocuments}.
+     *
+     * @param uid the term identifying the document(s) to delete
+     * @throws IOException if a low-level I/O error occurs
+     */
+    default void deleteDocument(Term uid) throws IOException {
+        throw new UnsupportedOperationException("deleteDocument not supported by " + getClass().getName());
+    }
 }

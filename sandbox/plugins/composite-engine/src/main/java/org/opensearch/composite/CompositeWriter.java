@@ -40,7 +40,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @opensearch.experimental
  */
 @ExperimentalApi
-class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
+public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
 
     private static final Logger logger = LogManager.getLogger(CompositeWriter.class);
 
@@ -194,6 +194,20 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
         for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
             writer.close();
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     * Searches primary and secondary formats by {@link DataFormat#name()}.
+     */
+    @Override
+    public Optional<Writer<?>> findWriterByFormat(String formatName) {
+        if (primaryFormat.name().equals(formatName)) return Optional.of(primaryWriter);
+        return secondaryWritersByFormat.entrySet()
+            .stream()
+            .filter(e -> e.getKey().name().equals(formatName))
+            .<Writer<?>>map(Map.Entry::getValue)
+            .findFirst();
     }
 
     /**

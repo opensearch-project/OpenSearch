@@ -42,6 +42,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteDataFormatPlugin;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperException;
@@ -63,7 +64,12 @@ import static org.hamcrest.Matchers.containsString;
 public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(ParentJoinModulePlugin.class, MockDataFormatPlugin.class, MockCommitterEnginePlugin.class);
+        return List.of(
+            ParentJoinModulePlugin.class,
+            MockDataFormatPlugin.class,
+            MockCommitterEnginePlugin.class,
+            MockDeleteDataFormatPlugin.class
+        );
     }
 
     public void testSingleLevel() throws Exception {

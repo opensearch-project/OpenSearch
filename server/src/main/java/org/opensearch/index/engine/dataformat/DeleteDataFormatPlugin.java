@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.store.FormatChecksumStrategy;
 
 /**
  * Plugin interface for providing custom delete data format implementations.
@@ -19,14 +18,14 @@ import org.opensearch.index.store.FormatChecksumStrategy;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface DeleteDataFormatPlugin extends DataFormatPlugin{
+public interface DeleteDataFormatPlugin extends DataFormatPlugin {
 
     /**
      * Creates the delete execution engine for the data format. This should be instantiated per shard.
      *
      * @return the delete execution engine instance
      */
-    DeleteExecutionEngine<?, ?> deleteEngine();
+    DeleteExecutionEngine<?> deleteEngine();
 
     /**
      * Not applicable for delete-only plugins. Always throws {@link UnsupportedOperationException}.
@@ -34,7 +33,7 @@ public interface DeleteDataFormatPlugin extends DataFormatPlugin{
      * @throws UnsupportedOperationException always
      */
     @Override
-    default IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig s, FormatChecksumStrategy c) {
+    default IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
         throw new UnsupportedOperationException("Delete plugins do not provide an indexing engine");
     }
 }

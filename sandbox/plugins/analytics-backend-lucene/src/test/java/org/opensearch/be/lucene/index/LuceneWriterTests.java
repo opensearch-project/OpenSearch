@@ -259,6 +259,59 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         }
     }
 
+    public void testDeleteDocumentRemovesDocFromSegment() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType keywordField = mockKeywordField("_id");
+        MappedFieldType textField = mockTextField("content");
+
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+            for (int i = 0; i < 3; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(keywordField, "doc" + i);
+                input.addField(textField, "content " + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                writer.addDoc(input);
+            }
+
+            // Delete the middle document
+            writer.deleteDocument(new Term("_id", "doc1"));
+
+            FileInfos fileInfos = writer.flush();
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
+                // 3 docs written, 1 deleted = 2 live docs
+                assertThat(reader.numDocs(), equalTo(2));
+                IndexSearcher searcher = new IndexSearcher(reader);
+                assertThat(searcher.count(new TermQuery(new Term("_id", "doc0"))), equalTo(1));
+                assertThat(searcher.count(new TermQuery(new Term("_id", "doc1"))), equalTo(0));
+                assertThat(searcher.count(new TermQuery(new Term("_id", "doc2"))), equalTo(1));
+            }
+        }
+    }
+
+    public void testDeleteNonExistentDocIsNoOp() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType textField = mockTextField("content");
+
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+            LuceneDocumentInput input = new LuceneDocumentInput();
+            input.addField(textField, "hello");
+            input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+            writer.addDoc(input);
+
+            // Delete a term that doesn't exist — should not throw
+            writer.deleteDocument(new Term("_id", "nonexistent"));
+
+            FileInfos fileInfos = writer.flush();
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.numDocs(), equalTo(1));
+            }
+        }
+    }
+
     public void testMultipleWriterGenerationsProduceIsolatedSegments() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("content");

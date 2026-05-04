@@ -43,6 +43,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteDataFormatPlugin;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -68,7 +69,8 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
             MapperSizePlugin.class,
             InternalSettingsPlugin.class,
             MockDataFormatPlugin.class,
-            MockCommitterEnginePlugin.class
+            MockCommitterEnginePlugin.class,
+            MockDeleteDataFormatPlugin.class
         );
     }
 

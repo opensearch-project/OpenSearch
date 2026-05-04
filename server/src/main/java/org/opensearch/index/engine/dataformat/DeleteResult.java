@@ -8,10 +8,13 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Result of a document delete operation. Sealed to ensure exhaustive handling
  * of success and failure cases.
  */
+@ExperimentalApi
 public sealed interface DeleteResult {
 
     /**

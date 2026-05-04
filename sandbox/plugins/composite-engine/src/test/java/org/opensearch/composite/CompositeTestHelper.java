@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -87,6 +88,47 @@ final class CompositeTestHelper {
         Settings settings = settingsBuilder.build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        return new CompositeIndexingExecutionEngine(indexSettings, null, new StubCommitter(), registry, null, null);
+    }
+
+    /**
+     * Creates a CompositeIndexingExecutionEngine with real DataFormat instances for format-class-based lookups.
+     */
+    static CompositeIndexingExecutionEngine createStubEngineWithFormats(DataFormat primary, DataFormat... secondaries) {
+        Map<String, DataFormat> formats = new HashMap<>();
+        formats.put(primary.name(), primary);
+        for (DataFormat s : secondaries) {
+            formats.put(s.name(), s);
+        }
+
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+        for (Map.Entry<String, DataFormat> entry : formats.entrySet()) {
+            when(registry.format(entry.getKey())).thenReturn(entry.getValue());
+        }
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put("index.composite.primary_data_format", primary.name())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+
+        if (secondaries.length > 0) {
+            String[] names = new String[secondaries.length];
+            for (int i = 0; i < secondaries.length; i++) {
+                names[i] = secondaries[i].name();
+            }
+            settingsBuilder.putList("index.composite.secondary_data_formats", names);
+        }
+
+        Settings settings = settingsBuilder.build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        // Use any() for config since constructor creates real IndexingEngineConfig, eq(format) ensures correct format routing
+        when(registry.getIndexingEngine(any(), eq(primary))).thenAnswer(invocation -> new StubIndexingExecutionEngine(primary));
+        for (DataFormat s : secondaries) {
+            when(registry.getIndexingEngine(any(), eq(s))).thenAnswer(invocation -> new StubIndexingExecutionEngine(s));
+        }
 
         return new CompositeIndexingExecutionEngine(indexSettings, null, new StubCommitter(), registry, null, null);
     }

@@ -28,9 +28,11 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.DeleteDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -92,6 +94,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     private AtomicLong primaryTerm;
     private MockDataFormat mockDataFormat;
     private MockDataFormatPlugin mockPlugin;
+    private MockDeleteDataFormatPlugin mockDeletePlugin;
 
     @Override
     public void setUp() throws Exception {
@@ -100,6 +103,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         primaryTerm = new AtomicLong(randomLongBetween(1, Long.MAX_VALUE));
         mockDataFormat = new MockDataFormat("composite", 100L, Set.of());
         mockPlugin = MockDataFormatPlugin.of(mockDataFormat);
+        mockDeletePlugin = new MockDeleteDataFormatPlugin();
         threadPool = new TestThreadPool(getClass().getName());
         store = createStore();
     }
@@ -214,6 +218,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(
             List.of(new MockSearchBackEndPlugin(List.of(mockDataFormat.name())))
         );
+        when(pluginsService.filterPlugins(DeleteDataFormatPlugin.class)).thenReturn(List.of(mockDeletePlugin));
         return new DataFormatRegistry(pluginsService);
     }
 

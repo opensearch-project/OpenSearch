@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -236,5 +238,25 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             logger.warn("Failed to close directory for generation[{}]: {}", writerGeneration, e);
         }
         IOUtils.rm(tempDirectory);
+    }
+
+    /**
+     * {@inheritDoc}
+     * Returns this writer if the format name matches this writer's data format.
+     */
+    @Override
+    public Optional<Writer<?>> findWriterByFormat(String formatName) {
+        return dataFormat.name().equals(formatName) ? Optional.of(this) : Optional.empty();
+    }
+
+    /**
+     * Deletes all documents containing the given term from this writer's {@link IndexWriter}.
+     *
+     * @param term the {@code _id} term identifying the document(s) to delete
+     * @throws IOException if a low-level I/O error occurs
+     */
+    @Override
+    public void deleteDocument(Term term) throws IOException {
+        indexWriter.deleteDocuments(term);
     }
 }

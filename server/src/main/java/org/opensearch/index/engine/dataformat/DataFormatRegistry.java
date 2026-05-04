@@ -121,7 +121,7 @@ public class DataFormatRegistry {
      *
      * @return the delete execution engine
      */
-    public DeleteExecutionEngine<?, ?> getDeleteEngine(){
+    public DeleteExecutionEngine<?> getDeleteEngine() {
         return this.deleteDataFormatPlugin.deleteEngine();
     }
 
