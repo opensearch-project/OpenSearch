@@ -13,8 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -28,7 +28,7 @@ import java.util.Arrays;
  * Unit tests for BlockIndexInput.
  */
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
-public class BlockIndexInputTests extends LuceneTestCase {
+public class BlockIndexInputTests extends OpenSearchTestCase {
 
     private static final String FILE_NAME = "_1.cfe";
     private static final String BLOCK_FILE_0 = "_1.cfe_block_0";
