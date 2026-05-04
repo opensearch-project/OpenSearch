@@ -1,0 +1,288 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.qa;
+
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Self-contained integration test for PPL {@code append} on the analytics-engine route.
+ *
+ * <p>Mirrors {@code CalcitePPLAppendCommandIT} from the {@code opensearch-project/sql}
+ * repository so that the analytics-engine path can be verified inside core without
+ * cross-plugin dependencies on the SQL plugin. Each test sends a PPL query through
+ * {@code POST /_analytics/ppl} (exposed by the {@code test-ppl-frontend} plugin), which
+ * runs the same {@code UnifiedQueryPlanner} → {@code CalciteRelNodeVisitor} → Substrait
+ * → DataFusion pipeline as the SQL plugin's force-routed analytics path.
+ *
+ * <p>Covers the six Append surface forms that exercise:
+ * <ul>
+ *   <li>two stats branches sorted + truncated by {@code head N}</li>
+ *   <li>cross-index union (a second copy of the same dataset under a different index name)</li>
+ *   <li>shared output column name across branches (no auto-rename)</li>
+ *   <li>{@code | append [ ]} with several empty-subsearch shapes (bare brackets,
+ *       inner stats with no source, {@code | append [ ]} nested inside the subsearch,
+ *       inner {@code | join} whose left side is empty)</li>
+ *   <li>type-incompatibility error path raised in {@code SchemaUnifier}</li>
+ * </ul>
+ *
+ * <p>Provisions the {@code calcs} dataset twice — once into the {@code calcs} index and
+ * once into {@code calcs_alt} — so {@code testAppendDifferentIndex} can union across
+ * indices without pulling in a second dataset. Both indices are parquet-backed via
+ * {@link DatasetProvisioner}; {@link AnalyticsRestTestCase#preserveIndicesUponCompletion()}
+ * keeps them across test methods.
+ */
+public class AppendCommandIT extends AnalyticsRestTestCase {
+
+    private static final Dataset CALCS = new Dataset("calcs", "calcs");
+    private static final Dataset CALCS_ALT = new Dataset("calcs", "calcs_alt");
+
+    private static boolean dataProvisioned = false;
+
+    /**
+     * Lazily provision both calcs indices on first invocation. Must be called inside a
+     * test method (not {@code setUp()}) — {@code OpenSearchRestTestCase}'s static
+     * {@code client()} is not initialized until after {@code @BeforeClass} but is
+     * reliably available inside test bodies. Mirrors the pattern in {@link FillNullCommandIT}.
+     */
+    private void ensureDataProvisioned() throws IOException {
+        if (dataProvisioned == false) {
+            DatasetProvisioner.provision(client(), CALCS);
+            DatasetProvisioner.provision(client(), CALCS_ALT);
+            dataProvisioned = true;
+        }
+    }
+
+    // ── two stats branches → sort → head ────────────────────────────────────────
+
+    public void testAppend() throws IOException {
+        // Branch 1: sum(int0) grouped by str0, sorted by group key for deterministic order.
+        // Branch 2: sum(int1) grouped by str3, sorted by aggregate value.
+        // Union all + head 5 → first 5 rows of the concatenation (3 from branch 1, 2 from branch 2).
+        assertRows(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ source="
+                + CALCS.indexName
+                + " | stats sum(int1) as sum_int1_by_str3 by str3 | sort sum_int1_by_str3 ]"
+                + " | head 5",
+            row(1, "FURNITURE", null, null),
+            row(18, "OFFICE SUPPLIES", null, null),
+            row(49, "TECHNOLOGY", null, null),
+            row(null, null, -14, null),
+            row(null, null, -8, "e")
+        );
+    }
+
+    // ── cross-index union ───────────────────────────────────────────────────────
+
+    public void testAppendDifferentIndex() throws IOException {
+        // Branch 1: calcs grouped by str0. Branch 2: calcs_alt total sum(int1).
+        // Each branch is its own data-node stage (different shards), gathered at the
+        // coordinator and unioned. Sort the first branch for deterministic order.
+        assertRows(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum by str0 | sort str0"
+                + " | append [ source="
+                + CALCS_ALT.indexName
+                + " | stats sum(int1) as alt_sum_int1 ]",
+            row(1, "FURNITURE", null),
+            row(18, "OFFICE SUPPLIES", null),
+            row(49, "TECHNOLOGY", null),
+            row(null, null, -22)
+        );
+    }
+
+    // ── shared output column name across branches (no auto-rename) ──────────────
+
+    public void testAppendWithMergedColumn() throws IOException {
+        // Both branches produce a column named "sum"; SchemaUnifier merges the column
+        // by name. Group columns differ (str0 vs str3) so each row populates one and
+        // leaves the other null.
+        assertRows(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum by str0 | sort str0"
+                + " | append [ source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum by str3 | sort sum ]"
+                + " | head 5",
+            row(1, "FURNITURE", null),
+            row(18, "OFFICE SUPPLIES", null),
+            row(49, "TECHNOLOGY", null),
+            row(32, null, null),
+            row(36, null, "e")
+        );
+    }
+
+    // ── empty subsearch (4 surface forms, all yielding only the first branch) ──
+
+    public void testAppendEmptySearchCommandBareBrackets() throws IOException {
+        // `| append [ ]` — fully empty subsearch.
+        assertEmptyAppendOnlyFirstBranch(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ ]"
+        );
+    }
+
+    public void testAppendEmptySearchCommandStatsWithoutSource() throws IOException {
+        // `| append [ | stats ... ]` — subsearch starts with a pipe, so the implicit
+        // source is the empty Values relation; the inner stats produces no rows.
+        assertEmptyAppendOnlyFirstBranch(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ | stats sum(int1) as alt_sum by bool0 ]"
+        );
+    }
+
+    public void testAppendEmptySearchCommandNestedAppend() throws IOException {
+        // Nested empty append inside a where-only subsearch.
+        assertEmptyAppendOnlyFirstBranch(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ | where int0 > 5 | append [ ] ]"
+        );
+    }
+
+    public void testAppendEmptySearchWithJoin() throws IOException {
+        // Subsearch's join has no left source, so the join produces no rows; the
+        // outer Union ends up with just the first branch's results.
+        assertEmptyAppendOnlyFirstBranch(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
+                + " | append [ | join left=L right=R on L.str0 = R.str0 "
+                + CALCS.indexName
+                + " ]"
+        );
+    }
+
+    // ── type-incompatibility error raised in SchemaUnifier ─────────────────────
+
+    public void testAppendWithConflictTypeColumn() {
+        // Branch 1 produces "sum" as BIGINT; branch 2 casts "sum" to DOUBLE. Schema
+        // unification refuses to merge the diverging types and surfaces a planner
+        // error before execution.
+        assertErrorContains(
+            "source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum by str0 | sort str0"
+                + " | append [ source="
+                + CALCS.indexName
+                + " | stats sum(int0) as sum by str3 | sort sum"
+                + " | eval sum = cast(sum as double) ]"
+                + " | head 5",
+            "Unable to process column 'sum' due to incompatible types"
+        );
+    }
+
+    // ── helpers ─────────────────────────────────────────────────────────────────
+
+    /** Construct an expected row from positional values matching the PPL output column order. */
+    private static List<Object> row(Object... values) {
+        return Arrays.asList(values);
+    }
+
+    /**
+     * The four empty-subsearch shapes share the same expected first-branch-only output;
+     * factored to keep the four test methods readable.
+     */
+    private void assertEmptyAppendOnlyFirstBranch(String ppl) throws IOException {
+        assertRows(ppl, row(1, "FURNITURE"), row(18, "OFFICE SUPPLIES"), row(49, "TECHNOLOGY"));
+    }
+
+    /**
+     * Send a PPL query to {@code POST /_analytics/ppl} and assert the response's
+     * {@code rows} match the expected list element-by-element using a numeric-tolerant
+     * comparator (Java JSON parsing returns Integer/Long/Double interchangeably).
+     */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private final void assertRows(String ppl, List<Object>... expected) throws IOException {
+        Map<String, Object> response = executePpl(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
+        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
+        for (int i = 0; i < expected.length; i++) {
+            List<Object> want = expected[i];
+            List<Object> got = actualRows.get(i);
+            assertEquals("Column count mismatch at row " + i + " for query: " + ppl, want.size(), got.size());
+            for (int j = 0; j < want.size(); j++) {
+                assertCellEquals("Cell mismatch at row " + i + ", col " + j + " for query: " + ppl, want.get(j), got.get(j));
+            }
+        }
+    }
+
+    /**
+     * Send a PPL query expecting the planner to reject it; assert the resulting HTTP
+     * error body contains {@code expectedSubstring} (typically the validation message).
+     */
+    private void assertErrorContains(String ppl, String expectedSubstring) {
+        try {
+            Map<String, Object> response = executePpl(ppl);
+            fail("Expected query to fail with [" + expectedSubstring + "] but got response: " + response);
+        } catch (ResponseException e) {
+            String body;
+            try {
+                body = org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap(e.getResponse()).toString();
+            } catch (IOException ioe) {
+                body = e.getMessage();
+            }
+            assertTrue(
+                "Expected response body to contain [" + expectedSubstring + "] but was: " + body,
+                body.contains(expectedSubstring)
+            );
+        } catch (IOException e) {
+            fail("Unexpected IOException: " + e);
+        }
+    }
+
+    /** Send {@code POST /_analytics/ppl} and return the parsed JSON body. */
+    private Map<String, Object> executePpl(String ppl) throws IOException {
+        ensureDataProvisioned();
+        Request request = new Request("POST", "/_analytics/ppl");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
+        Response response = client().performRequest(request);
+        return assertOkAndParse(response, "PPL: " + ppl);
+    }
+
+    /**
+     * Compare two cells with numeric tolerance — JSON parsing produces
+     * Integer/Long/Double values that may not match {@code .equals()} across types
+     * even when numerically equal.
+     */
+    private static void assertCellEquals(String message, Object expected, Object actual) {
+        if (expected == null || actual == null) {
+            assertEquals(message, expected, actual);
+            return;
+        }
+        if (expected instanceof Number && actual instanceof Number) {
+            double e = ((Number) expected).doubleValue();
+            double a = ((Number) actual).doubleValue();
+            if (Double.compare(e, a) != 0) {
+                fail(message + ": expected <" + expected + "> but was <" + actual + ">");
+            }
+            return;
+        }
+        assertEquals(message, expected, actual);
+    }
+}
