@@ -43,7 +43,10 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
 
         Path dataDir = createTempDir("data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
-        Files.copy(testParquet, dataDir.resolve("test.parquet"));
+        Path dest = dataDir.resolve("test.parquet");
+        Files.copy(testParquet, dest);
+        assertTrue("test.parquet must exist after copy", Files.exists(dest));
+        assertTrue("test.parquet must not be empty", Files.size(dest) > 0);
         readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
     }
 
@@ -173,14 +176,20 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         long ptr2 = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir2.toString(), 64 * 1024 * 1024);
         NativeRuntimeHandle tempRuntime = new NativeRuntimeHandle(ptr2);
 
+        // Use a separate reader to avoid corrupting the shared readerHandle
+        Path dataDir2 = createTempDir("data2");
+        Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
+        Files.copy(testParquet, dataDir2.resolve("test.parquet"));
+        ReaderHandle tempReader = new ReaderHandle(dataDir2.toString(), new String[] { "test.parquet" });
+
         byte[] substrait = NativeBridge.sqlToSubstrait(
-            readerHandle.getPointer(),
+            tempReader.getPointer(),
             "test_table",
             "SELECT message FROM test_table",
-            runtimeHandle.get()
+            tempRuntime.get()
         );
         CompletableFuture<Long> future = new CompletableFuture<>();
-        NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, tempRuntime.get(), 0L, new ActionListener<>() {
+        NativeBridge.executeQueryAsync(tempReader.getPointer(), "test_table", substrait, tempRuntime.get(), 0L, new ActionListener<>() {
             @Override
             public void onResponse(Long p) {
                 future.complete(p);
@@ -211,6 +220,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
 
         // Stream close should still work even after the failure
         stream.close();
+        tempReader.close();
     }
 
     public void testDoubleCloseIsHarmless() throws Exception {
@@ -221,7 +231,10 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     }
 
     private DatafusionResultStream createStream(String sql) {
+        assertTrue("Reader handle must be valid", readerHandle.getPointer() > 0);
         byte[] substrait = NativeBridge.sqlToSubstrait(readerHandle.getPointer(), "test_table", sql, runtimeHandle.get());
+        assertNotNull("Substrait plan must not be null", substrait);
+        assertTrue("Substrait plan must not be empty", substrait.length > 0);
         CompletableFuture<Long> future = new CompletableFuture<>();
         NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, runtimeHandle.get(), 0L, new ActionListener<>() {
             @Override

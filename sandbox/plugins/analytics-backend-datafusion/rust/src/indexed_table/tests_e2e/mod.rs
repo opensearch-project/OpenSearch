@@ -42,6 +42,7 @@ mod fuzz;
 mod metrics;
 mod multi_segment;
 mod null_columns;
+mod page_pruning;
 mod schema_drift;
 mod streaming_at_scale;
 
@@ -259,6 +260,7 @@ async fn run_tree_and_plan(
                         _stream_metrics,
                     ),
                 ),
+                collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
             });
             Ok(eval)
         })

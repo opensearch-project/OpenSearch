@@ -103,6 +103,52 @@ pub(in crate::indexed_table::tests_e2e) struct FixtureConfig {
     /// the global `null_pct` for that column. Columns not in the map
     /// fall back to `null_pct`.
     pub null_pct_overrides: std::collections::HashMap<String, f64>,
+
+    /// When `true`, the parquet writer is configured to produce
+    /// *misaligned* per-column page layouts: dictionary encoding is
+    /// disabled and `data_page_size_limit` is set to a very small byte
+    /// budget, so columns with different per-value widths flush pages
+    /// at different row counts. Exercises the `PagePruner` common-grid
+    /// path where each grid cell inherits stats from a different
+    /// containing page per column.
+    pub force_misaligned_pages: bool,
+
+    /// Null-generation strategy. `Uniform` uses `null_pct` as an
+    /// independent per-row Bernoulli; `Clustered` inserts contiguous
+    /// null runs of a configured length. The clustered strategy
+    /// produces pages that are fully-null, fully-non-null, or
+    /// mixed-null, exercising the grid null-count splitting rule
+    /// across all three branches.
+    pub null_strategy: NullStrategy,
+
+    /// List of column names that appear in the Arrow schema handed to
+    /// predicate-generation and the pruner, but do NOT exist in the
+    /// parquet files. Simulates schema drift / schema evolution. Empty
+    /// in most presets.
+    pub phantom_columns: Vec<(String, ColumnKind)>,
+
+    /// Probability (0.0..=1.0) that a generated binary-op predicate
+    /// leaf is wrapped as `BinaryExpr(Or, pred(a), pred(b))` over two
+    /// different columns, rather than a single-column predicate.
+    /// Exercises the grid multi-column-OR pruning path that
+    /// `PruningPredicate::split_conjunction` discards in DataFusion.
+    pub multi_column_or_pct: f64,
+}
+
+/// Strategy for placing nulls within a generated column.
+#[derive(Debug, Clone, Copy)]
+pub(in crate::indexed_table::tests_e2e) enum NullStrategy {
+    /// Per-row Bernoulli with probability `null_pct`. Produces pages
+    /// with a consistent null density; no page is ever fully-null or
+    /// fully-non-null unless `null_pct` is exactly 0 or 1.
+    Uniform,
+    /// Alternating clusters of nulls and non-nulls, each cluster
+    /// `cluster_len` rows long. With cluster_len ≥ rows_per_page,
+    /// entire pages are fully-null or fully-non-null. With
+    /// cluster_len < rows_per_page, pages contain null/non-null
+    /// mixed blocks (forcing grid cells that split pages across the
+    /// cluster boundary).
+    Clustered { cluster_len: usize },
 }
 
 impl FixtureConfig {
@@ -125,6 +171,10 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: None,
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -147,6 +197,10 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: None,
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -169,6 +223,10 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: None,
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -190,6 +248,10 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: None,
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -253,6 +315,10 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: None,
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -278,6 +344,10 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: None,
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -300,6 +370,10 @@ impl FixtureConfig {
             batch_size: Some(1),
             max_collector_parallelism: None,
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -326,6 +400,10 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: None,
             null_pct_overrides: overrides,
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -349,6 +427,10 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: None,
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -372,6 +454,10 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: None,
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
         }
     }
 
@@ -394,6 +480,131 @@ impl FixtureConfig {
             batch_size: None,
             max_collector_parallelism: Some(4),
             null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
+        }
+    }
+
+    /// AND(Predicate, Collector) focused: shallow trees (depth 2) with
+    /// high collector count. Exercises the BitmapTree AND-branch
+    /// collector_hint path — predicates evaluate first (cheap), narrow
+    /// the accumulator, then collectors get a tightened range.
+    pub fn and_predicate_collector(seed: u64) -> Self {
+        Self {
+            seed,
+            num_rows: 10_000,
+            num_segments: 2,
+            target_partitions: 1,
+            rows_per_row_group: 2_048,
+            rows_per_page: 256,
+            columns: default_columns(),
+            null_pct: 0.1,
+            num_collector_leaves: 4,
+            collector_density: 0.05,
+            tree_max_depth: 2,
+            tree_max_fanout: 4,
+            batch_size: None,
+            max_collector_parallelism: None,
+            null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
+        }
+    }
+
+    /// Misaligned per-column page layouts. Forces the parquet writer
+    /// to produce different page boundaries for each column (achieved
+    /// by disabling dictionary encoding and tightening the per-page
+    /// byte budget so wide-value columns flush more often than narrow
+    /// ones). Exercises the `PagePruner` common-grid code path where
+    /// grid cells inherit stats from different pages per column.
+    pub fn misaligned_pages(seed: u64) -> Self {
+        Self {
+            seed,
+            num_rows: 8_000,
+            num_segments: 1,
+            target_partitions: 1,
+            rows_per_row_group: 8_000,
+            // Row-count limit well above what byte-budget will actually
+            // allow, so byte budget dominates.
+            rows_per_page: 4_096,
+            columns: default_columns(),
+            null_pct: 0.1,
+            num_collector_leaves: 2,
+            collector_density: 0.05,
+            tree_max_depth: 4,
+            tree_max_fanout: 4,
+            batch_size: None,
+            max_collector_parallelism: None,
+            null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: true,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
+        }
+    }
+
+    /// Clustered nulls: each column's nulls form contiguous runs of
+    /// 256 rows. With `rows_per_page = 256` (default), pages are
+    /// either fully-null or fully-non-null (exercises the
+    /// null_count ∈ {0, page_row_count} fast paths). With off-boundary
+    /// row groups the clusters straddle RG boundaries as well.
+    pub fn clustered_nulls(seed: u64) -> Self {
+        Self {
+            seed,
+            num_rows: 10_240,
+            num_segments: 1,
+            target_partitions: 1,
+            // RG boundary (2_048) is not a multiple of cluster length
+            // (256) + offset, so some pages span the null→non-null
+            // transition and hit the "unknown" grid-cell branch.
+            rows_per_row_group: 2_048,
+            rows_per_page: 256,
+            columns: default_columns(),
+            null_pct: 0.4, // average ~40% nulls, but clustered
+            num_collector_leaves: 2,
+            collector_density: 0.05,
+            tree_max_depth: 4,
+            tree_max_fanout: 4,
+            batch_size: None,
+            max_collector_parallelism: None,
+            null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Clustered { cluster_len: 256 },
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.0,
+        }
+    }
+
+    /// Multi-column OR inside a single expression: ~30% of generated
+    /// binary-op predicate leaves are wrapped as
+    /// `BinaryExpr(Or, pred(a), pred(b))`. This is the predicate
+    /// shape DataFusion's `PruningPredicate::split_conjunction`
+    /// discards at the top level but the grid pruner handles.
+    pub fn multi_column_or(seed: u64) -> Self {
+        Self {
+            seed,
+            num_rows: 10_000,
+            num_segments: 1,
+            target_partitions: 1,
+            rows_per_row_group: 2_048,
+            rows_per_page: 256,
+            columns: default_columns(),
+            null_pct: 0.1,
+            num_collector_leaves: 2,
+            collector_density: 0.05,
+            tree_max_depth: 4,
+            tree_max_fanout: 4,
+            batch_size: None,
+            max_collector_parallelism: None,
+            null_pct_overrides: std::collections::HashMap::new(),
+            force_misaligned_pages: false,
+            null_strategy: NullStrategy::Uniform,
+            phantom_columns: Vec::new(),
+            multi_column_or_pct: 0.3,
         }
     }
 }

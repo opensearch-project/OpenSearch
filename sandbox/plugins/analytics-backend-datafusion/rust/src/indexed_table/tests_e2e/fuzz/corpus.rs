@@ -26,7 +26,7 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use tempfile::NamedTempFile;
 
-use super::config::{ColumnKind, FixtureConfig};
+use super::config::{ColumnKind, FixtureConfig, NullStrategy};
 
 /// One row of the corpus, kept in memory for the oracle. Mirrors the
 /// arrow schema column-by-column. `None` = null.
@@ -83,12 +83,18 @@ pub(in crate::indexed_table::tests_e2e) fn build_corpus(config: FixtureConfig) -
         .collect();
     cells.push(doc_id_col);
     for (name, kind) in &config.columns {
-        let col_null_pct = config
+        let effective_null_pct = config
             .null_pct_overrides
             .get(name)
             .copied()
             .unwrap_or(config.null_pct);
-        let col = gen_column_cells(&mut rng, *kind, config.num_rows, col_null_pct);
+        let col = gen_column_cells(
+            &mut rng,
+            *kind,
+            config.num_rows,
+            effective_null_pct,
+            config.null_strategy,
+        );
         cells.push(col);
     }
 
@@ -130,6 +136,7 @@ pub(in crate::indexed_table::tests_e2e) fn build_corpus(config: FixtureConfig) -
             &slice,
             config.rows_per_row_group,
             config.rows_per_page,
+            config.force_misaligned_pages,
         ));
         start += count;
     }
@@ -177,13 +184,43 @@ fn build_schema(config: &FixtureConfig) -> SchemaRef {
 /// Generate one column's worth of `CellValue`s. Follows the
 /// distinct-pool + take-indices pattern from DataFusion's test-utils:
 /// build a pool of distinct values once, pick from it per row. Null
-/// probability gates on each pick.
+/// placement follows `null_strategy`:
+///  - `Uniform`: independent per-row Bernoulli with probability
+///    `null_pct`.
+///  - `Clustered { cluster_len }`: alternating null / non-null blocks
+///    of `cluster_len` rows. The starting block is chosen by a single
+///    Bernoulli draw, giving per-column independent phase (so two
+///    columns don't correlate their null patterns).
 fn gen_column_cells(
     rng: &mut StdRng,
     kind: ColumnKind,
     num_rows: usize,
     null_pct: f64,
+    null_strategy: NullStrategy,
 ) -> Vec<CellValue> {
+    // Pre-compute the null mask. `true` = null.
+    let null_mask: Vec<bool> = match null_strategy {
+        NullStrategy::Uniform => (0..num_rows).map(|_| rng.gen::<f64>() < null_pct).collect(),
+        NullStrategy::Clustered { cluster_len } => {
+            let cluster_len = cluster_len.max(1);
+            // Random phase so different columns don't share null
+            // boundaries. Biased per `null_pct`: a full period is
+            // `2 * cluster_len` (null block + non-null block). We
+            // pick the null-block length within the period as
+            // `round(null_pct * 2 * cluster_len)`.
+            let period = 2 * cluster_len;
+            let null_per_period = (null_pct * period as f64).round() as usize;
+            let null_per_period = null_per_period.min(period);
+            let phase: usize = rng.gen_range(0..period);
+            (0..num_rows)
+                .map(|i| {
+                    let pos_in_period = (i + phase) % period;
+                    pos_in_period < null_per_period
+                })
+                .collect()
+        }
+    };
+
     match kind {
         ColumnKind::Utf8 {
             num_distinct,
@@ -193,19 +230,19 @@ fn gen_column_cells(
                 .map(|_| random_alphanumeric(rng, max_len))
                 .collect();
             (0..num_rows)
-                .map(|_| {
-                    if rng.gen::<f64>() < null_pct {
+                .map(|i| {
+                    if null_mask[i] {
                         CellValue::Utf8(None)
                     } else {
-                        let i = rng.gen_range(0..pool.len());
-                        CellValue::Utf8(Some(pool[i].clone()))
+                        let j = rng.gen_range(0..pool.len());
+                        CellValue::Utf8(Some(pool[j].clone()))
                     }
                 })
                 .collect()
         }
         ColumnKind::Int32 { min, max } => (0..num_rows)
-            .map(|_| {
-                if rng.gen::<f64>() < null_pct {
+            .map(|i| {
+                if null_mask[i] {
                     CellValue::Int32(None)
                 } else {
                     CellValue::Int32(Some(rng.gen_range(min..max)))
@@ -213,8 +250,8 @@ fn gen_column_cells(
             })
             .collect(),
         ColumnKind::Int64 { min, max } => (0..num_rows)
-            .map(|_| {
-                if rng.gen::<f64>() < null_pct {
+            .map(|i| {
+                if null_mask[i] {
                     CellValue::Int64(None)
                 } else {
                     CellValue::Int64(Some(rng.gen_range(min..max)))
@@ -222,8 +259,8 @@ fn gen_column_cells(
             })
             .collect(),
         ColumnKind::Float64 { min, max } => (0..num_rows)
-            .map(|_| {
-                if rng.gen::<f64>() < null_pct {
+            .map(|i| {
+                if null_mask[i] {
                     CellValue::Float64(None)
                 } else {
                     CellValue::Float64(Some(rng.gen_range(min..max)))
@@ -231,8 +268,8 @@ fn gen_column_cells(
             })
             .collect(),
         ColumnKind::Boolean => (0..num_rows)
-            .map(|_| {
-                if rng.gen::<f64>() < null_pct {
+            .map(|i| {
+                if null_mask[i] {
                     CellValue::Boolean(None)
                 } else {
                     CellValue::Boolean(Some(rng.gen()))
@@ -240,8 +277,8 @@ fn gen_column_cells(
             })
             .collect(),
         ColumnKind::Date32 { min, max } => (0..num_rows)
-            .map(|_| {
-                if rng.gen::<f64>() < null_pct {
+            .map(|i| {
+                if null_mask[i] {
                     CellValue::Date32(None)
                 } else {
                     CellValue::Date32(Some(rng.gen_range(min..max)))
@@ -249,8 +286,8 @@ fn gen_column_cells(
             })
             .collect(),
         ColumnKind::TimestampNanos { min, max } => (0..num_rows)
-            .map(|_| {
-                if rng.gen::<f64>() < null_pct {
+            .map(|i| {
+                if null_mask[i] {
                     CellValue::TimestampNanos(None)
                 } else {
                     CellValue::TimestampNanos(Some(rng.gen_range(min..max)))
@@ -346,15 +383,35 @@ fn write_parquet(
     batch: &RecordBatch,
     rows_per_row_group: usize,
     rows_per_page: usize,
+    force_misaligned_pages: bool,
 ) -> NamedTempFile {
     let tmp = NamedTempFile::new().expect("tempfile");
-    let props = WriterProperties::builder()
+    let mut builder = WriterProperties::builder()
         .set_max_row_group_size(rows_per_row_group)
         .set_data_page_row_count_limit(rows_per_page)
         .set_statistics_enabled(EnabledStatistics::Page)
-        .build();
-    let mut w = ArrowWriter::try_new(tmp.reopen().expect("reopen"), batch.schema(), Some(props))
-        .expect("arrow writer");
+        // Force different encodings per column type to produce different
+        // page boundaries. This exercises the per-column page pruning
+        // path — a bug where column 0's page boundaries were used for
+        // all columns was only caught when encodings diverged.
+        .set_column_encoding(
+            datafusion::parquet::schema::types::ColumnPath::new(vec!["__doc_id".to_string()]),
+            datafusion::parquet::basic::Encoding::DELTA_BINARY_PACKED,
+        );
+    if force_misaligned_pages {
+        // Tight byte budget + no dictionary encoding makes byte-width
+        // the flush trigger. Utf8 columns (many bytes/value) flush
+        // faster than Int32/Boolean columns, yielding genuinely
+        // different per-column page counts.
+        builder = builder.set_dictionary_enabled(false).set_data_page_size_limit(512);
+    }
+    let props = builder.build();
+    let mut w = ArrowWriter::try_new(
+        tmp.reopen().expect("reopen"),
+        batch.schema(),
+        Some(props),
+    )
+    .expect("arrow writer");
     w.write(batch).expect("write");
     w.close().expect("close");
     tmp
@@ -417,5 +474,35 @@ mod tests {
         let corpus = build_corpus(cfg);
         assert_eq!(corpus.cells.len(), corpus.schema.fields().len());
         assert_eq!(corpus.cells[0].len(), corpus.num_rows());
+    }
+
+    #[test]
+    fn misaligned_pages_actually_misalign() {
+        let cfg = FixtureConfig::misaligned_pages(0xabcd);
+        let corpus = build_corpus(cfg);
+        let file = std::fs::File::open(corpus.parquet_files[0].path()).unwrap();
+        let meta = datafusion::parquet::arrow::arrow_reader::ArrowReaderMetadata::load(
+            &file,
+            datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions::new()
+                .with_page_index(true),
+        )
+        .unwrap();
+        let oi = meta.metadata().offset_index().expect("offset index");
+        // Collect per-column page counts across all RGs.
+        let mut page_counts_per_col: Vec<usize> = vec![0; oi[0].len()];
+        for rg in oi {
+            for (i, col) in rg.iter().enumerate() {
+                page_counts_per_col[i] += col.page_locations().len();
+            }
+        }
+        let min = *page_counts_per_col.iter().min().unwrap();
+        let max = *page_counts_per_col.iter().max().unwrap();
+        assert!(
+            max > min,
+            "misaligned_pages preset must produce columns with different page counts; \
+             got identical count {} across all columns: {:?}",
+            min,
+            page_counts_per_col
+        );
     }
 }

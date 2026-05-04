@@ -115,6 +115,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
                 max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
+                    collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
             });
             Ok(eval)
         })
@@ -251,4 +252,110 @@ async fn missing_col_nested_or_kept_existing_only() {
         .filter(|&i| f.name[i] == "foo" && f.score[i] < 500)
         .count();
     assert_eq!(run_missing_col_tree(tree).await, expected);
+}
+
+// 6. Page pruner direct invariant: a predicate that ANDs an existing
+// column with a missing column must prune identically to the
+// existing-column predicate alone — the missing-column clause
+// contributes only "unknown" per grid cell, so it can neither add nor
+// remove page selections beyond what the existing column decides.
+//
+// Pre-fix, this assertion failed because `prune_rg` bailed out to
+// `None` whenever any referenced column was absent from the parquet
+// file. Post-fix, the missing column contributes typed all-null stats
+// per grid cell and the existing-column clause still prunes.
+#[test]
+fn page_pruner_prunes_existing_column_despite_missing_column() {
+    use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruner};
+    use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+
+    let f = missing_col_fixture();
+    let file = std::fs::File::open(&f.path).unwrap();
+    let meta =
+        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    // Schema handed to the pruner includes the missing column.
+    let drift_schema = schema_with_missing();
+    let pruner = PagePruner::new(&drift_schema, meta.metadata().clone());
+
+    // Existing-column predicate: score < 100 (fixture has score = i % 1000
+    // so ~10% of rows match, concentrated at the start of every 1000-row
+    // cycle → some pages will be prunable).
+    let score_idx = drift_schema.index_of("score").unwrap();
+    let score_col: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
+        datafusion::physical_expr::expressions::Column::new("score", score_idx),
+    );
+    let lit_100: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
+        datafusion::physical_expr::expressions::Literal::new(ScalarValue::Int32(Some(100))),
+    );
+    let score_lt: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
+        datafusion::physical_expr::expressions::BinaryExpr::new(
+            score_col,
+            Operator::Lt,
+            lit_100,
+        ),
+    );
+    let pp_solo = build_pruning_predicate(&score_lt, drift_schema.clone())
+        .expect("score<100 is not always_true on this fixture");
+
+    // Combined predicate: score < 100 AND missing_col > 0. Missing
+    // column has all-null stats → clause evaluates to unknown per
+    // grid cell → AND combines as "score<100 AND unknown".
+    let missing_idx = drift_schema.index_of("missing_col").unwrap();
+    let missing_col: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        std::sync::Arc::new(datafusion::physical_expr::expressions::Column::new(
+            "missing_col",
+            missing_idx,
+        ));
+    let lit_0: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> = std::sync::Arc::new(
+        datafusion::physical_expr::expressions::Literal::new(ScalarValue::Int32(Some(0))),
+    );
+    let missing_gt: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        std::sync::Arc::new(datafusion::physical_expr::expressions::BinaryExpr::new(
+            missing_col,
+            Operator::Gt,
+            lit_0,
+        ));
+    let combined: std::sync::Arc<dyn datafusion::physical_expr::PhysicalExpr> =
+        std::sync::Arc::new(datafusion::physical_expr::expressions::BinaryExpr::new(
+            score_lt.clone(),
+            Operator::And,
+            missing_gt,
+        ));
+    let pp_combined = build_pruning_predicate(&combined, drift_schema)
+        .expect("combined predicate not always_true");
+
+    // Walk every RG in the fixture and check the invariant. For each
+    // RG, the combined selection must keep at most as many rows as the
+    // solo selection (the missing-column clause is unknown → it can
+    // only downgrade, never add rows). If the combined predicate
+    // caused the pruner to bail out (returning `None` where solo
+    // returned `Some`), that's the pre-fix regression we're guarding
+    // against.
+    for rg_idx in 0..meta.metadata().num_row_groups() {
+        let solo = pruner.prune_rg(&pp_solo, rg_idx, None);
+        let combined = pruner.prune_rg(&pp_combined, rg_idx, None);
+        match (solo.as_ref(), combined.as_ref()) {
+            (Some(s), Some(c)) => {
+                let solo_kept: usize = s.iter().filter(|r| !r.skip).map(|r| r.row_count).sum();
+                let combined_kept: usize =
+                    c.iter().filter(|r| !r.skip).map(|r| r.row_count).sum();
+                assert!(
+                    combined_kept <= solo_kept,
+                    "rg {}: combined selection kept {} rows, solo kept {} — \
+                     missing-column clause must not add rows",
+                    rg_idx,
+                    combined_kept,
+                    solo_kept
+                );
+            }
+            (Some(_), None) => {
+                panic!(
+                    "rg {}: pruner bailed out on combined predicate despite \
+                     present column — missing-column fix regression",
+                    rg_idx
+                );
+            }
+            _ => {}
+        }
+    }
 }

@@ -58,6 +58,23 @@ use datafusion::physical_optimizer::pruning::PruningPredicate;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
+/// How a collector's doc-range is narrowed relative to page-pruning or
+/// accumulator results. Shared by both the single-collector and
+/// bitmap-tree evaluator paths.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollectorCallStrategy {
+    /// Call collector once for the full `[min_doc, max_doc)` range.
+    /// One FFM call, simple.
+    FullRange,
+    /// Tighten to `[first_surviving, last_surviving)` before calling.
+    /// Skips leading/trailing dead ranges. One FFM call, never regresses.
+    TightenOuterBounds,
+    /// Call collector once per contiguous surviving range. Fewer docs
+    /// scanned per call but more FFM calls. Best when the collector is
+    /// expensive and pruning is heavy.
+    PageRangeSplit,
+}
+
 /// Per-row-group bitset producer. Plugs into `IndexedStream`.
 pub trait RowGroupBitsetSource: Send + Sync {
     /// Build candidate[pre-scan] bitset for this RG. `None` = skip RG entirely.
@@ -154,7 +171,7 @@ impl PrefetchedRg {
 /// Multi-filter tree path: pluggable tree evaluator + leaf bitmap source
 ///
 /// Context for evaluating a tree against one row group.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct RgEvalContext {
     pub rg_idx: usize,
     pub rg_first_row: i64,
@@ -166,6 +183,15 @@ pub struct RgEvalContext {
     pub cost_predicate: u32,
     /// Candidate-stage leaf-reorder cost for `ResolvedNode::Collector`.
     pub cost_collector: u32,
+    /// Narrowed doc-id ranges for Collector FFM calls. Computed by the
+    /// AND evaluator from the accumulator bitmap after earlier children
+    /// shrink the candidate set.
+    /// `None` = no narrowing (use full `[min_doc, max_doc)`).
+    /// `Some(ranges)` = call collector once per range.
+    pub collector_call_ranges: Option<Vec<(i32, i32)>>,
+    /// Controls how the AND evaluator narrows collector ranges from the
+    /// accumulator bitmap.
+    pub collector_strategy: CollectorCallStrategy,
 }
 
 /// Candidate-stage output of a `TreeEvaluator`. `candidates` is a superset
@@ -284,6 +310,12 @@ pub struct TreeBitsetSource {
     /// leaf in the tree walk. Populated from the stream's
     /// `PartitionMetrics` at dispatch time.
     pub page_prune_metrics: Option<PagePruneMetrics>,
+    /// Controls how the AND evaluator narrows collector doc ranges.
+    /// `TightenOuterBounds` (default) uses a single `[min, max)` range.
+    /// `FullRange` disables narrowing. `PageRangeSplit` is not
+    /// recommended here — multiple FFM calls per collector per RG can
+    /// be expensive in multi-collector trees.
+    pub collector_strategy: CollectorCallStrategy,
 }
 
 impl RowGroupBitsetSource for TreeBitsetSource {
@@ -302,6 +334,8 @@ impl RowGroupBitsetSource for TreeBitsetSource {
             max_doc,
             cost_predicate: self.cost_predicate,
             cost_collector: self.cost_collector,
+            collector_call_ranges: None,
+            collector_strategy: self.collector_strategy,
         };
 
         // Optional: materialise all Collector leaves in parallel before
@@ -335,23 +369,102 @@ impl RowGroupBitsetSource for TreeBitsetSource {
                 leaves_ref,
                 &self.page_pruner,
                 &self.pruning_predicates,
-                self.page_prune_metrics.as_ref(),
+                // Don't pass metrics here — per-leaf prune_rg calls would
+                // inflate counts. We compute final page-level metrics below
+                // after the bitmap tree is fully resolved.
+                None,
             )
             .map_err(|e| format!("TreeBitsetSource::prefetch_rg(rg={}): {}", rg.index, e))?;
         if prefetch.candidates.is_empty() {
+            // All candidates pruned — record that every page was pruned.
+            if let Some(ref m) = self.page_prune_metrics {
+                if let Some(page_row_counts) = self.page_pruner.page_row_counts(rg.index) {
+                    let num_pages = page_row_counts.len();
+                    if let Some(ref c) = m.pages_total {
+                        c.add(num_pages);
+                    }
+                    if let Some(ref c) = m.pages_pruned {
+                        c.add(num_pages);
+                    }
+                }
+            }
             return Ok(None);
         }
         // `prefetch.candidates` is in min_doc-relative space [0, max_doc - min_doc).
         // `PrefetchedRg.candidates` is in RG-relative space [0, rg.num_rows).
         // anchor = (min_doc - rg.first_row) shifts each relative bit.
+        //
+        // Fast path: if `anchor == 0`, clone directly — no shift
+        // needed. Otherwise walk the source in sorted order and
+        // coalesce consecutive bits into `insert_range` calls so we
+        // get one O(log n) call per run instead of O(1) per bit.
         let anchor = (min_doc as i64) - rg.first_row;
-        let mut rg_candidates = RoaringBitmap::new();
-        for rel in prefetch.candidates.iter() {
-            let shifted = rel as i64 + anchor;
-            if shifted >= 0 && shifted <= u32::MAX as i64 {
-                rg_candidates.insert(shifted as u32);
+        let rg_candidates = if anchor == 0 {
+            prefetch.candidates.clone()
+        } else {
+            let mut rg_candidates = RoaringBitmap::new();
+            let mut run_start: Option<u32> = None;
+            let mut run_end: u32 = 0; // inclusive
+            let mut flush = |bm: &mut RoaringBitmap, start: u32, end_inclusive: u32| {
+                // Range API is half-open; end_inclusive+1 handles the
+                // edge case at u32::MAX via saturating add (roaring
+                // clamps at u32::MAX internally).
+                let end = end_inclusive.saturating_add(1);
+                bm.insert_range(start..end);
+            };
+            for rel in prefetch.candidates.iter() {
+                let shifted = rel as i64 + anchor;
+                if shifted < 0 || shifted > u32::MAX as i64 {
+                    continue;
+                }
+                let v = shifted as u32;
+                match run_start {
+                    None => {
+                        run_start = Some(v);
+                        run_end = v;
+                    }
+                    Some(_) if v == run_end + 1 => {
+                        run_end = v;
+                    }
+                    Some(s) => {
+                        flush(&mut rg_candidates, s, run_end);
+                        run_start = Some(v);
+                        run_end = v;
+                    }
+                }
+            }
+            if let Some(s) = run_start {
+                flush(&mut rg_candidates, s, run_end);
+            }
+            rg_candidates
+        };
+
+        // Compute final page-level pruning metrics from the resolved
+        // bitmap. A page is "pruned" if zero candidate bits fall within
+        // its row range; "kept" otherwise. This reflects the actual
+        // page-level decision after AND/OR/NOT combination, not the
+        // per-leaf intermediate results.
+        if let Some(ref m) = self.page_prune_metrics {
+            if let Some(page_row_counts) = self.page_pruner.page_row_counts(rg.index) {
+                let num_pages = page_row_counts.len();
+                let mut pruned = 0usize;
+                let mut row_offset = 0u32;
+                for &count in &page_row_counts {
+                    let page_end = row_offset + count as u32;
+                    if rg_candidates.range(row_offset..page_end).next().is_none() {
+                        pruned += 1;
+                    }
+                    row_offset = page_end;
+                }
+                if let Some(ref c) = m.pages_total {
+                    c.add(num_pages);
+                }
+                if let Some(ref c) = m.pages_pruned {
+                    c.add(pruned);
+                }
             }
         }
+
         Ok(Some(PrefetchedRg {
             candidates: rg_candidates,
             eval_nanos: t.elapsed().as_nanos() as u64,
@@ -647,6 +760,7 @@ mod tests {
             max_collector_parallelism: 1,
             pruning_predicates: std::sync::Arc::new(HashMap::new()),
             page_prune_metrics: None,
+            collector_strategy: CollectorCallStrategy::TightenOuterBounds,
         };
         assert!(!source.needs_row_mask());
     }

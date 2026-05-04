@@ -185,13 +185,22 @@ fn prefetch_node(
     match node {
         ResolvedNode::And(children) => {
             let mut indices: Vec<usize> = (0..children.len()).collect();
-            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx));
+            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
 
             let mut result_bitmap: Option<RoaringBitmap> = None;
+            let mut ranges: Option<Vec<(i32, i32)>> = ctx.collector_call_ranges.clone();
             for &i in &indices {
+                let child_ctx = if ranges != ctx.collector_call_ranges {
+                    RgEvalContext {
+                        collector_call_ranges: ranges.clone(),
+                        ..ctx.clone()
+                    }
+                } else {
+                    ctx.clone()
+                };
                 let child_bitmap = prefetch_node(
                     &children[i],
-                    ctx,
+                    &child_ctx,
                     leaves,
                     page_pruner,
                     pruning_predicates,
@@ -207,6 +216,19 @@ fn prefetch_node(
                         a
                     }
                 });
+
+                // Tighten collector call ranges from the accumulator bitmap,
+                // intersected with inherited ranges so nested ANDs never
+                // widen beyond what the parent already narrowed to.
+                if let Some(ref bm) = result_bitmap {
+                    if !bm.is_empty() {
+                        let new = ranges_from_bitmap(bm, ctx);
+                        ranges = Some(match ranges {
+                            Some(inherited) => intersect_range_lists(&inherited, &new),
+                            None => new,
+                        });
+                    }
+                }
 
                 // Short circuit case
                 // 1. Skip if subtree only consists of AND [ since all bits are not set here, no need to evaluate ]
@@ -233,7 +255,7 @@ fn prefetch_node(
             let mut indices: Vec<usize> = (0..children.len()).collect();
 
             // sort the children by cost to prune children better
-            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx));
+            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
             let total_docs = (ctx.max_doc - ctx.min_doc) as u64;
 
             let mut result_bitmap = RoaringBitmap::new();
@@ -417,16 +439,27 @@ fn predicate_page_bitmap(
     match selection {
         Some(sel) => {
             // The selection is RG-relative. Translate to min_doc-relative
-            // space (the bitmap the tree evaluator walks over).
+            // space (the bitmap the tree evaluator walks over). Each
+            // kept selector covers a contiguous row range; insert it as
+            // a range in one call. `RoaringBitmap::insert_range` handles
+            // a full page of rows in O(log n) per container (or O(1) for
+            // full-container runs), vs. the naive one-bit-at-a-time loop
+            // which is O(rows_kept) with per-insert overhead.
             let rg_offset = (ctx.rg_first_row as i32 - ctx.min_doc) as i64;
+            let span = (ctx.max_doc - ctx.min_doc) as i64;
             let mut rg_pos: i64 = 0;
             for s in sel.iter() {
                 if !s.skip {
-                    for i in 0..s.row_count as i64 {
-                        let rel = rg_pos + i + rg_offset;
-                        if rel >= 0 && rel < (ctx.max_doc - ctx.min_doc) as i64 {
-                            bm.insert(rel as u32);
-                        }
+                    // Selector covers [rg_pos, rg_pos + s.row_count) in
+                    // RG-relative space; shift into scope-relative space
+                    // and clamp to [0, span) since the scope bitmap only
+                    // covers rows inside [min_doc, max_doc).
+                    let start_rel = rg_pos + rg_offset;
+                    let end_rel = start_rel + s.row_count as i64;
+                    let lo = start_rel.max(0);
+                    let hi = end_rel.min(span);
+                    if lo < hi {
+                        bm.insert_range(lo as u32..hi as u32);
                     }
                 }
                 rg_pos += s.row_count as i64;
@@ -441,6 +474,74 @@ fn predicate_page_bitmap(
     bm
 }
 
+/// Derive collector call ranges from a bitmap based on the strategy in `ctx`.
+///
+/// - `FullRange`: returns `[(min_doc, max_doc)]` (no narrowing).
+/// - `TightenOuterBounds`: returns `[(first_set + min_doc, last_set + min_doc + 1)]`.
+/// - `PageRangeSplit`: returns contiguous runs of set bits as absolute ranges.
+fn ranges_from_bitmap(bm: &RoaringBitmap, ctx: &RgEvalContext) -> Vec<(i32, i32)> {
+    use super::CollectorCallStrategy;
+    match ctx.collector_strategy {
+        CollectorCallStrategy::FullRange => vec![(ctx.min_doc, ctx.max_doc)],
+        CollectorCallStrategy::TightenOuterBounds => {
+            match (bm.min(), bm.max()) {
+                (Some(lo), Some(hi)) => {
+                    vec![(ctx.min_doc + lo as i32, ctx.min_doc + hi as i32 + 1)]
+                }
+                _ => vec![(ctx.min_doc, ctx.max_doc)],
+            }
+        }
+        CollectorCallStrategy::PageRangeSplit => {
+            // Extract contiguous runs of set bits as absolute doc ranges.
+            let mut ranges = Vec::new();
+            let mut iter = bm.iter();
+            let Some(first) = iter.next() else {
+                return vec![];
+            };
+            let mut run_start = first;
+            let mut run_end = first; // inclusive
+            for bit in iter {
+                if bit == run_end + 1 {
+                    run_end = bit;
+                } else {
+                    ranges.push((
+                        ctx.min_doc + run_start as i32,
+                        ctx.min_doc + run_end as i32 + 1,
+                    ));
+                    run_start = bit;
+                    run_end = bit;
+                }
+            }
+            ranges.push((
+                ctx.min_doc + run_start as i32,
+                ctx.min_doc + run_end as i32 + 1,
+            ));
+            ranges
+        }
+    }
+}
+
+/// Intersect two sorted, non-overlapping range lists. Both inputs are
+/// `(start, end)` half-open intervals in absolute doc-id space. The
+/// result contains only the portions where both lists overlap.
+fn intersect_range_lists(a: &[(i32, i32)], b: &[(i32, i32)]) -> Vec<(i32, i32)> {
+    let mut out = Vec::new();
+    let (mut i, mut j) = (0, 0);
+    while i < a.len() && j < b.len() {
+        let lo = a[i].0.max(b[j].0);
+        let hi = a[i].1.min(b[j].1);
+        if lo < hi {
+            out.push((lo, hi));
+        }
+        if a[i].1 < b[j].1 {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    out
+}
+
 /// Cost weights used by `subtree_cost` to order AND/OR children in the
 /// candidate stage. Tuning knobs, not a hard contract.
 ///
@@ -452,24 +553,85 @@ fn predicate_page_bitmap(
 ///   queries, slower for wide ones) so "10" is a conservative default.
 ///   Tune (or make config-driven) if profiling shows it matters.
 
+/// Internal scale factor for cost computation. All costs are multiplied
+/// by this so integer division preserves meaningful selectivity differences.
+/// A predicate keeping 1/8 pages costs `1000 * 1/8 = 125` vs one keeping
+/// 5/8 pages at `1000 * 5/8 = 625`. Collector cost `10 * 1000 = 10_000`.
+pub(crate) const COST_SCALE: u32 = 1000;
+
 /// Recursively compute the accumulated cost of a subtree for
-/// candidate-stage ordering. Sum-of-leaves, not a tree-size metric: a
-/// Nested subtree of three Predicate leaves (cost 3) ranks ahead of a
-/// single Collector leaf (cost 10) — which matches the intuition that
-/// "three metadata scans are faster than one index bitmap fetch."
+/// candidate-stage ordering.
+///
+/// For `Predicate` leaves with a matching `PruningPredicate`, the cost
+/// is weighted by page-level selectivity: `cost_predicate * COST_SCALE * (surviving_pages / total_pages)`.
+/// More selective predicates (fewer surviving pages) get lower cost and
+/// are evaluated first in AND nodes, producing tighter ranges for
+/// subsequent Collector siblings.
+///
+/// Falls back to the static `cost_predicate * COST_SCALE` when page stats are
+/// unavailable (no page index, expression not translatable, etc.).
 ///
 /// `Not` passes through to its child; `And`/`Or` sum their children.
-///
-/// Unlike a static tier, this model sees *inside* nested subtrees and
-/// orders them meaningfully against each other and against leaves.
-fn subtree_cost(node: &ResolvedNode, ctx: &RgEvalContext) -> u32 {
+pub(crate) fn subtree_cost(
+    node: &ResolvedNode,
+    ctx: &RgEvalContext,
+    page_pruner: &PagePruner,
+    pruning_predicates: &HashMap<usize, Arc<PruningPredicate>>,
+) -> u32 {
     match node {
-        ResolvedNode::Predicate(_) => ctx.cost_predicate,
-        ResolvedNode::Collector { .. } => ctx.cost_collector,
-        ResolvedNode::Not(child) => subtree_cost(child, ctx),
-        ResolvedNode::And(children) | ResolvedNode::Or(children) => {
-            children.iter().map(|c| subtree_cost(c, ctx)).sum()
+        ResolvedNode::Predicate(expr) => {
+            let base = ctx.cost_predicate * COST_SCALE;
+            let key = Arc::as_ptr(expr) as *const () as usize;
+            if let Some(pp) = pruning_predicates.get(&key) {
+                if let Some(page_counts) = page_pruner.page_row_counts(ctx.rg_idx) {
+                    let total = page_counts.len() as u32;
+                    if total > 0 {
+                        if let Some(sel) = page_pruner.prune_rg(pp, ctx.rg_idx, None) {
+                            // Count pages with at least one selected row.
+                            // RowSelection merges adjacent same-decision
+                            // selectors, so we walk the selection and map
+                            // row offsets back to page boundaries.
+                            let mut kept_pages = 0u32;
+                            let mut row_offset = 0usize;
+                            let mut page_idx = 0usize;
+                            let mut page_start = 0usize;
+                            let mut page_end = page_counts[0];
+                            for s in sel.iter() {
+                                let seg_end = row_offset + s.row_count;
+                                while page_idx < total as usize {
+                                    if !s.skip && row_offset < page_end && seg_end > page_start {
+                                        kept_pages += 1;
+                                        // Advance to next page to avoid double-counting.
+                                        page_idx += 1;
+                                        if page_idx < total as usize {
+                                            page_start = page_end;
+                                            page_end += page_counts[page_idx];
+                                        }
+                                    } else if page_end <= seg_end {
+                                        page_idx += 1;
+                                        if page_idx < total as usize {
+                                            page_start = page_end;
+                                            page_end += page_counts[page_idx];
+                                        }
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                row_offset = seg_end;
+                            }
+                            return (base * kept_pages + total - 1) / total;
+                        }
+                    }
+                }
+            }
+            base
         }
+        ResolvedNode::Collector { .. } => ctx.cost_collector * COST_SCALE,
+        ResolvedNode::Not(child) => subtree_cost(child, ctx, page_pruner, pruning_predicates),
+        ResolvedNode::And(children) | ResolvedNode::Or(children) => children
+            .iter()
+            .map(|c| subtree_cost(c, ctx, page_pruner, pruning_predicates))
+            .sum(),
     }
 }
 
@@ -803,22 +965,33 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
                 return Err("CollectorLeafBitmaps: non-Collector node passed to leaf_bitmap".into())
             }
         };
-        let bitset = collector.collect_packed_u64_bitset(ctx.min_doc, ctx.max_doc)?;
-        if let Some(ref c) = self.ffm_collector_calls {
-            c.add(1);
-        }
-        // Build RoaringBitmap from Lucene's packed LSB-first bits via the
-        // bulk `from_lsb0_bytes` API. O(container_count) allocation,
-        // no per-bit iteration. The tree evaluator walks the result in
-        // min_doc-relative space (bit 0 = ctx.min_doc), same convention
-        // as the old per-bit loop.
-        let num_docs = (ctx.max_doc - ctx.min_doc) as u32;
-        let bytes: &[u8] =
-            unsafe { std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8) };
-        let mut result_bitmap = RoaringBitmap::from_lsb0_bytes(0, bytes);
-        // Trim bits past `num_docs` (last u64 may contain padding).
-        if num_docs < u32::MAX {
-            result_bitmap.remove_range(num_docs..);
+        // Use the narrowed call ranges if available (set by AND evaluator
+        // after earlier children shrink the candidate set). Each range
+        // produces one FFM call; results are merged into one bitmap in
+        // min_doc-relative coordinates.
+        // Use narrowed call ranges if available (set by AND evaluator).
+        let call_ranges = ctx
+            .collector_call_ranges
+            .clone()
+            .unwrap_or_else(|| vec![(ctx.min_doc, ctx.max_doc)]);
+
+        let mut result_bitmap = RoaringBitmap::new();
+        for (call_min, call_max) in &call_ranges {
+            let bitset = collector.collect_packed_u64_bitset(*call_min, *call_max)?;
+            if let Some(ref c) = self.ffm_collector_calls {
+                c.add(1);
+            }
+            let offset = (*call_min - ctx.min_doc) as u32;
+            let num_docs = (*call_max - *call_min) as u32;
+            let bytes: &[u8] = unsafe {
+                std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
+            };
+            let mut chunk = RoaringBitmap::from_lsb0_bytes(offset, bytes);
+            let upper = offset + num_docs;
+            if upper < u32::MAX {
+                chunk.remove_range(upper..);
+            }
+            result_bitmap |= chunk;
         }
         Ok(result_bitmap)
     }
@@ -868,6 +1041,8 @@ mod tests {
             max_doc: 16,
             cost_predicate: 1,
             cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::TightenOuterBounds,
         }
     }
 
@@ -1330,41 +1505,42 @@ mod tests {
     #[test]
     fn subtree_cost_leaf_nodes() {
         let ctx = test_ctx();
+        let pruner = empty_pruner();
+        let pp = HashMap::new();
         assert_eq!(
-            subtree_cost(&test_predicate_node(), &ctx),
-            ctx.cost_predicate
+            subtree_cost(&test_predicate_node(), &ctx, &pruner, &pp),
+            ctx.cost_predicate * COST_SCALE
         );
-        assert_eq!(subtree_cost(&collector_leaf(0), &ctx), ctx.cost_collector);
+        assert_eq!(subtree_cost(&collector_leaf(0), &ctx, &pruner, &pp), ctx.cost_collector * COST_SCALE);
     }
 
     #[test]
     fn subtree_cost_not_passes_through() {
         let ctx = test_ctx();
+        let pruner = empty_pruner();
+        let pp = HashMap::new();
         let wrapped = ResolvedNode::Not(Box::new(test_predicate_node()));
-        assert_eq!(subtree_cost(&wrapped, &ctx), ctx.cost_predicate);
+        assert_eq!(subtree_cost(&wrapped, &ctx, &pruner, &pp), ctx.cost_predicate * COST_SCALE);
     }
 
     #[test]
     fn subtree_cost_sums_children() {
         let ctx = test_ctx();
-        // AND(Predicate, Predicate, Collector) = 1 + 1 + 10 = 12
+        let pruner = empty_pruner();
+        let pp = HashMap::new();
         let tree = ResolvedNode::And(vec![
             test_predicate_node(),
             test_predicate_node(),
             collector_leaf(0),
         ]);
         assert_eq!(
-            subtree_cost(&tree, &ctx),
-            2 * ctx.cost_predicate + ctx.cost_collector
+            subtree_cost(&tree, &ctx, &pruner, &pp),
+            (2 * ctx.cost_predicate + ctx.cost_collector) * COST_SCALE
         );
     }
 
     #[test]
     fn subtree_cost_predicate_heavy_nested_beats_single_collector() {
-        // Key property: a Nested subtree of 3 Predicates (cost 3) ranks
-        // lower than a single Collector (cost 10). The old tier-based
-        // ordering got this backwards because it treated every Nested
-        // subtree as uniformly "most expensive."
         let nested = ResolvedNode::And(vec![
             test_predicate_node(),
             test_predicate_node(),
@@ -1372,22 +1548,122 @@ mod tests {
         ]);
         let single_collector = collector_leaf(0);
         let ctx = test_ctx();
+        let pruner = empty_pruner();
+        let pp = HashMap::new();
         assert!(
-            subtree_cost(&nested, &ctx) < subtree_cost(&single_collector, &ctx),
-            "predicate-heavy nested should cost less than single collector \
-             (got nested={}, collector={})",
-            subtree_cost(&nested, &ctx),
-            subtree_cost(&single_collector, &ctx),
+            subtree_cost(&nested, &ctx, &pruner, &pp) < subtree_cost(&single_collector, &ctx, &pruner, &pp),
         );
     }
 
     #[test]
     fn subtree_cost_collector_heavy_nested_exceeds_single_collector() {
-        // Symmetric: a Nested subtree of 2 Collectors (cost 20) ranks
-        // higher than a single Collector (cost 10).
         let nested = ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]);
         let single_collector = collector_leaf(0);
         let ctx = test_ctx();
-        assert!(subtree_cost(&nested, &ctx) > subtree_cost(&single_collector, &ctx));
+        let pruner = empty_pruner();
+        let pp = HashMap::new();
+        assert!(subtree_cost(&nested, &ctx, &pruner, &pp) > subtree_cost(&single_collector, &ctx, &pruner, &pp));
+    }
+
+    // ── intersect_range_lists unit tests ────────────────────────────
+
+    #[test]
+    fn intersect_empty_with_anything() {
+        assert_eq!(intersect_range_lists(&[], &[(0, 10)]), vec![]);
+        assert_eq!(intersect_range_lists(&[(0, 10)], &[]), vec![]);
+        assert_eq!(intersect_range_lists(&[], &[]), vec![]);
+    }
+
+    #[test]
+    fn intersect_non_overlapping() {
+        // [0,5) and [10,15) → empty
+        assert_eq!(intersect_range_lists(&[(0, 5)], &[(10, 15)]), vec![]);
+    }
+
+    #[test]
+    fn intersect_partial_overlap() {
+        // [0,10) ∩ [5,15) → [5,10)
+        assert_eq!(intersect_range_lists(&[(0, 10)], &[(5, 15)]), vec![(5, 10)]);
+    }
+
+    #[test]
+    fn intersect_one_contains_other() {
+        // [0,20) ∩ [5,10) → [5,10)
+        assert_eq!(intersect_range_lists(&[(0, 20)], &[(5, 10)]), vec![(5, 10)]);
+    }
+
+    #[test]
+    fn intersect_multiple_ranges() {
+        // a: [0,5), [10,20), [30,40)
+        // b: [3,12), [15,35)
+        // intersections: [3,5), [10,12), [15,20), [30,35)
+        let a = vec![(0, 5), (10, 20), (30, 40)];
+        let b = vec![(3, 12), (15, 35)];
+        assert_eq!(
+            intersect_range_lists(&a, &b),
+            vec![(3, 5), (10, 12), (15, 20), (30, 35)]
+        );
+    }
+
+    #[test]
+    fn intersect_identical() {
+        let a = vec![(10, 20), (30, 40)];
+        assert_eq!(intersect_range_lists(&a, &a), vec![(10, 20), (30, 40)]);
+    }
+
+    // ── ranges_from_bitmap unit tests ───────────────────────────────
+
+    #[test]
+    fn ranges_full_range_strategy() {
+        let mut ctx = test_ctx();
+        ctx.collector_strategy = super::super::CollectorCallStrategy::FullRange;
+        let mut bm = RoaringBitmap::new();
+        bm.insert_range(4..8);
+        // FullRange ignores the bitmap, returns [min_doc, max_doc)
+        assert_eq!(ranges_from_bitmap(&bm, &ctx), vec![(0, 16)]);
+    }
+
+    #[test]
+    fn ranges_tighten_outer_bounds_strategy() {
+        let mut ctx = test_ctx();
+        ctx.collector_strategy = super::super::CollectorCallStrategy::TightenOuterBounds;
+        let mut bm = RoaringBitmap::new();
+        bm.insert_range(4..8);
+        bm.insert(12);
+        // TightenOuterBounds: [min_doc + bm.min(), min_doc + bm.max() + 1)
+        assert_eq!(ranges_from_bitmap(&bm, &ctx), vec![(4, 13)]);
+    }
+
+    #[test]
+    fn ranges_page_range_split_contiguous() {
+        let mut ctx = test_ctx();
+        ctx.collector_strategy = super::super::CollectorCallStrategy::PageRangeSplit;
+        let mut bm = RoaringBitmap::new();
+        bm.insert_range(4..8);
+        // Single contiguous run → one range
+        assert_eq!(ranges_from_bitmap(&bm, &ctx), vec![(4, 8)]);
+    }
+
+    #[test]
+    fn ranges_page_range_split_with_gap() {
+        let mut ctx = test_ctx();
+        ctx.collector_strategy = super::super::CollectorCallStrategy::PageRangeSplit;
+        let mut bm = RoaringBitmap::new();
+        bm.insert_range(2..5);  // bits 2,3,4
+        bm.insert_range(8..11); // bits 8,9,10
+        bm.insert(14);          // bit 14
+        // Three contiguous runs → three ranges
+        assert_eq!(
+            ranges_from_bitmap(&bm, &ctx),
+            vec![(2, 5), (8, 11), (14, 15)]
+        );
+    }
+
+    #[test]
+    fn ranges_page_range_split_empty_bitmap() {
+        let mut ctx = test_ctx();
+        ctx.collector_strategy = super::super::CollectorCallStrategy::PageRangeSplit;
+        let bm = RoaringBitmap::new();
+        assert_eq!(ranges_from_bitmap(&bm, &ctx), vec![]);
     }
 }

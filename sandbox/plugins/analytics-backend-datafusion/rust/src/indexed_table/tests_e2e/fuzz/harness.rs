@@ -258,6 +258,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                         stream_metrics,
                     ),
                 ),
+                collector_strategy: [
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                    crate::indexed_table::eval::CollectorCallStrategy::FullRange,
+                    crate::indexed_table::eval::CollectorCallStrategy::PageRangeSplit,
+                ][seed as usize % 3],
             });
             Ok(eval)
         })
@@ -344,6 +349,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
     loaded: &LoadedSegment,
     tree: &GeneratedTree,
     force_strategy: Option<FilterStrategy>,
+    call_strategy: crate::indexed_table::eval::single_collector::CollectorCallStrategy,
 ) -> Option<Vec<i32>> {
     // Match production: classify the tree in its un-normalized form.
     // Only proceed for trees that classify as SingleCollector WITHOUT
@@ -389,6 +395,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                     ),
                 ),
                 stream_metrics.ffm_collector_calls.clone(),
+                call_strategy,
             ));
             let _ = segment;
             Ok(eval)
@@ -788,25 +795,34 @@ async fn run_iteration_impl(
         }
     }
     // Cross-check: when the tree classifies as SingleCollector, run
-    // through SingleCollectorEvaluator with every strategy and assert
-    // all agree with the oracle. Strategy selects I/O shape, not
-    // semantics — row-granular (min_skip_run=1), block-granular
-    // auto-coalesced (None), and whole-RG (BooleanMask) must all
-    // return the same rows.
+    // through SingleCollectorEvaluator with every FilterStrategy ×
+    // CollectorCallStrategy combination and assert all agree with the
+    // oracle. This ensures FullRange, TightenOuterBounds, and
+    // PageRangeSplit all produce identical results.
+    use crate::indexed_table::eval::single_collector::CollectorCallStrategy;
     for strategy in [
         None,
         Some(FilterStrategy::RowSelection),
         Some(FilterStrategy::BooleanMask),
     ] {
-        if let Some(actual) = execute_tree_single_collector(corpus, loaded, tree, strategy).await {
-            if expected != actual {
-                let diff_info = summarize_diff(&expected, &actual);
-                return Err(format!(
-                    "SingleCollectorEvaluator vs oracle mismatch (strategy={:?}):\n  tree = {}\n  {}\n",
-                    strategy,
-                    format_tree(&tree.tree),
-                    diff_info,
-                ));
+        for call_strat in [
+            CollectorCallStrategy::FullRange,
+            CollectorCallStrategy::TightenOuterBounds,
+            CollectorCallStrategy::PageRangeSplit,
+        ] {
+            if let Some(actual) =
+                execute_tree_single_collector(corpus, loaded, tree, strategy, call_strat).await
+            {
+                if expected != actual {
+                    let diff_info = summarize_diff(&expected, &actual);
+                    return Err(format!(
+                        "SingleCollectorEvaluator vs oracle mismatch (strategy={:?}, call={:?}):\n  tree = {}\n  {}\n",
+                        strategy,
+                        call_strat,
+                        format_tree(&tree.tree),
+                        diff_info,
+                    ));
+                }
             }
         }
     }
@@ -821,7 +837,7 @@ async fn run_iteration_impl(
     let classification = classify_filter(&tree.tree);
     if classification == FilterClass::Tree {
         let sc_result =
-            execute_tree_single_collector(corpus, loaded, tree, None).await;
+            execute_tree_single_collector(corpus, loaded, tree, None, CollectorCallStrategy::FullRange).await;
         if sc_result.is_some() {
             return Err(format!(
                 "classify_filter returned Tree but execute_tree_single_collector \
@@ -852,6 +868,7 @@ fn summarize_diff(expected: &[i32], actual: &[i32]) -> String {
 mod tests {
     use super::super::{build_corpus, generate_tree, FixtureConfig};
     use super::*;
+    use crate::indexed_table::eval::single_collector::CollectorCallStrategy;
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
@@ -1043,7 +1060,7 @@ mod tests {
         let expected = oracle_evaluate(&gt, &corpus);
         // Force BooleanMask strategy through the SingleCollector path.
         let actual =
-            execute_tree_single_collector(&corpus, &loaded, &gt, Some(FilterStrategy::BooleanMask))
+            execute_tree_single_collector(&corpus, &loaded, &gt, Some(FilterStrategy::BooleanMask), CollectorCallStrategy::PageRangeSplit)
                 .await
                 .expect("tree classifies as SingleCollector");
         assert_eq!(
@@ -1199,7 +1216,7 @@ mod tests {
             Some(FilterStrategy::RowSelection),
             Some(FilterStrategy::BooleanMask),
         ] {
-            let actual = execute_tree_single_collector(&corpus, &loaded, &gt, strategy)
+            let actual = execute_tree_single_collector(&corpus, &loaded, &gt, strategy, CollectorCallStrategy::PageRangeSplit)
                 .await
                 .expect("tree classifies as SingleCollector");
             assert_eq!(

@@ -53,7 +53,7 @@ use crate::executor::DedicatedExecutor;
 use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::{BitmapTreeEvaluator, CollectorLeafBitmaps};
 use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
-use crate::indexed_table::eval::{RowGroupBitsetSource, TreeBitsetSource};
+use crate::indexed_table::eval::{CollectorCallStrategy, RowGroupBitsetSource, TreeBitsetSource};
 use crate::indexed_table::ffm_callbacks::{create_provider, FfmSegmentCollector, ProviderHandle};
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
@@ -234,6 +234,7 @@ pub async fn execute_indexed_query(
                 .as_ref()
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
+            let call_strategy = query_config.single_collector_strategy;
             Arc::new(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
                     let collector = FfmSegmentCollector::create(
@@ -264,6 +265,7 @@ pub async fn execute_indexed_query(
                             residual_expr.clone(),
                             Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
                             stream_metrics.ffm_collector_calls.clone(),
+                            call_strategy,
                         ));
                     Ok(eval)
                 },
@@ -293,6 +295,7 @@ pub async fn execute_indexed_query(
             let cost_predicate = query_config.cost_predicate;
             let cost_collector = query_config.cost_collector;
             let max_collector_parallelism = query_config.max_collector_parallelism;
+            let collector_strategy = query_config.tree_collector_strategy;
 
             // Build one `PruningPredicate` per unique `Predicate` leaf
             // in the tree. Key = `Arc::as_ptr(expr) as usize` — the
@@ -307,8 +310,8 @@ pub async fn execute_indexed_query(
                 leaf_exprs
                     .iter()
                     .filter_map(|expr| {
-                        build_pruning_predicate(expr, Arc::clone(&schema_for_pruner))
-                            .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+                        let result = build_pruning_predicate(expr, Arc::clone(&schema_for_pruner));
+                        result.map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
                     })
                     .collect(),
             );
@@ -356,6 +359,7 @@ pub async fn execute_indexed_query(
                         page_prune_metrics: Some(PagePruneMetrics::from_stream_metrics(
                             stream_metrics,
                         )),
+                        collector_strategy,
                     });
                     Ok(eval)
                 },
