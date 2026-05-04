@@ -269,9 +269,6 @@ public class OperationRouting {
             IndexShardRoutingTable effectiveShard = shard;
             if (!drainedNodes.isEmpty()) {
                 effectiveShard = filterDrainedNodes(shard, drainedNodes);
-                if (effectiveShard == null) {
-                    continue;
-                }
             }
 
             IndexMetadata indexMetadataForShard = indexMetadata(clusterState, effectiveShard.shardId.getIndex().getName());
@@ -352,11 +349,7 @@ public class OperationRouting {
                 builder.addShard(shardRouting);
             }
         }
-        IndexShardRoutingTable filtered = builder.build();
-        if (filtered.size() == 0) {
-            return null;
-        }
-        return filtered;
+        return builder.build();
     }
 
     private Set<IndexShardRoutingTable> computeTargetedShards(
