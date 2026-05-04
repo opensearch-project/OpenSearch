@@ -98,7 +98,7 @@ public class FragmentExecutionRequest extends ActionRequest {
 
     /**
      * A single plan alternative: a backend ID paired with its serialized fragment bytes.
-     * Produced by {@code FragmentConversionDriver.convert()} using the backend's
+     * Produced by {@code FragmentConversionDriver.convertAll()} using the backend's
      * {@code FragmentConvertor}.
      */
     public static class PlanAlternative {

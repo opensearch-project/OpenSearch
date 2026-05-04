@@ -25,6 +25,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * OpenSearch custom Project carrying viable backend list and per-expression annotations.
@@ -116,10 +117,15 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        return stripAnnotations(strippedChildren, OperatorAnnotation::unwrap);
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
         List<RexNode> strippedExprs = new ArrayList<>();
         for (RexNode expr : getProjects()) {
             if (expr instanceof AnnotatedProjectExpression annotated) {
-                strippedExprs.add(annotated.unwrap());
+                strippedExprs.add(annotationResolver.apply(annotated));
             } else {
                 // Plain expressions have no annotation to strip — pass through.
                 strippedExprs.add(expr);

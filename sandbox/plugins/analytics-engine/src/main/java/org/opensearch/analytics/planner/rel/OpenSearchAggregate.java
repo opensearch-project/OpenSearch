@@ -22,6 +22,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * OpenSearch custom Aggregate carrying viable backend list and per-call annotations.
@@ -179,8 +180,16 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        return stripAnnotations(strippedChildren, OperatorAnnotation::unwrap);
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
         List<AggregateCall> strippedCalls = new ArrayList<>();
         for (AggregateCall aggCall : getAggCallList()) {
+            // TODO: when aggregate delegation is implemented, use annotationResolver
+            // to replace delegated AggregateCallAnnotations with placeholders instead
+            // of just filtering them out.
             List<RexNode> cleanRexList = aggCall.rexList.stream().filter(rex -> !(rex instanceof AggregateCallAnnotation)).toList();
             strippedCalls.add(
                 AggregateCall.create(

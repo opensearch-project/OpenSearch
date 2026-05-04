@@ -29,6 +29,7 @@ import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
+import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
 import java.util.ArrayList;
@@ -42,6 +43,7 @@ import io.substrait.isthmus.ImmutableFeatureBoard;
 import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
+import io.substrait.isthmus.expression.FunctionMappings;
 import io.substrait.isthmus.expression.ScalarFunctionConverter;
 import io.substrait.isthmus.expression.WindowFunctionConverter;
 import io.substrait.plan.Plan;
@@ -76,6 +78,11 @@ import io.substrait.util.EmptyVisitationContext;
 public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFusionFragmentConvertor.class);
+
+    /** Maps DelegatedPredicateFunction to its Substrait extension name for Isthmus conversion. */
+    private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
+        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME)
+    );
 
     private final SimpleExtension.ExtensionCollection extensions;
 
@@ -245,7 +252,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
         ScalarFunctionConverter scalarConverter = new ScalarFunctionConverter(
             extensions.scalarFunctions(),
-            List.of(),
+            ADDITIONAL_SCALAR_SIGS,
             typeFactory,
             typeConverter
         );

@@ -9,10 +9,12 @@
 package org.opensearch.analytics.planner.rel;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Marker interface for all OpenSearch custom RelNodes that carry backend assignment
@@ -67,4 +69,20 @@ public interface OpenSearchRelNode {
      * @param strippedChildren children already stripped
      */
     RelNode stripAnnotations(List<RelNode> strippedChildren);
+
+    /**
+     * Returns a clean standard Calcite RelNode with annotations resolved via the given function.
+     * The resolver decides per-annotation what to return: the unwrapped original for native
+     * annotations, or a placeholder (e.g., {@code delegated_predicate(annotationId)}) for
+     * delegated ones.
+     *
+     * <p>Default delegates to {@link #stripAnnotations(List)} — correct for operators
+     * with no annotations (Sort, Scan, ExchangeReducer, StageInputScan).
+     *
+     * @param strippedChildren    children already stripped
+     * @param annotationResolver  maps each annotation to its replacement RexNode
+     */
+    default RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
+        return stripAnnotations(strippedChildren);
+    }
 }
