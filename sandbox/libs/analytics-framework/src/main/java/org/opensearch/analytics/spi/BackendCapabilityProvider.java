@@ -72,4 +72,13 @@ public interface BackendCapabilityProvider {
     default Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
         return Map.of();
     }
+
+    /**
+     * Per-function serializers for delegated predicates this backend can accept.
+     * Keyed by {@link ScalarFunction} — the framework dispatches to the matching
+     * serializer during fragment conversion when a predicate is delegated to this backend.
+     */
+    default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return Map.of();
+    }
 }

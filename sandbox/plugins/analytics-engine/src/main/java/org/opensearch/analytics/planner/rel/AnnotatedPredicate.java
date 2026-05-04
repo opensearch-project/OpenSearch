@@ -9,12 +9,14 @@
 package org.opensearch.analytics.planner.rel;
 
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.SqlSyntax;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 
 import java.util.List;
 
@@ -80,6 +82,11 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
     @Override
     public RexNode withAdaptedOriginal(RexNode adaptedOriginal) {
         return new AnnotatedPredicate(type, adaptedOriginal, viableBackends, annotationId);
+    }
+
+    @Override
+    public RexNode makePlaceholder(RexBuilder rexBuilder) {
+        return DelegatedPredicateFunction.makeCall(rexBuilder, annotationId);
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
+import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -35,6 +36,7 @@ import io.substrait.extension.SimpleExtension;
 import io.substrait.proto.AggregateFunction;
 import io.substrait.proto.AggregateRel;
 import io.substrait.proto.AggregationPhase;
+import io.substrait.proto.Expression;
 import io.substrait.proto.FilterRel;
 import io.substrait.proto.Plan;
 import io.substrait.proto.PlanRel;
@@ -69,7 +71,8 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         ClassLoader prev = t.getContextClassLoader();
         try {
             t.setContextClassLoader(DataFusionFragmentConvertorTests.class.getClassLoader());
-            extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION;
+            SimpleExtension.ExtensionCollection delegationExtensions = SimpleExtension.load(List.of("/delegation_functions.yaml"));
+            extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions);
         } finally {
             t.setContextClassLoader(prev);
         }
@@ -262,6 +265,110 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         Rel aggInput = inner.getAggregate().getInput();
         assertTrue("Agg input must be a ReadRel", aggInput.hasRead());
         assertEquals(List.of(DatafusionReduceSink.INPUT_ID), aggInput.getRead().getNamedTable().getNamesList());
+    }
+
+    /**
+     * A filter containing {@code delegated_predicate(42)} converts to Substrait
+     * with the placeholder preserved as a scalar function call in the FilterRel condition.
+     */
+    public void testConvertShardScanFragment_DelegatedPredicatePlaceholder() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A", "B");
+        RexNode placeholder = DelegatedPredicateFunction.makeCall(rexBuilder, 42);
+        RelNode filter = LogicalFilter.create(scan, placeholder);
+
+        byte[] bytes = newConvertor().convertShardScanFragment("test_index", filter);
+
+        Plan plan = decodeSubstrait(bytes);
+        Rel root = rootRel(plan);
+        assertTrue("root must be a FilterRel", root.hasFilter());
+        FilterRel filterRel = root.getFilter();
+        assertTrue("FilterRel must carry a condition", filterRel.hasCondition());
+        assertTrue("condition must be a scalar function", filterRel.getCondition().hasScalarFunction());
+        logger.info("Substrait condition (single delegated):\n{}", filterRel.getCondition());
+        Expression.ScalarFunction scalarFunc = filterRel.getCondition().getScalarFunction();
+        assertFalse("scalar function must have arguments", scalarFunc.getArgumentsList().isEmpty());
+        // Verify the argument is literal i32 = 42
+        assertEquals(42, scalarFunc.getArguments(0).getValue().getLiteral().getI32());
+    }
+
+    /**
+     * AND(A > 10, delegated_predicate(7)) — mixed native + delegated.
+     * Substrait AND has two children: GT scalar function and delegated_predicate scalar function.
+     */
+    public void testConvertShardScanFragment_MixedNativeAndDelegated() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A", "B");
+        RexNode nativePred = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(scan, 0),
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RexNode delegated = DelegatedPredicateFunction.makeCall(rexBuilder, 7);
+        RexNode andCondition = rexBuilder.makeCall(SqlStdOperatorTable.AND, nativePred, delegated);
+        RelNode filter = LogicalFilter.create(scan, andCondition);
+
+        byte[] bytes = newConvertor().convertShardScanFragment("test_index", filter);
+        Plan plan = decodeSubstrait(bytes);
+        FilterRel filterRel = rootRel(plan).getFilter();
+        // Root condition is AND (scalar function with 2 args)
+        assertTrue("condition must be a scalar function", filterRel.getCondition().hasScalarFunction());
+        Expression.ScalarFunction andFunc = filterRel.getCondition().getScalarFunction();
+        assertEquals("AND must have 2 arguments", 2, andFunc.getArgumentsCount());
+        // Second arg should contain delegated_predicate with literal 7
+        Expression delegatedArg = andFunc.getArguments(1).getValue();
+        assertTrue("second AND arg must be a scalar function", delegatedArg.hasScalarFunction());
+        assertEquals(7, delegatedArg.getScalarFunction().getArguments(0).getValue().getLiteral().getI32());
+    }
+
+    /**
+     * AND(A > 10, OR(delegated_predicate(1), NOT(delegated_predicate(2)))) — complex boolean tree.
+     * Verifies nested AND/OR/NOT with delegation placeholders and their annotation IDs survive
+     * Substrait conversion.
+     */
+    public void testConvertShardScanFragment_ComplexBooleanTreeWithDelegation() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A", "B");
+        RexNode nativePred = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(scan, 0),
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RexNode delegated1 = DelegatedPredicateFunction.makeCall(rexBuilder, 1);
+        RexNode delegated2 = DelegatedPredicateFunction.makeCall(rexBuilder, 2);
+        RexNode notDelegated2 = rexBuilder.makeCall(SqlStdOperatorTable.NOT, delegated2);
+        RexNode orClause = rexBuilder.makeCall(SqlStdOperatorTable.OR, delegated1, notDelegated2);
+        RexNode andCondition = rexBuilder.makeCall(SqlStdOperatorTable.AND, nativePred, orClause);
+        RelNode filter = LogicalFilter.create(scan, andCondition);
+
+        byte[] bytes = newConvertor().convertShardScanFragment("test_index", filter);
+        Plan plan = decodeSubstrait(bytes);
+        logger.info("Substrait plan (complex boolean tree):\n{}", plan);
+        FilterRel filterRel = rootRel(plan).getFilter();
+
+        // Root: AND with 2 args
+        Expression.ScalarFunction andFunc = filterRel.getCondition().getScalarFunction();
+        assertEquals("AND must have 2 arguments", 2, andFunc.getArgumentsCount());
+
+        // arg[0]: GT (native predicate) — has field ref and literal 10
+        Expression gtArg = andFunc.getArguments(0).getValue();
+        assertTrue("first AND arg must be a scalar function (GT)", gtArg.hasScalarFunction());
+        assertEquals(10, gtArg.getScalarFunction().getArguments(1).getValue().getLiteral().getI32());
+
+        // arg[1]: OR with 2 args
+        Expression orArg = andFunc.getArguments(1).getValue();
+        assertTrue("second AND arg must be a scalar function (OR)", orArg.hasScalarFunction());
+        Expression.ScalarFunction orFunc = orArg.getScalarFunction();
+        assertEquals("OR must have 2 arguments", 2, orFunc.getArgumentsCount());
+
+        // OR arg[0]: delegated_predicate(1)
+        Expression dp1 = orFunc.getArguments(0).getValue();
+        assertTrue("OR first arg must be scalar function", dp1.hasScalarFunction());
+        assertEquals(1, dp1.getScalarFunction().getArguments(0).getValue().getLiteral().getI32());
+
+        // OR arg[1]: NOT(delegated_predicate(2))
+        Expression notExpr = orFunc.getArguments(1).getValue();
+        assertTrue("OR second arg must be scalar function (NOT)", notExpr.hasScalarFunction());
+        Expression dp2 = notExpr.getScalarFunction().getArguments(0).getValue();
+        assertTrue("NOT arg must be scalar function", dp2.hasScalarFunction());
+        assertEquals(2, dp2.getScalarFunction().getArguments(0).getValue().getLiteral().getI32());
     }
 
 }
