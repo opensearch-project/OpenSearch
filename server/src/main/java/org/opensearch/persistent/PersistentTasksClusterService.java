@@ -225,9 +225,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                                 state = update(state, tasksBuilder);
                             } else {
                                 if (tasksBuilder.hasTask(entry.taskId)) {
+                                    PersistentTask<?> existingTask = PersistentTasksCustomMetadata.getTaskWithId(state, entry.taskId);
                                     logger.warn(
                                         "The task [{}] with id [{}] has a different allocation id [{}], status is not updated",
-                                        PersistentTasksCustomMetadata.getTaskWithId(state, entry.taskId).getTaskName(),
+                                        existingTask != null ? existingTask.getTaskName() : "unknown",
                                         entry.taskId,
                                         entry.allocationId
                                     );
