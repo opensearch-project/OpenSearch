@@ -6,17 +6,10 @@
  * compatible open source license.
  */
 
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
-
 package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightRuntimeException;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -36,6 +29,7 @@ import org.opensearch.transport.stream.StreamException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -157,12 +151,15 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                 // Native Arrow path: zero-copy transfer producer's vectors into stream root
                 VectorSchemaRoot streamRoot = flightChannel.getRoot();
                 if (streamRoot == null) {
-                    // Create stream root from the producer's allocator — same root required
-                    // for Arrow's AllocationManager associate check (see ArrowAllocatorProvider).
-                    streamRoot = VectorSchemaRoot.create(
-                        arrowResponse.getRoot().getSchema(),
-                        arrowResponse.getRoot().getFieldVectors().get(0).getAllocator()
-                    );
+                    // Create stream root using the producer's allocator for same-allocator transfer.
+                    // This avoids an Arrow bug where cross-allocator transferOwnership of foreign-backed
+                    // buffers (from C data import) doesn't properly free the ArrowArray C struct.
+                    // The producer's allocator must be long-lived (not closed per-request).
+                    List<FieldVector> fieldVectors = arrowResponse.getRoot().getFieldVectors();
+                    if (fieldVectors.isEmpty()) {
+                        throw new IllegalStateException("Native Arrow batch has no field vectors");
+                    }
+                    streamRoot = VectorSchemaRoot.create(arrowResponse.getRoot().getSchema(), fieldVectors.getFirst().getAllocator());
                 }
                 FlightUtils.transferRoot(arrowResponse.getRoot(), streamRoot);
                 arrowResponse.getRoot().close();

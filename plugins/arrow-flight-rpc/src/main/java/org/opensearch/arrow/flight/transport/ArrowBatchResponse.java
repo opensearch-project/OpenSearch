@@ -47,12 +47,16 @@ import java.io.IOException;
  * <ul>
  *   <li><b>Send side:</b> Use a child of {@link ArrowAllocatorProvider}. All allocators
  *       must share the same root so zero-copy transfers pass Arrow's
- *       {@code AllocationManager} associate check.</li>
+ *       {@code AllocationManager} associate check. The framework creates the Flight
+ *       stream root from the producer's allocator to ensure same-allocator transfer —
+ *       this avoids an Arrow bug with cross-allocator transfer of foreign-backed
+ *       buffers from C data import.</li>
+ *   <li><b>Send side:</b> Allocators must outlive the gRPC stream — gRPC's zero-copy write
+ *       path retains buffer references beyond stream completion. Do not create and close a
+ *       child allocator per request.</li>
  *   <li><b>Receive side:</b> The framework transfers vectors from the Flight stream's
  *       allocator into the response. The consumer can then transfer them into its own
  *       allocator — which must also be a child of {@link ArrowAllocatorProvider}.</li>
- *   <li>Allocators must outlive the gRPC stream — gRPC's zero-copy write path retains
- *       buffer references beyond stream completion.</li>
  * </ul>
  *
  * @opensearch.experimental
@@ -60,25 +64,25 @@ import java.io.IOException;
 @ExperimentalApi
 public abstract class ArrowBatchResponse extends ActionResponse {
 
-    private final VectorSchemaRoot batch;
+    private final VectorSchemaRoot batchRoot;
 
     /**
-     * Send-side constructor: wraps a batch populated by the producer.
-     * @param batch the batch to send; ownership transfers to the transport
+     * Send-side constructor: wraps a root populated by the producer.
+     * @param batchRoot the root to send; ownership transfers to the transport
      */
-    protected ArrowBatchResponse(VectorSchemaRoot batch) {
-        this.batch = batch;
+    protected ArrowBatchResponse(VectorSchemaRoot batchRoot) {
+        this.batchRoot = batchRoot;
     }
 
     /**
-     * Receive-side constructor: claims ownership of the consumer batch from the input.
+     * Receive-side constructor: claims ownership of the consumer root from the input.
      * @param in must be a {@link VectorStreamInput.NativeArrow}; throws otherwise
      * @throws IOException if reading fails
      */
     protected ArrowBatchResponse(StreamInput in) throws IOException {
         super(in);
         if (in instanceof VectorStreamInput.NativeArrow nativeIn) {
-            this.batch = nativeIn.getRoot();
+            this.batchRoot = nativeIn.getRoot();
             nativeIn.claimOwnership();
         } else {
             throw new IllegalStateException(
@@ -90,9 +94,9 @@ public abstract class ArrowBatchResponse extends ActionResponse {
         }
     }
 
-    /** Returns the Arrow batch holding the response vectors. */
+    /** Returns the Arrow root holding the response vectors. */
     public VectorSchemaRoot getRoot() {
-        return batch;
+        return batchRoot;
     }
 
     @Override

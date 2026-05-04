@@ -94,7 +94,7 @@ class FlightTransport extends TcpTransport {
     private final AtomicInteger nextExecutorIndex = new AtomicInteger(0);
 
     private final ThreadPool threadPool;
-    private BufferAllocator rootAllocator;
+    private BufferAllocator flightAllocator;
     private BufferAllocator serverAllocator;
     private BufferAllocator clientAllocator;
 
@@ -143,14 +143,14 @@ class FlightTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            rootAllocator = ArrowAllocatorProvider.newChildAllocator("flight", Long.MAX_VALUE);
-            serverAllocator = rootAllocator.newChildAllocator("server", 0, rootAllocator.getLimit());
-            clientAllocator = rootAllocator.newChildAllocator("client", 0, rootAllocator.getLimit());
+            flightAllocator = ArrowAllocatorProvider.newChildAllocator("flight", Integer.MAX_VALUE);
+            serverAllocator = flightAllocator.newChildAllocator("server", 0, flightAllocator.getLimit());
+            clientAllocator = flightAllocator.newChildAllocator("client", 0, flightAllocator.getLimit());
             if (statsCollector != null) {
-                statsCollector.setBufferAllocator(rootAllocator);
+                statsCollector.setBufferAllocator(flightAllocator);
                 statsCollector.setThreadPool(threadPool);
             }
-            flightProducer = new ArrowFlightProducer(this, rootAllocator, SERVER_HEADER_KEY, statsCollector);
+            flightProducer = new ArrowFlightProducer(this, flightAllocator, SERVER_HEADER_KEY, statsCollector);
             bindServer();
             success = true;
             if (statsCollector != null) {
@@ -265,7 +265,7 @@ class FlightTransport extends TcpTransport {
             }
             serverAllocator.close();
             clientAllocator.close();
-            rootAllocator.close();
+            flightAllocator.close();
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
             gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
 
