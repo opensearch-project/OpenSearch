@@ -92,10 +92,40 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         assertEquals(42, dstVec.get(0));
         assertEquals(99, dstVec.get(1));
 
-        // Source should be empty after transfer
+        // Source should be empty after transfer — both at vector and root level
         assertEquals(0, srcVec.getValueCount());
+        assertEquals(0, src.getRowCount());
 
         src.close();
+        dst.close();
+    }
+
+    /**
+     * After transfer, closing the source must not affect the destination — the destination owns
+     * its buffers. This is the invariant FlightTransportResponse relies on to decouple the
+     * returned response from FlightStream's shared, reused root.
+     */
+    public void testDestinationSurvivesSourceClose() {
+        VectorSchemaRoot src = VectorSchemaRoot.create(schema, allocator);
+        IntVector srcVec = (IntVector) src.getVector("val");
+        srcVec.allocateNew();
+        srcVec.setSafe(0, 7);
+        srcVec.setSafe(1, 13);
+        srcVec.setValueCount(2);
+        src.setRowCount(2);
+
+        VectorSchemaRoot dst = VectorSchemaRoot.create(schema, allocator);
+        new TestResponse(src).transferTo(dst);
+
+        // Close the source — simulates FlightStream clearing/closing its shared root.
+        src.close();
+
+        assertEquals(2, dst.getRowCount());
+        IntVector dstVec = (IntVector) dst.getVector("val");
+        assertEquals(2, dstVec.getValueCount());
+        assertEquals(7, dstVec.get(0));
+        assertEquals(13, dstVec.get(1));
+
         dst.close();
     }
 
