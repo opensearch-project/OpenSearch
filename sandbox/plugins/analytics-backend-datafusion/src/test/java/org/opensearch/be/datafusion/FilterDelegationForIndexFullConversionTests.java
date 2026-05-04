@@ -128,7 +128,6 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         ClassLoader previous = thread.getContextClassLoader();
         SimpleExtension.ExtensionCollection extensions;
         try {
-            thread.setContextClassLoader(FilterDelegationForIndexFullConversionTests.class.getClassLoader());
             SimpleExtension.ExtensionCollection delegationExtensions = SimpleExtension.load(List.of("/delegation_functions.yaml"));
             extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions);
         } finally {

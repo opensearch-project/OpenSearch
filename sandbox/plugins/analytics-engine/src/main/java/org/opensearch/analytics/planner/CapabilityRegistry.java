@@ -37,6 +37,17 @@ import java.util.function.Function;
  * <p>Single-format lookups return the stored list directly — no allocation at query time.
  * Multi-format aggregations build a new list by collecting across entries.
  *
+ * <p>TODO(refactor): This class has 10+ HashMaps with near-identical shapes, 4 redundant
+ * key record types, and per-call list allocations in {@code *ForField} methods:
+ * <ul>
+ *   <li>Unify key types (ScanKey, AggregateKey, ScalarKey) into a single record</li>
+ *   <li>Derive {@code *CapableBackends} sets directly from backend capabilities, not as
+ *       side effects of index population</li>
+ *   <li>Pre-flatten format maps to eliminate per-call allocation in {@code allBackends}
+ *       and {@code *ForField} methods</li>
+ *   <li>Extract repeated constructor indexing pattern into a shared helper</li>
+ * </ul>
+ *
  * @opensearch.internal
  */
 public class CapabilityRegistry {
