@@ -12,12 +12,14 @@ import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
 
 /**
- * Factory for creating Hive shard consumers.
+ * Factory for creating {@link HiveShardConsumer} instances.
+ * Implements the PBI consumer factory interface to integrate with OpenSearch's ingestion framework.
  */
 public class HiveConsumerFactory implements IngestionConsumerFactory<HiveShardConsumer, HivePointer> {
 
     private HiveSourceConfig config;
 
+    /** Creates a new HiveConsumerFactory instance. */
     public HiveConsumerFactory() {}
 
     @Override

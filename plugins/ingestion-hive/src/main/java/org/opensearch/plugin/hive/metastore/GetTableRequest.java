@@ -15,22 +15,22 @@
 package org.opensearch.plugin.hive.metastore;
 
 @SuppressWarnings({"cast", "rawtypes", "serial", "unchecked", "unused"})
-public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, java.io.Serializable, Cloneable, Comparable<Order> {
-  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("Order");
+public class GetTableRequest implements org.apache.thrift.TBase<GetTableRequest, GetTableRequest._Fields>, java.io.Serializable, Cloneable, Comparable<GetTableRequest> {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("GetTableRequest");
 
-  private static final org.apache.thrift.protocol.TField COL_FIELD_DESC = new org.apache.thrift.protocol.TField("col", org.apache.thrift.protocol.TType.STRING, (short)1);
-  private static final org.apache.thrift.protocol.TField ORDER_FIELD_DESC = new org.apache.thrift.protocol.TField("order", org.apache.thrift.protocol.TType.I32, (short)2);
+  private static final org.apache.thrift.protocol.TField DB_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("dbName", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField TBL_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("tblName", org.apache.thrift.protocol.TType.STRING, (short)2);
 
-  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new OrderStandardSchemeFactory();
-  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new OrderTupleSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory STANDARD_SCHEME_FACTORY = new GetTableRequestStandardSchemeFactory();
+  private static final org.apache.thrift.scheme.SchemeFactory TUPLE_SCHEME_FACTORY = new GetTableRequestTupleSchemeFactory();
 
-  private @org.apache.thrift.annotation.Nullable java.lang.String col; // required
-  private int order; // required
+  private @org.apache.thrift.annotation.Nullable java.lang.String dbName; // required
+  private @org.apache.thrift.annotation.Nullable java.lang.String tblName; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-    COL((short)1, "col"),
-    ORDER((short)2, "order");
+    DB_NAME((short)1, "dbName"),
+    TBL_NAME((short)2, "tblName");
 
     private static final java.util.Map<java.lang.String, _Fields> byName = new java.util.HashMap<java.lang.String, _Fields>();
 
@@ -46,10 +46,10 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
     @org.apache.thrift.annotation.Nullable
     public static _Fields findByThriftId(int fieldId) {
       switch(fieldId) {
-        case 1: // COL
-          return COL;
-        case 2: // ORDER
-          return ORDER;
+        case 1: // DB_NAME
+          return DB_NAME;
+        case 2: // TBL_NAME
+          return TBL_NAME;
         default:
           return null;
       }
@@ -93,119 +93,118 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
   }
 
   // isset id assignments
-  private static final int __ORDER_ISSET_ID = 0;
-  private byte __isset_bitfield = 0;
   public static final java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     java.util.Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new java.util.EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.COL, new org.apache.thrift.meta_data.FieldMetaData("col", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+    tmpMap.put(_Fields.DB_NAME, new org.apache.thrift.meta_data.FieldMetaData("dbName", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.ORDER, new org.apache.thrift.meta_data.FieldMetaData("order", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.TBL_NAME, new org.apache.thrift.meta_data.FieldMetaData("tblName", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = java.util.Collections.unmodifiableMap(tmpMap);
-    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(Order.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(GetTableRequest.class, metaDataMap);
   }
 
-  public Order() {
+  public GetTableRequest() {
   }
 
-  public Order(
-    java.lang.String col,
-    int order)
+  public GetTableRequest(
+    java.lang.String dbName,
+    java.lang.String tblName)
   {
     this();
-    this.col = col;
-    this.order = order;
-    setOrderIsSet(true);
+    this.dbName = dbName;
+    this.tblName = tblName;
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public Order(Order other) {
-    __isset_bitfield = other.__isset_bitfield;
-    if (other.isSetCol()) {
-      this.col = other.col;
+  public GetTableRequest(GetTableRequest other) {
+    if (other.isSetDbName()) {
+      this.dbName = other.dbName;
     }
-    this.order = other.order;
+    if (other.isSetTblName()) {
+      this.tblName = other.tblName;
+    }
   }
 
   @Override
-  public Order deepCopy() {
-    return new Order(this);
+  public GetTableRequest deepCopy() {
+    return new GetTableRequest(this);
   }
 
   @Override
   public void clear() {
-    this.col = null;
-    setOrderIsSet(false);
-    this.order = 0;
+    this.dbName = null;
+    this.tblName = null;
   }
 
   @org.apache.thrift.annotation.Nullable
-  public java.lang.String getCol() {
-    return this.col;
+  public java.lang.String getDbName() {
+    return this.dbName;
   }
 
-  public Order setCol(@org.apache.thrift.annotation.Nullable java.lang.String col) {
-    this.col = col;
+  public GetTableRequest setDbName(@org.apache.thrift.annotation.Nullable java.lang.String dbName) {
+    this.dbName = dbName;
     return this;
   }
 
-  public void unsetCol() {
-    this.col = null;
+  public void unsetDbName() {
+    this.dbName = null;
   }
 
-  /** Returns true if field col is set (has been assigned a value) and false otherwise */
-  public boolean isSetCol() {
-    return this.col != null;
+  /** Returns true if field dbName is set (has been assigned a value) and false otherwise */
+  public boolean isSetDbName() {
+    return this.dbName != null;
   }
 
-  public void setColIsSet(boolean value) {
+  public void setDbNameIsSet(boolean value) {
     if (!value) {
-      this.col = null;
+      this.dbName = null;
     }
   }
 
-  public int getOrder() {
-    return this.order;
+  @org.apache.thrift.annotation.Nullable
+  public java.lang.String getTblName() {
+    return this.tblName;
   }
 
-  public Order setOrder(int order) {
-    this.order = order;
-    setOrderIsSet(true);
+  public GetTableRequest setTblName(@org.apache.thrift.annotation.Nullable java.lang.String tblName) {
+    this.tblName = tblName;
     return this;
   }
 
-  public void unsetOrder() {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.clearBit(__isset_bitfield, __ORDER_ISSET_ID);
+  public void unsetTblName() {
+    this.tblName = null;
   }
 
-  /** Returns true if field order is set (has been assigned a value) and false otherwise */
-  public boolean isSetOrder() {
-    return org.apache.thrift.EncodingUtils.testBit(__isset_bitfield, __ORDER_ISSET_ID);
+  /** Returns true if field tblName is set (has been assigned a value) and false otherwise */
+  public boolean isSetTblName() {
+    return this.tblName != null;
   }
 
-  public void setOrderIsSet(boolean value) {
-    __isset_bitfield = org.apache.thrift.EncodingUtils.setBit(__isset_bitfield, __ORDER_ISSET_ID, value);
+  public void setTblNameIsSet(boolean value) {
+    if (!value) {
+      this.tblName = null;
+    }
   }
 
   @Override
   public void setFieldValue(_Fields field, @org.apache.thrift.annotation.Nullable java.lang.Object value) {
     switch (field) {
-    case COL:
+    case DB_NAME:
       if (value == null) {
-        unsetCol();
+        unsetDbName();
       } else {
-        setCol((java.lang.String)value);
+        setDbName((java.lang.String)value);
       }
       break;
 
-    case ORDER:
+    case TBL_NAME:
       if (value == null) {
-        unsetOrder();
+        unsetTblName();
       } else {
-        setOrder((java.lang.Integer)value);
+        setTblName((java.lang.String)value);
       }
       break;
 
@@ -216,11 +215,11 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
   @Override
   public java.lang.Object getFieldValue(_Fields field) {
     switch (field) {
-    case COL:
-      return getCol();
+    case DB_NAME:
+      return getDbName();
 
-    case ORDER:
-      return getOrder();
+    case TBL_NAME:
+      return getTblName();
 
     }
     throw new java.lang.IllegalStateException();
@@ -234,42 +233,42 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
     }
 
     switch (field) {
-    case COL:
-      return isSetCol();
-    case ORDER:
-      return isSetOrder();
+    case DB_NAME:
+      return isSetDbName();
+    case TBL_NAME:
+      return isSetTblName();
     }
     throw new java.lang.IllegalStateException();
   }
 
   @Override
   public boolean equals(java.lang.Object that) {
-    if (that instanceof Order)
-      return this.equals((Order)that);
+    if (that instanceof GetTableRequest)
+      return this.equals((GetTableRequest)that);
     return false;
   }
 
-  public boolean equals(Order that) {
+  public boolean equals(GetTableRequest that) {
     if (that == null)
       return false;
     if (this == that)
       return true;
 
-    boolean this_present_col = true && this.isSetCol();
-    boolean that_present_col = true && that.isSetCol();
-    if (this_present_col || that_present_col) {
-      if (!(this_present_col && that_present_col))
+    boolean this_present_dbName = true && this.isSetDbName();
+    boolean that_present_dbName = true && that.isSetDbName();
+    if (this_present_dbName || that_present_dbName) {
+      if (!(this_present_dbName && that_present_dbName))
         return false;
-      if (!this.col.equals(that.col))
+      if (!this.dbName.equals(that.dbName))
         return false;
     }
 
-    boolean this_present_order = true;
-    boolean that_present_order = true;
-    if (this_present_order || that_present_order) {
-      if (!(this_present_order && that_present_order))
+    boolean this_present_tblName = true && this.isSetTblName();
+    boolean that_present_tblName = true && that.isSetTblName();
+    if (this_present_tblName || that_present_tblName) {
+      if (!(this_present_tblName && that_present_tblName))
         return false;
-      if (this.order != that.order)
+      if (!this.tblName.equals(that.tblName))
         return false;
     }
 
@@ -280,39 +279,41 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
   public int hashCode() {
     int hashCode = 1;
 
-    hashCode = hashCode * 8191 + ((isSetCol()) ? 131071 : 524287);
-    if (isSetCol())
-      hashCode = hashCode * 8191 + col.hashCode();
+    hashCode = hashCode * 8191 + ((isSetDbName()) ? 131071 : 524287);
+    if (isSetDbName())
+      hashCode = hashCode * 8191 + dbName.hashCode();
 
-    hashCode = hashCode * 8191 + order;
+    hashCode = hashCode * 8191 + ((isSetTblName()) ? 131071 : 524287);
+    if (isSetTblName())
+      hashCode = hashCode * 8191 + tblName.hashCode();
 
     return hashCode;
   }
 
   @Override
-  public int compareTo(Order other) {
+  public int compareTo(GetTableRequest other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
 
-    lastComparison = java.lang.Boolean.compare(isSetCol(), other.isSetCol());
+    lastComparison = java.lang.Boolean.compare(isSetDbName(), other.isSetDbName());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetCol()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.col, other.col);
+    if (isSetDbName()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.dbName, other.dbName);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
-    lastComparison = java.lang.Boolean.compare(isSetOrder(), other.isSetOrder());
+    lastComparison = java.lang.Boolean.compare(isSetTblName(), other.isSetTblName());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetOrder()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.order, other.order);
+    if (isSetTblName()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.tblName, other.tblName);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -338,19 +339,23 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
 
   @Override
   public java.lang.String toString() {
-    java.lang.StringBuilder sb = new java.lang.StringBuilder("Order(");
+    java.lang.StringBuilder sb = new java.lang.StringBuilder("GetTableRequest(");
     boolean first = true;
 
-    sb.append("col:");
-    if (this.col == null) {
+    sb.append("dbName:");
+    if (this.dbName == null) {
       sb.append("null");
     } else {
-      sb.append(this.col);
+      sb.append(this.dbName);
     }
     first = false;
     if (!first) sb.append(", ");
-    sb.append("order:");
-    sb.append(this.order);
+    sb.append("tblName:");
+    if (this.tblName == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.tblName);
+    }
     first = false;
     sb.append(")");
     return sb.toString();
@@ -358,6 +363,12 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
 
   public void validate() throws org.apache.thrift.TException {
     // check for required fields
+    if (dbName == null) {
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'dbName' was not present! Struct: " + toString());
+    }
+    if (tblName == null) {
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'tblName' was not present! Struct: " + toString());
+    }
     // check for sub-struct validity
   }
 
@@ -371,25 +382,23 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
 
   private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, java.lang.ClassNotFoundException {
     try {
-      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-      __isset_bitfield = 0;
       read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
     } catch (org.apache.thrift.TException te) {
       throw new java.io.IOException(te);
     }
   }
 
-  private static class OrderStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class GetTableRequestStandardSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public OrderStandardScheme getScheme() {
-      return new OrderStandardScheme();
+    public GetTableRequestStandardScheme getScheme() {
+      return new GetTableRequestStandardScheme();
     }
   }
 
-  private static class OrderStandardScheme extends org.apache.thrift.scheme.StandardScheme<Order> {
+  private static class GetTableRequestStandardScheme extends org.apache.thrift.scheme.StandardScheme<GetTableRequest> {
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol iprot, Order struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol iprot, GetTableRequest struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TField schemeField;
       iprot.readStructBegin();
       while (true)
@@ -399,18 +408,18 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
           break;
         }
         switch (schemeField.id) {
-          case 1: // COL
+          case 1: // DB_NAME
             if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-              struct.col = iprot.readString();
-              struct.setColIsSet(true);
+              struct.dbName = iprot.readString();
+              struct.setDbNameIsSet(true);
             } else { 
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 2: // ORDER
-            if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
-              struct.order = iprot.readI32();
-              struct.setOrderIsSet(true);
+          case 2: // TBL_NAME
+            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+              struct.tblName = iprot.readString();
+              struct.setTblNameIsSet(true);
             } else { 
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
@@ -427,64 +436,49 @@ public class Order implements org.apache.thrift.TBase<Order, Order._Fields>, jav
     }
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol oprot, Order struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol oprot, GetTableRequest struct) throws org.apache.thrift.TException {
       struct.validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (struct.col != null) {
-        oprot.writeFieldBegin(COL_FIELD_DESC);
-        oprot.writeString(struct.col);
+      if (struct.dbName != null) {
+        oprot.writeFieldBegin(DB_NAME_FIELD_DESC);
+        oprot.writeString(struct.dbName);
         oprot.writeFieldEnd();
       }
-      oprot.writeFieldBegin(ORDER_FIELD_DESC);
-      oprot.writeI32(struct.order);
-      oprot.writeFieldEnd();
+      if (struct.tblName != null) {
+        oprot.writeFieldBegin(TBL_NAME_FIELD_DESC);
+        oprot.writeString(struct.tblName);
+        oprot.writeFieldEnd();
+      }
       oprot.writeFieldStop();
       oprot.writeStructEnd();
     }
 
   }
 
-  private static class OrderTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
+  private static class GetTableRequestTupleSchemeFactory implements org.apache.thrift.scheme.SchemeFactory {
     @Override
-    public OrderTupleScheme getScheme() {
-      return new OrderTupleScheme();
+    public GetTableRequestTupleScheme getScheme() {
+      return new GetTableRequestTupleScheme();
     }
   }
 
-  private static class OrderTupleScheme extends org.apache.thrift.scheme.TupleScheme<Order> {
+  private static class GetTableRequestTupleScheme extends org.apache.thrift.scheme.TupleScheme<GetTableRequest> {
 
     @Override
-    public void write(org.apache.thrift.protocol.TProtocol prot, Order struct) throws org.apache.thrift.TException {
+    public void write(org.apache.thrift.protocol.TProtocol prot, GetTableRequest struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol oprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
-      java.util.BitSet optionals = new java.util.BitSet();
-      if (struct.isSetCol()) {
-        optionals.set(0);
-      }
-      if (struct.isSetOrder()) {
-        optionals.set(1);
-      }
-      oprot.writeBitSet(optionals, 2);
-      if (struct.isSetCol()) {
-        oprot.writeString(struct.col);
-      }
-      if (struct.isSetOrder()) {
-        oprot.writeI32(struct.order);
-      }
+      oprot.writeString(struct.dbName);
+      oprot.writeString(struct.tblName);
     }
 
     @Override
-    public void read(org.apache.thrift.protocol.TProtocol prot, Order struct) throws org.apache.thrift.TException {
+    public void read(org.apache.thrift.protocol.TProtocol prot, GetTableRequest struct) throws org.apache.thrift.TException {
       org.apache.thrift.protocol.TTupleProtocol iprot = (org.apache.thrift.protocol.TTupleProtocol) prot;
-      java.util.BitSet incoming = iprot.readBitSet(2);
-      if (incoming.get(0)) {
-        struct.col = iprot.readString();
-        struct.setColIsSet(true);
-      }
-      if (incoming.get(1)) {
-        struct.order = iprot.readI32();
-        struct.setOrderIsSet(true);
-      }
+      struct.dbName = iprot.readString();
+      struct.setDbNameIsSet(true);
+      struct.tblName = iprot.readString();
+      struct.setTblNameIsSet(true);
     }
   }
 

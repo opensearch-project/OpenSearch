@@ -15,12 +15,15 @@ import org.opensearch.plugins.Plugin;
 import java.util.Map;
 
 /**
- * Plugin for pull-based ingestion from Hive tables.
+ * OpenSearch plugin for pull-based ingestion from Hive tables.
+ * Registers the "HIVE" ingestion source type with the Pull-Based Ingestion framework.
  */
 public class HiveIngestionPlugin extends Plugin implements IngestionConsumerPlugin {
 
+    /** The ingestion source type identifier. */
     public static final String TYPE = "HIVE";
 
+    /** Creates a new HiveIngestionPlugin instance. */
     public HiveIngestionPlugin() {}
 
     @SuppressWarnings("rawtypes")

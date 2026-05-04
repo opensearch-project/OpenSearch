@@ -12,13 +12,19 @@ import org.opensearch.index.Message;
 
 /**
  * A message representing a single row read from a Hive table data file.
- * Payload is the row serialized as a JSON byte array.
+ * The payload is the row serialized as a JSON byte array.
  */
 public class HiveMessage implements Message<byte[]> {
 
     private final byte[] payload;
     private final Long timestamp;
 
+    /**
+     * Creates a new HiveMessage.
+     *
+     * @param payload the row data as a JSON byte array
+     * @param timestamp the message timestamp in milliseconds, or null
+     */
     public HiveMessage(byte[] payload, Long timestamp) {
         this.payload = payload;
         this.timestamp = timestamp;
