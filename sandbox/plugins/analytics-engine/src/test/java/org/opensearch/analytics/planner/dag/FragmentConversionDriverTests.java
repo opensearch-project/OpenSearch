@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.BasePlannerRulesTests;
 import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.MockLuceneBackend;
+import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.AggregateCallAnnotation;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
@@ -471,6 +472,46 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertTrue("AND structure should be preserved", strippedPlan.contains("AND"));
         assertTrue("OR structure should be preserved", strippedPlan.contains("OR"));
         assertTrue("NOT structure should be preserved", strippedPlan.contains("NOT"));
+    }
+
+    // ---- Error paths ----
+
+    /** Delegated annotation with no serializer registered → IllegalStateException. */
+    public void testMissingSerializerThrows() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        // Lucene mock accepts delegation but has NO serializers at all
+        MockLuceneBackend lucene = new MockLuceneBackend() {
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+        };
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            public FragmentConvertor getFragmentConvertor() {
+                return dfConvertor;
+            }
+        };
+        Map<String, Map<String, Object>> fields = Map.of("message", Map.of("type", "keyword", "index", true));
+        PlannerContext context = buildContext("parquet", fields, List.of(df, lucene));
+        LogicalFilter filter = LogicalFilter.create(
+            stubScan(mockTable("test_index", new String[] { "message" }, new SqlTypeName[] { SqlTypeName.VARCHAR })),
+            makeFullTextCall(MATCH_PHRASE_FUNCTION, 0, "hello world")
+        );
+        RelNode marked = runPlanner(filter, context);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry())
+        );
+        assertTrue(exception.getMessage().contains("No DelegatedPredicateSerializer"));
+        assertTrue(exception.getMessage().contains("MATCH_PHRASE"));
     }
 
     // ---- RecordingConvertor ----
