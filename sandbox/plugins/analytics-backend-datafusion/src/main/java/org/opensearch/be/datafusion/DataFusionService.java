@@ -12,8 +12,11 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.be.datafusion.cache.CacheManager;
+import org.opensearch.be.datafusion.cache.CacheUtils;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.settings.ClusterSettings;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -36,12 +39,16 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final long spillMemoryLimit;
     private final String spillDirectory;
     private final int cpuThreads;
+    private final ClusterSettings clusterSettings;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
 
     /** Shared Arrow allocator for all DataFusion result streams on this node. */
     private volatile RootAllocator rootAllocator;
+
+    /** Cache manager for pre-warming and managing native caches. */
+    private volatile CacheManager cacheManager;
 
     /** Counter for generating unique child allocator names. */
     private final AtomicLong allocatorCounter = new AtomicLong();
@@ -51,6 +58,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.spillMemoryLimit = builder.spillMemoryLimit;
         this.spillDirectory = builder.spillDirectory;
         this.cpuThreads = builder.cpuThreads;
+        this.clusterSettings = builder.clusterSettings;
     }
 
     /** Creates a new builder. */
@@ -64,9 +72,19 @@ public class DataFusionService extends AbstractLifecycleComponent {
         NativeBridge.initTokioRuntimeManager(cpuThreads);
         logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
 
-        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, 0L, spillDirectory, spillMemoryLimit);
+        long cacheManagerPtr = 0L;
+        if (clusterSettings != null) {
+            cacheManagerPtr = CacheUtils.createCacheConfig(clusterSettings);
+        }
+
+        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
         this.runtimeHandle = new NativeRuntimeHandle(ptr);
         this.rootAllocator = new RootAllocator(memoryPoolLimit);
+
+        if (clusterSettings != null) {
+            this.cacheManager = new CacheManager(runtimeHandle);
+        }
+
         logger.debug("DataFusion service started — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
     }
 
@@ -124,6 +142,13 @@ public class DataFusionService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns the cache manager, or null if caching is not configured.
+     */
+    public CacheManager getCacheManager() {
+        return cacheManager;
+    }
+
+    /**
      * Notifies the native cache that new files are available for caching.
      * @param filePaths absolute paths of the new files
      */
@@ -166,6 +191,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private long spillMemoryLimit = Runtime.getRuntime().maxMemory() / 8;
         private String spillDirectory = System.getProperty("java.io.tmpdir");
         private int cpuThreads = Runtime.getRuntime().availableProcessors();
+        private ClusterSettings clusterSettings;
 
         private Builder() {}
 
@@ -202,6 +228,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder cpuThreads(int threads) {
             this.cpuThreads = threads;
+            return this;
+        }
+
+        /**
+         * Sets the cluster settings for cache configuration.
+         * @param clusterSettings the cluster settings
+         */
+        public Builder clusterSettings(ClusterSettings clusterSettings) {
+            this.clusterSettings = clusterSettings;
             return this;
         }
 

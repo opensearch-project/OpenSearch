@@ -12,8 +12,11 @@
 //! `extern "C"` functions for JDK FFM.
 
 pub mod api;
+pub mod cache;
 pub mod cross_rt_stream;
+pub mod custom_cache_manager;
 pub mod datafusion_query_config;
+pub mod eviction_policy;
 pub mod executor;
 pub mod ffm;
 pub mod indexed_executor;
@@ -24,3 +27,4 @@ pub mod partition_stream;
 pub mod query_executor;
 pub mod query_memory_pool_tracker;
 pub mod runtime_manager;
+pub mod statistics_cache;
