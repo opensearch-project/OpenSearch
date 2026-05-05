@@ -31,7 +31,7 @@ public class FinalAggregateInstructionNode implements InstructionNode {
 
     @Override
     public InstructionType type() {
-        return InstructionType.FINAL_AGGREGATE;
+        return InstructionType.SETUP_FINAL_AGGREGATE;
     }
 
     @Override

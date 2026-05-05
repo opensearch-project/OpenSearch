@@ -21,7 +21,7 @@ import java.io.IOException;
  */
 public enum InstructionType {
     /** Base scan setup — reader acquisition, SessionContext creation, default table provider. */
-    SHARD_SCAN,
+    SETUP_SHARD_SCAN,
     /**
      * Filter delegation to an index backend — bridge setup, UDF registration, IndexedTableProvider.
      *
@@ -30,19 +30,19 @@ public enum InstructionType {
      * BACKEND_DRIVEN exists — derived from the backend declaring
      * {@code supportedDelegations(DelegationType.FILTER)}.
      */
-    FILTER_DELEGATION_FOR_INDEX,
+    SETUP_FILTER_DELEGATION_FOR_INDEX,
     /** Partial aggregate mode — disable combine optimizer, cut plan to partial-only. */
-    PARTIAL_AGGREGATE,
+    SETUP_PARTIAL_AGGREGATE,
     /** Final aggregate for coordinator reduce — ExchangeSink path, final-only agg. */
-    FINAL_AGGREGATE;
+    SETUP_FINAL_AGGREGATE;
 
     /** Deserializes an {@link InstructionNode} from the stream based on this type. */
     public InstructionNode readNode(StreamInput in) throws IOException {
         return switch (this) {
-            case SHARD_SCAN -> new ShardScanInstructionNode(in);
-            case FILTER_DELEGATION_FOR_INDEX -> new FilterDelegationInstructionNode(in);
-            case PARTIAL_AGGREGATE -> new PartialAggregateInstructionNode(in);
-            case FINAL_AGGREGATE -> new FinalAggregateInstructionNode(in);
+            case SETUP_SHARD_SCAN -> new ShardScanInstructionNode(in);
+            case SETUP_FILTER_DELEGATION_FOR_INDEX -> new FilterDelegationInstructionNode(in);
+            case SETUP_PARTIAL_AGGREGATE -> new PartialAggregateInstructionNode(in);
+            case SETUP_FINAL_AGGREGATE -> new FinalAggregateInstructionNode(in);
         };
     }
 }

@@ -15,7 +15,6 @@ import org.opensearch.analytics.spi.FinalAggregateInstructionNode;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
-import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 
 import java.util.List;
@@ -53,7 +52,8 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
 
     @Override
     public Optional<InstructionNode> createPartialAggregateNode() {
-        return Optional.of(new PartialAggregateInstructionNode());
+        // TODO: return Optional.of(...) once PartialAggregateInstructionHandler is implemented
+        return Optional.empty();
     }
 
     @Override

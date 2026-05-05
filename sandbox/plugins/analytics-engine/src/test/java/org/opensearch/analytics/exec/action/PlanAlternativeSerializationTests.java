@@ -41,7 +41,7 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
         assertEquals("datafusion", deserialized.getBackendId());
         assertArrayEquals(new byte[] { 1, 2, 3 }, deserialized.getFragmentBytes());
         assertEquals(1, deserialized.getInstructions().size());
-        assertEquals(InstructionType.SHARD_SCAN, deserialized.getInstructions().get(0).type());
+        assertEquals(InstructionType.SETUP_SHARD_SCAN, deserialized.getInstructions().get(0).type());
     }
 
     public void testRoundTripWithFilterDelegation() throws IOException {
@@ -49,7 +49,7 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
             new DelegatedExpression(1, "lucene", new byte[] { 10, 20 }),
             new DelegatedExpression(2, "lucene", new byte[] { 30, 40 })
         );
-        FilterDelegationInstructionNode filterNode = new FilterDelegationInstructionNode(FilterTreeShape.SINGLE_AND, 2, expressions);
+        FilterDelegationInstructionNode filterNode = new FilterDelegationInstructionNode(FilterTreeShape.CONJUNCTIVE, 2, expressions);
         List<InstructionNode> instructions = List.of(new ShardScanInstructionNode(), filterNode);
         FragmentExecutionRequest.PlanAlternative original = new FragmentExecutionRequest.PlanAlternative(
             "datafusion",
@@ -60,11 +60,11 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
         FragmentExecutionRequest.PlanAlternative deserialized = roundTrip(original);
 
         assertEquals(2, deserialized.getInstructions().size());
-        assertEquals(InstructionType.SHARD_SCAN, deserialized.getInstructions().get(0).type());
-        assertEquals(InstructionType.FILTER_DELEGATION_FOR_INDEX, deserialized.getInstructions().get(1).type());
+        assertEquals(InstructionType.SETUP_SHARD_SCAN, deserialized.getInstructions().get(0).type());
+        assertEquals(InstructionType.SETUP_FILTER_DELEGATION_FOR_INDEX, deserialized.getInstructions().get(1).type());
 
         FilterDelegationInstructionNode deserializedFilter = (FilterDelegationInstructionNode) deserialized.getInstructions().get(1);
-        assertEquals(FilterTreeShape.SINGLE_AND, deserializedFilter.getTreeShape());
+        assertEquals(FilterTreeShape.CONJUNCTIVE, deserializedFilter.getTreeShape());
         assertEquals(2, deserializedFilter.getDelegatedPredicateCount());
         assertEquals(2, deserializedFilter.getDelegatedQueries().size());
         assertEquals(1, deserializedFilter.getDelegatedQueries().get(0).getAnnotationId());
@@ -76,7 +76,7 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
         List<InstructionNode> instructions = List.of(
             new ShardScanInstructionNode(),
             new FilterDelegationInstructionNode(
-                FilterTreeShape.MIXED_BOOLEAN,
+                FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION,
                 1,
                 List.of(new DelegatedExpression(3, "lucene", new byte[] { 99 }))
             ),
@@ -92,10 +92,10 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
         FragmentExecutionRequest.PlanAlternative deserialized = roundTrip(original);
 
         assertEquals(4, deserialized.getInstructions().size());
-        assertEquals(InstructionType.SHARD_SCAN, deserialized.getInstructions().get(0).type());
-        assertEquals(InstructionType.FILTER_DELEGATION_FOR_INDEX, deserialized.getInstructions().get(1).type());
-        assertEquals(InstructionType.PARTIAL_AGGREGATE, deserialized.getInstructions().get(2).type());
-        assertEquals(InstructionType.FINAL_AGGREGATE, deserialized.getInstructions().get(3).type());
+        assertEquals(InstructionType.SETUP_SHARD_SCAN, deserialized.getInstructions().get(0).type());
+        assertEquals(InstructionType.SETUP_FILTER_DELEGATION_FOR_INDEX, deserialized.getInstructions().get(1).type());
+        assertEquals(InstructionType.SETUP_PARTIAL_AGGREGATE, deserialized.getInstructions().get(2).type());
+        assertEquals(InstructionType.SETUP_FINAL_AGGREGATE, deserialized.getInstructions().get(3).type());
     }
 
     private FragmentExecutionRequest.PlanAlternative roundTrip(FragmentExecutionRequest.PlanAlternative original) throws IOException {

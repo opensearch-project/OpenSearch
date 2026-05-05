@@ -29,7 +29,7 @@ public class ShardScanInstructionNode implements InstructionNode {
 
     @Override
     public InstructionType type() {
-        return InstructionType.SHARD_SCAN;
+        return InstructionType.SETUP_SHARD_SCAN;
     }
 
     @Override

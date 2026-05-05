@@ -38,9 +38,9 @@ final class FilterTreeShapeDeriver {
     static FilterTreeShape derive(OpenSearchFilter filter, String drivingBackendId) {
         Result result = walk(filter.getCondition(), drivingBackendId);
         if (!result.hasDelegated) {
-            return FilterTreeShape.PLAIN;
+            return FilterTreeShape.NO_DELEGATION;
         }
-        return result.hasMixed ? FilterTreeShape.MIXED_BOOLEAN : FilterTreeShape.SINGLE_AND;
+        return result.hasMixed ? FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION : FilterTreeShape.CONJUNCTIVE;
     }
 
     private static Result walk(RexNode node, String drivingBackendId) {

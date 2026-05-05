@@ -33,7 +33,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         OpenSearchFilter filter = buildFilter(nativePred);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals("No delegation should return PLAIN", FilterTreeShape.PLAIN, shape);
+        assertEquals("No delegation should return PLAIN", FilterTreeShape.NO_DELEGATION, shape);
     }
 
     public void testSingleDelegatedPredicate() {
@@ -44,7 +44,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         OpenSearchFilter filter = buildFilter(andNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.SINGLE_AND, shape);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
     public void testMultipleDelegatedUnderAnd() {
@@ -56,7 +56,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         OpenSearchFilter filter = buildFilter(andNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.SINGLE_AND, shape);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
     public void testOrWithDelegatedAndNative() {
@@ -67,7 +67,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         OpenSearchFilter filter = buildFilter(orNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.MIXED_BOOLEAN, shape);
+        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
     }
 
     public void testNotWithDelegated() {
@@ -79,7 +79,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         OpenSearchFilter filter = buildFilter(notNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.MIXED_BOOLEAN, shape);
+        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
     }
 
     public void testOrWithOnlyDelegated() {
@@ -92,7 +92,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         OpenSearchFilter filter = buildFilter(andNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.SINGLE_AND, shape);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
     // ---- Helpers ----

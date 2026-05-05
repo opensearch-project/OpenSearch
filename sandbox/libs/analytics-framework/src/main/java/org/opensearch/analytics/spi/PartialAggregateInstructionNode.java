@@ -30,7 +30,7 @@ public class PartialAggregateInstructionNode implements InstructionNode {
 
     @Override
     public InstructionType type() {
-        return InstructionType.PARTIAL_AGGREGATE;
+        return InstructionType.SETUP_PARTIAL_AGGREGATE;
     }
 
     @Override

@@ -94,7 +94,9 @@ public class FragmentConversionDriver {
 
             // Derive filter tree shape BEFORE stripping (annotations must be intact)
             OpenSearchFilter filter = RelNodeUtils.findNode(plan.resolvedFragment(), OpenSearchFilter.class);
-            FilterTreeShape treeShape = filter != null ? FilterTreeShapeDeriver.derive(filter, plan.backendId()) : FilterTreeShape.PLAIN;
+            FilterTreeShape treeShape = filter != null
+                ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
+                : FilterTreeShape.NO_DELEGATION;
 
             IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry);
             byte[] bytes = convert(plan.resolvedFragment(), convertor, delegationBytes);
