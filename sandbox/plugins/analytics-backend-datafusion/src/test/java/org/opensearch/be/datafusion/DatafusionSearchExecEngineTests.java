@@ -65,13 +65,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
 
         try (
             RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
-            ExecutionContext execCtx = new ExecutionContext("test_table", null, null);
+            ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
             execCtx.setAllocator(alloc);
             engine.prepare(execCtx);
             try (EngineResultStream stream = engine.execute(execCtx)) {
@@ -95,13 +94,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
 
         try (
             RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
-            ExecutionContext execCtx = new ExecutionContext("test_table", null, null);
+            ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
             execCtx.setAllocator(alloc);
             engine.prepare(execCtx);
             try (EngineResultStream stream = engine.execute(execCtx)) {
@@ -122,13 +120,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
 
         try (
             RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
-            ExecutionContext execCtx = new ExecutionContext("test_table", null, null);
+            ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
             execCtx.setAllocator(alloc);
             engine.prepare(execCtx);
             try (EngineResultStream stream = engine.execute(execCtx)) {

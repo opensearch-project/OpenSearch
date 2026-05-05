@@ -9,8 +9,8 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
