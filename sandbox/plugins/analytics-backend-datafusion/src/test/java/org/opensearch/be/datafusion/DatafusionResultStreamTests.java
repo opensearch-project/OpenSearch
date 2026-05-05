@@ -31,6 +31,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private ReaderHandle readerHandle;
     private NativeRuntimeHandle runtimeHandle;
     private RootAllocator testRootAllocator;
+    private final java.util.List<BufferAllocator> allocatorsToClose = new java.util.ArrayList<>();
 
     @Override
     public void setUp() throws Exception {
@@ -51,6 +52,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         readerHandle.close();
         runtimeHandle.close();
+        // Caller owns child allocators now (see DatafusionResultStream.close javadoc).
+        // Close them in reverse registration order so child-before-parent invariants hold.
+        for (int i = allocatorsToClose.size() - 1; i >= 0; i--) {
+            allocatorsToClose.get(i).close();
+        }
         testRootAllocator.close();
         super.tearDown();
     }
@@ -69,7 +75,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             Iterator<EngineResultBatch> it = stream.iterator();
             assertTrue(it.hasNext());
             EngineResultBatch batch = it.next();
-            assertTrue(batch.getRowCount() > 0);
+            try {
+                assertTrue(batch.getRowCount() > 0);
+            } finally {
+                batch.getArrowRoot().close();
+            }
             // close without exhausting the stream
         }
     }
@@ -79,7 +89,12 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             Iterator<EngineResultBatch> it = stream.iterator();
             int totalRows = 0;
             while (it.hasNext()) {
-                totalRows += it.next().getRowCount();
+                EngineResultBatch batch = it.next();
+                try {
+                    totalRows += batch.getRowCount();
+                } finally {
+                    batch.getArrowRoot().close();
+                }
             }
             assertEquals(2, totalRows);
         }
@@ -90,7 +105,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         try (DatafusionResultStream stream = createStream("SELECT message FROM test_table")) {
             Iterator<EngineResultBatch> it = stream.iterator();
             EngineResultBatch batch = it.next();
-            assertTrue(batch.getRowCount() > 0);
+            try {
+                assertTrue(batch.getRowCount() > 0);
+            } finally {
+                batch.getArrowRoot().close();
+            }
         }
     }
 
@@ -110,7 +129,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             assertTrue(it.hasNext());
             assertTrue(it.hasNext());
             EngineResultBatch batch = it.next();
-            assertTrue(batch.getRowCount() > 0);
+            try {
+                assertTrue(batch.getRowCount() > 0);
+            } finally {
+                batch.getArrowRoot().close();
+            }
         }
     }
 
@@ -127,11 +150,15 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             Iterator<EngineResultBatch> it = stream.iterator();
             assertTrue(it.hasNext());
             EngineResultBatch batch = it.next();
-            assertEquals(2, batch.getFieldNames().size());
-            assertTrue(batch.getFieldNames().contains("message"));
-            assertTrue(batch.getFieldNames().contains("message2"));
-            assertNotNull(batch.getFieldValue("message", 0));
-            expectThrows(IllegalArgumentException.class, () -> batch.getFieldValue("nonexistent", 0));
+            try {
+                assertEquals(2, batch.getFieldNames().size());
+                assertTrue(batch.getFieldNames().contains("message"));
+                assertTrue(batch.getFieldNames().contains("message2"));
+                assertNotNull(batch.getFieldValue("message", 0));
+                expectThrows(IllegalArgumentException.class, () -> batch.getFieldValue("nonexistent", 0));
+            } finally {
+                batch.getArrowRoot().close();
+            }
         }
     }
 
@@ -202,9 +229,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         );
         long streamPtr = future.join();
 
+        BufferAllocator failureAlloc = testRootAllocator.newChildAllocator("test-failure", 0, Long.MAX_VALUE);
+        allocatorsToClose.add(failureAlloc);
         DatafusionResultStream stream = new DatafusionResultStream(
             new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, tempRuntime),
-            testRootAllocator.newChildAllocator("test-failure", 0, Long.MAX_VALUE)
+            failureAlloc
         );
 
         // Close runtime — streamNext should now fail with IllegalStateException from NativeRuntimeHandle.get()
@@ -253,6 +282,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         );
         long streamPtr = future.join();
         BufferAllocator childAllocator = testRootAllocator.newChildAllocator("test-stream", 0, Long.MAX_VALUE);
+        allocatorsToClose.add(childAllocator);
         return new DatafusionResultStream(
             new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, runtimeHandle),
             childAllocator

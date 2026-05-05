@@ -9,7 +9,6 @@
 package org.opensearch.analytics.exec.stage;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
@@ -55,7 +54,7 @@ public final class RowResponseCodec implements ResponseCodec<FragmentExecutionRe
         List<Object[]> rows = response.getRows();
 
         if (allocator == null) {
-            allocator = new RootAllocator();
+            throw new IllegalArgumentException("BufferAllocator must not be null");
         }
 
         // Infer Arrow type per column from the first non-null value
