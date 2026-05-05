@@ -33,7 +33,8 @@ public final class StatsLayout {
         "global_queue_depth",
         "blocking_queue_depth",
         "num_alive_tasks",
-        "spawned_tasks_count" };
+        "spawned_tasks_count",
+        "total_local_queue_depth" };
 
     private static final String[] TASK_MONITOR_FIELDS = {
         "total_poll_duration_ms",
@@ -51,8 +52,8 @@ public final class StatsLayout {
     );
 
     static {
-        if (LAYOUT.byteSize() != 28 * Long.BYTES) {
-            throw new AssertionError("StatsLayout size mismatch: expected " + (28 * Long.BYTES) + " but got " + LAYOUT.byteSize());
+        if (LAYOUT.byteSize() != 30 * Long.BYTES) {
+            throw new AssertionError("StatsLayout size mismatch: expected " + (30 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -65,6 +66,7 @@ public final class StatsLayout {
     private static final VarHandle IO_BLOCKING_QUEUE_DEPTH = handle("io_runtime", "blocking_queue_depth");
     private static final VarHandle IO_NUM_ALIVE_TASKS = handle("io_runtime", "num_alive_tasks");
     private static final VarHandle IO_SPAWNED_TASKS_COUNT = handle("io_runtime", "spawned_tasks_count");
+    private static final VarHandle IO_TOTAL_LOCAL_QUEUE_DEPTH = handle("io_runtime", "total_local_queue_depth");
 
     // ---- VarHandles for cpu_runtime fields ----
     private static final VarHandle CPU_WORKERS_COUNT = handle("cpu_runtime", "workers_count");
@@ -75,6 +77,7 @@ public final class StatsLayout {
     private static final VarHandle CPU_BLOCKING_QUEUE_DEPTH = handle("cpu_runtime", "blocking_queue_depth");
     private static final VarHandle CPU_NUM_ALIVE_TASKS = handle("cpu_runtime", "num_alive_tasks");
     private static final VarHandle CPU_SPAWNED_TASKS_COUNT = handle("cpu_runtime", "spawned_tasks_count");
+    private static final VarHandle CPU_TOTAL_LOCAL_QUEUE_DEPTH = handle("cpu_runtime", "total_local_queue_depth");
 
     // ---- VarHandles for query_execution fields ----
     private static final VarHandle QE_TOTAL_POLL_DURATION_MS = handle("query_execution", "total_poll_duration_ms");
@@ -127,7 +130,8 @@ public final class StatsLayout {
             (long) handles[4].get(seg, 0L),
             (long) handles[5].get(seg, 0L),
             (long) handles[6].get(seg, 0L),
-            (long) handles[7].get(seg, 0L)
+            (long) handles[7].get(seg, 0L),
+            (long) handles[8].get(seg, 0L)
         );
     }
 
@@ -158,7 +162,8 @@ public final class StatsLayout {
             ValueLayout.JAVA_LONG.withName("global_queue_depth"),
             ValueLayout.JAVA_LONG.withName("blocking_queue_depth"),
             ValueLayout.JAVA_LONG.withName("num_alive_tasks"),
-            ValueLayout.JAVA_LONG.withName("spawned_tasks_count")
+            ValueLayout.JAVA_LONG.withName("spawned_tasks_count"),
+            ValueLayout.JAVA_LONG.withName("total_local_queue_depth")
         ).withName(name);
     }
 
@@ -184,7 +189,8 @@ public final class StatsLayout {
                 IO_GLOBAL_QUEUE_DEPTH,
                 IO_BLOCKING_QUEUE_DEPTH,
                 IO_NUM_ALIVE_TASKS,
-                IO_SPAWNED_TASKS_COUNT };
+                IO_SPAWNED_TASKS_COUNT,
+                IO_TOTAL_LOCAL_QUEUE_DEPTH };
             case "cpu_runtime" -> new VarHandle[] {
                 CPU_WORKERS_COUNT,
                 CPU_TOTAL_POLLS_COUNT,
@@ -193,7 +199,8 @@ public final class StatsLayout {
                 CPU_GLOBAL_QUEUE_DEPTH,
                 CPU_BLOCKING_QUEUE_DEPTH,
                 CPU_NUM_ALIVE_TASKS,
-                CPU_SPAWNED_TASKS_COUNT };
+                CPU_SPAWNED_TASKS_COUNT,
+                CPU_TOTAL_LOCAL_QUEUE_DEPTH };
             default -> throw new IllegalArgumentException("Unknown runtime group: " + group);
         };
     }

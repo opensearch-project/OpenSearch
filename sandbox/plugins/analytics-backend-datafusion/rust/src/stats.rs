@@ -5,15 +5,15 @@
 //! Stats packing helpers for the FFM `df_stats()` function.
 //!
 //! Packs Tokio runtime metrics and per-operation task monitor metrics
-//! into a `#[repr(C)]` `DfStatsBuffer` struct (224 bytes) for efficient
+//! into a `#[repr(C)]` `DfStatsBuffer` struct (240 bytes) for efficient
 //! transfer across the FFM boundary.
 //!
 //! ## Struct layout
 //!
 //! | Group             | Type                | Fields |
 //! |-------------------|---------------------|--------|
-//! | `io_runtime`      | `RuntimeMetricsRepr`| 8 × i64 |
-//! | `cpu_runtime`     | `RuntimeMetricsRepr`| 8 × i64 (zeroed if N/A) |
+//! | `io_runtime`      | `RuntimeMetricsRepr`| 9 × i64 |
+//! | `cpu_runtime`     | `RuntimeMetricsRepr`| 9 × i64 (zeroed if N/A) |
 //! | `query_execution` | `TaskMonitorRepr`   | 3 × i64 |
 //! | `stream_next`     | `TaskMonitorRepr`   | 3 × i64 |
 //! | `fetch_phase`     | `TaskMonitorRepr`   | 3 × i64 |
@@ -32,6 +32,7 @@ pub struct RuntimeMetricsRepr {
     pub blocking_queue_depth: i64,
     pub num_alive_tasks: i64,
     pub spawned_tasks_count: i64,
+    pub total_local_queue_depth: i64,
 }
 
 impl RuntimeMetricsRepr {
@@ -45,6 +46,7 @@ impl RuntimeMetricsRepr {
             blocking_queue_depth: 0,
             num_alive_tasks: 0,
             spawned_tasks_count: 0,
+            total_local_queue_depth: 0,
         }
     }
 }
@@ -66,14 +68,14 @@ pub struct DfStatsBuffer {
     pub segment_stats: TaskMonitorRepr,
 }
 
-const _: () = assert!(std::mem::size_of::<RuntimeMetricsRepr>() == 8 * 8);
+const _: () = assert!(std::mem::size_of::<RuntimeMetricsRepr>() == 9 * 8);
 const _: () = assert!(std::mem::size_of::<TaskMonitorRepr>() == 3 * 8);
-const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 28 * 8);
+const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 30 * 8);
 
 pub mod layout {
     use super::*;
     pub const BUFFER_BYTE_SIZE: usize = std::mem::size_of::<DfStatsBuffer>();
-    const _: () = assert!(BUFFER_BYTE_SIZE == 224);
+    const _: () = assert!(BUFFER_BYTE_SIZE == 240);
 }
 
 /// Snapshot a `RuntimeMonitor` and return a populated `RuntimeMetricsRepr`.
@@ -94,6 +96,12 @@ pub fn pack_runtime_metrics(monitor: &RuntimeMonitor, handle: &Handle) -> Runtim
     let mut intervals = monitor.intervals();
     let snapshot = intervals.next().expect("RuntimeMonitor intervals should never be empty");
 
+    // Sum per-worker local queue depths into a single aggregate value
+    let handle_metrics = handle.metrics();
+    let total_local_queue_depth: u64 = (0..handle_metrics.num_workers())
+        .map(|i| handle_metrics.worker_local_queue_depth(i) as u64)
+        .sum();
+
     RuntimeMetricsRepr {
         workers_count: snapshot.workers_count as i64,
         total_polls_count: snapshot.total_polls_count as i64,
@@ -103,6 +111,7 @@ pub fn pack_runtime_metrics(monitor: &RuntimeMonitor, handle: &Handle) -> Runtim
         blocking_queue_depth: handle.metrics().blocking_queue_depth() as i64,
         num_alive_tasks: handle.metrics().num_alive_tasks() as i64,
         spawned_tasks_count: handle.metrics().spawned_tasks_count() as i64,
+        total_local_queue_depth: total_local_queue_depth as i64,
     }
 }
 
@@ -206,7 +215,7 @@ mod tests {
             segment_stats: pack_task_monitor(segment_stats_monitor()),
         };
 
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 224);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 240);
         assert!(buf.io_runtime.workers_count > 0, "IO runtime workers_count should be > 0, got {}", buf.io_runtime.workers_count);
 
         if mgr.cpu_monitor.is_some() {
@@ -220,8 +229,8 @@ mod tests {
     #[test]
     fn test_df_stats_buffer_too_small() {
         // Verify that the buffer size assertion holds
-        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 224);
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 224);
+        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 240);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 240);
         // A buffer smaller than 224 bytes should be rejected by df_stats.
         // We can't call df_stats directly without a runtime manager,
         // but we verify the constant is correct.

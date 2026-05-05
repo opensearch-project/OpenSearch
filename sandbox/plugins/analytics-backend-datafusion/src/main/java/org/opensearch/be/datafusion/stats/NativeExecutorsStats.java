@@ -176,6 +176,8 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
         public final long numAliveTasks;
         /** Total number of tasks spawned on this runtime since creation. */
         public final long spawnedTasksCount;
+        /** Sum of all per-worker local queue depths (tasks queued on worker-local run queues). */
+        public final long totalLocalQueueDepth;
 
         /**
          * Construct from explicit field values.
@@ -188,6 +190,7 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
          * @param blockingQueueDepth  current blocking thread pool queue depth
          * @param numAliveTasks       tasks currently alive
          * @param spawnedTasksCount   total tasks spawned since creation
+         * @param totalLocalQueueDepth     sum of per-worker local queue depths
          */
         public RuntimeMetrics(
             long workersCount,
@@ -197,7 +200,8 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
             long globalQueueDepth,
             long blockingQueueDepth,
             long numAliveTasks,
-            long spawnedTasksCount
+            long spawnedTasksCount,
+            long totalLocalQueueDepth
         ) {
             this.workersCount = workersCount;
             this.totalPollsCount = totalPollsCount;
@@ -207,6 +211,7 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
             this.blockingQueueDepth = blockingQueueDepth;
             this.numAliveTasks = numAliveTasks;
             this.spawnedTasksCount = spawnedTasksCount;
+            this.totalLocalQueueDepth = totalLocalQueueDepth;
         }
 
         /**
@@ -224,6 +229,7 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
             this.blockingQueueDepth = in.readVLong();
             this.numAliveTasks = in.readVLong();
             this.spawnedTasksCount = in.readVLong();
+            this.totalLocalQueueDepth = in.readVLong();
         }
 
         @Override
@@ -236,6 +242,7 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
             out.writeVLong(blockingQueueDepth);
             out.writeVLong(numAliveTasks);
             out.writeVLong(spawnedTasksCount);
+            out.writeVLong(totalLocalQueueDepth);
         }
 
         /**
@@ -253,6 +260,7 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
             builder.field("blocking_queue_depth", blockingQueueDepth);
             builder.field("num_alive_tasks", numAliveTasks);
             builder.field("spawned_tasks_count", spawnedTasksCount);
+            builder.field("total_local_queue_depth", totalLocalQueueDepth);
         }
 
         @Override
@@ -267,7 +275,8 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
                 && globalQueueDepth == that.globalQueueDepth
                 && blockingQueueDepth == that.blockingQueueDepth
                 && numAliveTasks == that.numAliveTasks
-                && spawnedTasksCount == that.spawnedTasksCount;
+                && spawnedTasksCount == that.spawnedTasksCount
+                && totalLocalQueueDepth == that.totalLocalQueueDepth;
         }
 
         @Override
@@ -280,7 +289,8 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
                 globalQueueDepth,
                 blockingQueueDepth,
                 numAliveTasks,
-                spawnedTasksCount
+                spawnedTasksCount,
+                totalLocalQueueDepth
             );
         }
     }
