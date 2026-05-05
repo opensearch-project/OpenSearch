@@ -14,14 +14,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.parquet.column.page.PageReadStore;
-import org.apache.parquet.example.data.Group;
-import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.util.HadoopInputFile;
-import org.apache.parquet.io.ColumnIOFactory;
-import org.apache.parquet.io.MessageColumnIO;
-import org.apache.parquet.io.RecordReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -78,6 +70,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private FileSystem fileSystem;
     private Configuration hadoopConf;
     private MessageType tableSchema;
+    private String tableInputFormat;
     private List<String> partitionKeys;
 
     // Partition tracking
@@ -88,11 +81,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     // Current processing state
     private List<PartitionWork> pendingWork;
     private int currentWorkIndex;
-    private ParquetFileReader currentFileReader;
-    private MessageType currentSchema;
-    private PageReadStore currentRowGroup;
-    private RecordReader<Group> currentRecordReader;
-    private long currentRowGroupRowsRemaining;
+    private HiveFileReader currentFileReader;
     private String currentFile;
     private long currentRowIndex;
     private long sequenceNumber;
@@ -267,6 +256,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         req.setTblName(config.getTable());
         GetTableResult result = metastoreClient.get_table_req(req);
         Table table = result.getTable();
+        tableInputFormat = table.getSd().getInputFormat();
         tableSchema = hiveSchemaToParquet(table.getSd().getCols());
         partitionKeys = table.getPartitionKeys().stream().map(FieldSchema::getName).collect(Collectors.toList());
         logger.info("Table schema for shard {}: {}", shardId, tableSchema);
@@ -367,24 +357,16 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         List<ReadResult<HivePointer, HiveMessage>> results = new ArrayList<>();
         long count = 0;
         while (count < maxMessages) {
-            if (currentRecordReader == null || currentRowGroupRowsRemaining <= 0) {
-                currentRowGroup = currentFileReader.readNextRowGroup();
-                if (currentRowGroup == null) {
-                    closeCurrentReader();
-                    if (!openNextFile()) {
-                        break;
-                    }
-                    continue;
+            Map<String, Object> row = currentFileReader.readNext();
+            if (row == null) {
+                closeCurrentReader();
+                if (!openNextFile()) {
+                    break;
                 }
-                MessageColumnIO columnIO = new ColumnIOFactory().getColumnIO(tableSchema, currentSchema);
-                currentRecordReader = columnIO.getRecordReader(currentRowGroup, new GroupRecordConverter(tableSchema));
-                currentRowGroupRowsRemaining = currentRowGroup.getRowCount();
+                continue;
             }
 
-            Group record = currentRecordReader.read();
-            currentRowGroupRowsRemaining--;
-
-            byte[] json = recordToJson(record);
+            byte[] json = rowToJson(row);
             PartitionWork work = pendingWork.get(currentWorkIndex);
             HivePointer ptr = new HivePointer(work.partitionName, currentFile, currentRowIndex, sequenceNumber);
             HiveMessage msg = new HiveMessage(json, System.currentTimeMillis());
@@ -469,10 +451,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 currentFile = work.files.get(work.currentFileIndex);
                 work.currentFileIndex++;
                 currentRowIndex = 0;
-                currentFileReader = ParquetFileReader.open(HadoopInputFile.fromPath(new Path(currentFile), hadoopConf));
-                currentSchema = currentFileReader.getFooter().getFileMetaData().getSchema();
-                currentRecordReader = null;
-                currentRowGroupRowsRemaining = 0;
+                currentFileReader = createFileReader(currentFile);
                 return true;
             } else {
                 // Partition complete, update watermark
@@ -484,16 +463,25 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return false;
     }
 
+    /**
+     * Creates a file reader based on the table's input format.
+     * Currently supports Parquet. Additional formats (ORC, Avro, etc.) can be added here.
+     */
+    private HiveFileReader createFileReader(String filePath) throws IOException {
+        if (tableInputFormat != null && tableInputFormat.toLowerCase(Locale.ROOT).contains("parquet")) {
+            return new ParquetHiveFileReader(filePath, hadoopConf, tableSchema);
+        }
+        throw new IOException("Unsupported input format: " + tableInputFormat);
+    }
+
     private void closeCurrentReader() {
         if (currentFileReader != null) {
             try {
                 currentFileReader.close();
             } catch (IOException e) {
-                logger.warn("Error closing Parquet reader", e);
+                logger.warn("Error closing file reader", e);
             }
             currentFileReader = null;
-            currentRecordReader = null;
-            currentRowGroup = null;
         }
     }
 
@@ -532,48 +520,22 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return sb.toString();
     }
 
-    private byte[] recordToJson(Group record) {
+    private byte[] rowToJson(Map<String, Object> row) {
         StringBuilder sb = new StringBuilder("{");
-        org.apache.parquet.schema.GroupType schema = record.getType();
-        for (int i = 0; i < schema.getFieldCount(); i++) {
-            if (i > 0) sb.append(",");
-            String fieldName = schema.getFieldName(i);
-            sb.append("\"").append(fieldName).append("\":");
-            int repetitionCount = record.getFieldRepetitionCount(i);
-            if (repetitionCount == 0) {
+        boolean first = true;
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (!first) sb.append(",");
+            first = false;
+            sb.append("\"").append(entry.getKey()).append("\":");
+            Object value = entry.getValue();
+            if (value == null) {
                 sb.append("null");
-                continue;
-            }
-            if (schema.getType(i).isPrimitive()) {
-                switch (schema.getType(i).asPrimitiveType().getPrimitiveTypeName()) {
-                    case BOOLEAN:
-                        sb.append(record.getBoolean(i, 0));
-                        break;
-                    case INT32:
-                        sb.append(record.getInteger(i, 0));
-                        break;
-                    case INT64:
-                        sb.append(record.getLong(i, 0));
-                        break;
-                    case FLOAT:
-                        sb.append(record.getFloat(i, 0));
-                        break;
-                    case DOUBLE:
-                        sb.append(record.getDouble(i, 0));
-                        break;
-                    case BINARY:
-                    case FIXED_LEN_BYTE_ARRAY:
-                        String strVal = record.getString(i, 0);
-                        sb.append("\"").append(escapeJson(strVal)).append("\"");
-                        break;
-                    case INT96:
-                        sb.append("\"").append(record.getValueToString(i, 0)).append("\"");
-                        break;
-                    default:
-                        sb.append("\"").append(escapeJson(record.getValueToString(i, 0))).append("\"");
-                }
+            } else if (value instanceof String) {
+                sb.append("\"").append(escapeJson((String) value)).append("\"");
+            } else if (value instanceof Boolean || value instanceof Number) {
+                sb.append(value);
             } else {
-                sb.append("\"").append(escapeJson(record.getValueToString(i, 0))).append("\"");
+                sb.append("\"").append(escapeJson(value.toString())).append("\"");
             }
         }
         sb.append("}");
