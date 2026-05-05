@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 ### Dependencies
-- Updated netty to 4.1.132.Final
+- Updated Netty to 4.1.133.Final ([#21491](https://github.com/opensearch-project/OpenSearch/pull/21491))
 
 ### Deprecated
 
