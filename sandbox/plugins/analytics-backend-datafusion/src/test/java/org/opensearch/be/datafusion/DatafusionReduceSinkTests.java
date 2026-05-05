@@ -89,7 +89,14 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             byte[] substrait = buildSumSubstraitBytes(DatafusionReduceSink.INPUT_ID);
 
             CapturingSink downstream = new CapturingSink();
-            ExchangeSinkContext ctx = new ExchangeSinkContext("q-1", 0, substrait, alloc, inputSchema, downstream);
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-1",
+                0,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+                downstream
+            );
 
             DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
             try {
@@ -148,7 +155,14 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             byte[] substrait = buildSumSubstraitBytes(DatafusionReduceSink.INPUT_ID);
 
             CapturingSink downstream = new CapturingSink();
-            ExchangeSinkContext ctx = new ExchangeSinkContext("q-wedge", 0, substrait, alloc, inputSchema, downstream);
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-wedge",
+                0,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+                downstream
+            );
 
             DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
 

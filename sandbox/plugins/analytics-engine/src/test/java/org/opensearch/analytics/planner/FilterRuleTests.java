@@ -214,15 +214,17 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     // ---- Derived columns ----
 
     /**
-     * HAVING on derived column must throw — marking on derived/expression columns
-     * is not yet implemented. Verifies the planner fails fast with a clear message
-     * rather than silently producing incorrect viableBackends.
+     * HAVING on a derived column (here, the aggregate's {@code total_size} output)
+     * resolves via the format-agnostic fallback: {@code filterBackendsAnyFormat}
+     * looks up backends supporting the function on the field type without requiring
+     * a doc-value or index format. Any backend with the operator + type capability
+     * is viable.
      *
-     * TODO: add testFilterOnAggregateOutput — Filter(Aggregate(Scan)) where the filter
-     * is on a non-derived column (e.g. group-by key) should succeed and propagate
-     * viableBackends correctly through the composed pipeline.
+     * <p>This was previously a fail-fast path because the rule had no way to map a
+     * derived column to a storage format. The fallback unblocks Filter on Union
+     * outputs, Project outputs, and HAVING on aggregate outputs alike.
      */
-    public void testFilterOnDerivedColumnsAfterAggregateThrows() {
+    public void testFilterOnDerivedColumnsAfterAggregateResolvesAnyFormat() {
         PlannerContext context = buildContext("parquet", 1, Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer")));
 
         RelOptTable table = mockTable("test_index", "status", "size");
@@ -251,8 +253,23 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         );
         LogicalFilter having = LogicalFilter.create(aggregate, havingCondition);
 
-        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, () -> runPlanner(having, context));
-        assertTrue("Expected message about derived column, got: " + ex.getMessage(), ex.getMessage().contains("derived column"));
+        RelNode result = unwrapExchange(runPlanner(having, context));
+        OpenSearchFilter filter = findOpenSearchFilter(result);
+        assertNotNull("Expected an OpenSearchFilter somewhere in the planned tree, got:\n" + RelOptUtil.toString(result), filter);
+        assertTrue(
+            "DataFusion must be a viable backend for HAVING on derived total_size; got " + filter.getViableBackends(),
+            filter.getViableBackends().contains(MockDataFusionBackend.NAME)
+        );
+    }
+
+    /** Walks the resolved tree top-down and returns the first {@link OpenSearchFilter}, or null. */
+    private static OpenSearchFilter findOpenSearchFilter(RelNode node) {
+        if (node instanceof OpenSearchFilter f) return f;
+        for (RelNode input : node.getInputs()) {
+            OpenSearchFilter found = findOpenSearchFilter(input);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     // ---- Helpers ----
