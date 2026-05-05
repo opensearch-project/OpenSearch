@@ -18,7 +18,6 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
-import org.opensearch.arrow.flight.transport.ArrowFlightChannel;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
@@ -37,24 +36,26 @@ import java.util.List;
  *
  * <p>Demonstrates the pipelined producer pattern:
  * <ol>
- *   <li>Get the channel's allocator via {@link ArrowFlightChannel#from(TransportChannel)}</li>
- *   <li>For each batch, create a producer root using the channel allocator</li>
- *   <li>Populate the root with typed vectors (VarChar, Int, etc.)</li>
- *   <li>Send via {@code sendResponseBatch()} — the framework does zero-copy transfer
- *       of the producer's buffers into the channel's shared root on the executor thread</li>
- *   <li>The producer root is closed by the framework after transfer — don't reuse it</li>
+ *   <li>Receive an allocator owned by the plugin (closed in {@link StreamTransportExamplePlugin#close()})</li>
+ *   <li>For each batch, create a {@link VectorSchemaRoot}, populate it, and wrap it in a response</li>
+ *   <li>Send via {@code sendResponseBatch()} — the framework zero-copy transfers
+ *       the vectors into the Flight stream on the executor thread</li>
+ *   <li>Call {@code completeStream()} when done</li>
  * </ol>
- *
- * <p>The channel allocator must be used directly (not a per-request child allocator)
- * because gRPC's zero-copy write path retains buffer references beyond stream completion.
  */
 public class TransportNativeArrowStreamDataAction extends TransportAction<NativeArrowStreamDataRequest, NativeArrowStreamDataResponse> {
 
     private static final String[] NAMES = { "Alice", "Bob", "Carol", "Dave", "Eve" };
+    private final BufferAllocator allocator;
 
     @Inject
-    public TransportNativeArrowStreamDataAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
+    public TransportNativeArrowStreamDataAction(
+        StreamTransportService streamTransportService,
+        ActionFilters actionFilters,
+        ExampleAllocator exampleAllocator
+    ) {
         super(NativeArrowStreamDataAction.NAME, actionFilters, streamTransportService.getTaskManager());
+        this.allocator = exampleAllocator.get();
         streamTransportService.registerRequestHandler(
             NativeArrowStreamDataAction.NAME,
             ThreadPool.Names.GENERIC,
@@ -69,10 +70,6 @@ public class TransportNativeArrowStreamDataAction extends TransportAction<Native
     }
 
     private void handleStreamRequest(NativeArrowStreamDataRequest request, TransportChannel channel, Task task) throws IOException {
-        // Get the channel's allocator. Use this directly for producer roots to ensure
-        // same-allocator transfer (avoids Arrow's cross-allocator foreign buffer bug).
-        BufferAllocator allocator = ArrowFlightChannel.from(channel).getAllocator();
-
         Schema schema = new Schema(
             List.of(
                 new Field("name", FieldType.nullable(new ArrowType.Utf8()), null),
