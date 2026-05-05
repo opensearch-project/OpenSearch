@@ -87,6 +87,8 @@ task buildRustLibrary(type: Exec) {
 // Expose the native lib path so plugins can reference it for tests
 ext.nativeLibPath = nativeLibFile
 
+assemble.dependsOn buildRustLibrary
+
 test {
     systemProperty 'tests.security.manager', 'false'
     systemProperty 'native.lib.path', nativeLibFile.absolutePath
