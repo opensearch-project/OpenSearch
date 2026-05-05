@@ -86,10 +86,11 @@ pub async unsafe fn create_session_context(
         e
     })?;
 
+    let query_config = crate::datafusion_query_config::DatafusionQueryConfig::default();
     let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = false;
-    config.options_mut().execution.target_partitions = 4;
-    config.options_mut().execution.batch_size = 8192;
+    config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
+    config.options_mut().execution.target_partitions = query_config.target_partitions;
+    config.options_mut().execution.batch_size = query_config.batch_size;
 
     let state = SessionStateBuilder::new()
         .with_config(config)
@@ -135,4 +136,14 @@ pub async unsafe fn create_session_context(
         query_context,
     };
     Ok(Box::into_raw(Box::new(handle)) as i64)
+}
+
+/// Closes a SessionContext handle without executing. Used for cleanup on failure.
+///
+/// # Safety
+/// `ptr` must be 0 or a valid pointer returned by `create_session_context`.
+pub unsafe fn close_session_context(ptr: i64) {
+    if ptr != 0 {
+        let _ = Box::from_raw(ptr as *mut SessionContextHandle);
+    }
 }

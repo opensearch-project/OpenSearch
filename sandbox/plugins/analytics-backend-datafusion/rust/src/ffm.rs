@@ -549,6 +549,12 @@ pub unsafe extern "C" fn df_cache_manager_contains_by_type(
         .ok_or_else(|| "df_cache_manager_contains_by_type: no cache manager configured".to_string())?;
     Ok(if manager.contains_file_by_type(file_path, cache_type) { 1 } else { 0 })
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn df_close_session_context(ptr: i64) {
+    crate::session_context::close_session_context(ptr);
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_execute_with_context(

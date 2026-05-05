@@ -70,6 +70,7 @@ public final class NativeBridge {
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
+    private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
 
     static {
@@ -329,6 +330,12 @@ public final class NativeBridge {
         // caller step required — as soon as this class is loaded, callbacks
         // are installed and `df_execute_indexed_query` can dispatch into Java.
         installFilterTreeCallbacks(linker);
+
+        CLOSE_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_close_session_context").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
         EXECUTE_WITH_CONTEXT = linker.downcallHandle(
             lib.find("df_execute_with_context").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
@@ -689,6 +696,11 @@ public final class NativeBridge {
      * Executes a Substrait plan against the configured SessionContext.
      * Consumes the session context handle (freed internally when stream closes).
      */
+    /** Frees a native SessionContext handle. Safe to call once. */
+    public static void closeSessionContext(long ptr) {
+        NativeCall.invokeVoid(CLOSE_SESSION_CONTEXT, ptr);
+    }
+
     public static void executeWithContextAsync(long sessionCtxPtr, byte[] substraitPlan, ActionListener<Long> listener) {
         NativeHandle.validatePointer(sessionCtxPtr, "sessionContext");
         try (var call = new NativeCall()) {

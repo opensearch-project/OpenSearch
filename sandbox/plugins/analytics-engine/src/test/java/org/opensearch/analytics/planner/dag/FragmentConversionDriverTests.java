@@ -430,7 +430,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RecordingSerializer serializer = new RecordingSerializer();
         QueryDAG dag = buildTwoFieldDelegationDag(makeEquals(0, SqlTypeName.INTEGER, 200), dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertDelegationResult(plan, dfConvertor, serializer, 0, false, true, List.of(), null);
+        assertDelegationResult(plan, dfConvertor, serializer, 0, false, true, List.of(), FilterTreeShape.PLAIN);
     }
 
     // ---- AND conditions ----

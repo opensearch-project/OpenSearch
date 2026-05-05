@@ -16,6 +16,8 @@ package org.opensearch.analytics.spi;
  * @opensearch.internal
  */
 public enum FilterTreeShape {
+    /** No delegation — all predicates handled natively by the driving backend. */
+    PLAIN,
     /**
      * All predicates (delegated + native) are under a single AND — no interleaving
      * under OR/NOT. Backend can handle delegated bitsets and native predicates independently.

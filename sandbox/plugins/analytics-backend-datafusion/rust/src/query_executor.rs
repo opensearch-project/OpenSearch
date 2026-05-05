@@ -35,7 +35,8 @@ use crate::session_context::SessionContextHandle;
 /// File access goes through DataFusion's registered object store.
 ///
 /// Deprecated: Production now uses the decomposed `create_session_context` +
-/// `register_table_provider` + `execute_with_context` path (via `api::execute_query`).
+/// `execute_with_context` path (via `api::execute_query`).
+/// TODO: Remove this function and migrate benchmarks to the decomposed path.
 /// Retained only for benchmarks. TODO: migrate benchmarks and remove.
 pub async fn execute_query(
     table_path: ListingTableUrl,

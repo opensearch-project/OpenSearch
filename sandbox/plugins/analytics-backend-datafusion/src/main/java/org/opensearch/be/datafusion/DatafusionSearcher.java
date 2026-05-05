@@ -80,6 +80,8 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
         context.setStreamHandle(new StreamHandle(streamPtr, runtimeHandle));
     }
 
+    // TODO: Remove searchVanilla once all execution paths go through instruction handlers.
+    // Deprecated — retained only for tests that bypass AnalyticsSearchService.
     private void searchVanilla(DatafusionContext context) throws IOException {
         DatafusionQuery query = context.getDatafusionQuery();
         if (query == null) {

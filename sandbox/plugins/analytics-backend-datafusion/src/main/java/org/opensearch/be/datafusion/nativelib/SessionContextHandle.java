@@ -27,8 +27,12 @@ public class SessionContextHandle extends NativeHandle {
 
     @Override
     protected void doClose() {
-        // No-op: Rust consumes the SessionContext inside execute_with_context.
-        // If execute is never called (error path), the Rust memory leaks — acceptable
-        // for now since the process would be failing anyway.
+        // TODO: Handle error-path cleanup. Currently Rust consumes the handle in
+        // execute_with_context (moves QueryTrackingContext into the stream). If execute
+        // fails or is never called, this handle leaks on the Rust side.
+        // Options: (a) AtomicBool 'consumed' flag on Rust handle — close_session_context
+        // checks flag before freeing, (b) don't consume in Rust and use no-op tracking
+        // on the stream, (c) markConsumed() on NativeHandle to skip doClose on happy path.
+        // See df_close_session_context FFM entry which exists but is not yet wired here.
     }
 }

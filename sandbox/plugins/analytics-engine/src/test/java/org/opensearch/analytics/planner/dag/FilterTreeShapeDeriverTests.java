@@ -33,7 +33,7 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         OpenSearchFilter filter = buildFilter(nativePred);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertNull("No delegation should return null", shape);
+        assertEquals("No delegation should return PLAIN", FilterTreeShape.PLAIN, shape);
     }
 
     public void testSingleDelegatedPredicate() {

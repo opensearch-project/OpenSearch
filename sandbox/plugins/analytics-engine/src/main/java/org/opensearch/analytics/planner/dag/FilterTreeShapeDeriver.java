@@ -36,44 +36,43 @@ final class FilterTreeShapeDeriver {
      * @return the tree shape, or {@code null} if no delegated annotations exist
      */
     static FilterTreeShape derive(OpenSearchFilter filter, String drivingBackendId) {
-        Result result = walk(filter.getCondition(), drivingBackendId, false);
-        if (!result.hasDelegated) {
-            return null;
-        }
-        return result.hasMixed ? FilterTreeShape.MIXED_BOOLEAN : FilterTreeShape.SINGLE_AND;
+        return walk(filter.getCondition(), drivingBackendId);
     }
 
-    private static Result walk(RexNode node, String drivingBackendId, boolean underOrNot) {
+    private static FilterTreeShape walk(RexNode node, String drivingBackendId) {
         if (node instanceof AnnotatedPredicate predicate) {
             boolean isDelegated = !predicate.getViableBackends().getFirst().equals(drivingBackendId);
-            return new Result(isDelegated, false, !isDelegated);
+            return isDelegated ? FilterTreeShape.SINGLE_AND : FilterTreeShape.PLAIN;
         }
         if (node instanceof RexCall call) {
             boolean isOrNot = call.getKind() == SqlKind.OR || call.getKind() == SqlKind.NOT;
-            boolean childUnderOrNot = underOrNot || isOrNot;
 
             boolean hasDelegated = false;
             boolean hasDrivingBackend = false;
-            boolean hasMixed = false;
 
             for (RexNode operand : call.getOperands()) {
-                Result childResult = walk(operand, drivingBackendId, childUnderOrNot);
-                hasDelegated |= childResult.hasDelegated;
-                hasDrivingBackend |= childResult.hasDrivingBackend;
-                hasMixed |= childResult.hasMixed;
+                FilterTreeShape childShape = walk(operand, drivingBackendId);
+                if (childShape == FilterTreeShape.MIXED_BOOLEAN) {
+                    return FilterTreeShape.MIXED_BOOLEAN;
+                }
+                if (childShape == FilterTreeShape.PLAIN) {
+                    hasDrivingBackend = true;
+                } else {
+                    hasDelegated = true;
+                }
             }
 
-            // Mixed = this OR/NOT node has both delegated and driving-backend descendants
+            // OR/NOT with both delegated and driving-backend descendants → MIXED
             if (isOrNot && hasDelegated && hasDrivingBackend) {
-                hasMixed = true;
+                return FilterTreeShape.MIXED_BOOLEAN;
             }
 
-            return new Result(hasDelegated, hasMixed, hasDrivingBackend);
+            if (hasDelegated) {
+                return FilterTreeShape.SINGLE_AND;
+            }
+            return FilterTreeShape.PLAIN;
         }
         // Leaf (RexInputRef, RexLiteral) — no annotations
-        return new Result(false, false, false);
-    }
-
-    private record Result(boolean hasDelegated, boolean hasMixed, boolean hasDrivingBackend) {
+        return FilterTreeShape.PLAIN;
     }
 }

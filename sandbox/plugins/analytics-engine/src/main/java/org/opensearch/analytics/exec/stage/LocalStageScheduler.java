@@ -52,7 +52,12 @@ final class LocalStageScheduler implements StageScheduler {
             sink
         );
 
-        // Apply instruction handlers for the reduce stage
+        // Apply instruction handlers for the reduce stage.
+        // Unlike AnalyticsSearchService (shard path) which resolves the factory from its
+        // local backends map, the coordinator-reduce path has no backends map — the factory
+        // is stored on the Stage during FragmentConversionDriver.convertAll (root stage only,
+        // no serialization needed since reduce executes locally at the coordinator).
+        // TODO: find a cleaner way to provide the factory without storing it on Stage.
         FragmentInstructionHandlerFactory factory = stage.getInstructionHandlerFactory();
         if (factory != null) {
             BackendExecutionContext backendContext = null;
