@@ -76,7 +76,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         when(registry.getRegisteredFormats()).thenReturn(Set.of(CompositeTestHelper.stubFormat("lucene", 1, Set.of())));
         when(registry.getIndexingEngine(any(), any())).thenAnswer(invocation -> {
             DataFormatPlugin plugin = CompositeTestHelper.stubPlugin("lucene", 1);
-            return plugin.indexingEngine(null, null);
+            return plugin.indexingEngine(null);
         });
 
         Settings settings = Settings.builder()
@@ -167,7 +167,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
 
     public void testGetMergerDelegatesToPrimary() {
         CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngine("lucene");
-        assertNull(engine.getMerger());
+        assertNotNull(engine.getMerger());
     }
 
     public void testGetNativeBytesUsedSumsAllEngines() {

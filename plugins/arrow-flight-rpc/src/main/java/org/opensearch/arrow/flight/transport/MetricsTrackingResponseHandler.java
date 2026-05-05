@@ -94,6 +94,11 @@ class MetricsTrackingResponseHandler<T extends TransportResponse> implements Tra
         return delegate.executor();
     }
 
+    @Override
+    public boolean skipsDeserialization() {
+        return delegate.skipsDeserialization();
+    }
+
     /**
      * A stream response wrapper that tracks metrics for batches.
      */

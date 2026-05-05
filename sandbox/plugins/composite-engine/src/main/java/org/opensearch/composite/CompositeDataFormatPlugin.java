@@ -20,7 +20,6 @@ import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -28,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Sandbox plugin that provides a {@link CompositeIndexingExecutionEngine} for
@@ -92,35 +92,33 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
-        Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
-        for (Map.Entry<String, DataFormatDescriptor> entry : getFormatDescriptors(settings.indexSettings(), settings.registry())
-            .entrySet()) {
-            strategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
-        }
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
         return new CompositeIndexingExecutionEngine(
             settings.indexSettings(),
             settings.mapperService(),
             settings.committer(),
             settings.registry(),
             settings.store(),
-            strategies
+            settings.checksumStrategies()
         );
     }
 
     @Override
-    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
         Settings settings = indexSettings.getSettings();
         String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
         List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
 
-        Map<String, DataFormatDescriptor> descriptors = new HashMap<>();
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = new HashMap<>();
         if (primaryFormatName != null) {
-            descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
+            descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings, dataFormatRegistry.format(primaryFormatName)));
         }
         for (String secondaryName : secondaryFormatNames) {
             if (secondaryName != null) {
-                descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
+                descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings, dataFormatRegistry.format(secondaryName)));
             }
         }
         return Map.copyOf(descriptors);

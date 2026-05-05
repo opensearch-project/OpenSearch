@@ -11,6 +11,7 @@ members = [
     "../../../plugins/native-repository-azure/src/main/rust",
     "../../../plugins/native-repository-fs/src/main/rust",
     "../../../libs/tiered-storage/src/main/rust",
+    "../../../plugins/block-cache-foyer/src/main/rust",
 ]
 
 [workspace.dependencies]
@@ -58,6 +59,7 @@ once_cell = "1.21.3"
 crc32fast = "1.4"
 parking_lot = "0.12.5"
 lazy_static = "1.4.0"
+rayon = "1.10"
 thiserror = "1.0"
 async-trait = "0.1"
 bytes = "1"

@@ -13,6 +13,16 @@ opensearchplugin {
     classname = 'org.opensearch.be.lucene.LucenePlugin'
 }
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
+// Calcite (via analytics-engine) requires Guava which OpenSearch forbids on compile classpath.
+// Use custom config to bypass, same as analytics-engine.
+configurations {
+    calciteTestCompile
+    testCompileClasspath { exclude group: 'com.google.guava' }
+}
+sourceSets.test.compileClasspath += configurations.calciteTestCompile
+
 dependencies {
     // Shared types and SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.)
     // Also provides calcite-core transitively via api.
@@ -20,10 +30,26 @@ dependencies {
 
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+    // Planner infrastructure for end-to-end delegation tests
+    testImplementation project(':sandbox:plugins:analytics-engine')
+
+    // Guava for test compilation — Calcite API exposes guava types
+    calciteTestCompile "com.google.guava:guava:${versions.guava}"
+    testRuntimeOnly "com.google.guava:guava:${versions.guava}"
+    testRuntimeOnly 'com.google.guava:failureaccess:1.0.2'
+
+    // Calcite annotation compatibility
+    testCompileOnly 'org.immutables:value-annotations:2.8.8'
 }
 
 test {
     systemProperty 'tests.security.manager', 'false'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    // Calcite annotation warnings with JDK 25 — harmless
+    options.compilerArgs -= '-Werror'
 }
 
 // TODO: Remove once back-end is built out with test suite

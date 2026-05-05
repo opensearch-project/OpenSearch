@@ -1,0 +1,1 @@
+source = clickbench | stats sum(AdvEngineID), count() as c, avg(ResolutionWidth), dc(UserID) by RegionID | sort - c | head 10

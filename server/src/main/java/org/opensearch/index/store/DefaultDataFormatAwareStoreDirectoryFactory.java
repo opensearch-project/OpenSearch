@@ -14,12 +14,12 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Default implementation of DataFormatAwareStoreDirectoryFactory that provides
@@ -42,7 +42,7 @@ public class DefaultDataFormatAwareStoreDirectoryFactory implements DataFormatAw
      * @param shardId                the shard identifier
      * @param shardPath              the path the shard is using
      * @param localDirectoryFactory  the factory for creating the underlying local directory
-     * @param dataFormatRegistry     registry of available data format plugins
+     * @param checksumStrategies     pre-built checksum strategies keyed by format name
      * @return a new DataFormatAwareStoreDirectory instance
      * @throws IOException if directory creation fails
      */
@@ -52,7 +52,7 @@ public class DefaultDataFormatAwareStoreDirectoryFactory implements DataFormatAw
         ShardId shardId,
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
-        DataFormatRegistry dataFormatRegistry
+        Map<String, FormatChecksumStrategy> checksumStrategies
     ) throws IOException {
 
         if (logger.isDebugEnabled()) {
@@ -67,18 +67,13 @@ public class DefaultDataFormatAwareStoreDirectoryFactory implements DataFormatAw
             // Delegate local directory creation to the configured DirectoryFactory
             Directory delegate = localDirectoryFactory.newDirectory(indexSettings, shardPath);
 
-            DataFormatAwareStoreDirectory directory = new DataFormatAwareStoreDirectory(
-                indexSettings,
-                delegate,
-                shardPath,
-                dataFormatRegistry
-            );
+            DataFormatAwareStoreDirectory directory = new DataFormatAwareStoreDirectory(delegate, shardPath, checksumStrategies);
 
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "Successfully created DataFormatAwareStoreDirectory for shard: {} with registered formats: {}",
                     shardPath.getShardId(),
-                    dataFormatRegistry.getRegisteredFormats()
+                    checksumStrategies.keySet()
                 );
             }
 

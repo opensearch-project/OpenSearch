@@ -14,22 +14,16 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormatPlugin;
-import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.IndexStorePlugin;
-import org.opensearch.plugins.PluginsService;
-import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link DefaultDataFormatAwareStoreDirectoryFactory}.
@@ -56,13 +50,6 @@ public class DefaultDataFormatAwareStoreDirectoryFactoryTests extends OpenSearch
         return new IndexSettings(metadata, Settings.EMPTY);
     }
 
-    private DataFormatRegistry createEmptyDataFormatRegistry() {
-        PluginsService pluginsService = mock(PluginsService.class);
-        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
-        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
-        return new DataFormatRegistry(pluginsService);
-    }
-
     private IndexStorePlugin.DirectoryFactory createFsDirectoryFactory() {
         return new IndexStorePlugin.DirectoryFactory() {
             @Override
@@ -86,7 +73,6 @@ public class DefaultDataFormatAwareStoreDirectoryFactoryTests extends OpenSearch
     // ═══════════════════════════════════════════════════════════════
 
     public void testNewDataFormatAwareStoreDirectory_CreatesSuccessfully() throws IOException {
-        DataFormatRegistry registry = createEmptyDataFormatRegistry();
         DefaultDataFormatAwareStoreDirectoryFactory factory = new DefaultDataFormatAwareStoreDirectoryFactory();
         Path tempDir = createTempDir();
         ShardPath shardPath = createShardPath(tempDir);
@@ -97,14 +83,13 @@ public class DefaultDataFormatAwareStoreDirectoryFactoryTests extends OpenSearch
             shardPath.getShardId(),
             shardPath,
             createFsDirectoryFactory(),
-            registry
+            Map.of()
         );
 
         assertNotNull("Factory should create a non-null DataFormatAwareStoreDirectory", directory);
     }
 
     public void testNewDataFormatAwareStoreDirectory_HasCorrectShardPath() throws IOException {
-        DataFormatRegistry registry = createEmptyDataFormatRegistry();
         DefaultDataFormatAwareStoreDirectoryFactory factory = new DefaultDataFormatAwareStoreDirectoryFactory();
         Path tempDir = createTempDir();
         ShardPath shardPath = createShardPath(tempDir);
@@ -115,14 +100,13 @@ public class DefaultDataFormatAwareStoreDirectoryFactoryTests extends OpenSearch
             shardPath.getShardId(),
             shardPath,
             createFsDirectoryFactory(),
-            registry
+            Map.of()
         );
 
         assertEquals(shardPath, directory.getShardPath());
     }
 
     public void testNewDataFormatAwareStoreDirectory_CanListFiles() throws IOException {
-        DataFormatRegistry registry = createEmptyDataFormatRegistry();
         DefaultDataFormatAwareStoreDirectoryFactory factory = new DefaultDataFormatAwareStoreDirectoryFactory();
         Path tempDir = createTempDir();
         ShardPath shardPath = createShardPath(tempDir);
@@ -133,7 +117,7 @@ public class DefaultDataFormatAwareStoreDirectoryFactoryTests extends OpenSearch
             shardPath.getShardId(),
             shardPath,
             createFsDirectoryFactory(),
-            registry
+            Map.of()
         );
 
         // Should not throw
@@ -142,7 +126,6 @@ public class DefaultDataFormatAwareStoreDirectoryFactoryTests extends OpenSearch
     }
 
     public void testNewDataFormatAwareStoreDirectory_MultipleCalls_CreatesSeparateInstances() throws IOException {
-        DataFormatRegistry registry = createEmptyDataFormatRegistry();
         DefaultDataFormatAwareStoreDirectoryFactory factory = new DefaultDataFormatAwareStoreDirectoryFactory();
         Path tempDir1 = createTempDir();
         Path tempDir2 = createTempDir();
@@ -155,14 +138,14 @@ public class DefaultDataFormatAwareStoreDirectoryFactoryTests extends OpenSearch
             shardPath1.getShardId(),
             shardPath1,
             createFsDirectoryFactory(),
-            registry
+            Map.of()
         );
         DataFormatAwareStoreDirectory dir2 = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
             shardPath2.getShardId(),
             shardPath2,
             createFsDirectoryFactory(),
-            registry
+            Map.of()
         );
 
         assertNotNull(dir1);
@@ -171,7 +154,6 @@ public class DefaultDataFormatAwareStoreDirectoryFactoryTests extends OpenSearch
     }
 
     public void testNewDataFormatAwareStoreDirectory_InvalidPath_ThrowsIOException() throws IOException {
-        DataFormatRegistry registry = createEmptyDataFormatRegistry();
         DefaultDataFormatAwareStoreDirectoryFactory factory = new DefaultDataFormatAwareStoreDirectoryFactory();
         IndexSettings indexSettings = createIndexSettings();
 
@@ -197,7 +179,7 @@ public class DefaultDataFormatAwareStoreDirectoryFactoryTests extends OpenSearch
                 invalidShardPath.getShardId(),
                 invalidShardPath,
                 createFsDirectoryFactory(),
-                registry
+                Map.of()
             )
         );
         assertTrue(

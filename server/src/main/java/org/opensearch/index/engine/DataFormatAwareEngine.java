@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -33,11 +34,17 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
+import org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException;
+import org.opensearch.index.engine.dataformat.merge.MergeHandler;
+import org.opensearch.index.engine.dataformat.merge.MergeScheduler;
+import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -164,6 +171,19 @@ public class DataFormatAwareEngine implements Indexer {
     // Refresh tracker
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
+    // Merge
+    private final MergeScheduler mergeScheduler;
+
+    /**
+     * System property to enable or disable pluggable dataformat merge operations.
+     * Set to "true" to enable merges (e.g., {@code -Dopensearch.pluggable.dataformat.merge.enabled=true}).
+     * Defaults to "false" (merges disabled) as the merge implementations are not yet complete
+     * for all data formats.
+     * <p>
+     * TODO: Remove this flag once merge implementations are complete for all data formats.
+     */
+    static final String MERGE_ENABLED_PROPERTY = "opensearch.pluggable.dataformat.merge.enabled";
+
     @Nullable
     private final String historyUUID;
 
@@ -218,7 +238,8 @@ public class DataFormatAwareEngine implements Indexer {
                     config().getMapperService(),
                     config().getIndexSettings(),
                     config().getStore(),
-                    registry
+                    registry,
+                    config().getChecksumStrategies()
                 ),
                 registry.format(config().getIndexSettings().pluggableDataFormat())
             );
@@ -291,6 +312,28 @@ public class DataFormatAwareEngine implements Indexer {
             assert indexingExecutionEngine != null : "indexing execution engine must be initialized";
             assert committer != null : "committer must be initialized";
             assert writerPool != null : "writer pool must be initialized";
+
+            DataFormatAwareMergePolicy dataFormatAwareMergePolicy = new DataFormatAwareMergePolicy(
+                engineConfig.getIndexSettings().getMergePolicy(true),
+                shardId
+            );
+
+            // Merge
+            MergeHandler mergeHandler = new MergeHandler(
+                this::acquireSnapshot,
+                indexingExecutionEngine.getMerger(),
+                shardId,
+                dataFormatAwareMergePolicy,
+                dataFormatAwareMergePolicy
+            );
+            this.mergeScheduler = new MergeScheduler(
+                mergeHandler,
+                this::applyMergeChanges,
+                shardId,
+                engineConfig.getIndexSettings(),
+                engineConfig.getThreadPool()
+            );
+
             success = true;
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
@@ -688,13 +731,8 @@ public class DataFormatAwareEngine implements Indexer {
                                     + result.refreshedSegments().size();
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
 
-                            // TODO: Add other Refresh listeners
-                            // Notify reader managers so they can create readers for the new snapshot
                             try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
-                                CatalogSnapshot newSnapshot = newSnapshotRef.get();
-                                for (EngineReaderManager<?> rm : readerManagers.values()) {
-                                    rm.afterRefresh(refreshed, newSnapshot);
-                                }
+                                refreshListeners(refreshed, newSnapshotRef.get());
                             }
                         }
                     } finally {
@@ -702,6 +740,7 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                     if (refreshed) {
                         lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
+                        triggerPossibleMerges(); // trigger merges
                     }
                 }
             } finally {
@@ -893,6 +932,9 @@ public class DataFormatAwareEngine implements Indexer {
         final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
         translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
+
+        // This checks if the settings related to merge are changed and based on that updates the local variables in the class
+        mergeScheduler.refreshConfig();
     }
 
     /** {@inheritDoc} Always returns {@code true} — a refresh is always considered needed. */
@@ -1056,8 +1098,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public MergeStats getMergeStats() {
-        // TODO: MergeHandler to provide this.
-        return new MergeStats();
+        return mergeScheduler.stats();
     }
 
     @Override
@@ -1250,6 +1291,42 @@ public class DataFormatAwareEngine implements Indexer {
             }
         }
         awaitPendingClose();
+    }
+
+    private void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
+        refreshLock.lock();
+        try {
+            catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
+            try (GatedCloseable<CatalogSnapshot> newSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+                refreshListeners(true, newSnapshotRef.get());
+            }
+        } catch (Exception ex) {
+            try {
+                logger.error(() -> new ParameterizedMessage("Merge failed while registering merged files in Snapshot"), ex);
+                failEngine("Merge failed while registering merged files in Snapshot", ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
+            throw new MergeFailedEngineException(shardId, ex);
+        } finally {
+            refreshLock.unlock();
+        }
+    }
+
+    private void refreshListeners(boolean refreshed, CatalogSnapshot catalogSnapshot) throws IOException {
+        // TODO: Add other Refresh listeners
+        // Notify reader managers so they can create readers for the new snapshot
+        for (EngineReaderManager<?> rm : readerManagers.values()) {
+            rm.afterRefresh(refreshed, catalogSnapshot);
+        }
+    }
+
+    private void triggerPossibleMerges() {
+        if (Booleans.parseBoolean(System.getProperty(MERGE_ENABLED_PROPERTY, Boolean.FALSE.toString())) == false) {
+            logger.debug("Pluggable dataformat merge is disabled via system property [{}], skipping merge", MERGE_ENABLED_PROPERTY);
+            return;
+        }
+        mergeScheduler.triggerMerges();
     }
 
     private void closeNoLock(String reason) {

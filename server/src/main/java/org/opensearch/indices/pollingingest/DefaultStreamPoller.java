@@ -696,6 +696,10 @@ public class DefaultStreamPoller implements StreamPoller {
         blockingQueueContainer.clearAllQueues();
         initializeConsumer();
 
+        if (this.consumer == null) {
+            return;
+        }
+
         // Handle consumer offset reset the first time an index is created. The reset offset takes precedence if available.
         IngestionShardPointer resetShardPointer = getResetShardPointer();
         if (resetShardPointer != null) {

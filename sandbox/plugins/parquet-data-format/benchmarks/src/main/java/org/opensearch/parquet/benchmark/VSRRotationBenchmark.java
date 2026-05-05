@@ -10,7 +10,10 @@ package org.opensearch.parquet.benchmark;
 
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -80,6 +83,7 @@ public class VSRRotationBenchmark {
     private List<MappedFieldType> fieldTypes;
     private VSRManager vsrManager;
     private String filePath;
+    private IndexSettings indexSettings;
 
     @Setup(Level.Trial)
     public void setupTrial() {
@@ -123,7 +127,10 @@ public class VSRRotationBenchmark {
     public void setup() throws IOException {
         bufferPool = new ArrowBufferPool(Settings.EMPTY);
         filePath = Path.of(System.getProperty("java.io.tmpdir"), "benchmark_vsr_" + System.nanoTime() + ".parquet").toString();
-        vsrManager = new VSRManager(filePath, schema, bufferPool, maxRowsPerVSR, threadPool, runAsync);
+        Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("benchmark-index").settings(idxSettings).build();
+        indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        vsrManager = new VSRManager(filePath, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, runAsync);
     }
 
     @Benchmark

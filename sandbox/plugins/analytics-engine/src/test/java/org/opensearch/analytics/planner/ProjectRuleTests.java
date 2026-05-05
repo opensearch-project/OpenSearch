@@ -77,6 +77,42 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         }
     }
 
+    public void testPassthroughProjectionSucceedsWithoutProjectCapability() {
+        // A backend that declares NO ProjectCapability should still execute a passthrough
+        // projection (only field refs). Verifies the short-circuit in OpenSearchProjectRule.onMatch
+        // that skips the backend-refinement gate when no RexCall needs evaluation.
+        OpenSearchProject result = runProject(
+            MockDataFusionBackend.PARQUET_DATA_FORMAT,
+            List.of(new MockDataFusionBackend(), LUCENE),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
+        );
+        assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+        for (RexNode expr : result.getProjects()) {
+            assertFalse("Passthrough expressions must not be annotated", expr instanceof AnnotatedProjectExpression);
+        }
+    }
+
+    public void testExpressionProjectionStillRequiresCapabilityWithoutDeclaration() {
+        // Negative guard: the short-circuit must apply only to passthrough. If a RexCall is
+        // present and the backend declares no matching scalar ProjectCapability, the rule must
+        // still throw — otherwise a later refactor could silently loosen the gate too much.
+        RexNode castExpr = rexBuilder.makeCast(
+            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
+        );
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "name", "value" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
+        );
+        LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(castExpr), List.of("casted"));
+        PlannerContext context = buildContext("parquet", nameValueFields(), List.of(new MockDataFusionBackend(), LUCENE));
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("No backend supports scalar function"));
+    }
+
     // ---- Scalar functions ----
 
     public void testSupportedScalarFunction() {
@@ -198,6 +234,50 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         OpenSearchProject result = runProject(plusExpr);
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
+    }
+
+    public void testStripAnnotationsRecursivelyUnwrapsNestedExpressions() {
+        // PLUS(CEIL(value), value) — a scalar call with another scalar call as an operand.
+        // The project rule recurses into operands (annotateExpr lines 127-139), so both PLUS
+        // and the inner CEIL get wrapped in AnnotatedProjectExpression. stripAnnotations must
+        // remove every wrapper at every depth before the plan reaches the backend
+        // FragmentConvertor — Substrait isthmus has no converter for ANNOTATED_PROJECT_EXPR and
+        // would throw "Unable to convert call". (COALESCE would be the natural shape here since
+        // PPL fillnull lowers to it, but Calcite's makeCall simplifies COALESCE on non-nullable
+        // operands away into the first arg, defeating the test. PLUS+CEIL preserves the
+        // nested-call structure we want to exercise.)
+        RexNode value = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1);
+        RexNode ceilCall = rexBuilder.makeCall(SqlStdOperatorTable.CEIL, value);
+        RexNode plusCall = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, ceilCall, value);
+        OpenSearchProject annotated = runProject(plusCall);
+
+        // Sanity: confirm the rule produced the nested-wrapper shape this test exercises.
+        RexNode topLevel = annotated.getProjects().get(0);
+        assertTrue("Outer PLUS must be annotated", topLevel instanceof AnnotatedProjectExpression);
+        RexCall outerOriginal = (RexCall) ((AnnotatedProjectExpression) topLevel).getOriginal();
+        assertTrue(
+            "Inner CEIL must also be annotated (recursive annotateExpr behavior)",
+            outerOriginal.getOperands().get(0) instanceof AnnotatedProjectExpression
+        );
+
+        // Strip and assert no AnnotatedProjectExpression survives anywhere in the RexNode tree.
+        RelNode stripped = annotated.stripAnnotations(annotated.getInputs());
+        assertTrue("Stripped plan should be a plain LogicalProject", stripped instanceof LogicalProject);
+        for (RexNode expr : ((LogicalProject) stripped).getProjects()) {
+            assertNoAnnotationInTree(expr);
+        }
+    }
+
+    private static void assertNoAnnotationInTree(RexNode node) {
+        assertFalse(
+            "Expression tree must not contain AnnotatedProjectExpression after strip: " + node,
+            node instanceof AnnotatedProjectExpression
+        );
+        if (node instanceof RexCall call) {
+            for (RexNode operand : call.getOperands()) {
+                assertNoAnnotationInTree(operand);
+            }
+        }
     }
 
     // ---- Mixed backends in one projection ----

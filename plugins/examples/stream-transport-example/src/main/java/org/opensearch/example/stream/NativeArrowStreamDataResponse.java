@@ -15,15 +15,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import java.io.IOException;
 
 /**
- * Example native Arrow response — just extend {@link ArrowBatchResponse}.
- *
- * <p>The framework handles everything:
- * <ul>
- *   <li>Send side: zero-copy transfers the root's buffers into the Flight stream</li>
- *   <li>Receive side: provides the root via {@link #getRoot()} — no deserialization</li>
- * </ul>
- *
- * <p>No writeTo/read override needed. The base class handles both.
+ * Example native Arrow response. Extend {@link ArrowBatchResponse} and provide two constructors:
+ * one wrapping a {@link VectorSchemaRoot} (send side) and one taking {@link StreamInput} (receive side).
  */
 class NativeArrowStreamDataResponse extends ArrowBatchResponse {
 

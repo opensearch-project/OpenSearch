@@ -11,13 +11,14 @@ package org.opensearch.example.stream;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.opensearch.arrow.flight.transport.ArrowBatchResponseHandler;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestOptions;
@@ -112,18 +113,18 @@ public class NativeArrowStreamTransportExampleIT extends OpenSearchIntegTestCase
         }
     }
 
-    /** Deep-copies data from the root since FlightStream reuses it between next() calls. */
+    /** Deep-copies data out of the Arrow batch so the root can be closed immediately. */
     static class ReceivedBatch {
         final int rowCount;
         final List<String> fieldNames;
         final List<String> names;
         final List<Integer> ages;
 
-        ReceivedBatch(VectorSchemaRoot root) {
-            this.rowCount = root.getRowCount();
-            this.fieldNames = root.getSchema().getFields().stream().map(f -> f.getName()).toList();
-            VarCharVector nameVector = (VarCharVector) root.getVector("name");
-            IntVector ageVector = (IntVector) root.getVector("age");
+        ReceivedBatch(VectorSchemaRoot batch) {
+            this.rowCount = batch.getRowCount();
+            this.fieldNames = batch.getSchema().getFields().stream().map(Field::getName).toList();
+            VarCharVector nameVector = (VarCharVector) batch.getVector("name");
+            IntVector ageVector = (IntVector) batch.getVector("age");
             this.names = new ArrayList<>();
             this.ages = new ArrayList<>();
             for (int i = 0; i < rowCount; i++) {
@@ -133,8 +134,7 @@ public class NativeArrowStreamTransportExampleIT extends OpenSearchIntegTestCase
         }
     }
 
-    /** Standard handler — read() uses the normal StreamInput contract. */
-    static class NativeArrowResponseHandler implements StreamTransportResponseHandler<NativeArrowStreamDataResponse> {
+    static class NativeArrowResponseHandler extends ArrowBatchResponseHandler<NativeArrowStreamDataResponse> {
         private final List<ReceivedBatch> batches;
         private final CountDownLatch latch;
         private final AtomicReference<Exception> failure;
@@ -150,13 +150,15 @@ public class NativeArrowStreamTransportExampleIT extends OpenSearchIntegTestCase
             try {
                 NativeArrowStreamDataResponse response;
                 while ((response = streamResponse.nextResponse()) != null) {
-                    batches.add(new ReceivedBatch(response.getRoot()));
+                    try (VectorSchemaRoot batch = response.getRoot()) {
+                        batches.add(new ReceivedBatch(batch));
+                    }
                 }
                 streamResponse.close();
-                latch.countDown();
             } catch (Exception e) {
                 failure.set(e);
                 streamResponse.cancel("Test error", e);
+            } finally {
                 latch.countDown();
             }
         }
