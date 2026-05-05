@@ -185,7 +185,9 @@ public enum ScalarFunction {
                 byOperator.put(func.referenceOperator, func);
             }
         }
-        BY_REFERENCE_OPERATOR = Map.copyOf(byOperator);
+        // The HashMap is private static final and never exposed beyond the get() in the resolver
+        // below — wrapping it in Map.copyOf adds an allocation without any external safety guarantee.
+        BY_REFERENCE_OPERATOR = byOperator;
     }
 
     /**
