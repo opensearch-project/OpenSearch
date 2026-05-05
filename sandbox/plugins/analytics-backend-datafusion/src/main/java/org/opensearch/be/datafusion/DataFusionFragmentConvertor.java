@@ -34,12 +34,11 @@ import org.opensearch.analytics.spi.FragmentConvertor;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
 import io.substrait.extension.SimpleExtension;
-import io.substrait.isthmus.ImmutableFeatureBoard;
+import io.substrait.isthmus.ConverterProvider;
 import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
@@ -54,9 +53,7 @@ import io.substrait.relation.Filter;
 import io.substrait.relation.NamedScan;
 import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
-import io.substrait.relation.RelCopyOnWriteVisitor;
 import io.substrait.relation.Sort;
-import io.substrait.util.EmptyVisitationContext;
 
 /**
  * Converts Calcite RelNode fragments to Substrait protobuf bytes
@@ -135,7 +132,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         Plan.Root substraitRoot = Plan.Root.builder().input(substraitRel).names(fieldNames).build();
         Plan plan = Plan.builder().addRoots(substraitRoot).build();
 
-        plan = new TableNameModifier().modifyTableNames(plan);
+        plan = SubstraitPlanRewriter.rewrite(plan);
 
         io.substrait.proto.Plan protoPlan = new PlanProtoConverter().toProto(plan);
         byte[] bytes = protoPlan.toByteArray();
@@ -248,24 +245,23 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     private SubstraitRelVisitor createVisitor(RelNode relNode) {
         RelDataTypeFactory typeFactory = relNode.getCluster().getTypeFactory();
         TypeConverter typeConverter = TypeConverter.DEFAULT;
-
-        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
         ScalarFunctionConverter scalarConverter = new ScalarFunctionConverter(
             extensions.scalarFunctions(),
             ADDITIONAL_SCALAR_SIGS,
             typeFactory,
             typeConverter
         );
+        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
-
-        return new SubstraitRelVisitor(
+        ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
+            extensions,
             scalarConverter,
             aggConverter,
             windowConverter,
-            typeConverter,
-            ImmutableFeatureBoard.builder().build()
+            typeConverter
         );
+        return new SubstraitRelVisitor(converterProvider);
     }
 
     // ── Plan serde helpers ──────────────────────────────────────────────────────
@@ -283,39 +279,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     /** Serializes a model-level {@link Plan} to proto bytes. */
     private static byte[] serializePlan(Plan plan) {
         return new PlanProtoConverter().toProto(plan).toByteArray();
-    }
-
-    // ── NamedScan prefix stripper ───────────────────────────────────────────────
-
-    /**
-     * Strips Calcite catalog prefixes (e.g. "opensearch") from {@link NamedScan} table
-     * names — DataFusion expects the bare index / stage-input id.
-     */
-    private static class TableNameModifier {
-        Plan modifyTableNames(Plan plan) {
-            TableNameVisitor visitor = new TableNameVisitor();
-            List<Plan.Root> modifiedRoots = new ArrayList<>();
-            for (Plan.Root root : plan.getRoots()) {
-                Optional<Rel> modifiedRel = root.getInput().accept(visitor, null);
-                if (modifiedRel.isPresent()) {
-                    modifiedRoots.add(Plan.Root.builder().from(root).input(modifiedRel.get()).build());
-                } else {
-                    modifiedRoots.add(root);
-                }
-            }
-            return Plan.builder().from(plan).roots(modifiedRoots).build();
-        }
-
-        private static class TableNameVisitor extends RelCopyOnWriteVisitor<RuntimeException> {
-            @Override
-            public Optional<Rel> visit(NamedScan namedScan, EmptyVisitationContext context) {
-                List<String> names = namedScan.getNames();
-                if (names.size() > 1) {
-                    return Optional.of(NamedScan.builder().from(namedScan).names(List.of(names.get(names.size() - 1))).build());
-                }
-                return super.visit(namedScan, context);
-            }
-        }
     }
 
     // ── Calcite TableScan wrappers for OpenSearchStageInputScan rewrite ─────────
