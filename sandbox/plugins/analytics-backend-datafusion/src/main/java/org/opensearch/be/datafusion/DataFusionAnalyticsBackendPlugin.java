@@ -17,6 +17,7 @@ import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
@@ -61,6 +62,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.LIKE
     );
 
+    // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
+    // PPL command/function we want the analytics-engine planner to route through DataFusion. Add
+    // here only after verifying the function deserializes through Substrait isthmus into a plan
+    // DataFusion's native runtime can execute (see DataFusionFragmentConvertor for the conversion
+    // path). COALESCE is the lowering target of PPL `fillnull`.
+    private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(ScalarFunction.COALESCE, ScalarFunction.CEIL);
+
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -103,6 +111,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     for (FieldType type : SUPPORTED_FIELD_TYPES) {
                         caps.add(new FilterCapability.Standard(op, Set.of(type), formats));
                     }
+                }
+                return Set.copyOf(caps);
+            }
+
+            @Override
+            public Set<ProjectCapability> projectCapabilities() {
+                Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
+                Set<ProjectCapability> caps = new HashSet<>();
+                for (ScalarFunction op : STANDARD_PROJECT_OPS) {
+                    caps.add(new ProjectCapability.Scalar(op, Set.copyOf(SUPPORTED_FIELD_TYPES), formats, true));
                 }
                 return Set.copyOf(caps);
             }
