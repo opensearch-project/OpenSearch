@@ -43,12 +43,16 @@ import org.opensearch.plugin.hive.metastore.ThriftHiveMetastore;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -116,13 +120,17 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     /**
      * Connects to Hive Metastore with retry logic.
-     * Supports both framed (Hive 3) and unframed (Hive 4) transport modes.
+     * Supports framed/unframed transport and optional Kerberos (SASL/GSSAPI) authentication.
      */
     private void connectToMetastore() throws TTransportException {
         String uri = config.getMetastoreUri().replace("thrift://", "");
         String[] hostPort = uri.split(":");
         String host = hostPort[0];
         int port = Integer.parseInt(hostPort[1]);
+
+        if (config.getAuthMode() == HiveSourceConfig.AuthMode.KERBEROS) {
+            loginWithKerberos();
+        }
 
         TTransportException lastException = null;
         for (int attempt = 0; attempt <= config.getMaxRetries(); attempt++) {
@@ -139,16 +147,31 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 } else {
                     transport = socket;
                 }
-                transport.open();
+
+                if (config.getAuthMode() == HiveSourceConfig.AuthMode.KERBEROS) {
+                    transport = createSaslTransport(transport, host);
+                    final TTransport saslTransport = transport;
+                    try {
+                        org.apache.hadoop.security.UserGroupInformation.getLoginUser().doAs((PrivilegedExceptionAction<Void>) () -> {
+                            saslTransport.open();
+                            return null;
+                        });
+                    } catch (Exception e) {
+                        throw new TTransportException("SASL open failed: " + e.getMessage(), e);
+                    }
+                } else {
+                    transport.open();
+                }
 
                 metastoreTransport = transport;
                 metastoreClient = new ThriftHiveMetastore.Client(new TBinaryProtocol(transport));
                 logger.info(
-                    "Connected to Hive Metastore for shard {} at {}:{} (transport={})",
+                    "Connected to Hive Metastore for shard {} at {}:{} (transport={}, auth={})",
                     shardId,
                     host,
                     port,
-                    config.getTransportMode()
+                    config.getTransportMode(),
+                    config.getAuthMode()
                 );
                 return;
             } catch (TTransportException e) {
@@ -188,6 +211,56 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         }
     }
 
+    /**
+     * Authenticates with Kerberos using the configured keytab and principal.
+     */
+    private void loginWithKerberos() throws TTransportException {
+        try {
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                org.apache.hadoop.conf.Configuration conf = new org.apache.hadoop.conf.Configuration();
+                conf.set("hadoop.security.authentication", "kerberos");
+                org.apache.hadoop.security.UserGroupInformation.setConfiguration(conf);
+                org.apache.hadoop.security.UserGroupInformation.loginUserFromKeytab(
+                    config.getKerberosPrincipal(),
+                    config.getKerberosKeytabPath()
+                );
+                logger.info("Kerberos login successful for principal {}", config.getKerberosPrincipal());
+                return null;
+            });
+        } catch (PrivilegedActionException e) {
+            throw new TTransportException("Kerberos login failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Wraps the transport with SASL/GSSAPI for Kerberos authentication.
+     */
+    private TTransport createSaslTransport(TTransport baseTransport, String host) throws TTransportException {
+        String servicePrincipal = config.getMetastoreServicePrincipal();
+        if (servicePrincipal == null) {
+            servicePrincipal = "hive/" + host;
+        } else {
+            servicePrincipal = servicePrincipal.replace("_HOST", host);
+        }
+        String[] principalParts = servicePrincipal.split("[/@]");
+        String saslServiceName = principalParts[0];
+        String saslHost = principalParts.length > 1 ? principalParts[1] : host;
+
+        try {
+            return new org.apache.thrift.transport.TSaslClientTransport(
+                "GSSAPI",
+                null,
+                saslServiceName,
+                saslHost,
+                Map.of("javax.security.sasl.qop", "auth", "javax.security.sasl.server.authentication", "true"),
+                null,
+                baseTransport
+            );
+        } catch (javax.security.sasl.SaslException e) {
+            throw new TTransportException("Failed to create SASL transport: " + e.getMessage(), e);
+        }
+    }
+
     private void fetchTableSchema() throws TException {
         GetTableRequest req = new GetTableRequest();
         req.setDbName(config.getDatabase());
@@ -205,7 +278,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
             connectToMetastore();
 
-            hadoopConf = java.security.AccessController.doPrivileged((java.security.PrivilegedExceptionAction<Configuration>) () -> {
+            hadoopConf = AccessController.doPrivileged((PrivilegedExceptionAction<Configuration>) () -> {
                 ClassLoader original = Thread.currentThread().getContextClassLoader();
                 try {
                     Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
@@ -216,7 +289,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                     Thread.currentThread().setContextClassLoader(original);
                 }
             });
-            fileSystem = java.security.AccessController.doPrivileged((java.security.PrivilegedExceptionAction<FileSystem>) () -> {
+            fileSystem = AccessController.doPrivileged((PrivilegedExceptionAction<FileSystem>) () -> {
                 ClassLoader original = Thread.currentThread().getContextClassLoader();
                 try {
                     Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
