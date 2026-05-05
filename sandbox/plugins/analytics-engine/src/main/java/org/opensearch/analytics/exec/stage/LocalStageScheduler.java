@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
@@ -16,18 +15,22 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Builds executions for {@link StageExecutionType#COORDINATOR_REDUCE} stages —
  * those that run at the coordinator with a backend-provided {@link ExchangeSink}.
  * Creates the sink via {@link Stage#getExchangeSinkProvider()} using an
- * {@link ExchangeSinkContext} carrying the plan bytes, allocator, input
- * schema (derived from the single child stage), and downstream sink. Hands
- * the resulting sink to {@link LocalStageExecution}.
+ * {@link ExchangeSinkContext} carrying the plan bytes, allocator, per-child
+ * input descriptors (one per child stage, each with its stage id + Arrow
+ * schema), and the downstream sink. Hands the resulting sink to
+ * {@link LocalStageExecution}.
  *
- * <p>Single-sink simplification: assumes exactly one child stage. Multi-child
- * (joins, set ops) will require per-child sink routing in a follow-up.
+ * <p>Multi-child stages (Union, future Join) are routed via
+ * {@link LocalStageExecution#inputSink(int)}, which returns a per-child
+ * wrapper that the backend sink uses to register a distinct input partition
+ * per child stage id.
  *
  * @opensearch.internal
  */
@@ -41,7 +44,7 @@ final class LocalStageScheduler implements StageScheduler {
             stage.getStageId(),
             chosenBytes(stage),
             config.bufferAllocator(),
-            deriveInputSchema(stage),
+            buildChildInputs(stage),
             sink
         );
         ExchangeSink backendSink;
@@ -63,16 +66,27 @@ final class LocalStageScheduler implements StageScheduler {
     }
 
     /**
-     * Derives the backend's input Arrow schema from the single child stage's
-     * fragment rowtype. Multi-child support (joins, set ops with heterogeneous
-     * inputs) is deferred.
+     * Builds one {@link ExchangeSinkContext.ChildInput} per child stage. Each entry
+     * carries the child's stage id (used by the backend to namespace its registered
+     * input, e.g. {@code "input-<stageId>"}) and the Arrow schema derived from the
+     * child fragment's row type.
      */
-    private static Schema deriveInputSchema(Stage stage) {
+    private static List<ExchangeSinkContext.ChildInput> buildChildInputs(Stage stage) {
         List<Stage> children = stage.getChildStages();
-        assert children.size() == 1 : "COORDINATOR_REDUCE stage "
-            + stage.getStageId()
-            + " expected exactly one child stage, got "
-            + children.size();
-        return ArrowSchemaFromCalcite.arrowSchemaFromRowType(children.getFirst().getFragment().getRowType());
+        if (children.isEmpty()) {
+            throw new IllegalStateException(
+                "COORDINATOR_REDUCE stage " + stage.getStageId() + " expected at least one child stage, got zero"
+            );
+        }
+        List<ExchangeSinkContext.ChildInput> inputs = new ArrayList<>(children.size());
+        for (Stage child : children) {
+            inputs.add(
+                new ExchangeSinkContext.ChildInput(
+                    child.getStageId(),
+                    ArrowSchemaFromCalcite.arrowSchemaFromRowType(child.getFragment().getRowType())
+                )
+            );
+        }
+        return inputs;
     }
 }
