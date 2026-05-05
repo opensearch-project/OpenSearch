@@ -107,7 +107,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * Cluster-level default for {@code index.composite.primary_data_format}.
      * When the index setting is not explicitly provided, this cluster setting is used as the fallback.
      */
-    public static final Setting<String> CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT = Setting.simpleString(
+    public static final Setting<String> CLUSTER_PRIMARY_DATA_FORMAT = Setting.simpleString(
         "cluster.composite.primary_data_format",
         "lucene",
         Setting.Property.NodeScope,
@@ -118,7 +118,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * Cluster-level default for {@code index.composite.secondary_data_formats}.
      * When the index setting is not explicitly provided, this cluster setting is used as the fallback.
      */
-    public static final Setting<List<String>> CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS = Setting.listSetting(
+    public static final Setting<List<String>> CLUSTER_SECONDARY_DATA_FORMATS = Setting.listSetting(
         "cluster.composite.secondary_data_formats",
         Collections.emptyList(),
         s -> s,
@@ -128,8 +128,8 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
 
     /**
      * If enabled, this cluster setting enforces that indexes will be created with composite data-format settings
-     * matching the cluster-level defaults defined in {@link #CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT} and
-     * {@link #CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS} by rejecting any request that specifies an index-level value
+     * matching the cluster-level defaults defined in {@link #CLUSTER_PRIMARY_DATA_FORMAT} and
+     * {@link #CLUSTER_SECONDARY_DATA_FORMATS} by rejecting any request that specifies an index-level value
      * that does not match. If disabled, users may choose the composite data-format on a per-index basis using the
      * {@link #PRIMARY_DATA_FORMAT} and {@link #SECONDARY_DATA_FORMATS} settings.
      *
@@ -137,7 +137,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * {@code cluster.index.restrict.pluggable.dataformat} flag that governs the core
      * {@code index.pluggable.dataformat.*} settings.
      */
-    public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING = Setting.boolSetting(
         "cluster.restrict.composite.dataformat",
         false,
         Setting.Property.NodeScope,
@@ -150,9 +150,9 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         return List.of(
             PRIMARY_DATA_FORMAT,
             SECONDARY_DATA_FORMATS,
-            CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT,
-            CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS,
-            CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
+            CLUSTER_PRIMARY_DATA_FORMAT,
+            CLUSTER_SECONDARY_DATA_FORMATS,
+            CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
         );
     }
 
@@ -196,9 +196,9 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                     return Settings.EMPTY;
                 }
                 ClusterSettings clusterSettings = clusterService.getClusterSettings();
-                boolean restrict = clusterSettings.get(CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING);
-                String clusterPrimary = clusterSettings.get(CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT);
-                List<String> clusterSecondary = clusterSettings.get(CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS);
+                boolean restrict = clusterSettings.get(CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING);
+                String clusterPrimary = clusterSettings.get(CLUSTER_PRIMARY_DATA_FORMAT);
+                List<String> clusterSecondary = clusterSettings.get(CLUSTER_SECONDARY_DATA_FORMATS);
 
                 if (restrict) {
                     List<String> errors = new ArrayList<>();
@@ -208,7 +208,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                             "index setting ["
                                 + PRIMARY_DATA_FORMAT.getKey()
                                 + "] is not allowed to be set as ["
-                                + CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey()
+                                + CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey()
                                 + "=true]"
                         );
                     }
@@ -218,7 +218,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                             "index setting ["
                                 + SECONDARY_DATA_FORMATS.getKey()
                                 + "] is not allowed to be set as ["
-                                + CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey()
+                                + CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey()
                                 + "=true]"
                         );
                     }
