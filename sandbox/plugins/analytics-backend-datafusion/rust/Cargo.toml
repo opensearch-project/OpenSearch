@@ -39,7 +39,9 @@ num_cpus = { workspace = true }
 mimalloc = { workspace = true }
 native-bridge-common = { workspace = true }
 async-trait = { workspace = true }
+chrono = { workspace = true }
 roaring = "0.10"
+thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
