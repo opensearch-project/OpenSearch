@@ -60,7 +60,7 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
      * Lazily provision both calcs indices on first invocation. Must be called inside a
      * test method (not {@code setUp()}) — {@code OpenSearchRestTestCase}'s static
      * {@code client()} is not initialized until after {@code @BeforeClass} but is
-     * reliably available inside test bodies. Mirrors the pattern in {@link FillNullCommandIT}.
+     * reliably available inside test bodies.
      */
     private void ensureDataProvisioned() throws IOException {
         if (dataProvisioned == false) {
