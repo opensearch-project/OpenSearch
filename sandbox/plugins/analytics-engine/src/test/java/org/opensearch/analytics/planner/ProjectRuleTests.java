@@ -236,6 +236,50 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
     }
 
+    public void testStripAnnotationsRecursivelyUnwrapsNestedExpressions() {
+        // PLUS(CEIL(value), value) — a scalar call with another scalar call as an operand.
+        // The project rule recurses into operands (annotateExpr lines 127-139), so both PLUS
+        // and the inner CEIL get wrapped in AnnotatedProjectExpression. stripAnnotations must
+        // remove every wrapper at every depth before the plan reaches the backend
+        // FragmentConvertor — Substrait isthmus has no converter for ANNOTATED_PROJECT_EXPR and
+        // would throw "Unable to convert call". (COALESCE would be the natural shape here since
+        // PPL fillnull lowers to it, but Calcite's makeCall simplifies COALESCE on non-nullable
+        // operands away into the first arg, defeating the test. PLUS+CEIL preserves the
+        // nested-call structure we want to exercise.)
+        RexNode value = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1);
+        RexNode ceilCall = rexBuilder.makeCall(SqlStdOperatorTable.CEIL, value);
+        RexNode plusCall = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, ceilCall, value);
+        OpenSearchProject annotated = runProject(plusCall);
+
+        // Sanity: confirm the rule produced the nested-wrapper shape this test exercises.
+        RexNode topLevel = annotated.getProjects().get(0);
+        assertTrue("Outer PLUS must be annotated", topLevel instanceof AnnotatedProjectExpression);
+        RexCall outerOriginal = (RexCall) ((AnnotatedProjectExpression) topLevel).getOriginal();
+        assertTrue(
+            "Inner CEIL must also be annotated (recursive annotateExpr behavior)",
+            outerOriginal.getOperands().get(0) instanceof AnnotatedProjectExpression
+        );
+
+        // Strip and assert no AnnotatedProjectExpression survives anywhere in the RexNode tree.
+        RelNode stripped = annotated.stripAnnotations(annotated.getInputs());
+        assertTrue("Stripped plan should be a plain LogicalProject", stripped instanceof LogicalProject);
+        for (RexNode expr : ((LogicalProject) stripped).getProjects()) {
+            assertNoAnnotationInTree(expr);
+        }
+    }
+
+    private static void assertNoAnnotationInTree(RexNode node) {
+        assertFalse(
+            "Expression tree must not contain AnnotatedProjectExpression after strip: " + node,
+            node instanceof AnnotatedProjectExpression
+        );
+        if (node instanceof RexCall call) {
+            for (RexNode operand : call.getOperands()) {
+                assertNoAnnotationInTree(operand);
+            }
+        }
+    }
+
     // ---- Mixed backends in one projection ----
 
     public void testMixedBackendsInProjection() {
