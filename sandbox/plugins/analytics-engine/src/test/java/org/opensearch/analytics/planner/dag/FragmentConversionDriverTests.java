@@ -38,7 +38,10 @@ import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.analytics.spi.FilterDelegationInstructionNode;
+import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.InstructionType;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.nio.charset.StandardCharsets;
@@ -109,6 +112,10 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertEquals("test_index", convertor.shardScanTableName);
         assertDoesntContainOperators(convertor.shardScanFragment, OPENSEARCH_OPERATORS);
         assertDoesntContainOperators(convertor.shardScanFragment, ANNOTATION_MARKERS);
+        // Instruction assertions
+        StagePlan plan = stage.getPlanAlternatives().getFirst();
+        assertFalse("instructions must not be empty", plan.instructions().isEmpty());
+        assertEquals("first instruction must be SHARD_SCAN", InstructionType.SHARD_SCAN, plan.instructions().getFirst().type());
     }
 
     private void assertReduceStageConverted(RecordingConvertor convertor, Stage stage) {
@@ -117,6 +124,10 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertTrue("convertFinalAggFragment must be called", convertor.finalAggCalled);
         assertDoesntContainOperators(convertor.reduceFragment, OPENSEARCH_OPERATORS);
         assertDoesntContainOperators(convertor.reduceFragment, ANNOTATION_MARKERS);
+        // Instruction assertions
+        StagePlan plan = stage.getPlanAlternatives().getFirst();
+        assertFalse("instructions must not be empty", plan.instructions().isEmpty());
+        assertEquals("reduce stage must have FINAL_AGGREGATE", InstructionType.FINAL_AGGREGATE, plan.instructions().getFirst().type());
     }
 
     // ---- Single-stage query shapes ----
@@ -350,9 +361,10 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         int expectedDelegatedCount,
         boolean expectPlaceholder,
         boolean expectNativeEquals,
-        List<String> expectedFunctions
+        List<String> expectedFunctions,
+        FilterTreeShape expectedTreeShape
     ) {
-        assertEquals("delegatedQueries count", expectedDelegatedCount, plan.delegatedQueries().size());
+        assertEquals("delegatedQueries count", expectedDelegatedCount, plan.delegatedExpressions().size());
         assertEquals("serializer call count", expectedDelegatedCount, serializer.callCount);
         assertEquals("serialized functions", expectedFunctions, serializer.serializedFunctions);
 
@@ -379,6 +391,26 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
         // No annotation markers should survive stripping
         assertDoesntContainOperators(dfConvertor.shardScanFragment, ANNOTATION_MARKERS);
+
+        // Instruction assertions: delegation plans must have SHARD_SCAN + FILTER_DELEGATION_FOR_INDEX
+        if (expectedDelegatedCount > 0) {
+            assertTrue(
+                "delegation plan must have FILTER_DELEGATION_FOR_INDEX instruction",
+                plan.instructions().stream().anyMatch(node -> node.type() == InstructionType.FILTER_DELEGATION_FOR_INDEX)
+            );
+            FilterDelegationInstructionNode filterInstruction = (FilterDelegationInstructionNode) plan.instructions()
+                .stream()
+                .filter(node -> node.type() == InstructionType.FILTER_DELEGATION_FOR_INDEX)
+                .findFirst()
+                .orElseThrow();
+            assertEquals("delegatedPredicateCount in instruction", expectedDelegatedCount, filterInstruction.getDelegatedPredicateCount());
+            assertEquals(
+                "delegatedExpressions in instruction must match plan",
+                plan.delegatedExpressions().size(),
+                filterInstruction.getDelegatedQueries().size()
+            );
+            assertEquals("treeShape in instruction", expectedTreeShape, filterInstruction.getTreeShape());
+        }
     }
 
     // ---- Single predicate ----
@@ -389,7 +421,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RecordingSerializer serializer = new RecordingSerializer();
         QueryDAG dag = buildSingleFieldDelegationDag(makeFullTextCall(MATCH_PHRASE_FUNCTION, 0, "hello world"), dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertDelegationResult(plan, dfConvertor, serializer, 1, true, false, List.of("MATCH_PHRASE"));
+        assertDelegationResult(plan, dfConvertor, serializer, 1, true, false, List.of("MATCH_PHRASE"), FilterTreeShape.SINGLE_AND);
     }
 
     /** Single native equals — no delegation, empty delegatedQueries. */
@@ -398,7 +430,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RecordingSerializer serializer = new RecordingSerializer();
         QueryDAG dag = buildTwoFieldDelegationDag(makeEquals(0, SqlTypeName.INTEGER, 200), dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertDelegationResult(plan, dfConvertor, serializer, 0, false, true, List.of());
+        assertDelegationResult(plan, dfConvertor, serializer, 0, false, true, List.of(), null);
     }
 
     // ---- AND conditions ----
@@ -413,7 +445,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             serializer
         );
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertDelegationResult(plan, dfConvertor, serializer, 1, true, true, List.of("MATCH_PHRASE"));
+        assertDelegationResult(plan, dfConvertor, serializer, 1, true, true, List.of("MATCH_PHRASE"), FilterTreeShape.SINGLE_AND);
     }
 
     /** AND(delegated, delegated) — both replaced, two entries in delegatedQueries. */
@@ -426,7 +458,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             serializer
         );
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertDelegationResult(plan, dfConvertor, serializer, 2, true, false, List.of("MATCH_PHRASE", "FUZZY"));
+        assertDelegationResult(plan, dfConvertor, serializer, 2, true, false, List.of("MATCH_PHRASE", "FUZZY"), FilterTreeShape.SINGLE_AND);
     }
 
     // ---- OR conditions ----
@@ -445,7 +477,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             serializer
         );
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertDelegationResult(plan, dfConvertor, serializer, 1, true, true, List.of("MATCH_PHRASE"));
+        assertDelegationResult(plan, dfConvertor, serializer, 1, true, true, List.of("MATCH_PHRASE"), FilterTreeShape.MIXED_BOOLEAN);
         assertTrue("OR structure should be preserved", RelOptUtil.toString(dfConvertor.shardScanFragment).contains("OR"));
     }
 
@@ -467,7 +499,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RexNode condition = makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), orClause);
         QueryDAG dag = buildTwoFieldDelegationDag(condition, dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertDelegationResult(plan, dfConvertor, serializer, 2, true, true, List.of("MATCH_PHRASE", "FUZZY"));
+        assertDelegationResult(plan, dfConvertor, serializer, 2, true, true, List.of("MATCH_PHRASE", "FUZZY"), FilterTreeShape.SINGLE_AND);
         String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
         assertTrue("AND structure should be preserved", strippedPlan.contains("AND"));
         assertTrue("OR structure should be preserved", strippedPlan.contains("OR"));

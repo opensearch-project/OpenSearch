@@ -9,7 +9,7 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
@@ -23,12 +23,12 @@ import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 public final class FragmentResources implements AutoCloseable {
 
     private final GatedCloseable<Reader> gatedReader;
-    private final SearchExecEngine<ExecutionContext, EngineResultStream> engine;
+    private final SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine;
     private final EngineResultStream stream;
 
     public FragmentResources(
         GatedCloseable<Reader> gatedReader,
-        SearchExecEngine<ExecutionContext, EngineResultStream> engine,
+        SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream
     ) {
         this.gatedReader = gatedReader;

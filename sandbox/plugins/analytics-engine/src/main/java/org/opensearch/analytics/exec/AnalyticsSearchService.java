@@ -12,13 +12,17 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
+import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.FragmentInstructionHandler;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -36,7 +40,7 @@ import java.util.Map;
 /**
  * Data-node service that executes plan fragments against local shards.
  * Acquires a reader from the shard's composite engine, builds an
- * {@link ExecutionContext}, and invokes the backend's {@link SearchExecEngine}
+ * {@link ShardScanExecutionContext}, and invokes the backend's {@link SearchExecEngine}
  * to produce results.
  *
  * <p>Does NOT hold {@code IndicesService} — receives an already-resolved
@@ -107,12 +111,24 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, Task task) throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
-        SearchExecEngine<ExecutionContext, EngineResultStream> engine = null;
+        SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         try {
-            ExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, task);
+            ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
-            engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx);
+
+            // Apply instruction handlers in order — each builds upon the previous handler's backend context
+            BackendExecutionContext backendContext = null;
+            List<InstructionNode> instructions = resolved.plan.getInstructions();
+            if (!instructions.isEmpty()) {
+                FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
+                for (InstructionNode node : instructions) {
+                    FragmentInstructionHandler handler = factory.createHandler(node);
+                    backendContext = handler.apply(node, ctx, backendContext);
+                }
+            }
+
+            engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
             return new FragmentResources(gatedReader, engine, stream);
         } catch (Exception e) {
@@ -158,13 +174,13 @@ public class AnalyticsSearchService implements AutoCloseable {
         return new ResolvedFragment(readerProvider, selectedPlan, request.getQueryId(), request.getStageId(), shardIdStr);
     }
 
-    private ExecutionContext buildContext(
+    private ShardScanExecutionContext buildContext(
         FragmentExecutionRequest request,
         Reader reader,
         FragmentExecutionRequest.PlanAlternative plan,
         Task task
     ) {
-        ExecutionContext ctx = new ExecutionContext(request.getShardId().getIndexName(), task, reader);
+        ShardScanExecutionContext ctx = new ShardScanExecutionContext(request.getShardId().getIndexName(), task, reader);
         ctx.setFragmentBytes(plan.getFragmentBytes());
         ctx.setAllocator(allocator);
         return ctx;

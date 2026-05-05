@@ -11,9 +11,10 @@ package org.opensearch.be.datafusion;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Files;
@@ -62,10 +63,9 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
             runtimeHandle.get()
         );
 
-        // Build the plugin-level objects
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait, 0L));
+        ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
 
         try (
             RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
@@ -73,6 +73,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         ) {
             ExecutionContext execCtx = new ExecutionContext("test_table", null, null);
             execCtx.setAllocator(alloc);
+            engine.prepare(execCtx);
             try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(2, rows.size());
@@ -94,7 +95,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait, 0L));
+        ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
 
         try (
             RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
@@ -102,6 +103,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         ) {
             ExecutionContext execCtx = new ExecutionContext("test_table", null, null);
             execCtx.setAllocator(alloc);
+            engine.prepare(execCtx);
             try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(1, rows.size());
@@ -120,7 +122,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait, 0L));
+        ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
 
         try (
             RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
@@ -128,6 +130,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         ) {
             ExecutionContext execCtx = new ExecutionContext("test_table", null, null);
             execCtx.setAllocator(alloc);
+            engine.prepare(execCtx);
             try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(1, rows.size());
@@ -137,8 +140,20 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     }
 
     private DatafusionReader createReader() {
-        // Wrap the raw pointer in a ReaderHandle via the existing native pointer
         return new DatafusionReader(readerHandle.getPointer());
+    }
+
+    private ShardScanExecutionContext createExecutionContext(String tableName, byte[] substrait, DatafusionContext dfContext) {
+        ShardScanExecutionContext execCtx = new ShardScanExecutionContext(tableName, null, null);
+        execCtx.setFragmentBytes(substrait);
+        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
+            readerHandle.getPointer(),
+            runtimeHandle.get(),
+            tableName,
+            0L
+        );
+        dfContext.setSessionContextHandle(sessionCtxHandle);
+        return execCtx;
     }
 
     private List<Object[]> collectRows(EngineResultStream stream) {

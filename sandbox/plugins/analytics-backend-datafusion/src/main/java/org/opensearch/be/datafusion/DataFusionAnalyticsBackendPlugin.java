@@ -17,6 +17,7 @@ import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
@@ -153,7 +154,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
     @Override
     public SearchExecEngineProvider getSearchExecEngineProvider() {
-        return ctx -> {
+        return (ctx, backendContext) -> {
             DataFusionService dataFusionService = plugin.getDataFusionService();
             if (dataFusionService == null) {
                 throw new IllegalStateException("DataFusionService not initialized — createComponents() may not have been called");
@@ -175,10 +176,19 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 throw new IllegalStateException("No DatafusionReader available in the acquired reader");
             }
             DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+            if (backendContext != null) {
+                DataFusionSessionState sessionState = (DataFusionSessionState) backendContext;
+                context.setSessionContextHandle(sessionState.sessionContextHandle());
+            }
             DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context);
             engine.prepare(ctx);
             return engine;
         };
+    }
+
+    @Override
+    public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
+        return new DataFusionInstructionHandlerFactory(plugin);
     }
 
     @Override
