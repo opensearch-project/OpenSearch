@@ -108,7 +108,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * When the index setting is not explicitly provided, this cluster setting is used as the fallback.
      */
     public static final Setting<String> CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT = Setting.simpleString(
-        "cluster.default.index.composite.primary_data_format",
+        "cluster.composite.primary_data_format",
         "lucene",
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -119,7 +119,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * When the index setting is not explicitly provided, this cluster setting is used as the fallback.
      */
     public static final Setting<List<String>> CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS = Setting.listSetting(
-        "cluster.default.index.composite.secondary_data_formats",
+        "cluster.composite.secondary_data_formats",
         Collections.emptyList(),
         s -> s,
         Setting.Property.NodeScope,
@@ -138,7 +138,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * {@code index.pluggable.dataformat.*} settings.
      */
     public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING = Setting.boolSetting(
-        "cluster.index.restrict.composite.dataformat",
+        "cluster.restrict.composite.dataformat",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Final

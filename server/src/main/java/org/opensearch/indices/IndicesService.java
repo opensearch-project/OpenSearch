@@ -400,7 +400,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * {@code index.pluggable.dataformat.enabled} and {@code index.pluggable.dataformat} settings.
      */
     public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING = Setting.boolSetting(
-        "cluster.index.restrict.pluggable.dataformat",
+        "cluster.restrict.pluggable.dataformat",
         false,
         Property.NodeScope,
         Property.Final
