@@ -31,13 +31,13 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Unit tests for {@link SearchAdapter}. Calcite's {@code SEARCH(x, Sarg[...])} is a
+ * Unit tests for {@link SargAdapter}. Calcite's {@code SEARCH(x, Sarg[...])} is a
  * compact, expanded form for {@code IN}-lists, {@code BETWEEN}, and unions of
  * ranges; DataFusion's substrait consumer doesn't recognize {@code Sarg} as a
  * literal, so the adapter expands it back into native comparison/OR trees
  * before the plan is serialized.
  */
-public class SearchAdapterTests extends OpenSearchTestCase {
+public class SargAdapterTests extends OpenSearchTestCase {
 
     private RelDataTypeFactory typeFactory;
     private RexBuilder rexBuilder;
@@ -83,7 +83,7 @@ public class SearchAdapterTests extends OpenSearchTestCase {
      */
     public void testAdaptExpandsInListSearchAwayFromSearchOperator() {
         RexCall original = buildInListSearch();
-        RexNode adapted = new SearchAdapter().adapt(original, List.of(), cluster);
+        RexNode adapted = new SargAdapter().adapt(original, List.of(), cluster);
 
         assertFalse("expansion must not leave a SEARCH call at the root", isSearch(adapted));
         assertTrue("expansion must not leave any nested SEARCH call", containsNoSearchOrSarg(adapted));
@@ -95,7 +95,7 @@ public class SearchAdapterTests extends OpenSearchTestCase {
      */
     public void testAdaptExpandsBetweenSearchAwayFromSearchOperator() {
         RexCall original = buildBetweenSearch();
-        RexNode adapted = new SearchAdapter().adapt(original, List.of(), cluster);
+        RexNode adapted = new SargAdapter().adapt(original, List.of(), cluster);
 
         assertFalse(isSearch(adapted));
         assertTrue(containsNoSearchOrSarg(adapted));
@@ -111,7 +111,7 @@ public class SearchAdapterTests extends OpenSearchTestCase {
         RexNode tenLit = rexBuilder.makeLiteral(10, intType, false);
         RexCall greaterThan = (RexCall) rexBuilder.makeCall(SqlStdOperatorTable.GREATER_THAN, List.of(xRef, tenLit));
 
-        RexNode adapted = new SearchAdapter().adapt(greaterThan, List.of(), cluster);
+        RexNode adapted = new SargAdapter().adapt(greaterThan, List.of(), cluster);
 
         assertSame("non-SEARCH input must pass through unmodified", greaterThan, adapted);
     }

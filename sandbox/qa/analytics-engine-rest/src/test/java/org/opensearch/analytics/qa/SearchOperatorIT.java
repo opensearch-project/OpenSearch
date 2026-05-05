@@ -16,33 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Integration test for PPL queries whose WHERE clauses get folded by Calcite into
- * {@code SEARCH(field, Sarg[...])} RexCalls. Exercises the {@code SearchAdapter}
- * (registered as the {@code ScalarFunction.SEARCH} adapter in the DataFusion
- * backend) which expands the Sarg back to native comparison / OR trees before
- * substrait serialization — DataFusion's substrait consumer does not recognize
- * Calcite's {@code Sarg} literal type.
- *
- * <p>Three representative shapes are covered:
- * <ul>
- *   <li><b>IN-list</b> — {@code field IN (a, b, c)} folds to {@code Sarg[a, b, c]}
- *       and expands to {@code OR(=(f,a), =(f,b), =(f,c))} or the equivalent
- *       {@code IN} call.</li>
- *   <li><b>BETWEEN</b> — {@code field >= a AND field <= b} folds to
- *       {@code Sarg[[a..b]]} and expands to {@code AND(>=(f,a), <=(f,b))}.</li>
- *   <li><b>Range union</b> — {@code field < a OR field > b} folds to
- *       {@code Sarg[(-∞..a), (b..+∞)]} and expands to the original OR tree.</li>
- * </ul>
- *
- * <p>Without the adapter, the substrait visitor throws "Unable to convert call
- * SEARCH(...)" at fragment conversion. The tests here verify the end-to-end
- * path: PPL parse → Calcite fold → backend adapt → substrait emit →
- * DataFusion execute → rows returned.
- *
- * <p>Dataset: {@code calcs} (parquet-backed). Field {@code int0} has values
- * 1, 7, 3, 8, 4, 10, 11 and several nulls across 17 rows.
- */
+/** End-to-end coverage for PPL queries that fold into {@code SEARCH(field, Sarg[...])}. */
 public class SearchOperatorIT extends AnalyticsRestTestCase {
 
     private static final Dataset DATASET = new Dataset("calcs", "calcs");
@@ -56,12 +30,6 @@ public class SearchOperatorIT extends AnalyticsRestTestCase {
         }
     }
 
-    // ── IN-list fold ────────────────────────────────────────────────────────
-
-    /**
-     * {@code int0 IN (1, 8, 10)} folds to a point Sarg. Dataset has 1×1,
-     * 3×8, 1×10 → five rows total after expansion.
-     */
     public void testInListFoldsToSearchAndReturnsMatchingRows() throws IOException {
         assertInt0Values(
             "source=" + DATASET.indexName + " | where int0 in (1, 8, 10) | fields int0 | sort int0",
@@ -69,12 +37,13 @@ public class SearchOperatorIT extends AnalyticsRestTestCase {
         );
     }
 
-    // ── BETWEEN fold ────────────────────────────────────────────────────────
+    public void testNotInListFoldsToSearchAndReturnsMatchingRows() throws IOException {
+        assertInt0Values(
+            "source=" + DATASET.indexName + " | where int0 not in (1, 8, 10) | fields int0 | sort int0",
+            3, 4, 4, 4, 7, 11
+        );
+    }
 
-    /**
-     * {@code int0 >= 4 AND int0 <= 8} folds to a closed-range Sarg. Dataset
-     * has 3×4, 1×7, 3×8 in [4,8] → seven rows. Sort stabilizes order.
-     */
     public void testBetweenFoldsToSearchAndReturnsRangeRows() throws IOException {
         assertInt0Values(
             "source=" + DATASET.indexName + " | where int0 >= 4 and int0 <= 8 | fields int0 | sort int0",
@@ -82,12 +51,6 @@ public class SearchOperatorIT extends AnalyticsRestTestCase {
         );
     }
 
-    // ── Range union (OR of ranges) ─────────────────────────────────────────
-
-    /**
-     * {@code int0 < 4 OR int0 > 10} folds to a Sarg with two open ranges.
-     * Matches rows with 1, 3, and 11 — three rows.
-     */
     public void testRangeUnionFoldsToSearchAndReturnsAllMatchingRows() throws IOException {
         assertInt0Values(
             "source=" + DATASET.indexName + " | where int0 < 4 or int0 > 10 | fields int0 | sort int0",
@@ -95,13 +58,19 @@ public class SearchOperatorIT extends AnalyticsRestTestCase {
         );
     }
 
-    // ── helpers ─────────────────────────────────────────────────────────────
+    /** Project-side Sarg: eval produces SEARCH in a projection expression, not a filter. */
+    public void testSargFoldInEvalProjectionReturnsMatchingRows() throws IOException {
+        assertInt0Values(
+            "source="
+                + DATASET.indexName
+                + " | eval is_match = int0 in (1, 8, 10)"
+                + " | where is_match = true"
+                + " | fields int0"
+                + " | sort int0",
+            1, 8, 8, 8, 10
+        );
+    }
 
-    /**
-     * Run the PPL query and assert the {@code int0} column contains exactly the
-     * expected integer values in order. The calcs fixture returns integers as
-     * Long / Integer via JSON; we normalize to long for comparison.
-     */
     private void assertInt0Values(String ppl, long... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
@@ -122,7 +91,6 @@ public class SearchOperatorIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** Send {@code POST /_analytics/ppl} and return the parsed JSON body. */
     private Map<String, Object> executePpl(String ppl) throws IOException {
         ensureDataProvisioned();
         Request request = new Request("POST", "/_analytics/ppl");
