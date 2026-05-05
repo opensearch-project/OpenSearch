@@ -61,7 +61,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IS_NULL,
         ScalarFunction.IS_NOT_NULL,
         ScalarFunction.IN,
-        ScalarFunction.LIKE
+        ScalarFunction.LIKE,
+        ScalarFunction.SEARCH
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -141,7 +142,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
-                return Map.of(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter());
+                return Map.of(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter(), ScalarFunction.SEARCH, new SearchAdapter());
             }
         };
     }

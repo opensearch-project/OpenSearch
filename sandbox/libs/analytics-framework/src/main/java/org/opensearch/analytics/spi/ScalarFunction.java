@@ -37,6 +37,7 @@ public enum ScalarFunction {
     IN(Category.COMPARISON, SqlKind.IN),
     LIKE(Category.COMPARISON, SqlKind.LIKE),
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    SEARCH(Category.COMPARISON, SqlKind.SEARCH),
 
     // ── Full-text search ─────────────────────────────────────────────
     MATCH(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
