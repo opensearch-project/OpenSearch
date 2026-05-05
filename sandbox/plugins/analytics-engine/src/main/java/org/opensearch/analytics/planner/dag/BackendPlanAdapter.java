@@ -195,6 +195,6 @@ public class BackendPlanAdapter {
     }
 
     private static ScalarFunction resolveFunction(RexCall call) {
-        return ScalarFunction.fromSqlOperator(call.getOperator());
+        return ScalarFunction.fromSqlOperatorWithFallback(call.getOperator());
     }
 }

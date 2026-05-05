@@ -163,7 +163,7 @@ public enum ScalarFunction {
      * operator: a {@code RexCall} may be backed by a {@code SqlBinaryOperator} (e.g. {@code ||})
      * which is neither covered by {@code OTHER} {@code SqlKind} nor by {@code SqlFunction}.
      */
-    public static ScalarFunction fromSqlOperator(SqlOperator operator) {
+    public static ScalarFunction fromSqlOperatorWithFallback(SqlOperator operator) {
         ScalarFunction byKind = fromSqlKind(operator.getKind());
         if (byKind != null) {
             return byKind;

@@ -32,7 +32,7 @@ import java.util.Map;
  * {@link org.opensearch.analytics.spi.ScalarFunction#CONCAT} and
  * {@link org.opensearch.analytics.spi.ScalarFunction#CAST} entries in the DataFusion
  * backend's {@code STANDARD_PROJECT_OPS}. {@code ||} resolves through the symbolic-name
- * branch of {@link org.opensearch.analytics.spi.ScalarFunction#fromSqlOperator} since it
+ * branch of {@link org.opensearch.analytics.spi.ScalarFunction#fromSqlOperatorWithFallback} since it
  * is a {@code SqlBinaryOperator} (not a {@code SqlFunction}) with {@code SqlKind.OTHER}.
  *
  * <p>Provisions the {@code calcs} dataset (parquet-backed) once per class via

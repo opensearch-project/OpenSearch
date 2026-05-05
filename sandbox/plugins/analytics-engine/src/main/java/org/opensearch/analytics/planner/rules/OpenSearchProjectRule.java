@@ -119,7 +119,7 @@ public class OpenSearchProjectRule extends RelOptRule {
         // Standard scalar function
         List<String> scalarViable = resolveScalarViableBackends(rexCall, childViableBackends);
         if (scalarViable.isEmpty()) {
-            ScalarFunction resolved = ScalarFunction.fromSqlOperator(rexCall.getOperator());
+            ScalarFunction resolved = ScalarFunction.fromSqlOperatorWithFallback(rexCall.getOperator());
             String label = resolved != null ? resolved.name() : rexCall.getOperator().getName();
             throw new IllegalStateException("No backend supports scalar function [" + label + "] among " + childViableBackends);
         }
@@ -158,7 +158,7 @@ public class OpenSearchProjectRule extends RelOptRule {
     }
 
     private List<String> resolveScalarViableBackends(RexCall rexCall, List<String> childViableBackends) {
-        ScalarFunction scalarFunc = ScalarFunction.fromSqlOperator(rexCall.getOperator());
+        ScalarFunction scalarFunc = ScalarFunction.fromSqlOperatorWithFallback(rexCall.getOperator());
         if (scalarFunc == null) {
             return List.of();
         }

@@ -152,7 +152,7 @@ public class OpenSearchFilterRule extends RelOptRule {
             );
         }
 
-        ScalarFunction function = ScalarFunction.fromSqlOperator(predicate.getOperator());
+        ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(predicate.getOperator());
         if (function == null) {
             throw new IllegalStateException(
                 "Unrecognized filter operator [" + predicate.getOperator().getName() + " / " + predicate.getKind() + "]"
