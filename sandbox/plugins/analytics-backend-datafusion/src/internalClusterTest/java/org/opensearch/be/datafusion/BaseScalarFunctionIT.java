@@ -121,6 +121,12 @@ public abstract class BaseScalarFunctionIT extends OpenSearchIntegTestCase {
             .startObject("created_at")
             .field("type", "date")
             .endObject()
+            // json_str holds serialized JSON arrays/objects/malformed strings so
+            // scalar-JSON UDFs can be exercised on real column values (columnar
+            // UDF path), not just string literals (scalar fast-path).
+            .startObject("json_str")
+            .field("type", "keyword")
+            .endObject()
             .endObject()
             .endObject();
 
@@ -143,13 +149,38 @@ public abstract class BaseScalarFunctionIT extends OpenSearchIntegTestCase {
     }
 
     private void indexBankDocs() {
+        // Row 1 carries a 3-element JSON array in json_str; row 6 carries a JSON object.
+        // This lets scalar-JSON UDF tests assert both the happy path (row 1 → length 3)
+        // and the non-array → NULL path (row 6) from real column values.
         client().prepareIndex(BANK_INDEX)
             .setId("1")
-            .setSource("account_number", 1, "firstname", "Amber", "balance", 39225L, "created_at", "2024-06-15T10:30:00Z")
+            .setSource(
+                "account_number",
+                1,
+                "firstname",
+                "Amber",
+                "balance",
+                39225L,
+                "created_at",
+                "2024-06-15T10:30:00Z",
+                "json_str",
+                "[1,2,3]"
+            )
             .get();
         client().prepareIndex(BANK_INDEX)
             .setId("6")
-            .setSource("account_number", 6, "firstname", "Hattie", "balance", 5686L, "created_at", "2024-01-20T14:45:30Z")
+            .setSource(
+                "account_number",
+                6,
+                "firstname",
+                "Hattie",
+                "balance",
+                5686L,
+                "created_at",
+                "2024-01-20T14:45:30Z",
+                "json_str",
+                "{\"k\":1}"
+            )
             .get();
     }
 
@@ -180,6 +211,32 @@ public abstract class BaseScalarFunctionIT extends OpenSearchIntegTestCase {
         assertNotNull(expr + " result must not be null", cell);
         assertTrue(expr + " result must be Number, got " + cell.getClass(), cell instanceof Number);
         assertEquals(expr, expected, ((Number) cell).longValue());
+    }
+
+    /**
+     * Strict variant that asserts the cell is a {@link Long} (not just a {@link Number}).
+     * Use for functions whose on-wire BIGINT return type must not silently regress.
+     */
+    protected void assertScalarLongStrict(String expr, long expected) {
+        Object cell = evalScalar(expr);
+        assertNotNull(expr + " result must not be null", cell);
+        assertTrue(expr + " result must be Long, got " + cell.getClass(), cell instanceof Long);
+        assertEquals(expr, expected, ((Long) cell).longValue());
+    }
+
+    /**
+     * Strict variant that asserts the cell is an {@link Integer}. Use for functions
+     * whose on-wire INTEGER return type must be preserved through the pipeline —
+     * e.g. PPL scalar UDFs declared as {@code INTEGER_FORCE_NULLABLE} whose Rust
+     * implementations return {@code Int64} but get narrowed via an implicit CAST
+     * on the enclosing Project. The non-strict {@link #assertScalarLong} silently
+     * accepts either width and would miss this contract regression.
+     */
+    protected void assertScalarIntStrict(String expr, int expected) {
+        Object cell = evalScalar(expr);
+        assertNotNull(expr + " result must not be null", cell);
+        assertTrue(expr + " result must be Integer, got " + cell.getClass(), cell instanceof Integer);
+        assertEquals(expr, expected, ((Integer) cell).intValue());
     }
 
     protected void assertScalarDouble(String expr, double expected, double delta) {

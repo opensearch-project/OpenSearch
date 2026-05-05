@@ -317,3 +317,12 @@ scalar_functions:
           - { name: base, value: i32 }
         nullability: DECLARED_OUTPUT
         return: fp64
+
+  # json_array_length(value) — Rust UDF. rust/src/udf/json_array_length.rs.
+  # Target of JsonFunctionAdapters.JsonArrayLengthAdapter's rewrite. Returns
+  # NULL on malformed / non-array input (parity with legacy SQL plugin).
+  - name: "json_array_length"
+    description: "Length of a JSON array; NULL on malformed or non-array input."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: any1

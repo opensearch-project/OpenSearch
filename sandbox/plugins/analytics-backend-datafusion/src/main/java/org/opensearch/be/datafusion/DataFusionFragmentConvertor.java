@@ -81,11 +81,17 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /**
      * Maps backend-specific Calcite operators to their Substrait extension names so Isthmus
-     * serializes them through our {@code SimpleExtension} catalog:
+     * serializes them through our {@code SimpleExtension} catalog. One entry per line so
+     * parallel per-UDF PRs append without hotspot conflicts.
      * <ul>
      *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
      *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
      *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
+     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of YearAdapter's rewrite).</li>
+     *   <li>{@link ConvertTzAdapter#LOCAL_CONVERT_TZ_OP} → {@code convert_tz} (Rust UDF).</li>
+     *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonArrayLengthAdapter#LOCAL_JSON_ARRAY_LENGTH_OP} →
+     *       {@code json_array_length} (Rust UDF).</li>
      *   <li>{@link SqlLibraryOperators#REGEXP_CONTAINS} → {@code regex_match} (boolean regex match;
      *       resolved by DataFusion's substrait consumer to {@code Operator::RegexMatch}, the same
      *       binary operator that backs PostgreSQL's {@code ~} regex match). Lowering target for PPL
@@ -125,7 +131,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlStdOperatorTable.PI, "pi"),
         FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
         FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
-        FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME)
+        FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME),
+        FunctionMappings.s(JsonFunctionAdapters.JsonArrayLengthAdapter.LOCAL_JSON_ARRAY_LENGTH_OP, "json_array_length")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;

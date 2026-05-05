@@ -7,11 +7,12 @@
  */
 
 //! OpenSearch scalar UDFs that aren't in DataFusion's built-in registry. Each
-//! must have a matching YAML entry in `extensions/opensearch_scalar.yaml` so
+//! must have a matching YAML entry in `opensearch_scalar_functions.yaml` so
 //! the substrait converter on the Java side can route to it by name.
 //!
 //! Functions registered here:
 //! - `convert_tz(ts, from_tz, to_tz)` — DST-aware timezone shift (chrono-tz)
+//! - `json_array_length(value)` — length of a JSON array, NULL on malformed/non-array
 
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::plan_err;
@@ -113,14 +114,25 @@ pub(crate) fn coerce_args(
 }
 
 pub mod convert_tz;
+pub mod json_array_length;
 pub mod tonumber;
 pub mod tostring;
 
+// Dev note: if a freshly added UDF here fails at runtime with
+// "Unsupported function name: <X>" despite the Java side being wired, the
+// native dylib is stale. `sandbox/libs/dataformat-native/build.gradle` tracks
+// only common/ + lib/ as inputs, so plugin-side Rust edits leave gradle
+// UP-TO-DATE. Workaround: run
+// `./gradlew :sandbox:libs:dataformat-native:buildRustLibrary --rerun-tasks`
+// and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
     convert_tz::register_all(ctx);
+    json_array_length::register_all(ctx);
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
-    log::info!("OpenSearch UDF register_all: convert_tz, tonumber, tostring registered");
+    log::info!(
+        "OpenSearch UDF register_all: convert_tz, json_array_length, tonumber, tostring registered"
+    );
 }
 
 #[cfg(test)]

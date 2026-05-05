@@ -168,7 +168,10 @@ public enum ScalarFunction {
     CURRENT_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CURTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CONVERT_TZ(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── JSON ────────────────────────────────────────────────────────
+    JSON_ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.

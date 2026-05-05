@@ -49,6 +49,9 @@ chrono-tz = "0.10"
 
 tokio-metrics = { workspace = true }
 
+# JSON UDFs. serde_json comes from the workspace.
+serde_json = { workspace = true }
+
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
