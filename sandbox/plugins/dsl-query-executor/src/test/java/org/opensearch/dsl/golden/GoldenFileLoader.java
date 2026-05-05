@@ -96,9 +96,7 @@ public class GoldenFileLoader {
 
     private static void requireNonNull(Object value, String fieldName, Path filePath) {
         if (value == null) {
-            throw new IllegalArgumentException(
-                "Golden file " + filePath + " missing required field: " + fieldName
-            );
+            throw new IllegalArgumentException("Golden file " + filePath + " missing required field: " + fieldName);
         }
     }
 }

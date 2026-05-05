@@ -76,10 +76,7 @@ public class CalciteTestInfra {
             typeFactory,
             new CalciteConnectionConfigImpl(new Properties())
         );
-        RelOptTable table = Objects.requireNonNull(
-            reader.getTable(List.of(indexName)),
-            "Table not found in schema: " + indexName
-        );
+        RelOptTable table = Objects.requireNonNull(reader.getTable(List.of(indexName)), "Table not found in schema: " + indexName);
 
         return new InfraResult(cluster, table, schema);
     }
@@ -91,19 +88,28 @@ public class CalciteTestInfra {
      */
     private static SqlTypeName toSqlTypeName(String goldenType) {
         switch (goldenType) {
-            case "VARCHAR":   return SqlTypeName.VARCHAR;
-            case "INTEGER":   return SqlTypeName.INTEGER;
-            case "BIGINT":    return SqlTypeName.BIGINT;
-            case "DOUBLE":    return SqlTypeName.DOUBLE;
-            case "FLOAT":     return SqlTypeName.FLOAT;
-            case "BOOLEAN":   return SqlTypeName.BOOLEAN;
-            case "DATE":      return SqlTypeName.DATE;
-            case "TIMESTAMP": return SqlTypeName.TIMESTAMP;
+            case "VARCHAR":
+                return SqlTypeName.VARCHAR;
+            case "INTEGER":
+                return SqlTypeName.INTEGER;
+            case "BIGINT":
+                return SqlTypeName.BIGINT;
+            case "DOUBLE":
+                return SqlTypeName.DOUBLE;
+            case "FLOAT":
+                return SqlTypeName.FLOAT;
+            case "BOOLEAN":
+                return SqlTypeName.BOOLEAN;
+            case "DATE":
+                return SqlTypeName.DATE;
+            case "TIMESTAMP":
+                return SqlTypeName.TIMESTAMP;
             default:
                 throw new IllegalArgumentException("Unsupported SQL type in golden file indexMapping: " + goldenType);
         }
     }
 
     /** Result record containing the Calcite infrastructure built from a golden file mapping. */
-    public record InfraResult(RelOptCluster cluster, RelOptTable table, SchemaPlus schema) {}
+    public record InfraResult(RelOptCluster cluster, RelOptTable table, SchemaPlus schema) {
+    }
 }

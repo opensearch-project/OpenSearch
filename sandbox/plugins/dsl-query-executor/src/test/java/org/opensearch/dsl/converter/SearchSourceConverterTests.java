@@ -193,7 +193,9 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
 
                 List<String> actualFields = relNode.getRowType().getFieldNames();
                 if (!tc.getMockResultFieldNames().equals(actualFields)) {
-                    failures.add(fileName + ": Field names mismatch\n  Expected: " + tc.getMockResultFieldNames() + "\n  Actual:   " + actualFields);
+                    failures.add(
+                        fileName + ": Field names mismatch\n  Expected: " + tc.getMockResultFieldNames() + "\n  Actual:   " + actualFields
+                    );
                 }
             } catch (Exception e) {
                 failures.add(fileName + ": " + e.getClass().getSimpleName() + " - " + e.getMessage());
