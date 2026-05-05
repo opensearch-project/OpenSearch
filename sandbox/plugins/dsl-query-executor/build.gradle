@@ -14,6 +14,8 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
 // Guava comes transitively from calcite-core — forbidden on compile classpaths
 // by OpenSearch policy. Calcite API exposes ImmutableList in type annotations,
 // so the compiler needs Guava. Bypass via custom config (same pattern as analytics-engine).

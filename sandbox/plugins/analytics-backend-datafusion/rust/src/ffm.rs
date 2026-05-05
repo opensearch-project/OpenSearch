@@ -60,9 +60,9 @@ pub unsafe extern "C" fn df_create_global_runtime(
     spill_dir_len: i64,
     spill_limit: i64,
 ) -> i64 {
-    let spill_dir = str_from_raw(spill_dir_ptr, spill_dir_len).map_err(|e| format!("df_create_global_runtime: {}", e))?;
-    api::create_global_runtime(memory_pool_limit, spill_dir, spill_limit)
-        .map_err(|e| e.to_string())
+    let spill_dir = str_from_raw(spill_dir_ptr, spill_dir_len)
+        .map_err(|e| format!("df_create_global_runtime: {}", e))?;
+    api::create_global_runtime(memory_pool_limit, spill_dir, spill_limit).map_err(|e| e.to_string())
 }
 
 #[no_mangle]
@@ -79,12 +79,17 @@ pub unsafe extern "C" fn df_create_reader(
     files_len_ptr: *const i64,
     files_count: i64,
 ) -> i64 {
-    let table_path = str_from_raw(table_path_ptr, table_path_len).map_err(|e| format!("df_create_reader: {}", e))?;
+    let table_path = str_from_raw(table_path_ptr, table_path_len)
+        .map_err(|e| format!("df_create_reader: {}", e))?;
     let mut filenames = Vec::with_capacity(files_count as usize);
     for i in 0..files_count as usize {
         let ptr = *files_ptr.add(i);
         let len = *files_len_ptr.add(i);
-        filenames.push(str_from_raw(ptr, len).map_err(|e| format!("df_create_reader: {}", e))?.to_string());
+        filenames.push(
+            str_from_raw(ptr, len)
+                .map_err(|e| format!("df_create_reader: {}", e))?
+                .to_string(),
+        );
     }
     let mgr = get_rt_manager()?;
     api::create_reader(table_path, filenames, &mgr).map_err(|e| e.to_string())
@@ -105,12 +110,25 @@ pub unsafe extern "C" fn df_execute_query(
     plan_len: i64,
     runtime_ptr: i64,
     context_id: i64,
+    // Pointer to a `WireDatafusionQueryConfig`. `0` = use defaults.
+    query_config_ptr: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
-    let table_name = str_from_raw(table_name_ptr, table_name_len).map_err(|e| format!("df_execute_query: {}", e))?;
+    let table_name = str_from_raw(table_name_ptr, table_name_len)
+        .map_err(|e| format!("df_execute_query: {}", e))?;
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     mgr.io_runtime
-        .block_on(api::execute_query(shard_view_ptr, table_name, plan_bytes, runtime_ptr, &mgr, context_id))
+        .block_on(api::execute_query(
+            shard_view_ptr,
+            table_name,
+            plan_bytes,
+            runtime_ptr,
+            &mgr,
+            context_id,
+            query_config,
+        ))
         .map_err(|e| e.to_string())
 }
 
@@ -148,8 +166,10 @@ pub unsafe extern "C" fn df_sql_to_substrait(
     out_len: *mut i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
-    let table_name = str_from_raw(table_name_ptr, table_name_len).map_err(|e| format!("df_sql_to_substrait: table_name: {}", e))?;
-    let sql = str_from_raw(sql_ptr, sql_len).map_err(|e| format!("df_sql_to_substrait: sql: {}", e))?;
+    let table_name = str_from_raw(table_name_ptr, table_name_len)
+        .map_err(|e| format!("df_sql_to_substrait: table_name: {}", e))?;
+    let sql =
+        str_from_raw(sql_ptr, sql_len).map_err(|e| format!("df_sql_to_substrait: sql: {}", e))?;
     let bytes = api::sql_to_substrait(shard_view_ptr, table_name, sql, runtime_ptr, &mgr)
         .map_err(|e| e.to_string())?;
     if bytes.len() > out_cap as usize {
