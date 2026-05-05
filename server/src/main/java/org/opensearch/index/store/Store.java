@@ -114,6 +114,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -486,6 +487,35 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             markStoreCorrupted(ex);
             throw ex;
         }
+    }
+
+    /**
+     * Computes {@link StoreFileMetadata} for a specific set of files. Unlike
+     * {@link #getSegmentMetadataMap(CatalogSnapshot)} which processes all files in a snapshot,
+     * this method only reads checksums for the requested files — suitable for merged segment
+     * checkpoint computation where only one segment's files are needed.
+     *
+     * @param files collection of file names to compute metadata for (may be format-aware names)
+     * @return map of filename to {@link StoreFileMetadata}
+     * @throws IOException on I/O error during checksum computation
+     */
+    public Map<String, StoreFileMetadata> getFileMetadata(Collection<String> files) throws IOException {
+        failIfCorrupted();
+        Map<String, StoreFileMetadata> result = new HashMap<>();
+        for (String file : files) {
+            final long length = directory.fileLength(file);
+            final String checksum;
+            final DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(directory);
+            if (dfasd != null && DataFormatAwareStoreDirectory.isDefaultFormat(FileMetadata.parseDataFormat(file)) == false) {
+                checksum = dfasd.calculateUploadChecksum(file);
+            } else {
+                try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+                    checksum = Store.digestToString(CodecUtil.retrieveChecksum(in));
+                }
+            }
+            result.put(file, new StoreFileMetadata(file, length, checksum, org.opensearch.Version.CURRENT.luceneVersion));
+        }
+        return result;
     }
 
     /**
@@ -1459,7 +1489,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final String checksum;
             try {
                 if (dfasd != null) {
-                    checksum = dfasd.calculateUploadChecksum(file);
+                    checksum = digestToString(Long.parseLong(dfasd.calculateUploadChecksum(file)));
                 } else {
                     try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                         checksum = digestToString(CodecUtil.retrieveChecksum(in));
@@ -1852,7 +1882,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 );
             }
             // Running CRC32 from the underlying OutputStreamIndexOutput's CheckedOutputStream.
-            final String actualChecksum = Long.toString(out.getChecksum());
+            final String actualChecksum = digestToString(out.getChecksum());
             if (metadata.checksum().equals(actualChecksum) == false) {
                 throw new CorruptIndexException(
                     "checksum failed (hardware problem?) : expected="

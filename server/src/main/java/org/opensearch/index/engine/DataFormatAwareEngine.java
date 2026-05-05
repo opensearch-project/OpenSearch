@@ -338,6 +338,9 @@ public class DataFormatAwareEngine implements Indexer {
                 store.shardPath(),
                 committer
             );
+            // Bump catalog generation on engine open so uploads from this primary do not collide
+            // with a prior primary's uploads for the same shard. See method Javadoc for rationale.
+            this.catalogSnapshotManager.bumpGenerationForNewEngineLifecycle();
 
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker);
             this.indexingStrategyPlanner = new IndexingStrategyPlanner(

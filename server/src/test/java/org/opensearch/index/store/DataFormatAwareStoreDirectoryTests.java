@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -56,7 +57,11 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         ShardId sid = new ShardId(new Index("test-index", indexUUID), shardId);
         shardPath = new ShardPath(false, shardDataPath, shardDataPath, sid);
 
-        dataFormatAwareStoreDirectory = new DataFormatAwareStoreDirectory(fsDirectory, shardPath, Map.of());
+        dataFormatAwareStoreDirectory = new DataFormatAwareStoreDirectory(
+            fsDirectory,
+            shardPath,
+            Map.of("parquet", new GenericCRC32ChecksumHandler())
+        );
     }
 
     @After

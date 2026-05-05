@@ -127,14 +127,24 @@ public class CatalogSnapshotManager implements Closeable {
     }
 
     /**
+     * Advances the catalog generation once at engine-open time so this engine's first commit
+     * lands strictly after any prior primary's last commit for the same shard.
+     * Prevents {@code RemoteStoreUtils#verifyNoMultipleWriters} collisions on primary relocation.
+     */
+    public synchronized void bumpGenerationForNewEngineLifecycle() {
+        commitNewSnapshot(latestCatalogSnapshot.getSegments());
+    }
+
+    /**
      * Applies the results of a completed merge to the latest catalog snapshot.
      * Replaces the merged segments with the new merged segment and commits a new snapshot.
      *
      * @param mergeResult the result of the merge containing the merged writer file set
      * @param oneMerge    the merge specification identifying which segments were merged
+     * @return the newly created merged {@link Segment}
      * @throws IOException if committing the new snapshot fails
      */
-    public synchronized void applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) throws IOException {
+    public synchronized Segment applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) throws IOException {
 
         List<Segment> segmentList = new ArrayList<>(latestCatalogSnapshot.getSegments());
 
@@ -186,6 +196,7 @@ public class CatalogSnapshotManager implements Closeable {
 
         // Commit new catalog snapshot
         commitNewSnapshot(segmentList);
+        return segmentToAdd;
     }
 
     // ---- Refresh path ----
