@@ -64,12 +64,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.LIKE
     );
 
-    // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
-    // PPL command/function we want the analytics-engine planner to route through DataFusion. Add
-    // here only after verifying the function deserializes through Substrait isthmus into a plan
-    // DataFusion's native runtime can execute (see DataFusionFragmentConvertor for the conversion
-    // path). COALESCE is the lowering target of PPL `fillnull`.
-    private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(ScalarFunction.COALESCE, ScalarFunction.CEIL);
+    /** Scalar functions DataFusion natively evaluates in a Project. Add new functions
+     *  here to declare project-side capability — without this, OpenSearchProjectRule
+     *  rejects projections that reference them. */
+    private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(
+        ScalarFunction.YEAR,            // rewritten to date_part('year', ts) by YearAdapter
+        ScalarFunction.CONVERT_TZ,      // resolved to the convert_tz Rust UDF
+        ScalarFunction.UNIX_TIMESTAMP,   // wraps convert_tz in the IT assertion
+        ScalarFunction.COALESCE,
+        ScalarFunction.CEIL
+    );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
@@ -141,7 +145,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
-                return Map.of(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter());
+                return Map.of(
+                    ScalarFunction.TIMESTAMP,
+                    new TimestampFunctionAdapter(),
+                    ScalarFunction.YEAR,
+                    new YearAdapter(),
+                    ScalarFunction.CONVERT_TZ,
+                    new ConvertTzAdapter(),
+                    ScalarFunction.UNIX_TIMESTAMP,
+                    new UnixTimestampAdapter()
+                );
             }
         };
     }

@@ -149,7 +149,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         try {
             t.setContextClassLoader(DataFusionPlugin.class.getClassLoader());
             SimpleExtension.ExtensionCollection delegationExtensions = SimpleExtension.load(List.of("/delegation_functions.yaml"));
-            return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions);
+            SimpleExtension.ExtensionCollection scalarExtensions = SimpleExtension.load(List.of("/extensions/opensearch_scalar.yaml"));
+            return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions).merge(scalarExtensions);
         } finally {
             t.setContextClassLoader(previous);
         }

@@ -1,0 +1,62 @@
+%YAML 1.2
+---
+# Substrait scalar-function signatures for the OpenSearch analytics-engine /
+# DataFusion backend. These declare the signatures isthmus resolves against
+# when emitting substrait calls — matching the names DataFusion's substrait
+# consumer expects (native DF built-ins or UDFs we register on the session).
+#
+# Calcite-name → DF-name translation (e.g. YEAR → date_part) happens in Java
+# adapters registered via the AnalyticsSearchBackendPlugin.scalarFunctionAdapters()
+# SPI; this YAML only declares the downstream signatures those adapters target.
+# See AbstractNameMappingAdapter for the reusable rename + literal-arg-injection
+# adapter pattern.
+urn: extension:org.opensearch:opensearch_scalar
+
+scalar_functions:
+  # date_part(unit, value) — target of YearAdapter's rewrite
+  # (Calcite YEAR(ts) → date_part('year', ts)). Resolved natively by
+  # DataFusion's substrait consumer.
+  #
+  # Return type uses the `any1` wildcard rather than a concrete numeric. DF's
+  # substrait consumer ignores the declared output type (it looks up the UDF
+  # by name and trusts the UDF's own type) while isthmus's signature matcher
+  # insists that the YAML return type be compatible with the Calcite call's
+  # outputType. PPL YEAR returns INTEGER, other PPL date-part wrappers may
+  # return BIGINT or DOUBLE; `any1` matches them all without per-variant clones.
+  -
+    name: "date_part"
+    impls:
+      - args: [{ value: string, name: "part" }, { value: "any1", name: "value" }]
+        return: any1
+
+  # convert_tz(ts, from_tz, to_tz) — Rust UDF. rust/src/udf/convert_tz.rs.
+  # DST-correct timezone shift via chrono-tz. Accepts IANA names and
+  # ±HH:MM offsets.
+  -
+    name: "convert_tz"
+    description: "Shift a timestamp from one timezone to another. IANA names and +/-HH:MM offsets."
+    impls:
+      # `any1` on the ts slot accepts whatever precision PPL emits
+      # (precision_timestamp<0>, precision_timestamp<3>, timestamp) —
+      # DataFusion's substrait consumer re-resolves the Rust UDF by name and
+      # its coerce_types canonicalizes to Timestamp(Ms, None). Declaring a
+      # concrete `timestamp` here makes isthmus's signature matcher reject
+      # the PPL-emitted precision_timestamp<0> input.
+      - args:
+          - { value: "any1", name: "ts" }
+          - { value: string, name: "from_tz" }
+          - { value: string, name: "to_tz" }
+        return: any1
+
+  # to_unixtime(ts) — DataFusion's native epoch-seconds extractor. Target of
+  # UnixTimestampAdapter's rewrite (PPL UNIX_TIMESTAMP(ts) → to_unixtime(ts)).
+  # `any1` return lets isthmus's signature matcher accept whatever numeric
+  # type PPL inferred for UNIX_TIMESTAMP (typically DOUBLE_FORCE_NULLABLE);
+  # DataFusion's substrait consumer re-resolves by name and ignores the
+  # declared return type.
+  -
+    name: "to_unixtime"
+    description: "Return a timestamp as Unix epoch seconds."
+    impls:
+      - args: [{ value: "any1", name: "ts" }]
+        return: any1

@@ -25,6 +25,7 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -79,7 +80,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /** Maps DelegatedPredicateFunction to its Substrait extension name for Isthmus conversion. */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
-        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME)
+        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
+        FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
+        FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;
@@ -125,8 +129,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         Rel wrapper = convertStandalone(rewritten);
         return serializePlan(rewire(inner, wrapper));
     }
-
-    // ── Core conversion helpers ─────────────────────────────────────────────────
 
     private byte[] convertToSubstrait(RelNode fragment) {
         RelRoot root = RelRoot.of(fragment, SqlKind.SELECT);
