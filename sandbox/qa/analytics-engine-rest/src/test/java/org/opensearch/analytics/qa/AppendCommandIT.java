@@ -73,10 +73,11 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
     // ── two stats branches → sort → head ────────────────────────────────────────
 
     public void testAppend() throws IOException {
-        // Branch 1: sum(int0) grouped by str0, sorted by group key for deterministic order.
-        // Branch 2: sum(int1) grouped by str3, sorted by aggregate value.
-        // Union all + head 5 → first 5 rows of the concatenation (3 from branch 1, 2 from branch 2).
-        assertRows(
+        // Branch 1: sum(int0) grouped by str0 (3 rows). Branch 2: sum(int1) grouped
+        // by str3 (2 rows). Union all + head 5 keeps every row, but the order
+        // between the two child-stage streams isn't deterministic, so compare as a
+        // multiset.
+        assertRowsAnyOrder(
             "source="
                 + CALCS.indexName
                 + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
@@ -95,10 +96,10 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
     // ── cross-index union ───────────────────────────────────────────────────────
 
     public void testAppendDifferentIndex() throws IOException {
-        // Branch 1: calcs grouped by str0. Branch 2: calcs_alt total sum(int1).
-        // Each branch is its own data-node stage (different shards), gathered at the
-        // coordinator and unioned. Sort the first branch for deterministic order.
-        assertRows(
+        // Branch 1: calcs grouped by str0 (3 rows). Branch 2: calcs_alt total sum(int1)
+        // (1 row). Each branch is its own data-node stage on its own shard set; the two
+        // streams arrive at the coordinator's Union in non-deterministic order.
+        assertRowsAnyOrder(
             "source="
                 + CALCS.indexName
                 + " | stats sum(int0) as sum by str0 | sort str0"
@@ -117,8 +118,9 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
     public void testAppendWithMergedColumn() throws IOException {
         // Both branches produce a column named "sum"; SchemaUnifier merges the column
         // by name. Group columns differ (str0 vs str3) so each row populates one and
-        // leaves the other null.
-        assertRows(
+        // leaves the other null. Inter-branch order is non-deterministic; head 5 keeps
+        // every row (3 + 2 = 5) so multiset comparison is exact.
+        assertRowsAnyOrder(
             "source="
                 + CALCS.indexName
                 + " | stats sum(int0) as sum by str0 | sort str0"
@@ -233,8 +235,8 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
         // RIGHT JOIN of (empty filtered subset, real subquery) → still emits every
         // right-side row with NULL on the left columns. The append therefore yields
         // the first branch's rows plus the right-subquery's rows under the merged
-        // schema (sum_int0_by_str0 / str0 / cnt).
-        assertRows(
+        // schema (sum_int0_by_str0 / str0 / cnt). Inter-branch order is non-deterministic.
+        assertRowsAnyOrder(
             "source="
                 + CALCS.indexName
                 + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
@@ -252,8 +254,8 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
 
     public void testAppendEmptySearchWithFullJoin() throws IOException {
         // Same shape as right join — the empty left side has no rows to match, so
-        // FULL JOIN reduces to RIGHT JOIN here.
-        assertRows(
+        // FULL JOIN reduces to RIGHT JOIN here. Inter-branch order is non-deterministic.
+        assertRowsAnyOrder(
             "source="
                 + CALCS.indexName
                 + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
@@ -324,6 +326,48 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
                 assertCellEquals("Cell mismatch at row " + i + ", col " + j + " for query: " + ppl, want.get(j), got.get(j));
             }
         }
+    }
+
+    /**
+     * Multiset variant of {@link #assertRows} for queries whose row order is not
+     * deterministic. Substrait's {@code Set} (Union) rel preserves order within a
+     * single input partition but not between partitions: the two child stages of
+     * an {@code | append} pipeline can stream into the coordinator sink in either
+     * order depending on shard scheduling timing, so a {@code | head N} on top of
+     * a Union may pick different rows across runs (or the same rows in different
+     * orders).
+     *
+     * <p>Cell values are normalised to a canonical string form before comparison —
+     * numeric types collapse to a {@code Double} so JSON-parsed
+     * {@code Integer}/{@code Long}/{@code Double} compare equal across the Java side
+     * even when their boxed types differ. Rows are then compared as a sorted multiset.
+     */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private final void assertRowsAnyOrder(String ppl, List<Object>... expected) throws IOException {
+        Map<String, Object> response = executePpl(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
+        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<String> expectedNormalized = Arrays.stream(expected).map(AppendCommandIT::normalizeRow).sorted().toList();
+        List<String> actualNormalized = actualRows.stream().map(AppendCommandIT::normalizeRow).sorted().toList();
+        assertEquals("Row multisets differ for query: " + ppl, expectedNormalized, actualNormalized);
+    }
+
+    /** Renders one row to a stable canonical string for multiset comparison. */
+    private static String normalizeRow(List<Object> row) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < row.size(); i++) {
+            if (i > 0) sb.append('|');
+            sb.append(normalizeCell(row.get(i)));
+        }
+        return sb.append(']').toString();
+    }
+
+    private static String normalizeCell(Object cell) {
+        if (cell == null) return "<NULL>";
+        if (cell instanceof Number) return Double.toString(((Number) cell).doubleValue());
+        return cell.toString();
     }
 
     /**
