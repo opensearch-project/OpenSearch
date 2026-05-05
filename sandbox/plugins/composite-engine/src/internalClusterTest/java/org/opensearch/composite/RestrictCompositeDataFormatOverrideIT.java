@@ -23,10 +23,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.opensearch.composite.CompositeDataFormatPlugin.CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING;
+import static org.opensearch.composite.CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING;
 
 /**
- * Integration tests for {@link CompositeDataFormatPlugin#CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING}
+ * Integration tests for {@link CompositeDataFormatPlugin#CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING}
  * enforcement. The setting is {@code Property.Final}, so each test starts nodes with its own
  * settings bag.
  */
@@ -44,8 +44,8 @@ public class RestrictCompositeDataFormatOverrideIT extends OpenSearchIntegTestCa
     private Settings nodeSettings(boolean restrict) {
         return Settings.builder()
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
-            .put(CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey(), restrict)
-            .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), CLUSTER_DEFAULT_PRIMARY)
+            .put(CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey(), restrict)
+            .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), CLUSTER_DEFAULT_PRIMARY)
             .build();
     }
 
@@ -74,7 +74,7 @@ public class RestrictCompositeDataFormatOverrideIT extends OpenSearchIntegTestCa
         );
         assertTrue(
             "expected validation error to mention restrict setting but was [" + message + "]",
-            message.contains(CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey())
+            message.contains(CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey())
         );
     }
 

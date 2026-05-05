@@ -44,9 +44,9 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(5, settings.size());
         assertTrue(settings.contains(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT));
         assertTrue(settings.contains(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS));
-        assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT));
-        assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS));
-        assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING));
+        assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT));
+        assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS));
+        assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING));
     }
 
     // ---- Setting defaults and value parsing ----
@@ -72,25 +72,23 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
     }
 
     public void testClusterDefaultPrimaryDataFormatDefaultsToLucene() {
-        assertEquals("lucene", CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.get(Settings.EMPTY));
+        assertEquals("lucene", CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.get(Settings.EMPTY));
     }
 
     public void testClusterDefaultPrimaryDataFormatReadsExplicitValue() {
-        Settings settings = Settings.builder()
-            .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
-            .build();
-        assertEquals("parquet", CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.get(settings));
+        Settings settings = Settings.builder().put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "parquet").build();
+        assertEquals("parquet", CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.get(settings));
     }
 
     public void testClusterDefaultSecondaryDataFormatsDefaultsToEmpty() {
-        assertTrue(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.get(Settings.EMPTY).isEmpty());
+        assertTrue(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.get(Settings.EMPTY).isEmpty());
     }
 
     public void testClusterDefaultSecondaryDataFormatsReadsExplicitList() {
         Settings settings = Settings.builder()
-            .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "parquet", "arrow")
+            .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "parquet", "arrow")
             .build();
-        assertEquals(List.of("parquet", "arrow"), CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.get(settings));
+        assertEquals(List.of("parquet", "arrow"), CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.get(settings));
     }
 
     // ---- IndexSettingProvider behavior ----
@@ -107,8 +105,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
     public void testIndexSettingProviderStampsBothClusterDefaultsWhenIndexLevelAbsent() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         Settings clusterBag = Settings.builder()
-            .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
-            .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "arrow")
+            .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+            .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "arrow")
             .build();
         injectClusterService(plugin, clusterBag);
 
@@ -122,8 +120,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
     public void testIndexSettingProviderSkipsPrimaryWhenAlreadySet() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         Settings clusterBag = Settings.builder()
-            .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
-            .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "arrow")
+            .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+            .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "arrow")
             .build();
         injectClusterService(plugin, clusterBag);
 
@@ -139,8 +137,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
     public void testIndexSettingProviderSkipsSecondaryWhenAlreadySet() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         Settings clusterBag = Settings.builder()
-            .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
-            .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "arrow")
+            .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+            .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "arrow")
             .build();
         injectClusterService(plugin, clusterBag);
 
@@ -158,8 +156,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
     public void testIndexSettingProviderSkipsBothWhenBothAlreadySet() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         Settings clusterBag = Settings.builder()
-            .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
-            .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "arrow")
+            .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+            .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "arrow")
             .build();
         injectClusterService(plugin, clusterBag);
 
@@ -183,9 +181,9 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
             Set.of(
-                CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT,
-                CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS,
-                CompositeDataFormatPlugin.CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
+                CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT,
+                CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS,
+                CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
             )
         );
         ClusterService clusterService = mock(ClusterService.class);
@@ -201,8 +199,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         // Simulate a PUT /_cluster/settings updating the dynamic cluster defaults.
         clusterSettings.applySettings(
             Settings.builder()
-                .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
-                .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "arrow")
+                .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "arrow")
                 .build()
         );
 
@@ -343,9 +341,9 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(
             clusterBag,
             Set.of(
-                CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT,
-                CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS,
-                CompositeDataFormatPlugin.CLUSTER_INDEX_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
+                CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT,
+                CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS,
+                CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
             )
         );
         ClusterService clusterService = mock(ClusterService.class);

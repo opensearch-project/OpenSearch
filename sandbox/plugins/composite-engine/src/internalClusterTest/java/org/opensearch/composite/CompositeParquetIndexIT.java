@@ -239,8 +239,8 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
-                    .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "lucene")
+                    .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                    .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "lucene")
             )
             .get();
 
@@ -306,8 +306,8 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .putNull(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey())
-                    .putNull(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey())
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey())
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey())
             )
             .get();
     }
@@ -320,8 +320,8 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .put(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey(), "parquet")
-                    .putList(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey(), "lucene")
+                    .put(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey(), "parquet")
+                    .putList(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey(), "lucene")
             )
             .get();
 
@@ -389,8 +389,8 @@ public class CompositeParquetIndexIT extends OpenSearchIntegTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .putNull(CompositeDataFormatPlugin.CLUSTER_DEFAULT_PRIMARY_DATA_FORMAT.getKey())
-                    .putNull(CompositeDataFormatPlugin.CLUSTER_DEFAULT_SECONDARY_DATA_FORMATS.getKey())
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.getKey())
+                    .putNull(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS.getKey())
             )
             .get();
     }
