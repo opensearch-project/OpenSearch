@@ -16,7 +16,6 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -52,16 +51,16 @@ class ConcatFunctionAdapter implements ScalarFunctionAdapter {
             return original;
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
-        List<RexNode> nullChecks = new ArrayList<>(operands.size());
-        for (RexNode operand : operands) {
-            // RexLiteral.isAlwaysTrue is false for non-NULL literals, but the dedicated
-            // RexBuilder.makeNullLiteral path is unnecessary — IS_NULL on a non-null literal
-            // becomes a constant-false predicate, so OR(constant_false, ...) reduces cleanly.
-            nullChecks.add(rexBuilder.makeCall(SqlStdOperatorTable.IS_NULL, operand));
-        }
-        RexNode anyNull = nullChecks.get(0);
-        for (int i = 1; i < nullChecks.size(); i++) {
-            anyNull = rexBuilder.makeCall(SqlStdOperatorTable.OR, anyNull, nullChecks.get(i));
+        // Fold operands into a single OR(IS_NULL(o0), IS_NULL(o1), ...) predicate. IS_NULL on a
+        // non-null literal reduces to constant-false, so the OR collapses cleanly through the
+        // optimizer for cases where some operands are statically non-null.
+        RexNode anyNull = rexBuilder.makeCall(SqlStdOperatorTable.IS_NULL, operands.get(0));
+        for (int i = 1; i < operands.size(); i++) {
+            anyNull = rexBuilder.makeCall(
+                SqlStdOperatorTable.OR,
+                anyNull,
+                rexBuilder.makeCall(SqlStdOperatorTable.IS_NULL, operands.get(i))
+            );
         }
         // Result type stays the same as the original CONCAT — nullable VARCHAR.
         RexNode nullLiteral = rexBuilder.makeNullLiteral(original.getType());

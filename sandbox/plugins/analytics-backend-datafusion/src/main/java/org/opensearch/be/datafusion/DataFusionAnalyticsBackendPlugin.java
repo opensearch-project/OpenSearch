@@ -185,6 +185,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+                // Add new (ScalarFunction, ScalarFunctionAdapter) pairs in alphabetical order for
+                // readability — the Map.ofEntries form keeps spotless happy past the 5-pair point
+                // where Map.of becomes single-line and unreadable.
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
