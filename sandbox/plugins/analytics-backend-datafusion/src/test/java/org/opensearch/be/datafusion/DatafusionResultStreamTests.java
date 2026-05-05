@@ -144,6 +144,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             new byte[] { 0, 1, 2 },
             runtimeHandle.get(),
             0L,
+            0L,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long ptr) {
@@ -180,17 +181,25 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             runtimeHandle.get()
         );
         CompletableFuture<Long> future = new CompletableFuture<>();
-        NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, tempRuntime.get(), 0L, new ActionListener<>() {
-            @Override
-            public void onResponse(Long p) {
-                future.complete(p);
-            }
+        NativeBridge.executeQueryAsync(
+            readerHandle.getPointer(),
+            "test_table",
+            substrait,
+            tempRuntime.get(),
+            0L,
+            0L,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Long p) {
+                    future.complete(p);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                future.completeExceptionally(e);
+                @Override
+                public void onFailure(Exception e) {
+                    future.completeExceptionally(e);
+                }
             }
-        });
+        );
         long streamPtr = future.join();
 
         DatafusionResultStream stream = new DatafusionResultStream(
@@ -223,17 +232,25 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private DatafusionResultStream createStream(String sql) {
         byte[] substrait = NativeBridge.sqlToSubstrait(readerHandle.getPointer(), "test_table", sql, runtimeHandle.get());
         CompletableFuture<Long> future = new CompletableFuture<>();
-        NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, runtimeHandle.get(), 0L, new ActionListener<>() {
-            @Override
-            public void onResponse(Long ptr) {
-                future.complete(ptr);
-            }
+        NativeBridge.executeQueryAsync(
+            readerHandle.getPointer(),
+            "test_table",
+            substrait,
+            runtimeHandle.get(),
+            0L,
+            0L,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Long ptr) {
+                    future.complete(ptr);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                future.completeExceptionally(e);
+                @Override
+                public void onFailure(Exception e) {
+                    future.completeExceptionally(e);
+                }
             }
-        });
+        );
         long streamPtr = future.join();
         BufferAllocator childAllocator = testRootAllocator.newChildAllocator("test-stream", 0, Long.MAX_VALUE);
         return new DatafusionResultStream(

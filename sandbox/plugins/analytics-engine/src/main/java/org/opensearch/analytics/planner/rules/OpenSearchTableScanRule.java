@@ -8,8 +8,10 @@
 
 package org.opensearch.analytics.planner.rules;
 
+import org.apache.calcite.plan.RelOptAbstractTable;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -90,15 +92,31 @@ public class OpenSearchTableScanRule extends RelOptRule {
             );
         }
 
+        RelOptTable indexNameTable = new IndexNameTable(scan.getTable(), tableName);
+
         call.transformTo(
             OpenSearchTableScan.create(
                 scan.getCluster(),
-                scan.getTable(),
+                indexNameTable,
                 viableBackends,
                 fieldStorage,
                 indexMetadata.getNumberOfShards(),
                 context.getDistributionTraitDef()
             )
         );
+    }
+
+    /**
+     * Wraps a {@link RelOptTable} with just the bare index name as the qualified name.
+     * Isthmus reads {@code getQualifiedName()} when creating {@code NamedScan} — this ensures
+     * the Substrait plan contains only the index name, not the Calcite catalog prefix.
+     *
+     * <p>TODO: Move table name stripping to the SQL/PPL plugin before dispatching the RelNode
+     * to the analytics engine, so the scan rule always receives bare index names.
+     */
+    private static class IndexNameTable extends RelOptAbstractTable {
+        IndexNameTable(RelOptTable delegate, String indexName) {
+            super(delegate.getRelOptSchema(), indexName, delegate.getRowType());
+        }
     }
 }

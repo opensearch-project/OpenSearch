@@ -8,9 +8,8 @@
 
 //! Bridge-agnostic API layer.
 //!
-//! All functions in this module use plain Rust types — no JNI, no FFI-specific
-//! types. Both the current JNI bridge (`lib.rs`) and a future FFM/C bridge can
-//! call these functions directly.
+//! All functions in this module use plain Rust types — no FFI-specific types.
+//! The FFM bridge (`ffm.rs`) calls into these functions directly.
 //!
 //! # Pointer contract
 //!
@@ -31,120 +30,6 @@
 //! - `stream_next`: async. The bridge layer wraps with `block_on` or `spawn`.
 //! - `stream_get_schema`, `stream_close` must NOT be called
 //!   concurrently on the same stream pointer.
-//!
-//! # FFM bridge example
-//!
-//! When migrating from JNI to JDK FFM (Foreign Function & Memory API), create an
-//! `ffi_bridge.rs` that exports `extern "C"` functions calling this API. The JNI
-//! bridge (`lib.rs`) and FFM bridge are interchangeable — only the type conversion
-//! layer differs.
-//!
-//! ```rust,ignore
-//! // ffi_bridge.rs — extern "C" bridge for JDK FFM (replaces lib.rs JNI bridge)
-//! //
-//! // Java side uses java.lang.foreign.Linker to call these functions directly.
-//! // Strings are passed as (pointer, length) pairs. Byte arrays likewise.
-//! // No JNIEnv, no JString, no GlobalRef — pure C ABI.
-//!
-//! use crate::api;
-//! use crate::runtime_manager::RuntimeManager;
-//! use std::sync::{Arc, OnceLock};
-//!
-//! static RUNTIME_MANAGER: OnceLock<Arc<RuntimeManager>> = OnceLock::new();
-//!
-//! /// Initialize the Tokio runtime manager.
-//! /// Java: MethodHandle = linker.downcallHandle(lib.find("df_init"), FunctionDescriptor.ofVoid(JAVA_INT));
-//! #[no_mangle]
-//! pub extern "C" fn df_init(cpu_threads: i32) {
-//!     RUNTIME_MANAGER.get_or_init(|| Arc::new(RuntimeManager::new(cpu_threads as usize)));
-//! }
-//!
-//! /// Create a global DataFusion runtime. Returns pointer as i64, or 0 on error.
-//! /// Java: MethodHandle = linker.downcallHandle(lib.find("df_create_runtime"),
-//! ///     FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG));
-//! #[no_mangle]
-//! pub extern "C" fn df_create_runtime(
-//!     memory_limit: i64,
-//!     spill_dir_ptr: *const u8,
-//!     spill_dir_len: i64,
-//!     spill_limit: i64,
-//! ) -> i64 {
-//!     let spill_dir = unsafe {
-//!         std::str::from_utf8_unchecked(
-//!             std::slice::from_raw_parts(spill_dir_ptr, spill_dir_len as usize)
-//!         )
-//!     };
-//!     api::create_global_runtime(memory_limit, spill_dir, spill_limit).unwrap_or(0)
-//! }
-//!
-//! /// Execute a query. Returns stream pointer as i64, or 0 on error.
-//! /// Error message written to (err_buf_ptr, err_buf_len), actual length returned via err_len_out.
-//! /// Java: MethodHandle = linker.downcallHandle(lib.find("df_execute_query"),
-//! ///     FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG));
-//! #[no_mangle]
-//! pub extern "C" fn df_execute_query(
-//!     shard_view_ptr: i64,
-//!     table_name_ptr: *const u8,
-//!     table_name_len: i64,
-//!     plan_ptr: *const u8,
-//!     plan_len: i64,
-//!     runtime_ptr: i64,
-//! ) -> i64 {
-//!     let manager = RUNTIME_MANAGER.get().expect("not initialized");
-//!     let table_name = unsafe {
-//!         std::str::from_utf8_unchecked(
-//!             std::slice::from_raw_parts(table_name_ptr, table_name_len as usize)
-//!         )
-//!     };
-//!     let plan_bytes = unsafe {
-//!         std::slice::from_raw_parts(plan_ptr, plan_len as usize)
-//!     };
-//!     manager.io_runtime.block_on(unsafe {
-//!         api::execute_query(shard_view_ptr, table_name, plan_bytes, runtime_ptr, manager)
-//!     }).unwrap_or(0)
-//! }
-//!
-//! /// Get next batch. Returns FFI_ArrowArray pointer, 0 for end-of-stream, -1 on error.
-//! #[no_mangle]
-//! pub extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
-//!     let manager = RUNTIME_MANAGER.get().expect("not initialized");
-//!     manager.io_runtime.block_on(unsafe { api::stream_next(stream_ptr) }).unwrap_or(-1)
-//! }
-//!
-//! /// Close a stream. Safe with 0.
-//! #[no_mangle]
-//! pub extern "C" fn df_stream_close(stream_ptr: i64) {
-//!     unsafe { api::stream_close(stream_ptr) };
-//! }
-//!
-//! // Java side (JDK 22+):
-//! //
-//! //   try (Arena arena = Arena.ofConfined()) {
-//! //       SymbolLookup lib = SymbolLookup.libraryLookup("libopensearch_datafusion.so", arena);
-//! //       Linker linker = Linker.nativeLinker();
-//! //
-//! //       var init = linker.downcallHandle(
-//! //           lib.find("df_init").get(),
-//! //           FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT)
-//! //       );
-//! //       init.invoke(Runtime.getRuntime().availableProcessors());
-//! //
-//! //       var createRuntime = linker.downcallHandle(
-//! //           lib.find("df_create_runtime").get(),
-//! //           FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG)
-//! //       );
-//! //       MemorySegment spillDir = arena.allocateFrom("/tmp/spill");
-//! //       long runtimePtr = (long) createRuntime.invoke(512_000_000L, spillDir, spillDir.byteSize(), 256_000_000L);
-//! //
-//! //       var executeQuery = linker.downcallHandle(
-//! //           lib.find("df_execute_query").get(),
-//! //           FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG)
-//! //       );
-//! //       MemorySegment tableName = arena.allocateFrom("my_table");
-//! //       MemorySegment plan = arena.allocateFrom(MemoryLayout.sequenceLayout(planBytes.length, JAVA_BYTE), planBytes);
-//! //       long streamPtr = (long) executeQuery.invoke(shardViewPtr, tableName, tableName.byteSize(), plan, plan.byteSize(), runtimePtr);
-//! //   }
-//! ```
 
 use std::io::Cursor;
 use std::num::NonZeroUsize;
@@ -152,18 +37,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use arrow::ipc::reader::StreamReader;
-use arrow_array::{Array, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_array::RecordBatch;
+use arrow_array::{Array, StructArray};
 use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
+use datafusion::execution::RecordBatchStream;
 use datafusion::execution::SessionStateBuilder;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-use datafusion::execution::RecordBatchStream;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
 
@@ -183,8 +68,14 @@ pub struct QueryStreamHandle {
 }
 
 impl QueryStreamHandle {
-    pub fn new(stream: RecordBatchStreamAdapter<CrossRtStream>, query_context: QueryTrackingContext) -> Self {
-        Self { stream, _query_tracking_context: query_context }
+    pub fn new(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+    ) -> Self {
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+        }
     }
 }
 
@@ -203,7 +94,10 @@ pub async fn create_object_metas(
         };
         let path = object_store::path::Path::from(full_path.as_str());
         let meta = store.head(&path).await.map_err(|e| {
-            DataFusionError::Execution(format!("Failed to get object meta for {}: {}", full_path, e))
+            DataFusionError::Execution(format!(
+                "Failed to get object meta for {}: {}",
+                full_path, e
+            ))
         })?;
         metas.push(meta);
     }
@@ -217,7 +111,7 @@ pub struct DataFusionRuntime {
 }
 
 /// Opaque shard view handle returned to the caller.
-pub(crate) struct ShardView {
+pub struct ShardView {
     pub table_path: ListingTableUrl,
     pub object_metas: Arc<Vec<object_store::ObjectMeta>>,
 }
@@ -277,9 +171,11 @@ pub fn create_reader(
     let default_rt = RuntimeEnvBuilder::new().build()?;
     let store = default_rt.object_store(&table_url)?;
 
-    let object_metas = tokio_rt_manager.io_runtime.block_on(
-        create_object_metas(store.as_ref(), table_path, filenames),
-    )?;
+    let object_metas = tokio_rt_manager.io_runtime.block_on(create_object_metas(
+        store.as_ref(),
+        table_path,
+        filenames,
+    ))?;
 
     let shard_view = ShardView {
         table_path: table_url,
@@ -302,7 +198,7 @@ pub unsafe fn close_reader(ptr: i64) {
 /// Caller must call `stream_close` exactly once to free it.
 ///
 /// This is an async function — the bridge layer decides how to run it
-/// (`block_on` for synchronous JNI, `spawn` for async delivery).
+/// (`block_on` for synchronous delivery, `spawn` for async delivery).
 ///
 /// # Safety
 /// `shard_view_ptr` and `runtime_ptr` must be valid, non-zero pointers.
@@ -313,35 +209,74 @@ pub async unsafe fn execute_query(
     runtime_ptr: i64,
     manager: &RuntimeManager,
     context_id: i64,
+    query_config: crate::datafusion_query_config::DatafusionQueryConfig,
 ) -> Result<i64, DataFusionError> {
     let shard_view = &*(shard_view_ptr as *const ShardView);
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-
-    let table_path = shard_view.table_path.clone();
-    let object_metas = shard_view.object_metas.clone();
     let cpu_executor = manager.cpu_executor();
 
     // Create per-query context — auto-registers in the global registry
     let global_pool = runtime.runtime_env.memory_pool.clone();
     let query_context = QueryTrackingContext::new(context_id, global_pool);
-    let query_memory_pool = query_context.memory_pool()
+    let query_memory_pool = query_context
+        .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
 
-    let stream_ptr = crate::query_executor::execute_query(
-        table_path,
-        object_metas,
-        table_name.to_string(),
-        plan_bytes.to_vec(),
-        runtime,
-        cpu_executor,
-        query_memory_pool,
-    )
-    .await?;
+    // Peek at the substrait extensions list to see if this is an indexed query.
+    // The `index_filter` UDF name appears there if Calcite planted any
+    // index_filter(bytes) calls. Cheap — just bytes inspection.
+    let is_indexed = plan_bytes_mentions_index_filter(plan_bytes);
 
-    // Reconstruct the stream from the raw pointer returned by query_executor
+    let stream_ptr = if is_indexed {
+        let qc = Arc::new(query_config);
+        crate::indexed_executor::execute_indexed_query(
+            plan_bytes.to_vec(),
+            table_name.to_string(),
+            shard_view,
+            qc.target_partitions.max(1),
+            runtime,
+            cpu_executor,
+            query_memory_pool,
+            qc,
+        )
+        .await?
+    } else {
+        crate::query_executor::execute_query(
+            shard_view.table_path.clone(),
+            shard_view.object_metas.clone(),
+            table_name.to_string(),
+            plan_bytes.to_vec(),
+            runtime,
+            cpu_executor,
+            query_memory_pool,
+            &query_config,
+        )
+        .await?
+    };
+
+    // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
     let handle = QueryStreamHandle::new(stream, query_context);
     Ok(Box::into_raw(Box::new(handle)) as i64)
+}
+
+/// Cheap check: scan the substrait plan bytes for the `index_filter` function
+/// name. If the planner emitted any `index_filter(bytes)` UDF call, the name
+/// will be present in the plan's extension declarations.
+///
+/// False positives take the indexed path and then fail in
+/// `execute_indexed_query` when `classify_filter` returns `None`
+/// ("execute_indexed_query called with no index_filter(...) in plan"). There
+/// is no automatic retry on the vanilla path — a false positive is a hard
+/// query error. In practice this is unreachable because the needle is not a
+/// valid DataFusion identifier anywhere else a plan would naturally contain
+/// it; the failure mode is documented here to keep the dispatch contract
+/// explicit.
+fn plan_bytes_mentions_index_filter(plan_bytes: &[u8]) -> bool {
+    // The substrait plan carries extension-function names as UTF-8 strings.
+    // Substring match is sufficient for dispatch.
+    const NEEDLE: &[u8] = b"index_filter";
+    plan_bytes.windows(NEEDLE.len()).any(|w| w == NEEDLE)
 }
 
 /// Returns the Arrow schema for the given stream as a heap-allocated FFI_ArrowSchema pointer.
@@ -365,9 +300,7 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// # Safety
 /// `stream_ptr` must be a valid, non-zero pointer. Must not be called concurrently
 /// on the same stream.
-pub async unsafe fn stream_next(
-    stream_ptr: i64,
-) -> Result<i64, DataFusionError> {
+pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
 
     let result = handle.stream.try_next().await?;
@@ -406,10 +339,10 @@ pub unsafe fn sql_to_substrait(
     runtime_ptr: i64,
     manager: &RuntimeManager,
 ) -> Result<Vec<u8>, DataFusionError> {
-    use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
     use datafusion::datasource::file_format::parquet::ParquetFormat;
-    use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
+    use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
     use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+    use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
 
@@ -451,7 +384,9 @@ pub unsafe fn sql_to_substrait(
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
             .with_file_extension(".parquet")
             .with_collect_stat(true);
-        let schema = listing_options.infer_schema(&ctx.state(), &table_path).await?;
+        let schema = listing_options
+            .infer_schema(&ctx.state(), &table_path)
+            .await?;
         let config = ListingTableConfig::new(table_path)
             .with_listing_options(listing_options)
             .with_schema(schema);
@@ -460,7 +395,8 @@ pub unsafe fn sql_to_substrait(
         let plan = ctx.sql(sql).await?.logical_plan().clone();
         let substrait = to_substrait_plan(&plan, &ctx.state())?;
         let mut buf = Vec::new();
-        substrait.encode(&mut buf)
+        substrait
+            .encode(&mut buf)
             .map_err(|e| DataFusionError::Execution(format!("Substrait encode failed: {}", e)))?;
         Ok(buf)
     })
@@ -691,12 +627,13 @@ pub unsafe fn register_memtable(
         })?;
         let struct_array = StructArray::from(array_data);
         let raw = RecordBatch::from(struct_array);
-        let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec()).map_err(|e| {
-            DataFusionError::Execution(format!(
-                "Failed to align imported batch to registered schema for '{}': {}",
-                input_id, e
-            ))
-        })?;
+        let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec())
+            .map_err(|e| {
+                DataFusionError::Execution(format!(
+                    "Failed to align imported batch to registered schema for '{}': {}",
+                    input_id, e
+                ))
+            })?;
         batches.push(aligned);
     }
 

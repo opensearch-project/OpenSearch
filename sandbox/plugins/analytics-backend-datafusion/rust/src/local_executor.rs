@@ -90,8 +90,7 @@ impl LocalSession {
         schema: SchemaRef,
     ) -> Result<PartitionStreamSender, DataFusionError> {
         let (sender, receiver) = channel(Arc::clone(&schema));
-        let partition: Arc<dyn PartitionStream> =
-            Arc::new(SingleReceiverPartition::new(receiver));
+        let partition: Arc<dyn PartitionStream> = Arc::new(SingleReceiverPartition::new(receiver));
         let table = StreamingTable::try_new(schema, vec![partition])?;
         self.ctx
             .register_table(name, Arc::new(table))
@@ -121,10 +120,7 @@ impl LocalSession {
         self.ctx
             .register_table(name, Arc::new(table))
             .map_err(|e| {
-                DataFusionError::Execution(format!(
-                    "Failed to register memtable '{}': {}",
-                    name, e
-                ))
+                DataFusionError::Execution(format!("Failed to register memtable '{}': {}", name, e))
             })?;
         Ok(())
     }
@@ -180,7 +176,11 @@ mod tests {
     }
 
     fn i64_schema(column: &str) -> SchemaRef {
-        Arc::new(Schema::new(vec![Field::new(column, DataType::Int64, false)]))
+        Arc::new(Schema::new(vec![Field::new(
+            column,
+            DataType::Int64,
+            false,
+        )]))
     }
 
     fn i64_batch(schema: &SchemaRef, values: &[i64]) -> RecordBatch {
@@ -201,7 +201,11 @@ mod tests {
             .expect("register succeeds");
 
         // A trivial `SELECT * FROM "input-0"` proves the table resolves.
-        let df = session.ctx.sql("SELECT x FROM \"input-0\"").await.expect("sql parses");
+        let df = session
+            .ctx
+            .sql("SELECT x FROM \"input-0\"")
+            .await
+            .expect("sql parses");
         assert_eq!(df.schema().fields().len(), 1);
     }
 
@@ -229,8 +233,7 @@ mod tests {
                 .await
                 .expect("sum parses");
             let plan = df.logical_plan().clone();
-            let substrait = to_substrait_plan(&plan, &producer.ctx.state())
-                .expect("to_substrait");
+            let substrait = to_substrait_plan(&plan, &producer.ctx.state()).expect("to_substrait");
             let mut buf = Vec::new();
             substrait.encode(&mut buf).expect("encode");
             buf
@@ -299,8 +302,7 @@ mod tests {
                 .await
                 .expect("sum parses");
             let plan = df.logical_plan().clone();
-            let substrait = to_substrait_plan(&plan, &producer.ctx.state())
-                .expect("to_substrait");
+            let substrait = to_substrait_plan(&plan, &producer.ctx.state()).expect("to_substrait");
             let mut buf = Vec::new();
             substrait.encode(&mut buf).expect("encode");
             buf

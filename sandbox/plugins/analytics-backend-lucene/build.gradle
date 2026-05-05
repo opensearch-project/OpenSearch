@@ -13,6 +13,8 @@ opensearchplugin {
     classname = 'org.opensearch.be.lucene.LucenePlugin'
 }
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
 // Calcite (via analytics-engine) requires Guava which OpenSearch forbids on compile classpath.
 // Use custom config to bypass, same as analytics-engine.
 configurations {

@@ -38,10 +38,13 @@ log = { workspace = true }
 num_cpus = { workspace = true }
 mimalloc = { workspace = true }
 native-bridge-common = { workspace = true }
+async-trait = { workspace = true }
+roaring = "0.10"
 
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
+rand = "0.8"
 
 [[bench]]
 name = "query_bench"

@@ -69,4 +69,5 @@ public interface AnalyticsSearchBackendPlugin {
     default ExchangeSinkProvider getExchangeSinkProvider() {
         return null;
     }
+
 }

@@ -80,7 +80,7 @@ public class OpenSearchFilterRule extends RelOptRule {
         List<String> childViableBackends = openSearchInput.getViableBackends();
         List<FieldStorageInfo> childFieldStorage = openSearchInput.getOutputFieldStorage();
 
-        // Annotate every leaf predicate with viable backends
+        // Annotate every leaf predicate with viable backends.
         RexNode annotatedCondition = annotateCondition(filter.getCondition(), childFieldStorage, childViableBackends);
 
         // Compute operator-level viable backends: must be viable for child AND handle predicates

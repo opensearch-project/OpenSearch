@@ -81,9 +81,7 @@ impl PartitionStreamSender {
         handle: &Handle,
     ) -> Result<(), DataFusionError> {
         handle.block_on(self.tx.send(batch)).map_err(|_| {
-            DataFusionError::Execution(
-                "partition stream receiver dropped before send".to_string(),
-            )
+            DataFusionError::Execution("partition stream receiver dropped before send".to_string())
         })
     }
 }
@@ -179,7 +177,11 @@ impl PartitionStream for SingleReceiverPartition {
     }
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        let taken = self.receiver.lock().expect("partition mutex poisoned").take();
+        let taken = self
+            .receiver
+            .lock()
+            .expect("partition mutex poisoned")
+            .take();
         match taken {
             Some(receiver) => Box::pin(receiver),
             None => {
@@ -228,8 +230,16 @@ mod tests {
 
         let producer_schema = Arc::clone(&schema);
         let producer = tokio::spawn(async move {
-            sender.tx.send(Ok(test_batch(&producer_schema, &[1, 2]))).await.unwrap();
-            sender.tx.send(Ok(test_batch(&producer_schema, &[3]))).await.unwrap();
+            sender
+                .tx
+                .send(Ok(test_batch(&producer_schema, &[1, 2])))
+                .await
+                .unwrap();
+            sender
+                .tx
+                .send(Ok(test_batch(&producer_schema, &[3])))
+                .await
+                .unwrap();
             drop(sender);
         });
 
@@ -289,7 +299,11 @@ mod tests {
 
         let producer_schema = Arc::clone(&schema);
         let producer = tokio::spawn(async move {
-            sender.tx.send(Ok(test_batch(&producer_schema, &[42]))).await.unwrap();
+            sender
+                .tx
+                .send(Ok(test_batch(&producer_schema, &[42])))
+                .await
+                .unwrap();
             drop(sender);
         });
 
