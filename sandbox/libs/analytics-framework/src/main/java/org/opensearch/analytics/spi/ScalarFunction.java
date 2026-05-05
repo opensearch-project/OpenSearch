@@ -11,6 +11,7 @@ package org.opensearch.analytics.spi;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -59,10 +60,11 @@ public enum ScalarFunction {
      * String concatenation. Calcite's {@code SqlStdOperatorTable.CONCAT} is a
      * {@link org.apache.calcite.sql.SqlBinaryOperator} named {@code "||"} (not {@code "CONCAT"})
      * with {@link SqlKind#OTHER}, so neither {@link #fromSqlKind(SqlKind)} nor identifier-name
-     * {@link #valueOf(String)} resolves it. The {@code symbolicOperatorName} hook below maps
-     * {@code "||"} to this constant when {@link #fromSqlOperatorWithFallback} is called.
+     * {@link #valueOf(String)} resolves it. The {@code referenceOperator} hook below pins the
+     * concrete Calcite operator constant so resolution is a singleton-identity match — a Calcite
+     * rename surfaces as a compile error rather than as a silent string mismatch at runtime.
      */
-    CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, "||"),
+    CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.CONCAT),
     CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Math ─────────────────────────────────────────────────────────
@@ -117,22 +119,23 @@ public enum ScalarFunction {
     private final Category category;
     private final SqlKind sqlKind;
     /**
-     * Optional symbolic name for operators whose {@code SqlOperator.getName()} returns a
-     * non-identifier token (e.g. {@code "||"}) and therefore cannot resolve through the
-     * {@link #valueOf(String)} fallback. Null for the common case where the operator's name is
-     * already the enum constant name. Co-located with the enum entry so adding a new symbolic
-     * operator is a single-site change rather than requiring a separate lookup table.
+     * Optional Calcite operator that this constant maps to when the operator cannot be resolved
+     * via {@link SqlKind} or via identifier-name {@link #valueOf(String)} — typically operators
+     * whose {@code getName()} returns a non-identifier token (e.g. {@code SqlStdOperatorTable.CONCAT}
+     * is named {@code "||"}). Null for the common case where SqlKind or name resolution suffices.
+     * Stored as a reference (not a string) so a Calcite-side rename of the operator surfaces as a
+     * compile error here.
      */
-    private final String symbolicOperatorName;
+    private final SqlOperator referenceOperator;
 
     ScalarFunction(Category category, SqlKind sqlKind) {
         this(category, sqlKind, null);
     }
 
-    ScalarFunction(Category category, SqlKind sqlKind, String symbolicOperatorName) {
+    ScalarFunction(Category category, SqlKind sqlKind, SqlOperator referenceOperator) {
         this.category = category;
         this.sqlKind = sqlKind;
-        this.symbolicOperatorName = symbolicOperatorName;
+        this.referenceOperator = referenceOperator;
     }
 
     public Category getCategory() {
@@ -167,27 +170,29 @@ public enum ScalarFunction {
     }
 
     /**
-     * Reverse index from {@link #symbolicOperatorName} to enum constant. Built from the enum
-     * itself at class init — adding a new symbolic operator is a single-site change on the enum
-     * constant, no separate map to maintain. Empty in the common case (most constants resolve
-     * by SqlKind or identifier-name valueOf).
+     * Reverse index from {@link #referenceOperator} to enum constant. Built from the enum itself
+     * at class init — adding a new symbolic operator is a single-site change on the enum constant,
+     * no separate map to maintain. Lookup is identity-keyed because Calcite's standard operators
+     * are singletons (e.g. {@code SqlStdOperatorTable.CONCAT}). Empty in the common case (most
+     * constants resolve by SqlKind or identifier-name valueOf).
      */
-    private static final Map<String, ScalarFunction> BY_SYMBOLIC_OPERATOR_NAME;
+    private static final Map<SqlOperator, ScalarFunction> BY_REFERENCE_OPERATOR;
 
     static {
-        Map<String, ScalarFunction> bySymbolic = new HashMap<>();
+        Map<SqlOperator, ScalarFunction> byOperator = new HashMap<>();
         for (ScalarFunction func : values()) {
-            if (func.symbolicOperatorName != null) {
-                bySymbolic.put(func.symbolicOperatorName, func);
+            if (func.referenceOperator != null) {
+                byOperator.put(func.referenceOperator, func);
             }
         }
-        BY_SYMBOLIC_OPERATOR_NAME = Map.copyOf(bySymbolic);
+        BY_REFERENCE_OPERATOR = Map.copyOf(byOperator);
     }
 
     /**
      * Maps any Calcite {@link SqlOperator} to a {@link ScalarFunction}, or returns null if
-     * unrecognized. Resolution order: {@link SqlKind} match, then {@link #symbolicOperatorName}
-     * lookup (handles {@code ||}), then identifier-name {@link #valueOf(String)} match.
+     * unrecognized. Resolution order: {@link SqlKind} match, then {@link #referenceOperator}
+     * identity match (handles {@code SqlStdOperatorTable.CONCAT} a.k.a. {@code ||}), then
+     * identifier-name {@link #valueOf(String)} match.
      *
      * <p>Prefer this entry point over {@link #fromSqlKind(SqlKind)} /
      * {@link #fromSqlFunction(SqlFunction)} when resolving an arbitrary {@code RexCall}'s
@@ -199,9 +204,9 @@ public enum ScalarFunction {
         if (byKind != null) {
             return byKind;
         }
-        ScalarFunction bySymbolicName = BY_SYMBOLIC_OPERATOR_NAME.get(operator.getName());
-        if (bySymbolicName != null) {
-            return bySymbolicName;
+        ScalarFunction byReference = BY_REFERENCE_OPERATOR.get(operator);
+        if (byReference != null) {
+            return byReference;
         }
         try {
             return ScalarFunction.valueOf(operator.getName().toUpperCase(Locale.ROOT));

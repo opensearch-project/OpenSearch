@@ -74,12 +74,13 @@ public class ScalarFunctionTests extends OpenSearchTestCase {
         assertEquals(ScalarFunction.COALESCE, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.COALESCE));
     }
 
-    // ── fromSqlOperatorWithFallback: symbolic-name branch ──────────────────────────────────
+    // ── fromSqlOperatorWithFallback: reference-operator branch ─────────────────────────────
 
-    public void testFromSqlOperatorResolvesPipeConcatViaSymbolicName() {
+    public void testFromSqlOperatorResolvesPipeConcatViaReferenceOperator() {
         // The original "no backend supports scalar function [null]" symptom for PPL string `+`.
         // SqlStdOperatorTable.CONCAT is a SqlBinaryOperator named "||" with SqlKind.OTHER —
-        // neither fromSqlKind nor fromSqlFunction(SqlFunction) resolves it.
+        // neither fromSqlKind nor fromSqlFunction(SqlFunction) resolves it. CONCAT's
+        // referenceOperator field points at the singleton, so the resolver matches by identity.
         assertEquals("||", SqlStdOperatorTable.CONCAT.getName());
         assertEquals(SqlKind.OTHER, SqlStdOperatorTable.CONCAT.getKind());
         assertEquals(ScalarFunction.CONCAT, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.CONCAT));
