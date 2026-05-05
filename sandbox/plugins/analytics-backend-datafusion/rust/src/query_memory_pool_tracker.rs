@@ -23,8 +23,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
 use log::debug;
+use once_cell::sync::Lazy;
 
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
@@ -501,5 +501,4 @@ mod tests {
         let drained = drain_completed_query(ctx_id);
         assert!(drained.is_some());
     }
-
 }
