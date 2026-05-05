@@ -38,8 +38,8 @@ public class ActiveShardCountProtoUtils {
     public static ActiveShardCount parseProto(WaitForActiveShards waitForActiveShards) {
 
         switch (waitForActiveShards.getWaitForActiveShardsCase()) {
-            case WAIT_FOR_ACTIVE_SHARD_OPTIONS:
-                switch (waitForActiveShards.getWaitForActiveShardOptions()) {
+            case OPTION:
+                switch (waitForActiveShards.getOption()) {
                     case WAIT_FOR_ACTIVE_SHARD_OPTIONS_ALL:
                         return ActiveShardCount.ALL;
                     case WAIT_FOR_ACTIVE_SHARD_OPTIONS_NULL:
@@ -47,8 +47,8 @@ public class ActiveShardCountProtoUtils {
                     default:
                         return ActiveShardCount.DEFAULT;
                 }
-            case INT32:
-                return ActiveShardCount.from(waitForActiveShards.getInt32());
+            case COUNT:
+                return ActiveShardCount.from(waitForActiveShards.getCount());
             case WAITFORACTIVESHARDS_NOT_SET:
             default:
                 return ActiveShardCount.DEFAULT;

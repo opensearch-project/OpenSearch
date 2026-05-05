@@ -123,7 +123,8 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
             new URI(""),
-            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null)
+            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null),
+            TruststoreSettings.NO_TRUSTSTORE_SETTINGS
         );
         assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
     }
@@ -243,7 +244,8 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
             new URI(""),
-            proxySettings
+            proxySettings,
+            TruststoreSettings.NO_TRUSTSTORE_SETTINGS
         );
     }
 
@@ -341,7 +343,8 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             readTimeout,
             applicationName,
             new URI(""),
-            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null)
+            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null),
+            TruststoreSettings.NO_TRUSTSTORE_SETTINGS
         );
     }
 

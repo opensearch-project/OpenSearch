@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
@@ -200,15 +199,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertTrue(nodeA.equals(primaryNodeName(indexName)));
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 1);
 
         // verify ingestion state is persisted
         produceData("3", "name3", "30");
@@ -230,17 +221,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(2, getSearchableDocCount(nodeB));
 
         // resume ingestion
-        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(
-                    state -> state.isPollerPaused() == false
-                        && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
-                );
-        });
+        resumeIngestionAndWait(indexName, 1);
         waitForSearchableDocs(4, Arrays.asList(nodeB, nodeC));
     }
 
@@ -539,30 +520,12 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(1, Arrays.asList(nodeA, nodeB));
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 1);
         // revalidate that only 1 document is visible
         waitForSearchableDocs(1, Arrays.asList(nodeA, nodeB));
 
         // update offset to skip past the invalid message
-        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "2");
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(
-                    state -> state.isPollerPaused() == false
-                        && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
-                );
-        });
+        resumeIngestionWithResetAndWait(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "2", 1);
 
         // validate remaining messages are successfully indexed
         waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
@@ -612,20 +575,10 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(1, resumeResponse.getShardFailures().length);
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 1);
 
         // reset consumer by a timestamp after first message was produced
-        resumeResponse = resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.TIMESTAMP, "102");
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
+        resumeIngestionWithResetAndWait(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.TIMESTAMP, "102", 1);
 
         waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
         waitForState(() -> {

@@ -32,9 +32,6 @@
 
 package org.opensearch;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
@@ -48,6 +45,8 @@ import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.tools.jackson.core.InputCoercionException;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -318,8 +317,8 @@ public final class ExceptionsHelper {
      */
     public static boolean reThrowIfNotNull(@Nullable Throwable e) {
         if (e != null) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
+            if (e instanceof RuntimeException re) {
+                throw re;
             } else {
                 throw new RuntimeException(e);
             }
@@ -442,8 +441,8 @@ public final class ExceptionsHelper {
             // which does not include the cluster alias.
             String indexName = failure.index();
             if (indexName == null) {
-                if (cause instanceof OpenSearchException) {
-                    final Index index = ((OpenSearchException) cause).getIndex();
+                if (cause instanceof OpenSearchException ose) {
+                    final Index index = ose.getIndex();
                     if (index != null) {
                         indexName = index.getName();
                     }

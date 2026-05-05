@@ -335,15 +335,14 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         logger.info("--> network disruption is started");
         networkDisruption.startDisrupting();
 
-        // wait for leader checker to fail
-        Thread.sleep(13000);
-
         // get api to fetch local weighted routing for a node in zone a or b
-        ClusterGetWeightedRoutingResponse weightedRoutingResponse = internalCluster().client(
-            randomFrom(nodes_in_zone_a.get(0), nodes_in_zone_b.get(0))
-        ).admin().cluster().prepareGetWeightedRouting().setAwarenessAttribute("zone").setRequestLocal(true).get();
-        assertEquals(weightedRouting, weightedRoutingResponse.weights());
-        assertFalse(weightedRoutingResponse.getDiscoveredClusterManager());
+        assertBusy(() -> {
+            ClusterGetWeightedRoutingResponse weightedRoutingResponse = internalCluster().client(
+                randomFrom(nodes_in_zone_a.get(0), nodes_in_zone_b.get(0))
+            ).admin().cluster().prepareGetWeightedRouting().setAwarenessAttribute("zone").setRequestLocal(true).get();
+            assertEquals(weightedRouting, weightedRoutingResponse.weights());
+            assertFalse(weightedRoutingResponse.getDiscoveredClusterManager());
+        }, 13, TimeUnit.SECONDS);
         logger.info("--> network disruption is stopped");
         networkDisruption.stopDisrupting();
 

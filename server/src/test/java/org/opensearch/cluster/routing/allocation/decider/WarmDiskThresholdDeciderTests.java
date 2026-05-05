@@ -464,10 +464,10 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
                 node,
                 new AggregateFileCacheStats(
                     randomNonNegativeInt(),
-                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
-                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
-                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
-                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
                 )
             );
         }

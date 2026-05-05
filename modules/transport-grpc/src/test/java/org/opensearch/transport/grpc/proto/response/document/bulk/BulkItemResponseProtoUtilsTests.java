@@ -52,7 +52,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
         assertEquals("Index should match", "test-index", responseItem.getXIndex());
-        assertEquals("Id should match", "test-id", responseItem.getXId().getString());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
         assertEquals("Version should match", indexResponse.getVersion(), responseItem.getXVersion());
         assertEquals("Result should match", DocWriteResponse.Result.CREATED.getLowercase(), responseItem.getResult());
     }
@@ -77,7 +77,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
         assertEquals("Index should match", "test-index", responseItem.getXIndex());
-        assertEquals("Id should match", "test-id", responseItem.getXId().getString());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
         assertEquals("Version should match", indexResponse.getVersion(), responseItem.getXVersion());
         assertEquals("Result should match", DocWriteResponse.Result.CREATED.getLowercase(), responseItem.getResult());
     }
@@ -102,7 +102,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
         assertEquals("Index should match", "test-index", responseItem.getXIndex());
-        assertEquals("Id should match", "test-id", responseItem.getXId().getString());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
         assertEquals("Version should match", deleteResponse.getVersion(), responseItem.getXVersion());
         assertEquals("Result should match", DocWriteResponse.Result.DELETED.getLowercase(), responseItem.getResult());
     }
@@ -127,7 +127,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
         assertEquals("Index should match", "test-index", responseItem.getXIndex());
-        assertEquals("Id should match", "test-id", responseItem.getXId().getString());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
         assertEquals("Version should match", updateResponse.getVersion(), responseItem.getXVersion());
         assertEquals("Result should match", DocWriteResponse.Result.UPDATED.getLowercase(), responseItem.getResult());
     }
@@ -170,14 +170,14 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
         assertEquals("Index should match", "test-index", responseItem.getXIndex());
-        assertEquals("Id should match", "test-id", responseItem.getXId().getString());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
         assertEquals("Version should match", 1, responseItem.getXVersion());
         assertEquals("Result should match", DocWriteResponse.Result.UPDATED.getLowercase(), responseItem.getResult());
 
         // Verify GetResult fields
         assertTrue("Get field should be set", responseItem.hasGet());
         assertEquals("Get index should match", "test-index", responseItem.getXIndex());
-        assertEquals("Get id should match", "test-id", responseItem.getXId().getString());
+        assertEquals("Get id should match", "test-id", responseItem.getXId());
         assertTrue("Get found should be true", responseItem.getGet().getFound());
     }
 
@@ -200,7 +200,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
         assertEquals("Index should match", "test-index", responseItem.getXIndex());
-        assertEquals("Id should match", "test-id", responseItem.getXId().getString());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
         assertEquals("Status should match", Status.INTERNAL.getCode().value(), responseItem.getStatus());
 
         // Verify error

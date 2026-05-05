@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.search.DocIdStreamHelper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.search.aggregations.BucketCollector;
@@ -23,8 +23,6 @@ import org.opensearch.search.aggregations.bucket.filterrewrite.Ranges;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Range collector implementation that supports sub-aggregations by collecting doc IDs.
@@ -40,7 +38,6 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
     private final Bits liveDocs;
     private final FixedBitSet bitSet;
-    private final BitDocIdSet bitDocIdSet;
 
     public SubAggRangeCollector(
         Ranges ranges,
@@ -56,9 +53,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
         this.collectableSubAggregators = subAggCollectorParam.collectableSubAggregators();
         this.leafCtx = subAggCollectorParam.leafCtx();
         this.liveDocs = leafCtx.reader().getLiveDocs();
-        int numDocs = leafCtx.reader().maxDoc();
-        bitSet = new FixedBitSet(numDocs);
-        bitDocIdSet = new BitDocIdSet(bitSet);
+        bitSet = new FixedBitSet(leafCtx.reader().maxDoc());
     }
 
     @Override
@@ -109,13 +104,9 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
         // trigger the sub agg collection for this range
         try {
-            DocIdSetIterator iterator = bitDocIdSet.iterator();
             // build a new leaf collector for each bucket
             LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(leafCtx);
-            while (iterator.nextDoc() != NO_MORE_DOCS) {
-                int currentDoc = iterator.docID();
-                sub.collect(currentDoc, bucketOrd);
-            }
+            sub.collect(DocIdStreamHelper.getDocIdStream(bitSet), bucketOrd);
             logger.trace("collected sub aggregation for bucket {}", bucketOrd);
         } catch (IOException e) {
             throw new RuntimeException(e);

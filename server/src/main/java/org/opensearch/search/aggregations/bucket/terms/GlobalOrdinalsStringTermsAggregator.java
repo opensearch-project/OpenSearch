@@ -41,6 +41,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -195,34 +196,32 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             return false;
         }
 
+        long termCount = segmentTerms.size();
+        if (termCount == -1 || termCount > context.termsAggregationMaxPrecomputeCardinality()) {
+            return false;
+        }
+
         NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
             // This segment has at least one document with the _doc_count field.
             return false;
         }
 
-        TermsEnum indexTermsEnum = segmentTerms.iterator();
-        BytesRef indexTerm = indexTermsEnum.next();
-        final SortedSetDocValues globalOrds = this.getGlobalOrds(ctx);
-        TermsEnum globalOrdinalTermsEnum = globalOrds.termsEnum();
-        BytesRef ordinalTerm = globalOrdinalTermsEnum.next();
+        final TermsEnum segmentTermsEnum = segmentTerms.iterator();
+        final LongUnaryOperator globalOrdsMapping = valuesSource.globalOrdinalsMapping(ctx);
 
-        // Iterate over the terms in the segment, look for matches in the global ordinal terms,
-        // and increment bucket count when segment terms match global ordinal terms.
-        while (indexTerm != null && ordinalTerm != null) {
-            int compare = indexTerm.compareTo(ordinalTerm);
-            if (compare == 0) {
-                if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
-                    ordCountConsumer.accept(globalOrdinalTermsEnum.ord(), indexTermsEnum.docFreq());
-                }
-                indexTerm = indexTermsEnum.next();
-                ordinalTerm = globalOrdinalTermsEnum.next();
-            } else if (compare < 0) {
-                indexTerm = indexTermsEnum.next();
-            } else {
-                ordinalTerm = globalOrdinalTermsEnum.next();
+        // Iterate over the ordinals in the segment, look for matches in the global ordinal,
+        // and increment bucket count when segment ordinal is contained in global ordinals.
+        for (long segmentOrd = 0; segmentOrd < termCount; segmentOrd++) {
+            segmentTermsEnum.next();
+            long globalOrd = globalOrdsMapping.applyAsLong(segmentOrd);
+            if (acceptedGlobalOrdinals.test(globalOrd)) {
+                ordCountConsumer.accept(globalOrd, segmentTermsEnum.docFreq());
             }
         }
+
+        // Segment terms enum should be fully exhausted after iterating over all the ordinals
+        assert segmentTermsEnum.next() == null : "Segment terms enum must be fully exhausted";
         return true;
     }
 
@@ -273,6 +272,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         int globalOrd = singleValues.ordValue();
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
+
+                    @Override
+                    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                        super.collect(stream, owningBucketOrd);
+                    }
+
+                    @Override
+                    public void collectRange(int min, int max) throws IOException {
+                        super.collectRange(min, max);
+                    }
                 });
             }
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
@@ -286,6 +295,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         return;
                     }
                     collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
                 }
             });
         }
@@ -307,6 +326,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
                 }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
+                }
             });
         }
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
@@ -323,6 +352,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     }
                     collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                 }
+            }
+
+            @Override
+            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                super.collect(stream, owningBucketOrd);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
             }
         });
     }
@@ -519,11 +558,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
             if (subAggregators.length == 0) {
-                if (mapping != null) {
-                    mapSegmentCountsToGlobalCounts(mapping);
-                }
-                mapping = valuesSource.globalOrdinalsMapping(ctx);
-                return tryCollectFromTermFrequencies(ctx, (ord, docCount) -> incrementBucketDocCount(mapping.applyAsLong(ord), docCount));
+                return tryCollectFromTermFrequencies(
+                    ctx,
+                    (globalOrd, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, globalOrd), docCount)
+                );
             }
             return tryStarTreePrecompute(ctx);
         }
@@ -552,6 +590,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         long docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(ord + 1, docCount);
                     }
+
+                    @Override
+                    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                        super.collect(stream, owningBucketOrd);
+                    }
+
+                    @Override
+                    public void collectRange(int min, int max) throws IOException {
+                        super.collectRange(min, max);
+                    }
                 });
             }
             segmentsWithMultiValuedOrds++;
@@ -568,6 +616,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         long docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(segmentOrd + 1, docCount);
                     }
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
                 }
             });
         }
@@ -1174,6 +1232,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     super.collect(doc, owningBucketOrd);
                     subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
                 }
             };
         }

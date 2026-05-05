@@ -93,12 +93,17 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineConfigFactory;
-import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -119,9 +124,11 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -325,7 +332,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      *                another shard)
      */
     protected IndexShard newShard(final boolean primary, final Settings settings) throws IOException {
-        return newShard(primary, settings, new InternalEngineFactory());
+        return newShard(primary, settings, new EngineBackedIndexerFactory(new InternalEngineFactory()));
     }
 
     /**
@@ -334,9 +341,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param primary       indicates whether to a primary shard (ready to recover from an empty store) or a replica (ready to recover from
      *                      another shard)
      * @param settings      the settings to use for this shard
-     * @param engineFactory the engine factory to use for this shard
+     * @param indexerFactory the indexer factory to use for this shard
      */
-    protected IndexShard newShard(boolean primary, Settings settings, EngineFactory engineFactory) throws IOException {
+    protected IndexShard newShard(boolean primary, Settings settings, IndexerFactory indexerFactory) throws IOException {
         final RecoverySource recoverySource = primary
             ? RecoverySource.EmptyStoreRecoverySource.INSTANCE
             : RecoverySource.PeerRecoverySource.INSTANCE;
@@ -347,7 +354,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             ShardRoutingState.INITIALIZING,
             recoverySource
         );
-        return newShard(shardRouting, settings, engineFactory);
+        return newShard(shardRouting, settings, indexerFactory);
     }
 
     protected IndexShard newShard(ShardRouting shardRouting, final IndexingOperationListener... listeners) throws IOException {
@@ -356,7 +363,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
     protected IndexShard newShard(ShardRouting shardRouting, final Settings settings, final IndexingOperationListener... listeners)
         throws IOException {
-        return newShard(shardRouting, settings, new InternalEngineFactory(), listeners);
+        return newShard(shardRouting, settings, new EngineBackedIndexerFactory(new InternalEngineFactory()), listeners);
     }
 
     /**
@@ -364,13 +371,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      *
      * @param shardRouting  the {@link ShardRouting} to use for this shard
      * @param settings      the settings to use for this shard
-     * @param engineFactory the engine factory to use for this shard
+     * @param indexerFactory the indexer factory to use for this shard
      * @param listeners     an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(
         final ShardRouting shardRouting,
         final Settings settings,
-        final EngineFactory engineFactory,
+        final IndexerFactory indexerFactory,
         final IndexingOperationListener... listeners
     ) throws IOException {
         assert shardRouting.initializing() : shardRouting;
@@ -385,7 +392,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
             .putMapping("{ \"properties\": {} }");
-        return newShard(shardRouting, metadata.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, null, listeners);
+        return newShard(shardRouting, metadata.build(), null, indexerFactory, () -> {}, RetentionLeaseSyncer.EMPTY, null, listeners);
     }
 
     /**
@@ -404,7 +411,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
         );
-        return newShard(shardRouting, Settings.EMPTY, new InternalEngineFactory(), listeners);
+        return newShard(shardRouting, Settings.EMPTY, new EngineBackedIndexerFactory(new InternalEngineFactory()), listeners);
     }
 
     /**
@@ -452,7 +459,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             shardRouting,
             indexMetadata,
             readerWrapper,
-            new InternalEngineFactory(),
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
             globalCheckpointSyncer,
             RetentionLeaseSyncer.EMPTY,
             null
@@ -471,10 +478,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardRouting routing,
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
-        EngineFactory engineFactory,
+        IndexerFactory indexerFactory,
         IndexingOperationListener... listeners
     ) throws IOException {
-        return newShard(routing, indexMetadata, indexReaderWrapper, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, null, listeners);
+        return newShard(routing, indexMetadata, indexReaderWrapper, indexerFactory, () -> {}, RetentionLeaseSyncer.EMPTY, null, listeners);
     }
 
     /**
@@ -490,7 +497,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardRouting routing,
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
-        @Nullable EngineFactory engineFactory,
+        @Nullable IndexerFactory indexerFactory,
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         Path path,
@@ -500,7 +507,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             routing,
             indexMetadata,
             indexReaderWrapper,
-            engineFactory,
+            indexerFactory,
             globalCheckpointSyncer,
             retentionLeaseSyncer,
             DefaultRecoverySettings.INSTANCE,
@@ -526,7 +533,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardRouting routing,
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
-        @Nullable EngineFactory engineFactory,
+        @Nullable IndexerFactory indexerFactory,
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         RecoverySettings recoverySettings,
@@ -544,7 +551,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             indexMetadata,
             null,
             indexReaderWrapper,
-            engineFactory,
+            indexerFactory,
             new EngineConfigFactory(new IndexSettings(indexMetadata, indexMetadata.getSettings())),
             globalCheckpointSyncer,
             retentionLeaseSyncer,
@@ -575,7 +582,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
-        @Nullable EngineFactory engineFactory,
+        @Nullable IndexerFactory indexerFactory,
         @Nullable EngineConfigFactory engineConfigFactory,
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
@@ -589,7 +596,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             indexMetadata,
             storeProvider,
             indexReaderWrapper,
-            engineFactory,
+            indexerFactory,
             engineConfigFactory,
             globalCheckpointSyncer,
             retentionLeaseSyncer,
@@ -644,7 +651,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             metadata,
             null,
             null,
-            new NRTReplicationEngineFactory(),
+            new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()),
             new EngineConfigFactory(new IndexSettings(metadata, metadata.getSettings())),
             () -> {},
             RetentionLeaseSyncer.EMPTY,
@@ -677,7 +684,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
-        @Nullable EngineFactory engineFactory,
+        @Nullable IndexerFactory indexerFactory,
         @Nullable EngineConfigFactory engineConfigFactory,
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
@@ -770,7 +777,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 indexCache,
                 mapperService,
                 similarityService,
-                engineFactory,
+                indexerFactory,
                 engineConfigFactory,
                 indexEventListener,
                 indexReaderWrapper,
@@ -792,14 +799,16 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 false,
                 discoveryNodes,
                 mockReplicationStatsProvider,
-                new MergedSegmentWarmerFactory(null, new RecoverySettings(nodeSettings, clusterSettings), null),
+                new MergedSegmentWarmerFactory(null, new RecoverySettings(nodeSettings, clusterSettings), clusterService),
                 false,
                 () -> Boolean.FALSE,
                 indexSettings::getRefreshInterval,
                 new Object(),
                 clusterService.getClusterApplierService(),
                 mergedSegmentPublisher,
-                ReferencedSegmentsPublisher.EMPTY
+                ReferencedSegmentsPublisher.EMPTY,
+                Collections.emptyMap(),
+                null // TODO
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
@@ -946,7 +955,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             current,
             routing,
             current.indexSettings.getIndexMetadata(),
-            current.engineFactory,
+            current.indexerFactory,
             current.engineConfigFactory,
             remotePath,
             listeners
@@ -959,13 +968,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param routing       the shard routing to use for the newly created shard.
      * @param listeners     new listerns to use for the newly created shard
      * @param indexMetadata the index metadata to use for the newly created shard
-     * @param engineFactory the engine factory for the new shard
+     * @param indexerFactory the indexer factory for the new shard
      */
     protected IndexShard reinitShard(
         IndexShard current,
         ShardRouting routing,
         IndexMetadata indexMetadata,
-        EngineFactory engineFactory,
+        IndexerFactory indexerFactory,
         EngineConfigFactory engineConfigFactory,
         Path remotePath,
         IndexingOperationListener... listeners
@@ -977,7 +986,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             indexMetadata,
             null,
             null,
-            engineFactory,
+            indexerFactory,
             engineConfigFactory,
             current.getGlobalCheckpointSyncer(),
             current.getRetentionLeaseSyncer(),
@@ -999,7 +1008,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param settings the settings to use for this shard
      */
     protected IndexShard newStartedShard(Settings settings) throws IOException {
-        return newStartedShard(randomBoolean(), settings, new InternalEngineFactory());
+        return newStartedShard(randomBoolean(), settings, new EngineBackedIndexerFactory(new InternalEngineFactory()));
     }
 
     /**
@@ -1008,7 +1017,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param primary controls whether the shard will be a primary or a replica.
      */
     protected IndexShard newStartedShard(final boolean primary) throws IOException {
-        return newStartedShard(primary, Settings.EMPTY, new InternalEngineFactory());
+        return newStartedShard(primary, Settings.EMPTY, new EngineBackedIndexerFactory(new InternalEngineFactory()));
     }
 
     /**
@@ -1018,7 +1027,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param settings the settings to use for this shard
      */
     protected IndexShard newStartedShard(final boolean primary, Settings settings) throws IOException {
-        return newStartedShard(primary, settings, new InternalEngineFactory());
+        return newStartedShard(primary, settings, new EngineBackedIndexerFactory(new InternalEngineFactory()));
     }
 
     /**
@@ -1026,11 +1035,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      *
      * @param primary       controls whether the shard will be a primary or a replica.
      * @param settings      the settings to use for this shard
-     * @param engineFactory the engine factory to use for this shard
+     * @param indexerFactory the indexer factory to use for this shard
      */
-    protected IndexShard newStartedShard(final boolean primary, final Settings settings, final EngineFactory engineFactory)
+    protected IndexShard newStartedShard(final boolean primary, final Settings settings, final IndexerFactory indexerFactory)
         throws IOException {
-        return newStartedShard(p -> newShard(p, settings, engineFactory), primary);
+        return newStartedShard(p -> newShard(p, settings, indexerFactory), primary);
     }
 
     /**
@@ -1060,7 +1069,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             if (assertConsistencyBetweenTranslogAndLucene) {
                 assertConsistentHistoryBetweenTranslogAndLucene(shard);
             }
-            final Engine engine = shard.getEngineOrNull();
+            final Engine engine = shard.getIndexerOrNull() instanceof EngineBackedIndexer engineBackedIndexer
+                ? engineBackedIndexer.getEngine()
+                : null;
             if (engine != null) {
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
@@ -1350,7 +1361,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     public static List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard) throws IOException {
-        return EngineTestCase.getDocIds(shard.getEngine(), true);
+        return EngineTestCase.getDocIds(((EngineBackedIndexer) shard.getIndexer()).getEngine(), true);
     }
 
     protected void assertDocCount(IndexShard shard, int docDount) throws IOException {
@@ -1367,7 +1378,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         if (shard.state() != IndexShardState.POST_RECOVERY && shard.state() != IndexShardState.STARTED) {
             return;
         }
-        final Engine engine = shard.getEngineOrNull();
+        final Engine engine = shard.getIndexerOrNull() instanceof EngineBackedIndexer engineBackedIndexer
+            ? engineBackedIndexer.getEngine()
+            : null;
         if (engine != null) {
             EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
         }
@@ -1531,7 +1544,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 snapshotStatus,
                 Version.CURRENT,
                 Collections.emptyMap(),
-                future
+                future,
+                null
             );
             shardGen = future.actionGet();
         }
@@ -1544,14 +1558,32 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Helper method to access (package-protected) engine from tests
+     * Helper method to access (package-protected) engine from tests.
+     * Returns null if the indexer is not engine-backed (e.g., DataFormatAwareEngine).
      */
     public static Engine getEngine(IndexShard indexShard) {
-        return indexShard.getEngine();
+        Indexer indexer = indexShard.getIndexer();
+        if (indexer instanceof EngineBackedIndexer engineBackedIndexer) {
+            return engineBackedIndexer.getEngine();
+        }
+        return null;
+    }
+
+    public static Indexer getIndexer(IndexShard indexShard) {
+        return indexShard.getIndexer();
     }
 
     public static Translog getTranslog(IndexShard shard) {
-        return EngineTestCase.getTranslog(getEngine(shard));
+        Indexer indexer = getIndexer(shard);
+        Engine engine = getEngine(shard);
+        assert engine instanceof InternalEngine || engine instanceof NRTReplicationEngine
+            : "only InternalEngines or NRTReplicationEngines have translogs, got: " + engine.getClass();
+        indexer.ensureOpen();
+        TranslogManager translogManager = indexer.translogManager();
+        assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
+            + engine.getClass();
+        InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
+        return internalTranslogManager.getTranslog();
     }
 
     public static ReplicationTracker getReplicationTracker(IndexShard indexShard) {

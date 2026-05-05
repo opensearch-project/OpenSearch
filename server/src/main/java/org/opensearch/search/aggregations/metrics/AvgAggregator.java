@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
@@ -133,28 +134,64 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays.grow(counts, bucket + 1);
-                sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
-
                 if (values.advanceExact(doc)) {
-                    final int valueCount = values.docValueCount();
+                    int valueCount = values.docValueCount();
+                    setKahanSummation(bucket);
                     counts.increment(bucket, valueCount);
-                    // Compute the sum of double values with Kahan summation algorithm which is more
-                    // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
-
-                    kahanSummation.reset(sum, compensation);
-
                     for (int i = 0; i < valueCount; i++) {
                         double value = values.nextValue();
                         kahanSummation.add(value);
                     }
-
                     sums.set(bucket, kahanSummation.value());
                     compensations.set(bucket, kahanSummation.delta());
                 }
+            }
+
+            @Override
+            public void collect(DocIdStream stream, long bucket) throws IOException {
+                setKahanSummation(bucket);
+                final int[] count = { 0 };
+                stream.forEach((doc) -> {
+                    if (values.advanceExact(doc)) {
+                        int valueCount = values.docValueCount();
+                        count[0] += valueCount;
+                        for (int i = 0; i < valueCount; i++) {
+                            kahanSummation.add(values.nextValue());
+                        }
+                    }
+                });
+                counts.increment(bucket, count[0]);
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                setKahanSummation(0);
+                int count = 0;
+                for (int docId = min; docId < max; docId++) {
+                    if (values.advanceExact(docId)) {
+                        int valueCount = values.docValueCount();
+                        count += valueCount;
+                        for (int i = 0; i < valueCount; i++) {
+                            kahanSummation.add(values.nextValue());
+                        }
+                    }
+                }
+                counts.increment(0, count);
+                sums.set(0, kahanSummation.value());
+                compensations.set(0, kahanSummation.delta());
+            }
+
+            private void setKahanSummation(long bucket) {
+                counts = bigArrays.grow(counts, bucket + 1);
+                sums = bigArrays.grow(sums, bucket + 1);
+                compensations = bigArrays.grow(compensations, bucket + 1);
+                // Compute the sum of double values with Kahan summation algorithm which is more
+                // accurate than naive summation.
+                double sum = sums.get(bucket);
+                double compensation = compensations.get(bucket);
+                kahanSummation.reset(sum, compensation);
             }
         };
     }

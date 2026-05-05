@@ -116,6 +116,10 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return new ByteSizeValue(overallFileCacheStats.getEvicted());
     }
 
+    public ByteSizeValue getRemoved() {
+        return new ByteSizeValue(overallFileCacheStats.getRemoved());
+    }
+
     public long getCacheHits() {
         return overallFileCacheStats.getCacheHits();
     }
@@ -138,6 +142,7 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
         builder.humanReadableField(Fields.PINNED_IN_BYTES, Fields.PINNED, getPinnedUsage());
         builder.humanReadableField(Fields.EVICTIONS_IN_BYTES, Fields.EVICTIONS, getEvicted());
+        builder.humanReadableField(Fields.REMOVED_IN_BYTES, Fields.REMOVED, getRemoved());
         builder.field(Fields.ACTIVE_PERCENT, getActivePercent());
         builder.field(Fields.USED_PERCENT, getUsedPercent());
         builder.field(Fields.HIT_COUNT, getCacheHits());
@@ -161,6 +166,8 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         static final String PINNED_IN_BYTES = "pinned_in_bytes";
         static final String EVICTIONS = "evictions";
         static final String EVICTIONS_IN_BYTES = "evictions_in_bytes";
+        static final String REMOVED = "removed";
+        static final String REMOVED_IN_BYTES = "removed_in_bytes";
         static final String TOTAL = "total";
         static final String TOTAL_IN_BYTES = "total_in_bytes";
 

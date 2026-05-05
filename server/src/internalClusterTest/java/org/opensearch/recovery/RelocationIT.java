@@ -928,7 +928,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                     long id = totalDocCount.incrementAndGet();
                     client().prepareIndex("test").setId(String.valueOf(id)).setSource("name", "test" + id, "value", id).get();
                     initialDocCountLatch.countDown();
-                    Thread.sleep(10); // Small delay to prevent overwhelming
+                    Thread.yield(); // Small delay to prevent overwhelming
                 } catch (Exception e) {
                     logger.error("Error in background indexing", e);
                 }
@@ -1029,7 +1029,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                     .execute()
                     .actionGet();
                 updatedDocs.add(docId);
-                Thread.sleep(10);
+                Thread.yield();
             } catch (Exception e) {
                 logger.warn("Error while updating doc with id = {}", docId, e);
             }

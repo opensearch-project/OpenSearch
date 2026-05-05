@@ -356,7 +356,7 @@ public final class Errors {
             case ProvisionException provisionException -> provisionException.getErrorMessages();
             case ConfigurationException configurationException -> configurationException.getErrorMessages();
             case CreationException creationException -> creationException.getErrorMessages();
-            default -> emptySet();
+            case null, default -> emptySet();
         };
     }
 

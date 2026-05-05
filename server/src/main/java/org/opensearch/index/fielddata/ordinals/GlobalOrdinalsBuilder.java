@@ -34,10 +34,13 @@ package org.opensearch.index.fielddata.ordinals;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -71,16 +74,38 @@ public enum GlobalOrdinalsBuilder {
         Logger logger,
         Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
     ) throws IOException {
+        return build(indexReader, indexFieldData, breakerService, logger, scriptFunction, () -> {});
+    }
+
+    /**
+     * Build global ordinals for the provided {@link IndexReader}, with periodic cancellation checks
+     * between segment iterations.
+     */
+    public static IndexOrdinalsFieldData build(
+        final IndexReader indexReader,
+        IndexOrdinalsFieldData indexFieldData,
+        CircuitBreakerService breakerService,
+        Logger logger,
+        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction,
+        Runnable cancellationCheck
+    ) throws IOException {
         assert indexReader.leaves().size() > 1;
         long startTimeNS = System.nanoTime();
 
         final LeafOrdinalsFieldData[] atomicFD = new LeafOrdinalsFieldData[indexReader.leaves().size()];
         final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
+        // cancellableSubs wraps each segment's SortedSetDocValues with a cancellation-aware termsEnum()
+        // for OrdinalMap.build(), which only calls termsEnum() and getValueCount().
+        // atomicFD retains the original unwrapped values to preserve SingletonSortedSetDocValues
+        // type for DocValues.unwrapSingleton().
+        final SortedSetDocValues[] cancellableSubs = new SortedSetDocValues[indexReader.leaves().size()];
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
+            cancellationCheck.run();
             atomicFD[i] = indexFieldData.load(indexReader.leaves().get(i));
             subs[i] = atomicFD[i].getOrdinalsValues();
+            cancellableSubs[i] = new CancellableTermsSortedSetDocValues(subs[i], cancellationCheck);
         }
-        final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
+        final OrdinalMap ordinalMap = OrdinalMap.build(null, cancellableSubs, PackedInts.DEFAULT);
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
         breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(memorySizeInBytes);
 
@@ -138,6 +163,86 @@ public enum GlobalOrdinalsBuilder {
             0,
             AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
         );
+    }
+
+    /**
+     * Thin wrapper around {@link SortedSetDocValues} that adds cancellation checks
+     * to {@link #termsEnum()} iteration. Used only for the {@code subs} array passed
+     * to {@link OrdinalMap#build}, which only calls {@link #termsEnum()} and
+     * {@link #getValueCount()}. This avoids wrapping the stored field data values
+     * which must preserve their concrete type for {@code DocValues.unwrapSingleton()}.
+     */
+    private static class CancellableTermsSortedSetDocValues extends SortedSetDocValues {
+        private final SortedSetDocValues in;
+        private final Runnable cancellationCheck;
+
+        CancellableTermsSortedSetDocValues(SortedSetDocValues in, Runnable cancellationCheck) {
+            this.in = in;
+            this.cancellationCheck = cancellationCheck;
+        }
+
+        @Override
+        public TermsEnum termsEnum() throws IOException {
+            TermsEnum te = in.termsEnum();
+            return new FilterLeafReader.FilterTermsEnum(te) {
+                private static final int CHECK_INTERVAL = (1 << 10) - 1; // 1023
+                private int calls;
+
+                @Override
+                public BytesRef next() throws IOException {
+                    if ((calls++ & CHECK_INTERVAL) == 0) {
+                        cancellationCheck.run();
+                    }
+                    return in.next();
+                }
+            };
+        }
+
+        @Override
+        public long getValueCount() {
+            return in.getValueCount();
+        }
+
+        // Methods below are required by SortedSetDocValues but not called by OrdinalMap.build()
+        @Override
+        public int nextDoc() throws IOException {
+            return in.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return in.advanceExact(target);
+        }
+
+        @Override
+        public long nextOrd() throws IOException {
+            return in.nextOrd();
+        }
+
+        @Override
+        public int docValueCount() {
+            return in.docValueCount();
+        }
+
+        @Override
+        public BytesRef lookupOrd(long ord) throws IOException {
+            return in.lookupOrd(ord);
+        }
+
+        @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
+        public long cost() {
+            return in.cost();
+        }
     }
 
 }

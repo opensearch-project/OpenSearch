@@ -88,7 +88,6 @@ import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.crypto.CryptoRegistryException;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.engine.IngestionEngineException;
-import org.opensearch.index.engine.LookupMapLockAcquisitionException;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.seqno.RetentionLeaseAlreadyExistsException;
@@ -903,8 +902,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(175, ResponseLimitBreachedException.class);
         ids.put(176, IngestionEngineException.class);
         ids.put(177, StreamException.class);
+        ids.put(178, org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException.class);
         ids.put(10001, IndexCreateBlockException.class);
-        ids.put(10002, LookupMapLockAcquisitionException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {

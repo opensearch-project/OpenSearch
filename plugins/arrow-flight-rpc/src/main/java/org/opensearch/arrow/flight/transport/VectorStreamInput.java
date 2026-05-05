@@ -19,77 +19,71 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-class VectorStreamInput extends StreamInput {
+/**
+ * A {@link StreamInput} backed by a {@link VectorSchemaRoot} from the Flight transport.
+ *
+ * <p>Two factories, mirroring {@link VectorStreamOutput}:
+ * <ul>
+ *   <li>{@link #forByteSerialized} — reads bytes directly from the stream root. Used when the
+ *       response is not an {@link ArrowBatchResponse}: {@code handler.read()} copies bytes into
+ *       the response's Java fields, so no ownership transfer is needed.</li>
+ *   <li>{@link #forNativeArrow} — zero-copy transfers the stream root's vectors into a
+ *       consumer root before reading, so the returned {@link ArrowBatchResponse} is
+ *       independent of the FlightStream lifecycle.</li>
+ * </ul>
+ *
+ * <p>The caller ({@link FlightTransportResponse#nextResponse}) picks the factory based on whether
+ * the registered handler is an {@link ArrowBatchResponseHandler}.
+ *
+ * @opensearch.internal
+ */
+abstract class VectorStreamInput extends StreamInput {
 
-    private final VarBinaryVector vector;
-    private final NamedWriteableRegistry registry;
-    private int row = 0;
-    private ByteBuffer buffer = null;
+    protected final VectorSchemaRoot root;
+    protected final NamedWriteableRegistry registry;
 
-    public VectorStreamInput(VectorSchemaRoot root, NamedWriteableRegistry registry) {
-        vector = (VarBinaryVector) root.getVector("0");
+    protected VectorStreamInput(VectorSchemaRoot root, NamedWriteableRegistry registry) {
+        this.root = root;
         this.registry = registry;
     }
 
-    @Override
-    public byte readByte() throws IOException {
-        // Check if buffer has remaining bytes
-        if (buffer != null && buffer.hasRemaining()) {
-            return buffer.get();
-        }
-        // No buffer or buffer exhausted, read from vector
-        if (row >= vector.getValueCount()) {
-            throw new EOFException("No more rows available in vector");
-        }
-        byte[] v = vector.get(row++);
-        if (v.length == 0) {
-            throw new IOException("Empty byte array in vector at row " + (row - 1));
-        }
-        // Wrap the byte array in buffer for future reads
-        buffer = ByteBuffer.wrap(v);
-        return buffer.get(); // Read the first byte
+    /**
+     * Byte-serialized path: the stream root carries a single {@code VarBinary} column of chunked
+     * bytes written by {@link VectorStreamOutput.ByteSerialized}. Reads are over the stream root;
+     * FlightStream retains ownership.
+     */
+    static VectorStreamInput forByteSerialized(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry) {
+        return new ByteSerialized(streamRoot, registry);
     }
 
-    @Override
-    public void readBytes(byte[] b, int offset, int len) throws IOException {
-        if (offset < 0 || len < 0 || offset + len > b.length) {
-            throw new IllegalArgumentException("Invalid offset or length");
+    /**
+     * Transfers the stream root's vectors into a consumer root so the returned response
+     * outlives the next FlightStream batch. The consumer root is released by {@link NativeArrow#close()}
+     * unless the response takes ownership via {@link NativeArrow#claimOwnership()}.
+     */
+    static VectorStreamInput forNativeArrow(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry) {
+        if (streamRoot.getFieldVectors().isEmpty()) {
+            throw new IllegalStateException("Native Arrow batch has no field vectors");
         }
-        int remaining = len;
+        VectorSchemaRoot consumerRoot = VectorSchemaRoot.create(
+            streamRoot.getSchema(),
+            streamRoot.getFieldVectors().getFirst().getAllocator()
+        );
+        try {
+            FlightUtils.transferRoot(streamRoot, consumerRoot);
+        } catch (Throwable t) {
+            consumerRoot.close();
+            throw t;
+        }
+        return new NativeArrow(consumerRoot, registry);
+    }
 
-        // First, exhaust any remaining bytes in the buffer
-        if (buffer != null && buffer.hasRemaining()) {
-            int bufferBytes = Math.min(buffer.remaining(), remaining);
-            buffer.get(b, offset, bufferBytes);
-            offset += bufferBytes;
-            remaining -= bufferBytes;
-            if (!buffer.hasRemaining()) {
-                buffer = null; // Clear buffer if exhausted
-            }
-        }
-
-        // Read from vector if more bytes are needed
-        while (remaining > 0) {
-            if (row >= vector.getValueCount()) {
-                throw new EOFException("No more rows available in vector");
-            }
-            byte[] v = vector.get(row++);
-            if (v.length == 0) {
-                throw new IOException("Empty byte array in vector at row " + (row - 1));
-            }
-            if (v.length <= remaining) {
-                // The entire vector row can be consumed
-                System.arraycopy(v, 0, b, offset, v.length);
-                offset += v.length;
-                remaining -= v.length;
-            } else {
-                // Partial read from vector row
-                System.arraycopy(v, 0, b, offset, remaining);
-                // Store remaining bytes in buffer without copying
-                buffer = ByteBuffer.wrap(v, remaining, v.length - remaining);
-                remaining = 0;
-            }
-        }
+    /**
+     * Returns the underlying {@link VectorSchemaRoot}. For {@link NativeArrow} this is the
+     * consumer root; {@link ArrowBatchResponse} grabs it via the receive-side constructor.
+     */
+    public VectorSchemaRoot getRoot() {
+        return root;
     }
 
     @Override
@@ -111,22 +105,126 @@ class VectorStreamInput extends StreamInput {
     }
 
     @Override
-    public void close() throws IOException {
-        vector.close();
-    }
-
-    @Override
     public int read() throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public int available() throws IOException {
+    public int available() {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * No-op: bounds checks happen at read time, not as a pre-check.
+     * {@link ByteSerialized#readByte} and {@link ByteSerialized#readBytes} throw
+     * {@link EOFException} when the column is exhausted.
+     */
     @Override
-    protected void ensureCanReadBytes(int length) throws EOFException {
+    protected void ensureCanReadBytes(int length) {}
 
+    // ── Byte serialization ──
+
+    static final class ByteSerialized extends VectorStreamInput {
+        private final VarBinaryVector vector;
+        private int row = 0;
+        private ByteBuffer buffer = null;
+
+        ByteSerialized(VectorSchemaRoot root, NamedWriteableRegistry registry) {
+            super(root, registry);
+            this.vector = (VarBinaryVector) root.getVector("0");
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            if (buffer != null && buffer.hasRemaining()) {
+                return buffer.get();
+            }
+            if (row >= vector.getValueCount()) {
+                throw new EOFException("No more rows available in vector");
+            }
+            byte[] v = vector.get(row++);
+            if (v.length == 0) {
+                throw new IOException("Empty byte array in vector at row " + (row - 1));
+            }
+            buffer = ByteBuffer.wrap(v);
+            return buffer.get();
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) throws IOException {
+            if (offset < 0 || len < 0 || offset + len > b.length) {
+                throw new IllegalArgumentException("Invalid offset or length");
+            }
+            int remaining = len;
+
+            if (buffer != null && buffer.hasRemaining()) {
+                int bufferBytes = Math.min(buffer.remaining(), remaining);
+                buffer.get(b, offset, bufferBytes);
+                offset += bufferBytes;
+                remaining -= bufferBytes;
+                if (!buffer.hasRemaining()) {
+                    buffer = null;
+                }
+            }
+
+            while (remaining > 0) {
+                if (row >= vector.getValueCount()) {
+                    throw new EOFException("No more rows available in vector");
+                }
+                byte[] v = vector.get(row++);
+                if (v.length == 0) {
+                    throw new IOException("Empty byte array in vector at row " + (row - 1));
+                }
+                if (v.length <= remaining) {
+                    System.arraycopy(v, 0, b, offset, v.length);
+                    offset += v.length;
+                    remaining -= v.length;
+                } else {
+                    System.arraycopy(v, 0, b, offset, remaining);
+                    buffer = ByteBuffer.wrap(v, remaining, v.length - remaining);
+                    remaining = 0;
+                }
+            }
+        }
+
+        /**
+         * No-op: the stream root belongs to {@link org.apache.arrow.flight.FlightStream}, which
+         * clears the vectors on the next {@code next()} and closes them on stream close.
+         */
+        @Override
+        public void close() {}
+    }
+
+    // ── Native Arrow ──
+
+    static final class NativeArrow extends VectorStreamInput {
+        private boolean transferred = false;
+
+        NativeArrow(VectorSchemaRoot root, NamedWriteableRegistry registry) {
+            super(root, registry);
+        }
+
+        @Override
+        public byte readByte() {
+            throw new UnsupportedOperationException("Native Arrow responses read vectors directly from getRoot()");
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) {
+            throw new UnsupportedOperationException("Native Arrow responses read vectors directly from getRoot()");
+        }
+
+        /** Response claims the consumer root; {@link #close()} becomes a no-op. */
+        void claimOwnership() {
+            transferred = true;
+        }
+
+        /** Releases the consumer root unless {@link #claimOwnership()} was called. */
+        @Override
+        public void close() {
+            if (!transferred && root != null) {
+                root.close();
+            }
+        }
     }
 }

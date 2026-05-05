@@ -37,9 +37,9 @@ import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -168,7 +168,7 @@ public final class AsyncTransferManager {
 
         configureEncryptionSettings(createMultipartUploadRequestBuilder, uploadRequest);
 
-        CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadFuture = SocketAccess.doPrivileged(
+        CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadFuture = AccessController.doPrivileged(
             () -> s3AsyncClient.createMultipartUpload(createMultipartUploadRequestBuilder.build())
         );
 
@@ -304,7 +304,7 @@ public final class AsyncTransferManager {
             .expectedBucketOwner(uploadRequest.getExpectedBucketOwner())
             .build();
 
-        return SocketAccess.doPrivileged(() -> s3AsyncClient.completeMultipartUpload(completeMultipartUploadRequest));
+        return AccessController.doPrivileged(() -> s3AsyncClient.completeMultipartUpload(completeMultipartUploadRequest));
     }
 
     private static String base64StringFromLong(Long val) {
@@ -386,7 +386,7 @@ public final class AsyncTransferManager {
             streamReadExecutor = executorService;
         }
 
-        CompletableFuture<Void> putObjectFuture = SocketAccess.doPrivileged(() -> {
+        CompletableFuture<Void> putObjectFuture = AccessController.doPrivileged(() -> {
             InputStream inputStream = null;
             CompletableFuture<PutObjectResponse> putObjectRespFuture;
             try {
@@ -468,7 +468,7 @@ public final class AsyncTransferManager {
             .expectedBucketOwner(uploadRequest.getExpectedBucketOwner())
             .build();
 
-        SocketAccess.doPrivileged(() -> s3AsyncClient.deleteObject(deleteObjectRequest)).exceptionally(throwable -> {
+        AccessController.doPrivileged(() -> s3AsyncClient.deleteObject(deleteObjectRequest)).exceptionally(throwable -> {
             log.error(() -> new ParameterizedMessage("Failed to delete uploaded object of key {}", uploadRequest.getKey()), throwable);
             return null;
         });

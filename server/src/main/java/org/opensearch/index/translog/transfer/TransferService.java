@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -31,40 +32,55 @@ public interface TransferService {
 
     /**
      * Uploads the {@link TransferFileSnapshot} async, once the upload is complete the callback is invoked
+     *
      * @param threadPoolName threadpool type which will be used to upload blobs asynchronously
-     * @param fileSnapshot the file snapshot to upload
-     * @param remotePath the remote path where upload should be made
-     * @param listener the callback to be invoked once upload completes successfully/fails
+     * @param fileSnapshot   the file snapshot to upload
+     * @param remotePath     the remote path where upload should be made
+     * @param listener       the callback to be invoked once upload completes successfully/fails
+     * @param writePriority  priority by which content needs to be written
+     * @param cryptoMetadata encryption metadata for server-side encryption settings, may be null
      */
     void uploadBlob(
         String threadPoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remotePath,
         ActionListener<TransferFileSnapshot> listener,
-        WritePriority writePriority
+        WritePriority writePriority,
+        CryptoMetadata cryptoMetadata
     );
 
     /**
      * Uploads multiple {@link TransferFileSnapshot}, once the upload is complete the callback is invoked
-     * @param fileSnapshots the file snapshots to upload
-     * @param blobPaths Primary term to {@link BlobPath} map
-     * @param listener the callback to be invoked once uploads complete successfully/fail
+     *
+     * @param fileSnapshots  the file snapshots to upload
+     * @param blobPaths      Primary term to {@link BlobPath} map
+     * @param listener       the callback to be invoked once uploads complete successfully/fail
+     * @param writePriority  priority by which content needs to be written
+     * @param cryptoMetadata encryption metadata for server-side encryption settings, may be null
      */
     void uploadBlobs(
         Set<TransferFileSnapshot> fileSnapshots,
         final Map<Long, BlobPath> blobPaths,
         ActionListener<TransferFileSnapshot> listener,
-        WritePriority writePriority
+        WritePriority writePriority,
+        CryptoMetadata cryptoMetadata
     ) throws Exception;
 
     /**
      * Uploads the {@link TransferFileSnapshot} blob
-     * @param fileSnapshot the file snapshot to upload
-     * @param remotePath the remote path where upload should be made
-     * @param writePriority Priority by which content needs to be written.
+     *
+     * @param fileSnapshot   the file snapshot to upload
+     * @param remotePath     the remote path where upload should be made
+     * @param writePriority  priority by which content needs to be written
+     * @param cryptoMetadata encryption metadata for server-side encryption settings, may be null
      * @throws IOException the exception while transferring the data
      */
-    void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath, WritePriority writePriority) throws IOException;
+    void uploadBlob(
+        final TransferFileSnapshot fileSnapshot,
+        Iterable<String> remotePath,
+        WritePriority writePriority,
+        CryptoMetadata cryptoMetadata
+    ) throws IOException;
 
     /**
      * Reads the input stream and uploads as a blob

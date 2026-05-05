@@ -17,6 +17,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.search.StreamSearchIntegrationTests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
@@ -74,6 +75,7 @@ import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.M
 import static org.opensearch.cluster.coordination.PublicationTransportHandler.PUBLISH_REMOTE_STATE_ACTION_NAME;
 import static org.opensearch.cluster.coordination.PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME;
 import static org.opensearch.cluster.metadata.Metadata.isGlobalStateEquals;
+import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING;
@@ -163,9 +165,11 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InterceptingTransportService.TestPlugin.class);
+        plugins.add(StreamSearchIntegrationTests.MockStreamTransportPlugin.class);
         return plugins;
     }
 
+    @LockFeatureFlag(STREAM_TRANSPORT)
     public void testPublication() throws Exception {
         // create cluster with multi node (3 master + 2 data)
         prepareCluster(3, 2, INDEX_NAME, 1, 2);

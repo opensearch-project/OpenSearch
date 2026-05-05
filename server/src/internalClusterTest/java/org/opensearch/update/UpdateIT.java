@@ -44,16 +44,20 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.action.update.UpdateResponse;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.mapper.extrasource.BytesValue;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -543,6 +547,22 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testScriptWithExtraFieldValuesRejected() throws Exception {
+        createTestIndex();
+        ensureGreen();
+
+        Script script = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
+
+        UpdateRequest req = new UpdateRequest(indexOrAlias(), "1").script(script)
+            .upsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject());
+
+        // attach extra field values to the upsert IndexRequest (since script+doc is invalid)
+        req.upsertRequest().extraFieldValues(new ExtraFieldValues(Map.of("k", new BytesValue(new BytesArray(new byte[] { 1, 2, 3 })))));
+
+        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, () -> client().update(req).actionGet());
+        assertThat(e.getMessage(), containsString("ExtraFieldValues are not supported with scripted updates"));
+    }
+
     public void testContextVariables() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
@@ -739,6 +759,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
             }
 
             @Override
+            @SuppressForbidden(reason = "Sleeping in a loop")
             public void run() {
                 try {
                     startLatch.await();

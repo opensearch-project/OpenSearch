@@ -31,22 +31,24 @@ public class ShardOperationFailedExceptionProtoUtils {
      * This method is similar to {@link org.opensearch.core.action.ShardOperationFailedException#toXContent(XContentBuilder, ToXContent.Params)}
      * This method is overridden by various exception classes, which are hardcoded here.
      *
+     * This method converts to the legacy ShardFailure proto type for backward compatibility.
+     * For ShardSearchFailure, use the new failures_2 field with ShardSearchFailure proto type.
+     *
      * @param exception The ShardOperationFailedException to convert metadata from
-     * @return ShardFailure
+     * @return ShardFailure proto object
      */
     public static ShardFailure toProto(ShardOperationFailedException exception) throws IOException {
-        if (exception instanceof ShardSearchFailure) {
-            return ShardSearchFailureProtoUtils.toProto((ShardSearchFailure) exception);
-        } else if (exception instanceof SnapshotShardFailure) {
-            return SnapshotShardFailureProtoUtils.toProto((SnapshotShardFailure) exception);
-        } else if (exception instanceof DefaultShardOperationFailedException) {
-            return DefaultShardOperationFailedExceptionProtoUtils.toProto((DefaultShardOperationFailedException) exception);
-        } else if (exception instanceof ReplicationResponse.ShardInfo.Failure) {
-            return ReplicationResponseShardInfoFailureProtoUtils.toProto((ReplicationResponse.ShardInfo.Failure) exception);
-        } else {
-            throw new UnsupportedOperationException(
+        return switch (exception) {
+            case ShardSearchFailure ssf -> ShardSearchFailureProtoUtils.toLegacyProto(ssf);
+            case SnapshotShardFailure ssf -> SnapshotShardFailureProtoUtils.toProto(ssf);
+            case DefaultShardOperationFailedException dsofe -> DefaultShardOperationFailedExceptionProtoUtils.toProto(dsofe);
+            case ReplicationResponse.ShardInfo.Failure sf -> ReplicationResponseShardInfoFailureProtoUtils.toProto(sf);
+            case null -> throw new UnsupportedOperationException(
+                "Unsupported ShardOperationFailedException [null] cannot be converted to proto."
+            );
+            default -> throw new UnsupportedOperationException(
                 "Unsupported ShardOperationFailedException " + exception.getClass().getName() + "cannot be converted to proto."
             );
-        }
+        };
     }
 }

@@ -109,6 +109,11 @@ grant codeBase "${codebase.jackson-core}" {
   permission java.net.NetPermission "accessUnixDomainSocket";
 };
 
+grant codeBase "${codebase.jackson3-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
 grant codeBase "${codebase.opensearch-common}" {
   permission java.net.SocketPermission "*", "connect,resolve";
   permission java.net.NetPermission "accessUnixDomainSocket";
@@ -242,6 +247,9 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuset.cpus.effective", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu,cpuacct", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu,cpuacct/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuset/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/user.slice/-", "read";
@@ -249,6 +257,12 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory.swap.current", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.max", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.current", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory.swap.max", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory.swap.current", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory.max", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory.current", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/system.slice/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/init.scope/-", "read";
 

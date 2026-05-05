@@ -42,6 +42,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -117,7 +118,7 @@ class S3RetryingInputStream extends InputStream {
                     + end;
                 getObjectRequest.range(HttpRangeUtils.toHttpRangeHeader(Math.addExact(start, currentOffset), end));
             }
-            final ResponseInputStream<GetObjectResponse> getObjectResponseInputStream = SocketAccess.doPrivileged(
+            final ResponseInputStream<GetObjectResponse> getObjectResponseInputStream = AccessController.doPrivileged(
                 () -> clientReference.get().getObject(getObjectRequest.build())
             );
             this.currentStreamLastOffset = Math.addExact(
@@ -128,10 +129,8 @@ class S3RetryingInputStream extends InputStream {
             this.metadata = getObjectResponseInputStream.response().metadata();
             this.isStreamAborted.set(false);
         } catch (final SdkException e) {
-            if (e instanceof S3Exception) {
-                if (404 == ((S3Exception) e).statusCode()) {
-                    throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
-                }
+            if (e instanceof S3Exception s3e && 404 == s3e.statusCode()) {
+                throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
             }
             throw addSuppressedExceptions(e);
         }

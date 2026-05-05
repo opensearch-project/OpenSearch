@@ -9,11 +9,14 @@
 package org.opensearch.transport.grpc.proto.request.document.bulk;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.UnsafeByteOperations;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -45,7 +48,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             "default-index",
             "default-id",
             "default-routing",
@@ -87,7 +90,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             null,
             "default-index",
             "default-id",
@@ -122,7 +125,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             opType,
             "default-index",
             "default-id",
@@ -188,13 +191,13 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
-            .setObject(ByteString.copyFrom(document))
+            .setObject(UnsafeByteOperations.unsafeWrap(document))
             .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setDocAsUpsert(true).setDetectNoop(true).build())
             .build();
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -313,7 +316,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             "default-index",
             "default-id",
             "default-routing",
@@ -340,7 +343,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             "default-index",
             "default-id",
             "default-routing",
@@ -372,7 +375,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             OpType.OP_TYPE_INDEX,
             "default-index",
             "default-id",
@@ -405,7 +408,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             null,
             "default-index",
             "default-id",
@@ -431,7 +434,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
-            .setObject(ByteString.copyFrom(document))
+            .setObject(UnsafeByteOperations.unsafeWrap(document))
             .setUpdateAction(
                 org.opensearch.protobufs.UpdateAction.newBuilder()
                     .setScript(
@@ -454,7 +457,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -480,13 +483,13 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
-            .setObject(ByteString.copyFrom(document))
+            .setObject(UnsafeByteOperations.unsafeWrap(document))
             .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setUpsert(ByteString.copyFrom(upsertDoc)).build())
             .build();
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -510,13 +513,13 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
-            .setObject(ByteString.copyFrom(document))
+            .setObject(UnsafeByteOperations.unsafeWrap(document))
             .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setScriptedUpsert(true).build())
             .build();
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -540,7 +543,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
-            .setObject(ByteString.copyFrom(document))
+            .setObject(UnsafeByteOperations.unsafeWrap(document))
             .setUpdateAction(
                 org.opensearch.protobufs.UpdateAction.newBuilder()
                     .setXSource(org.opensearch.protobufs.SourceConfig.newBuilder().setFetch(true).build())
@@ -550,7 +553,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -574,12 +577,12 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
-            .setObject(ByteString.copyFrom(document))
+            .setObject(UnsafeByteOperations.unsafeWrap(document))
             .build();
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            UnsafeByteOperations.unsafeWrap(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -705,7 +708,13 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateOperation updateOperation = UpdateOperation.newBuilder().setIfSeqNo(123L).setIfPrimaryTerm(456L).build();
 
-        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(updateRequest, document, bulkRequestBody, updateOperation);
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(
+            updateRequest,
+            UnsafeByteOperations.unsafeWrap(document),
+            bulkRequestBody,
+            123L,
+            456L
+        );
 
         assertNotNull("Result should not be null", result);
         assertNotNull("Script should be set", result.script());
@@ -726,7 +735,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
-            smileDocument,
+            UnsafeByteOperations.unsafeWrap(smileDocument),
             "default-index",
             "default-id",
             null,
@@ -754,7 +763,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
-            cborDocument,
+            UnsafeByteOperations.unsafeWrap(cborDocument),
             "default-index",
             "default-id",
             null,
@@ -782,7 +791,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
-            smileDocument,
+            UnsafeByteOperations.unsafeWrap(smileDocument),
             null,
             "default-index",
             "default-id",
@@ -810,7 +819,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
-            cborDocument,
+            UnsafeByteOperations.unsafeWrap(cborDocument),
             null,
             "default-index",
             "default-id",
@@ -843,7 +852,13 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateOperation updateOperation = UpdateOperation.newBuilder().build();
 
-        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(updateRequest, document, bulkRequestBody, updateOperation);
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(
+            updateRequest,
+            UnsafeByteOperations.unsafeWrap(document),
+            bulkRequestBody,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
 
         assertNotNull("Result should not be null", result);
         assertNotNull("Upsert should be set", result.upsertRequest());
@@ -856,7 +871,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
-            emptyDocument,
+            UnsafeByteOperations.unsafeWrap(emptyDocument),
             "default-index",
             "default-id",
             null,
@@ -882,7 +897,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
-            jsonDocument,
+            UnsafeByteOperations.unsafeWrap(jsonDocument),
             "default-index",
             "default-id",
             null,
@@ -910,7 +925,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
-            yamlDocument,
+            UnsafeByteOperations.unsafeWrap(yamlDocument),
             "default-index",
             "default-id",
             null,
@@ -938,7 +953,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
-            jsonDocument,
+            UnsafeByteOperations.unsafeWrap(jsonDocument),
             null,
             "default-index",
             "default-id",
@@ -966,7 +981,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
-            yamlDocument,
+            UnsafeByteOperations.unsafeWrap(yamlDocument),
             null,
             "default-index",
             "default-id",
@@ -1023,10 +1038,10 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
      * Test detectMediaType with null or empty document
      */
     public void testDetectMediaTypeNullOrEmpty() {
-        MediaType result = BulkRequestParserProtoUtils.detectMediaType(null);
+        MediaType result = BulkRequestParserProtoUtils.detectMediaType((BytesReference) null);
         assertEquals("application/json", result.mediaTypeWithoutParameters());
 
-        result = BulkRequestParserProtoUtils.detectMediaType(new byte[0]);
+        result = BulkRequestParserProtoUtils.detectMediaType(new BytesArray(new byte[0]));
         assertEquals("application/json", result.mediaTypeWithoutParameters());
     }
 
@@ -1035,7 +1050,486 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
      */
     public void testDetectMediaTypeUnrecognizable() {
         byte[] invalidBytes = new byte[] { (byte) 0xFF, (byte) 0xFE, (byte) 0xFD, (byte) 0xFC };
-        MediaType result = BulkRequestParserProtoUtils.detectMediaType(invalidBytes);
+        MediaType result = BulkRequestParserProtoUtils.detectMediaType(new BytesArray(invalidBytes));
         assertEquals("application/json", result.mediaTypeWithoutParameters());
+    }
+
+    /**
+     * Test buildUpdateRequest with upsert request and pipeline
+     */
+    public void testBuildUpdateRequestWithUpsertAndPipeline() {
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        byte[] upsertDoc = "{\"upsert_field\":\"upsert_value\"}".getBytes(StandardCharsets.UTF_8);
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
+            .setObject(UnsafeByteOperations.unsafeWrap(document))
+            .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setUpsert(ByteString.copyFrom(upsertDoc)).build())
+            .build();
+
+        UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
+            updateOperation,
+            UnsafeByteOperations.unsafeWrap(document),
+            bulkRequestBody,
+            "default-index",
+            "default-id",
+            null,
+            null,
+            0,
+            "test-pipeline", // pipeline
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("UpdateRequest should not be null", updateRequest);
+        assertNotNull("Upsert request should be set", updateRequest.upsertRequest());
+        assertEquals("Pipeline should be set on upsert request", "test-pipeline", updateRequest.upsertRequest().getPipeline());
+    }
+
+    /**
+     * Test fromProto with empty document bytes (ByteString.EMPTY)
+     */
+    public void testFromProtoWithEmptyDocumentBytes() {
+        UpdateRequest updateRequest = new UpdateRequest("test-index", "test-id");
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setUpdateAction(
+                org.opensearch.protobufs.UpdateAction.newBuilder()
+                    .setScript(
+                        org.opensearch.protobufs.Script.newBuilder()
+                            .setInline(
+                                org.opensearch.protobufs.InlineScript.newBuilder()
+                                    .setSource("ctx._source.counter += 1")
+                                    .setLang(
+                                        org.opensearch.protobufs.ScriptLanguage.newBuilder()
+                                            .setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        // Test with ByteString.EMPTY (no doc field)
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(
+            updateRequest,
+            ByteString.EMPTY,
+            bulkRequestBody,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM
+        );
+
+        assertNotNull("Result should not be null", result);
+        assertNotNull("Script should be set", result.script());
+        assertNull("Doc should not be set when ByteString is empty", result.doc());
+    }
+
+    /**
+     * Test fromProto with null document bytes
+     */
+    public void testFromProtoWithNullDocumentBytes() {
+        UpdateRequest updateRequest = new UpdateRequest("test-index", "test-id");
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setUpdateAction(
+                org.opensearch.protobufs.UpdateAction.newBuilder()
+                    .setScript(
+                        org.opensearch.protobufs.Script.newBuilder()
+                            .setInline(
+                                org.opensearch.protobufs.InlineScript.newBuilder()
+                                    .setSource("ctx._source.counter += 1")
+                                    .setLang(
+                                        org.opensearch.protobufs.ScriptLanguage.newBuilder()
+                                            .setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        // Test with null documentBytes
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(
+            updateRequest,
+            null,
+            bulkRequestBody,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM
+        );
+
+        assertNotNull("Result should not be null", result);
+        assertNotNull("Script should be set", result.script());
+        assertNull("Doc should not be set when documentBytes is null", result.doc());
+    }
+
+    /**
+     * Test getDocWriteRequests with update operation using UpdateAction.doc field
+     */
+    public void testGetDocWriteRequestsWithUpdateActionDoc() {
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        BulkRequestBody updateBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
+            .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setDoc(UnsafeByteOperations.unsafeWrap(document)).build())
+            .build();
+
+        BulkRequest request = BulkRequest.newBuilder().addBulkRequestBody(updateBody).build();
+
+        DocWriteRequest<?>[] requests = BulkRequestParserProtoUtils.getDocWriteRequests(request, "default-index", null, null, null, false);
+
+        assertNotNull("Requests should not be null", requests);
+        assertEquals("Should have 1 request", 1, requests.length);
+        assertTrue("Request should be an UpdateRequest", requests[0] instanceof UpdateRequest);
+
+        UpdateRequest updateRequest = (UpdateRequest) requests[0];
+        assertNotNull("Doc should be set from UpdateAction.doc", updateRequest.doc());
+    }
+
+    /**
+     * Test valueOrDefault for String with null value and non-null globalDefault
+     */
+    public void testValueOrDefaultStringWithNullValue() {
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        BulkRequestBody updateBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
+            .setObject(UnsafeByteOperations.unsafeWrap(document))
+            .build();
+
+        BulkRequest request = BulkRequest.newBuilder()
+            .addBulkRequestBody(updateBody)
+            .setRouting("global-routing")
+            .setPipeline("global-pipeline")
+            .build();
+
+        DocWriteRequest<?>[] requests = BulkRequestParserProtoUtils.getDocWriteRequests(
+            request,
+            "default-index",
+            null, // defaultRouting is null, should use global routing
+            null,
+            null, // defaultPipeline is null, should use global pipeline
+            false
+        );
+
+        assertNotNull("Requests should not be null", requests);
+        assertEquals("Should have 1 request", 1, requests.length);
+
+        UpdateRequest updateRequest = (UpdateRequest) requests[0];
+        assertEquals("Routing should use global value", "global-routing", updateRequest.routing());
+    }
+
+    /**
+     * Test valueOrDefault for Boolean with null value and non-null globalDefault
+     */
+    public void testValueOrDefaultBooleanWithNullValue() {
+        IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        BulkRequestBody indexBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setIndex(indexOp).build())
+            .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
+            .build();
+
+        BulkRequest request = BulkRequest.newBuilder().addBulkRequestBody(indexBody).setRequireAlias(true).build();
+
+        DocWriteRequest<?>[] requests = BulkRequestParserProtoUtils.getDocWriteRequests(
+            request,
+            "default-index",
+            null,
+            null,
+            null,
+            null // defaultRequireAlias is null, should use global requireAlias
+        );
+
+        assertNotNull("Requests should not be null", requests);
+        assertEquals("Should have 1 request", 1, requests.length);
+
+        IndexRequest indexRequest = (IndexRequest) requests[0];
+        assertTrue("RequireAlias should use global value", indexRequest.isRequireAlias());
+    }
+
+    /**
+     * Test ByteString to BytesReference conversion with UnsafeByteOperations.unsafeWrap()
+     * This tests the zero-copy path where ByteString wraps a byte array
+     */
+    public void testByteStringToBytesReferenceZeroCopy() {
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        ByteString byteString = UnsafeByteOperations.unsafeWrap(document);
+
+        WriteOperation createOp = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            createOp,
+            byteString,
+            "default-index",
+            "default-id",
+            "default-routing",
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            "default-pipeline",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertNotNull("Source should not be null", indexRequest.source());
+        // Verify the content is correct
+        assertEquals("Source content should match", new String(document, StandardCharsets.UTF_8), indexRequest.source().utf8ToString());
+    }
+
+    /**
+     * Test ByteString to BytesReference conversion with ByteString.copyFrom()
+     * This tests the copy path where ByteString creates an internal copy
+     */
+    public void testByteStringToBytesReferenceCopy() {
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        ByteString byteString = ByteString.copyFrom(document);
+
+        WriteOperation createOp = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            createOp,
+            byteString,
+            "default-index",
+            "default-id",
+            "default-routing",
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            "default-pipeline",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertNotNull("Source should not be null", indexRequest.source());
+        assertEquals("Source content should match", new String(document, StandardCharsets.UTF_8), indexRequest.source().utf8ToString());
+    }
+
+    /**
+     * Test ByteString to BytesReference conversion with empty ByteString
+     */
+    public void testByteStringToBytesReferenceEmpty() {
+        ByteString byteString = ByteString.EMPTY;
+
+        WriteOperation createOp = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            createOp,
+            byteString,
+            "default-index",
+            "default-id",
+            "default-routing",
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            "default-pipeline",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertNotNull("Source should not be null", indexRequest.source());
+        assertEquals("Source should be empty", 0, indexRequest.source().length());
+    }
+
+    /**
+     * Test update request with doc field using UnsafeByteOperations.unsafeWrap()
+     */
+    public void testUpdateRequestDocFieldZeroCopy() {
+        byte[] document = "{\"field\":\"updated_value\"}".getBytes(StandardCharsets.UTF_8);
+        ByteString docBytes = UnsafeByteOperations.unsafeWrap(document);
+
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        org.opensearch.protobufs.UpdateAction updateAction = org.opensearch.protobufs.UpdateAction.newBuilder().setDoc(docBytes).build();
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
+            .setUpdateAction(updateAction)
+            .build();
+
+        UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
+            updateOp,
+            docBytes,
+            bulkRequestBody,
+            "default-index",
+            "default-id",
+            "default-routing",
+            null,
+            0,
+            "default-pipeline",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("UpdateRequest should not be null", updateRequest);
+        assertNotNull("Doc should not be null", updateRequest.doc());
+        assertEquals("Doc content should match", new String(document, StandardCharsets.UTF_8), updateRequest.doc().source().utf8ToString());
+    }
+
+    /**
+     * Test update request with upsert field using UnsafeByteOperations.unsafeWrap()
+     */
+    public void testUpdateRequestUpsertFieldZeroCopy() {
+        byte[] docBytes = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        byte[] upsertBytes = "{\"field\":\"default_value\"}".getBytes(StandardCharsets.UTF_8);
+
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        org.opensearch.protobufs.UpdateAction updateAction = org.opensearch.protobufs.UpdateAction.newBuilder()
+            .setDoc(UnsafeByteOperations.unsafeWrap(docBytes))
+            .setUpsert(UnsafeByteOperations.unsafeWrap(upsertBytes))
+            .build();
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
+            .setUpdateAction(updateAction)
+            .build();
+
+        UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
+            updateOp,
+            UnsafeByteOperations.unsafeWrap(docBytes),
+            bulkRequestBody,
+            "default-index",
+            "default-id",
+            "default-routing",
+            null,
+            0,
+            "default-pipeline",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("UpdateRequest should not be null", updateRequest);
+        assertNotNull("Upsert should not be null", updateRequest.upsertRequest());
+        assertEquals(
+            "Upsert content should match",
+            new String(upsertBytes, StandardCharsets.UTF_8),
+            updateRequest.upsertRequest().source().utf8ToString()
+        );
+    }
+
+    /**
+     * Test update request with both doc and upsert fields using ByteString.copyFrom()
+     */
+    public void testUpdateRequestDocAndUpsertCopy() {
+        byte[] docBytes = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        byte[] upsertBytes = "{\"field\":\"default_value\"}".getBytes(StandardCharsets.UTF_8);
+
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        org.opensearch.protobufs.UpdateAction updateAction = org.opensearch.protobufs.UpdateAction.newBuilder()
+            .setDoc(ByteString.copyFrom(docBytes))
+            .setUpsert(ByteString.copyFrom(upsertBytes))
+            .build();
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
+            .setUpdateAction(updateAction)
+            .build();
+
+        UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
+            updateOp,
+            ByteString.copyFrom(docBytes),
+            bulkRequestBody,
+            "default-index",
+            "default-id",
+            "default-routing",
+            null,
+            0,
+            "default-pipeline",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("UpdateRequest should not be null", updateRequest);
+        assertNotNull("Doc should not be null", updateRequest.doc());
+        assertNotNull("Upsert should not be null", updateRequest.upsertRequest());
+        assertEquals("Doc content should match", new String(docBytes, StandardCharsets.UTF_8), updateRequest.doc().source().utf8ToString());
+        assertEquals(
+            "Upsert content should match",
+            new String(upsertBytes, StandardCharsets.UTF_8),
+            updateRequest.upsertRequest().source().utf8ToString()
+        );
+    }
+
+    /**
+     * Test index request with large document using UnsafeByteOperations.unsafeWrap()
+     */
+    public void testIndexRequestLargeDocumentZeroCopy() {
+        // Create a large document (> 1KB)
+        StringBuilder sb = new StringBuilder("{\"data\":\"");
+        for (int i = 0; i < 200; i++) {
+            sb.append("0123456789");
+        }
+        sb.append("\"}");
+        byte[] document = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
+            indexOp,
+            UnsafeByteOperations.unsafeWrap(document),
+            null,
+            "default-index",
+            "default-id",
+            "default-routing",
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            "default-pipeline",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertNotNull("Source should not be null", indexRequest.source());
+        assertEquals("Source length should match", document.length, indexRequest.source().length());
+        assertEquals("Source content should match", new String(document, StandardCharsets.UTF_8), indexRequest.source().utf8ToString());
+    }
+
+    /**
+     * Test create request with UTF-8 encoded document using UnsafeByteOperations.unsafeWrap()
+     */
+    public void testCreateRequestUtf8DocumentZeroCopy() {
+        String jsonWithUnicode = "{\"field\":\"Hello 世界 🌍\"}";
+        byte[] document = jsonWithUnicode.getBytes(StandardCharsets.UTF_8);
+
+        WriteOperation createOp = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            createOp,
+            UnsafeByteOperations.unsafeWrap(document),
+            "default-index",
+            "default-id",
+            "default-routing",
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            "default-pipeline",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertNotNull("Source should not be null", indexRequest.source());
+        assertEquals("Source content should match UTF-8", jsonWithUnicode, indexRequest.source().utf8ToString());
     }
 }

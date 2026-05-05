@@ -62,8 +62,8 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     protected boolean doBooleanValue() throws IOException {
-        if (iterator != null && iterator.currentValue() instanceof Boolean) {
-            return (Boolean) iterator.currentValue();
+        if (iterator != null && iterator.currentValue() instanceof Boolean boolValue) {
+            return boolValue;
         } else {
             throw new IllegalStateException("Cannot get boolean value for the current token " + currentToken());
         }
@@ -96,8 +96,8 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     protected BigInteger doBigIntegerValue() throws IOException {
-        if (numberValue() instanceof BigInteger) {
-            return (BigInteger) numberValue();
+        if (numberValue() instanceof BigInteger bigIntValue) {
+            return bigIntValue;
         } else {
             return BigInteger.valueOf(numberValue().longValue());
         }
@@ -224,8 +224,8 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public byte[] binaryValue() throws IOException {
-        if (iterator != null && iterator.currentValue() instanceof byte[]) {
-            return (byte[]) iterator.currentValue();
+        if (iterator != null && iterator.currentValue() instanceof byte[] byteArray) {
+            return byteArray;
         } else {
             throw new IllegalStateException("Cannot get binary value for the current token " + currentToken());
         }
@@ -285,20 +285,20 @@ public class MapXContentParser extends AbstractXContentParser {
 
         @SuppressWarnings("unchecked")
         TokenIterator processValue(Object value) {
-            if (value instanceof Map) {
-                return new MapIterator(this, childName(), (Map<String, Object>) value).next();
-            } else if (value instanceof List) {
-                return new ArrayIterator(this, childName(), (List<Object>) value).next();
-            } else if (value instanceof Number) {
-                currentToken = Token.VALUE_NUMBER;
-            } else if (value instanceof String) {
-                currentToken = Token.VALUE_STRING;
-            } else if (value instanceof Boolean) {
-                currentToken = Token.VALUE_BOOLEAN;
-            } else if (value instanceof byte[]) {
-                currentToken = Token.VALUE_EMBEDDED_OBJECT;
-            } else if (value == null) {
-                currentToken = Token.VALUE_NULL;
+            switch (value) {
+                case Map<?, ?> ignored -> {
+                    return new MapIterator(this, childName(), (Map<String, Object>) value).next();
+                }
+                case List<?> ignored -> {
+                    return new ArrayIterator(this, childName(), (List<Object>) value).next();
+                }
+                case Number ignored -> currentToken = Token.VALUE_NUMBER;
+                case String ignored -> currentToken = Token.VALUE_STRING;
+                case Boolean ignored -> currentToken = Token.VALUE_BOOLEAN;
+                case byte[] ignored -> currentToken = Token.VALUE_EMBEDDED_OBJECT;
+                case null -> currentToken = Token.VALUE_NULL;
+                default -> {
+                }
             }
             return this;
         }

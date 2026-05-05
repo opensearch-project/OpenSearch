@@ -34,8 +34,6 @@ package org.opensearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
@@ -799,13 +797,11 @@ public class MetadataIndexTemplateService {
         final String candidateName,
         final List<String> indexPatterns
     ) {
-        Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (final Map.Entry<String, IndexTemplateMetadata> cursor : state.metadata().templates().entrySet()) {
             String name = cursor.getKey();
             IndexTemplateMetadata template = cursor.getValue();
-            Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
-            if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
+            if (patternsActuallyOverlap(indexPatterns, template.patterns())) {
                 logger.debug(
                     "composable template {} and legacy template {} would overlap: {} <=> {}",
                     candidateName,
@@ -848,13 +844,11 @@ public class MetadataIndexTemplateService {
         boolean checkPriority,
         long priority
     ) {
-        Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
-            Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
-            if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
+            if (patternsActuallyOverlap(indexPatterns, template.indexPatterns())) {
                 if (checkPriority == false || priority == template.priorityOrZero()) {
                     logger.debug(
                         "legacy template {} and composable template {} would overlap: {} <=> {}",
@@ -871,6 +865,36 @@ public class MetadataIndexTemplateService {
         // results
         overlappingTemplates.remove(candidateName);
         return overlappingTemplates;
+    }
+
+    /**
+     * Checks whether two sets of index patterns practically overlap, using a minimum-string heuristic.
+     * <p>
+     * For each pattern in either set, the wildcard character {@code *} is replaced with the empty string
+     * to produce its "minimum matching string". If that minimum string matches any pattern in the other
+     * set, the two pattern sets are considered to overlap.
+     * <p>
+     * This approach is intentionally more lenient than a full automaton intersection. Full automaton
+     * intersection correctly identifies theoretical overlaps that arise only from creative wildcard usage
+     * (e.g. {@code app-test-*-some-*} and {@code app-test-*-some_other-*} share the synthetic string
+     * {@code app-test--some_other--some-}), but these synthetic strings would never appear as real index
+     * names. The minimum-string heuristic restricts conflict detection to cases where "natural" index
+     * names would match both patterns simultaneously.
+     */
+    static boolean patternsActuallyOverlap(List<String> patterns1, List<String> patterns2) {
+        String[] p2Array = patterns2.toArray(Strings.EMPTY_ARRAY);
+        for (String p1 : patterns1) {
+            if (Regex.simpleMatch(p2Array, p1.replace("*", ""))) {
+                return true;
+            }
+        }
+        String[] p1Array = patterns1.toArray(Strings.EMPTY_ARRAY);
+        for (String p2 : patterns2) {
+            if (Regex.simpleMatch(p1Array, p2.replace("*", ""))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -957,12 +981,13 @@ public class MetadataIndexTemplateService {
         }
         final Set<String> dataStreams = state.metadata().dataStreams().keySet();
         Set<String> matches = new HashSet<>();
-        template.indexPatterns()
-            .forEach(
-                indexPattern -> matches.addAll(
-                    dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).collect(Collectors.toList())
-                )
-            );
+        template.indexPatterns().forEach(indexPattern -> {
+            dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).filter(stream -> {
+                // Check if this template is the highest priority template and used by this data stream
+                final String usingTemplate = findV2Template(state.metadata(), stream, false);
+                return templateName.equals(usingTemplate);
+            }).forEach(matches::add);
+        });
         return matches;
     }
 
@@ -1156,35 +1181,37 @@ public class MetadataIndexTemplateService {
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
-        final Map<ComposableIndexTemplate, String> matchedTemplates = new HashMap<>();
+        ComposableIndexTemplate winner = null;
+        String winnerName = null;
+        long highestPriority = -1;
+
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
+            boolean matched = false;
+
             if (isHidden == false) {
-                final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
-                if (matched) {
-                    matchedTemplates.put(template, name);
-                }
+                matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
             } else {
                 final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
-                    if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
-                        matchedTemplates.put(template, name);
-                    }
+                    matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
+                }
+            }
+
+            if (matched) {
+                long priority = template.priorityOrZero();
+                if (winner == null || priority > highestPriority) {
+                    winner = template;
+                    winnerName = name;
+                    highestPriority = priority;
                 }
             }
         }
 
-        if (matchedTemplates.size() == 0) {
+        if (winner == null) {
             return null;
         }
-
-        final List<ComposableIndexTemplate> candidates = new ArrayList<>(matchedTemplates.keySet());
-        CollectionUtil.timSort(candidates, Comparator.comparing(ComposableIndexTemplate::priorityOrZero, Comparator.reverseOrder()));
-
-        assert candidates.size() > 0 : "we should have returned early with no candidates";
-        ComposableIndexTemplate winner = candidates.get(0);
-        String winnerName = matchedTemplates.get(winner);
 
         // if the winner template is a global template that specifies the `index.hidden` setting (which is not allowed, so it'd be due to
         // a restored index cluster state that modified a component template used by this global template such that it has this setting)
@@ -1614,7 +1641,7 @@ public class MetadataIndexTemplateService {
             if (indexPattern.startsWith("_")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }
-            if (Strings.validFileNameExcludingAstrix(indexPattern) == false) {
+            if (Strings.validFileNameExcludingAsterisk(indexPattern) == false) {
                 validationErrors.add(
                     "index_pattern [" + indexPattern + "] must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
                 );

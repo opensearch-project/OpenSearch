@@ -9,7 +9,8 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.cluster.ClusterStateListener;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
@@ -76,10 +77,37 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
     IngestionShardConsumer getConsumer();
 
     /**
+     * Requests the poller to reinitialize the consumer with updated ingestion source configuration.
+     * This is called when ingestion source params are dynamically updated.
+     * @param updatedIngestionSource the updated ingestion source with new configuration parameters
+     */
+    void requestConsumerReinitialization(IngestionSource updatedIngestionSource);
+
+    /**
+     * Updates the warmup configuration dynamically.
+     * Called when index settings are changed at runtime.
+     */
+    void updateWarmupConfig(IngestionSource.WarmupConfig config);
+
+    /**
+     * @return true if the warmup phase is complete and the shard is ready to serve
+     */
+    boolean isWarmupComplete();
+
+    /**
+     * Block until warmup is complete or timeout occurs.
+     * @param timeoutMs maximum time to wait in milliseconds
+     * @return true if warmup completed, false if timeout
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    boolean awaitWarmupComplete(long timeoutMs) throws InterruptedException;
+
+    /**
      * A state to indicate the current state of the poller
      */
     enum State {
         NONE,
+        WARMING_UP,
         CLOSED,
         PAUSED,
         POLLING,
@@ -89,7 +117,7 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
     /**
      *  A reset state to indicate how to reset the pointer
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     enum ResetState {
         EARLIEST,
         LATEST,

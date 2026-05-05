@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.indices.stats.StatusCounterStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -80,6 +81,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     protected CommonStats stats;
     protected Map<Index, CommonStats> statsByIndex;
     protected Map<Index, List<IndexShardStats>> statsByShard;
+    protected StatusCounterStats statusCounterStats;
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
@@ -92,15 +94,51 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         if (in.readBoolean()) {
             statsByShard = readStatsByShard(in);
         }
+
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
+            if (in.readBoolean()) {
+                statusCounterStats = new StatusCounterStats(in);
+            }
+        }
     }
 
     /**
      * Without passing the information of the levels to the constructor, we return the Node-level aggregated stats as
      * {@link CommonStats} along with a hash-map containing Index to List of Shard Stats.
      */
+    @Deprecated(since = "3.4.0")
     public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, SearchRequestStats searchRequestStats) {
-        // this.stats = stats;
         this.statsByShard = statsByShard;
+
+        // make a total common stats from old ones and current ones
+        this.stats = oldStats;
+        for (List<IndexShardStats> shardStatsList : statsByShard.values()) {
+            for (IndexShardStats indexShardStats : shardStatsList) {
+                for (ShardStats shardStats : indexShardStats.getShards()) {
+                    stats.add(shardStats.getStats());
+                }
+            }
+        }
+        if (this.stats.search != null) {
+            this.stats.search.setSearchRequestStats(searchRequestStats);
+        }
+    }
+
+    /**
+     * Without passing the information of the levels to the constructor, we return the Node-level aggregated stats as
+     * {@link CommonStats} along with a hash-map containing Index to List of Shard Stats and the StatusCounterStats.
+     */
+    public NodeIndicesStats(
+        CommonStats oldStats,
+        Map<Index, List<IndexShardStats>> statsByShard,
+        SearchRequestStats searchRequestStats,
+        StatusCounterStats statusCounterStats
+    ) {
+        this.statsByShard = statsByShard;
+
+        // statusCounterStats should be a snapshot of the statusCounters at a point in time, just like all the items in
+        // NodeIndicesStats should be.
+        this.statusCounterStats = statusCounterStats;
 
         // make a total common stats from old ones and current ones
         this.stats = oldStats;
@@ -122,6 +160,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      * passed and finally return the statsByShards map if `shards` level is passed. This allows us to reduce ser/de of
      * stats and return only the information that is required while returning to the client.
      */
+    @Deprecated(since = "3.4.0")
     public NodeIndicesStats(
         CommonStats oldStats,
         Map<Index, List<IndexShardStats>> statsByShard,
@@ -141,6 +180,47 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         if (this.stats.search != null) {
             this.stats.search.setSearchRequestStats(searchRequestStats);
         }
+
+        if (level != null) {
+            switch (level) {
+                case INDICES:
+                    this.statsByIndex = createStatsByIndex(statsByShard);
+                    break;
+                case SHARDS:
+                    this.statsByShard = statsByShard;
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Passing the level information to the nodes allows us to aggregate the stats based on the level passed. This
+     * allows us to aggregate based on NodeLevel (default - if no level is passed) or Index level if `indices` level is
+     * passed and finally return the statsByShards map if `shards` level is passed. This allows us to reduce ser/de of
+     * stats and return only the information that is required while returning to the client.
+     */
+    public NodeIndicesStats(
+        CommonStats oldStats,
+        Map<Index, List<IndexShardStats>> statsByShard,
+        SearchRequestStats searchRequestStats,
+        StatusCounterStats statusCounterStats,
+        StatsLevel level
+    ) {
+        // make a total common stats from old ones and current ones
+        this.stats = oldStats;
+        for (List<IndexShardStats> shardStatsList : statsByShard.values()) {
+            for (IndexShardStats indexShardStats : shardStatsList) {
+                for (ShardStats shardStats : indexShardStats.getShards()) {
+                    stats.add(shardStats.getStats());
+                }
+            }
+        }
+
+        if (this.stats.search != null) {
+            this.stats.search.setSearchRequestStats(searchRequestStats);
+        }
+
+        this.statusCounterStats = statusCounterStats;
 
         if (level != null) {
             switch (level) {
@@ -280,6 +360,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         return stats.getRecoveryStats();
     }
 
+    @Nullable
+    public StatusCounterStats getStatusCounterStats() {
+        return statusCounterStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
@@ -294,6 +379,13 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         out.writeBoolean(statsByShard != null);
         if (statsByShard != null) {
             writeStatsByShards(out);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            out.writeBoolean(statusCounterStats != null);
+            if (statusCounterStats != null) {
+                statusCounterStats.writeTo(out);
+            }
         }
     }
 
@@ -343,6 +435,9 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         // "node" level
         builder.startObject(StatsLevel.INDICES.getRestName());
         stats.toXContent(builder, params);
+        if (statusCounterStats != null) {
+            statusCounterStats.toXContent(builder, params);
+        }
 
         if (StatsLevel.INDICES.getRestName().equals(level)) {
             assert statsByIndex != null || statsByShard != null : "Expected shard stats or index stats in response for generating ["

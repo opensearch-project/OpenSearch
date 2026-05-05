@@ -101,7 +101,8 @@ public class RemoteClusterStateCustomsTests extends OpenSearchTestCase {
             "test-custom",
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            CURRENT
         );
         assertThat(remoteObjectForDownload.clusterUUID(), is(clusterUUID));
     }
@@ -123,7 +124,8 @@ public class RemoteClusterStateCustomsTests extends OpenSearchTestCase {
             "test-custom",
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            CURRENT
         );
         assertThat(remoteObjectForDownload.getFullBlobName(), is(TEST_BLOB_NAME));
     }
@@ -145,7 +147,8 @@ public class RemoteClusterStateCustomsTests extends OpenSearchTestCase {
             "test-custom",
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            CURRENT
         );
         assertThat(remoteObjectForDownload.getBlobFileName(), is(TEST_BLOB_FILE_NAME));
     }
@@ -157,7 +160,8 @@ public class RemoteClusterStateCustomsTests extends OpenSearchTestCase {
             "test-custom",
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            CURRENT
         );
         assertThat(remoteObjectForDownload.getBlobPathTokens(), is(new String[] { "user", "local", "opensearch", "clusterStateCustoms" }));
     }

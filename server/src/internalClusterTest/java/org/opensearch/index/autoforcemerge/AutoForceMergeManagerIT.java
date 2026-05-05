@@ -11,6 +11,7 @@ package org.opensearch.index.autoforcemerge;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -60,6 +61,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             .build();
     }
 
+    @SuppressForbidden(reason = "Sleeping longer than scheduled interval")
     public void testAutoForceMergeFeatureFlagDisabled() throws InterruptedException, ExecutionException {
 
         Settings clusterSettings = Settings.builder()
@@ -102,6 +104,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
     }
 
+    @SuppressForbidden(reason = "Sleeping longer than scheduled interval")
     public void testAutoForceMergeTriggeringWithOneShardOfNonWarmCandidate() throws Exception {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))

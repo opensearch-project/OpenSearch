@@ -308,30 +308,30 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             "node1",
             new AggregateFileCacheStats(
                 0,
-                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
-                new FileCacheStats(0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
-                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
-                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                new FileCacheStats(0, 0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
             )
         );
         fileCacheStatsMap.put(
             "node2",
             new AggregateFileCacheStats(
                 0,
-                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
-                new FileCacheStats(0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
-                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
-                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                new FileCacheStats(0, 0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
             )
         );
         fileCacheStatsMap.put(
             "node3",
             new AggregateFileCacheStats(
                 0,
-                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
-                new FileCacheStats(0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
-                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
-                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                new FileCacheStats(0, 0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
 
             )
         );

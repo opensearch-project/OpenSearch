@@ -1,0 +1,1 @@
+source = clickbench | where CounterID = 62 and EventDate >= '2013-07-01 00:00:00' and EventDate <= '2013-07-31 00:00:00' and IsRefresh = 0 and DontCountHits = 0 and URLHash = 2868770270353813622 | stats count() as PageViews by WindowClientWidth, WindowClientHeight | sort - PageViews | head 10 from 10000

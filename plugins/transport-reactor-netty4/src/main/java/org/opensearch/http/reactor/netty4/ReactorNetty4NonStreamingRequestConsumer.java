@@ -8,7 +8,6 @@
 
 package org.opensearch.http.reactor.netty4;
 
-import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpRequest;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,17 +29,21 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
     private final HttpServerResponse response;
     private final CompositeByteBuf content;
     private final Publisher<HttpContent> publisher;
-    private final AbstractHttpServerTransport transport;
+    private final ReactorNetty4HttpServerTransport transport;
+    private final HttpResponseHeadersFactory responseHeadersFactory;
     private final AtomicBoolean disposed = new AtomicBoolean(false);
     private volatile FluxSink<HttpContent> emitter;
+    private volatile boolean lastHttpContentEmitted = false;
 
     ReactorNetty4NonStreamingRequestConsumer(
-        AbstractHttpServerTransport transport,
+        ReactorNetty4HttpServerTransport transport,
+        HttpResponseHeadersFactory responseHeadersFactory,
         HttpServerRequest request,
         HttpServerResponse response,
         int maxCompositeBufferComponents
     ) {
         this.transport = transport;
+        this.responseHeadersFactory = responseHeadersFactory;
         this.request = request;
         this.response = response;
         this.content = response.alloc().compositeBuffer(maxCompositeBufferComponents);
@@ -53,6 +56,16 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
 
     @Override
     public void accept(T message) {
+        // In some cases, we may not see the LastHttpContent message from
+        // Reactor Netty implementation as it may just complete the subscription
+        // explicitly upon receiving DefaultLastHttpContent.EMPTY_LAST_CONTENT from Netty
+        // (for example, Http3FrameToHttpObjectCodec does that). As such, we always
+        // inject DefaultLastHttpContent.EMPTY_LAST_CONTENT at the end, however it could
+        // lead to cases when consumer may see more than one LastHttpContent message.
+        if (lastHttpContentEmitted == true) {
+            return;
+        }
+
         try {
             if (message instanceof LastHttpContent) {
                 process(message, emitter);
@@ -69,10 +82,13 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
         content.addComponent(true, in.content().retain());
 
         if (in instanceof LastHttpContent) {
+            lastHttpContentEmitted = true;
+
             final ReactorNetty4NonStreamingHttpChannel channel = new ReactorNetty4NonStreamingHttpChannel(request, response, emitter);
             final HttpRequest r = createRequest(request, content);
 
             try {
+                transport.serverAcceptedChannel(channel);
                 transport.incomingRequest(r, channel);
             } catch (Exception ex) {
                 emitter.error(ex);
@@ -87,7 +103,7 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
     }
 
     HttpRequest createRequest(HttpServerRequest request, CompositeByteBuf content) {
-        return new ReactorNetty4HttpRequest(request, content.retain());
+        return new ReactorNetty4HttpRequest(request, content.retain(), responseHeadersFactory);
     }
 
     @Override

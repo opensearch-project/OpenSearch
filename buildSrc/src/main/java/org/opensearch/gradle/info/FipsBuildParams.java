@@ -9,6 +9,7 @@
 package org.opensearch.gradle.info;
 
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class FipsBuildParams {
 
@@ -18,6 +19,7 @@ public class FipsBuildParams {
     public static final String DEFAULT_FIPS_MODE = "FIPS-140-3";
 
     private static String fipsMode;
+    static Supplier<String> fipsModeEnvSupplier = () -> System.getenv("OPENSEARCH_FIPS_MODE");
 
     public static void init(Function<String, Object> fipsValue) {
         var fipsBuildParamForTests = Boolean.parseBoolean((String) fipsValue.apply(FIPS_BUILD_PARAM_FOR_TESTS));
@@ -34,6 +36,10 @@ public class FipsBuildParams {
 
     public static boolean isInFipsMode() {
         return DEFAULT_FIPS_MODE.equals(fipsMode);
+    }
+
+    public static boolean isInFipsApprovedOnlyMode() {
+        return isInFipsMode() && "true".equalsIgnoreCase(fipsModeEnvSupplier.get());
     }
 
     public static String getFipsMode() {

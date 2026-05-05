@@ -189,7 +189,12 @@ public class ConstructingObjectParserTests extends OpenSearchTestCase {
             JsonXContent.jsonXContent,
             // The following JSON needs to include newlines, in order to affect the line numbers
             // included in the exception
-            "{\n" + "  \"animal\": \"cat\",\n" + "  \"vegetable\": 2,\n" + "  \"a\": \"supercalifragilisticexpialidocious\"\n" + "}"
+            """
+                {
+                  "animal": "cat",
+                  "vegetable": 2,
+                  "a": "supercalifragilisticexpialidocious"
+                }"""
         );
         XContentParseException e = expectThrows(
             XContentParseException.class,
@@ -208,7 +213,12 @@ public class ConstructingObjectParserTests extends OpenSearchTestCase {
             JsonXContent.jsonXContent,
             // The following JSON needs to include newlines, in order to affect the line numbers
             // included in the exception
-            "{\n" + "  \"a\": \"supercalifragilisticexpialidocious\",\n" + "  \"animal\": \"cat\"\n," + "  \"vegetable\": 2\n" + "}"
+            """
+                {
+                  "a": "supercalifragilisticexpialidocious",
+                  "animal": "cat",
+                  "vegetable": 2
+                }"""
         );
         XContentParseException e = expectThrows(
             XContentParseException.class,

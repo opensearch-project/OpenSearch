@@ -333,13 +333,13 @@ public class PrimaryReplicaSyncer {
                     break;
                 }
             }
-            final long trimmedAboveSeqNo = firstMessage.get() ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
-            // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
-            if (!operations.isEmpty() || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            final long trimAboveSeqNo = firstMessage.get() ? startingSeqNo - 1 : SequenceNumbers.UNASSIGNED_SEQ_NO;
+            // have to send sync request even in case of there are no operations to sync - have to sync trimAboveSeqNo at least
+            if (!operations.isEmpty() || trimAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 task.setPhase("sending_ops");
                 ResyncReplicationRequest request = new ResyncReplicationRequest(
                     shardId,
-                    trimmedAboveSeqNo,
+                    trimAboveSeqNo,
                     maxSeenAutoIdTimestamp,
                     operations.toArray(EMPTY_ARRAY)
                 );

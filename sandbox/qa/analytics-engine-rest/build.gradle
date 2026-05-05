@@ -1,0 +1,73 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.rest-test'
+
+// analytics-backend-datafusion targets JDK 25; match it here for dependency resolution.
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
+repositories {
+  maven {
+    name = 'OpenSearch Snapshots'
+    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+  }
+}
+
+dependencies {
+    testImplementation project(':sandbox:plugins:analytics-engine')
+    testImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+    testImplementation project(':sandbox:plugins:analytics-backend-lucene')
+    testImplementation project(':sandbox:plugins:dsl-query-executor')
+    testImplementation project(':sandbox:plugins:composite-engine')
+    testImplementation project(':sandbox:plugins:parquet-data-format')
+    testImplementation project(':sandbox:plugins:test-ppl-frontend')
+}
+
+testClusters.integTest {
+    plugin ':sandbox:plugins:analytics-engine'
+    plugin ':sandbox:plugins:analytics-backend-datafusion'
+    plugin ':sandbox:plugins:analytics-backend-lucene'
+    plugin ':sandbox:plugins:dsl-query-executor'
+    plugin ':sandbox:plugins:composite-engine'
+    plugin ':sandbox:plugins:parquet-data-format'
+    plugin ':sandbox:plugins:test-ppl-frontend'
+
+    // Arrow/Flight JVM flags for DataFusion native library
+    jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+
+    // Native library path for DataFusion
+    systemProperty 'java.library.path', "${project(':sandbox:libs:dataformat-native').ext.nativeLibPath.parent}"
+
+    // Enable pluggable dataformat feature flag
+    systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+}
+
+integTest {
+    systemProperty 'tests.security.manager', 'false'
+}
+
+// Run against an external cluster (no testClusters lifecycle):
+//   ./gradlew :sandbox:qa:analytics-engine-rest:restTest
+//   ./gradlew :sandbox:qa:analytics-engine-rest:restTest -PrestCluster=host:port
+tasks.register('restTest', Test) {
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/*IT.class'
+    def cluster = findProperty('restCluster') ?: 'localhost:9200'
+    def clusterName = findProperty('restClusterName') ?: 'runTask'
+    systemProperty 'tests.rest.cluster', cluster
+    systemProperty 'tests.cluster', cluster
+    systemProperty 'tests.clustername', clusterName
+    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'tests.rest.load_packaged', 'false'
+    // Inherit OpenSearch test base properties
+    systemProperty 'tests.artifact', 'analytics-engine-rest'
+}

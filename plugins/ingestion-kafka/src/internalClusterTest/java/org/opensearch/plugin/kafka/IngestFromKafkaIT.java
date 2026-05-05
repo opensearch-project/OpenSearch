@@ -15,9 +15,7 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
-import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
-import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
@@ -53,6 +51,7 @@ import static org.awaitility.Awaitility.await;
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
+
     /**
      * test ingestion-kafka-plugin is installed
      */
@@ -136,6 +135,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", "test")
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "latest")
+                .put("ingestion_source.param.topic_metadata_fetch_timeout_ms", 5000)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -290,16 +290,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         // verify pause and resume functionality on replica
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 2);
 
         for (int i = 10; i < 20; i++) {
             produceData(Integer.toString(i), "name" + i, "30");
@@ -310,18 +301,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(10, getSearchableDocCount(nodeB));
 
         // resume ingestion
-        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(
-                        state -> state.isPollerPaused() == false
-                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
-                    );
-        });
+        resumeIngestionAndWait(indexName, 2);
 
         // verify replica ingests data after resuming ingestion
         waitForSearchableDocs(20, List.of(nodeA, nodeB));
@@ -532,30 +512,10 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(10, List.of(nodeA, nodeB));
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 2);
 
         // reset to offset=2 and resume ingestion
-        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "2");
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(
-                        state -> state.isPollerPaused() == false
-                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
-                    );
-        });
+        resumeIngestionWithResetAndWait(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "2", 2);
 
         // validate there are 8 messages polled after reset
         waitForState(() -> {
@@ -593,16 +553,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         assertTrue(validateOffsetBasedLagForPrimaryAndReplica(0));
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 2);
 
         // produce 10 messages in paused state and validate lag
         for (int i = 0; i < 10; i++) {
@@ -611,18 +562,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(10));
 
         // resume ingestion
-        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(
-                        state -> state.isPollerPaused() == false
-                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
-                    );
-        });
+        resumeIngestionAndWait(indexName, 2);
         waitForSearchableDocs(10, List.of(nodeA, nodeB));
         waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(0));
     }
@@ -778,6 +718,822 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
 
         waitForSearchableDocs(10, Arrays.asList(nodeA));
         waitForState(() -> getPeriodicFlushCount(nodeA, indexName) >= 1);
+    }
 
+    public void testRawPayloadMapperIngestion() throws Exception {
+        // Start cluster
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Publish 2 valid messages
+        String validMessage1 = "{\"name\":\"alice\",\"age\":30}";
+        String validMessage2 = "{\"name\":\"bob\",\"age\":25}";
+        produceData(validMessage1);
+        produceData(validMessage2);
+
+        // Create index with raw_payload mapper
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.mapper_type", "raw_payload")
+                .put("ingestion_source.error_strategy", "drop")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Wait for both messages to be indexed
+        waitForSearchableDocs(2, List.of(nodeA));
+
+        // Verify stats show 2 processed messages
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getMessageProcessorStats().totalProcessedCount() == 2L
+                && stats.getConsumerStats().totalPolledCount() == 2L
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 0L
+                && stats.getConsumerStats().totalPollerMessageDroppedCount() == 0L
+                && stats.getMessageProcessorStats().totalInvalidMessageCount() == 0L;
+        });
+
+        // Validate document content
+        SearchResponse searchResponse = client().prepareSearch(indexName).get();
+        assertEquals(2, searchResponse.getHits().getHits().length);
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            Map<String, Object> source = searchResponse.getHits().getHits()[i].getSourceAsMap();
+            assertTrue(source.containsKey("name"));
+            assertTrue(source.containsKey("age"));
+        }
+
+        // Publish invalid JSON message
+        String invalidJsonMessage = "{ invalid json";
+        produceData(invalidJsonMessage);
+
+        // Wait for consumer to encounter the error and drop it
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getConsumerStats().totalPolledCount() == 3L
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 1L
+                && stats.getConsumerStats().totalPollerMessageDroppedCount() == 1L
+                && stats.getMessageProcessorStats().totalProcessedCount() == 2L;
+        });
+
+        // Publish message with invalid content that will fail at processor level
+        String invalidFieldTypeMessage = "{\"name\":123,\"age\":\"not a number\"}";
+        produceData(invalidFieldTypeMessage);
+
+        // Wait for processor to encounter the error
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getConsumerStats().totalPolledCount() == 4L
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 1L
+                && stats.getMessageProcessorStats().totalProcessedCount() == 3L
+                && stats.getMessageProcessorStats().totalFailedCount() == 1L
+                && stats.getMessageProcessorStats().totalFailuresDroppedCount() == 1L;
+        });
+
+        // Pause ingestion, reset to offset 0, and resume
+        pauseIngestion(indexName);
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getFailedShards() == 0
+                && ingestionState.getShardStates()[0].isPollerPaused()
+                && ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("paused");
+        });
+
+        // Resume with reset to offset 0 (will re-process the 2 valid messages)
+        resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "0");
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getShardStates()[0].isPollerPaused() == false
+                && (ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("polling")
+                    || ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("processing"));
+        });
+
+        // Wait for the 3 messages to be processed by the processor after reset (1 will be dropped by the poller)
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalProcessedCount() == 3L;
+        });
+
+        // Verify still only 2 documents (no duplicates must be indexed)
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
+        SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+        assertThat(response.getHits().getTotalHits().value(), is(2L));
+    }
+
+    public void testDynamicUpdateKafkaParams() throws Exception {
+        // Step 1: Publish 10 messages with versioning
+        for (int i = 0; i < 10; i++) {
+            produceDataWithExternalVersion(String.valueOf(i), 1, "name" + i, "25", defaultMessageTimestamp, "index");
+        }
+
+        // Step 2: Create index with pointer.init.reset to offset 1 and auto.offset.reset=latest
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "reset_by_offset")
+                .put("ingestion_source.pointer.init.reset.value", "1")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.auto.offset.reset", "latest")
+                .put("ingestion_source.param.max.poll.records", "100")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            mapping
+        );
+
+        ensureGreen(indexName);
+
+        // Step 3: Wait for 9 messages to be visible on both nodes
+        waitForSearchableDocs(9, Arrays.asList(nodeA, nodeB));
+
+        // Step 4: Update the index settings to set auto.offset.reset to earliest and max.poll.records to 200
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put("ingestion_source.param.auto.offset.reset", "earliest")
+                    .put("ingestion_source.param.max.poll.records", "200")
+            )
+            .get();
+
+        // Verify the setting was updated
+        String autoOffsetReset = getSettings(indexName, "index.ingestion_source.param.auto.offset.reset");
+        assertEquals("earliest", autoOffsetReset);
+
+        // Step 5: Pause and resume ingestion, setting offset to 100 (out-of-range, hence expect auto.offset.reset to be used)
+        pauseIngestionAndWait(indexName, 2);
+        resumeIngestionWithResetAndWait(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "100", 2);
+
+        // Step 6: Wait for version conflict count to be 9 and total messages processed to be 10 on both shards.
+        // Since offset 100 doesn't exist, it will fall back to earliest (offset 0).
+        waitForState(() -> {
+            Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
+            PollingIngestStats primaryStats = shardTypeToStats.get("primary");
+            PollingIngestStats replicaStats = shardTypeToStats.get("replica");
+
+            return primaryStats != null
+                && primaryStats.getMessageProcessorStats().totalProcessedCount() == 10L
+                && primaryStats.getMessageProcessorStats().totalVersionConflictsCount() == 9L
+                && replicaStats != null
+                && replicaStats.getMessageProcessorStats().totalProcessedCount() == 10L
+                && replicaStats.getMessageProcessorStats().totalVersionConflictsCount() == 9L;
+        });
+
+        waitForSearchableDocs(10, Arrays.asList(nodeA, nodeB));
+
+        // Step 7: Pause ingestion
+        pauseIngestionAndWait(indexName, 2);
+
+        // Step 8: Update auto.offset.reset back to "latest". This is surrounded by pause/resume to indirectly infer
+        // the config change has been applied.
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("ingestion_source.param.auto.offset.reset", "latest"))
+            .get();
+
+        // Verify the setting was updated
+        autoOffsetReset = getSettings(indexName, "index.ingestion_source.param.auto.offset.reset");
+        assertEquals("latest", autoOffsetReset);
+
+        // Step 9: Verify processed count is still 10 on both shards
+        Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
+        assertEquals(10L, shardTypeToStats.get("primary").getMessageProcessorStats().totalProcessedCount());
+        assertEquals(9L, shardTypeToStats.get("primary").getMessageProcessorStats().totalVersionConflictsCount());
+        assertEquals(10L, shardTypeToStats.get("replica").getMessageProcessorStats().totalProcessedCount());
+        assertEquals(9L, shardTypeToStats.get("replica").getMessageProcessorStats().totalVersionConflictsCount());
+
+        // Step 10: Resume ingestion. This does not recreate the poller as consumer is not reset.
+        resumeIngestionAndWait(indexName, 2);
+
+        // Step 11: Publish 10 more messages
+        for (int i = 10; i < 20; i++) {
+            produceDataWithExternalVersion(String.valueOf(i), 1, "name" + i, "25", defaultMessageTimestamp, "index");
+        }
+
+        // Step 12: Wait for processed count to be 21 and version conflict to be 10 on both shards. On updating the Kafka settings, the
+        // last message (offset=9) is reprocessed resulting in additional processed message and version conflict.
+        waitForState(() -> {
+            Map<String, PollingIngestStats> updatedStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
+            PollingIngestStats primaryStats = updatedStats.get("primary");
+            PollingIngestStats replicaStats = updatedStats.get("replica");
+
+            return primaryStats != null
+                && primaryStats.getMessageProcessorStats().totalProcessedCount() == 21L
+                && primaryStats.getMessageProcessorStats().totalVersionConflictsCount() == 10L
+                && replicaStats != null
+                && replicaStats.getMessageProcessorStats().totalProcessedCount() == 21L
+                && replicaStats.getMessageProcessorStats().totalVersionConflictsCount() == 10L;
+        });
+
+        waitForSearchableDocs(20, Arrays.asList(nodeA, nodeB));
+    }
+
+    public void testConsumerInitializationFailureAndRecovery() throws Exception {
+        // Step 1: Create index with auto.offset.reset=none and pointer.init.reset to offset 100 (invalid offset)
+        // This should cause consumer initialization to fail
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "reset_by_offset")
+                .put("ingestion_source.pointer.init.reset.value", "100")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.auto.offset.reset", "none")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            mapping
+        );
+
+        ensureGreen(indexName);
+
+        // Step 2: Wait for consumer error and paused status
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getShardStates()[0].isPollerPaused()
+                && stats != null
+                && stats.getConsumerStats().totalConsumerErrorCount() >= 1L;
+        });
+
+        // Step 3: Publish 10 messages
+        for (int i = 0; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        // Step 4: Update auto.offset.reset to earliest
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("ingestion_source.param.auto.offset.reset", "earliest"))
+            .get();
+
+        // Verify the setting was updated
+        String autoOffsetReset = getSettings(indexName, "index.ingestion_source.param.auto.offset.reset");
+        assertEquals("earliest", autoOffsetReset);
+
+        // Step 5: Resume ingestion and wait for 10 searchable docs
+        resumeIngestionAndWait(indexName, 1);
+
+        waitForSearchableDocs(10, Arrays.asList(nodeA));
+
+        // Verify all 10 messages were processed
+        PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertEquals(10L, stats.getMessageProcessorStats().totalProcessedCount());
+
+        // Step 6: Update auto.offset.reset to earliest again. Consumer must not be reinitialized again as no config change.
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("ingestion_source.param.auto.offset.reset", "earliest"))
+            .get();
+
+        // Step 7: Publish 1 more message
+        produceData("10", "name10", "30");
+
+        // Step 8: Wait for 11 searchable docs
+        waitForSearchableDocs(11, Arrays.asList(nodeA));
+
+        // Step 9: Verify total processed message count is 11
+        PollingIngestStats finalStats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertEquals(11L, finalStats.getMessageProcessorStats().totalProcessedCount());
+    }
+
+    public void testDynamicConfigUpdateOnNoMessages() throws Exception {
+        // Step 1: Create index with pointer.init.reset to offset 100 and auto.offset.reset to earliest
+        // Since offset 100 doesn't exist, it will fall back to earliest (offset 0)
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "reset_by_offset")
+                .put("ingestion_source.pointer.init.reset.value", "100")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.auto.offset.reset", "earliest")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            mapping
+        );
+
+        ensureGreen(indexName);
+
+        // Step 2: Wait for poller state to be polling
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("polling");
+        });
+
+        // Step 3: Pause ingestion
+        pauseIngestionAndWait(indexName, 1);
+
+        // Step 4: Update auto.offset.reset to latest. This is surrounded by pause/resume to indirectly infer the config change has been
+        // applied.
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("ingestion_source.param.auto.offset.reset", "latest"))
+            .get();
+
+        // Verify the setting was updated
+        String autoOffsetReset = getSettings(indexName, "index.ingestion_source.param.auto.offset.reset");
+        assertEquals("latest", autoOffsetReset);
+
+        // Step 5: Resume ingestion
+        resumeIngestionAndWait(indexName, 1);
+
+        // Step 6: Publish 1 message and wait for it to be searchable
+        produceData("1", "name1", "25");
+
+        waitForSearchableDocs(1, Arrays.asList(nodeA));
+
+        // Verify 1 message was processed
+        PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertEquals(1L, stats.getMessageProcessorStats().totalProcessedCount());
+    }
+
+    public void testKafkaIngestionWithFieldMappingMapper() throws Exception {
+        // Produce raw JSON messages (no _id/_source/_op_type envelope)
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"is_deleted\": \"false\"}");
+        produceData("{\"user_id\": \"def\", \"name\": \"bob\", \"age\": 25, \"timestamp\": 200, \"is_deleted\": \"false\"}");
+
+        internalCluster().startNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "is_deleted")
+                .put("ingestion_source.mapper_settings.op_type_field.delete_value", "true")
+                .build(),
+            mapping
+        );
+
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            if (response.getHits().getTotalHits().value() != 2L) return false;
+
+            // Verify document IDs are extracted from user_id field
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+            if (!docs.containsKey("abc") || !docs.containsKey("def")) return false;
+
+            // Verify _source does not contain extracted metadata fields
+            Map<String, Object> aliceDoc = docs.get("abc");
+            return "alice".equals(aliceDoc.get("name"))
+                && Integer.valueOf(30).equals(aliceDoc.get("age"))
+                && !aliceDoc.containsKey("user_id")
+                && !aliceDoc.containsKey("timestamp")
+                && !aliceDoc.containsKey("is_deleted");
+        });
+    }
+
+    public void testKafkaIngestionWithFieldMappingMapper_DeleteOperation() throws Exception {
+        // Produce an index message followed by a delete message for the same document
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"is_deleted\": \"false\"}");
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 200, \"is_deleted\": \"true\"}");
+
+        internalCluster().startNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "is_deleted")
+                .put("ingestion_source.mapper_settings.op_type_field.delete_value", "true")
+                .build(),
+            mapping
+        );
+
+        // Both messages processed, but the delete should remove the document
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            if (response.getHits().getTotalHits().value() != 0L) return false;
+
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalProcessedCount() == 2L;
+        });
+    }
+
+    public void testKafkaIngestionWithFieldMappingMapper_VersionConflict() throws Exception {
+        // Produce messages out of order: newer version first, then older version
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice_v2\", \"age\": 31, \"timestamp\": 200, \"is_deleted\": \"false\"}");
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice_v1\", \"age\": 30, \"timestamp\": 100, \"is_deleted\": \"false\"}");
+
+        internalCluster().startNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "is_deleted")
+                .put("ingestion_source.mapper_settings.op_type_field.delete_value", "true")
+                .build(),
+            mapping
+        );
+
+        // Both messages processed, but the older version should be rejected
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            if (response.getHits().getTotalHits().value() != 1L) return false;
+
+            // The newer version (v2) should win
+            Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+            if (!"alice_v2".equals(source.get("name"))) return false;
+
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getMessageProcessorStats().totalProcessedCount() == 2L
+                && stats.getMessageProcessorStats().totalVersionConflictsCount() == 1L;
+        });
+    }
+
+    public void testKafkaIngestionWithFieldMappingMapper_VariousConfigurations() throws Exception {
+        // Produce messages covering create_value, only-id, and custom delete_value scenarios
+        // These share the same Kafka topic but use different indices with different mapper configs
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"action\": \"INSERT\"}");
+        produceData("{\"user_id\": \"def\", \"name\": \"bob\", \"age\": 25, \"timestamp\": 200, \"action\": \"UPDATE\"}");
+
+        internalCluster().startNode();
+
+        // --- Scenario 1: create_value support ---
+        String createIndex = "test_create_op";
+        createIndex(
+            createIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "action")
+                .put("ingestion_source.mapper_settings.op_type_field.create_value", "INSERT")
+                .build(),
+            mapping
+        );
+
+        waitForState(() -> {
+            refresh(createIndex);
+            SearchResponse response = client().prepareSearch(createIndex).get();
+            if (response.getHits().getTotalHits().value() != 2L) return false;
+
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+
+            // Both documents indexed — INSERT as create, UPDATE as index (default)
+            // action field should be removed from _source
+            return docs.containsKey("abc")
+                && docs.containsKey("def")
+                && !docs.get("abc").containsKey("action")
+                && !docs.get("def").containsKey("action");
+        });
+
+        // --- Scenario 2: only id_field configured (minimal config) ---
+        String idOnlyIndex = "test_id_only";
+        createIndex(
+            idOnlyIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .build(),
+            mapping
+        );
+
+        waitForState(() -> {
+            refresh(idOnlyIndex);
+            SearchResponse response = client().prepareSearch(idOnlyIndex).get();
+            if (response.getHits().getTotalHits().value() != 2L) return false;
+
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+
+            // IDs extracted from user_id, user_id removed from source, content preserved
+            return docs.containsKey("abc")
+                && docs.containsKey("def")
+                && !docs.get("abc").containsKey("user_id")
+                && "alice".equals(docs.get("abc").get("name"));
+        });
+
+        // --- Scenario 3: custom delete_value (Y/N convention) ---
+        // Need new messages with the Y/N pattern on the same topic
+        produceData("{\"user_id\": \"ghi\", \"name\": \"charlie\", \"age\": 35, \"timestamp\": 400, \"expired\": \"N\"}");
+        produceData("{\"user_id\": \"jkl\", \"name\": \"diana\", \"age\": 28, \"timestamp\": 500, \"expired\": \"N\"}");
+        produceData("{\"user_id\": \"ghi\", \"name\": \"charlie\", \"age\": 35, \"timestamp\": 600, \"expired\": \"Y\"}");
+
+        String deleteValueIndex = "test_custom_delete";
+        createIndex(
+            deleteValueIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "expired")
+                .put("ingestion_source.mapper_settings.op_type_field.delete_value", "Y")
+                .build(),
+            mapping
+        );
+
+        // ghi indexed then deleted by Y, jkl remains. Earlier messages (abc, def) also indexed.
+        // Total messages on topic: 5. For this index: abc, def have no "expired" field → default index,
+        // ghi N → index, jkl N → index, ghi Y → delete. Result: abc + def + jkl = at least jkl present, ghi deleted.
+        waitForState(() -> {
+            refresh(deleteValueIndex);
+            SearchResponse response = client().prepareSearch(deleteValueIndex).get();
+
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+
+            // ghi should be deleted, jkl should remain
+            return docs.containsKey("jkl")
+                && !docs.containsKey("ghi")
+                && "diana".equals(docs.get("jkl").get("name"))
+                && !docs.get("jkl").containsKey("expired");
+        });
+    }
+
+    public void testWarmupPhase() throws Exception {
+        // Step 1: Publish 10 messages before creating the index
+        for (int i = 0; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        // Step 2: Start cluster
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Step 3: Create index with warmup enabled, lag_threshold=0, and long timeout
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.lag_threshold", 0)
+                .put("ingestion_source.warmup.timeout", "10m")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Step 4: Wait for poller to enter POLLING state (warmup complete)
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("polling");
+        });
+
+        // Step 5: Verify poller metric confirms all 10 messages were polled during warmup
+        PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats);
+        assertEquals(10L, stats.getConsumerStats().totalPolledCount());
+
+        // Step 6: Wait for documents to be searchable (handles async refresh)
+        waitForSearchableDocs(10, List.of(nodeA));
+    }
+
+    public void testKafkaIngestionWithMappingUpdate() throws Exception {
+        final String nodeA = internalCluster().startNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.error_strategy", "drop")
+                .build(),
+            "{\"dynamic\":\"strict\",\"properties\":{\"product\":{\"type\": \"text\"},"
+                + "\"attributes\":{\"properties\":{\"title\":{\"type\": \"keyword\"}}}}}"
+        );
+        ensureGreen(indexName);
+
+        // Step 1: Publish doc with known fields and wait for it to be searchable
+        produceData(
+            "{\"_id\":\"1\", \"_op_type\":\"index\",\"_source\":"
+                + "{\"product\":\"product1\", \"attributes\":{\"title\":\"Screenshot 2026\"}}}"
+        );
+
+        waitForSearchableDocs(1, List.of(nodeA));
+
+        // Step 2: Publish doc with unknown field - strict mapping should reject it
+        produceData(
+            "{\"_id\":\"2\", \"_op_type\":\"index\",\"_source\":"
+                + "{\"product\":\"product2\", \"attributes\":{\"title\":\"Banner Ad\",\"is_promotional\":true}}}"
+        );
+
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalFailuresDroppedCount() >= 1L;
+        });
+
+        PollingIngestStats statsBeforePutMapping = client().admin()
+            .indices()
+            .prepareStats(indexName)
+            .get()
+            .getIndex(indexName)
+            .getShards()[0].getPollingIngestStats();
+        assertThat(
+            "message2 should fail due to strict mapping",
+            statsBeforePutMapping.getMessageProcessorStats().totalFailedCount(),
+            is(1L)
+        );
+        assertThat("message2 should be dropped", statsBeforePutMapping.getMessageProcessorStats().totalFailuresDroppedCount(), is(1L));
+
+        // Step 3: Add is_promotional to the mapping via PUT mapping API
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutMapping(indexName)
+                .setSource(
+                    "{\"properties\":{\"attributes\":{\"properties\":"
+                        + "{\"is_promotional\":{\"type\":\"boolean\",\"doc_values\":false}}}}}",
+                    org.opensearch.common.xcontent.XContentType.JSON
+                )
+        );
+
+        waitForState(() -> {
+            Map<String, Object> mappings = client().admin()
+                .indices()
+                .prepareGetMappings(indexName)
+                .get()
+                .getMappings()
+                .get(indexName)
+                .getSourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> attrProps = (Map<String, Object>) ((Map<String, Object>) properties.get("attributes")).get("properties");
+            return attrProps.containsKey("is_promotional");
+        });
+
+        // Step 4: Publish doc with is_promotional - should now succeed after the mapping update
+        produceData(
+            "{\"_id\":\"3\", \"_op_type\":\"index\",\"_source\":"
+                + "{\"product\":\"product3\", \"attributes\":{\"title\":\"Holiday Sale\",\"is_promotional\":false}}}"
+        );
+
+        waitForSearchableDocs(2, List.of(nodeA));
+
+        // Step 5: Query on the new boolean field to verify it was indexed correctly
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName)
+                .setQuery(new TermQueryBuilder("attributes.is_promotional", false))
+                .get();
+            return response.getHits().getTotalHits().value() == 1L
+                && "product3".equals(response.getHits().getAt(0).getSourceAsMap().get("product"));
+        });
+
+        // Verify failedCount is still 1 (only message2 failed, message3 succeeded)
+        PollingIngestStats statsAfterPut = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertThat(statsAfterPut.getMessageProcessorStats().totalFailedCount(), is(1L));
+    }
+
+    public void testDynamicWarmupSettingsUpdate() throws Exception {
+        // Step 1: Publish messages before creating the index
+        for (int i = 0; i < 5; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        // Step 2: Start cluster
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Step 3: Create index with warmup enabled (lag_threshold=100, so 5 messages will be under threshold)
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.lag_threshold", 100)
+                .put("ingestion_source.warmup.timeout", "10m")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Step 4: Wait for warmup to complete and docs to be searchable
+        waitForSearchableDocs(5, List.of(nodeA));
+
+        // Step 5: Dynamically update warmup settings (lag_threshold and timeout)
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("ingestion_source.warmup.lag_threshold", 50).put("ingestion_source.warmup.timeout", "5m"))
+            .get();
+
+        // Step 6: Produce more data and verify it's still ingested (settings update didn't break anything)
+        for (int i = 5; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        waitForSearchableDocs(10, List.of(nodeA));
     }
 }

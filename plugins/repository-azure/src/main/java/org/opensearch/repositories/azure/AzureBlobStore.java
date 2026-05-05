@@ -67,6 +67,7 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.repositories.azure.AzureRepository.Repository;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -183,7 +184,7 @@ public class AzureBlobStore implements BlobStore {
         // Container name must be lower case.
         final Tuple<BlobServiceClient, Supplier<Context>> client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
-        return SocketAccess.doPrivilegedException(() -> {
+        return AccessController.doPrivileged(() -> {
             final BlobClient azureBlob = blobContainer.getBlobClient(blob);
             final Response<Boolean> response = azureBlob.existsWithResponse(timeout(), client.v2().get());
             return response.getValue();
@@ -195,7 +196,7 @@ public class AzureBlobStore implements BlobStore {
         // Container name must be lower case.
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         logger.trace(() -> new ParameterizedMessage("delete blob for container [{}], blob [{}]", container, blob));
-        SocketAccess.doPrivilegedVoidException(() -> {
+        AccessController.doPrivilegedChecked(() -> {
             final BlobClient azureBlob = blobContainer.getBlobClient(blob);
             logger.trace(() -> new ParameterizedMessage("container [{}]: blob [{}] found. removing.", container, blob));
             final Response<Void> response = azureBlob.deleteWithResponse(null, null, timeout(), client.v2().get());
@@ -215,7 +216,7 @@ public class AzureBlobStore implements BlobStore {
         final AtomicLong bytesDeleted = new AtomicLong();
         final ListBlobsOptions listBlobsOptions = new ListBlobsOptions().setPrefix(path);
 
-        SocketAccess.doPrivilegedVoidException(() -> {
+        AccessController.doPrivilegedChecked(() -> {
             for (final BlobItem blobItem : blobContainer.listBlobs(listBlobsOptions, timeout())) {
                 // Skipping prefixes as those are not deletable and should not be there
                 assert (blobItem.isPrefix() == null || !blobItem.isPrefix()) : "Only blobs (not prefixes) are expected";
@@ -278,7 +279,7 @@ public class AzureBlobStore implements BlobStore {
         final BlobClient azureBlob = blobContainer.getBlobClient(blob);
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
 
-        return SocketAccess.doPrivilegedException(() -> {
+        return AccessController.doPrivileged(() -> {
             if (length == null) {
                 return azureBlob.openInputStream(new BlobRange(position), null);
             } else {
@@ -299,7 +300,7 @@ public class AzureBlobStore implements BlobStore {
         final ListBlobsOptions listBlobsOptions = new ListBlobsOptions().setDetails(new BlobListDetails().setRetrieveMetadata(true))
             .setPrefix(keyPath + (prefix == null ? "" : prefix));
 
-        SocketAccess.doPrivilegedVoidException(() -> {
+        AccessController.doPrivilegedChecked(() -> {
             for (final BlobItem blobItem : blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())) {
                 // Skipping over the prefixes, only look for the blobs
                 if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
@@ -327,7 +328,7 @@ public class AzureBlobStore implements BlobStore {
         final ListBlobsOptions listBlobsOptions = new ListBlobsOptions().setDetails(new BlobListDetails().setRetrieveMetadata(true))
             .setPrefix(keyPath);
 
-        SocketAccess.doPrivilegedVoidException(() -> {
+        AccessController.doPrivilegedChecked(() -> {
             for (final BlobItem blobItem : blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())) {
                 // Skipping over the blobs, only look for prefixes
                 if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
@@ -361,7 +362,7 @@ public class AzureBlobStore implements BlobStore {
                 blobRequestConditions.setIfNoneMatch(Constants.HeaderConstants.ETAG_WILDCARD);
             }
 
-            SocketAccess.doPrivilegedVoidException(() -> {
+            AccessController.doPrivilegedChecked(() -> {
                 final Response<?> response = blob.uploadWithResponse(
                     new BlobParallelUploadOptions(inputStream, blobSize).setRequestConditions(blobRequestConditions)
                         .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob()),

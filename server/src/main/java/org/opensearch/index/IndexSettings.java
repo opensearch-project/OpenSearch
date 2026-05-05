@@ -58,6 +58,7 @@ import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.search.streaming.FlushModeResolver;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -74,6 +75,7 @@ import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EX
 import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING;
 import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
+import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
@@ -194,6 +196,26 @@ public final class IndexSettings {
         Translog.Durability.REQUEST.name(),
         (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)),
         Property.Dynamic,
+        Property.IndexScope
+    );
+    /**
+     * Controls whether translog operations are read in forward order (oldest to newest) or backward order (newest to oldest).
+     * Default is false (backward reading), which is the traditional behavior that naturally handles sequence number collisions
+     * by prioritizing operations from newer generations.
+     * <p>
+     * <b>Note:</b> Enabling forward reading is safe for most use cases. However, in rare edge cases, it may replay stale
+     * translog operations. Stale operation trimming (via
+     * {@link org.opensearch.index.shard.IndexShard#trimOperationOfPreviousPrimaryTerms(long)}) occurs during the recovery
+     * finalization phase. If a replica fails before completing
+     * {@link org.opensearch.indices.recovery.RecoveryTarget#finalizeRecovery(long, long, org.opensearch.core.action.ActionListener)}
+     * and there are duplicates of the same translog operations with different primary terms in the translog
+     * (for example, during a primary failover with network isolation that leaves stale operations untrimmed)
+     * and no in-sync copies are available, we force-allocate this recovering replica as primary.
+     * In this scenario, forward reading could return outdated operations from previous primary terms.
+     */
+    public static final Setting<Boolean> INDEX_TRANSLOG_READ_FORWARD_SETTING = Setting.boolSetting(
+        "index.translog.read_forward",
+        false,
         Property.IndexScope
     );
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting(
@@ -795,6 +817,36 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    // Partition strategy constants
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT = "segment";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED = "balanced";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE = "force";
+
+    public static final Setting<String> INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY = Setting.simpleString(
+        "index.search.concurrent_segment_search.partition_strategy",
+        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT,
+        value -> {
+            switch (value) {
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE:
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [segment, balanced, force]");
+            }
+        },
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<Integer> INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE = Setting.intSetting(
+        "index.search.concurrent_segment_search.partition_min_segment_size",
+        500_000,
+        1000,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
         "index.optimize_doc_id_lookup.fuzzy_set.enabled",
         false,
@@ -866,6 +918,20 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> PLUGGABLE_DATAFORMAT_ENABLED_SETTING = Setting.boolSetting(
+        "index.pluggable.dataformat.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<String> PLUGGABLE_DATAFORMAT_VALUE_SETTING = Setting.simpleString(
+        "index.pluggable.dataformat",
+        "",
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -892,6 +958,7 @@ public final class IndexSettings {
     private final boolean queryStringAllowLeadingWildcard;
     private final boolean defaultAllowUnmappedFields;
     private volatile Translog.Durability durability;
+    private final boolean translogReadForward;
     private volatile TimeValue syncInterval;
     private volatile TimeValue publishReferencedSegmentsInterval;
     private volatile TimeValue refreshInterval;
@@ -921,6 +988,8 @@ public final class IndexSettings {
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
     private final boolean derivedSourceEnabled;
+    private final boolean pluggableDataFormatEnabled;
+    private final String pluggedDataFormat;
     private volatile boolean derivedSourceEnabledForTranslog;
 
     /**
@@ -960,6 +1029,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
+    private volatile long mappingDynamicPropertiesLuceneFieldLimit;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -977,6 +1047,10 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
+    /**
+     * The minimum segment size for streaming aggregations.
+     */
+    private volatile int streamingAggregationMinSegmentSize;
 
     /**
      * The max amount of time to wait for merges
@@ -1112,6 +1186,7 @@ public final class IndexSettings {
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
         this.allowDerivedField = scopedSettings.get(ALLOW_DERIVED_FIELDS);
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
+        this.translogReadForward = INDEX_TRANSLOG_READ_FORWARD_SETTING.get(settings);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         publishReferencedSegmentsInterval = INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.get(settings);
@@ -1145,6 +1220,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxNestedQueryDepth = scopedSettings.get(MAX_NESTED_QUERY_DEPTH_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
+        streamingAggregationMinSegmentSize = scopedSettings.get(FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING);
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
@@ -1157,12 +1233,16 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
+        mappingDynamicPropertiesLuceneFieldLimit = scopedSettings.get(INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING);
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
         derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
+        pluggableDataFormatEnabled = FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+            && scopedSettings.get(PLUGGABLE_DATAFORMAT_ENABLED_SETTING);
+        pluggedDataFormat = scopedSettings.get(PLUGGABLE_DATAFORMAT_VALUE_SETTING);
         derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
@@ -1277,6 +1357,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
+        scopedSettings.addSettingsUpdateConsumer(
+            FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING,
+            this::setStreamingAggregationMinSegmentSize
+        );
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
@@ -1288,6 +1372,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING,
+            this::setMappingDynamicPropertiesLuceneFieldLimit
+        );
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME, this::setMaxFullFlushMergeWaitTime);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
@@ -2031,6 +2119,17 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns the minimum segment size for streaming aggregations.
+     */
+    public int getStreamingAggregationMinSegmentSize() {
+        return streamingAggregationMinSegmentSize;
+    }
+
+    private void setStreamingAggregationMinSegmentSize(int streamingAggregationMinSegmentSize) {
+        this.streamingAggregationMinSegmentSize = streamingAggregationMinSegmentSize;
+    }
+
+    /**
      * Returns the index sort config that should be used for this index.
      */
     public IndexSortConfig getIndexSortConfig() {
@@ -2076,6 +2175,13 @@ public final class IndexSettings {
      */
     public boolean isSoftDeleteEnabled() {
         return softDeleteEnabled;
+    }
+
+    /**
+     * Returns <code>true</code> if translog read-forward is enabled.
+     */
+    public boolean isTranslogReadForward() {
+        return translogReadForward;
     }
 
     public boolean isContextAwareEnabled() {
@@ -2162,6 +2268,14 @@ public final class IndexSettings {
 
     private void setMappingFieldNameLengthLimit(long value) {
         this.mappingFieldNameLengthLimit = value;
+    }
+
+    public long getMappingDynamicPropertiesLuceneFieldLimit() {
+        return mappingDynamicPropertiesLuceneFieldLimit;
+    }
+
+    private void setMappingDynamicPropertiesLuceneFieldLimit(long value) {
+        this.mappingDynamicPropertiesLuceneFieldLimit = value;
     }
 
     private void setMaxFullFlushMergeWaitTime(TimeValue timeValue) {
@@ -2279,5 +2393,19 @@ public final class IndexSettings {
 
     public boolean isDerivedSourceEnabled() {
         return derivedSourceEnabled;
+    }
+
+    /**
+     * Returns whether the pluggable data format feature is enabled for this index.
+     * Requires both the experimental feature flag and the index-level setting.
+     *
+     * @return {@code true} if pluggable data format is enabled
+     */
+    public boolean isPluggableDataFormatEnabled() {
+        return pluggableDataFormatEnabled;
+    }
+
+    public String pluggableDataFormat() {
+        return pluggedDataFormat;
     }
 }

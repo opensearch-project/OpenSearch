@@ -257,6 +257,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 overallCacheStats.usage(),
                 overallCacheStats.pinnedUsage(),
                 overallCacheStats.evictionWeight(),
+                overallCacheStats.removeWeight(),
                 overallCacheStats.hitCount(),
                 overallCacheStats.missCount(),
                 FileCacheStatsType.OVER_ALL_STATS
@@ -267,6 +268,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 fullFileCacheStats.usage(),
                 fullFileCacheStats.pinnedUsage(),
                 fullFileCacheStats.evictionWeight(),
+                fullFileCacheStats.removeWeight(),
                 fullFileCacheStats.hitCount(),
                 fullFileCacheStats.missCount(),
                 FileCacheStatsType.FULL_FILE_STATS
@@ -277,6 +279,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 blockFileCacheStats.usage(),
                 blockFileCacheStats.pinnedUsage(),
                 blockFileCacheStats.evictionWeight(),
+                blockFileCacheStats.removeWeight(),
                 blockFileCacheStats.hitCount(),
                 blockFileCacheStats.missCount(),
                 FileCacheStatsType.BLOCK_FILE_STATS
@@ -287,6 +290,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 pinnedFileCacheStats.usage(),
                 pinnedFileCacheStats.pinnedUsage(),
                 pinnedFileCacheStats.evictionWeight(),
+                pinnedFileCacheStats.removeWeight(),
                 pinnedFileCacheStats.hitCount(),
                 pinnedFileCacheStats.missCount(),
                 FileCacheStatsType.PINNED_FILE_STATS

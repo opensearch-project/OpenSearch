@@ -40,6 +40,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.RequestUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.common.xcontent.XContentType;
@@ -54,6 +56,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.tasks.Task;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 
@@ -95,6 +99,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
     private static final String OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER = "X-opensearch-product-origin";
+
+    private volatile int requestIdMaxLength = HttpTransportSettings.SETTING_HTTP_REQUEST_ID_MAX_LENGTH.getDefault(Settings.EMPTY);
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -141,6 +147,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             "/favicon.ico",
             (request, channel, clnt) -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
         );
+    }
+
+    public void setRequestIdMaxLength(int maxLength) {
+        this.requestIdMaxLength = maxLength;
     }
 
     /**
@@ -431,12 +441,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     return;
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
+                    // Validate request-id header if present
+                    if (Task.X_REQUEST_ID.equals(restHeader.getName())) {
+                        RequestUtils.validateRequestId(distinctHeaderValues.getFirst(), requestIdMaxLength);
+                    }
                 }
             }
         }
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
+        if (channel.detailedErrorStackTraceEnabled() && channel.detailedErrorsEnabled() == false) {
             channel.sendResponse(
                 BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled.")
             );
@@ -637,6 +651,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public boolean detailedErrorStackTraceEnabled() {
+            return delegate.detailedErrorStackTraceEnabled();
+        }
+
+        @Override
         public void sendResponse(RestResponse response) {
             close();
             delegate.sendResponse(response);
@@ -697,6 +716,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public boolean detailedErrorsEnabled() {
             return delegate.detailedErrorsEnabled();
+        }
+
+        @Override
+        public boolean detailedErrorStackTraceEnabled() {
+            return delegate.detailedErrorStackTraceEnabled();
         }
 
         @Override

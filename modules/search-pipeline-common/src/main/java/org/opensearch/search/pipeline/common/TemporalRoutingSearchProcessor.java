@@ -171,11 +171,8 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
 
         @Override
         public void accept(QueryBuilder qb) {
-            if (qb instanceof RangeQueryBuilder) {
-                RangeQueryBuilder rangeQuery = (RangeQueryBuilder) qb;
-                if (timestampField.equals(rangeQuery.fieldName())) {
-                    extractTemporalBucketsFromRange(rangeQuery);
-                }
+            if (qb instanceof RangeQueryBuilder rangeQuery && timestampField.equals(rangeQuery.fieldName())) {
+                extractTemporalBucketsFromRange(rangeQuery);
             }
             // The visitor pattern will automatically handle other query types
         }

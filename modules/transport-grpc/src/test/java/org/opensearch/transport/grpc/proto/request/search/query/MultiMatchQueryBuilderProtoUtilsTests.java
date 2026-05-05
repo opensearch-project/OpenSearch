@@ -427,4 +427,59 @@ public class MultiMatchQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("test query", builderEmpty.value());
         assertNull("Fuzziness should be null (EMPTY)", builderEmpty.fuzziness());
     }
+
+    public void testFromProtoWithAllFuzzyRewriteValues() {
+        // Test all MultiTermQueryRewrite enum values
+        MultiMatchQuery protoConstantScore = MultiMatchQuery.newBuilder()
+            .setQuery("test")
+            .addFields("field1")
+            .setFuzzyRewrite("constant_score")
+            .build();
+        assertEquals("constant_score", fromProto(protoConstantScore).fuzzyRewrite());
+
+        MultiMatchQuery protoConstantScoreBoolean = MultiMatchQuery.newBuilder()
+            .setQuery("test")
+            .addFields("field1")
+            .setFuzzyRewrite("constant_score_boolean")
+            .build();
+        assertEquals("constant_score_boolean", fromProto(protoConstantScoreBoolean).fuzzyRewrite());
+
+        MultiMatchQuery protoScoringBoolean = MultiMatchQuery.newBuilder()
+            .setQuery("test")
+            .addFields("field1")
+            .setFuzzyRewrite("scoring_boolean")
+            .build();
+        assertEquals("scoring_boolean", fromProto(protoScoringBoolean).fuzzyRewrite());
+
+        MultiMatchQuery protoTopTermsN = MultiMatchQuery.newBuilder()
+            .setQuery("test")
+            .addFields("field1")
+            .setFuzzyRewrite("top_terms_10")
+            .build();
+        assertEquals("top_terms_10", fromProto(protoTopTermsN).fuzzyRewrite());
+
+        MultiMatchQuery protoTopTermsBlended = MultiMatchQuery.newBuilder()
+            .setQuery("test")
+            .addFields("field1")
+            .setFuzzyRewrite("top_terms_blended_freqs_10")
+            .build();
+        assertEquals("top_terms_blended_freqs_10", fromProto(protoTopTermsBlended).fuzzyRewrite());
+
+        MultiMatchQuery protoTopTermsBoost = MultiMatchQuery.newBuilder()
+            .setQuery("test")
+            .addFields("field1")
+            .setFuzzyRewrite("top_terms_boost_10")
+            .build();
+        assertEquals("top_terms_boost_10", fromProto(protoTopTermsBoost).fuzzyRewrite());
+    }
+
+    public void testFromProtoWithoutFuzzyRewrite() {
+        // Test that missing fuzzyRewrite field results in null
+        MultiMatchQuery proto = MultiMatchQuery.newBuilder().setQuery("test query").addFields("field1").build();
+
+        MultiMatchQueryBuilder builder = fromProto(proto);
+
+        // Verify fuzzyRewrite is null when not set
+        assertNull("FuzzyRewrite should be null when not set", builder.fuzzyRewrite());
+    }
 }

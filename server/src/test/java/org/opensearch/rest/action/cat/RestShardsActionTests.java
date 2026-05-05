@@ -87,15 +87,14 @@ public class RestShardsActionTests extends OpenSearchTestCase {
                 .resolve(String.valueOf(shardRouting.shardId().id()));
             CommonStats commonStats = new CommonStats();
             commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
-            ShardStats shardStats = new ShardStats(
-                shardRouting,
-                new ShardPath(false, path, path, shardRouting.shardId()),
-                commonStats,
-                null,
-                null,
-                null,
-                null
-            );
+            ShardStats shardStats = new ShardStats.Builder().shardRouting(shardRouting)
+                .shardPath(new ShardPath(false, path, path, shardRouting.shardId()))
+                .commonStats(commonStats)
+                .commitStats(null)
+                .seqNoStats(null)
+                .retentionLeaseStats(null)
+                .pollingIngestStats(null)
+                .build();
             shardStatsMap.put(shardRouting, shardStats);
             shardRoutings.add(shardRouting);
         }

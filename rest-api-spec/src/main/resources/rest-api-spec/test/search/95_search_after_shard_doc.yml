@@ -145,32 +145,32 @@ setup:
   - set: { hits.hits.9.sort.0: last_value_page2 }
 
   # Check that the sort values increase from one hit to the next without ever decreasing.
-  - set: { hits.hits.0.sort.0: prev }
-  - gt: { hits.hits.1.sort.0: $prev }
+  - set: { hits.hits.9.sort.0: next }
+  - lt: { hits.hits.8.sort.0: $next }
 
-  - set: { hits.hits.1.sort.0: prev }
-  - gt: { hits.hits.2.sort.0: $prev }
+  - set: { hits.hits.8.sort.0: next }
+  - lt: { hits.hits.7.sort.0: $next }
 
-  - set: { hits.hits.2.sort.0: prev }
-  - gt: { hits.hits.3.sort.0: $prev }
+  - set: { hits.hits.7.sort.0: next }
+  - lt: { hits.hits.6.sort.0: $next }
 
-  - set: { hits.hits.3.sort.0: prev }
-  - gt: { hits.hits.4.sort.0: $prev }
+  - set: { hits.hits.6.sort.0: next }
+  - lt: { hits.hits.5.sort.0: $next }
 
-  - set: { hits.hits.4.sort.0: prev }
-  - gt: { hits.hits.5.sort.0: $prev }
+  - set: { hits.hits.5.sort.0: next }
+  - lt: { hits.hits.4.sort.0: $next }
 
-  - set: { hits.hits.5.sort.0: prev }
-  - gt: { hits.hits.6.sort.0: $prev }
+  - set: { hits.hits.4.sort.0: next }
+  - lt: { hits.hits.3.sort.0: $next }
 
-  - set: { hits.hits.6.sort.0: prev }
-  - gt: { hits.hits.7.sort.0: $prev }
+  - set: { hits.hits.3.sort.0: next }
+  - lt: { hits.hits.2.sort.0: $next }
 
-  - set: { hits.hits.7.sort.0: prev }
-  - gt: { hits.hits.8.sort.0: $prev }
+  - set: { hits.hits.2.sort.0: next }
+  - lt: { hits.hits.1.sort.0: $next }
 
-  - set: { hits.hits.8.sort.0: prev }
-  - gt: { hits.hits.9.sort.0: $prev }
+  - set: { hits.hits.1.sort.0: next }
+  - lt: { hits.hits.0.sort.0: $next }
 
   # Page 3: drain the rest (22 docs total => 10 + 10 + 2)
   - do:

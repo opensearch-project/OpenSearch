@@ -14,7 +14,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.protobufs.Id;
 import org.opensearch.protobufs.InlineGetDictUserDefined;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.ResponseItem;
@@ -43,9 +42,8 @@ public class GetResultProtoUtils {
         // Reuse the builder passed in by reference
         responseItemBuilder.setXIndex(getResult.getIndex());
 
-        // Avoid creating a new Id builder for each call
-        Id id = Id.newBuilder().setString(getResult.getId()).build();
-        responseItemBuilder.setXId(id);
+        // Set document ID
+        responseItemBuilder.setXId(getResult.getId());
 
         // Create the inline get dict builder only once
         InlineGetDictUserDefined.Builder inlineGetDictUserDefinedBuilder = InlineGetDictUserDefined.newBuilder();
@@ -74,7 +72,7 @@ public class GetResultProtoUtils {
     public static void toProtoEmbedded(GetResult getResult, InlineGetDictUserDefined.Builder builder) {
         // Set sequence number and primary term if available
         if (getResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            builder.setSeqNo(getResult.getSeqNo());
+            builder.setXSeqNo(getResult.getSeqNo());
             builder.setXPrimaryTerm(getResult.getPrimaryTerm());
         }
 

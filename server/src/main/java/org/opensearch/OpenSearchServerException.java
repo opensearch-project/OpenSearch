@@ -24,7 +24,7 @@ import static org.opensearch.Version.V_2_6_0;
 import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.Version.V_3_2_0;
-import static org.opensearch.Version.V_3_3_0;
+import static org.opensearch.Version.V_3_7_0;
 
 /**
  * Utility class to register server exceptions
@@ -1244,10 +1244,10 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.index.engine.LookupMapLockAcquisitionException.class,
-                org.opensearch.index.engine.LookupMapLockAcquisitionException::new,
-                CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 2,
-                V_3_3_0
+                org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException.class,
+                org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException::new,
+                178,
+                V_3_7_0
             )
         );
     }

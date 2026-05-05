@@ -157,8 +157,8 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
         query.visit(new QueryVisitor() {
             @Override
             public void visitLeaf(Query query) {
-                if (query instanceof PercolateQuery) {
-                    queries.add((PercolateQuery) query);
+                if (query instanceof PercolateQuery percolateQuery) {
+                    queries.add(percolateQuery);
                 }
             }
         });

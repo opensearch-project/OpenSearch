@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote;
 
+import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -57,11 +58,9 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.encodeString;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
-import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.randomClusterBlocks;
 import static org.opensearch.gateway.remote.model.RemoteClusterStateCustoms.CLUSTER_STATE_CUSTOM;
 import static org.opensearch.gateway.remote.model.RemoteClusterStateCustomsTests.getClusterStateCustom;
-import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodes.DISCOVERY_NODES_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodesTests.getDiscoveryNodes;
 import static org.opensearch.index.remote.RemoteStoreUtils.invertLong;
 import static org.hamcrest.Matchers.is;
@@ -139,15 +138,15 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
     public void testGetAsyncReadRunnable_DiscoveryNodes() throws IOException, InterruptedException {
         DiscoveryNodes discoveryNodes = getDiscoveryNodes();
         String fileName = randomAlphaOfLength(10);
+        RemoteDiscoveryNodes remoteObjForDownload = new RemoteDiscoveryNodes(fileName, "cluster-uuid", compressor, Version.CURRENT);
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
-            DISCOVERY_NODES_FORMAT.serialize(
+            remoteObjForDownload.discoveryNodesFormat.serialize(
                 (out, discoveryNode) -> discoveryNode.writeToWithAttribute(out),
                 discoveryNodes,
                 fileName,
                 compressor
             ).streamInput()
         );
-        RemoteDiscoveryNodes remoteObjForDownload = new RemoteDiscoveryNodes(fileName, "cluster-uuid", compressor);
         CountDownLatch latch = new CountDownLatch(1);
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         remoteClusterStateAttributesManager.readAsync(DISCOVERY_NODES, remoteObjForDownload, new LatchedActionListener<>(listener, latch));
@@ -194,10 +193,10 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
     public void testGetAsyncReadRunnable_ClusterBlocks() throws IOException, InterruptedException {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
         String fileName = randomAlphaOfLength(10);
+        RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(fileName, "cluster-uuid", compressor, Version.CURRENT);
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
-            CLUSTER_BLOCKS_FORMAT.serialize(clusterBlocks, fileName, compressor).streamInput()
+            remoteClusterBlocks.clusterBlocksFormat.serialize(clusterBlocks, fileName, compressor).streamInput()
         );
-        RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(fileName, "cluster-uuid", compressor);
         CountDownLatch latch = new CountDownLatch(1);
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
 
@@ -263,7 +262,8 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
             custom.getWriteableName(),
             CLUSTER_UUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             remoteClusterStateCustoms.clusterStateCustomsFormat.serialize(custom, fileName, compressor).streamInput()
@@ -309,7 +309,7 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
 
     public void testGetAsyncReadRunnable_Exception() throws IOException, InterruptedException {
         String fileName = randomAlphaOfLength(10);
-        RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(fileName, CLUSTER_UUID, compressor);
+        RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(fileName, CLUSTER_UUID, compressor, Version.CURRENT);
         Exception ioException = new IOException("mock test exception");
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenThrow(ioException);
         CountDownLatch latch = new CountDownLatch(1);

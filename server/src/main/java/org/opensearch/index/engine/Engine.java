@@ -309,7 +309,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * Get max sequence number from segments that are referenced by given SegmentInfos
      */
     public long getMaxSeqNoFromSegmentInfos(SegmentInfos segmentInfos) throws IOException {
-        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null)) {
+        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null, null)) {
             final IndexSearcher searcher = new IndexSearcher(innerReader);
             return getMaxSeqNoFromSearcher(searcher);
         }
@@ -335,7 +335,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
             searcher.getIndexReader(),
             uidTerm,
-            true
+            true,
+            null
         );
         assert docIdAndVersion != null;
         return docIdAndVersion.seqNo;
@@ -344,10 +345,12 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
-     * is enabled
+     * is enabled.
+     * This class has been deprecated. See IndexingThrottler.java
      *
      * @opensearch.internal
      */
+    @Deprecated
     protected static final class IndexThrottle {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
@@ -704,7 +707,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         final Engine.Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true, null);
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             // TODO: A better exception goes here
@@ -1056,10 +1059,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 final Directory finalDirectory = directory;
                 logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
             }
-            if (length == 0L) {
+            if (length == 0L || extension == null) {
                 continue;
             }
-            map.put(extension, length);
+            map.merge(extension, length, Long::sum);
         }
 
         if (useCompoundFile) {
@@ -1361,15 +1364,14 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * commit.
      */
     private void cleanUpUnreferencedFiles() {
-        try (
-            IndexWriter writer = new IndexWriter(
-                store.directory(),
-                new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                    .setCommitOnClose(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-            )
-        ) {
+        IndexWriterConfig iwc = new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setCommitOnClose(false)
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        if (store.shouldSetParentField()) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
             // do nothing except increasing metric count and close this will kick off IndexFileDeleter which will
             // remove all unreferenced files
             totalUnreferencedFileCleanUpsPerformed.inc();
