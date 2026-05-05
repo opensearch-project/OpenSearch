@@ -45,36 +45,39 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 public class StatsLayoutPropertyTests {
 
-    private static final int FIELD_COUNT = 28;
+    private static final int FIELD_COUNT = 30;
     private static final int BUFFER_SIZE = FIELD_COUNT * Long.BYTES;
 
     // ---- Generators ----
 
     @Provide
-    Arbitrary<long[]> twentyEightLongs() {
+    Arbitrary<long[]> thirtyLongs() {
         return Arbitraries.longs().between(0, Long.MAX_VALUE / 2).array(long[].class).ofSize(FIELD_COUNT);
     }
 
     @Provide
-    Arbitrary<long[]> twentyEightLongsWithCpuWorkersZero() {
-        return twentyEightLongs().map(arr -> {
-            arr[8] = 0; // cpu_runtime.workers_count = 0
+    Arbitrary<long[]> thirtyLongsWithCpuWorkersZero() {
+        return thirtyLongs().map(arr -> {
+            arr[9] = 0; // cpu_runtime.workers_count = 0
             return arr;
         });
     }
 
     @Provide
-    Arbitrary<long[]> twentyEightLongsWithCpuWorkersPositive() {
-        return twentyEightLongs().map(arr -> {
-            if (arr[8] == 0) arr[8] = 1; // ensure cpu_runtime.workers_count > 0
+    Arbitrary<long[]> thirtyLongsWithCpuWorkersPositive() {
+        return thirtyLongs().map(arr -> {
+            if (arr[9] == 0) arr[9] = 1; // ensure cpu_runtime.workers_count > 0
             return arr;
         });
     }
 
     @Provide
     Arbitrary<RuntimeMetrics> runtimeMetrics() {
-        Arbitrary<Long> nonNeg = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        return Combinators.combine(nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg).as(RuntimeMetrics::new);
+        return Arbitraries.longs()
+            .between(0, Long.MAX_VALUE / 2)
+            .list()
+            .ofSize(9)
+            .map(l -> new RuntimeMetrics(l.get(0), l.get(1), l.get(2), l.get(3), l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)));
     }
 
     @Provide
@@ -95,7 +98,8 @@ public class StatsLayoutPropertyTests {
                     rt.globalQueueDepth,
                     rt.blockingQueueDepth,
                     rt.numAliveTasks,
-                    rt.spawnedTasksCount
+                    rt.spawnedTasksCount,
+                    rt.totalLocalQueueDepth
                 );
             }
             return rt;
@@ -131,7 +135,7 @@ public class StatsLayoutPropertyTests {
      */
     @Property(tries = 100)
     @Tag("Feature: ffm-struct-layout, Property 1: Pack-then-decode round-trip preserves all fields")
-    void packThenDecodeRoundTripWithCpu(@ForAll("twentyEightLongsWithCpuWorkersPositive") long[] values) {
+    void packThenDecodeRoundTripWithCpu(@ForAll("thirtyLongsWithCpuWorkersPositive") long[] values) {
         try (var arena = Arena.ofConfined()) {
             var seg = arena.allocate(StatsLayout.LAYOUT);
             for (int i = 0; i < FIELD_COUNT; i++) {
@@ -147,24 +151,26 @@ public class StatsLayoutPropertyTests {
             assertEquals(values[5], ioRuntime.blockingQueueDepth);
             assertEquals(values[6], ioRuntime.numAliveTasks);
             assertEquals(values[7], ioRuntime.spawnedTasksCount);
+            assertEquals(values[8], ioRuntime.totalLocalQueueDepth);
 
             long cpuWorkers = StatsLayout.readField(seg, "cpu_runtime", "workers_count");
             assert cpuWorkers > 0 : "cpu workers should be > 0";
             var cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
             assertNotNull(cpuRuntime);
-            assertEquals(values[8], cpuRuntime.workersCount);
-            assertEquals(values[9], cpuRuntime.totalPollsCount);
-            assertEquals(values[10], cpuRuntime.totalBusyDurationMs);
-            assertEquals(values[11], cpuRuntime.totalOverflowCount);
-            assertEquals(values[12], cpuRuntime.globalQueueDepth);
-            assertEquals(values[13], cpuRuntime.blockingQueueDepth);
-            assertEquals(values[14], cpuRuntime.numAliveTasks);
-            assertEquals(values[15], cpuRuntime.spawnedTasksCount);
+            assertEquals(values[9], cpuRuntime.workersCount);
+            assertEquals(values[10], cpuRuntime.totalPollsCount);
+            assertEquals(values[11], cpuRuntime.totalBusyDurationMs);
+            assertEquals(values[12], cpuRuntime.totalOverflowCount);
+            assertEquals(values[13], cpuRuntime.globalQueueDepth);
+            assertEquals(values[14], cpuRuntime.blockingQueueDepth);
+            assertEquals(values[15], cpuRuntime.numAliveTasks);
+            assertEquals(values[16], cpuRuntime.spawnedTasksCount);
+            assertEquals(values[17], cpuRuntime.totalLocalQueueDepth);
 
             String[] tmGroups = { "query_execution", "stream_next", "fetch_phase", "segment_stats" };
             for (int g = 0; g < 4; g++) {
                 var tm = StatsLayout.readTaskMonitor(seg, tmGroups[g]);
-                int base = 16 + g * 3;
+                int base = 18 + g * 3;
                 assertEquals(values[base], tm.totalPollDurationMs, tmGroups[g] + ".total_poll_duration_ms");
                 assertEquals(values[base + 1], tm.totalScheduledDurationMs, tmGroups[g] + ".total_scheduled_duration_ms");
                 assertEquals(values[base + 2], tm.totalIdleDurationMs, tmGroups[g] + ".total_idle_duration_ms");
@@ -179,7 +185,7 @@ public class StatsLayoutPropertyTests {
      */
     @Property(tries = 100)
     @Tag("Feature: ffm-struct-layout, Property 1: Pack-then-decode round-trip preserves all fields")
-    void packThenDecodeRoundTripCpuNull(@ForAll("twentyEightLongsWithCpuWorkersZero") long[] values) {
+    void packThenDecodeRoundTripCpuNull(@ForAll("thirtyLongsWithCpuWorkersZero") long[] values) {
         try (var arena = Arena.ofConfined()) {
             var seg = arena.allocate(StatsLayout.LAYOUT);
             for (int i = 0; i < FIELD_COUNT; i++) {
@@ -207,7 +213,7 @@ public class StatsLayoutPropertyTests {
      */
     @Property(tries = 100)
     @Tag("Feature: ffm-struct-layout, Property 2: Decode-then-reencode produces byte-identical buffer")
-    void decodeThenReencodeIdentity(@ForAll("twentyEightLongs") long[] values) {
+    void decodeThenReencodeIdentity(@ForAll("thirtyLongs") long[] values) {
         try (var arena = Arena.ofConfined()) {
             // Write original values
             var original = arena.allocate(StatsLayout.LAYOUT);
@@ -234,6 +240,7 @@ public class StatsLayoutPropertyTests {
                 ioRuntime.blockingQueueDepth,
                 ioRuntime.numAliveTasks,
                 ioRuntime.spawnedTasksCount,
+                ioRuntime.totalLocalQueueDepth,
                 cpuRuntime.workersCount,
                 cpuRuntime.totalPollsCount,
                 cpuRuntime.totalBusyDurationMs,
@@ -242,6 +249,7 @@ public class StatsLayoutPropertyTests {
                 cpuRuntime.blockingQueueDepth,
                 cpuRuntime.numAliveTasks,
                 cpuRuntime.spawnedTasksCount,
+                cpuRuntime.totalLocalQueueDepth,
                 qe.totalPollDurationMs,
                 qe.totalScheduledDurationMs,
                 qe.totalIdleDurationMs,

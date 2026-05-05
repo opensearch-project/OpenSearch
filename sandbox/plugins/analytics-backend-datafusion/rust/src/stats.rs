@@ -82,36 +82,44 @@ pub mod layout {
 ///
 /// ## Fields
 ///
-/// | Field                  | Source                                     |
-/// |------------------------|--------------------------------------------|
-/// | workers_count          | `RuntimeIntervals` snapshot                |
-/// | total_polls_count      | `RuntimeIntervals` snapshot                |
-/// | total_busy_duration_ms | `RuntimeIntervals` snapshot (millis)       |
-/// | total_overflow_count   | `RuntimeIntervals` snapshot                |
-/// | global_queue_depth     | `RuntimeIntervals` snapshot                |
-/// | blocking_queue_depth   | `Handle::metrics()`                        |
-/// | num_alive_tasks        | `Handle::metrics()`                        |
-/// | spawned_tasks_count    | `Handle::metrics()`                        |
-pub fn pack_runtime_metrics(monitor: &RuntimeMonitor, handle: &Handle) -> RuntimeMetricsRepr {
-    let mut intervals = monitor.intervals();
-    let snapshot = intervals.next().expect("RuntimeMonitor intervals should never be empty");
+/// | Field                       | Source                                     |
+/// |-----------------------------|---------------------------------------------|
+/// | workers_count               | `Handle::metrics().num_workers()`           |
+/// | total_polls_count           | `Handle::metrics().worker_poll_count(i)` Σ  |
+/// | total_busy_duration_ms      | `Handle::metrics().worker_total_busy_duration(i)` Σ |
+/// | total_overflow_count        | `Handle::metrics().worker_overflow_count(i)` Σ |
+/// | global_queue_depth          | `Handle::metrics().global_queue_depth()`    |
+/// | blocking_queue_depth        | `Handle::metrics().blocking_queue_depth()`  |
+/// | num_alive_tasks             | `Handle::metrics().num_alive_tasks()`       |
+/// | spawned_tasks_count         | `Handle::metrics().spawned_tasks_count()`   |
+/// | total_local_queue_depth     | `Handle::metrics().worker_local_queue_depth(i)` Σ |
+pub fn pack_runtime_metrics(_monitor: &RuntimeMonitor, handle: &Handle) -> RuntimeMetricsRepr {
+    let m = handle.metrics();
+    let num_workers = m.num_workers();
 
-    // Sum per-worker local queue depths into a single aggregate value
-    let handle_metrics = handle.metrics();
-    let total_local_queue_depth: u64 = (0..handle_metrics.num_workers())
-        .map(|i| handle_metrics.worker_local_queue_depth(i) as u64)
-        .sum();
+    // Sum per-worker metrics into aggregates
+    let mut total_polls: u64 = 0;
+    let mut total_busy_ns: u64 = 0;
+    let mut total_overflow: u64 = 0;
+    let mut total_local_queue: u64 = 0;
+
+    for i in 0..num_workers {
+        total_polls += m.worker_poll_count(i);
+        total_busy_ns += m.worker_total_busy_duration(i).as_nanos() as u64;
+        total_overflow += m.worker_overflow_count(i);
+        total_local_queue += m.worker_local_queue_depth(i) as u64;
+    }
 
     RuntimeMetricsRepr {
-        workers_count: snapshot.workers_count as i64,
-        total_polls_count: snapshot.total_polls_count as i64,
-        total_busy_duration_ms: snapshot.total_busy_duration.as_millis() as i64,
-        total_overflow_count: snapshot.total_overflow_count as i64,
-        global_queue_depth: snapshot.global_queue_depth as i64,
-        blocking_queue_depth: handle.metrics().blocking_queue_depth() as i64,
-        num_alive_tasks: handle.metrics().num_alive_tasks() as i64,
-        spawned_tasks_count: handle.metrics().spawned_tasks_count() as i64,
-        total_local_queue_depth: total_local_queue_depth as i64,
+        workers_count: num_workers as i64,
+        total_polls_count: total_polls as i64,
+        total_busy_duration_ms: (total_busy_ns / 1_000_000) as i64,
+        total_overflow_count: total_overflow as i64,
+        global_queue_depth: m.global_queue_depth() as i64,
+        blocking_queue_depth: m.blocking_queue_depth() as i64,
+        num_alive_tasks: m.num_alive_tasks() as i64,
+        spawned_tasks_count: m.spawned_tasks_count() as i64,
+        total_local_queue_depth: total_local_queue as i64,
     }
 }
 

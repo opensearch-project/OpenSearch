@@ -63,6 +63,7 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
      * @param cpuRuntime   the CPU runtime metrics (nullable)
      * @param taskMonitors per-operation task monitor metrics
      */
+    // cpuRuntime is nullable — zeroed when absent (workers_count == 0), omitted from XContent when null
     public NativeExecutorsStats(RuntimeMetrics ioRuntime, RuntimeMetrics cpuRuntime, Map<String, TaskMonitorStats> taskMonitors) {
         this.ioRuntime = Objects.requireNonNull(ioRuntime);
         this.cpuRuntime = cpuRuntime;

@@ -29,8 +29,8 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
 
     /** Build a DataFusionStats with sequential values 1..28 for deterministic field verification. */
     private static DataFusionStats sequentialStats() {
-        RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8);
-        RuntimeMetrics cpu = new RuntimeMetrics(9, 10, 11, 12, 13, 14, 15, 16);
+        RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8, 0);
+        RuntimeMetrics cpu = new RuntimeMetrics(9, 10, 11, 12, 13, 14, 15, 16, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
         taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
         taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
@@ -110,7 +110,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
     // ---- Test: CPU runtime null → cpuRuntime absent in JSON ----
 
     public void testCpuRuntimeAbsentWhenNull() throws IOException {
-        RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107);
+        RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
         taskMonitors.put("query_execution", new TaskMonitorStats(14, 15, 16));
         taskMonitors.put("stream_next", new TaskMonitorStats(17, 18, 19));
@@ -179,7 +179,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
     // ---- Test: toXContent with CPU runtime omitted ----
 
     public void testToXContentCpuRuntimeOmitted() throws IOException {
-        RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107);
+        RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
         taskMonitors.put("query_execution", new TaskMonitorStats(14, 15, 16));
         taskMonitors.put("stream_next", new TaskMonitorStats(17, 18, 19));

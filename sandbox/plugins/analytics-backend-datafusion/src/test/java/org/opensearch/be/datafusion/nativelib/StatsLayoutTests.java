@@ -20,18 +20,18 @@ import java.lang.foreign.ValueLayout;
  */
 public class StatsLayoutTests extends OpenSearchTestCase {
 
-    /** 7.1: Layout byte size must be 224 (28 × 8). */
+    /** 7.1: Layout byte size must be 240 (30 × 8). */
     public void testLayoutByteSize() {
-        assertEquals(224L, StatsLayout.LAYOUT.byteSize());
-        assertEquals(28 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
+        assertEquals(240L, StatsLayout.LAYOUT.byteSize());
+        assertEquals(30 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
     }
 
-    /** 7.2: readRuntimeMetrics decodes 8 known values from io_runtime group. */
+    /** 7.2: readRuntimeMetrics decodes 9 known values from io_runtime group. */
     public void testReadRuntimeMetricsFromSegment() {
         try (var arena = Arena.ofConfined()) {
             var seg = arena.allocate(StatsLayout.LAYOUT);
-            // Write sequential values 1-8 at io_runtime positions (indices 0-7)
-            for (int i = 0; i < 8; i++) {
+            // Write sequential values 1-9 at io_runtime positions (indices 0-8)
+            for (int i = 0; i < 9; i++) {
                 seg.setAtIndex(ValueLayout.JAVA_LONG, i, i + 1L);
             }
 
@@ -44,6 +44,7 @@ public class StatsLayoutTests extends OpenSearchTestCase {
             assertEquals(6L, rt.blockingQueueDepth);
             assertEquals(7L, rt.numAliveTasks);
             assertEquals(8L, rt.spawnedTasksCount);
+            assertEquals(9L, rt.totalLocalQueueDepth);
         }
     }
 
@@ -51,10 +52,10 @@ public class StatsLayoutTests extends OpenSearchTestCase {
     public void testReadTaskMonitorFromSegment() {
         try (var arena = Arena.ofConfined()) {
             var seg = arena.allocate(StatsLayout.LAYOUT);
-            // query_execution starts at index 16
-            seg.setAtIndex(ValueLayout.JAVA_LONG, 16, 100L);
-            seg.setAtIndex(ValueLayout.JAVA_LONG, 17, 200L);
-            seg.setAtIndex(ValueLayout.JAVA_LONG, 18, 300L);
+            // query_execution starts at index 18 (2 runtime groups × 9 fields = 18)
+            seg.setAtIndex(ValueLayout.JAVA_LONG, 18, 100L);
+            seg.setAtIndex(ValueLayout.JAVA_LONG, 19, 200L);
+            seg.setAtIndex(ValueLayout.JAVA_LONG, 20, 300L);
 
             var tm = StatsLayout.readTaskMonitor(seg, "query_execution");
             assertEquals(100L, tm.totalPollDurationMs);
@@ -67,7 +68,7 @@ public class StatsLayoutTests extends OpenSearchTestCase {
     public void testCpuRuntimeNullWhenWorkersZero() {
         try (var arena = Arena.ofConfined()) {
             var seg = arena.allocate(StatsLayout.LAYOUT);
-            // cpu_runtime.workers_count is at index 8 — leave it as 0 (default)
+            // cpu_runtime.workers_count is at index 9 — leave it as 0 (default)
             long cpuWorkers = StatsLayout.readField(seg, "cpu_runtime", "workers_count");
             assertEquals(0L, cpuWorkers);
 
@@ -84,10 +85,10 @@ public class StatsLayoutTests extends OpenSearchTestCase {
     public void testCpuRuntimeNonNullWhenWorkersPositive() {
         try (var arena = Arena.ofConfined()) {
             var seg = arena.allocate(StatsLayout.LAYOUT);
-            // Set cpu_runtime.workers_count (index 8) to 5
-            seg.setAtIndex(ValueLayout.JAVA_LONG, 8, 5L);
-            // Set other cpu_runtime fields (indices 9-15)
-            for (int i = 9; i <= 15; i++) {
+            // Set cpu_runtime.workers_count (index 9) to 5
+            seg.setAtIndex(ValueLayout.JAVA_LONG, 9, 5L);
+            // Set other cpu_runtime fields (indices 10-17)
+            for (int i = 10; i <= 17; i++) {
                 seg.setAtIndex(ValueLayout.JAVA_LONG, i, i * 10L);
             }
 
@@ -100,7 +101,7 @@ public class StatsLayoutTests extends OpenSearchTestCase {
             }
             assertNotNull(cpuRuntime);
             assertEquals(5L, cpuRuntime.workersCount);
-            assertEquals(90L, cpuRuntime.totalPollsCount);
+            assertEquals(100L, cpuRuntime.totalPollsCount);
         }
     }
 }

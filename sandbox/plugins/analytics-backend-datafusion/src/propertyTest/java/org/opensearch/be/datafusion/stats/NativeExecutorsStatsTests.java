@@ -47,8 +47,11 @@ public class NativeExecutorsStatsTests {
 
     @Provide
     Arbitrary<RuntimeMetrics> runtimeMetrics() {
-        Arbitrary<Long> nonNeg = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        return Combinators.combine(nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg, nonNeg).as(RuntimeMetrics::new);
+        return Arbitraries.longs()
+            .between(0, Long.MAX_VALUE / 2)
+            .list()
+            .ofSize(9)
+            .map(l -> new RuntimeMetrics(l.get(0), l.get(1), l.get(2), l.get(3), l.get(4), l.get(5), l.get(6), l.get(7), l.get(8)));
     }
 
     @Provide
@@ -71,7 +74,8 @@ public class NativeExecutorsStatsTests {
                         rt.globalQueueDepth,
                         rt.blockingQueueDepth,
                         rt.numAliveTasks,
-                        rt.spawnedTasksCount
+                        rt.spawnedTasksCount,
+                        rt.totalLocalQueueDepth
                     );
                 }
                 return rt;

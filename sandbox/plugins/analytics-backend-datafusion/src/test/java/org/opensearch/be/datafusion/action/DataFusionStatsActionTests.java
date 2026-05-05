@@ -83,8 +83,8 @@ public class DataFusionStatsActionTests extends OpenSearchTestCase {
 
     public void testPrepareRequestReturns200WithValidJson() throws Exception {
         // Build a known DataFusionStats via direct constructors
-        RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8);
-        RuntimeMetrics cpu = new RuntimeMetrics(9, 10, 11, 12, 13, 14, 15, 16);
+        RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8, 0);
+        RuntimeMetrics cpu = new RuntimeMetrics(9, 10, 11, 12, 13, 14, 15, 16, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
         taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
         taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));

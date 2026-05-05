@@ -21,7 +21,7 @@ import java.lang.invoke.VarHandle;
  * Defines the {@code MemoryLayout.structLayout} mirroring the Rust {@code DfStatsBuffer}
  * and provides {@link VarHandle} accessors for each field via layout path navigation.
  *
- * <p>The layout contains 6 named groups (2 runtime × 8 fields + 4 task monitor × 3 fields = 28 longs = 224 bytes).
+ * <p>The layout contains 6 named groups (2 runtime × 9 fields + 4 task monitor × 3 fields = 30 longs = 240 bytes).
  */
 public final class StatsLayout {
 
