@@ -17,7 +17,7 @@ opensearchplugin {
 }
 
 versions << [
-  'hadoopCommon': '3.4.1',
+  'hadoopCommon': versions.hadoop3,
   'parquetHadoop': '1.15.0',
   'thrift': '0.22.0',
   'testcontainers': '2.0.5',
@@ -159,7 +159,9 @@ thirdPartyAudit {
   )
 }
 
-// Suppress warnings in generated Thrift code
+// Generated Thrift code produces deprecation/unchecked warnings that fail with -Werror.
+// This disables -Werror for all compile tasks in this plugin. Self-written code quality
+// is enforced by spotless, forbiddenApis, and loggerUsageCheck instead.
 tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Werror'
 }
