@@ -1436,14 +1436,14 @@ public class MetadataCreateIndexService {
         if (IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(current) == false) {
             settingsBuilder.put(
                 IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(),
-                clusterSettings.get(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
+                clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
             );
         }
 
         if (IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(current) == false) {
             settingsBuilder.put(
                 IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(),
-                clusterSettings.get(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+                clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
             );
         }
     }
@@ -1848,7 +1848,7 @@ public class MetadataCreateIndexService {
 
         if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey())
             && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(requestSettings)
-                .equals(clusterSettings.get(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)) == false) {
+                .equals(clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)) == false) {
             return Optional.of(
                 "index setting ["
                     + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
@@ -1860,7 +1860,7 @@ public class MetadataCreateIndexService {
 
         if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey())
             && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(requestSettings)
-                .equals(clusterSettings.get(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING)) == false) {
+                .equals(clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)) == false) {
             return Optional.of(
                 "index setting ["
                     + IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey()

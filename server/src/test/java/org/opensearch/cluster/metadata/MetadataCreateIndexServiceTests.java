@@ -2192,8 +2192,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Feature flag is off by default in tests; the helper must not contribute either setting,
         // even when a cluster-scope default is present.
         Settings clusterBag = Settings.builder()
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -2208,8 +2208,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testUpdatePluggableDataFormatSettingsStampsClusterDefaultsWhenIndexLevelAbsent() {
         Settings clusterBag = Settings.builder()
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -2224,8 +2224,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testUpdatePluggableDataFormatSettingsSkipsEnabledWhenAlreadySet() {
         Settings clusterBag = Settings.builder()
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -2241,8 +2241,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testUpdatePluggableDataFormatSettingsSkipsValueWhenAlreadySet() {
         Settings clusterBag = Settings.builder()
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -2257,8 +2257,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testUpdatePluggableDataFormatSettingsSkipsBothWhenAlreadySet() {
         Settings clusterBag = Settings.builder()
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -2291,8 +2291,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // End-to-end sanity: confirm updatePluggableDataFormatSettings is wired into the create-index
         // pipeline, so the effective values land in the settings returned by aggregateIndexSettings.
         Settings clusterBag = Settings.builder()
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
-            .put(IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 

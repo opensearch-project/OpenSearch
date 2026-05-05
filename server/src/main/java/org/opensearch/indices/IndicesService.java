@@ -312,8 +312,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * Cluster-level default for {@code index.pluggable.dataformat.enabled}.
      * Applied at index creation time when the index setting is not explicitly provided.
      */
-    public static final Setting<Boolean> CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING = Setting.boolSetting(
-        "cluster.default.index.pluggable.dataformat.enabled",
+    public static final Setting<Boolean> CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.pluggable.dataformat.enabled",
         false,
         Property.NodeScope,
         Property.Dynamic
@@ -323,8 +323,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * Cluster-level default for {@code index.pluggable.dataformat}.
      * Applied at index creation time when the index setting is not explicitly provided.
      */
-    public static final Setting<String> CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING = Setting.simpleString(
-        "cluster.default.index.pluggable.dataformat",
+    public static final Setting<String> CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING = Setting.simpleString(
+        "cluster.pluggable.dataformat",
         "",
         Property.NodeScope,
         Property.Dynamic

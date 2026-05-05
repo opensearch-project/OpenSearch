@@ -22,8 +22,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.Collection;
 import java.util.List;
 
-import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class ClusterDefaultPluggableDataFormatIT extends OpenSearchIntegTestCase {
@@ -104,8 +104,8 @@ public class ClusterDefaultPluggableDataFormatIT extends OpenSearchIntegTestCase
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .put(CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), enabled)
-                    .put(CLUSTER_DEFAULT_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), value)
+                    .put(CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), enabled)
+                    .put(CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), value)
             )
             .get();
     }
