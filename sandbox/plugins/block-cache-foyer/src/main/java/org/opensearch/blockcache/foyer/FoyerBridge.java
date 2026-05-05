@@ -32,7 +32,7 @@ import java.lang.invoke.MethodHandle;
  *
  * <p>{@link #createCache} returns an opaque {@code long} handle that represents
  * the native cache instance. The handle must be passed to {@link #destroyCache}
- * exactly once when the cache is no longer needed.
+ * exactly once when the cache is no  longer needed.
  *
  * @opensearch.experimental
  */
