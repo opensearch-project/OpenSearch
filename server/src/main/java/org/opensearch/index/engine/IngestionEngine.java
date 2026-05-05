@@ -95,9 +95,9 @@ public class IngestionEngine extends InternalEngine {
         assert indexMetadata != null;
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
-        // initialize the ingestion consumer factory
-        ingestionSource.params().put("_number_of_shards", indexMetadata.getNumberOfShards());
-        this.ingestionConsumerFactory.initialize(ingestionSource);
+        // initialize the ingestion consumer factory with number_of_shards injected into params
+        IngestionSource sourceWithShardCount = injectNumberOfShards(ingestionSource, indexMetadata.getNumberOfShards());
+        this.ingestionConsumerFactory.initialize(sourceWithShardCount);
         String clientId = engineConfig.getIndexSettings().getNodeName()
             + "-"
             + engineConfig.getIndexSettings().getIndex().getName()
@@ -709,6 +709,27 @@ public class IngestionEngine extends InternalEngine {
         if (!completed) {
             logger.warn("Ingestion warmup timed out for shard after {}ms, proceeding with potentially stale data.", timeoutMs);
         }
+    }
+
+    /**
+     * Creates a copy of the IngestionSource with _number_of_shards injected into params.
+     * This allows plugins to determine the total shard count for partition assignment.
+     */
+    private static IngestionSource injectNumberOfShards(IngestionSource source, int numberOfShards) {
+        Map<String, Object> params = new HashMap<>(source.params());
+        params.put("_number_of_shards", numberOfShards);
+        return new IngestionSource.Builder(source.getType())
+            .setParams(params)
+            .setPointerInitReset(source.getPointerInitReset())
+            .setErrorStrategy(source.getErrorStrategy())
+            .setMaxPollSize(source.getMaxPollSize())
+            .setPollTimeout(source.getPollTimeout())
+            .setNumProcessorThreads(source.getNumProcessorThreads())
+            .setBlockingQueueSize(source.getBlockingQueueSize())
+            .setPointerBasedLagUpdateInterval(source.getPointerBasedLagUpdateInterval())
+            .setMapperType(source.getMapperType())
+            .setMapperSettings(source.getMapperSettings())
+            .build();
     }
 
 }

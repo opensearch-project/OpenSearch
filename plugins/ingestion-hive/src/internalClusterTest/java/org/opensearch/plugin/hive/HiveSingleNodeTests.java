@@ -11,8 +11,6 @@ package org.opensearch.plugin.hive;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -38,7 +36,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.transport.client.Requests;
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 
 import java.io.File;
@@ -51,7 +48,6 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -89,7 +85,6 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     @Before
     public void setup() throws Exception {
-        Assume.assumeTrue("Docker is not available", DockerClientFactory.instance().isDockerAvailable());
         warehouseDir = createTempDir().toFile();
         generateTestData();
         setupHiveMetastore();
@@ -120,6 +115,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.database", DATABASE)
                 .put("ingestion_source.param.table", TABLE_NAME)
                 .put("ingestion_source.param.monitor_interval", "2s")
+                .put("ingestion_source.mapper_type", "field_mapping")
                 .put("index.replication.type", "SEGMENT")
                 .build()
         );
@@ -147,6 +143,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.database", DATABASE)
                 .put("ingestion_source.param.table", TABLE_NAME)
                 .put("ingestion_source.param.monitor_interval", "2s")
+                .put("ingestion_source.mapper_type", "field_mapping")
                 .put("index.replication.type", "SEGMENT")
                 .build()
         );
@@ -200,7 +197,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
             StorageDescriptor partSd = new StorageDescriptor();
             partSd.setCols(cols);
-            partSd.setLocation(WAREHOUSE_CONTAINER_PATH + "/" + DATABASE + "/" + TABLE_NAME + "/dt=" + dtValue);
+            partSd.setLocation(warehouseDir.getAbsolutePath() + "/" + DATABASE + "/" + TABLE_NAME + "/dt=" + dtValue);
             partSd.setInputFormat("org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat");
             partSd.setOutputFormat("org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat");
             partSd.setSerdeInfo(serDeInfo);
@@ -232,12 +229,8 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     private void writeParquetFile(File file, int numRows, int startId) throws IOException {
         SimpleGroupFactory factory = new SimpleGroupFactory(PARQUET_SCHEMA);
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(new Path(file.toURI()))
-                .withType(PARQUET_SCHEMA)
-                .withConf(new Configuration())
-                .build()
-        ) {
+        org.apache.parquet.io.OutputFile outputFile = new org.apache.parquet.io.LocalOutputFile(file.toPath());
+        try (ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile).withType(PARQUET_SCHEMA).build()) {
             for (int i = 0; i < numRows; i++) {
                 int id = startId + i;
                 Group group = factory.newGroup()
@@ -255,7 +248,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
         hiveMetastore = new GenericContainer<>("apache/hive:4.0.1").withEnv("SERVICE_NAME", "metastore")
             .withEnv("DB_DRIVER", "derby")
             .withExposedPorts(9083)
-            .withFileSystemBind(warehouseDir.getAbsolutePath(), WAREHOUSE_CONTAINER_PATH, BindMode.READ_WRITE)
+            .withFileSystemBind(warehouseDir.getAbsolutePath(), warehouseDir.getAbsolutePath(), BindMode.READ_WRITE)
             .waitingFor(Wait.forListeningPort());
         hiveMetastore.start();
     }
@@ -271,7 +264,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
         try {
             Database db = new Database();
             db.setName(DATABASE);
-            db.setLocationUri(WAREHOUSE_CONTAINER_PATH + "/" + DATABASE);
+            db.setLocationUri(warehouseDir.getAbsolutePath() + "/" + DATABASE);
             try {
                 client.create_database(db);
             } catch (Exception e) {
@@ -290,7 +283,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
             StorageDescriptor sd = new StorageDescriptor();
             sd.setCols(cols);
-            sd.setLocation(WAREHOUSE_CONTAINER_PATH + "/" + DATABASE + "/" + TABLE_NAME);
+            sd.setLocation(warehouseDir.getAbsolutePath() + "/" + DATABASE + "/" + TABLE_NAME);
             sd.setInputFormat("org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat");
             sd.setOutputFormat("org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat");
             sd.setSerdeInfo(serDeInfo);
@@ -313,7 +306,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
             for (String dt : partitionValues) {
                 StorageDescriptor partSd = new StorageDescriptor();
                 partSd.setCols(cols);
-                partSd.setLocation(WAREHOUSE_CONTAINER_PATH + "/" + DATABASE + "/" + TABLE_NAME + "/dt=" + dt);
+                partSd.setLocation(warehouseDir.getAbsolutePath() + "/" + DATABASE + "/" + TABLE_NAME + "/dt=" + dt);
                 partSd.setInputFormat(sd.getInputFormat());
                 partSd.setOutputFormat(sd.getOutputFormat());
                 partSd.setSerdeInfo(serDeInfo);
@@ -358,9 +351,9 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
     public static final class TestContainerThreadLeakFilter implements ThreadFilter {
         @Override
         public boolean reject(Thread t) {
-            return t.getName().startsWith("testcontainers-pull-watchdog-")
-                || t.getName().startsWith("testcontainers-ryuk")
-                || t.getName().startsWith("stream-poller-consumer");
+            return t.getName().startsWith("testcontainers-")
+                || t.getName().startsWith("stream-poller-consumer")
+                || t.getName().contains("StatisticsDataReferenceCleaner");
         }
     }
 }

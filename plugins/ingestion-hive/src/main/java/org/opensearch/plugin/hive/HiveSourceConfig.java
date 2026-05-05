@@ -27,6 +27,12 @@ public class HiveSourceConfig {
         CREATE_TIME
     }
 
+    /** Authentication mode for Metastore connection. */
+    public enum AuthMode {
+        NONE,
+        KERBEROS
+    }
+
     private final String metastoreUri;
     private final String database;
     private final String table;
@@ -38,6 +44,10 @@ public class HiveSourceConfig {
     private final int connectTimeoutMillis;
     private final int maxRetries;
     private final long retryIntervalMillis;
+    private final AuthMode authMode;
+    private final String kerberosPrincipal;
+    private final String kerberosKeytabPath;
+    private final String metastoreServicePrincipal;
 
     /**
      * Creates a new HiveSourceConfig from the ingestion source parameters.
@@ -66,6 +76,12 @@ public class HiveSourceConfig {
         this.connectTimeoutMillis = Integer.parseInt(String.valueOf(params.getOrDefault("connect_timeout", "10000")));
         this.maxRetries = Integer.parseInt(String.valueOf(params.getOrDefault("max_retries", "3")));
         this.retryIntervalMillis = Long.parseLong(String.valueOf(params.getOrDefault("retry_interval", "5000")));
+
+        String auth = (String) params.getOrDefault("authentication", "none");
+        this.authMode = "kerberos".equals(auth) ? AuthMode.KERBEROS : AuthMode.NONE;
+        this.kerberosPrincipal = (String) params.get("kerberos_principal");
+        this.kerberosKeytabPath = (String) params.get("kerberos_keytab");
+        this.metastoreServicePrincipal = (String) params.get("metastore_service_principal");
     }
 
     /** Returns the Hive Metastore Thrift URI (e.g., {@code thrift://host:9083}). */
@@ -121,6 +137,26 @@ public class HiveSourceConfig {
     /** Returns the interval between retries in milliseconds. */
     public long getRetryIntervalMillis() {
         return retryIntervalMillis;
+    }
+
+    /** Returns the authentication mode. */
+    public AuthMode getAuthMode() {
+        return authMode;
+    }
+
+    /** Returns the Kerberos principal for the client (e.g., {@code hive/hostname@REALM}). */
+    public String getKerberosPrincipal() {
+        return kerberosPrincipal;
+    }
+
+    /** Returns the path to the Kerberos keytab file. */
+    public String getKerberosKeytabPath() {
+        return kerberosKeytabPath;
+    }
+
+    /** Returns the Metastore service principal (e.g., {@code hive/_HOST@REALM}). */
+    public String getMetastoreServicePrincipal() {
+        return metastoreServicePrincipal;
     }
 
     private static long parseIntervalMillis(String interval) {
