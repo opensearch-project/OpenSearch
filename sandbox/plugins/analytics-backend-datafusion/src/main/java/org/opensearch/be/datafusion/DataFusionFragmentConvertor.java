@@ -40,7 +40,11 @@ import io.substrait.expression.Expression;
 import io.substrait.extension.SimpleExtension;
 import io.substrait.isthmus.ConverterProvider;
 import io.substrait.isthmus.SubstraitRelVisitor;
+import io.substrait.isthmus.TypeConverter;
+import io.substrait.isthmus.expression.AggregateFunctionConverter;
 import io.substrait.isthmus.expression.FunctionMappings;
+import io.substrait.isthmus.expression.ScalarFunctionConverter;
+import io.substrait.isthmus.expression.WindowFunctionConverter;
 import io.substrait.plan.Plan;
 import io.substrait.plan.PlanProtoConverter;
 import io.substrait.plan.ProtoPlanConverter;
@@ -240,7 +244,23 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     private SubstraitRelVisitor createVisitor(RelNode relNode) {
         RelDataTypeFactory typeFactory = relNode.getCluster().getTypeFactory();
-        ConverterProvider converterProvider = new ConverterProvider(extensions, typeFactory);
+        TypeConverter typeConverter = TypeConverter.DEFAULT;
+        ScalarFunctionConverter scalarConverter = new ScalarFunctionConverter(
+            extensions.scalarFunctions(),
+            ADDITIONAL_SCALAR_SIGS,
+            typeFactory,
+            typeConverter
+        );
+        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
+        WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
+        ConverterProvider converterProvider = new ConverterProvider(
+            typeFactory,
+            extensions,
+            scalarConverter,
+            aggConverter,
+            windowConverter,
+            typeConverter
+        );
         return new SubstraitRelVisitor(converterProvider);
     }
 
