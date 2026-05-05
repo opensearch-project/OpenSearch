@@ -3,11 +3,11 @@
 #
 # Description:
 #   Downloads CTI (Cyber Threat Intelligence) snapshot .zip files from the
-#   Wazuh CTI API for all three consumers (ruleset, IoC, CVE) and saves them
-#   to the output directory without extracting.
+#   Wazuh CTI API. Consumers are discovered dynamically from the public
+#   catalog plan via the /plans endpoint.
 #
-#   The downloaded snapshots can later be loaded into the Content Manager
-#   plugin for indexing.
+#   A manifest.json file is generated alongside the snapshots with metadata
+#   about each consumer (name, context, type, resource URL, offset).
 #
 # Usage:
 #   ./download_snapshots.sh --env <base-url> [--output-dir <path>] [--help]
@@ -23,7 +23,8 @@
 #
 # Output:
 #   One .zip file per consumer under the output directory:
-#     content.zip, ioc.zip, cve.zip
+#     vulnerabilities.zip, iocs.zip, ruleset.zip
+#   Plus a manifest.json with consumer metadata.
 #
 # Exit Codes:
 #   0   Success
@@ -36,10 +37,15 @@ set -euo pipefail
 # =============================================================================
 # Defaults
 # =============================================================================
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CTI_BASE_URL=""
-CONTENT_SOURCES="${SCRIPT_DIR}/feeds.json"
 OUTPUT_DIR="./snapshots"
+
+# Consumer types we are interested in (hardcoded per requirement).
+CONSUMER_TYPES=(
+    "cti:catalog:consumer:vulnerabilities"
+    "cti:catalog:consumer:iocs"
+    "cti:catalog:consumer:ruleset"
+)
 
 # =============================================================================
 # Usage
@@ -48,15 +54,13 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Downloads CTI snapshot .zip files for all consumers (content, IoC, CVE).
+Downloads CTI snapshot .zip files for all public consumers and generates
+a manifest.json with consumer metadata.
 
 Options:
   --env <base-url>        CTI API base URL (e.g. https://<your-environment>/api/v1).
   --output-dir <path>     Output directory (default: ./snapshots).
   --help                  Show this help message and exit.
-
-The script reads consumer definitions from feeds.json located
-in the same directory as this script. Each key becomes the output filename (<key>.zip).
 
 Example:
   $(basename "$0") --env https://<your-environment>/api/v1
@@ -94,11 +98,8 @@ if [[ -z "${CTI_BASE_URL}" ]]; then
     usage
 fi
 
-# Validate feeds file exists
-if [[ ! -f "${CONTENT_SOURCES}" ]]; then
-    echo "ERROR: Content sources file not found: ${CONTENT_SOURCES}"
-    exit 1
-fi
+# Strip trailing slash
+CTI_BASE_URL="${CTI_BASE_URL%/}"
 
 # =============================================================================
 # Dependency checks
@@ -111,105 +112,67 @@ for cmd in curl jq; do
 done
 
 # =============================================================================
-# Helper: fetch_snapshot_url <context> <consumer>
-#   Queries the CTI API and returns the snapshot download URL.
+# Helper: api_get <url>
+#   Makes a GET request with retries. Returns the response body.
 # =============================================================================
-fetch_snapshot_url() {
-    local base_url="$1"
-    local context="$2"
-    local consumer="$3"
+api_get() {
+    local url="$1"
+    curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 10 --max-time 30 "${url}"
+    }
 
-    # Strip trailing slash to avoid double slashes in the URL
-    base_url="${base_url%/}"
-    local url="${base_url}/catalog/contexts/${context}/consumers/${consumer}"
+# =============================================================================
+# Helper: extract_context <resource_url>
+#   Extracts the context from a resource URL of the form:
+#   .../contexts/<context>/consumers/<name>
+# =============================================================================
+extract_context() {
+    local url="$1"
+    # Match /contexts/<value>/
+    if [[ "${url}" =~ /contexts/([^/]+)/ ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        echo "ERROR: Cannot extract context from resource URL: ${url}" >&2
+        return 1
+    fi
+}
 
-    echo "  Fetching consumer metadata from ${url}" >&2
+# =============================================================================
+# Helper: type_to_filename <type>
+#   Derives the .zip filename from the consumer type.
+#   e.g. cti:catalog:consumer:ruleset -> ruleset.zip
+# =============================================================================
+type_to_filename() {
+    local type="$1"
+    echo "${type##*:}.zip"
+}
+
+# =============================================================================
+# Helper: fetch_public_plan
+#   Fetches the public plan from the /plans endpoint.
+# =============================================================================
+fetch_public_plan() {
+    local plans_url="${CTI_BASE_URL}/catalog/plans"
+    echo "Fetching catalog plans from ${plans_url}" >&2
+
     local response
-    response=$(curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 10 --max-time 30 "${url}") || {
-        echo "ERROR: Failed to fetch consumer ${context}/${consumer}" >&2
-        return 1
+    response=$(api_get "${plans_url}") || {
+        echo "ERROR: Failed to fetch plans from ${plans_url}"
+        exit 1
     }
 
-    local snapshot_url
-    snapshot_url=$(echo "${response}" | jq -r '.data.last_snapshot_link // empty')
+    # Find public plans
+    local public_plans
+    public_plans=$(echo "${response}" | jq '[.plans[] | select(.is_public == true)]')
 
-    if [[ -z "${snapshot_url}" ]]; then
-        echo "ERROR: No snapshot link found for ${context}/${consumer}" >&2
-        return 1
+    local count
+    count=$(echo "${public_plans}" | jq 'length')
+
+    if [[ "${count}" -ne 1 ]]; then
+        echo "ERROR: Expected exactly 1 public plan, found ${count}"
+        exit 1
     fi
 
-    # The API may return snapshot URLs with a different host than the one
-    # we queried (e.g. cti-pre.wazuh.com instead of cti.pre.cloud.wazuh.com).
-    # Rewrite the host to match the base URL we were given.
-    local base_host="${base_url#https://}"
-    base_host="${base_host%%/*}"
-    local snap_host="${snapshot_url#https://}"
-    snap_host="${snap_host%%/*}"
-    if [[ "${snap_host}" != "${base_host}" ]]; then
-        echo "  Rewriting snapshot host: ${snap_host} -> ${base_host}" >&2
-        snapshot_url="${snapshot_url/${snap_host}/${base_host}}"
-    fi
-
-    echo "${snapshot_url}"
-}
-
-# =============================================================================
-# Helper: download_snapshot <label> <snapshot_url>
-#   Downloads a snapshot .zip file to the output directory.
-# =============================================================================
-download_snapshot() {
-    local label="$1"
-    local snapshot_url="$2"
-    local zip_file="${OUTPUT_DIR}/${label}.zip"
-
-    echo "  Downloading ${label} snapshot from ${snapshot_url}" >&2
-    curl -fSL --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 300 -o "${zip_file}" "${snapshot_url}" || {
-        echo "ERROR: Failed to download snapshot for ${label}" >&2
-        return 1
-    }
-
-    echo "  Saved to ${zip_file}" >&2
-}
-
-# =============================================================================
-# Helper: print_summary <output_dir>
-#   Prints a file-size summary for every downloaded .zip file.
-# =============================================================================
-print_summary() {
-    local output_dir="$1"
-
-    echo ""
-    echo "===== Summary ====="
-    echo "Output directory: ${output_dir}"
-    echo ""
-
-    for f in "${output_dir}"/*.zip; do
-        [[ -f "${f}" ]] || continue
-        local size
-        size=$(du -h "${f}" | cut -f1)
-        printf "  %-25s %s\n" "$(basename "${f}")" "${size}"
-    done
-}
-
-# =============================================================================
-# Helper: process_consumer <label> <context> <consumer>
-#   Fetches the snapshot URL and downloads the .zip file.
-# =============================================================================
-process_consumer() {
-    local label="$1"
-    local base_url="$2"
-    local context="$3"
-    local consumer="$4"
-
-    echo ""
-    echo "--- Processing consumer: ${label} (${context}/${consumer}) ---"
-
-    local snapshot_url
-    snapshot_url=$(fetch_snapshot_url "${base_url}" "${context}" "${consumer}") || return 1
-
-    download_snapshot "${label}" "${snapshot_url}"
-
-    echo "  Done with ${label}."
+    echo "${public_plans}" | jq '.[0]'
 }
 
 # =============================================================================
@@ -217,27 +180,102 @@ process_consumer() {
 # =============================================================================
 main() {
     echo "Wazuh CTI Snapshot Downloader"
-    echo "CTI API URL:       ${CTI_BASE_URL}"
-    echo "Content sources:   ${CONTENT_SOURCES}"
+    echo "CTI API URL: ${CTI_BASE_URL}"
+    echo ""
 
     mkdir -p "${OUTPUT_DIR}"
+    rm -f "${OUTPUT_DIR}"/*.zip "${OUTPUT_DIR}"/manifest.json
 
-    # Remove any previous snapshot .zip files to avoid stale data
-    rm -f "${OUTPUT_DIR}"/*.zip
+    local plan
+    plan=$(fetch_public_plan)
 
-    # Iterate over every entry in the feeds JSON file.
-    # Each key is used as the snapshot label and output filename.
-    local keys
-    keys=$(jq -r 'keys[]' "${CONTENT_SOURCES}")
-    for key in ${keys}; do
-        local context consumer
-        context=$(jq -r --arg k "${key}" '.[$k].context' "${CONTENT_SOURCES}")
-        consumer=$(jq -r --arg k "${key}" '.[$k].consumer' "${CONTENT_SOURCES}")
-        process_consumer "${key}" "${CTI_BASE_URL}" "${context}" "${consumer}"
+    # Start building manifest as a JSON object
+    local manifest="{}"
+
+    for consumer_type in "${CONSUMER_TYPES[@]}"; do
+        local filename
+        filename=$(type_to_filename "${consumer_type}")
+
+        echo ""
+        echo "--- Processing ${consumer_type} ---"
+
+        # Find the feature matching this type
+        local feature
+        feature=$(echo "${plan}" | jq -r --arg t "${consumer_type}" '.features[] | select(.type == $t)')
+
+        if [[ -z "${feature}" || "${feature}" == "null" ]]; then
+            echo "ERROR: No feature found for type ${consumer_type} in public plan"
+            exit 1
+        fi
+
+        local name resource_url
+        name=$(echo "${feature}" | jq -r '.name')
+        resource_url=$(echo "${feature}" | jq -r '.resource')
+
+        echo "  Consumer: ${name}"
+        echo "  Resource: ${resource_url}"
+
+        # Fetch consumer details
+        local consumer_data
+        consumer_data=$(api_get "${resource_url}") || {
+            echo "ERROR: Failed to fetch consumer details from ${resource_url}"
+            exit 1
+        }
+
+        local snapshot_link snapshot_offset changes_url is_public
+        snapshot_link=$(echo "${consumer_data}" | jq -r '.data.last_snapshot_link // empty')
+        snapshot_offset=$(echo "${consumer_data}" | jq -r '.data.last_snapshot_offset // empty')
+        is_public=$(echo "${consumer_data}" | jq -r '.data.is_public // empty')
+
+        if [[ -z "${snapshot_link}" ]]; then
+            echo "ERROR: No snapshot link found for ${name}"
+            exit 1
+        fi
+
+        local context
+        context=$(extract_context "${resource_url}")
+
+        echo "  Context: ${context}"
+        echo "  Snapshot offset: ${snapshot_offset}"
+
+        # Download snapshot
+        local zip_file="${OUTPUT_DIR}/${filename}"
+        echo "  Downloading snapshot from ${snapshot_link}"
+        curl -fSL --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 300 \
+            -o "${zip_file}" "${snapshot_link}" || {
+            echo "ERROR: Failed to download snapshot for ${name}"
+            exit 1
+        }
+        echo "  Saved to ${zip_file}"
+
+        # Add to manifest
+        manifest=$(echo "${manifest}" | jq \
+            --arg file "${filename}" \
+            --arg name "${name}" \
+            --arg ctx "${context}" \
+            --arg type "${consumer_type}" \
+            --arg res "${resource_url}" \
+            --argjson pub "${is_public}" \
+            --argjson off "${snapshot_offset}" \
+            '. + {($file): {name: $name, context: $ctx, type: $type, resource: $res, is_public: $pub, remote_offset: $off}}')
     done
 
-    # Print summary
-    print_summary "${OUTPUT_DIR}"
+    # Write manifest
+    echo "${manifest}" | jq '.' > "${OUTPUT_DIR}/manifest.json"
+    echo ""
+    echo "Manifest written to ${OUTPUT_DIR}/manifest.json"
+
+    # Summary
+    echo ""
+    echo "===== Summary ====="
+    echo "Output directory: ${OUTPUT_DIR}"
+    echo ""
+    for f in "${OUTPUT_DIR}"/*.zip; do
+        [[ -f "${f}" ]] || continue
+        local size
+        size=$(du -h "${f}" | cut -f1)
+        printf "  %-30s %s\n" "$(basename "${f}")" "${size}"
+    done
 }
 
 main

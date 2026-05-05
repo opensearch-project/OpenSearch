@@ -320,6 +320,11 @@ function install_snapshots() {
         echo "Installing snapshots to ${dest}"
         mkdir -p "${dest}"
         cp "${src}"/*.zip "${dest}/"
+        # Install manifest if present (used to initialize wazuh-cti-consumers index)
+        if [ -f "${src}/manifest.json" ]; then
+            cp "${src}/manifest.json" "${dest}/"
+            echo "Installed manifest.json"
+        fi
     else
         echo "No snapshots found at ${src}, skipping"
     fi

@@ -86,4 +86,4 @@ USER wazuh-indexer
 WORKDIR /home/wazuh-indexer
 
 # Entry point to the build script
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
