@@ -16,11 +16,13 @@ import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 
 import java.util.List;
 
@@ -87,6 +89,10 @@ public class RelNodeUtils {
                 project.getRowType(),
                 project.getViableBackends()
             );
+        } else if (node instanceof OpenSearchUnion union) {
+            return new OpenSearchUnion(newCluster, newTraits, newInputs, union.all, union.getViableBackends());
+        } else if (node instanceof OpenSearchExchangeReducer exchange) {
+            return new OpenSearchExchangeReducer(newCluster, newTraits, newInputs.getFirst(), exchange.getViableBackends());
         }
 
         throw new UnsupportedOperationException("Cannot copy node type: " + node.getClass().getSimpleName());

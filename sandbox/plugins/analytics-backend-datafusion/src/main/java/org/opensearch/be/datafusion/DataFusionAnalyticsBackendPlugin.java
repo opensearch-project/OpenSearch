@@ -40,7 +40,7 @@ import java.util.Set;
  */
 public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugin {
 
-    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT);
+    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION);
 
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = new HashSet<>();
     static {
@@ -191,7 +191,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             String mode = plugin.getClusterService() != null
                 ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
                 : "streaming";
-            if ("memtable".equals(mode)) {
+            // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
+            // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
+            // need per-child input partitions, which only the streaming sink implements via
+            // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
+            // don't have to flip the cluster setting per query.
+            // TODO: lift this fallback once the memtable sink registers one MemTable per
+            // child stage (see DatafusionMemtableReduceSink class javadoc).
+            if ("memtable".equals(mode) && ctx.childInputs().size() == 1) {
                 return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
             }
             return new DatafusionReduceSink(ctx, svc.getNativeRuntime());
