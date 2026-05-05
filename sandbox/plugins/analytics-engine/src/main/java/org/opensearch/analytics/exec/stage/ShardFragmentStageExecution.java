@@ -21,7 +21,9 @@ import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -110,14 +112,15 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         }
     }
 
-    private <T extends org.opensearch.core.action.ActionResponse> StreamingResponseListener<T> responseListener(
-        Function<T, VectorSchemaRoot> toVsr
-    ) {
+    private <T extends ActionResponse> StreamingResponseListener<T> responseListener(Function<T, VectorSchemaRoot> toVsr) {
         return new StreamingResponseListener<>() {
             @Override
             public void onStreamResponse(T response, boolean isLast) {
                 config.searchExecutor().execute(() -> {
-                    if (isDone()) return;
+                    if (isDone()) {
+                        releaseResponseResources(response);
+                        return;
+                    }
 
                     VectorSchemaRoot vsr = toVsr.apply(response);
                     outputSink.feed(vsr);
@@ -137,6 +140,12 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                 onShardTerminated();
             }
         };
+    }
+
+    private static <T> void releaseResponseResources(T response) {
+        if (response instanceof ArrowBatchResponse arrowResp && arrowResp.getRoot() != null) {
+            arrowResp.getRoot().close();
+        }
     }
 
     private void onShardTerminated() {
