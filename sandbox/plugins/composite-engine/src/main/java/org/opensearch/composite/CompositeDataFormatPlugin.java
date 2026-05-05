@@ -61,6 +61,14 @@ import java.util.function.Supplier;
  *       formats (default empty)</li>
  * </ul>
  *
+ * <p>And three cluster settings:
+ * <ul>
+ *   <li>{@code cluster.composite.primary_data_format} — cluster-level default for the primary format</li>
+ *   <li>{@code cluster.composite.secondary_data_formats} — cluster-level default for secondary formats</li>
+ *   <li>{@code cluster.restrict.composite.dataformat} — when true, rejects index-level overrides that
+ *       differ from the cluster defaults</li>
+ * </ul>
+ *
  * <p>Format plugins (e.g., Parquet) extend this plugin by declaring
  * {@code extendedPlugins = ['composite-engine']} in their {@code build.gradle}
  * and implementing {@link DataFormatPlugin}.
@@ -134,7 +142,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * {@link #PRIMARY_DATA_FORMAT} and {@link #SECONDARY_DATA_FORMATS} settings.
      *
      * <p>This is scoped to the composite plugin so restriction can be toggled independently of the server-level
-     * {@code cluster.index.restrict.pluggable.dataformat} flag that governs the core
+     * {@code cluster.restrict.pluggable.dataformat} flag that governs the core
      * {@code index.pluggable.dataformat.*} settings.
      */
     public static final Setting<Boolean> CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING = Setting.boolSetting(
@@ -181,7 +189,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      *
      * <p>Because both index settings are {@link Setting.Property#Final}, the effective value is
      * resolved once at index-creation time from the live {@link ClusterSettings} registry and
-     * frozen into the index metadata. Later updates to the {@code cluster.default.*} settings
+     * frozen into the index metadata. Later updates to the {@code cluster.composite.*} settings
      * affect only indices created after the update.
      *
      * <p>If {@link #createComponents} has not run yet (e.g. during early bootstrap), the provider
