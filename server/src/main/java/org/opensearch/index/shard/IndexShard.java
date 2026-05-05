@@ -2205,6 +2205,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /** Returns the merged-segment publisher, or {@code null} if segment replication is not enabled for this shard. */
+    @Nullable
+    @ExperimentalApi
+    public MergedSegmentPublisher getMergedSegmentPublisher() {
+        return mergedSegmentPublisher;
+    }
+
+    /** Returns the codec name configured for this shard's engine. */
+    @ExperimentalApi
+    public String getCodecName() {
+        return getIndexer().config().getCodec().getName();
+    }
+
     /**
      * Checks if this target shard should start a round of segment replication.
      * @return - True if the shard is able to perform segment replication.
