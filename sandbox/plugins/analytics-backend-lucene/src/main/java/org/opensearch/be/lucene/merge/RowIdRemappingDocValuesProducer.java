@@ -66,8 +66,11 @@ class RowIdRemappingDocValuesProducer extends DocValuesProducer {
         if (DocumentInput.ROW_ID_FIELD.equals(field.name)) {
             if (rowIdMapping != null) {
                 return new MappedRowIdDocValues(delegate.getSortedNumeric(field), rowIdMapping, generation);
+            } else {
+                // https://github.com/opensearch-project/OpenSearch/issues/21508
+                // TODO check how this will work for primary engine when rowIdMapping will be null.
+                throw new UnsupportedOperationException("Lucene as Primary Format is not supported yet");
             }
-            return new SequentialRowIdDocValues(maxDoc, rowIdOffset);
         }
         return delegate.getSortedNumeric(field);
     }
@@ -151,59 +154,6 @@ class RowIdRemappingDocValuesProducer extends DocValuesProducer {
         @Override
         public long cost() {
             return delegate.cost();
-        }
-    }
-
-    /**
-     * Assigns sequential {@code ___row_id} = {@code rowIdOffset + docID}.
-     * Used when no RowIdMapping is provided.
-     */
-    private static class SequentialRowIdDocValues extends SortedNumericDocValues {
-
-        private final int maxDoc;
-        private final int rowIdOffset;
-        private int docID = -1;
-
-        SequentialRowIdDocValues(int maxDoc, int rowIdOffset) {
-            this.maxDoc = maxDoc;
-            this.rowIdOffset = rowIdOffset;
-        }
-
-        @Override
-        public long nextValue() {
-            return rowIdOffset + docID;
-        }
-
-        @Override
-        public int docValueCount() {
-            return 1;
-        }
-
-        @Override
-        public boolean advanceExact(int target) {
-            docID = target;
-            return true;
-        }
-
-        @Override
-        public int docID() {
-            return docID;
-        }
-
-        @Override
-        public int nextDoc() {
-            return ++docID < maxDoc ? docID : NO_MORE_DOCS;
-        }
-
-        @Override
-        public int advance(int target) {
-            docID = target;
-            return docID < maxDoc ? docID : NO_MORE_DOCS;
-        }
-
-        @Override
-        public long cost() {
-            return maxDoc;
         }
     }
 }

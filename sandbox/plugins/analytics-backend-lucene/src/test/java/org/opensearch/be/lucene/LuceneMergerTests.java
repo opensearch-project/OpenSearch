@@ -42,10 +42,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
 
@@ -115,44 +113,6 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         MergeResult result = merger.merge(input);
         assertNotNull(result);
         assertTrue(result.getMergedWriterFileSet().isEmpty());
-    }
-
-    /**
-     * Merge without RowIdMapping (primary merge) preserves all documents and field data.
-     */
-    public void testMergeWithoutRowIdMappingPreservesData() throws IOException {
-        writeSegment(writer, 1L, 0, 3);
-        writeSegment(writer, 2L, 3, 2);
-        writer.commit();
-
-        SegmentInfos infos = getSegmentInfos(writer);
-        assertEquals(2, infos.size());
-        assertEquals(5, writer.getDocStats().numDocs);
-
-        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
-        List<Segment> segments = buildSegments(infos);
-
-        MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(10L).build();
-        MergeResult result = merger.merge(input);
-        assertNotNull(result);
-
-        writer.commit();
-        // addIndexes adds a new merged segment; original segments remain.
-        // Total docs = original 5 + merged 5 = 10
-        try (DirectoryReader reader = DirectoryReader.open(writer)) {
-            assertTrue("Should have at least 5 docs after merge", reader.numDocs() >= 5);
-            Set<String> foundIds = new HashSet<>();
-            for (LeafReaderContext ctx : reader.leaves()) {
-                for (int i = 0; i < ctx.reader().maxDoc(); i++) {
-                    Document doc = ctx.reader().storedFields().document(i);
-                    foundIds.add(doc.get("id"));
-                    assertNotNull("data field should be preserved", doc.get("data"));
-                }
-            }
-            for (int i = 0; i < 5; i++) {
-                assertTrue("Missing doc id: doc_" + i, foundIds.contains("doc_" + i));
-            }
-        }
     }
 
     /**
@@ -242,6 +202,11 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
     /**
      * Merge preserves keyword, numeric, and stored field data integrity.
+     *
+     * <p>Uses an identity {@link RowIdMapping} so the merge exercises the real
+     * secondary-format path; the assertions focus on field-data survival rather
+     * than on row-id remapping (which is covered by
+     * {@link #testMergeWithRowIdMappingRemapsRowIds()}).
      */
     public void testMergePreservesFieldDataIntegrity() throws IOException {
         writeSegmentWithRichFields(writer, 1L, 0, 3);
@@ -252,7 +217,11 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         SegmentInfos infos = getSegmentInfos(writer);
         List<Segment> segments = buildSegments(infos);
 
-        MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(10L).build();
+        // Identity mapping — writeSegmentWithRichFields already writes globally-unique row IDs
+        // (0,1,2 in gen=1 and 3,4 in gen=2), so returning the original row ID is well-formed.
+        RowIdMapping identityMapping = (oldId, oldGeneration) -> oldId;
+
+        MergeInput input = MergeInput.builder().segments(segments).rowIdMapping(identityMapping).newWriterGeneration(10L).build();
         merger.merge(input);
         writer.commit();
 

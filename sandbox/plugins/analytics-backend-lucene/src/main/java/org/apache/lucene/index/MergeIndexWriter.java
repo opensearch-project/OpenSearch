@@ -9,7 +9,6 @@
 package org.apache.lucene.index;
 
 import org.apache.lucene.store.Directory;
-import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
 
@@ -31,7 +30,6 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
 public class MergeIndexWriter extends IndexWriter {
 
     public MergeIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
@@ -67,5 +65,12 @@ public class MergeIndexWriter extends IndexWriter {
         }
         // merge() must be called without holding the lock — mergeInit asserts !Thread.holdsLock(this)
         merge(oneMerge);
+    }
+
+    @Override
+    protected void mergeSuccess(MergePolicy.OneMerge merge) {
+        // TODO update this for lucene as a primary engine
+        // https://github.com/opensearch-project/OpenSearch/issues/21505
+        super.mergeSuccess(merge);
     }
 }

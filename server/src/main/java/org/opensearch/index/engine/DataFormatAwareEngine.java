@@ -1380,7 +1380,7 @@ public class DataFormatAwareEngine implements Indexer {
         assert oneMerge != null : "oneMerge must not be null";
         assert oneMerge.getSegmentsToMerge().isEmpty() == false : "merged segments list must not be empty";
         refreshLock.lock();
-        try {
+        try (GatedCloseable<CatalogSnapshot> oldSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
             catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
         } catch (Exception ex) {
             try {

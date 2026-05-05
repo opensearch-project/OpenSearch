@@ -6,12 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.composite;
+package org.opensearch.index.engine.dataformat;
 
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.dataformat.RowIdMapping;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -19,14 +18,14 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Compact implementation of {@link RowIdMapping} using {@link PackedLongValues} for memory-efficient
+ * Compact implementation of {@link RowIdMapping} using Lucene's PackedLongValues for memory-efficient
  * storage of row ID mappings produced during merge operations.
  *
  * <p>Structure:
  * <ul>
- *   <li>A single flat {@link PackedLongValues} array where {@code mapping[position] = newRowId}</li>
- *   <li>{@code generationOffsets} maps writer generation → starting offset in the array</li>
- *   <li>{@code generationSizes} maps writer generation → number of rows in that generation</li>
+ *   <li>A single flat packed array where {@code mapping[position] = newRowId}</li>
+ *   <li>{@code generationOffsets} maps writer generation to starting offset in the array</li>
+ *   <li>{@code generationSizes} maps writer generation to number of rows in that generation</li>
  * </ul>
  *
  * <p>Offsets are assigned in the order generations are processed during the primary format's merge,

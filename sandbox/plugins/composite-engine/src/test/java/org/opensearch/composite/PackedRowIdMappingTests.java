@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.test.OpenSearchTestCase;
 
