@@ -10,8 +10,10 @@ package org.opensearch.analytics.spi;
 
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperator;
 
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * All scalar functions a backend may support — comparisons, full-text search,
@@ -68,6 +70,14 @@ public enum ScalarFunction {
 
     // ── Cast / type ──────────────────────────────────────────────────
     CAST(Category.SCALAR, SqlKind.CAST),
+    /**
+     * Calcite's {@code SAFE_CAST} — emitted by PPL's explicit {@code CAST(... AS ...)} when the
+     * source value may be NULL or the conversion may fail; returns NULL on failure rather than
+     * throwing. Resolves through {@link SqlKind#SAFE_CAST}, distinct from {@link #CAST} which
+     * uses {@link SqlKind#CAST}. DataFusion's native cast already returns NULL on conversion
+     * failure, so SAFE_CAST and CAST share the same backend semantics.
+     */
+    SAFE_CAST(Category.SCALAR, SqlKind.SAFE_CAST),
 
     // ── Conditional ──────────────────────────────────────────────────
     CASE(Category.SCALAR, SqlKind.CASE),
@@ -133,5 +143,39 @@ public enum ScalarFunction {
         // TODO: Add an explicit functionName field per enum constant instead of relying on
         // valueOf(toUpperCase). This couples enum constant naming to SQL function naming convention.
         return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
+    }
+
+    /**
+     * Symbolic operator names (e.g. {@code "||"}) whose enum constant cannot be resolved by
+     * {@link #valueOf(String)}. Calcite emits these as {@link org.apache.calcite.sql.SqlBinaryOperator}
+     * instances with {@link SqlKind#OTHER}, so neither {@link #fromSqlKind(SqlKind)} nor
+     * {@link #fromSqlFunction(SqlFunction)} resolves them.
+     */
+    private static final Map<String, ScalarFunction> SYMBOLIC_OPERATOR_NAMES = Map.of("||", CONCAT);
+
+    /**
+     * Maps any Calcite {@link SqlOperator} to a {@link ScalarFunction}, or returns null if
+     * unrecognized. Resolution order: {@link SqlKind} match, then symbolic-name lookup
+     * (handles {@code ||}), then identifier-name {@link #valueOf(String)} match.
+     *
+     * <p>Prefer this entry point over {@link #fromSqlKind(SqlKind)} /
+     * {@link #fromSqlFunction(SqlFunction)} when resolving an arbitrary {@code RexCall}'s
+     * operator: a {@code RexCall} may be backed by a {@code SqlBinaryOperator} (e.g. {@code ||})
+     * which is neither covered by {@code OTHER} {@code SqlKind} nor by {@code SqlFunction}.
+     */
+    public static ScalarFunction fromSqlOperator(SqlOperator operator) {
+        ScalarFunction byKind = fromSqlKind(operator.getKind());
+        if (byKind != null) {
+            return byKind;
+        }
+        ScalarFunction bySymbolicName = SYMBOLIC_OPERATOR_NAMES.get(operator.getName());
+        if (bySymbolicName != null) {
+            return bySymbolicName;
+        }
+        try {
+            return ScalarFunction.valueOf(operator.getName().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 }
