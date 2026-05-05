@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
+import java.lang.foreign.MemorySegment;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,14 +54,15 @@ public class CollectorQueryLifecycleManager implements Closeable {
      * @param key    the collector key returned by {@link #registerCollector}
      * @param minDoc inclusive lower bound
      * @param maxDoc exclusive upper bound
-     * @return packed {@code long[]} bitset of matching doc IDs, or empty array if key is invalid
+     * @param out    destination {@link MemorySegment} to write the packed bitset into
+     * @return the number of 64-bit words written into {@code out}, or {@code 0} if key is invalid
      */
-    public long[] collectDocs(int key, int minDoc, int maxDoc) {
+    public int collectDocs(int key, int minDoc, int maxDoc, MemorySegment out) {
         SegmentCollector collector = collectors.get(key);
         if (collector == null) {
-            return new long[0];
+            return 0;
         }
-        return collector.collectDocs(minDoc, maxDoc);
+        return collector.collectDocs(minDoc, maxDoc, out);
     }
 
     /**
