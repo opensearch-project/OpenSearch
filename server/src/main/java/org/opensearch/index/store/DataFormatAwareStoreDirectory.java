@@ -268,7 +268,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      */
     private long calculateChecksum(FileMetadata fm) throws IOException {
         String fileIdentifier = toFileIdentifier(fm);
-        FormatChecksumStrategy strategy = checksumStrategies.getOrDefault(fm.dataFormat(), DEFAULT_CHECKSUM_STRATEGY);
+        FormatChecksumStrategy strategy = checksumStrategies.get(fm.dataFormat());
         return strategy.computeChecksum(this, fileIdentifier);
     }
 
