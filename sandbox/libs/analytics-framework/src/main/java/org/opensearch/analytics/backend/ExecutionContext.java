@@ -8,8 +8,9 @@
 
 package org.opensearch.analytics.backend;
 
-import org.opensearch.action.search.SearchShardTask;
+import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.tasks.Task;
 
 /**
  * Execution context carrying reader and plan state through
@@ -21,23 +22,24 @@ public class ExecutionContext {
 
     private final String tableName;
     private final Reader reader;
-    private final SearchShardTask task;
+    private final Task task;
     private byte[] fragmentBytes;
+    private BufferAllocator allocator;
 
     /**
      * Constructs an execution context.
      * @param tableName the target table name
-     * @param task the search shard task
+     * @param task the transport-created task for this fragment execution
      * @param reader the data-format aware reader
      */
-    public ExecutionContext(String tableName, SearchShardTask task, Reader reader) {
+    public ExecutionContext(String tableName, Task task, Reader reader) {
         this.tableName = tableName;
         this.task = task;
         this.reader = reader;
     }
 
-    /** Returns the search shard task. */
-    public SearchShardTask getTask() {
+    /** Returns the transport-created task for this fragment execution. */
+    public Task getTask() {
         return task;
     }
 
@@ -59,5 +61,15 @@ public class ExecutionContext {
     /** Sets the backend-specific serialized plan fragment bytes. */
     public void setFragmentBytes(byte[] fragmentBytes) {
         this.fragmentBytes = fragmentBytes;
+    }
+
+    /** Returns the caller-provided allocator for producing Arrow result buffers. */
+    public BufferAllocator getAllocator() {
+        return allocator;
+    }
+
+    /** Sets the caller-provided allocator. The caller owns its lifecycle; the engine must not close it. */
+    public void setAllocator(BufferAllocator allocator) {
+        this.allocator = allocator;
     }
 }

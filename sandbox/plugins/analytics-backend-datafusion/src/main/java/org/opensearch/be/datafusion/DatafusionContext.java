@@ -8,10 +8,10 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.SearchExecutionContext;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 
@@ -30,7 +30,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     private final NativeRuntimeHandle nativeRuntime;
     private DatafusionQuery datafusionQuery;
     private StreamHandle streamHandle;
-    private SearchShardTask task;
+    private Task task;
 
     /**
      * Creates a DataFusion execution context
@@ -38,7 +38,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
      * @param reader the DataFusion reader providing index data
      * @param nativeRuntime handle to the native DataFusion runtime
      */
-    public DatafusionContext(SearchShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
+    public DatafusionContext(Task task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
         this.task = task;
         this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
         this.nativeRuntime = nativeRuntime;
@@ -101,7 +101,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     }
 
     @Override
-    public SearchShardTask task() {
+    public Task task() {
         return task;
     }
 
