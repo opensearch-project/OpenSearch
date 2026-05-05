@@ -73,8 +73,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -300,8 +300,11 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Optional<InstructionNode> createFilterDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount,
-                                                                            List<DelegatedExpression> delegatedExpressions) {
+                public Optional<InstructionNode> createFilterDelegationNode(
+                    FilterTreeShape treeShape,
+                    int delegatedPredicateCount,
+                    List<DelegatedExpression> delegatedExpressions
+                ) {
                     return Optional.of(new FilterDelegationInstructionNode(treeShape, delegatedPredicateCount, delegatedExpressions));
                 }
 
