@@ -9,20 +9,25 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // Single cdylib for JDK FFM (Foreign Function & Memory API).
 //
-// Unlike the JNI approach (RegisterNatives, classloader workarounds), FFM calls
-// extern "C" functions directly via SymbolLookup + Linker.downcallHandle().
-// No JNIEnv, no JClass, no classloader binding — just plain C ABI.
-//
 // This crate:
-//   1. Sets the global mimalloc allocator (shared across all plugin rlibs)
+//   1. Sets the global jemalloc allocator (shared across all plugin rlibs)
 //   2. Pulls in plugin rlibs via extern crate (forces linker to include symbols)
 //   3. All #[no_mangle] extern "C" functions from the plugin crates are
 //      automatically available for dlsym/SymbolLookup
 // ═══════════════════════════════════════════════════════════════════════════════
 
-//TODO: AwaitsFix: Fix mimalloc lifecycle issue
-// #[global_allocator]
-// static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+/// jemalloc tuning applied at process start (before JVM/OpenSearch boots):
+/// - dirty_decay_ms and muzzy_decay_ms: also dynamically tunable at runtime via cluster settings
+///   (see NativeBridgeModule). The values here serve as defaults for the brief window between
+///   process start and OpenSearch initialization. On restart, the persisted cluster setting
+///   is re-applied by NativeBridgeModule.createComponents() — these compile-time values are
+///   only used until that point.
+/// - lg_tcache_max: NOT dynamically tunable by jemalloc — init-time only, requires process restart to change.
+#[export_name = "malloc_conf"]
+pub static MALLOC_CONF: &[u8] = b"dirty_decay_ms:30000,muzzy_decay_ms:30000,lg_tcache_max:16\0";
+
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 // Pull in plugin rlibs — forces linker to include all #[no_mangle] symbols.
 extern crate native_bridge_common;
