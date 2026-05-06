@@ -393,14 +393,19 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         logger.info("Shard {} discovered {} candidate partitions from Metastore", shardId, partitions.size());
 
         // Sort partitions according to ordering strategy
-        if (config.getPartitionOrder() == HiveSourceConfig.PartitionOrder.CREATE_TIME) {
-            partitions.sort(Comparator.comparingInt(Partition::getCreateTime));
-        } else {
-            partitions.sort((a, b) -> {
-                String aVal = String.join("/", a.getValues());
-                String bVal = String.join("/", b.getValues());
-                return aVal.compareTo(bVal);
-            });
+        switch (config.getPartitionOrder()) {
+            case CREATE_TIME:
+                partitions.sort(Comparator.comparingInt(Partition::getCreateTime));
+                break;
+            case PARTITION_TIME:
+                partitions.sort(Comparator.comparing(p -> extractPartitionTime(p)));
+                break;
+            default:
+                partitions.sort((a, b) -> {
+                    String aVal = String.join("/", a.getValues());
+                    String bVal = String.join("/", b.getValues());
+                    return aVal.compareTo(bVal);
+                });
         }
 
         // Filter to partitions assigned to this shard
@@ -518,6 +523,23 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             sb.append(partitionKeys.get(i)).append("=").append(values.get(i));
         }
         return sb.toString();
+    }
+
+    /**
+     * Extracts a timestamp string from partition values using the configured partition_time_pattern.
+     * Pattern variables like $year, $month, $day are replaced with the corresponding partition key values.
+     */
+    private String extractPartitionTime(Partition partition) {
+        String pattern = config.getPartitionTimePattern();
+        if (pattern == null) {
+            return String.join("/", partition.getValues());
+        }
+        List<String> values = partition.getValues();
+        String result = pattern;
+        for (int i = 0; i < partitionKeys.size(); i++) {
+            result = result.replace("$" + partitionKeys.get(i), values.get(i));
+        }
+        return result;
     }
 
     private byte[] rowToJson(Map<String, Object> row) {
