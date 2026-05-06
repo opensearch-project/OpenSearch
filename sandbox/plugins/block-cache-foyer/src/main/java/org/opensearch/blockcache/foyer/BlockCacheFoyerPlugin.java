@@ -16,7 +16,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.index.store.remote.filecache.UnifiedCacheService;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -141,10 +141,10 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         final long blockSizeBytes = FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(settings).getBytes();
         final String ioEngine     = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
         // Re-derive the capacity the same way requestedCapacityBytes() did, so the cache is
-        // initialised with exactly the bytes that were reserved by UnifiedCacheService.
+        // initialised with exactly the bytes that were reserved by NodeCacheOrchestrator.
         final String cacheSizeRaw = FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(settings);
         final RatioValue cacheRatio = RatioValue.parseRatioValue(cacheSizeRaw);
-        final long totalBudgetBytes = UnifiedCacheService.computeTotalBudgetBytes(settings, nodeEnvironment);
+        final long totalBudgetBytes = NodeCacheOrchestrator.computeTotalBudgetBytes(settings, nodeEnvironment);
         final long diskCapacityBytes = Math.round(totalBudgetBytes * cacheRatio.getAsRatio());
 
         final String diskDir;

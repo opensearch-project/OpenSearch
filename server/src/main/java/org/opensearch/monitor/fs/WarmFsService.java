@@ -15,7 +15,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.index.store.remote.filecache.UnifiedCacheService;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.indices.IndicesService;
 
 import static org.opensearch.monitor.fs.FsProbe.adjustForHugeFilesystems;
@@ -33,7 +33,7 @@ public class WarmFsService extends FsService {
 
     private final FileCacheSettings fileCacheSettings;
     private final IndicesService indicesService;
-    private final UnifiedCacheService unifiedCacheService;
+    private final NodeCacheOrchestrator nodeCacheOrchestrator;
     /**
      * Pre-computed virtual bytes that all registered block-cache plugins can serve.
      * Equals Σ(plugin_i.reservedBytes × plugin_i.dataToCapacityRatio), computed once
@@ -46,13 +46,13 @@ public class WarmFsService extends FsService {
         NodeEnvironment nodeEnvironment,
         FileCacheSettings fileCacheSettings,
         IndicesService indicesService,
-        UnifiedCacheService unifiedCacheService,
+        NodeCacheOrchestrator nodeCacheOrchestrator,
         long virtualBlockCacheBytes
     ) {
-        super(settings, nodeEnvironment, unifiedCacheService.fileCache());
+        super(settings, nodeEnvironment, nodeCacheOrchestrator.fileCache());
         this.fileCacheSettings = fileCacheSettings;
         this.indicesService = indicesService;
-        this.unifiedCacheService = unifiedCacheService;
+        this.nodeCacheOrchestrator = nodeCacheOrchestrator;
         this.virtualBlockCacheBytes = virtualBlockCacheBytes;
     }
 
@@ -61,8 +61,8 @@ public class WarmFsService extends FsService {
         // Virtual capacity = (file-cache SSD × fileCacheRatio) + pre-computed block-cache virtual bytes
         final double dataToFileCacheRatio = fileCacheSettings.getRemoteDataRatio();
 
-        final long fileCacheCapacity  = unifiedCacheService.fileCache().capacity();
-        final long blockCacheCapacity = unifiedCacheService.blockCacheCapacityBytes();
+        final long fileCacheCapacity  = nodeCacheOrchestrator.fileCache().capacity();
+        final long blockCacheCapacity = nodeCacheOrchestrator.blockCacheCapacityBytes();
         final long totalCacheCapacity = fileCacheCapacity + blockCacheCapacity;
 
         final long totalBytes = (long) (dataToFileCacheRatio * fileCacheCapacity)
@@ -94,7 +94,7 @@ public class WarmFsService extends FsService {
         warmPath.free      = adjustForHugeFilesystems(freeBytes);
         warmPath.available = adjustForHugeFilesystems(freeBytes);
         warmPath.fileCacheReserved  = adjustForHugeFilesystems(totalCacheCapacity);
-        warmPath.fileCacheUtilized  = adjustForHugeFilesystems(unifiedCacheService.cacheUtilizedBytes());
+        warmPath.fileCacheUtilized  = adjustForHugeFilesystems(nodeCacheOrchestrator.cacheUtilizedBytes());
 
         logger.trace(
             "Warm node disk usage — total: {}, used: {}, free: {}, cacheReserved: {}, cacheUtilized: {}",

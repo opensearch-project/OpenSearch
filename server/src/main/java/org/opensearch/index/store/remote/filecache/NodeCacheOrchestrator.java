@@ -51,9 +51,9 @@ import java.util.concurrent.ForkJoinTask;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class UnifiedCacheService implements Closeable {
+public class NodeCacheOrchestrator implements Closeable {
 
-    private static final Logger logger = LogManager.getLogger(UnifiedCacheService.class);
+    private static final Logger logger = LogManager.getLogger(NodeCacheOrchestrator.class);
 
     /** LRU cache for Lucene index files. Always present on warm nodes. */
     private final FileCache fileCache;
@@ -65,7 +65,7 @@ public class UnifiedCacheService implements Closeable {
     private final List<BlockCache> blockCaches = new ArrayList<>();
 
     // Private constructor — use create().
-    private UnifiedCacheService(FileCache fileCache) {
+    private NodeCacheOrchestrator(FileCache fileCache) {
         this.fileCache = fileCache;
     }
 
@@ -74,7 +74,7 @@ public class UnifiedCacheService implements Closeable {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Creates a {@code UnifiedCacheService} for a warm node.
+     * Creates a {@code NodeCacheOrchestrator} for a warm node.
      *
      * <p>Creates and validates the SSD budget, creates FileCache, and restores
      * surviving files from disk. Block caches are registered later via
@@ -86,7 +86,7 @@ public class UnifiedCacheService implements Closeable {
      *        {@link org.opensearch.plugins.BlockCacheProvider} plugins, computed by
      *        Node.java before plugins' {@code createComponents()} are called
      */
-    public static UnifiedCacheService create(
+    public static NodeCacheOrchestrator create(
         Settings settings,
         NodeEnvironment nodeEnvironment,
         long blockCacheBytes
@@ -111,7 +111,7 @@ public class UnifiedCacheService implements Closeable {
         restoreFileCacheFromDisk(settings, fileCacheNodePath, fileCache);
 
         // Block caches are provided by plugins via addBlockCache() after createComponents().
-        return new UnifiedCacheService(fileCache);
+        return new NodeCacheOrchestrator(fileCache);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

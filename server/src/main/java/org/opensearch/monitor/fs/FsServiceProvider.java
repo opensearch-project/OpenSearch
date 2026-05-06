@@ -14,7 +14,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.index.store.remote.filecache.UnifiedCacheService;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.indices.IndicesService;
 
 /**
@@ -31,7 +31,7 @@ public class FsServiceProvider {
     private final Settings settings;
     private final NodeEnvironment nodeEnvironment;
     @Nullable
-    private final UnifiedCacheService unifiedCacheService;
+    private final NodeCacheOrchestrator nodeCacheOrchestrator;
     private final FileCacheSettings fileCacheSettings;
     private final IndicesService indicesService;
     private final long virtualBlockCacheBytes;
@@ -39,14 +39,14 @@ public class FsServiceProvider {
     public FsServiceProvider(
         Settings settings,
         NodeEnvironment nodeEnvironment,
-        UnifiedCacheService unifiedCacheService,
+        NodeCacheOrchestrator nodeCacheOrchestrator,
         ClusterSettings clusterSettings,
         IndicesService indicesService,
         long virtualBlockCacheBytes
     ) {
         this.settings = settings;
         this.nodeEnvironment = nodeEnvironment;
-        this.unifiedCacheService = unifiedCacheService;
+        this.nodeCacheOrchestrator = nodeCacheOrchestrator;
         this.fileCacheSettings = new FileCacheSettings(settings, clusterSettings);
         this.indicesService = indicesService;
         this.virtualBlockCacheBytes = virtualBlockCacheBytes;
@@ -64,12 +64,12 @@ public class FsServiceProvider {
                 nodeEnvironment,
                 fileCacheSettings,
                 indicesService,
-                unifiedCacheService,
+                nodeCacheOrchestrator,
                 virtualBlockCacheBytes
             );
         }
-        // Non-warm nodes: no block cache; unifiedCacheService may be null.
+        // Non-warm nodes: no block cache; nodeCacheOrchestrator may be null.
         return new FsService(settings, nodeEnvironment,
-            unifiedCacheService != null ? unifiedCacheService.fileCache() : null);
+            nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null);
     }
 }

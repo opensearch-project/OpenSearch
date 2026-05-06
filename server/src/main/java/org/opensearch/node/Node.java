@@ -176,7 +176,7 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.index.store.remote.filecache.UnifiedCacheService;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -482,7 +482,7 @@ public class Node implements Closeable {
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     @Nullable
-    private UnifiedCacheService unifiedCacheService;
+    private NodeCacheOrchestrator nodeCacheOrchestrator;
     private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
     private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
 
@@ -815,17 +815,17 @@ public class Node implements Closeable {
 
             // Compute once; used for both block-cache budget partitioning and virtual-capacity reporting.
             final long totalBudgetBytes = DiscoveryNode.isWarmNode(settings)
-                ? UnifiedCacheService.computeTotalBudgetBytes(settings, nodeEnvironment) : 0L;
+                ? NodeCacheOrchestrator.computeTotalBudgetBytes(settings, nodeEnvironment) : 0L;
 
             if (DiscoveryNode.isWarmNode(settings)) {
                 // Ask each BlockCacheProvider plugin how many SSD bytes it needs from the total
                 // warm-cache budget. This is done before createComponents() so the budget
-                // partition is settled when UnifiedCacheService creates FileCache.
+                // partition is settled when NodeCacheOrchestrator creates FileCache.
                 long blockCacheBytes = pluginsService.filterPlugins(org.opensearch.plugins.BlockCacheProvider.class)
                     .stream()
                     .mapToLong(p -> p.requestedCapacityBytes(settings, totalBudgetBytes))
                     .sum();
-                this.unifiedCacheService = UnifiedCacheService.create(settings, nodeEnvironment, blockCacheBytes);
+                this.nodeCacheOrchestrator = NodeCacheOrchestrator.create(settings, nodeEnvironment, blockCacheBytes);
             }
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
@@ -1075,7 +1075,7 @@ public class Node implements Closeable {
             final FsServiceProvider fsServiceProvider = new FsServiceProvider(
                 settings,
                 nodeEnvironment,
-                unifiedCacheService,
+                nodeCacheOrchestrator,
                 settingsModule.getClusterSettings(),
                 indicesService,
                 virtualBlockCacheBytes
@@ -1192,10 +1192,10 @@ public class Node implements Closeable {
                 .collect(Collectors.toList());
             pluginComponents.addAll(searchBackEndPluginComponents);
 
-            if (unifiedCacheService != null) {
+            if (nodeCacheOrchestrator != null) {
                 for (org.opensearch.plugins.BlockCacheProvider p :
                         pluginsService.filterPlugins(org.opensearch.plugins.BlockCacheProvider.class)) {
-                    p.getBlockCache().ifPresent(unifiedCacheService::addBlockCache);
+                    p.getBlockCache().ifPresent(nodeCacheOrchestrator::addBlockCache);
                 }
             }
 
@@ -1571,7 +1571,7 @@ public class Node implements Closeable {
                 searchModule.getValuesSourceRegistry().getUsageService(),
                 searchBackpressureService,
                 searchPipelineService,
-                unifiedCacheService,
+                nodeCacheOrchestrator,
                 taskCancellationMonitoringService,
                 resourceUsageCollectorService,
                 segmentReplicationStatsTracker,
@@ -2484,11 +2484,11 @@ public class Node implements Closeable {
 
     /**
      * Returns the {@link FileCache} instance for remote warm nodes, or {@code null} on non-warm nodes.
-     * Delegates to {@link UnifiedCacheService} which owns the FileCache lifecycle.
+     * Delegates to {@link NodeCacheOrchestrator} which owns the FileCache lifecycle.
      * Note: Visible for testing
      */
     @Nullable
     public FileCache fileCache() {
-        return unifiedCacheService != null ? unifiedCacheService.fileCache() : null;
+        return nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null;
     }
 }

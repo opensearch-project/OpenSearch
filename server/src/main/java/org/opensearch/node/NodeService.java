@@ -50,7 +50,7 @@ import org.opensearch.discovery.Discovery;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
-import org.opensearch.index.store.remote.filecache.UnifiedCacheService;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
@@ -97,7 +97,7 @@ public class NodeService implements Closeable {
     private final ClusterService clusterService;
     private final Discovery discovery;
     @Nullable
-    private final UnifiedCacheService unifiedCacheService;
+    private final NodeCacheOrchestrator nodeCacheOrchestrator;
     private final TaskCancellationMonitoringService taskCancellationMonitoringService;
     private final RepositoriesService repositoriesService;
     private final AdmissionControlService admissionControlService;
@@ -124,7 +124,7 @@ public class NodeService implements Closeable {
         AggregationUsageService aggregationUsageService,
         SearchBackpressureService searchBackpressureService,
         SearchPipelineService searchPipelineService,
-        @Nullable UnifiedCacheService unifiedCacheService,
+        @Nullable NodeCacheOrchestrator nodeCacheOrchestrator,
         TaskCancellationMonitoringService taskCancellationMonitoringService,
         ResourceUsageCollectorService resourceUsageCollectorService,
         SegmentReplicationStatsTracker segmentReplicationStatsTracker,
@@ -151,7 +151,7 @@ public class NodeService implements Closeable {
         this.searchBackpressureService = searchBackpressureService;
         this.searchPipelineService = searchPipelineService;
         this.clusterService = clusterService;
-        this.unifiedCacheService = unifiedCacheService;
+        this.nodeCacheOrchestrator = nodeCacheOrchestrator;
         this.taskCancellationMonitoringService = taskCancellationMonitoringService;
         this.resourceUsageCollectorService = resourceUsageCollectorService;
         this.repositoriesService = repositoriesService;
@@ -271,7 +271,7 @@ public class NodeService implements Closeable {
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
             clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
             weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
-            fileCacheStats && unifiedCacheService != null ? unifiedCacheService.aggregateStats() : null,
+            fileCacheStats && nodeCacheOrchestrator != null ? nodeCacheOrchestrator.aggregateStats() : null,
             taskCancellation ? this.taskCancellationMonitoringService.stats() : null,
             searchPipelineStats ? this.searchPipelineService.stats() : null,
             segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
