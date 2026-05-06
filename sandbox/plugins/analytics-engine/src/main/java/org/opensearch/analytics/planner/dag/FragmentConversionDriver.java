@@ -16,23 +16,28 @@ import org.apache.calcite.sql.SqlFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -70,6 +75,12 @@ public class FragmentConversionDriver {
      */
     public static void convertAll(QueryDAG dag, CapabilityRegistry registry) {
         convertStage(dag.rootStage(), registry);
+        // Root stage executes locally at coordinator — store factory for instruction dispatch.
+        Stage root = dag.rootStage();
+        if (root.getExchangeSinkProvider() != null && !root.getPlanAlternatives().isEmpty()) {
+            AnalyticsSearchBackendPlugin backend = registry.getBackend(root.getPlanAlternatives().getFirst().backendId());
+            root.setInstructionHandlerFactory(backend.getInstructionHandlerFactory());
+        }
     }
 
     private static void convertStage(Stage stage, CapabilityRegistry registry) {
@@ -80,11 +91,54 @@ public class FragmentConversionDriver {
         for (StagePlan plan : stage.getPlanAlternatives()) {
             AnalyticsSearchBackendPlugin backend = registry.getBackend(plan.backendId());
             FragmentConvertor convertor = backend.getFragmentConvertor();
+
+            // Derive filter tree shape BEFORE stripping (annotations must be intact)
+            OpenSearchFilter filter = RelNodeUtils.findNode(plan.resolvedFragment(), OpenSearchFilter.class);
+            FilterTreeShape treeShape = filter != null
+                ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
+                : FilterTreeShape.NO_DELEGATION;
+
             IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry);
             byte[] bytes = convert(plan.resolvedFragment(), convertor, delegationBytes);
-            converted.add(plan.withConvertedBytes(bytes, delegationBytes.getResult()));
+
+            // Assemble instruction list
+            List<InstructionNode> instructions = assembleInstructions(backend, plan, treeShape, delegationBytes);
+
+            converted.add(plan.withConvertedBytes(bytes, delegationBytes.getResult()).withInstructions(instructions));
         }
         stage.setPlanAlternatives(converted);
+        // Store factory on coordinator-reduce stages (local execution, no serialization needed).
+        // Shard stages get the factory from the local backend plugin at the data node.
+        if (stage.getExchangeSinkProvider() != null && !converted.isEmpty()) {
+            AnalyticsSearchBackendPlugin backend = registry.getBackend(converted.getFirst().backendId());
+            stage.setInstructionHandlerFactory(backend.getInstructionHandlerFactory());
+        }
+    }
+
+    private static List<InstructionNode> assembleInstructions(
+        AnalyticsSearchBackendPlugin backend,
+        StagePlan plan,
+        FilterTreeShape treeShape,
+        IntraOperatorDelegationBytes delegationBytes
+    ) {
+        FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
+        LinkedList<InstructionNode> instructions = new LinkedList<>();
+        RelNode leaf = findLeaf(plan.resolvedFragment());
+
+        if (leaf instanceof OpenSearchTableScan) {
+            factory.createShardScanNode().ifPresent(instructions::add);
+            List<DelegatedExpression> delegated = delegationBytes.getResult();
+            if (!delegated.isEmpty()) {
+                factory.createFilterDelegationNode(treeShape, delegated.size(), delegated).ifPresent(instructions::add);
+            }
+            if (plan.resolvedFragment() instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
+                factory.createPartialAggregateNode().ifPresent(instructions::add);
+            }
+        } else if (leaf instanceof OpenSearchStageInputScan) {
+            factory.createFinalAggregateNode().ifPresent(instructions::add);
+        }
+
+        return instructions;
     }
 
     /**
@@ -93,7 +147,7 @@ public class FragmentConversionDriver {
      */
     static final class IntraOperatorDelegationBytes {
         private final CapabilityRegistry registry;
-        private Map<Integer, byte[]> result;
+        private List<DelegatedExpression> delegatedExpressions;
 
         IntraOperatorDelegationBytes(CapabilityRegistry registry) {
             this.registry = registry;
@@ -140,16 +194,16 @@ public class FragmentConversionDriver {
                     annotationBackend,
                     serialized.length
                 );
-                if (result == null) {
-                    result = new HashMap<>();
+                if (delegatedExpressions == null) {
+                    delegatedExpressions = new ArrayList<>();
                 }
-                result.put(annotation.getAnnotationId(), serialized);
+                delegatedExpressions.add(new DelegatedExpression(annotation.getAnnotationId(), annotationBackend, serialized));
                 return annotation.makePlaceholder(rexBuilder);
             };
         }
 
-        Map<Integer, byte[]> getResult() {
-            return result != null ? result : Map.of();
+        List<DelegatedExpression> getResult() {
+            return delegatedExpressions != null ? delegatedExpressions : List.of();
         }
     }
 
@@ -222,20 +276,27 @@ public class FragmentConversionDriver {
             RelNode strippedNode = openSearchNode.stripAnnotations(strippedInputs, resolver);
 
             if (!finalAggConverted) {
-                // First OpenSearchRelNode above ExchangeReducer = final agg
-                // Check if child is ExchangeReducer — if so, this is the final agg node
-                boolean childIsExchangeReducer = !node.getInputs().isEmpty()
-                    && node.getInputs().getFirst() instanceof OpenSearchExchangeReducer;
-                if (childIsExchangeReducer) {
-                    // Strip ExchangeReducer, keep StageInputScan as leaf for schema
-                    RelNode stageInputScan = strip(node.getInputs().getFirst().getInputs().getFirst(), delegationBytes);
-                    List<RelNode> finalAggInputs = List.of(stageInputScan);
+                // First OpenSearchRelNode whose ALL inputs are ExchangeReducers is treated as the
+                // boundary between the coordinator-side fragment and the data-node child stages.
+                // For single-input shapes (Sort/Project/Aggregate over a partial agg) this is the
+                // final-aggregate operator; for multi-input shapes (Union) every branch is itself
+                // an ER → StageInputScan, and the entire Union+ER subtree is converted as one
+                // fragment so all branches end up in the same Substrait plan reading from their
+                // respective input partitions.
+                boolean allChildrenAreExchangeReducer = !node.getInputs().isEmpty()
+                    && node.getInputs().stream().allMatch(input -> input instanceof OpenSearchExchangeReducer);
+                if (allChildrenAreExchangeReducer) {
+                    List<RelNode> finalAggInputs = new ArrayList<>(node.getInputs().size());
+                    for (RelNode input : node.getInputs()) {
+                        // Skip the ER, keep StageInputScan below it as the leaf for schema inference.
+                        finalAggInputs.add(strip(input.getInputs().getFirst(), delegationBytes));
+                    }
                     RelNode finalAggFragment = openSearchNode.stripAnnotations(finalAggInputs, resolver);
                     return convertor.convertFinalAggFragment(finalAggFragment);
                 }
             }
 
-            // Operator above final agg — convert child first, then attach
+            // Operator above the final-fragment boundary — convert child first, then attach.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }

@@ -22,6 +22,8 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
@@ -46,19 +48,30 @@ import static org.apache.arrow.c.Data.importField;
  *       sink is done.</li>
  * </ul>
  *
+ * <p>Multi-input shapes (Union, future Join) are supported at this base by exposing
+ * {@link #childInputs} (childStageId → schemaIpc) for subclasses to register one
+ * native partition per child stage. The {@link #INPUT_ID} constant remains as the
+ * conventional name for the single-input case (childStageId=0); the per-child id is
+ * computed via {@link #inputIdFor(int)}.
+ *
  * @opensearch.internal
  */
 abstract class AbstractDatafusionReduceSink implements ExchangeSink {
 
-    /** Substrait/DataFusion table name for the single registered input partition. */
-    // TODO: This will change to represent child ID and taken as input in context
-    // for now we have a single partition.
+    /**
+     * Substrait/DataFusion table name used for the single-input case (childStageId=0).
+     * For multi-input shapes use {@link #inputIdFor(int)} instead.
+     */
     static final String INPUT_ID = "input-0";
 
     protected final ExchangeSinkContext ctx;
     protected final NativeRuntimeHandle runtimeHandle;
     protected final DatafusionLocalSession session;
-    protected final byte[] schemaIpc;
+    /**
+     * Per-child Arrow schema IPC bytes, keyed by childStageId. Iteration order matches
+     * the order of {@code ctx.childInputs()} so subclasses get deterministic registration.
+     */
+    protected final Map<Integer, byte[]> childInputs;
 
     /** Guards {@link #closed} and serialises {@link #feed}/{@link #close} against producers. */
     protected final Object feedLock = new Object();
@@ -69,8 +82,17 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
     protected AbstractDatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         this.ctx = ctx;
         this.runtimeHandle = runtimeHandle;
-        this.schemaIpc = ArrowSchemaIpc.toBytes(ctx.inputSchema());
         this.session = new DatafusionLocalSession(runtimeHandle.get());
+        Map<Integer, byte[]> inputs = new LinkedHashMap<>(ctx.childInputs().size());
+        for (ExchangeSinkContext.ChildInput child : ctx.childInputs()) {
+            inputs.put(child.childStageId(), ArrowSchemaIpc.toBytes(child.schema()));
+        }
+        this.childInputs = inputs;
+    }
+
+    /** DataFusion table name for an input partition associated with the given child stage id. */
+    protected static String inputIdFor(int childStageId) {
+        return "input-" + childStageId;
     }
 
     @Override

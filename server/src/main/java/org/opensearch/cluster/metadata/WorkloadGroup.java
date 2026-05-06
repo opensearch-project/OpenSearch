@@ -13,6 +13,7 @@ import org.opensearch.cluster.Diff;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -73,12 +74,12 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
             throw new IllegalArgumentException("WorkloadGroup.updatedAtInMillis is not a valid epoch");
         }
 
-        // Normalize null searchSettings to empty map for storage
-        if (mutableWorkloadGroupFragment.getSearchSettings() == null) {
+        // Normalize null settings to empty Settings for storage
+        if (mutableWorkloadGroupFragment.getSettings() == null) {
             mutableWorkloadGroupFragment = new MutableWorkloadGroupFragment(
                 mutableWorkloadGroupFragment.getResiliencyMode(),
                 mutableWorkloadGroupFragment.getResourceLimits(),
-                new HashMap<>()
+                Settings.EMPTY
             );
         }
 
@@ -113,23 +114,23 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         }
         final ResiliencyMode mode = Optional.ofNullable(mutableWorkloadGroupFragment.getResiliencyMode())
             .orElse(existingGroup.getResiliencyMode());
-        // Handle search_settings update:
+        // Handle settings update:
         // null = not specified (keep existing)
-        // empty map = explicitly clear (set to empty)
-        // non-empty map = replace with new values
-        final Map<String, String> mutableFragmentSearchSettings = mutableWorkloadGroupFragment.getSearchSettings();
-        final Map<String, String> updatedSearchSettings;
-        if (mutableFragmentSearchSettings == null) {
+        // empty Settings = explicitly clear (set to empty)
+        // non-empty Settings = replace with new values
+        final Settings mutableFragmentSettings = mutableWorkloadGroupFragment.getSettings();
+        final Settings updatedSettings;
+        if (mutableFragmentSettings == null) {
             // Not specified - keep existing
-            updatedSearchSettings = new HashMap<>(existingGroup.getSearchSettings());
+            updatedSettings = Settings.builder().put(existingGroup.getSettings()).build();
         } else {
             // Specified (empty or non-empty) - use the new value
-            updatedSearchSettings = new HashMap<>(mutableFragmentSearchSettings);
+            updatedSettings = Settings.builder().put(mutableFragmentSettings).build();
         }
         return new WorkloadGroup(
             existingGroup.getName(),
             existingGroup.get_id(),
-            new MutableWorkloadGroupFragment(mode, updatedResourceLimits, updatedSearchSettings),
+            new MutableWorkloadGroupFragment(mode, updatedResourceLimits, updatedSettings),
             Instant.now().getMillis()
         );
     }
@@ -201,8 +202,9 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         return getMutableWorkloadGroupFragment().getResourceLimits();
     }
 
-    public Map<String, String> getSearchSettings() {
-        return getMutableWorkloadGroupFragment().getSearchSettings();
+    @ExperimentalApi
+    public Settings getSettings() {
+        return getMutableWorkloadGroupFragment().getSettings();
     }
 
     public String get_id() {

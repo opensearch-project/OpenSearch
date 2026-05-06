@@ -76,7 +76,7 @@ final class ShardFragmentStageScheduler implements StageScheduler {
     private static List<FragmentExecutionRequest.PlanAlternative> buildPlanAlternatives(Stage stage) {
         List<FragmentExecutionRequest.PlanAlternative> alternatives = new ArrayList<>();
         for (StagePlan plan : stage.getPlanAlternatives()) {
-            alternatives.add(new FragmentExecutionRequest.PlanAlternative(plan.backendId(), plan.convertedBytes()));
+            alternatives.add(new FragmentExecutionRequest.PlanAlternative(plan.backendId(), plan.convertedBytes(), plan.instructions()));
         }
         return alternatives;
     }
