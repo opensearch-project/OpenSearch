@@ -21,11 +21,17 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
  * OpenSearch custom Aggregate carrying viable backend list and per-call annotations.
+ *
+ * <p>Annotations live in {@link #callAnnotations}, a side map keyed by aggregate-call
+ * index. They are NOT stored in the call's {@code rexList} — see
+ * {@link AggregateCallAnnotation} for why.
  *
  * @opensearch.internal
  */
@@ -33,6 +39,7 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     private final List<String> viableBackends;
     private final AggregateMode mode;
+    private final Map<Integer, AggregateCallAnnotation> callAnnotations;
 
     public OpenSearchAggregate(
         RelOptCluster cluster,
@@ -42,11 +49,13 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         List<ImmutableBitSet> groupSets,
         List<AggregateCall> aggCalls,
         AggregateMode mode,
-        List<String> viableBackends
+        List<String> viableBackends,
+        Map<Integer, AggregateCallAnnotation> callAnnotations
     ) {
         super(cluster, traitSet, List.of(), input, groupSet, groupSets, aggCalls);
         this.mode = mode;
         this.viableBackends = viableBackends;
+        this.callAnnotations = Map.copyOf(callAnnotations);
     }
 
     public AggregateMode getMode() {
@@ -56,6 +65,11 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
     @Override
     public List<String> getViableBackends() {
         return viableBackends;
+    }
+
+    /** Per-call annotations keyed by aggregate-call index. */
+    public Map<Integer, AggregateCallAnnotation> getCallAnnotations() {
+        return callAnnotations;
     }
 
     /**
@@ -94,7 +108,7 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
         List<ImmutableBitSet> groupSets,
         List<AggregateCall> aggCalls
     ) {
-        return new OpenSearchAggregate(getCluster(), traitSet, input, groupSet, groupSets, aggCalls, mode, viableBackends);
+        return new OpenSearchAggregate(getCluster(), traitSet, input, groupSet, groupSets, aggCalls, mode, viableBackends, callAnnotations);
     }
 
     @Override
@@ -125,46 +139,17 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     @Override
     public List<OperatorAnnotation> getAnnotations() {
-        List<OperatorAnnotation> annotations = new ArrayList<>();
-        for (AggregateCall aggCall : getAggCallList()) {
-            for (RexNode rex : aggCall.rexList) {
-                if (rex instanceof AggregateCallAnnotation annotation) {
-                    annotations.add(annotation);
-                }
-            }
-        }
-        return annotations;
+        // Iteration order matches insertion order (LinkedHashMap in the rule), which
+        // copyResolved relies on to align with resolvedAnnotations.
+        return List.copyOf(callAnnotations.values());
     }
 
     @Override
     public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
+        Map<Integer, AggregateCallAnnotation> resolvedMap = new LinkedHashMap<>();
         int annotationIndex = 0;
-        List<AggregateCall> resolvedCalls = new ArrayList<>();
-        for (AggregateCall aggCall : getAggCallList()) {
-            List<RexNode> newRexList = new ArrayList<>();
-            for (RexNode rex : aggCall.rexList) {
-                if (rex instanceof AggregateCallAnnotation) {
-                    newRexList.add((RexNode) resolvedAnnotations.get(annotationIndex++));
-                } else {
-                    // Non-annotation entries (e.g. argument refs) are passed through unchanged.
-                    newRexList.add(rex);
-                }
-            }
-            resolvedCalls.add(
-                AggregateCall.create(
-                    aggCall.getAggregation(),
-                    aggCall.isDistinct(),
-                    aggCall.isApproximate(),
-                    aggCall.ignoreNulls(),
-                    newRexList,
-                    aggCall.getArgList(),
-                    aggCall.filterArg,
-                    aggCall.distinctKeys,
-                    aggCall.collation,
-                    aggCall.type,
-                    aggCall.name
-                )
-            );
+        for (Map.Entry<Integer, AggregateCallAnnotation> entry : callAnnotations.entrySet()) {
+            resolvedMap.put(entry.getKey(), (AggregateCallAnnotation) resolvedAnnotations.get(annotationIndex++));
         }
         return new OpenSearchAggregate(
             getCluster(),
@@ -172,9 +157,10 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             children.getFirst(),
             getGroupSet(),
             getGroupSets(),
-            resolvedCalls,
+            getAggCallList(),
             mode,
-            List.of(backend)
+            List.of(backend),
+            resolvedMap
         );
     }
 
@@ -185,28 +171,11 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
-        List<AggregateCall> strippedCalls = new ArrayList<>();
-        for (AggregateCall aggCall : getAggCallList()) {
-            // TODO: when aggregate delegation is implemented, use annotationResolver
-            // to replace delegated AggregateCallAnnotations with placeholders instead
-            // of just filtering them out.
-            List<RexNode> cleanRexList = aggCall.rexList.stream().filter(rex -> !(rex instanceof AggregateCallAnnotation)).toList();
-            strippedCalls.add(
-                AggregateCall.create(
-                    aggCall.getAggregation(),
-                    aggCall.isDistinct(),
-                    aggCall.isApproximate(),
-                    aggCall.ignoreNulls(),
-                    cleanRexList,
-                    aggCall.getArgList(),
-                    aggCall.filterArg,
-                    aggCall.distinctKeys,
-                    aggCall.collation,
-                    aggCall.type,
-                    aggCall.name
-                )
-            );
-        }
-        return LogicalAggregate.create(strippedChildren.getFirst(), List.of(), getGroupSet(), getGroupSets(), strippedCalls);
+        // Per the PR 21424 refactor (3e50f563394), AggregateCallAnnotations live in a
+        // side map on OpenSearchAggregate — NOT in each AggregateCall's rexList — so
+        // pass the calls through unchanged. The annotationResolver is ignored for
+        // aggregates; it's retained on the interface for symmetry with other
+        // OpenSearch RelNodes (filter/project) that DO carry annotations inline.
+        return LogicalAggregate.create(strippedChildren.getFirst(), List.of(), getGroupSet(), getGroupSets(), getAggCallList());
     }
 }

@@ -14,7 +14,9 @@ import org.apache.arrow.c.CDataDictionaryProvider;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -25,6 +27,7 @@ import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -200,7 +203,43 @@ public class DatafusionResultStream implements EngineResultStream {
             if (vector == null) {
                 throw new IllegalArgumentException("Unknown field: " + fieldName);
             }
+            // List-valued aggregates (PPL list/take/values) return a ListVector whose
+            // stock getObject wraps results in arrow-vector's JsonStringArrayList. That
+            // class's <clinit> instantiates Jackson's JavaTimeModule, which lives in
+            // jackson-datatype-jsr310 — NOT on the arrow-flight-rpc plugin classloader
+            // that owns ListVector. In the REST IT path (plugin classloader isolation),
+            // that lookup throws NoClassDefFoundError and crashes the node.
+            //
+            // Decode ListVector manually using offsets + the inner vector's getObject so
+            // we never touch JsonStringArrayList. The inner vector's getObject returns a
+            // plain scalar (String/Number/etc.) whose <clinit> has no jsr310 dep.
+            if (vector instanceof ListVector listVector) {
+                return decodeListValue(listVector, rowIndex);
+            }
             return vector.getObject(rowIndex);
+        }
+
+        /**
+         * Materialize a single row of a {@link ListVector} as a plain {@link ArrayList}.
+         * Uses the public offset/data API rather than {@code ListVector.getObject}, which
+         * returns a {@code JsonStringArrayList} whose static init fails under plugin
+         * classloader isolation (see {@link #getFieldValue} comment).
+         *
+         * @return {@code null} if the row is null; otherwise an {@link ArrayList} of the
+         *         row's element values as returned by the inner vector's {@code getObject}.
+         */
+        private static List<Object> decodeListValue(ListVector listVector, int rowIndex) {
+            if (listVector.isNull(rowIndex)) {
+                return null;
+            }
+            int start = listVector.getElementStartIndex(rowIndex);
+            int end = listVector.getElementEndIndex(rowIndex);
+            ValueVector inner = listVector.getDataVector();
+            ArrayList<Object> out = new ArrayList<>(end - start);
+            for (int i = start; i < end; i++) {
+                out.add(inner.getObject(i));
+            }
+            return out;
         }
     }
 }

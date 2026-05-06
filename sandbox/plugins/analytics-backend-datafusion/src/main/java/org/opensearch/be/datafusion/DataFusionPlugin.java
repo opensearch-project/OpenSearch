@@ -148,8 +148,28 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         ClassLoader previous = t.getContextClassLoader();
         try {
             t.setContextClassLoader(DataFusionPlugin.class.getClassLoader());
+            SimpleExtension.ExtensionCollection collection = DefaultExtensionCatalog.DEFAULT_COLLECTION;
+
+            // Layer in the upstream delegation-function extensions (DelegatedPredicateFunction
+            // signature used by the Lucene predicate-pushdown path).
             SimpleExtension.ExtensionCollection delegationExtensions = SimpleExtension.load(List.of("/delegation_functions.yaml"));
-            return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions);
+            collection = collection.merge(delegationExtensions);
+
+            // Layer in OpenSearch-specific aggregates — the PPL `take(x, n)` UDAF backed
+            // by a custom Rust impl, and the named `first_value` / `last_value` / `array_agg`
+            // signatures consumed by NameBasedAggregateFunctionConverter. The YAML lives at
+            // /extensions/opensearch_aggregate.yaml on the plugin classpath.
+            try (java.io.InputStream stream = DataFusionPlugin.class.getResourceAsStream("/extensions/opensearch_aggregate.yaml")) {
+                if (stream != null) {
+                    SimpleExtension.ExtensionCollection custom = SimpleExtension.load(stream);
+                    collection = collection.merge(custom);
+                } else {
+                    logger.warn("opensearch_aggregate.yaml not found on plugin classpath");
+                }
+            } catch (java.io.IOException e) {
+                throw new RuntimeException("Failed to load opensearch_aggregate.yaml", e);
+            }
+            return collection;
         } finally {
             t.setContextClassLoader(previous);
         }

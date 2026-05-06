@@ -83,7 +83,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.MIN,
         AggregateFunction.MAX,
         AggregateFunction.COUNT,
-        AggregateFunction.AVG
+        AggregateFunction.AVG,
+        // PPL `first(field)` / `last(field)` — renamed to DataFusion's native first_value /
+        // last_value on the wire via NameBasedAggregateFunctionConverter.NAME_ALIASES. Without
+        // ORDER BY, DataFusion returns an arbitrary element; the PPL "first/last in document
+        // order" guarantee is a documented tradeoff.
+        AggregateFunction.FIRST,
+        AggregateFunction.LAST
     );
 
     private final DataFusionPlugin plugin;
@@ -142,6 +148,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                         caps.add(AggregateCapability.simple(func, Set.of(type), formats));
                     }
                 }
+                // PPL TAKE — collect first N values into a list. State-expanding (state grows with N).
+                caps.add(AggregateCapability.stateExpanding(AggregateFunction.TAKE, Set.copyOf(SUPPORTED_FIELD_TYPES), formats));
+                // PPL LIST — collect all values into an array (renamed to DataFusion's
+                // native array_agg on the wire). State-expanding (state grows with input size).
+                caps.add(AggregateCapability.stateExpanding(AggregateFunction.LIST, Set.copyOf(SUPPORTED_FIELD_TYPES), formats));
+                // PPL VALUES — DISTINCT + sorted-ascending variant of LIST. Also routes to
+                // array_agg but with AliasConfig-forced DISTINCT + sort-by-self.
+                caps.add(AggregateCapability.stateExpanding(AggregateFunction.VALUES, Set.copyOf(SUPPORTED_FIELD_TYPES), formats));
                 return Set.copyOf(caps);
             }
 

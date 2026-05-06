@@ -70,9 +70,14 @@ impl LocalSession {
             .with_runtime_env(runtime_env)
             .with_default_features()
             .build();
-        Self {
-            ctx: SessionContext::new_with_state(state),
-        }
+        let ctx = SessionContext::new_with_state(state);
+        // Register OpenSearch UDAFs on the coordinator-reduce session so that
+        // aggregates with non-DF-native names (e.g. `approx_count_distinct`
+        // as emitted by isthmus for PPL distinct_count/dc, or `take` for
+        // PPL take) resolve during the substrait consumer's name lookup
+        // at reduce time too, not just on per-shard scan sessions.
+        crate::udaf::register_all(&ctx);
+        Self { ctx }
     }
 
     /// Registers a streaming input on the session under `name` and returns the

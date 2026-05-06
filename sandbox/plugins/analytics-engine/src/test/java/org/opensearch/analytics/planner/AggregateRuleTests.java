@@ -40,8 +40,8 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     /** Every agg call must have an annotation with non-empty viableBackends. */
     public void testPerCallAnnotation() {
         OpenSearchAggregate agg = runAggregate(1, sumCall());
-        for (AggregateCall call : agg.getAggCallList()) {
-            AggregateCallAnnotation annotation = AggregateCallAnnotation.find(call);
+        for (int i = 0; i < agg.getAggCallList().size(); i++) {
+            AggregateCallAnnotation annotation = agg.getCallAnnotations().get(i);
             assertNotNull("Every AggregateCall must have an annotation", annotation);
             assertFalse("Annotation viableBackends must not be empty", annotation.getViableBackends().isEmpty());
             assertTrue(annotation.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -119,7 +119,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         OpenSearchAggregate agg = (OpenSearchAggregate) result;
         assertFalse(agg.getViableBackends().contains(MockLuceneBackend.NAME));
         // Per-call annotation includes both — Lucene is viable for SUM on this field
-        assertCallAnnotation(agg.getAggCallList().get(0), MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertCallAnnotation(agg, 0, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
     }
 
     /**
@@ -148,7 +148,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         );
         OpenSearchAggregate agg = (OpenSearchAggregate) result;
         assertTrue(agg.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertCallAnnotation(agg.getAggCallList().get(0), MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertCallAnnotation(agg, 0, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
     }
 
     // ---- Composed pipeline shapes ----
@@ -195,18 +195,10 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             "Lucene not viable at operator level — can handle SUM but not COUNT",
             agg.getViableBackends().contains(MockLuceneBackend.NAME)
         );
-        assertCallAnnotation(agg.getAggCallList().get(0), MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
-        assertCallAnnotation(agg.getAggCallList().get(1), MockDataFusionBackend.NAME);
-        assertEquals(
-            "SUM viable for both backends",
-            2,
-            AggregateCallAnnotation.find(agg.getAggCallList().get(0)).getViableBackends().size()
-        );
-        assertEquals(
-            "COUNT viable for DF only (Lucene not declared)",
-            1,
-            AggregateCallAnnotation.find(agg.getAggCallList().get(1)).getViableBackends().size()
-        );
+        assertCallAnnotation(agg, 0, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertCallAnnotation(agg, 1, MockDataFusionBackend.NAME);
+        assertEquals("SUM viable for both backends", 2, agg.getCallAnnotations().get(0).getViableBackends().size());
+        assertEquals("COUNT viable for DF only (Lucene not declared)", 1, agg.getCallAnnotations().get(1).getViableBackends().size());
     }
 
     // ---- Delegation ----
@@ -295,9 +287,9 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         return buildContext("parquet", shardCount, intFields());
     }
 
-    private void assertCallAnnotation(AggregateCall call, String... expectedBackends) {
-        AggregateCallAnnotation annotation = AggregateCallAnnotation.find(call);
-        assertNotNull("AggregateCall must have annotation", annotation);
+    private void assertCallAnnotation(OpenSearchAggregate agg, int callIndex, String... expectedBackends) {
+        AggregateCallAnnotation annotation = agg.getCallAnnotations().get(callIndex);
+        assertNotNull("AggregateCall at index " + callIndex + " must have annotation", annotation);
         for (String backend : expectedBackends)
             assertTrue("Annotation must contain backend " + backend, annotation.getViableBackends().contains(backend));
     }

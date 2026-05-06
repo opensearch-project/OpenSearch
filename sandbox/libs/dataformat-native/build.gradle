@@ -80,6 +80,11 @@ task buildRustLibrary(type: Exec) {
 
     inputs.files fileTree("${rustWorkspaceDir}/common/src")
     inputs.files fileTree("${rustWorkspaceDir}/lib/src")
+    // The opensearch-datafusion crate (in analytics-backend-datafusion/rust) is a
+    // path-dependency of opensearch-native-lib. Without listing its sources here,
+    // Gradle's UP-TO-DATE check misses changes there and ships a stale dylib.
+    inputs.files fileTree("${projectDir}/../../plugins/analytics-backend-datafusion/rust/src")
+    inputs.file "${projectDir}/../../plugins/analytics-backend-datafusion/rust/Cargo.toml"
     inputs.file "${rustWorkspaceDir}/Cargo.toml"
     outputs.file nativeLibFile
 }

@@ -33,11 +33,26 @@ public enum AggregateFunction {
     VAR_POP(Type.STATISTICAL, SqlKind.VAR_POP),
     VAR_SAMP(Type.STATISTICAL, SqlKind.VAR_SAMP),
 
+    // Simple — first/last value semantics. PPL emits SqlAggFunction named "first" /
+    // "last"; NAME_ALIASES in NameBasedAggregateFunctionConverter rewrites those to
+    // DataFusion's "first_value"/"last_value" before substrait emission. Planner-side
+    // lookup goes via AggregateFunction.fromNameOrError("FIRST") / ...("LAST").
+    FIRST(Type.SIMPLE, SqlKind.OTHER),
+    LAST(Type.SIMPLE, SqlKind.OTHER),
+
     // State-expanding — state grows with input rows per key
     PERCENTILE_CONT(Type.STATE_EXPANDING, SqlKind.PERCENTILE_CONT),
     PERCENTILE_DISC(Type.STATE_EXPANDING, SqlKind.PERCENTILE_DISC),
     COLLECT(Type.STATE_EXPANDING, SqlKind.COLLECT),
     LISTAGG(Type.STATE_EXPANDING, SqlKind.LISTAGG),
+    TAKE(Type.STATE_EXPANDING, SqlKind.OTHER),
+    // PPL `list(field)` and `values(field)` — NAME_ALIASES in
+    // NameBasedAggregateFunctionConverter rewrites both to DataFusion's native
+    // "array_agg" on the substrait wire. Planner-side lookup goes via
+    // fromNameOrError("LIST") / ("VALUES"). VALUES additionally gets
+    // DISTINCT + ORDER BY forced by AliasConfig; LIST is a pure rename.
+    LIST(Type.STATE_EXPANDING, SqlKind.OTHER),
+    VALUES(Type.STATE_EXPANDING, SqlKind.OTHER),
 
     // Approximate — probabilistic, fixed-size state
     APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER);
@@ -76,10 +91,12 @@ public enum AggregateFunction {
         return null;
     }
 
-    /** Maps an aggregate function name to an AggregateFunction. Throws if not recognized. */
+    /** Maps an aggregate function name to an AggregateFunction. Throws if not recognized.
+     *  Lookup is case-insensitive — Calcite SqlAggFunction names are lowercase
+     *  while enum constants follow Java convention (uppercase). */
     public static AggregateFunction fromNameOrError(String name) {
         try {
-            return valueOf(name);
+            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Unrecognized aggregate function [" + name + "]", e);
         }

@@ -1,0 +1,76 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:opensearch_aggregate
+aggregate_functions:
+  # PPL `take(x, n)` — collect up to N values into a list. Backed by a custom
+  # Rust UDAF in datafusion. The return uses substrait's `LIST?<…>` syntax
+  # (uppercase, nullability between LIST and the type parameter) — the lowercase
+  # `list<…>?` form fails the substrait-java type parser.
+  - name: "take"
+    description: "Collect first N values into a list."
+    impls:
+      - args:
+          - name: x
+            value: any1
+          - name: n
+            value: i32
+        nullability: DECLARED_OUTPUT
+        decomposable: NONE
+        return: LIST?<any1>
+
+  # PPL `first(field)` — the frontend-emitted SqlAggFunction is named "first" and
+  # NameBasedAggregateFunctionConverter.NAME_ALIASES rewrites it to "first_value"
+  # before YAML lookup. DataFusion's native first_value UDAF resolves this name
+  # directly; without an explicit ORDER BY it returns an arbitrary element from
+  # the group (documented tradeoff vs PPL's "first in document order" semantics).
+  #
+  # Also targeted by NameBasedAggregateFunctionConverter.rewriteArgMinMax to
+  # implement PPL `earliest(field, ts)` — Calcite emits ARG_MIN(field, ts),
+  # the rewrite transforms it to first_value(field) with sort field
+  # `ts ASC NULLS LAST` so DataFusion's first_value UDAF picks the row with
+  # the smallest timestamp. DataFusion 52.x has no native min_by/arg_min UDAF.
+  - name: "first_value"
+    description: "Returns the first value in the input (plus optional ORDER BY for earliest-style selection)."
+    impls:
+      - args:
+          - name: x
+            value: any1
+        nullability: DECLARED_OUTPUT
+        decomposable: NONE
+        return: any1?
+
+  # PPL `last(field)` — symmetric to first(field). Also targeted by rewriteArgMinMax
+  # for PPL `latest(field, ts)`: Calcite ARG_MAX(field, ts) rewrites to
+  # last_value(field) with sort `ts ASC NULLS LAST`, so DataFusion's last_value
+  # returns the row with the largest timestamp (the last row of the ascending sort).
+  # Equivalent to first_value with DESC but chosen for symmetry with DF's
+  # semantics.
+  - name: "last_value"
+    description: "Returns the last value in the input (plus optional ORDER BY for latest-style selection)."
+    impls:
+      - args:
+          - name: x
+            value: any1
+        nullability: DECLARED_OUTPUT
+        decomposable: NONE
+        return: any1?
+
+  # PPL `list(field)` / `values(field)` — NAME_ALIASES rewrites both of these to
+  # "array_agg" before YAML lookup. DataFusion's native array_agg UDAF collects all
+  # input values into a LIST. Semantic divergences from PPL (all deferred, not
+  # enforced on the wire):
+  #   - PPL list filters nulls; array_agg includes them.
+  #   - PPL list/values stringify inputs; array_agg preserves the input type.
+  #   - PPL list caps at 100 values; array_agg is unbounded.
+  #   - PPL values requires DISTINCT + sorted; plain array_agg does neither.
+  #     (The DISTINCT + ORDER BY wiring for `values` lands in a later commit
+  #     via an AliasConfig extension to NameBasedAggregateFunctionConverter.)
+  - name: "array_agg"
+    description: "Aggregate values into an array."
+    impls:
+      - args:
+          - name: x
+            value: any1
+        nullability: DECLARED_OUTPUT
+        decomposable: NONE
+        return: LIST?<any1>
