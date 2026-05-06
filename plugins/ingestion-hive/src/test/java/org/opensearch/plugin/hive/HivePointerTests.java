@@ -27,11 +27,13 @@ public class HivePointerTests extends OpenSearchTestCase {
 
     public void testAsString() {
         HivePointer pointer = new HivePointer("dt=2026-04-15", "file:///data/part-00000.parquet", 42, 100);
-        assertEquals("dt=2026-04-15|file:///data/part-00000.parquet|42|100", pointer.asString());
+        assertEquals("{\"p\":\"dt=2026-04-15\",\"f\":\"file:///data/part-00000.parquet\",\"r\":42,\"s\":100}", pointer.asString());
     }
 
     public void testFromString() {
-        HivePointer pointer = HivePointer.fromString("dt=2026-04-15|file:///data/part-00000.parquet|42|100");
+        HivePointer pointer = HivePointer.fromString(
+            "{\"p\":\"dt=2026-04-15\",\"f\":\"file:///data/part-00000.parquet\",\"r\":42,\"s\":100}"
+        );
 
         assertEquals("dt=2026-04-15", pointer.getPartitionName());
         assertEquals("file:///data/part-00000.parquet", pointer.getFilePath());
@@ -45,6 +47,13 @@ public class HivePointerTests extends OpenSearchTestCase {
 
         assertEquals(original, restored);
         assertEquals(original.hashCode(), restored.hashCode());
+    }
+
+    public void testRoundTripWithSpecialCharacters() {
+        HivePointer original = new HivePointer("region=us|east/dt=2026-04-15", "/warehouse/table/part|file\"name.parquet", 0, 1);
+        HivePointer restored = HivePointer.fromString(original.asString());
+
+        assertEquals(original, restored);
     }
 
     public void testSerialize() {
