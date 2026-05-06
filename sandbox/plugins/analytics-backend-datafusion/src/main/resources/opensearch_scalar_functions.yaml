@@ -38,3 +38,24 @@ scalar_functions:
     impls:
       - args: [{ value: "any1", name: "ts" }]
         return: any1
+  - name: regex_match
+    description: >-
+      Regular expression containment match (boolean). Lowering target for PPL's
+      `regex` command and `regexp_match()` function — both emit Calcite's
+      `SqlLibraryOperators.REGEXP_CONTAINS`, which DataFusionFragmentConvertor
+      maps to this extension. datafusion-substrait resolves the extension name
+      "regex_match" to `datafusion::logical_expr::Operator::RegexMatch`, which
+      executes against arrow-string's regex kernel and returns BOOLEAN.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: boolean
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: boolean
