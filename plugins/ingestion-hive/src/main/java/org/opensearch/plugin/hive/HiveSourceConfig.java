@@ -24,7 +24,8 @@ public class HiveSourceConfig {
     /** Partition ordering strategy. */
     public enum PartitionOrder {
         PARTITION_NAME,
-        CREATE_TIME
+        CREATE_TIME,
+        PARTITION_TIME
     }
 
     /** Authentication mode for Metastore connection. */
@@ -38,6 +39,7 @@ public class HiveSourceConfig {
     private final String table;
     private final long monitorIntervalMillis;
     private final PartitionOrder partitionOrder;
+    private final String partitionTimePattern;
     private final String consumeStartOffset;
     private final int numShards;
     private final TransportMode transportMode;
@@ -63,7 +65,15 @@ public class HiveSourceConfig {
         this.monitorIntervalMillis = parseIntervalMillis(interval);
 
         String order = (String) params.getOrDefault("partition_order", "partition-name");
-        this.partitionOrder = "create-time".equals(order) ? PartitionOrder.CREATE_TIME : PartitionOrder.PARTITION_NAME;
+        if ("create-time".equals(order)) {
+            this.partitionOrder = PartitionOrder.CREATE_TIME;
+        } else if ("partition-time".equals(order)) {
+            this.partitionOrder = PartitionOrder.PARTITION_TIME;
+        } else {
+            this.partitionOrder = PartitionOrder.PARTITION_NAME;
+        }
+
+        this.partitionTimePattern = (String) params.get("partition_time_pattern");
 
         this.consumeStartOffset = (String) params.get("consume_start_offset");
         this.numShards = params.containsKey("_number_of_shards")
@@ -107,6 +117,11 @@ public class HiveSourceConfig {
     /** Returns the partition ordering strategy. */
     public PartitionOrder getPartitionOrder() {
         return partitionOrder;
+    }
+
+    /** Returns the pattern for extracting time from partition values (e.g., "$year-$month-$day $hour:00:00"). */
+    public String getPartitionTimePattern() {
+        return partitionTimePattern;
     }
 
     /** Returns the starting partition offset, or null to read from the beginning. */

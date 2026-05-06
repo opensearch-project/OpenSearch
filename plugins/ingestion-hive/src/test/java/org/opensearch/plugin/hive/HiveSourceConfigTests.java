@@ -104,4 +104,41 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
 
         assertEquals(1, config.getNumShards());
     }
+
+    public void testPartitionOrderCreateTime() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        params.put("partition_order", "create-time");
+
+        HiveSourceConfig config = new HiveSourceConfig(params);
+
+        assertEquals(HiveSourceConfig.PartitionOrder.CREATE_TIME, config.getPartitionOrder());
+    }
+
+    public void testPartitionOrderPartitionTime() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        params.put("partition_order", "partition-time");
+        params.put("partition_time_pattern", "$year-$month-$day $hour:00:00");
+
+        HiveSourceConfig config = new HiveSourceConfig(params);
+
+        assertEquals(HiveSourceConfig.PartitionOrder.PARTITION_TIME, config.getPartitionOrder());
+        assertEquals("$year-$month-$day $hour:00:00", config.getPartitionTimePattern());
+    }
+
+    public void testPartitionTimePatternNullByDefault() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+
+        HiveSourceConfig config = new HiveSourceConfig(params);
+
+        assertNull(config.getPartitionTimePattern());
+    }
 }
