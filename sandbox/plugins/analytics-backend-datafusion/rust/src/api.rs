@@ -443,6 +443,7 @@ pub unsafe fn sql_to_substrait(
             .with_default_features()
             .build();
         let ctx = datafusion::prelude::SessionContext::new_with_state(state);
+        crate::udf::register_all(&ctx);
 
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
             .with_file_extension(".parquet")

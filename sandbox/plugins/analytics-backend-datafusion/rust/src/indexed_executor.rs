@@ -133,6 +133,7 @@ pub async fn execute_indexed_query(
         .build();
     let ctx = SessionContext::new_with_state(state);
     ctx.register_udf(create_index_filter_udf());
+    crate::udf::register_all(&ctx);
 
     // Resolve the object store for this shard's table URL (file://, s3://,
     // gs://, ... whatever the global runtime has registered). We pass this
