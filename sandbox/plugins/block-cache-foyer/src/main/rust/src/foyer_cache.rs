@@ -19,7 +19,7 @@ use foyer::{BlockEngineConfig, DeviceBuilder, Event, EventListener, FsDeviceBuil
 use foyer::UringIoEngineConfig;
 
 use crate::range_cache::{CacheKey, SEPARATOR};
-use crate::stats::BlockCacheStatsCounter;
+use crate::stats::FoyerStatsCounter;
 use crate::traits::BlockCache;
 
 // ── I/O engine selection ──────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
 struct KeyIndexListener {
     key_index: Arc<DashMap<String, Vec<String>>>,
     /// Shared stats counters — updated here for eviction/remove/clear events.
-    stats: Arc<BlockCacheStatsCounter>,
+    stats: Arc<FoyerStatsCounter>,
 }
 
 impl EventListener for KeyIndexListener {
@@ -195,7 +195,7 @@ pub struct FoyerCache {
     _runtime: Arc<tokio::runtime::Runtime>,
     /// Atomic stats counters. Shared with [`KeyIndexListener`].
     /// Exposed for FFM read via `foyer_snapshot_stats`.
-    pub(crate) stats: Arc<BlockCacheStatsCounter>,
+    pub(crate) stats: Arc<FoyerStatsCounter>,
 }
 
 impl FoyerCache {
@@ -220,7 +220,7 @@ impl FoyerCache {
     ) -> Self {
         let disk_dir = disk_dir.into();
         let key_index: Arc<DashMap<String, Vec<String>>> = Arc::new(DashMap::new());
-        let stats = BlockCacheStatsCounter::new();
+        let stats = FoyerStatsCounter::new();
         let listener = Arc::new(KeyIndexListener {
             key_index: Arc::clone(&key_index),
             stats: Arc::clone(&stats),

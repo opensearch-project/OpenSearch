@@ -8,18 +8,18 @@
 
 //! Atomic stats counters for the block cache.
 //!
-//! [`BlockCacheStatsCounter`] is the Rust equivalent of Java's `DefaultStatsCounter` —
-//! live atomic counters updated on every hot-path operation.
+//! [`FoyerStatsCounter`] holds the live atomic counters updated on every hot-path
+//! operation.
 //!
 //! - **Writes** happen inside [`FoyerCache`][crate::foyer::foyer_cache::FoyerCache]
 //!   on every `get()`, `put()`, and `KeyIndexListener::on_leave()` call — all on
 //!   hot paths, so all updates use [`Ordering::Relaxed`].
 //! - **Reads** happen at most once per `_nodes/stats` request, via
-//!   [`BlockCacheStatsCounter::snapshot()`] called from the `foyer_snapshot_stats` FFM
+//!   [`FoyerStatsCounter::snapshot()`] called from the `foyer_snapshot_stats` FFM
 //!   function in [`crate::foyer::ffm`].
 //!
 //! The snapshot produces a `[i64; 7]` array whose layout is fixed and
-//! documented on [`BlockCacheStatsCounter::snapshot`]. Java reads this array via
+//! documented on [`FoyerStatsCounter::snapshot`]. Java reads this array via
 //! `FoyerBridge.snapshotStats()` and constructs a `FoyerAggregatedStats` snapshot
 //! (two sections: overall and block-level), which is then projected to a
 //! `BlockCacheStats` record for core consumption.
@@ -52,7 +52,7 @@ use std::sync::Arc;
 /// | `eviction_bytes`   | `KeyIndexListener::on_leave` | +len per LRU eviction                                |
 /// | `used_bytes`       | `put()` / `on_leave`         | +len on insert, -len on eviction/remove/clear        |
 #[derive(Default)]
-pub struct BlockCacheStatsCounter {
+pub struct FoyerStatsCounter {
     /// Number of `get()` calls that returned a cached value.
     pub hit_count: AtomicI64,
     /// Bytes served from cache across all hits.
@@ -72,7 +72,7 @@ pub struct BlockCacheStatsCounter {
     pub used_bytes: AtomicI64,
 }
 
-impl BlockCacheStatsCounter {
+impl FoyerStatsCounter {
     /// Allocate a new zeroed stats instance wrapped in an [`Arc`].
     pub fn new() -> Arc<Self> {
         Arc::new(Self::default())
