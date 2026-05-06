@@ -34,6 +34,26 @@ public record WireConfigSnapshot(int batchSize, int targetPartitions, boolean pa
      * The segment must be at least {@link #BYTE_SIZE} bytes and allocated from
      * a confined {@code Arena} scoped to the query lifetime.
      *
+     * <pre>
+     * Offset  Size  Field                                Type     Source
+     * ──────  ────  ─────────────────────────────────    ──────   ───────────
+     * 0       8     batch_size                           i64      from snapshot
+     * 8       8     target_partitions                    i64      from snapshot
+     * 16      8     min_skip_run_default                 i64      from snapshot
+     * 24      8     min_skip_run_selectivity_threshold   f64      from snapshot
+     * 32      4     parquet_pushdown_filters             i32      from snapshot (0/1)
+     * 36      4     indexed_pushdown_filters             i32      hardcoded 1
+     * 40      4     force_strategy                       i32      hardcoded -1
+     * 44      4     force_pushdown                       i32      hardcoded -1
+     * 48      4     cost_predicate                       i32      from snapshot
+     * 52      4     cost_collector                       i32      from snapshot
+     * 56      4     max_collector_parallelism            i32      from snapshot
+     * 60      4     single_collector_strategy            i32      hardcoded 2
+     * 64      4     tree_collector_strategy              i32      hardcoded 1
+     * ──────  ────
+     * Total: 68 bytes
+     * </pre>
+     *
      * @param segment the target memory segment (at least 68 bytes)
      */
     public void writeTo(MemorySegment segment) {
