@@ -813,8 +813,19 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings()
             );
 
+            // Compute once; used for both block-cache budget partitioning and virtual-capacity reporting.
+            final long totalBudgetBytes = DiscoveryNode.isWarmNode(settings)
+                ? UnifiedCacheService.computeTotalBudgetBytes(settings, nodeEnvironment) : 0L;
+
             if (DiscoveryNode.isWarmNode(settings)) {
-                this.unifiedCacheService = UnifiedCacheService.create(settings, nodeEnvironment);
+                // Ask each BlockCacheProvider plugin how many SSD bytes it needs from the total
+                // warm-cache budget. This is done before createComponents() so the budget
+                // partition is settled when UnifiedCacheService creates FileCache.
+                long blockCacheBytes = pluginsService.filterPlugins(org.opensearch.plugins.BlockCacheProvider.class)
+                    .stream()
+                    .mapToLong(p -> p.requestedCapacityBytes(settings, totalBudgetBytes))
+                    .sum();
+                this.unifiedCacheService = UnifiedCacheService.create(settings, nodeEnvironment, blockCacheBytes);
             }
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
@@ -1052,12 +1063,22 @@ public class Node implements Closeable {
             );
             ingestServiceReference.set(ingestService);
 
+            // Compute virtual block-cache bytes: each plugin's reserved capacity multiplied by
+            // its own data-to-cache ratio, then summed across all registered plugins.
+            final long virtualBlockCacheBytes = pluginsService.filterPlugins(
+                    org.opensearch.plugins.BlockCacheProvider.class)
+                .stream()
+                .mapToLong(p -> (long)(
+                    p.requestedCapacityBytes(settings, totalBudgetBytes)
+                    * p.dataToCapacityRatio(settings)))
+                .sum();
             final FsServiceProvider fsServiceProvider = new FsServiceProvider(
                 settings,
                 nodeEnvironment,
                 unifiedCacheService,
                 settingsModule.getClusterSettings(),
-                indicesService
+                indicesService,
+                virtualBlockCacheBytes
             );
             final MonitorService monitorService = new MonitorService(settings, threadPool, fsServiceProvider);
 

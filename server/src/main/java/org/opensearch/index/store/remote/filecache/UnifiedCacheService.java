@@ -81,8 +81,16 @@ public class UnifiedCacheService implements Closeable {
      * {@link #addBlockCache} during plugin initialisation.
      *
      * <p>Must only be called when {@code DiscoveryNode.isWarmNode(settings) == true}.
+     *
+     * @param blockCacheBytes the total SSD bytes requested by all registered
+     *        {@link org.opensearch.plugins.BlockCacheProvider} plugins, computed by
+     *        Node.java before plugins' {@code createComponents()} are called
      */
-    public static UnifiedCacheService create(Settings settings, NodeEnvironment nodeEnvironment) throws IOException {
+    public static UnifiedCacheService create(
+        Settings settings,
+        NodeEnvironment nodeEnvironment,
+        long blockCacheBytes
+    ) throws IOException {
         // Step 1: Read total SSD capacity from the fileCacheNodePath.
         NodeEnvironment.NodePath fileCacheNodePath = nodeEnvironment.fileCacheNodePath();
         long totalSSDBytes = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getTotalSize(fileCacheNodePath));
@@ -91,8 +99,7 @@ public class UnifiedCacheService implements Closeable {
         String warmCacheSizeRaw = Node.NODE_SEARCH_CACHE_SIZE_SETTING.get(settings);
         long totalBudgetBytes = calculateFileCacheSize(warmCacheSizeRaw, totalSSDBytes);
 
-        // Step 3: Reserve block cache bytes from budget (plugin will create actual cache).
-        long blockCacheBytes = resolveBlockCacheBytes(settings, totalBudgetBytes);
+        // Step 3: Partition the budget — plugins told Node.java how much they need.
         long fileCacheBytes = totalBudgetBytes - blockCacheBytes;
 
         // Step 4: Validate before creating anything.
@@ -297,10 +304,18 @@ public class UnifiedCacheService implements Closeable {
         }
     }
 
-    static long resolveBlockCacheBytes(Settings settings, long totalBudgetBytes) {
-        String cacheSizeRaw = BlockCacheSettings.CACHE_SIZE_SETTING.get(settings);
-        RatioValue ratio = RatioValue.parseRatioValue(cacheSizeRaw);
-        return Math.round(totalBudgetBytes * ratio.getAsRatio());
+
+    /**
+     * Computes the total warm-cache SSD budget in bytes.
+     * Called by {@code Node.java} before plugins' {@code createComponents()} so that
+     * {@link org.opensearch.plugins.BlockCacheProvider#requestedCapacityBytes} can receive
+     * the correct budget value.
+     */
+    public static long computeTotalBudgetBytes(Settings settings, NodeEnvironment nodeEnvironment) {
+        long totalSSDBytes = ExceptionsHelper.catchAsRuntimeException(
+            () -> FsProbe.getTotalSize(nodeEnvironment.fileCacheNodePath()));
+        String warmCacheSizeRaw = Node.NODE_SEARCH_CACHE_SIZE_SETTING.get(settings);
+        return calculateFileCacheSize(warmCacheSizeRaw, totalSSDBytes);
     }
 
     private static long calculateFileCacheSize(String capacityRaw, long availableSpace) {

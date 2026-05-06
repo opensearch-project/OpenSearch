@@ -9,11 +9,11 @@
 package org.opensearch.monitor.fs;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.common.Nullable;
 import org.opensearch.index.store.remote.filecache.UnifiedCacheService;
 import org.opensearch.indices.IndicesService;
 
@@ -34,19 +34,22 @@ public class FsServiceProvider {
     private final UnifiedCacheService unifiedCacheService;
     private final FileCacheSettings fileCacheSettings;
     private final IndicesService indicesService;
+    private final long virtualBlockCacheBytes;
 
     public FsServiceProvider(
         Settings settings,
         NodeEnvironment nodeEnvironment,
         UnifiedCacheService unifiedCacheService,
         ClusterSettings clusterSettings,
-        IndicesService indicesService
+        IndicesService indicesService,
+        long virtualBlockCacheBytes
     ) {
         this.settings = settings;
         this.nodeEnvironment = nodeEnvironment;
         this.unifiedCacheService = unifiedCacheService;
         this.fileCacheSettings = new FileCacheSettings(settings, clusterSettings);
         this.indicesService = indicesService;
+        this.virtualBlockCacheBytes = virtualBlockCacheBytes;
     }
 
     /**
@@ -56,7 +59,14 @@ public class FsServiceProvider {
      */
     public FsService createFsService() {
         if (DiscoveryNode.isWarmNode(settings)) {
-            return new WarmFsService(settings, nodeEnvironment, fileCacheSettings, indicesService, unifiedCacheService);
+            return new WarmFsService(
+                settings,
+                nodeEnvironment,
+                fileCacheSettings,
+                indicesService,
+                unifiedCacheService,
+                virtualBlockCacheBytes
+            );
         }
         // Non-warm nodes: no block cache; unifiedCacheService may be null.
         return new FsService(settings, nodeEnvironment,

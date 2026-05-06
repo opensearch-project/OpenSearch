@@ -14,7 +14,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.remote.filecache.BlockCacheSettings;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.index.store.remote.filecache.UnifiedCacheService;
 import org.opensearch.indices.IndicesService;
@@ -35,33 +34,39 @@ public class WarmFsService extends FsService {
     private final FileCacheSettings fileCacheSettings;
     private final IndicesService indicesService;
     private final UnifiedCacheService unifiedCacheService;
-    private final double dataToBlockCacheRatio;
+    /**
+     * Pre-computed virtual bytes that all registered block-cache plugins can serve.
+     * Equals Σ(plugin_i.reservedBytes × plugin_i.dataToCapacityRatio), computed once
+     * in Node.java before construction.
+     */
+    private final long virtualBlockCacheBytes;
 
     public WarmFsService(
         Settings settings,
         NodeEnvironment nodeEnvironment,
         FileCacheSettings fileCacheSettings,
         IndicesService indicesService,
-        UnifiedCacheService unifiedCacheService
+        UnifiedCacheService unifiedCacheService,
+        long virtualBlockCacheBytes
     ) {
         super(settings, nodeEnvironment, unifiedCacheService.fileCache());
         this.fileCacheSettings = fileCacheSettings;
         this.indicesService = indicesService;
         this.unifiedCacheService = unifiedCacheService;
-        this.dataToBlockCacheRatio = BlockCacheSettings.DATA_TO_BLOCK_CACHE_SIZE_RATIO_SETTING.get(settings);
+        this.virtualBlockCacheBytes = virtualBlockCacheBytes;
     }
 
     @Override
     public FsInfo stats() {
-        // Virtual capacity = (file-cache SSD × fileCacheRatio) + (block-cache SSD × blockCacheRatio)
+        // Virtual capacity = (file-cache SSD × fileCacheRatio) + pre-computed block-cache virtual bytes
         final double dataToFileCacheRatio = fileCacheSettings.getRemoteDataRatio();
 
         final long fileCacheCapacity  = unifiedCacheService.fileCache().capacity();
         final long blockCacheCapacity = unifiedCacheService.blockCacheCapacityBytes();
         final long totalCacheCapacity = fileCacheCapacity + blockCacheCapacity;
 
-        final long totalBytes = (long) (dataToFileCacheRatio  * fileCacheCapacity)
-                              + (long) (dataToBlockCacheRatio * blockCacheCapacity);
+        final long totalBytes = (long) (dataToFileCacheRatio * fileCacheCapacity)
+                              + virtualBlockCacheBytes;
 
         // Used bytes from primary shards
         long usedBytes = 0;
