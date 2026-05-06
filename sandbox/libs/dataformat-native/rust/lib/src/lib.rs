@@ -16,7 +16,13 @@
 //      automatically available for dlsym/SymbolLookup
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// jemalloc tuning: reduce dirty page decay (30s), muzzy decay (30s), and tcache max (64KB).
+/// jemalloc tuning applied at process start (before JVM/OpenSearch boots):
+/// - dirty_decay_ms and muzzy_decay_ms: also dynamically tunable at runtime via cluster settings
+///   (see NativeBridgeModule). The values here serve as defaults for the brief window between
+///   process start and OpenSearch initialization. On restart, the persisted cluster setting
+///   is re-applied by NativeBridgeModule.createComponents() — these compile-time values are
+///   only used until that point.
+/// - lg_tcache_max: NOT dynamically tunable by jemalloc — init-time only, requires process restart to change.
 #[export_name = "malloc_conf"]
 pub static MALLOC_CONF: &[u8] = b"dirty_decay_ms:30000,muzzy_decay_ms:30000,lg_tcache_max:16\0";
 
