@@ -1545,7 +1545,8 @@ public class InternalEngine extends Engine {
         );
         return translogManager.shouldPeriodicallyFlush(
             localCheckpointOfLastCommit,
-            config().getIndexSettings().getFlushThresholdSize().getBytes()
+            config().getIndexSettings().getFlushThresholdSize().getBytes(),
+            config().getIndexSettings().getFlushThresholdOps()
         );
     }
 

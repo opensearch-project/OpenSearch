@@ -593,6 +593,49 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
     }
 
+    public void testTranslogFlushOpsThreshold() {
+        final String key = IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS_SETTING.getKey();
+
+        // default
+        IndexMetadata defaultMeta = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings defaultSettings = new IndexSettings(defaultMeta, Settings.EMPTY);
+        assertEquals(Integer.MAX_VALUE, defaultSettings.getFlushThresholdOps());
+
+        // custom value
+        int ops = randomIntBetween(100, 1_000_000);
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put(key, ops).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(ops, settings.getFlushThresholdOps());
+
+        // dynamic update
+        int newOps = randomIntBetween(100, 1_000_000);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, newOps).build()));
+        assertEquals(newOps, settings.getFlushThresholdOps());
+
+        // minimum bound is enforced (must be >= 100)
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put(key, 99).build()),
+                Settings.EMPTY
+            )
+        );
+        assertThat(e.getMessage(), containsString(key));
+
+        // minimum bound is also enforced on dynamic updates
+        IllegalArgumentException dynamicErr = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, 50).build()))
+        );
+        assertThat(dynamicErr.getMessage(), containsString(key));
+    }
+
     public void testTranslogGenerationSizeThreshold() {
         final ByteSizeValue size = new ByteSizeValue(Math.abs(randomInt()));
         final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
