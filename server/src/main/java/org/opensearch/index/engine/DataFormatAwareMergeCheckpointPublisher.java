@@ -142,7 +142,7 @@ public class DataFormatAwareMergeCheckpointPublisher {
 
     private MergedSegmentCheckpoint computeCheckpoint(Segment mergedSegment) throws IOException {
         Collection<String> segmentFiles = flattenSegmentFiles(mergedSegment);
-        String segmentName = String.valueOf(mergedSegment.generation());
+        String segmentName = mergedSegment.replicationCheckpointName();
         try (GatedCloseable<CatalogSnapshot> snapshotCloseable = indexShard.getCatalogSnapshot()) {
             CatalogSnapshot snapshot = snapshotCloseable.get();
             Map<String, StoreFileMetadata> metadata = indexShard.store().getFileMetadata(segmentFiles);

@@ -151,6 +151,7 @@ import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
@@ -1923,6 +1924,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
                 pendingMergedSegmentCheckpoints.removeIf(s -> s.getSegmentName().equals(segmentCommitInfoName));
             }
+        } else if (catalogSnapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
+            Set<String> activeSegmentNames = new HashSet<>();
+            for (org.opensearch.index.engine.exec.Segment seg : dfaSnapshot.getSegments()) {
+                activeSegmentNames.add(seg.replicationCheckpointName());
+            }
+            pendingMergedSegmentCheckpoints.removeIf(s -> activeSegmentNames.contains(s.getSegmentName()));
         }
     }
 
@@ -2144,28 +2151,40 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Compute {@link ReferencedSegmentsCheckpoint}.
-     * This function fetches all segments from the store that comes with an IO cost.
+     * Compute {@link ReferencedSegmentsCheckpoint} over the active catalog snapshot.
+     *
+     * <p>On the Lucene path (legacy) the set of referenced segment names is derived from
+     * {@code .si} files present in the shard directory. On the DFA path it is derived from
+     * the active {@link DataformatAwareCatalogSnapshot} segments using
+     * {@link org.opensearch.index.engine.exec.Segment#replicationCheckpointName()} — the
+     * same identity that {@link org.opensearch.index.engine.DataFormatAwareMergeCheckpointPublisher} uses when minting
+     * a {@link MergedSegmentCheckpoint}, so that the replica's cleanup paths match by name.</p>
      *
      * @return {@link ReferencedSegmentsCheckpoint}.
      * @throws IOException When there is an error computing referenced segments.
      */
     public ReferencedSegmentsCheckpoint computeReferencedSegmentsCheckpoint() throws IOException {
-        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
-            String[] allFiles = store.directory().listAll();
-            Set<String> segmentNames = Sets.newHashSet();
-            for (String file : allFiles) {
-                // filter segment files
-                if (false == file.endsWith(".si")) {
-                    continue;
+        try (GatedCloseable<CatalogSnapshot> closeable = acquireSafeCatalogSnapshot()) {
+            CatalogSnapshot snapshot = closeable.get();
+            Set<String> segmentNames;
+            if (snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
+                segmentNames = new HashSet<>();
+                for (org.opensearch.index.engine.exec.Segment seg : dfaSnapshot.getSegments()) {
+                    segmentNames.add(seg.replicationCheckpointName());
                 }
-                String segmentName = IndexFileNames.parseSegmentName(file);
-                segmentNames.add(segmentName);
+            } else {
+                // Lucene path: scan the shard directory for .si files (legacy behavior).
+                segmentNames = Sets.newHashSet();
+                for (String file : store.directory().listAll()) {
+                    if (file.endsWith(".si")) {
+                        segmentNames.add(IndexFileNames.parseSegmentName(file));
+                    }
+                }
             }
             return new ReferencedSegmentsCheckpoint(
                 shardId,
                 getOperationPrimaryTerm(),
-                segmentInfosGatedCloseable.get().getVersion(),
+                snapshot.getVersion(),
                 -1,
                 getIndexer().config().getCodec().getName(),
                 Collections.emptyMap(),
