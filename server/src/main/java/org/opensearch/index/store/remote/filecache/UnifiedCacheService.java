@@ -126,23 +126,30 @@ public class UnifiedCacheService implements Closeable {
             );
         }
         if (blockCacheBytes < 0) {
-            throw new IllegalArgumentException("blockCacheBytes must be >= 0; got: " + blockCacheBytes);
+            throw new IllegalArgumentException(
+                "Block cache allocation must be >= 0; got: " + blockCacheBytes
+                    + ". Check block cache plugin configuration."
+            );
         }
+
+        if (fileCacheBytes <= 0) {
+            throw new IllegalArgumentException(
+                "After allocating " + new ByteSizeValue(blockCacheBytes)
+                    + " to block cache(s), no SSD budget remains for FileCache. "
+                    + "Reduce block cache allocation or increase node.search.cache.size."
+            );
+        }
+
         if (fileCacheBytes + blockCacheBytes > totalSSDBytes) {
             throw new IllegalArgumentException(
                 "Warm node SSD allocation exceeds available capacity. "
                     + "file_cache=" + new ByteSizeValue(fileCacheBytes)
                     + ", block_cache=" + new ByteSizeValue(blockCacheBytes)
                     + ", total SSD=" + new ByteSizeValue(totalSSDBytes)
-                    + ". Reduce block_cache.size or node.search.cache.size."
+                    + ". Reduce node.search.cache.size or block cache allocation."
             );
         }
-        if (fileCacheBytes <= 0) {
-            throw new IllegalArgumentException(
-                "After allocating " + new ByteSizeValue(blockCacheBytes)
-                    + " to block_cache, no SSD remains for FileCache. Reduce block_cache.size."
-            );
-        }
+
     }
 
     // ─────────────────────────────────────────────────────────────────────────
