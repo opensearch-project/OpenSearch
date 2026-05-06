@@ -96,6 +96,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.CAST,
         ScalarFunction.CONCAT,
         ScalarFunction.SAFE_CAST,
+        // ABS / SUBSTRING — `eval x = abs(...)` and `eval s = substring(...)` projections that PPL
+        // sort-pushdown moves into the project tree (see CalciteSortCommandIT
+        // testPushdownSortExpressionContainsNull and CalcitePPLSortIT
+        // testPushdownSortStringExpression). DataFusion has both natively; isthmus default catalog
+        // already binds them.
+        ScalarFunction.ABS,
+        ScalarFunction.SUBSTRING,
         ScalarFunction.SARG_PREDICATE,
         ScalarFunction.EQUALS,
         ScalarFunction.NOT_EQUALS,
