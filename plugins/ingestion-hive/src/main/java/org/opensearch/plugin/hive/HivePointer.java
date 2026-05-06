@@ -11,8 +11,13 @@ package org.opensearch.plugin.hive;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IngestionShardPointer;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -66,18 +71,57 @@ public class HivePointer implements IngestionShardPointer {
 
     @Override
     public String asString() {
-        return partitionName + "|" + filePath + "|" + rowIndex + "|" + sequenceNumber;
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            builder.field("p", partitionName);
+            builder.field("f", filePath);
+            builder.field("r", rowIndex);
+            builder.field("s", sequenceNumber);
+            builder.endObject();
+            return builder.toString();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to serialize HivePointer", e);
+        }
     }
 
     /**
-     * Deserializes a HivePointer from its string representation.
+     * Deserializes a HivePointer from its JSON string representation.
      *
      * @param s the serialized pointer string
      * @return the deserialized HivePointer
      */
     public static HivePointer fromString(String s) {
-        String[] parts = s.split("\\|", 4);
-        return new HivePointer(parts[0], parts[1], Long.parseLong(parts[2]), Long.parseLong(parts[3]));
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, s)) {
+            String partition = null;
+            String file = null;
+            long row = 0;
+            long seq = 0;
+            parser.nextToken(); // START_OBJECT
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String field = parser.currentName();
+                parser.nextToken();
+                switch (field) {
+                    case "p":
+                        partition = parser.text();
+                        break;
+                    case "f":
+                        file = parser.text();
+                        break;
+                    case "r":
+                        row = parser.longValue();
+                        break;
+                    case "s":
+                        seq = parser.longValue();
+                        break;
+                    default:
+                        break;
+                }
+            }
+            return new HivePointer(partition, file, row, seq);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to parse HivePointer: " + s, e);
+        }
     }
 
     @Override

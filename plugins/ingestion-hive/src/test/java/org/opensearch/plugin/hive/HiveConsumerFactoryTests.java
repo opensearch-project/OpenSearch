@@ -32,7 +32,9 @@ public class HiveConsumerFactoryTests extends OpenSearchTestCase {
 
     public void testParsePointerFromString() {
         HiveConsumerFactory factory = new HiveConsumerFactory();
-        HivePointer pointer = factory.parsePointerFromString("dt=2026-04-15|file:///data/part.parquet|42|100");
+        HivePointer pointer = factory.parsePointerFromString(
+            "{\"p\":\"dt=2026-04-15\",\"f\":\"file:///data/part.parquet\",\"r\":42,\"s\":100}"
+        );
 
         assertNotNull(pointer);
         assertEquals("dt=2026-04-15", pointer.getPartitionName());
