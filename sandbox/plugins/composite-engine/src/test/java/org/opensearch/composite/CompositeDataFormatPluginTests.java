@@ -20,6 +20,7 @@ import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.IndexSettingProvider;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collection;
@@ -183,7 +184,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
             Set.of(
                 CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT,
                 CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS,
-                CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
+                CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING,
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST
             )
         );
         ClusterService clusterService = mock(ClusterService.class);
@@ -343,7 +345,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
             Set.of(
                 CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT,
                 CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS,
-                CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING
+                CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING,
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST
             )
         );
         ClusterService clusterService = mock(ClusterService.class);
