@@ -52,8 +52,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
 
     // ---- Setting defaults and value parsing ----
 
-    public void testPrimaryDataFormatDefaultsToLucene() {
-        assertEquals("lucene", CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.get(Settings.EMPTY));
+    public void testPrimaryDataFormatDefaultsToParquet() {
+        assertEquals("parquet", CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.get(Settings.EMPTY));
     }
 
     public void testPrimaryDataFormatReadsExplicitValue() {
@@ -72,8 +72,8 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(List.of("parquet", "arrow"), CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.get(settings));
     }
 
-    public void testClusterDefaultPrimaryDataFormatDefaultsToLucene() {
-        assertEquals("lucene", CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.get(Settings.EMPTY));
+    public void testClusterDefaultPrimaryDataFormatDefaultsToParquet() {
+        assertEquals("parquet", CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT.get(Settings.EMPTY));
     }
 
     public void testClusterDefaultPrimaryDataFormatReadsExplicitValue() {
@@ -195,7 +195,7 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
         IndexSettingProvider provider = singleProvider(plugin);
 
         Settings first = provider.getAdditionalIndexSettings("idx-1", false, Settings.EMPTY);
-        assertEquals("lucene", CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.get(first));
+        assertEquals("parquet", CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.get(first));
         assertTrue(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.get(first).isEmpty());
 
         // Simulate a PUT /_cluster/settings updating the dynamic cluster defaults.

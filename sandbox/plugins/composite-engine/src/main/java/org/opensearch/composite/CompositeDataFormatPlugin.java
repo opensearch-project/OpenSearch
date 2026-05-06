@@ -94,7 +94,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      */
     public static final Setting<String> PRIMARY_DATA_FORMAT = Setting.simpleString(
         "index.composite.primary_data_format",
-        "lucene",
+        "parquet",
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -118,7 +118,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      */
     public static final Setting<String> CLUSTER_PRIMARY_DATA_FORMAT = Setting.simpleString(
         "cluster.composite.primary_data_format",
-        "lucene",
+        "parquet",
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
