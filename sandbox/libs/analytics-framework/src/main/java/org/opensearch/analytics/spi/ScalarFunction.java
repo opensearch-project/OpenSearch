@@ -10,8 +10,12 @@ package org.opensearch.analytics.spi;
 
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * All scalar functions a backend may support — comparisons, full-text search,
@@ -52,7 +56,15 @@ public enum ScalarFunction {
     LOWER(Category.STRING, SqlKind.OTHER_FUNCTION),
     TRIM(Category.STRING, SqlKind.TRIM),
     SUBSTRING(Category.STRING, SqlKind.OTHER_FUNCTION),
-    CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    /**
+     * String concatenation. Calcite's {@code SqlStdOperatorTable.CONCAT} is a
+     * {@link org.apache.calcite.sql.SqlBinaryOperator} named {@code "||"} (not {@code "CONCAT"})
+     * with {@link SqlKind#OTHER}, so neither {@link #fromSqlKind(SqlKind)} nor identifier-name
+     * {@link #valueOf(String)} resolves it. The {@code referenceOperator} hook below pins the
+     * concrete Calcite operator constant so resolution is a singleton-identity match — a Calcite
+     * rename surfaces as a compile error rather than as a silent string mismatch at runtime.
+     */
+    CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.CONCAT),
     CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Math ─────────────────────────────────────────────────────────
@@ -68,6 +80,14 @@ public enum ScalarFunction {
 
     // ── Cast / type ──────────────────────────────────────────────────
     CAST(Category.SCALAR, SqlKind.CAST),
+    /**
+     * Calcite's {@code SAFE_CAST} — emitted by PPL's explicit {@code CAST(... AS ...)} when the
+     * source value may be NULL or the conversion may fail; returns NULL on failure rather than
+     * throwing. Resolves through {@link SqlKind#SAFE_CAST}, distinct from {@link #CAST} which
+     * uses {@link SqlKind#CAST}. DataFusion's native cast already returns NULL on conversion
+     * failure, so SAFE_CAST and CAST share the same backend semantics.
+     */
+    SAFE_CAST(Category.SCALAR, SqlKind.SAFE_CAST),
 
     // ── Conditional ──────────────────────────────────────────────────
     CASE(Category.SCALAR, SqlKind.CASE),
@@ -98,10 +118,24 @@ public enum ScalarFunction {
 
     private final Category category;
     private final SqlKind sqlKind;
+    /**
+     * Optional Calcite operator that this constant maps to when the operator cannot be resolved
+     * via {@link SqlKind} or via identifier-name {@link #valueOf(String)} — typically operators
+     * whose {@code getName()} returns a non-identifier token (e.g. {@code SqlStdOperatorTable.CONCAT}
+     * is named {@code "||"}). Null for the common case where SqlKind or name resolution suffices.
+     * Stored as a reference (not a string) so a Calcite-side rename of the operator surfaces as a
+     * compile error here.
+     */
+    private final SqlOperator referenceOperator;
 
     ScalarFunction(Category category, SqlKind sqlKind) {
+        this(category, sqlKind, null);
+    }
+
+    ScalarFunction(Category category, SqlKind sqlKind, SqlOperator referenceOperator) {
         this.category = category;
         this.sqlKind = sqlKind;
+        this.referenceOperator = referenceOperator;
     }
 
     public Category getCategory() {
@@ -133,5 +167,53 @@ public enum ScalarFunction {
         // TODO: Add an explicit functionName field per enum constant instead of relying on
         // valueOf(toUpperCase). This couples enum constant naming to SQL function naming convention.
         return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
+    }
+
+    /**
+     * Reverse index from {@link #referenceOperator} to enum constant. Built from the enum itself
+     * at class init — adding a new symbolic operator is a single-site change on the enum constant,
+     * no separate map to maintain. Lookup is identity-keyed because Calcite's standard operators
+     * are singletons (e.g. {@code SqlStdOperatorTable.CONCAT}). Empty in the common case (most
+     * constants resolve by SqlKind or identifier-name valueOf).
+     */
+    private static final Map<SqlOperator, ScalarFunction> BY_REFERENCE_OPERATOR;
+
+    static {
+        Map<SqlOperator, ScalarFunction> byOperator = new HashMap<>();
+        for (ScalarFunction func : values()) {
+            if (func.referenceOperator != null) {
+                byOperator.put(func.referenceOperator, func);
+            }
+        }
+        // The HashMap is private static final and never exposed beyond the get() in the resolver
+        // below — wrapping it in Map.copyOf adds an allocation without any external safety guarantee.
+        BY_REFERENCE_OPERATOR = byOperator;
+    }
+
+    /**
+     * Maps any Calcite {@link SqlOperator} to a {@link ScalarFunction}, or returns null if
+     * unrecognized. Resolution order: {@link SqlKind} match, then {@link #referenceOperator}
+     * identity match (handles {@code SqlStdOperatorTable.CONCAT} a.k.a. {@code ||}), then
+     * identifier-name {@link #valueOf(String)} match.
+     *
+     * <p>Prefer this entry point over {@link #fromSqlKind(SqlKind)} /
+     * {@link #fromSqlFunction(SqlFunction)} when resolving an arbitrary {@code RexCall}'s
+     * operator: a {@code RexCall} may be backed by a {@code SqlBinaryOperator} (e.g. {@code ||})
+     * which is neither covered by {@code OTHER} {@code SqlKind} nor by {@code SqlFunction}.
+     */
+    public static ScalarFunction fromSqlOperatorWithFallback(SqlOperator operator) {
+        ScalarFunction byKind = fromSqlKind(operator.getKind());
+        if (byKind != null) {
+            return byKind;
+        }
+        ScalarFunction byReference = BY_REFERENCE_OPERATOR.get(operator);
+        if (byReference != null) {
+            return byReference;
+        }
+        try {
+            return ScalarFunction.valueOf(operator.getName().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 }

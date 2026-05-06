@@ -85,12 +85,17 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     // path). COALESCE is the lowering target of PPL `fillnull`. CAST is required because
     // ReduceExpressionsRule.ProjectReduceExpressionsRule (in PlannerImpl) constant-folds field
     // references through equality filters into typed literals — e.g. after `where str0 = 'FURNITURE'`,
-    // the projection `fields str0` is rewritten to `CAST('FURNITURE' AS VARCHAR)`. The remaining
-    // comparison / arithmetic / logical operators are project-capable for eval-style projections.
+    // the projection `fields str0` is rewritten to `CAST('FURNITURE' AS VARCHAR)`. CONCAT is the
+    // lowering target of PPL `eval`'s `+` for strings (Calcite emits `||`, resolved to CONCAT in
+    // ScalarFunction); SAFE_CAST covers PPL `eval`'s explicit nullable `CAST(... AS ...)`
+    // expressions. The remaining comparison / arithmetic / logical operators are project-capable
+    // for eval-style projections.
     private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(
         ScalarFunction.COALESCE,
         ScalarFunction.CEIL,
         ScalarFunction.CAST,
+        ScalarFunction.CONCAT,
+        ScalarFunction.SAFE_CAST,
         ScalarFunction.SARG_PREDICATE,
         ScalarFunction.EQUALS,
         ScalarFunction.NOT_EQUALS,
@@ -180,15 +185,19 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+                // Add new (ScalarFunction, ScalarFunctionAdapter) pairs in alphabetical order for
+                // readability — the Map.ofEntries form keeps spotless happy past the 5-pair point
+                // where Map.of becomes single-line and unreadable.
                 return Map.ofEntries(
-                    Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
-                    Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
-                    Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
-                    Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
-                    Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
-                    Map.entry(ScalarFunction.YEAR, new YearAdapter()),
+                    Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
-                    Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter())
+                    Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
+                    Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
+                    Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
+                    Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
+                    Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
+                    Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
+                    Map.entry(ScalarFunction.YEAR, new YearAdapter())
                 );
             }
         };
