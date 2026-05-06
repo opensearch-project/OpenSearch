@@ -31,6 +31,7 @@ dependencies {
 }
 
 testClusters.integTest {
+    plugin ':plugins:arrow-flight-rpc'
     plugin ':sandbox:plugins:analytics-engine'
     plugin ':sandbox:plugins:analytics-backend-datafusion'
     plugin ':sandbox:plugins:analytics-backend-lucene'
@@ -42,6 +43,14 @@ testClusters.integTest {
     // Arrow/Flight JVM flags for DataFusion native library
     jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
     jvmArgs '--enable-native-access=ALL-UNNAMED'
+
+    // Arrow memory allocator needs Netty unsafe access on JDK 25; mirrors
+    // gradle/run.gradle's arrow-flight-rpc overrides so AnalyticsSearchService
+    // can construct its RootAllocator at node start.
+    systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    systemProperty 'io.netty.noUnsafe', 'false'
+    systemProperty 'io.netty.tryUnsafe', 'true'
+    systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
 
     // Native library path for DataFusion
     systemProperty 'java.library.path', "${project(':sandbox:libs:dataformat-native').ext.nativeLibPath.parent}"

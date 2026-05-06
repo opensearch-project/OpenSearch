@@ -14,6 +14,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -308,7 +309,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         mockSearchRequest.source(new SearchSourceBuilder());
 
         String wgId = "test-wg";
-        WorkloadGroup wg = createWorkloadGroup(wgId, Map.of());
+        WorkloadGroup wg = createWorkloadGroup(wgId, Settings.EMPTY);
         when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
@@ -322,7 +323,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         assertNull(mockSearchRequest.source().timeout());
 
         String wgId = "test-wg";
-        WorkloadGroup wg = createWorkloadGroup(wgId, Map.of("timeout", "1m"));
+        WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.default_search_timeout", "1m").build());
         when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
@@ -335,7 +336,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         mockSearchRequest.source(new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(30)));
 
         String wgId = "test-wg";
-        WorkloadGroup wg = createWorkloadGroup(wgId, Map.of("timeout", "10s"));
+        WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.default_search_timeout", "10s").build());
         when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
@@ -348,7 +349,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         assertNull(mockSearchRequest.source());
 
         String wgId = "test-wg";
-        WorkloadGroup wg = createWorkloadGroup(wgId, Map.of("timeout", "30s"));
+        WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.default_search_timeout", "30s").build());
         when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
 
@@ -357,7 +358,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         assertNull(mockSearchRequest.source()); // Should not throw, source remains null
     }
 
-    private WorkloadGroup createWorkloadGroup(String id, Map<String, String> searchSettings) {
+    private WorkloadGroup createWorkloadGroup(String id, Settings searchSettings) {
         return new WorkloadGroup(
             "test-name",
             id,

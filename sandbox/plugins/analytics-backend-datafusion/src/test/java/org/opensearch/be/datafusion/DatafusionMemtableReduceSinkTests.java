@@ -63,7 +63,14 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
             byte[] substrait = buildSumSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID);
 
             CapturingSink downstream = new CapturingSink();
-            ExchangeSinkContext ctx = new ExchangeSinkContext("q-1", 0, substrait, alloc, inputSchema, downstream);
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-1",
+                0,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+                downstream
+            );
 
             DatafusionMemtableReduceSink sink = new DatafusionMemtableReduceSink(ctx, runtimeHandle);
             try {
