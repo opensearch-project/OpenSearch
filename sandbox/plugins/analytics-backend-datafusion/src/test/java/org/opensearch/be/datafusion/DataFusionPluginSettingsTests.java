@@ -28,10 +28,7 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
     }
 
     public void testMemoryPoolLimitHasNodeScope() {
-        assertTrue(
-            "datafusion.memory_pool_limit_bytes must have node scope",
-            DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT.hasNodeScope()
-        );
+        assertTrue("datafusion.memory_pool_limit_bytes must have node scope", DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT.hasNodeScope());
     }
 
     public void testPluginRegistersMemoryPoolLimitSetting() {
@@ -64,5 +61,3 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         }
     }
 }
-
-
