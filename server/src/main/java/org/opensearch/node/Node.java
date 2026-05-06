@@ -1192,8 +1192,7 @@ public class Node implements Closeable {
                 .collect(Collectors.toList());
             pluginComponents.addAll(searchBackEndPluginComponents);
 
-            // Wire block-cache plugins into UnifiedCacheService on warm nodes.
-            if (DiscoveryNode.isWarmNode(settings) && unifiedCacheService != null) {
+            if (unifiedCacheService != null) {
                 for (org.opensearch.plugins.BlockCacheProvider p :
                         pluginsService.filterPlugins(org.opensearch.plugins.BlockCacheProvider.class)) {
                     p.getBlockCache().ifPresent(unifiedCacheService::addBlockCache);
