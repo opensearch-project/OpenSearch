@@ -9,12 +9,41 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.EnumMap;
 import java.util.Map;
 
+/**
+ * Unit coverage for {@link ScalarFunction}'s three resolution paths used by the analytics-engine
+ * planner ({@code OpenSearchProjectRule}, {@code OpenSearchFilterRule}, {@code BackendPlanAdapter}).
+ *
+ * <p>Each test pins one of the resolver's branches so a regression that drops a branch surfaces
+ * here rather than in IT-level "No backend supports scalar function [null]" errors.
+ */
 public class ScalarFunctionTests extends OpenSearchTestCase {
+
+    // ── fromSqlKind ─────────────────────────────────────────────────────────────
+
+    public void testFromSqlKindResolvesDedicatedKind() {
+        assertEquals(ScalarFunction.EQUALS, ScalarFunction.fromSqlKind(SqlKind.EQUALS));
+        assertEquals(ScalarFunction.PLUS, ScalarFunction.fromSqlKind(SqlKind.PLUS));
+        assertEquals(ScalarFunction.CAST, ScalarFunction.fromSqlKind(SqlKind.CAST));
+        assertEquals(ScalarFunction.SAFE_CAST, ScalarFunction.fromSqlKind(SqlKind.SAFE_CAST));
+        assertEquals(ScalarFunction.COALESCE, ScalarFunction.fromSqlKind(SqlKind.COALESCE));
+    }
+
+    public void testFromSqlKindReturnsNullForOtherKind() {
+        // SqlKind.OTHER is shared by many SqlBinaryOperators — must NOT resolve via SqlKind.
+        assertNull(ScalarFunction.fromSqlKind(SqlKind.OTHER));
+    }
+
+    public void testFromSqlKindReturnsNullForOtherFunctionKind() {
+        // SqlKind.OTHER_FUNCTION is shared by many name-distinguished SqlFunctions — must NOT
+        // resolve via SqlKind even though several enum entries declare it.
+        assertNull(ScalarFunction.fromSqlKind(SqlKind.OTHER_FUNCTION));
+    }
 
     /** Non-OTHER_FUNCTION SqlKinds must be unique: fromSqlKind picks the first match and would shadow later entries. */
     public void testNoDuplicateSqlKindBindings() {
@@ -33,5 +62,43 @@ public class ScalarFunctionTests extends OpenSearchTestCase {
 
     public void testSargPredicateIsBoundToSqlKindSearch() {
         assertSame(ScalarFunction.SARG_PREDICATE, ScalarFunction.fromSqlKind(SqlKind.SEARCH));
+    }
+
+    // ── fromSqlOperatorWithFallback: SqlKind branch ────────────────────────────────────────
+
+    public void testFromSqlOperatorResolvesViaSqlKind() {
+        // Calcite's CAST has a dedicated SqlKind.CAST — short-circuit before name lookup.
+        assertEquals(ScalarFunction.CAST, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.CAST));
+        assertEquals(ScalarFunction.PLUS, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.PLUS));
+        assertEquals(ScalarFunction.GREATER_THAN, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.GREATER_THAN));
+        assertEquals(ScalarFunction.COALESCE, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.COALESCE));
+    }
+
+    // ── fromSqlOperatorWithFallback: reference-operator branch ─────────────────────────────
+
+    public void testFromSqlOperatorResolvesPipeConcatViaReferenceOperator() {
+        // The original "no backend supports scalar function [null]" symptom for PPL string `+`.
+        // SqlStdOperatorTable.CONCAT is a SqlBinaryOperator named "||" with SqlKind.OTHER —
+        // neither fromSqlKind nor fromSqlFunction(SqlFunction) resolves it. CONCAT's
+        // referenceOperator field points at the singleton, so the resolver matches by identity.
+        assertEquals("||", SqlStdOperatorTable.CONCAT.getName());
+        assertEquals(SqlKind.OTHER, SqlStdOperatorTable.CONCAT.getKind());
+        assertEquals(ScalarFunction.CONCAT, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.CONCAT));
+    }
+
+    // ── fromSqlOperatorWithFallback: identifier-name branch ────────────────────────────────
+
+    public void testFromSqlOperatorResolvesViaIdentifierName() {
+        // SqlStdOperatorTable.UPPER is a SqlFunction named "UPPER" with SqlKind.OTHER_FUNCTION;
+        // resolves through the valueOf(name.toUpperCase()) fallback after SqlKind misses.
+        assertEquals(ScalarFunction.UPPER, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.UPPER));
+        assertEquals(ScalarFunction.LOWER, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.LOWER));
+        assertEquals(ScalarFunction.ABS, ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.ABS));
+    }
+
+    public void testFromSqlOperatorReturnsNullForUnknownFunction() {
+        // UNARY_MINUS has SqlKind.MINUS_PREFIX (no enum) and name "-" (not a valid valueOf input);
+        // both resolution paths miss and the resolver returns null instead of throwing.
+        assertNull(ScalarFunction.fromSqlOperatorWithFallback(SqlStdOperatorTable.UNARY_MINUS));
     }
 }

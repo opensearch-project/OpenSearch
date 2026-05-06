@@ -15,7 +15,6 @@ import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -153,15 +152,11 @@ public class OpenSearchFilterRule extends RelOptRule {
             );
         }
 
-        ScalarFunction function = null;
-        if (predicate.getOperator() instanceof SqlFunction sqlFunction) {
-            function = ScalarFunction.fromSqlFunction(sqlFunction);
-        }
+        ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(predicate.getOperator());
         if (function == null) {
-            function = ScalarFunction.fromSqlKind(predicate.getKind());
-        }
-        if (function == null) {
-            throw new IllegalStateException("Unrecognized filter operator [" + predicate.getKind() + "]");
+            throw new IllegalStateException(
+                "Unrecognized filter operator [" + predicate.getOperator().getName() + " / " + predicate.getKind() + "]"
+            );
         }
 
         Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
