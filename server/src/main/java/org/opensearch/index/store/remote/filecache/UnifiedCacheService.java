@@ -214,7 +214,7 @@ public class UnifiedCacheService implements Closeable {
      * Block cache counters are folded into the FileCache stats sections.
      */
     public synchronized AggregateFileCacheStats aggregateStats() {
-        AggregateFileCacheStats fileCacheStats = fileCache.cacheStats();
+        AggregateFileCacheStats fileCacheStats = fileCache.fileCacheStats();
         if (blockCaches.isEmpty()) {
             return fileCacheStats;
         }

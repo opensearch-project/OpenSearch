@@ -242,7 +242,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     /**
      * Returns the current {@link AggregateFileCacheStats}
      */
-    public AggregateFileCacheStats cacheStats() {
+    public AggregateFileCacheStats fileCacheStats() {
         final AggregateRefCountedCacheStats stats = (AggregateRefCountedCacheStats) stats();
 
         final RefCountedCacheStats overallCacheStats = stats.getOverallCacheStats();
