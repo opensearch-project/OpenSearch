@@ -95,7 +95,7 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
 // ── Key index eviction listener ───────────────────────────────────────────────
 
 /// Foyer event listener that removes evicted keys from the key index
-/// and updates the shared [`BlockCacheStats`] counters.
+/// and updates the shared [`FoyerStatsCounter`] counters.
 ///
 /// Shared between [`FoyerCache`] and Foyer via `Arc`. When Foyer evicts,
 /// replaces, or removes an entry, `on_leave` is called, which:
@@ -171,7 +171,7 @@ impl EventListener for KeyIndexListener {
 ///
 /// Wraps a Foyer [`HybridCache`] configured as a disk-only store, together
 /// with a concurrent key index that maps each index prefix to its cached entry
-/// keys, and a set of [`BlockCacheStats`] atomic counters.
+/// keys, and a set of [`FoyerStatsCounter`] atomic counters.
 ///
 /// The key index allows removing all cached entries sharing a common prefix
 /// in O(n) without requiring Foyer to support prefix-scan semantics.
@@ -282,7 +282,7 @@ impl BlockCache for FoyerCache {
                 let size = e.value().len() as i64;
                 self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
                 // Track bytes served from cache. For variable-size entries this is
-                // more informative than hit_count alone — see BlockCacheStats docs.
+                // more informative than hit_count alone — see FoyerStatsCounter docs.
                 self.stats.hit_bytes.fetch_add(size, Ordering::Relaxed);
                 Some(Bytes::copy_from_slice(e.value()))
             }
