@@ -25,6 +25,7 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -77,9 +78,18 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFusionFragmentConvertor.class);
 
-    /** Maps DelegatedPredicateFunction to its Substrait extension name for Isthmus conversion. */
+    /**
+     * Maps backend-specific Calcite operators to their Substrait extension names so Isthmus
+     * serializes them through our {@code SimpleExtension} catalog:
+     * <ul>
+     *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
+     *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
+     *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
+     * </ul>
+     */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
-        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME)
+        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;

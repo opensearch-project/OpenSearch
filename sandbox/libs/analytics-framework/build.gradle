@@ -21,6 +21,7 @@ configurations {
   compileClasspath { exclude group: 'com.google.guava' }
 }
 sourceSets.main.compileClasspath += configurations.calciteCompile
+sourceSets.test.compileClasspath += configurations.calciteCompile
 
 dependencies {
   // Guava — required at compile time because Calcite base classes expose guava types.

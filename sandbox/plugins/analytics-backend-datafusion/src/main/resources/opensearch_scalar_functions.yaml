@@ -1,0 +1,22 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:scalar_functions
+scalar_functions:
+  - name: ilike
+    description: >-
+      Case-insensitive LIKE. Semantics match DataFusion's ILikeExpr
+      (datafusion-substrait maps the extension name "ilike" to a case-insensitive
+      LikeExpr).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "match"
+        return: boolean
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "match"
+        return: boolean
