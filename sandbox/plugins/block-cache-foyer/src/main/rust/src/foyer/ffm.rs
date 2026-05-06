@@ -71,38 +71,36 @@ pub unsafe extern "C" fn foyer_destroy_cache(ptr: i64) -> i64 {
     Ok(0)
 }
 
-/// Snapshots the cache statistics into a caller-supplied `i64[14]` output buffer.
+/// Snapshots cache statistics into a caller-supplied `i64[14]` output buffer.
 ///
-/// The buffer holds two consecutive 7-value sections that match the Java
-/// `AggregateBlockCacheStats` layout:
+/// Two consecutive 7-value sections:
+/// - Indices 0–6: cross-tier rollup (`overall`)
+/// - Indices 7–13: disk-tier stats (`block_level`)
 ///
-/// - **Indices 0–6** (`overall_stats`): cross-tier rollup across all cache tiers.
-/// - **Indices 7–13** (`block_level_stats`): disk-tier (block-level) stats only.
+/// Field order within each section (must match the private `Field` enum in
+/// `FoyerAggregatedStats` on the Java side):
 ///
-/// The field order within each section is defined by `BlockCacheStats.Field` in Java:
+/// | Offset | Field            |
+/// |--------|------------------|
+/// | +0     | `hit_count`      |
+/// | +1     | `hit_bytes`      |
+/// | +2     | `miss_count`     |
+/// | +3     | `miss_bytes`     |
+/// | +4     | `eviction_count` |
+/// | +5     | `eviction_bytes` |
+/// | +6     | `used_bytes`     |
 ///
-/// | Offset | Field            | Description                                     |
-/// |--------|------------------|-------------------------------------------------|
-/// | +0     | `hit_count`      | `get()` calls that returned a cached value      |
-/// | +1     | `hit_bytes`      | Bytes served from cache across all hits         |
-/// | +2     | `miss_count`     | `get()` calls that returned no cached value     |
-/// | +3     | `miss_bytes`     | Bytes fetched from remote due to misses         |
-/// | +4     | `eviction_count` | Entries removed by LRU pressure                 |
-/// | +5     | `eviction_bytes` | Total bytes removed by LRU pressure             |
-/// | +6     | `used_bytes`     | Current bytes resident on disk                  |
+/// Foyer is currently single-tier (disk only): `overall` and `block_level` are identical.
+/// The two-section layout is preserved so a future in-memory tier can be added without
+/// changing this buffer contract.
 ///
-/// **Single-tier note**: Foyer currently has only a disk tier, so `overall_stats`
-/// and `block_level_stats` carry identical values. The two-section layout exists
-/// so that a future in-memory tier can be added without changing this buffer contract.
-///
-/// Called by Java's `FoyerBridge.snapshotStats(ptr)` at most once per
-/// `_nodes/stats` request — not on the hot path.
+/// Called by `FoyerBridge.snapshotStats(ptr)` — not on the hot path.
 ///
 /// # Returns
 /// `0` on success; `< 0` if `ptr` is invalid or `out` is null.
 ///
 /// # Safety
-/// - `ptr` must be a value returned by [`foyer_create_cache`] not yet destroyed.
+/// - `ptr` must be a valid handle from [`foyer_create_cache`], not yet destroyed.
 /// - `out` must point to a writable buffer of at least **14** `i64` values.
 #[no_mangle]
 pub unsafe extern "C" fn foyer_snapshot_stats(ptr: i64, out: *mut i64) -> i64 {
