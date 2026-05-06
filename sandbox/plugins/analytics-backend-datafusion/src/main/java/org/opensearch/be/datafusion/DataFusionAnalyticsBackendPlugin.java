@@ -82,12 +82,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     // PPL command/function we want the analytics-engine planner to route through DataFusion. Add
     // here only after verifying the function deserializes through Substrait isthmus into a plan
     // DataFusion's native runtime can execute (see DataFusionFragmentConvertor for the conversion
-    // path). COALESCE is the lowering target of PPL `fillnull`.
+    // path). COALESCE is the lowering target of PPL `fillnull`. CAST is required because
+    // ReduceExpressionsRule.ProjectReduceExpressionsRule (in PlannerImpl) constant-folds field
+    // references through equality filters into typed literals — e.g. after `where str0 = 'FURNITURE'`,
+    // the projection `fields str0` is rewritten to `CAST('FURNITURE' AS VARCHAR)`. The remaining
+    // comparison / arithmetic / logical operators are project-capable for eval-style projections.
     private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(
         ScalarFunction.COALESCE,
         ScalarFunction.CEIL,
+        ScalarFunction.CAST,
         ScalarFunction.SARG_PREDICATE,
-        // comparison / arithmetic / logical operators in eval-style projections.
         ScalarFunction.EQUALS,
         ScalarFunction.NOT_EQUALS,
         ScalarFunction.GREATER_THAN,
