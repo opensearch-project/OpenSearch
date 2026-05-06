@@ -110,6 +110,12 @@ dependencies {
   // so bundle it into analytics-engine's own zip.
   runtimeOnly "org.apache.commons:commons-math3:3.6.1"
 
+  // commons-text — Calcite's ReduceExpressionsRule eagerly loads
+  // org.apache.commons.text.similarity.LevenshteinDistance during plan-time constant
+  // folding. Without it, literal-only expressions like e() / pi() crash the coordinator
+  // with NoClassDefFoundError. Pinned to 1.11.0 to match resolutionStrategy force below.
+  runtimeOnly "org.apache.commons:commons-text:1.11.0"
+
   // httpcore5/httpclient5 — Avatica's BuiltInConnectionProperty static initializer references
   // org.apache.hc.core5.util.Timeout. Not provided by arrow-flight-rpc, so bundle here.
   runtimeOnly "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"

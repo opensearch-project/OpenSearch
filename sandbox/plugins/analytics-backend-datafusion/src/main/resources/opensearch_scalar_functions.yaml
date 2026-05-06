@@ -1,12 +1,20 @@
 %YAML 1.2
 ---
 urn: extension:org.opensearch:scalar_functions
+# Substrait extension signatures for scalar functions DataFusion supports
+# natively but the Substrait default catalog does not declare. Each entry is
+# paired with a FunctionMappings.Sig entry in
+# DataFusionFragmentConvertor#ADDITIONAL_SCALAR_SIGS so isthmus emits the matching
+# extension name, which DataFusion's substrait consumer resolves via its scalar
+# function registry (https://datafusion.apache.org/user-guide/sql/scalar_functions.html).
+#
+# No custom Rust UDF is required for any of these — DataFusion's built-in scalar
+# functions already implement them under the names listed here.
 scalar_functions:
   - name: ilike
     description: >-
-      Case-insensitive LIKE. Semantics match DataFusion's ILikeExpr
-      (datafusion-substrait maps the extension name "ilike" to a case-insensitive
-      LikeExpr).
+      Case-insensitive LIKE. datafusion-substrait maps the extension name `ilike`
+      to a case-insensitive `LikeExpr`.
     impls:
       - args:
           - value: "varchar<L1>"
@@ -38,3 +46,99 @@ scalar_functions:
     impls:
       - args: [{ value: "any1", name: "ts" }]
         return: any1
+  - name: cbrt
+    description: >-
+      Cube root. Resolves to DataFusion's built-in `cbrt` scalar function.
+    impls:
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+  - name: cot
+    description: >-
+      Cotangent. Resolves to DataFusion's built-in `cot` scalar function.
+    impls:
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+  - name: pi
+    description: >-
+      Zero-argument π constant. Resolves to DataFusion's built-in `pi` scalar
+      function.
+    impls:
+      - args: []
+        return: fp64
+  - name: random
+    description: >-
+      Pseudorandom fp64 in [0, 1). Resolves to DataFusion's built-in `random`
+      scalar function. PPL surface name is `rand`; FunctionMappings maps
+      `SqlStdOperatorTable.RAND` to this extension name.
+    impls:
+      - args: []
+        return: fp64
+  - name: round
+    description: >-
+      One-argument rounding to the nearest integer, preserving input type.
+      DataFusion's built-in `round` also supports a 2-arg (value, digits)
+      overload matching the Substrait default signature; PPL frequently emits
+      a single-argument form which this entry declares.
+    impls:
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+  - name: signum
+    description: >-
+      Signum. DataFusion's built-in scalar function is named `signum`; PPL/Calcite
+      surface name is `sign`. AbstractNameMappingAdapter retargets Calcite's `SIGN`
+      at SignumFunction (yaml name `signum`) so isthmus emits the name DataFusion
+      resolves directly.
+    impls:
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+  - name: trunc
+    description: >-
+      Truncate toward zero. Resolves to DataFusion's built-in `trunc` scalar
+      function. PPL's `truncate` — `SqlStdOperatorTable.TRUNCATE` — accepts
+      both 1-arg and 2-arg (value, scale) forms per the
+      CompositeOperandTypeChecker; both are declared here.
+    impls:
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+      - args:
+          - value: fp32
+            name: x
+          - value: i32
+            name: scale
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+          - value: i32
+            name: scale
+        return: fp64

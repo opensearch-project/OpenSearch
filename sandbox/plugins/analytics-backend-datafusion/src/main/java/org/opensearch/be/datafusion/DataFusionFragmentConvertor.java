@@ -26,6 +26,7 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -80,20 +81,23 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /**
      * Maps backend-specific Calcite operators to their Substrait extension names so Isthmus
-     * serializes them through our {@code SimpleExtension} catalog:
-     * <ul>
-     *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
-     *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
-     *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
-     * </ul>
+     * serializes them through our {@code SimpleExtension} catalog. Every mapping here
+     * corresponds to a function declared either in the Substrait default catalog, in
+     * {@code opensearch_scalar_functions.yaml} or {@code delegation_functions.yaml}
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
-        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
-        FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime")
+        FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
+        FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
+        FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
+        FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
+        FunctionMappings.s(SqlStdOperatorTable.PI, "pi"),
+        FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
+        FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
+        FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME)
     );
 
     private final SimpleExtension.ExtensionCollection extensions;
