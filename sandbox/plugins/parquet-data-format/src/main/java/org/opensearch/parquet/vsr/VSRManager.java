@@ -129,30 +129,37 @@ public class VSRManager implements AutoCloseable {
      * @param doc the document input containing field-value pairs
      */
     public void addDocument(ParquetDocumentInput doc) throws IOException {
-        ManagedVSR activeVSR = managedVSR.get();
-        for (FieldValuePair pair : doc.getFinalInput()) {
-            MappedFieldType fieldType = pair.getFieldType();
-            ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
-            if (parquetField == null) {
-                continue;
+        String name = "";
+        try {
+            ManagedVSR activeVSR = managedVSR.get();
+            for (FieldValuePair pair : doc.getFinalInput()) {
+                MappedFieldType fieldType = pair.getFieldType();
+                name = fieldType.name();
+                ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
+                if (parquetField == null) {
+                    continue;
+                }
+                // Dynamic field vector addition: create vector if not present in VSR
+                FieldVector vector = activeVSR.getVector(fieldType.name());
+                if (vector == null) {
+                    Field field = new Field(fieldType.name(), parquetField.getFieldType(), null);
+                    activeVSR.addFieldVector(field);
+                    // Update pool schema so future VSRs include this field
+                    vsrPool.updateSchema(activeVSR.getSchema());
+                }
+                parquetField.createField(fieldType, activeVSR, pair.getValue());
             }
-            // Dynamic field vector addition: create vector if not present in VSR
-            FieldVector vector = activeVSR.getVector(fieldType.name());
-            if (vector == null) {
-                Field field = new Field(fieldType.name(), parquetField.getFieldType(), null);
-                activeVSR.addFieldVector(field);
-                // Update pool schema so future VSRs include this field
-                vsrPool.updateSchema(activeVSR.getSchema());
+            int rowIndex = activeVSR.getRowCount();
+            BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector(DocumentInput.ROW_ID_FIELD);
+            if (rowIdVector != null) {
+                rowIdVector.setSafe(rowIndex, doc.getRowId());
             }
-            parquetField.createField(fieldType, activeVSR, pair.getValue());
+            activeVSR.setRowCount(rowIndex + 1);
+            maybeRotateActiveVSR();
+        } catch (Exception ex) {
+            logger.error("{}: ", name, ex);
+            throw ex;
         }
-        int rowIndex = activeVSR.getRowCount();
-        BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector(DocumentInput.ROW_ID_FIELD);
-        if (rowIdVector != null) {
-            rowIdVector.setSafe(rowIndex, doc.getRowId());
-        }
-        activeVSR.setRowCount(rowIndex + 1);
-        maybeRotateActiveVSR();
     }
 
     /**
