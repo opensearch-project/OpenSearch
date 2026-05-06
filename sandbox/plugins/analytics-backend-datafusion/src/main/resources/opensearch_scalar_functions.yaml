@@ -806,3 +806,83 @@ scalar_functions:
           - { name: input, value: "string" }
         nullability: DECLARED_OUTPUT
         return: i64
+
+  # span_bucket(value, span) — PPL fixed-width bucket label. Rust UDF at
+  # rust/src/udf/span_bucket.rs. Takes two numerics, returns a VARCHAR label
+  # like "10-20" identifying the half-open `[binStart, binEnd)` bucket that
+  # `value` falls into. NOT ISO-SQL width_bucket (which returns an integer
+  # bucket index); this is the OpenSearch-PPL nice-number-algorithm variant.
+  #
+  # `any1` on both slots matches every integer/float source PPL emits
+  # (Int32/Int64/Float32/Float64) — DF's substrait consumer re-resolves the
+  # Rust UDF by name and its coerce_types canonicalizes both slots to Float64.
+  # Return type is `any1` to stay consistent with surrounding signatures; the
+  # UDF's actual return type (Utf8) is authoritative on the Rust side.
+  - name: "span_bucket"
+    description: "Fixed-width numeric bucket label (PPL). See sql/core SpanBucketFunction for semantics."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any1", name: "span" }
+        return: any1
+
+  # width_bucket(value, num_bins, data_range, max_value) — PPL histogram
+  # bucket label. Rust UDF at rust/src/udf/width_bucket.rs. Returns a VARCHAR
+  # label via the OpenSearch nice-number magnitude-based algorithm (see
+  # sql/core WidthBucketFunction). NOT ISO-SQL width_bucket (which returns an
+  # integer bucket index) — semantics and signature both differ. A future
+  # real ISO-SQL width_bucket binding needs its own name / enum entry.
+  #
+  # Distinct any-parameters per slot (`any1`/`any2`/`any3`/`any4`) so each
+  # independently matches any source type without requiring all slots to
+  # share the same type — PPL may emit mixed types (fp64 value, i32
+  # num_bins, fp64 data_range, fp64 max_value). DF's substrait consumer
+  # re-resolves by name and the UDF's coerce_types canonicalizes
+  # value/range/max to Float64 and num_bins to Int64.
+  - name: "width_bucket"
+    description: "Histogram bucket label (PPL). See sql/core WidthBucketFunction for semantics."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any2", name: "num_bins" }
+          - { value: "any3", name: "data_range" }
+          - { value: "any4", name: "max_value" }
+        return: any1
+
+  # minspan_bucket(value, min_span, data_range, max_value) — PPL minimum-span
+  # histogram bucket label. Rust UDF at rust/src/udf/minspan_bucket.rs. Picks
+  # the larger of the data's natural order-of-magnitude width and a user-
+  # supplied minimum span, returns the resulting bucket label (e.g. "10-20").
+  # The `max_value` slot is unused by the algorithm but carried through for
+  # parity with PPL's call shape (matches Java MinspanBucketFunction).
+  - name: "minspan_bucket"
+    description: "Minimum-span numeric bucket label (PPL). See sql/core MinspanBucketFunction for semantics."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any2", name: "min_span" }
+          - { value: "any3", name: "data_range" }
+          - { value: "any4", name: "max_value" }
+        return: any1
+
+  # range_bucket(value, data_min, data_max, start_param, end_param) — PPL
+  # expansion-range histogram bucket label. Rust UDF at
+  # rust/src/udf/range_bucket.rs. The start_param and end_param slots are
+  # nullable sentinels for "use the observed data bound"; null in those
+  # slots does NOT null-propagate the output (asymmetric null handling).
+  #
+  # The PPL frontend's `bin start=... end=...` command wraps data_min /
+  # data_max in MIN/MAX OVER () empty-partition window aggregates. This
+  # UDF is scalar and doesn't care about that wrapping; end-to-end pushdown
+  # through the `bin` command additionally requires the backend to advertise
+  # the window-over-empty capability.
+  - name: "range_bucket"
+    description: "Range-based bucket label (PPL). Expansion-only effective bounds; magnitude-based width. See sql/core RangeBucketFunction."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any2", name: "data_min" }
+          - { value: "any3", name: "data_max" }
+          - { value: "any4", name: "start_param" }
+          - { value: "any5", name: "end_param" }
+        return: any1

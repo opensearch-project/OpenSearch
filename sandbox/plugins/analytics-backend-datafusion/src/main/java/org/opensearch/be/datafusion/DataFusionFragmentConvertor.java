@@ -218,7 +218,16 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
         FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
         FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
-        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
+        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend"),
+        // PPL bucketing UDFs — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS for
+        // capability registration and per-adapter Javadoc for semantics. Each LOCAL_*_OP is a
+        // locally-declared SqlFunction (see *Adapter.java) so isthmus's ScalarFunctionConverter
+        // binds the Sig by operator identity without importing sql/core's UDF declarations.
+        FunctionMappings.s(SpanBucketAdapter.LOCAL_SPAN_BUCKET_OP, "span_bucket"),
+        FunctionMappings.s(WidthBucketAdapter.LOCAL_WIDTH_BUCKET_OP, "width_bucket"),
+        FunctionMappings.s(MinspanBucketAdapter.LOCAL_MINSPAN_BUCKET_OP, "minspan_bucket"),
+        FunctionMappings.s(SpanAdapter.LOCAL_SPAN_OP, "span"),
+        FunctionMappings.s(RangeBucketAdapter.LOCAL_RANGE_BUCKET_OP, "range_bucket")
     );
 
     /**
@@ -319,8 +328,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // execution time. Same fix applied to attachPartialAggOnTop.
         return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
-
-    // ── Core conversion helpers ─────────────────────────────────────────────────
 
     private byte[] convertToSubstrait(RelNode fragment) {
         // Rewrite SqlTypeName.NULL literals (Calcite's untyped null, emitted for the
