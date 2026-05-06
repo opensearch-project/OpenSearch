@@ -83,7 +83,23 @@ public class HiveKerberosSingleNodeTests extends OpenSearchSingleNodeTestCase {
     }
 
     @After
-    public void cleanup() {
+    public void cleanup() throws Exception {
+        // Delete index first to stop the poller before shutting down KDC/Metastore
+        try {
+            client().admin().indices().prepareDelete("hive-kerberos-test-index").get();
+        } catch (Exception e) {
+            // index may not exist if test failed early
+        }
+        // Wait for poller thread to terminate
+        assertBusy(() -> {
+            Thread[] threads = new Thread[Thread.activeCount()];
+            Thread.enumerate(threads);
+            for (Thread t : threads) {
+                if (t != null && t.getName().contains("stream-poller")) {
+                    fail("Poller thread still alive: " + t.getName());
+                }
+            }
+        });
         if (kerberizedMetastore != null) kerberizedMetastore.stop();
         if (kdc != null) kdc.stop();
     }
