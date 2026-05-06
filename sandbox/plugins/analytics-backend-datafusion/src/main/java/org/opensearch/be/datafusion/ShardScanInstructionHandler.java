@@ -14,11 +14,9 @@ import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.SessionContextConfig;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
-
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 
 /**
  * Handles ShardScan instruction: creates a SessionContext via FFM and registers
@@ -55,18 +53,14 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         long runtimePtr = dataFusionService.getNativeRuntime().get();
         long contextId = context.getTask() != null ? context.getTask().getId() : 0L;
 
-        WireConfigSnapshot config = plugin.getDatafusionSettings().getSnapshot();
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
-            config.writeTo(segment);
-            SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
-                readerPtr,
-                runtimePtr,
-                context.getTableName(),
-                contextId,
-                segment.address()
-            );
-            return new DataFusionSessionState(sessionCtxHandle);
-        }
+        SessionContextConfig config = new SessionContextConfig(
+            readerPtr,
+            runtimePtr,
+            context.getTableName(),
+            contextId,
+            plugin.getDatafusionSettings().getSnapshot()
+        );
+        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(config);
+        return new DataFusionSessionState(sessionCtxHandle);
     }
 }

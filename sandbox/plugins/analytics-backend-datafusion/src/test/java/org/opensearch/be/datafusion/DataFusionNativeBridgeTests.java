@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.SessionContextConfig;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
@@ -80,13 +81,14 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
 
         // Create session context with table registered
-        SessionContextHandle sessionCtx = NativeBridge.createSessionContext(
+        SessionContextConfig config = new SessionContextConfig(
             readerHandle.getPointer(),
             runtimeHandle.get(),
             "test_table",
             0L,
-            0L
+            new WireConfigSnapshot(8192, 4, false, 1024, 0.03, 1, 10, 1)
         );
+        SessionContextHandle sessionCtx = NativeBridge.createSessionContext(config);
         assertTrue("SessionContext pointer should be non-zero", sessionCtx.getPointer() != 0);
 
         // Execute a simple query to verify the session context is properly configured

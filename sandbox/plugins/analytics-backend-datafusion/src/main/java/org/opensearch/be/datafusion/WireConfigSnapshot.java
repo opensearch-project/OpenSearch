@@ -17,15 +17,6 @@ import java.lang.foreign.ValueLayout;
  * Immutable snapshot of the dynamic indexed query settings, ready to be written
  * into a {@code MemorySegment} matching the Rust {@code WireDatafusionQueryConfig}
  * {@code #[repr(C)]} layout.
- * <p>
- * Hardcoded wire fields (not configurable via cluster settings):
- * <ul>
- *   <li>{@code indexed_pushdown_filters = 1} (true)</li>
- *   <li>{@code force_strategy = -1} (None)</li>
- *   <li>{@code force_pushdown = -1} (None)</li>
- *   <li>{@code single_collector_strategy = 2} (PageRangeSplit)</li>
- *   <li>{@code tree_collector_strategy = 1} (TightenOuterBounds)</li>
- * </ul>
  *
  * @opensearch.experimental
  */

@@ -14,6 +14,7 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.SessionContextConfig;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -143,13 +144,14 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     private ShardScanExecutionContext createExecutionContext(String tableName, byte[] substrait, DatafusionContext dfContext) {
         ShardScanExecutionContext execCtx = new ShardScanExecutionContext(tableName, null, null);
         execCtx.setFragmentBytes(substrait);
-        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
+        SessionContextConfig sessionConfig = new SessionContextConfig(
             readerHandle.getPointer(),
             runtimeHandle.get(),
             tableName,
             0L,
-            0L
+            new WireConfigSnapshot(8192, 4, false, 1024, 0.03, 1, 10, 1)
         );
+        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(sessionConfig);
         dfContext.setSessionContextHandle(sessionCtxHandle);
         return execCtx;
     }

@@ -9,6 +9,7 @@
 package org.opensearch.be.datafusion;
 
 import org.opensearch.be.datafusion.cache.CacheSettings;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -32,10 +33,11 @@ import java.util.List;
 public final class DatafusionSettings {
 
     // ── Computed default for max_collector_parallelism and target_partitions fallback ──
-    private static final int DEFAULT_PARALLELISM = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
+    private static final int DEFAULT_PARALLELISM = 1;
 
     // ── New indexed query settings ──
 
+    /** Number of rows per batch in the indexed query execution path. */
     public static final Setting<Integer> INDEXED_BATCH_SIZE = Setting.intSetting(
         "datafusion.indexed.batch_size",
         8192,
@@ -44,6 +46,12 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Whether DataFusion applies residual predicate pushdown during parquet decode
+     * on the indexed path. When true, narrow row-granular selections benefit from
+     * decode-time filtering via {@code RowFilter}. When false (default), the indexed
+     * stream handles filtering externally via bitmap-based row selection.
+     */
     public static final Setting<Boolean> INDEXED_PARQUET_PUSHDOWN_FILTERS = Setting.boolSetting(
         "datafusion.indexed.parquet_pushdown_filters",
         false,
@@ -51,6 +59,11 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Default minimum run length (in rows) below which the indexed stream skips
+     * row-selection optimizations and falls back to sequential decode. Shorter runs
+     * have higher per-row overhead from selection vector maintenance.
+     */
     public static final Setting<Integer> INDEXED_MIN_SKIP_RUN_DEFAULT = Setting.intSetting(
         "datafusion.indexed.min_skip_run_default",
         1024,
@@ -59,6 +72,11 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Selectivity threshold [0.0, 1.0] for adaptive skip-run behavior. When the
+     * estimated selectivity of a filter exceeds this threshold, the stream switches
+     * from row-selection to full-decode mode (cheaper for non-selective filters).
+     */
     public static final Setting<Double> INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD = Setting.doubleSetting(
         "datafusion.indexed.min_skip_run_selectivity_threshold",
         0.03,
@@ -68,6 +86,11 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Cost weight assigned to Predicate-leaf evaluators in the bitmap tree cost model.
+     * Higher values make the optimizer prefer fewer predicate evaluations relative to
+     * collector evaluations.
+     */
     public static final Setting<Integer> INDEXED_COST_PREDICATE = Setting.intSetting(
         "datafusion.indexed.cost_predicate",
         1,
@@ -76,6 +99,11 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Cost weight assigned to Collector-leaf evaluators (Lucene FFM calls) in the
+     * bitmap tree cost model. Higher values make the optimizer prefer fewer collector
+     * evaluations relative to predicate evaluations.
+     */
     public static final Setting<Integer> INDEXED_COST_COLLECTOR = Setting.intSetting(
         "datafusion.indexed.cost_collector",
         10,
@@ -84,6 +112,12 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Maximum number of Collector-leaf FFM calls issued in parallel per row-group
+     * prefetch. 1 = fully sequential (lowest CPU, fastest short-circuit). Higher
+     * values sacrifice short-circuit savings in AND/OR groups but reduce latency
+     * for independent collector leaves.
+     */
     public static final Setting<Integer> INDEXED_MAX_COLLECTOR_PARALLELISM = Setting.intSetting(
         "datafusion.indexed.max_collector_parallelism",
         DEFAULT_PARALLELISM,
@@ -92,21 +126,24 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
-    // ── All settings list (existing re-exports + new indexed settings) ──
+    // ── All settings registered by the plugin ──
 
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
-        // Existing settings re-exported from DataFusionPlugin
+
+        // Runtime settings — memory pool, spill, and reduce input mode
         DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT,
         DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT,
         DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE,
-        // Existing settings re-exported from CacheSettings
+
+        // Cache settings — metadata and statistics cache configuration
         CacheSettings.METADATA_CACHE_SIZE_LIMIT,
         CacheSettings.STATISTICS_CACHE_SIZE_LIMIT,
         CacheSettings.METADATA_CACHE_EVICTION_TYPE,
         CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
         CacheSettings.METADATA_CACHE_ENABLED,
         CacheSettings.STATISTICS_CACHE_ENABLED,
-        // New indexed query settings
+
+        // Indexed query settings — per-query tuning knobs for the indexed execution path
         INDEXED_BATCH_SIZE,
         INDEXED_PARQUET_PUSHDOWN_FILTERS,
         INDEXED_MIN_SKIP_RUN_DEFAULT,
@@ -127,21 +164,24 @@ public final class DatafusionSettings {
     private volatile int maxSliceCount;
 
     /**
-     * Creates the settings holder and builds the initial {@link WireConfigSnapshot}
-     * from the provided node settings.
+     * Creates the settings holder, builds the initial {@link WireConfigSnapshot} from
+     * the cluster service's settings, and registers listeners for dynamic updates.
      *
-     * @param initialSettings the node-level settings at startup
+     * @param clusterService the cluster service providing settings and listener registration
      */
-    public DatafusionSettings(Settings initialSettings) {
-        int batchSize = INDEXED_BATCH_SIZE.get(initialSettings);
-        boolean parquetPushdownFilters = INDEXED_PARQUET_PUSHDOWN_FILTERS.get(initialSettings);
-        int minSkipRunDefault = INDEXED_MIN_SKIP_RUN_DEFAULT.get(initialSettings);
-        double minSkipRunSelectivityThreshold = INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(initialSettings);
-        int costPredicate = INDEXED_COST_PREDICATE.get(initialSettings);
-        int costCollector = INDEXED_COST_COLLECTOR.get(initialSettings);
-        int maxCollectorParallelism = INDEXED_MAX_COLLECTOR_PARALLELISM.get(initialSettings);
+    public DatafusionSettings(ClusterService clusterService) {
+        Settings settings = clusterService.getSettings();
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
 
-        this.maxSliceCount = SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(initialSettings);
+        int batchSize = INDEXED_BATCH_SIZE.get(settings);
+        boolean parquetPushdownFilters = INDEXED_PARQUET_PUSHDOWN_FILTERS.get(settings);
+        int minSkipRunDefault = INDEXED_MIN_SKIP_RUN_DEFAULT.get(settings);
+        double minSkipRunSelectivityThreshold = INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(settings);
+        int costPredicate = INDEXED_COST_PREDICATE.get(settings);
+        int costCollector = INDEXED_COST_COLLECTOR.get(settings);
+        int maxCollectorParallelism = INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings);
+
+        this.maxSliceCount = SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settings);
         int targetPartitions = deriveTargetPartitions(this.maxSliceCount);
 
         this.snapshot = new WireConfigSnapshot(
@@ -154,16 +194,11 @@ public final class DatafusionSettings {
             costCollector,
             maxCollectorParallelism
         );
+
+        registerListeners(clusterSettings);
     }
 
-    /**
-     * Registers {@code addSettingsUpdateConsumer} listeners for each dynamic indexed
-     * setting and for {@code search.concurrent.max_slice_count}. Each listener
-     * atomically rebuilds the snapshot with the updated value.
-     *
-     * @param clusterSettings the cluster settings to register listeners on
-     */
-    public void registerListeners(ClusterSettings clusterSettings) {
+    private void registerListeners(ClusterSettings clusterSettings) {
         clusterSettings.addSettingsUpdateConsumer(INDEXED_BATCH_SIZE, newValue -> {
             WireConfigSnapshot current = snapshot;
             snapshot = new WireConfigSnapshot(
