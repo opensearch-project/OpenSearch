@@ -9,8 +9,8 @@
 package org.opensearch.analytics.spi;
 
 import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
 
 /**
  * Execution engine factory for backend plugins.
@@ -23,6 +23,10 @@ public interface SearchExecEngineProvider {
     /**
      * Creates a search execution engine bound to the given execution context.
      * The context carries the reader snapshot and task metadata.
+     * The backendContext carries backend-specific state produced by instruction handlers.
      */
-    SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx);
+    SearchExecEngine<ShardScanExecutionContext, EngineResultStream> createSearchExecEngine(
+        ShardScanExecutionContext ctx,
+        BackendExecutionContext backendContext
+    );
 }

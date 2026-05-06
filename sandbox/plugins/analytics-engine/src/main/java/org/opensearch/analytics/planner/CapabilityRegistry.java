@@ -98,6 +98,21 @@ public class CapabilityRegistry {
             for (DelegationType type : caps.supportedDelegations()) {
                 delegationSupporters.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
+            // Validate: if a backend supports FILTER delegation (i.e., it drives the tree walk),
+            // it must provide a FragmentInstructionHandlerFactory for instruction-based execution.
+            if (caps.supportedDelegations().contains(DelegationType.FILTER)) {
+                try {
+                    backend.getInstructionHandlerFactory();
+                } catch (UnsupportedOperationException exception) {
+                    throw new IllegalStateException(
+                        "Backend ["
+                            + name
+                            + "] declares supportedDelegations(FILTER) but does not implement"
+                            + " getInstructionHandlerFactory(). A driving backend must provide an instruction"
+                            + " handler factory to configure delegation at the data node."
+                    );
+                }
+            }
             for (DelegationType type : caps.acceptedDelegations()) {
                 delegationAcceptors.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
@@ -248,6 +263,16 @@ public class CapabilityRegistry {
 
     public List<String> aggregateBackendsAnyFormat(AggregateFunction function, FieldType fieldType) {
         return allBackends(aggregateIndex.getOrDefault(new AggregateKey(function, fieldType), Map.of()));
+    }
+
+    /**
+     * All backends declaring filter support for a (function, fieldType) ignoring storage formats.
+     * Used by the filter rule when the field is derived (e.g. produced by Union or Project) and
+     * therefore has no doc-value or index format to match against — the filter must run at whichever
+     * backend executes the producing operator, so format-level pushdown isn't applicable.
+     */
+    public List<String> filterBackendsAnyFormat(ScalarFunction function, FieldType fieldType) {
+        return allBackends(filterIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of()));
     }
 
     public List<String> scalarBackendsAnyFormat(ScalarFunction function, FieldType fieldType) {
