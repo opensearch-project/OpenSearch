@@ -242,7 +242,6 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     /**
      * Returns the current {@link AggregateFileCacheStats}
      */
-    @Override
     public AggregateFileCacheStats cacheStats() {
         final AggregateRefCountedCacheStats stats = (AggregateRefCountedCacheStats) stats();
 

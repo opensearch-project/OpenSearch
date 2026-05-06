@@ -10,17 +10,31 @@ package org.opensearch.blockcache.foyer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.blockcache.foyer.action.FoyerCacheStatsAction;
+import org.opensearch.blockcache.foyer.action.FoyerCacheStatsRequest;
+import org.opensearch.blockcache.foyer.action.FoyerCacheStatsResponse;
+import org.opensearch.blockcache.foyer.action.RestFoyerCacheStatsAction;
+import org.opensearch.blockcache.foyer.action.TransportFoyerCacheStatsAction;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -39,15 +53,16 @@ import java.util.function.Supplier;
  * <p>Implements {@link BlockCacheProvider}: core publishes this SPI as an
  * extension point for consumers to discover via
  * {@code pluginsService.filterPlugins(BlockCacheProvider.class)} when they
- * need a node-level block cache. Consumers are responsible for resolving
- * the cache themselves.
+ * need a node-level block cache.
  *
- * <p>{@code extendedPlugins = []} — this plugin does not extend any other
- * plugin, and no other plugin extends it.
+ * <p>Also implements {@link ActionPlugin} to register the
+ * {@code GET /_nodes/foyer_cache/stats} REST + transport action, which
+ * exposes rich per-node Foyer stats (two-section FFM snapshot) without
+ * touching {@code NodeStats} or the core transport protocol.
  *
  * @opensearch.experimental
  */
-public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider {
+public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(BlockCacheFoyerPlugin.class);
 
@@ -71,10 +86,14 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
      */
     public BlockCacheFoyerPlugin(final Settings settings) {}
 
+    // ─── BlockCacheProvider ───────────────────────────────────────────────────
+
     @Override
     public Optional<BlockCache> getBlockCache() {
         return Optional.ofNullable(cache);
     }
+
+    // ─── Plugin lifecycle ─────────────────────────────────────────────────────
 
     @Override
     public Collection<Object> createComponents(
@@ -125,5 +144,33 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
                 logger.info("BlockCacheFoyerPlugin closed");
             }
         }
+    }
+
+    // ─── ActionPlugin ─────────────────────────────────────────────────────────
+
+    /**
+     * Registers the {@code cluster:monitor/foyer_cache/stats} transport action.
+     */
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(
+            new ActionHandler<>(FoyerCacheStatsAction.INSTANCE, TransportFoyerCacheStatsAction.class)
+        );
+    }
+
+    /**
+     * Registers the {@code GET /_nodes/foyer_cache/stats} REST handler.
+     */
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return List.of(new RestFoyerCacheStatsAction());
     }
 }

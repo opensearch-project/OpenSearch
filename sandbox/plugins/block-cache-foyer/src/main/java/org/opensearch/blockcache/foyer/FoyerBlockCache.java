@@ -79,17 +79,17 @@ public final class FoyerBlockCache implements BlockCache {
 
     /**
      * Snapshots cache statistics via FFM call to the native Foyer runtime.
-     * Returns a flat {@link BlockCacheStats} record compatible with the SPI.
+     * Returns the cross-tier rollup {@link BlockCacheStats} (section 0 of the
+     * native stats buffer) for core consumption.
      *
-     * <p>Delegates to {@link #foyerStats()} and projects via
-     * {@link FoyerAggregatedStats#toSpiStats()}. Core code uses this method;
-     * Foyer-aware code that needs per-tier counters (hit bytes, miss bytes,
-     * eviction bytes, capacity, disk-tier breakdown) should call
-     * {@link #foyerStats()} directly.
+     * <p>Delegates to {@link #foyerStats()} and returns the overall section
+     * directly — no projection step needed. Core code uses this method;
+     * Foyer-aware code that needs the disk-tier breakdown (section 1) should
+     * call {@link #foyerStats()} directly.
      */
     @Override
     public BlockCacheStats stats() {
-        return foyerStats().toSpiStats();
+        return foyerStats().overallStats();
     }
 
     /**
@@ -109,7 +109,7 @@ public final class FoyerBlockCache implements BlockCache {
      */
     public FoyerAggregatedStats foyerStats() {
         long[] raw = FoyerBridge.snapshotStats(cachePtr);
-        return FoyerAggregatedStats.fromRaw(raw, diskBytes);
+        return FoyerAggregatedStats.snapshot(raw, diskBytes);
     }
 
     /**

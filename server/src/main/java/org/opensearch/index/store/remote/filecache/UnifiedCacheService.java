@@ -174,6 +174,14 @@ public class UnifiedCacheService implements Closeable {
     }
 
     /**
+     * Returns the total configured capacity (in bytes) across all registered block caches.
+     * Used by {@code WarmFsService} to compute the virtual warm-node capacity.
+     */
+    public synchronized long blockCacheCapacityBytes() {
+        return blockCaches.stream().mapToLong(bc -> bc.stats().totalBytes()).sum();
+    }
+
+    /**
      * Returns total SSD bytes currently used by all block caches combined.
      */
     public synchronized long blockCacheDiskBytesUsed() {
@@ -213,11 +221,11 @@ public class UnifiedCacheService implements Closeable {
     private static AggregateFileCacheStats mergeStats(AggregateFileCacheStats fc, BlockCacheStats bc) {
         FileCacheStats mergedOverall = new FileCacheStats(
             fc.getActive().getBytes(),
-            fc.getTotal().getBytes()   + bc.diskBytesUsed() + bc.memoryBytesUsed(),
+            fc.getTotal().getBytes()   + bc.totalBytes(),             // configured capacity (not usage)
             fc.getUsed().getBytes()    + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fc.getPinnedUsage().getBytes(),
-            fc.getEvicted().getBytes() + bc.evictions(),
-            fc.getRemoved().getBytes(),
+            fc.getEvicted().getBytes() + bc.evictionBytes(),          // bytes displaced, not count
+            fc.getRemoved().getBytes() + bc.removeBytes(),            // explicit removal bytes
             fc.getCacheHits()          + bc.hits(),
             fc.getCacheMisses()        + bc.misses(),
             AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
@@ -225,11 +233,11 @@ public class UnifiedCacheService implements Closeable {
         FileCacheStats fcBlock = fc.getBlockFileCacheStats();
         FileCacheStats mergedBlock = new FileCacheStats(
             fcBlock.getActive(),
-            fcBlock.getTotal()   + bc.diskBytesUsed(),
-            fcBlock.getUsed()    + bc.diskBytesUsed(),
+            fcBlock.getTotal()   + bc.totalBytes(),                   // configured capacity
+            fcBlock.getUsed()    + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fcBlock.getPinnedUsage(),
-            fcBlock.getEvicted() + bc.evictions(),
-            fcBlock.getRemoved(),
+            fcBlock.getEvicted() + bc.evictionBytes(),                // bytes displaced
+            fcBlock.getRemoved() + bc.removeBytes(),                  // explicit removal bytes
             fcBlock.getCacheHits()   + bc.hits(),
             fcBlock.getCacheMisses() + bc.misses(),
             AggregateFileCacheStats.FileCacheStatsType.BLOCK_FILE_STATS
