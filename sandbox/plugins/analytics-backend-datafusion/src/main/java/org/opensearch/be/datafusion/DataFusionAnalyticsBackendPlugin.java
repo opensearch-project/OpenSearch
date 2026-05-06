@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -23,6 +24,7 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
+import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
 import java.util.HashSet;
@@ -52,6 +54,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.add(FieldType.TEXT);
     }
 
+    // Filter-side scalar functions DataFusion can evaluate natively. Comparisons, arithmetic
+    // (for `where x + y > 0`-style predicates), and Calcite's SARG fold (IN/BETWEEN/range-union)
+    // are all supported via the Substrait default extension catalog. AND/OR/NOT are recursed into
+    // by {@link OpenSearchFilterRule} structurally and never looked up here, but registering them
+    // keeps the capability declaration complete for auditing and symmetric with PROJECT_OPS.
     private static final Set<ScalarFunction> STANDARD_FILTER_OPS = Set.of(
         ScalarFunction.EQUALS,
         ScalarFunction.NOT_EQUALS,
@@ -63,7 +70,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IS_NOT_NULL,
         ScalarFunction.IN,
         ScalarFunction.LIKE,
-        ScalarFunction.SARG_PREDICATE
+        ScalarFunction.SARG_PREDICATE,
+        ScalarFunction.PLUS,
+        ScalarFunction.MINUS,
+        ScalarFunction.TIMES,
+        ScalarFunction.DIVIDE,
+        ScalarFunction.MOD
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -74,7 +86,21 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(
         ScalarFunction.COALESCE,
         ScalarFunction.CEIL,
-        ScalarFunction.SARG_PREDICATE
+        ScalarFunction.SARG_PREDICATE,
+        // comparison / arithmetic / logical operators in eval-style projections.
+        ScalarFunction.EQUALS,
+        ScalarFunction.NOT_EQUALS,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL,
+        ScalarFunction.IN,
+        ScalarFunction.LIKE,
+        ScalarFunction.PLUS,
+        ScalarFunction.MINUS,
+        ScalarFunction.TIMES,
+        ScalarFunction.DIVIDE,
+        ScalarFunction.MOD
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -147,7 +173,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
-                return Map.of(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter(), ScalarFunction.SARG_PREDICATE, new SargAdapter());
+                return Map.ofEntries(
+                    Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
+                    Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
+                    Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
+                    Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
+                    Map.entry(ScalarFunction.LIKE, new LikeAdapter())
+                );
             }
         };
     }
