@@ -28,7 +28,9 @@ import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.List;
 import java.util.Map;
@@ -340,5 +342,36 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             }
         };
         return List.of(df, lucene);
+    }
+
+    public void testBackendWithFilterDelegationButNoFactory_throws() {
+        AnalyticsSearchBackendPlugin badBackend = new AnalyticsSearchBackendPlugin() {
+            @Override
+            public String name() {
+                return "bad-backend";
+            }
+
+            @Override
+            public BackendCapabilityProvider getCapabilityProvider() {
+                return new BackendCapabilityProvider() {
+                    @Override
+                    public Set<EngineCapability> supportedEngineCapabilities() {
+                        return Set.of();
+                    }
+
+                    @Override
+                    public Set<DelegationType> supportedDelegations() {
+                        return Set.of(DelegationType.FILTER);
+                    }
+                };
+            }
+        };
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> new CapabilityRegistry(List.of(badBackend), idx -> null)
+        );
+        assertTrue(exception.getMessage().contains("bad-backend"));
+        assertTrue(exception.getMessage().contains("getInstructionHandlerFactory"));
     }
 }

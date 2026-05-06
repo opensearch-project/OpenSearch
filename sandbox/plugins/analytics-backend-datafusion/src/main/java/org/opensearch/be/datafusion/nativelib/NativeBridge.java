@@ -69,6 +69,9 @@ public final class NativeBridge {
     private static final MethodHandle CACHE_MANAGER_GET_MEMORY_BY_TYPE;
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
+    private static final MethodHandle CREATE_SESSION_CONTEXT;
+    private static final MethodHandle CLOSE_SESSION_CONTEXT;
+    private static final MethodHandle EXECUTE_WITH_CONTEXT;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -253,6 +256,19 @@ public final class NativeBridge {
             )
         );
 
+        // ── SessionContext decomposition bindings ──
+        CREATE_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_create_session_context").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
         // i64 df_cache_manager_add_files(runtime_ptr, files_ptr, files_len_ptr, files_count)
         CACHE_MANAGER_ADD_FILES = linker.downcallHandle(
             lib.find("df_cache_manager_add_files").orElseThrow(),
@@ -314,6 +330,16 @@ public final class NativeBridge {
         // caller step required — as soon as this class is loaded, callbacks
         // are installed and `df_execute_indexed_query` can dispatch into Java.
         installFilterTreeCallbacks(linker);
+
+        CLOSE_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_close_session_context").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        EXECUTE_WITH_CONTEXT = linker.downcallHandle(
+            lib.find("df_execute_with_context").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
     }
 
     private NativeBridge() {}
@@ -648,6 +674,40 @@ public final class NativeBridge {
             return NativeLibraryLoader.checkResult((long) CREATE_CUSTOM_CACHE_MANAGER.invokeExact());
         } catch (Throwable t) {
             throw t instanceof RuntimeException ? (RuntimeException) t : new RuntimeException(t);
+        }
+    }
+    // ---- SessionContext decomposition ----
+
+    /**
+     * Creates a SessionContext with the default ListingTable registered.
+     * Returns a tracked handle consumed by {@link #executeWithContextAsync}.
+     */
+    public static SessionContextHandle createSessionContext(long readerPtr, long runtimePtr, String tableName, long contextId) {
+        NativeHandle.validatePointer(readerPtr, "reader");
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        try (var call = new NativeCall()) {
+            var table = call.str(tableName);
+            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId);
+            return new SessionContextHandle(ptr);
+        }
+    }
+
+    /**
+     * Executes a Substrait plan against the configured SessionContext.
+     * Consumes the session context handle (freed internally when stream closes).
+     */
+    /** Frees a native SessionContext handle. Safe to call once. */
+    public static void closeSessionContext(long ptr) {
+        NativeCall.invokeVoid(CLOSE_SESSION_CONTEXT, ptr);
+    }
+
+    public static void executeWithContextAsync(long sessionCtxPtr, byte[] substraitPlan, ActionListener<Long> listener) {
+        NativeHandle.validatePointer(sessionCtxPtr, "sessionContext");
+        try (var call = new NativeCall()) {
+            long result = call.invoke(EXECUTE_WITH_CONTEXT, sessionCtxPtr, call.bytes(substraitPlan), (long) substraitPlan.length);
+            listener.onResponse(result);
+        } catch (Throwable throwable) {
+            listener.onFailure(throwable instanceof Exception ? (Exception) throwable : new RuntimeException(throwable));
         }
     }
 

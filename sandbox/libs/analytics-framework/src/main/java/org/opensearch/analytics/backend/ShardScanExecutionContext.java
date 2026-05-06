@@ -9,6 +9,7 @@
 package org.opensearch.analytics.backend;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.tasks.Task;
 
@@ -18,7 +19,7 @@ import org.opensearch.tasks.Task;
  *
  * @opensearch.internal
  */
-public class ExecutionContext {
+public class ShardScanExecutionContext implements CommonExecutionContext {
 
     private final String tableName;
     private final Reader reader;
@@ -32,7 +33,7 @@ public class ExecutionContext {
      * @param task the transport-created task for this fragment execution
      * @param reader the data-format aware reader
      */
-    public ExecutionContext(String tableName, Task task, Reader reader) {
+    public ShardScanExecutionContext(String tableName, Task task, Reader reader) {
         this.tableName = tableName;
         this.task = task;
         this.reader = reader;

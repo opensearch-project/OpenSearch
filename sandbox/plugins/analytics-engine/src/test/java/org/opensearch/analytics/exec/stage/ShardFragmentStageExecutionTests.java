@@ -177,7 +177,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
             "test-query",
             0,
             target.shardId(),
-            List.of(new FragmentExecutionRequest.PlanAlternative("test-backend", new byte[0]))
+            List.of(new FragmentExecutionRequest.PlanAlternative("test-backend", new byte[0], List.of()))
         );
 
         return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, dispatcher, codec);

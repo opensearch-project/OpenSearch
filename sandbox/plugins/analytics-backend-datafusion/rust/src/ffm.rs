@@ -412,6 +412,29 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
     Ok(0)
 }
 
+// ---------------------------------------------------------------------------
+// SessionContext decomposition — instruction-based execution
+// ---------------------------------------------------------------------------
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_create_session_context(
+    shard_view_ptr: i64,
+    runtime_ptr: i64,
+    table_name_ptr: *const u8,
+    table_name_len: i64,
+    context_id: i64,
+) -> i64 {
+    let table_name = str_from_raw(table_name_ptr, table_name_len)
+        .map_err(|e| format!("df_create_session_context: {}", e))?;
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::session_context::create_session_context(
+            runtime_ptr, shard_view_ptr, table_name, context_id,
+        ))
+        .map_err(|e| e.to_string())
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_cache_manager_remove_files(
@@ -525,4 +548,28 @@ pub unsafe extern "C" fn df_cache_manager_contains_by_type(
     let manager = runtime.custom_cache_manager.as_ref()
         .ok_or_else(|| "df_cache_manager_contains_by_type: no cache manager configured".to_string())?;
     Ok(if manager.contains_file_by_type(file_path, cache_type) { 1 } else { 0 })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn df_close_session_context(ptr: i64) {
+    crate::session_context::close_session_context(ptr);
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_execute_with_context(
+    session_ctx_ptr: i64,
+    plan_ptr: *const u8,
+    plan_len: i64,
+) -> i64 {
+    let mgr = get_rt_manager()?;
+    let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
+    let cpu_executor = mgr.cpu_executor();
+    mgr.io_runtime
+        .block_on(crate::query_executor::execute_with_context(
+            session_ctx_ptr,
+            plan_bytes,
+            cpu_executor,
+        ))
+        .map_err(|e| e.to_string())
 }

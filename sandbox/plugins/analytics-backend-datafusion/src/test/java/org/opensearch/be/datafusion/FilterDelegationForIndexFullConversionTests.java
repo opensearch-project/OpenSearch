@@ -38,15 +38,22 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.FilterDelegationInstructionNode;
+import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.FragmentInstructionHandler;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
+import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.be.lucene.LuceneAnalyticsBackendPlugin;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -69,6 +76,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -154,8 +162,8 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         );
         StagePlan plan = runPipeline(condition);
 
-        assertEquals("should have 1 delegated query", 1, plan.delegatedQueries().size());
-        assertMatchQueryBuilder(plan.delegatedQueries(), "message", "hello world");
+        assertEquals("should have 1 delegated query", 1, plan.delegatedExpressions().size());
+        assertMatchQueryBuilder(plan.delegatedExpressions(), "message", "hello world");
 
         SubstraitResult substrait = substraitResult(plan.convertedBytes());
         logger.info("Substrait plan (mixed E2E):\n{}", substrait.plan());
@@ -165,7 +173,7 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         assertEquals("AND must have 2 arguments", 2, andFunc.getArgumentsCount());
         // arg[1]: delegated_predicate(1) — annotation id=1 maps to MATCH 'hello world'
         assertDelegatedPredicate(substrait.plan(), andFunc.getArguments(1).getValue(), 1);
-        assertMatchQueryForAnnotation(plan.delegatedQueries(), 1, "message", "hello world");
+        assertMatchQueryForAnnotation(plan.delegatedExpressions(), 1, "message", "hello world");
     }
 
     /**
@@ -184,7 +192,7 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         );
         StagePlan plan = runPipeline(condition);
 
-        assertEquals("should have 2 delegated queries", 2, plan.delegatedQueries().size());
+        assertEquals("should have 2 delegated queries", 2, plan.delegatedExpressions().size());
 
         SubstraitResult substrait = substraitResult(plan.convertedBytes());
         logger.info("Substrait plan (complex E2E):\n{}", substrait.plan());
@@ -203,14 +211,14 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
 
         // OR arg[0]: delegated_predicate(1) → MATCH 'hello'
         assertDelegatedPredicate(substrait.plan(), orFunc.getArguments(0).getValue(), 1);
-        assertMatchQueryForAnnotation(plan.delegatedQueries(), 1, "message", "hello");
+        assertMatchQueryForAnnotation(plan.delegatedExpressions(), 1, "message", "hello");
 
         // OR arg[1]: NOT(delegated_predicate(2)) → MATCH 'goodbye'
         Expression notExpr = orFunc.getArguments(1).getValue();
         assertTrue("OR second arg must be scalar function", notExpr.hasScalarFunction());
         assertEquals("not", resolveFunctionName(substrait.plan(), notExpr.getScalarFunction().getFunctionReference()));
         assertDelegatedPredicate(substrait.plan(), notExpr.getScalarFunction().getArguments(0).getValue(), 2);
-        assertMatchQueryForAnnotation(plan.delegatedQueries(), 2, "message", "goodbye");
+        assertMatchQueryForAnnotation(plan.delegatedExpressions(), 2, "message", "goodbye");
     }
 
     // ---- Pipeline ----
@@ -261,10 +269,10 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         );
     }
 
-    private void assertMatchQueryBuilder(Map<Integer, byte[]> delegatedQueries, String expectedField, String expectedQuery)
+    private void assertMatchQueryBuilder(List<DelegatedExpression> delegatedExpressions, String expectedField, String expectedQuery)
         throws IOException {
-        for (byte[] queryBytes : delegatedQueries.values()) {
-            try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(queryBytes), WRITEABLE_REGISTRY)) {
+        for (DelegatedExpression expr : delegatedExpressions) {
+            try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(expr.getExpressionBytes()), WRITEABLE_REGISTRY)) {
                 MatchQueryBuilder matchQuery = (MatchQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
                 if (matchQuery.fieldName().equals(expectedField) && matchQuery.value().equals(expectedQuery)) {
                     return;
@@ -311,15 +319,20 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
 
     /** Asserts the delegated query bytes for a specific annotation ID deserialize to the expected MatchQueryBuilder. */
     private void assertMatchQueryForAnnotation(
-        Map<Integer, byte[]> delegatedQueries,
+        List<DelegatedExpression> delegatedExpressions,
         int annotationId,
         String expectedField,
         String expectedQuery
     ) throws IOException {
-        assertTrue("annotation ID " + annotationId + " must be in delegatedQueries", delegatedQueries.containsKey(annotationId));
-        try (
-            StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(delegatedQueries.get(annotationId)), WRITEABLE_REGISTRY)
-        ) {
+        DelegatedExpression found = null;
+        for (DelegatedExpression expr : delegatedExpressions) {
+            if (expr.getAnnotationId() == annotationId) {
+                found = expr;
+                break;
+            }
+        }
+        assertNotNull("annotation ID " + annotationId + " must be in delegatedExpressions", found);
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(found.getExpressionBytes()), WRITEABLE_REGISTRY)) {
             MatchQueryBuilder matchQuery = (MatchQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
             assertEquals("field name for annotation " + annotationId, expectedField, matchQuery.fieldName());
             assertEquals("query text for annotation " + annotationId, expectedQuery, matchQuery.value());
@@ -436,6 +449,40 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         @Override
         public FragmentConvertor getFragmentConvertor() {
             return convertor;
+        }
+
+        @Override
+        public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
+            return new FragmentInstructionHandlerFactory() {
+                @Override
+                public Optional<InstructionNode> createShardScanNode() {
+                    return Optional.of(new ShardScanInstructionNode());
+                }
+
+                @Override
+                public Optional<InstructionNode> createFilterDelegationNode(
+                    FilterTreeShape treeShape,
+                    int delegatedPredicateCount,
+                    List<DelegatedExpression> delegatedExpressions
+                ) {
+                    return Optional.of(new FilterDelegationInstructionNode(treeShape, delegatedPredicateCount, delegatedExpressions));
+                }
+
+                @Override
+                public Optional<InstructionNode> createPartialAggregateNode() {
+                    return Optional.empty();
+                }
+
+                @Override
+                public Optional<InstructionNode> createFinalAggregateNode() {
+                    return Optional.empty();
+                }
+
+                @Override
+                public FragmentInstructionHandler<?> createHandler(InstructionNode node) {
+                    throw new UnsupportedOperationException("stub");
+                }
+            };
         }
     }
 }

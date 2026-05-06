@@ -29,9 +29,15 @@ use substrait::proto::Plan;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
 use crate::api::DataFusionRuntime;
+use crate::session_context::SessionContextHandle;
 
 /// Execute a vanilla parquet query: substrait plan → DataFusion → CrossRtStream.
 /// File access goes through DataFusion's registered object store.
+///
+/// Deprecated: Production now uses the decomposed `create_session_context` +
+/// `execute_with_context` path (via `api::execute_query`).
+/// TODO: Remove this function and migrate benchmarks to the decomposed path.
+/// Retained only for benchmarks. TODO: migrate benchmarks and remove.
 pub async fn execute_query(
     table_path: ListingTableUrl,
     object_metas: Arc<Vec<ObjectMeta>>,
@@ -146,4 +152,36 @@ pub async fn execute_query(
     );
 
     Ok(Box::into_raw(Box::new(wrapped)) as i64)
+}
+
+/// Executes a Substrait plan against a pre-configured SessionContext.
+/// Consumes the handle — SessionContext lifetime is tied to the returned stream.
+pub async unsafe fn execute_with_context(
+    session_ctx_ptr: i64,
+    plan_bytes: &[u8],
+    cpu_executor: DedicatedExecutor,
+) -> Result<i64, DataFusionError> {
+    let handle = *Box::from_raw(session_ctx_ptr as *mut SessionContextHandle);
+
+    let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
+        DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
+    })?;
+
+    let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
+    let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
+    let physical_plan = dataframe.create_physical_plan().await?;
+
+    let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
+        error!("execute_with_context: failed to create stream: {}", e);
+        e
+    })?;
+
+    let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
+    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+        cross_rt_stream.schema(),
+        cross_rt_stream,
+    );
+
+    let stream_handle = crate::api::QueryStreamHandle::new(wrapped, handle.query_context);
+    Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }
