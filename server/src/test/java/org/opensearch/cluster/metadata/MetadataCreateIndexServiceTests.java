@@ -2417,6 +2417,202 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
     }
 
+    // ---- validatePluggableDataFormatSettings tests ----
+
+    public void testValidatePluggableDataFormatNoopWhenFeatureFlagDisabled() {
+        // Feature flag off — no validation even with restrict=true and mismatching values.
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene")
+            .build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(mismatch);
+
+        // Should NOT throw — feature flag is off by default in tests without @LockFeatureFlag
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+        assertNotNull(aggregated);
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatNoopWhenRestrictDisabled() {
+        // restrict=false — mismatching values are allowed.
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene")
+            .build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(mismatch);
+
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(aggregated));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(aggregated));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatRejectsEnabledMismatch() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false).build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(mismatch);
+
+        IndexCreationException exception = expectThrows(
+            IndexCreationException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                Settings.EMPTY,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet(),
+                cs
+            )
+        );
+        assertTrue(exception.getCause().getMessage().contains(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()));
+        assertTrue(exception.getCause().getMessage().contains("cannot differ from cluster default"));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatRejectsValueMismatch() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene").build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(mismatch);
+
+        IndexCreationException exception = expectThrows(
+            IndexCreationException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                Settings.EMPTY,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet(),
+                cs
+            )
+        );
+        assertTrue(exception.getCause().getMessage().contains(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey()));
+        assertTrue(exception.getCause().getMessage().contains("cannot differ from cluster default"));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatAllowsMatchingValues() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings matching = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(matching);
+
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(aggregated));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(aggregated));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatSkiplistBypassesRestrict() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".system")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene")
+            .build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", ".system-index", ".system-index");
+        request.settings(mismatch);
+
+        // Should NOT throw — index matches skiplist
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(aggregated));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(aggregated));
+    }
+
     public void testAnyTranslogDurabilityWhenRestrictSettingFalse() {
         // This checks that aggregateIndexSettings works for the case when the cluster setting
         // cluster.remote_store.index.restrict.async-durability is false or not set, it allows all types of durability modes
