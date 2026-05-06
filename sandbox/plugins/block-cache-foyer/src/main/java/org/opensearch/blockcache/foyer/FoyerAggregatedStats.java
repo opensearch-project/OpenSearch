@@ -8,15 +8,7 @@
 
 package org.opensearch.blockcache.foyer;
 
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.xcontent.ToXContentFragment;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.BlockCacheStats;
-
-import java.io.IOException;
 
 /**
  * Rich stats snapshot for the Foyer block cache, combining two sections read
@@ -35,8 +27,7 @@ import java.io.IOException;
  *
  * <p>Core ({@code UnifiedCacheService}) only ever sees the {@link BlockCacheStats}
  * returned by {@link #overallStats()} — passed via {@link FoyerBlockCache#stats()}.
- * Foyer-aware code that needs the per-tier breakdown or the rich
- * {@code GET /_nodes/foyer_cache/stats} REST output obtains this object via
+ * Foyer-aware code that needs the per-tier breakdown obtains this object via
  * {@link FoyerBlockCache#foyerStats()}.
  *
  * <h3>FFM buffer layout</h3>
@@ -47,15 +38,9 @@ import java.io.IOException;
  * </pre>
  * where {@code N = Field.COUNT = 7}.
  *
- * <h3>Wire format</h3>
- * Serialised as two consecutive {@link BlockCacheStats} instances
- * (overall first, block-level second). Used by
- * {@code TransportFoyerCacheStatsAction} to carry per-node stats to the
- * coordinating node.
- *
  * @opensearch.internal
  */
-public final class FoyerAggregatedStats implements Writeable, ToXContentFragment {
+public final class FoyerAggregatedStats {
 
     // ─── FFM buffer field layout ──────────────────────────────────────────────
 
@@ -133,54 +118,6 @@ public final class FoyerAggregatedStats implements Writeable, ToXContentFragment
         );
     }
 
-    // ─── Wire serialization ───────────────────────────────────────────────────
-
-    /**
-     * Deserialises from the transport wire.
-     * Order must match {@link #writeTo(StreamOutput)}.
-     */
-    public FoyerAggregatedStats(StreamInput in) throws IOException {
-        // BlockCacheStats is a record; read fields in declaration order.
-        this.overallStats    = readBlockCacheStats(in);
-        this.blockLevelStats = readBlockCacheStats(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        writeBlockCacheStats(out, overallStats);
-        writeBlockCacheStats(out, blockLevelStats);
-    }
-
-    private static BlockCacheStats readBlockCacheStats(StreamInput in) throws IOException {
-        return new BlockCacheStats(
-            in.readLong(),  // hits
-            in.readLong(),  // misses
-            in.readLong(),  // hitBytes
-            in.readLong(),  // missBytes
-            in.readLong(),  // evictions
-            in.readLong(),  // evictionBytes
-            in.readLong(),  // removes
-            in.readLong(),  // removeBytes
-            in.readLong(),  // memoryBytesUsed
-            in.readLong(),  // diskBytesUsed
-            in.readLong()   // totalBytes
-        );
-    }
-
-    private static void writeBlockCacheStats(StreamOutput out, BlockCacheStats s) throws IOException {
-        out.writeLong(s.hits());
-        out.writeLong(s.misses());
-        out.writeLong(s.hitBytes());
-        out.writeLong(s.missBytes());
-        out.writeLong(s.evictions());
-        out.writeLong(s.evictionBytes());
-        out.writeLong(s.removes());
-        out.writeLong(s.removeBytes());
-        out.writeLong(s.memoryBytesUsed());
-        out.writeLong(s.diskBytesUsed());
-        out.writeLong(s.totalBytes());
-    }
-
     // ─── Accessors ────────────────────────────────────────────────────────────
 
     /**
@@ -198,72 +135,9 @@ public final class FoyerAggregatedStats implements Writeable, ToXContentFragment
     /**
      * Disk-tier-only stats (section 1) — isolates the on-disk block store.
      * Useful for SSD I/O bandwidth accounting and disk-tier eviction pressure
-     * analysis, exposed via {@code GET /_nodes/foyer_cache/stats}.
+     * analysis.
      */
     public BlockCacheStats blockLevelStats() {
         return blockLevelStats;
-    }
-
-    // ─── XContent rendering ───────────────────────────────────────────────────
-
-    /**
-     * Renders both sections into the current XContent context under
-     * {@code "foyer_block_cache"}. Used by the
-     * {@code GET /_nodes/foyer_cache/stats} REST endpoint.
-     *
-     * <p>Example output:
-     * <pre>{@code
-     * "foyer_block_cache": {
-     *   "overall": {
-     *     "hit_count": 1234,
-     *     "hit_bytes": "256mb",
-     *     "hit_bytes_in_bytes": 268435456,
-     *     ...
-     *   },
-     *   "block_level": { ... }
-     * }
-     * }</pre>
-     */
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.FOYER_BLOCK_CACHE);
-        renderSection(builder, params, overallStats,    Fields.OVERALL);
-        renderSection(builder, params, blockLevelStats, Fields.BLOCK_LEVEL);
-        builder.endObject();
-        return builder;
-    }
-
-    private static void renderSection(
-        XContentBuilder builder, Params params, BlockCacheStats s, String name
-    ) throws IOException {
-        builder.startObject(name);
-        builder.field(Fields.HIT_COUNT,       s.hits());
-        builder.humanReadableField(Fields.HIT_BYTES_IN_BYTES,       Fields.HIT_BYTES,       new ByteSizeValue(s.hitBytes()));
-        builder.field(Fields.MISS_COUNT,      s.misses());
-        builder.humanReadableField(Fields.MISS_BYTES_IN_BYTES,      Fields.MISS_BYTES,      new ByteSizeValue(s.missBytes()));
-        builder.field(Fields.EVICTION_COUNT,  s.evictions());
-        builder.humanReadableField(Fields.EVICTION_BYTES_IN_BYTES,  Fields.EVICTION_BYTES,  new ByteSizeValue(s.evictionBytes()));
-        builder.humanReadableField(Fields.USED_BYTES_IN_BYTES,      Fields.USED_BYTES,      new ByteSizeValue(s.diskBytesUsed()));
-        builder.humanReadableField(Fields.CAPACITY_BYTES_IN_BYTES,  Fields.CAPACITY_BYTES,  new ByteSizeValue(s.totalBytes()));
-        builder.endObject();
-    }
-
-    static final class Fields {
-        static final String FOYER_BLOCK_CACHE       = "foyer_block_cache";
-        static final String OVERALL                 = "overall";
-        static final String BLOCK_LEVEL             = "block_level";
-        static final String HIT_COUNT               = "hit_count";
-        static final String HIT_BYTES               = "hit_bytes";
-        static final String HIT_BYTES_IN_BYTES      = "hit_bytes_in_bytes";
-        static final String MISS_COUNT              = "miss_count";
-        static final String MISS_BYTES              = "miss_bytes";
-        static final String MISS_BYTES_IN_BYTES     = "miss_bytes_in_bytes";
-        static final String EVICTION_COUNT          = "eviction_count";
-        static final String EVICTION_BYTES          = "eviction_bytes";
-        static final String EVICTION_BYTES_IN_BYTES = "eviction_bytes_in_bytes";
-        static final String USED_BYTES              = "used_bytes";
-        static final String USED_BYTES_IN_BYTES     = "used_bytes_in_bytes";
-        static final String CAPACITY_BYTES          = "capacity_bytes";
-        static final String CAPACITY_BYTES_IN_BYTES = "capacity_bytes_in_bytes";
     }
 }
