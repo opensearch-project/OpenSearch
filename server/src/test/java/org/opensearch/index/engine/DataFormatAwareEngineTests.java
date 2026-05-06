@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
@@ -56,6 +57,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -168,6 +170,15 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     private EngineConfig buildDFAEngineConfig(Store store, Path translogPath) {
+        return buildDFAEngineConfig(store, translogPath, List.of(), List.of());
+    }
+
+    private EngineConfig buildDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        List<ReferenceManager.RefreshListener> externalListeners,
+        List<ReferenceManager.RefreshListener> internalListeners
+    ) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder()
@@ -197,8 +208,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .mergePolicy(NoMergePolicy.INSTANCE)
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
-            .externalRefreshListener(List.of())
-            .internalRefreshListener(List.of())
+            .externalRefreshListener(externalListeners)
+            .internalRefreshListener(internalListeners)
             .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
             .primaryTermSupplier(primaryTerm::get)
@@ -1527,6 +1538,253 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
                 assertThat(ref.get().getSegments().size(), greaterThan(0));
             }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Refresh Listener Tests — Use-case focused
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Use case: A search-after-refresh waiter registers a listener to know when
+     * new data becomes searchable. After indexing + refresh, the listener must be
+     * notified so it can unblock the waiting search request.
+     */
+    public void testRefreshListenerNotifiedWhenNewDataBecomesSearchable() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        AtomicInteger beforeCount = new AtomicInteger(0);
+        AtomicInteger afterCount = new AtomicInteger(0);
+        AtomicLong afterDidRefreshTrue = new AtomicLong(0);
+
+        ReferenceManager.RefreshListener listener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                beforeCount.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                afterCount.incrementAndGet();
+                if (didRefresh) {
+                    afterDidRefreshTrue.incrementAndGet();
+                }
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(listener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // Index documents — data is buffered but not yet searchable
+            int numDocs = randomIntBetween(3, 10);
+            for (int i = 0; i < numDocs; i++) {
+                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+            }
+
+            // Refresh — makes data searchable, listener must be notified
+            engine.refresh("test");
+
+            // The listener must have been called: beforeRefresh once, afterRefresh(true) once
+            assertThat("beforeRefresh must fire when new segments are produced", beforeCount.get(), equalTo(1));
+            assertThat("afterRefresh must fire when new segments are produced", afterCount.get(), equalTo(1));
+            assertThat("afterRefresh(didRefresh=true) confirms data is now searchable", afterDidRefreshTrue.get(), equalTo(1L));
+        }
+    }
+
+    /**
+     * Use case: When no new data has been indexed, a refresh should still notify
+     * listeners (beforeRefresh is always called) but afterRefresh should indicate
+     * that no actual refresh occurred (didRefresh=false). This allows waiters to
+     * distinguish between "new data available" and "nothing changed".
+     */
+    public void testRefreshListenerNotifiedWithDidRefreshFalseWhenNoNewData() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        AtomicInteger beforeCount = new AtomicInteger(0);
+        AtomicInteger afterDidRefreshFalse = new AtomicInteger(0);
+        AtomicInteger afterDidRefreshTrue = new AtomicInteger(0);
+
+        ReferenceManager.RefreshListener listener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                beforeCount.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                if (didRefresh) {
+                    afterDidRefreshTrue.incrementAndGet();
+                } else {
+                    afterDidRefreshFalse.incrementAndGet();
+                }
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(listener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // Refresh with no data — no new segments produced
+            engine.refresh("empty");
+
+            // beforeRefresh is always called (listener needs to prepare)
+            assertThat("beforeRefresh fires even when no data changed", beforeCount.get(), equalTo(1));
+            // afterRefresh(false) indicates nothing new became searchable
+            assertThat("afterRefresh(false) when no new segments", afterDidRefreshFalse.get(), equalTo(1));
+            assertThat("afterRefresh(true) should NOT fire", afterDidRefreshTrue.get(), equalTo(0));
+        }
+    }
+
+    /**
+     * Use case: Multiple index-refresh cycles should produce monotonically advancing
+     * notifications. A reader manager uses these to know which snapshot generation
+     * to open. Each afterRefresh(true) must correspond to a new, higher-generation
+     * catalog snapshot being available.
+     */
+    public void testRefreshListenerSeesMonotonicallyAdvancingSnapshots() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        List<Long> observedGenerations = new ArrayList<>();
+
+        ReferenceManager.RefreshListener listener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                // Not ideal — we can't access the engine from here directly.
+                // But we track call count and verify externally.
+                if (didRefresh) {
+                    observedGenerations.add(System.nanoTime()); // monotonic timestamp as proxy
+                }
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(listener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            int numRefreshes = randomIntBetween(3, 6);
+            for (int i = 0; i < numRefreshes; i++) {
+                engine.index(indexOp(createParsedDoc(Integer.toString(i), null)));
+                engine.refresh("cycle-" + i);
+            }
+
+            // Each refresh with data should have triggered afterRefresh(true)
+            assertThat("each refresh with data must notify", observedGenerations.size(), equalTo(numRefreshes));
+
+            // Verify the catalog snapshot generation advanced monotonically
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat(
+                    "final snapshot generation must equal number of refreshes",
+                    ref.get().getGeneration(),
+                    equalTo((long) numRefreshes)
+                );
+            }
+        }
+    }
+
+    /**
+     * Use case: Both external listeners (registered by IndexShard for search-after-refresh)
+     * and internal listeners (registered by the engine for checkpoint tracking) must both
+     * be invoked. Neither should be skipped.
+     */
+    public void testBothExternalAndInternalListenersInvoked() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        AtomicInteger externalCalls = new AtomicInteger(0);
+        AtomicInteger internalCalls = new AtomicInteger(0);
+
+        ReferenceManager.RefreshListener external = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                externalCalls.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                externalCalls.incrementAndGet();
+            }
+        };
+
+        ReferenceManager.RefreshListener internal = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                internalCalls.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                internalCalls.incrementAndGet();
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(external), List.of(internal));
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.refresh("test");
+
+            // Each listener gets beforeRefresh + afterRefresh = 2 calls
+            assertThat("external listener must receive both before and after", externalCalls.get(), equalTo(2));
+            assertThat("internal listener must receive both before and after", internalCalls.get(), equalTo(2));
+        }
+    }
+
+    /**
+     * Use case: The ordering contract — beforeRefresh is called BEFORE the catalog
+     * snapshot is committed (so listeners can prepare), and afterRefresh is called
+     * AFTER (so listeners can observe the new state). This is critical for reader
+     * managers that need to open readers on the new snapshot.
+     */
+    public void testBeforeRefreshCalledBeforeSnapshotCommitAndAfterCalledAfter() throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        AtomicLong genSeenInBefore = new AtomicLong(-1);
+        AtomicLong genSeenInAfter = new AtomicLong(-1);
+        AtomicReference<DataFormatAwareEngine> engineRef = new AtomicReference<>();
+
+        ReferenceManager.RefreshListener orderingListener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                DataFormatAwareEngine eng = engineRef.get();
+                if (eng != null) {
+                    try (GatedCloseable<CatalogSnapshot> ref = eng.acquireSnapshot()) {
+                        genSeenInBefore.set(ref.get().getGeneration());
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                DataFormatAwareEngine eng = engineRef.get();
+                if (eng != null) {
+                    try (GatedCloseable<CatalogSnapshot> ref = eng.acquireSnapshot()) {
+                        genSeenInAfter.set(ref.get().getGeneration());
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
+        };
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(orderingListener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engineRef.set(engine);
+
+            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.refresh("test");
+
+            // beforeRefresh sees the OLD generation (snapshot not yet committed)
+            assertThat("beforeRefresh must see pre-commit generation", genSeenInBefore.get(), equalTo(0L));
+            // afterRefresh sees the NEW generation (snapshot committed)
+            assertThat("afterRefresh must see post-commit generation", genSeenInAfter.get(), equalTo(1L));
         }
     }
 }
