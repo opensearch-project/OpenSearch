@@ -46,6 +46,7 @@ pub async unsafe fn create_session_context(
     shard_view_ptr: i64,
     table_name: &str,
     context_id: i64,
+    query_config_ptr: i64,
 ) -> Result<i64, DataFusionError> {
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
     let shard_view = &*(shard_view_ptr as *const ShardView);
@@ -86,7 +87,7 @@ pub async unsafe fn create_session_context(
         e
     })?;
 
-    let query_config = crate::datafusion_query_config::DatafusionQueryConfig::default();
+    let query_config = crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
     config.options_mut().execution.target_partitions = query_config.target_partitions;

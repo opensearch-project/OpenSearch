@@ -12,6 +12,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Verifies the settings declared by {@link DataFusionPlugin} — in particular that
@@ -56,6 +58,64 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         try (DataFusionPlugin plugin = new DataFusionPlugin()) {
             // Service field is null — should be a no-op, not an NPE.
             plugin.updateMemoryPoolLimit(64L * 1024 * 1024);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Verifies that {@code getSettings()} includes all 7 new indexed query settings
+     * defined in {@link DatafusionSettings}.
+     */
+    public void testGetSettingsReturnsAllIndexedSettings() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            List<Setting<?>> settings = plugin.getSettings();
+            Set<String> settingKeys = settings.stream().map(Setting::getKey).collect(Collectors.toSet());
+
+            assertTrue("Must contain datafusion.indexed.batch_size", settingKeys.contains("datafusion.indexed.batch_size"));
+            assertTrue(
+                "Must contain datafusion.indexed.parquet_pushdown_filters",
+                settingKeys.contains("datafusion.indexed.parquet_pushdown_filters")
+            );
+            assertTrue(
+                "Must contain datafusion.indexed.min_skip_run_default",
+                settingKeys.contains("datafusion.indexed.min_skip_run_default")
+            );
+            assertTrue(
+                "Must contain datafusion.indexed.min_skip_run_selectivity_threshold",
+                settingKeys.contains("datafusion.indexed.min_skip_run_selectivity_threshold")
+            );
+            assertTrue("Must contain datafusion.indexed.cost_predicate", settingKeys.contains("datafusion.indexed.cost_predicate"));
+            assertTrue("Must contain datafusion.indexed.cost_collector", settingKeys.contains("datafusion.indexed.cost_collector"));
+            assertTrue(
+                "Must contain datafusion.indexed.max_collector_parallelism",
+                settingKeys.contains("datafusion.indexed.max_collector_parallelism")
+            );
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Verifies that {@code getSettings()} returns the total expected count of settings:
+     * 9 existing (3 from DataFusionPlugin + 6 from CacheSettings) + 7 new indexed = 16.
+     */
+    public void testGetSettingsReturnsTotalExpectedCount() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            List<Setting<?>> settings = plugin.getSettings();
+            assertEquals("Plugin must register exactly 16 settings (9 existing + 7 new indexed)", 16, settings.size());
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Verifies that {@code getDatafusionSettings()} returns null before {@code createComponents()}
+     * is called, since the volatile field is initialized to null.
+     */
+    public void testDatafusionSettingsIsNullBeforeCreateComponents() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            assertNull("DatafusionSettings must be null before createComponents() is called", plugin.getDatafusionSettings());
         } catch (Exception e) {
             throw new AssertionError(e);
         }

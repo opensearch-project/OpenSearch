@@ -284,6 +284,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -733,12 +734,18 @@ public final class NativeBridge {
      * Creates a SessionContext with the default ListingTable registered.
      * Returns a tracked handle consumed by {@link #executeWithContextAsync}.
      */
-    public static SessionContextHandle createSessionContext(long readerPtr, long runtimePtr, String tableName, long contextId) {
+    public static SessionContextHandle createSessionContext(
+        long readerPtr,
+        long runtimePtr,
+        String tableName,
+        long contextId,
+        long queryConfigPtr
+    ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
         try (var call = new NativeCall()) {
             var table = call.str(tableName);
-            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId);
+            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId, queryConfigPtr);
             return new SessionContextHandle(ptr);
         }
     }

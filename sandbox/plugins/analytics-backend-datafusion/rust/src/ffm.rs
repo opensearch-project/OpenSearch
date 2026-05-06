@@ -465,13 +465,14 @@ pub unsafe extern "C" fn df_create_session_context(
     table_name_ptr: *const u8,
     table_name_len: i64,
     context_id: i64,
+    query_config_ptr: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context: {}", e))?;
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::session_context::create_session_context(
-            runtime_ptr, shard_view_ptr, table_name, context_id,
+            runtime_ptr, shard_view_ptr, table_name, context_id, query_config_ptr,
         ))
         .map_err(|e| e.to_string())
 }

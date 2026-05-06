@@ -17,6 +17,9 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+
 /**
  * Handles ShardScan instruction: creates a SessionContext via FFM and registers
  * the default ListingTable provider for parquet scans.
@@ -52,8 +55,18 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         long runtimePtr = dataFusionService.getNativeRuntime().get();
         long contextId = context.getTask() != null ? context.getTask().getId() : 0L;
 
-        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(readerPtr, runtimePtr, context.getTableName(), contextId);
-
-        return new DataFusionSessionState(sessionCtxHandle);
+        WireConfigSnapshot config = plugin.getDatafusionSettings().getSnapshot();
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
+            config.writeTo(segment);
+            SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
+                readerPtr,
+                runtimePtr,
+                context.getTableName(),
+                contextId,
+                segment.address()
+            );
+            return new DataFusionSessionState(sessionCtxHandle);
+        }
     }
 }
