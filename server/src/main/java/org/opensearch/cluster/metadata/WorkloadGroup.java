@@ -207,6 +207,20 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         return getMutableWorkloadGroupFragment().getSettings();
     }
 
+    /**
+     * @deprecated Use {@link #getSettings()} instead. This method exists only for binary compatibility
+     * with 3.6.x clients and will be removed in a future major version.
+     */
+    @Deprecated
+    public Map<String, String> getSearchSettings() {
+        Settings s = getSettings();
+        Map<String, String> map = new HashMap<>();
+        for (String key : s.keySet()) {
+            map.put(key, s.get(key));
+        }
+        return map;
+    }
+
     public String get_id() {
         return _id;
     }

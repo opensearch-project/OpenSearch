@@ -43,7 +43,7 @@ import java.util.List;
  * @opensearch.internal
  */
 public record ExchangeSinkContext(String queryId, int stageId, byte[] fragmentBytes, BufferAllocator allocator, List<
-    ChildInput> childInputs, ExchangeSink downstream) {
+    ChildInput> childInputs, ExchangeSink downstream) implements CommonExecutionContext {
 
     /** Per-child input descriptor: the child stage id and the schema of its outgoing batches. */
     public record ChildInput(int childStageId, Schema schema) {

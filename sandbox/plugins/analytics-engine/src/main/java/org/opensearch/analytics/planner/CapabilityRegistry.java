@@ -98,6 +98,21 @@ public class CapabilityRegistry {
             for (DelegationType type : caps.supportedDelegations()) {
                 delegationSupporters.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
+            // Validate: if a backend supports FILTER delegation (i.e., it drives the tree walk),
+            // it must provide a FragmentInstructionHandlerFactory for instruction-based execution.
+            if (caps.supportedDelegations().contains(DelegationType.FILTER)) {
+                try {
+                    backend.getInstructionHandlerFactory();
+                } catch (UnsupportedOperationException exception) {
+                    throw new IllegalStateException(
+                        "Backend ["
+                            + name
+                            + "] declares supportedDelegations(FILTER) but does not implement"
+                            + " getInstructionHandlerFactory(). A driving backend must provide an instruction"
+                            + " handler factory to configure delegation at the data node."
+                    );
+                }
+            }
             for (DelegationType type : caps.acceptedDelegations()) {
                 delegationAcceptors.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
