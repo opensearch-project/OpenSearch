@@ -138,24 +138,32 @@ mod tests {
     use super::*;
     use datafusion::execution::memory_pool::MemoryConsumer;
 
+    /// Build an `Arc<dyn MemoryPool>` + handle for tests.
+    /// DataFusion 52+ `MemoryConsumer::register` takes `&Arc<dyn MemoryPool>`,
+    /// so tests wrap the concrete pool once rather than repeating the cast
+    /// at every call site.
+    fn new_pool(limit: usize) -> (Arc<dyn MemoryPool>, DynamicLimitHandle) {
+        let (pool, handle) = DynamicLimitPool::new(limit);
+        (Arc::new(pool), handle)
+    }
+
     #[test]
     fn test_initial_limit() {
-        let (pool, handle) = DynamicLimitPool::new(1024);
-        assert_eq!(pool.limit(), 1024);
+        let (pool, handle) = new_pool(1024);
         assert_eq!(handle.limit(), 1024);
         assert_eq!(pool.reserved(), 0);
     }
 
     #[test]
     fn test_set_limit() {
-        let (_pool, handle) = DynamicLimitPool::new(1024);
+        let (_pool, handle) = new_pool(1024);
         handle.set_limit(2048);
         assert_eq!(handle.limit(), 2048);
     }
 
     #[test]
     fn test_try_grow_within_limit() {
-        let (pool, _handle) = DynamicLimitPool::new(1024);
+        let (pool, _handle) = new_pool(1024);
         let consumer = MemoryConsumer::new("test");
         let mut reservation = consumer.register(&pool);
         assert!(reservation.try_grow(512).is_ok());
@@ -164,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_try_grow_exceeds_limit() {
-        let (pool, _handle) = DynamicLimitPool::new(1024);
+        let (pool, _handle) = new_pool(1024);
         let consumer = MemoryConsumer::new("test");
         let mut reservation = consumer.register(&pool);
         assert!(reservation.try_grow(2048).is_err());
@@ -173,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_limit_increase() {
-        let (pool, handle) = DynamicLimitPool::new(1024);
+        let (pool, handle) = new_pool(1024);
         let consumer = MemoryConsumer::new("test");
         let mut reservation = consumer.register(&pool);
 
@@ -190,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_limit_decrease_existing_reservations_kept() {
-        let (pool, handle) = DynamicLimitPool::new(4096);
+        let (pool, handle) = new_pool(4096);
         let consumer = MemoryConsumer::new("test");
         let mut reservation = consumer.register(&pool);
 
@@ -211,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_try_grow_overflow_protection() {
-        let (pool, _handle) = DynamicLimitPool::new(usize::MAX);
+        let (pool, _handle) = new_pool(usize::MAX);
         let consumer = MemoryConsumer::new("test");
         let mut reservation = consumer.register(&pool);
         assert!(reservation.try_grow(1024).is_ok());
@@ -223,15 +231,15 @@ mod tests {
 
     #[test]
     fn test_grow_saturates_instead_of_wrapping() {
-        let (pool, _handle) = DynamicLimitPool::new(1024);
+        let (pool, _handle) = new_pool(1024);
         // `grow` is infallible accounting — a buggy caller must not be able to
         // wrap `used` back to zero by passing `usize::MAX`. `saturating_add`
         // pins `used` at `usize::MAX` instead.
         let consumer = MemoryConsumer::new("test");
         let reservation = consumer.register(&pool);
-        MemoryPool::grow(&pool, &reservation, usize::MAX);
+        pool.grow(&reservation, usize::MAX);
         assert_eq!(pool.reserved(), usize::MAX);
-        MemoryPool::grow(&pool, &reservation, 1);
+        pool.grow(&reservation, 1);
         assert_eq!(pool.reserved(), usize::MAX);
     }
 
@@ -242,8 +250,7 @@ mod tests {
 
         // Repeat to give the race a chance to surface.
         for _ in 0..64 {
-            let (pool, handle) = DynamicLimitPool::new(1024);
-            let pool = Arc::new(pool);
+            let (pool, handle) = new_pool(1024);
             let barrier = Arc::new(Barrier::new(2));
 
             let raiser = {
@@ -257,22 +264,33 @@ mod tests {
 
             let allocator = {
                 let pool = pool.clone();
+                let handle = handle.clone();
                 let barrier = barrier.clone();
                 thread::spawn(move || {
                     barrier.wait();
                     let consumer = MemoryConsumer::new("race");
                     let mut reservation = consumer.register(&pool);
-                    // Retry a bounded number of times — once `set_limit` lands,
-                    // try_grow must observe it because the limit is loaded inside
-                    // the fetch_update closure.
-                    let mut last = reservation.try_grow(2048);
-                    for _ in 0..1000 {
-                        if last.is_ok() {
+                    // Retry until either allocation succeeds OR the handle reports
+                    // the new limit is visible. The previous fixed-iteration loop
+                    // flaked on fast runners because the allocator could exhaust
+                    // its retries before the raiser thread's store completed.
+                    //
+                    // The atomic invariant under test: once `handle.limit() >= 2048`
+                    // is observable, the very next `try_grow(2048)` MUST succeed
+                    // (that's the Release/Acquire happens-before contract). If that
+                    // final try_grow fails, that IS a real pool bug.
+                    loop {
+                        if reservation.try_grow(2048).is_ok() {
                             break;
                         }
-                        last = reservation.try_grow(2048);
+                        if handle.limit() >= 2048 {
+                            reservation
+                                .try_grow(2048)
+                                .expect("once handle.limit() reflects the raise, try_grow must succeed");
+                            break;
+                        }
+                        std::hint::spin_loop();
                     }
-                    last.expect("set_limit raise should eventually be observed by try_grow");
                 })
             };
 
