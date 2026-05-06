@@ -70,4 +70,15 @@ public interface AnalyticsSearchBackendPlugin {
         return null;
     }
 
+    /**
+     * Returns the instruction handler factory for this backend. Used at the coordinator
+     * to create instruction nodes (backend attaches custom config) and at the data node
+     * to create handlers that apply instructions to the execution context.
+     *
+     * <p>Backends that declare {@code supportedDelegations} or participate in multi-stage
+     * execution MUST implement this. Validation at startup ensures consistency.
+     */
+    default FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
+        throw new UnsupportedOperationException("getInstructionHandlerFactory not implemented for [" + name() + "]");
+    }
 }

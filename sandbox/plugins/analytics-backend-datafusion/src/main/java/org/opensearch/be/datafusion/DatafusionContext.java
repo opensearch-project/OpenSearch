@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.SearchExecutionContext;
@@ -31,6 +32,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     private DatafusionQuery datafusionQuery;
     private StreamHandle streamHandle;
     private Task task;
+    private SessionContextHandle sessionContextHandle;
 
     /**
      * Creates a DataFusion execution context
@@ -108,5 +110,13 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     @Override
     public DatafusionSearcher getSearcher() {
         return engineSearcher;
+    }
+
+    public SessionContextHandle getSessionContextHandle() {
+        return sessionContextHandle;
+    }
+
+    public void setSessionContextHandle(SessionContextHandle sessionContextHandle) {
+        this.sessionContextHandle = sessionContextHandle;
     }
 }
