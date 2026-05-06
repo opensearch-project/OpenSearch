@@ -11,7 +11,10 @@ package org.opensearch.index.store.remote.filecache;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,7 +34,7 @@ import java.util.EnumSet;
  * @opensearch.api
  */
 @ExperimentalApi
-public class AggregateFileCacheStats implements NodeCacheStats {
+public class AggregateFileCacheStats implements ToXContentFragment, Writeable {
 
     private final long timestamp;
     private final FileCacheStats overallFileCacheStats;
@@ -140,7 +143,7 @@ public class AggregateFileCacheStats implements NodeCacheStats {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.AGGREGATE_FILE_CACHE);
         builder.field(Fields.TIMESTAMP, getTimestamp());
         builder.humanReadableField(Fields.ACTIVE_IN_BYTES, Fields.ACTIVE, getActive());
