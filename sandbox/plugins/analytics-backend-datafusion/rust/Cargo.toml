@@ -51,6 +51,10 @@ tokio-metrics = { workspace = true }
 
 # JSON UDFs. serde_json comes from the workspace.
 serde_json = { workspace = true }
+# JSONPath evaluator for json_extract (and friends). Matches the legacy SQL-plugin
+# contract where PPL paths of the form `a{i}.b{}` are normalized to `$.a[i].b[*]`
+# and evaluated against a parsed JSON document.
+jsonpath-rust = "0.7"
 
 [dev-dependencies]
 criterion = { workspace = true }
