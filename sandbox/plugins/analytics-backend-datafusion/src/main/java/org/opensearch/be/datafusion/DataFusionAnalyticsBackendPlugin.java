@@ -61,7 +61,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IS_NULL,
         ScalarFunction.IS_NOT_NULL,
         ScalarFunction.IN,
-        ScalarFunction.LIKE
+        ScalarFunction.LIKE,
+        ScalarFunction.SARG_PREDICATE
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -69,7 +70,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     // here only after verifying the function deserializes through Substrait isthmus into a plan
     // DataFusion's native runtime can execute (see DataFusionFragmentConvertor for the conversion
     // path). COALESCE is the lowering target of PPL `fillnull`.
-    private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(ScalarFunction.COALESCE, ScalarFunction.CEIL);
+    private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(
+        ScalarFunction.COALESCE,
+        ScalarFunction.CEIL,
+        ScalarFunction.SARG_PREDICATE
+    );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
@@ -141,7 +146,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
-                return Map.of(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter());
+                return Map.of(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter(), ScalarFunction.SARG_PREDICATE, new SargAdapter());
             }
         };
     }
