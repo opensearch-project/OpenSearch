@@ -31,6 +31,7 @@ import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.indices.IndexCreationException;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -204,6 +205,12 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                     return Settings.EMPTY;
                 }
                 ClusterSettings clusterSettings = clusterService.getClusterSettings();
+
+                List<String> skiplist = clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST);
+                if (skiplist.stream().anyMatch(indexName::startsWith)) {
+                    return Settings.EMPTY;
+                }
+
                 boolean restrict = clusterSettings.get(CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING);
                 String clusterPrimary = clusterSettings.get(CLUSTER_PRIMARY_DATA_FORMAT);
                 List<String> clusterSecondary = clusterSettings.get(CLUSTER_SECONDARY_DATA_FORMATS);
@@ -215,7 +222,9 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                         errors.add(
                             "index setting ["
                                 + PRIMARY_DATA_FORMAT.getKey()
-                                + "] is not allowed to be set as ["
+                                + "] cannot differ from cluster default ["
+                                + clusterPrimary
+                                + "] when ["
                                 + CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey()
                                 + "=true]"
                         );
@@ -225,7 +234,9 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                         errors.add(
                             "index setting ["
                                 + SECONDARY_DATA_FORMATS.getKey()
-                                + "] is not allowed to be set as ["
+                                + "] cannot differ from cluster default "
+                                + clusterSecondary
+                                + " when ["
                                 + CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING.getKey()
                                 + "=true]"
                         );

@@ -2198,7 +2198,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         Settings.Builder indexSettingsBuilder = Settings.builder();
-        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
 
         Settings out = indexSettingsBuilder.build();
         assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(out));
@@ -2214,7 +2214,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         Settings.Builder indexSettingsBuilder = Settings.builder();
-        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
 
         Settings out = indexSettingsBuilder.build();
         assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
@@ -2231,7 +2231,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         // Primary override is preserved; value still stamped from the cluster default.
         Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
-        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
 
         Settings out = indexSettingsBuilder.build();
         assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
@@ -2247,7 +2247,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene");
-        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
 
         Settings out = indexSettingsBuilder.build();
         assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
@@ -2265,7 +2265,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings.Builder indexSettingsBuilder = Settings.builder()
             .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene");
-        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
 
         Settings out = indexSettingsBuilder.build();
         assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
@@ -2277,7 +2277,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         Settings.Builder indexSettingsBuilder = Settings.builder();
-        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
 
         Settings out = indexSettingsBuilder.build();
         assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(out));
@@ -2354,6 +2354,67 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             "expected validation error to contain [" + expectedError + "] but was [" + thrown.getCause().getMessage() + "]",
             thrown.getCause().getMessage().contains(expectedError)
         );
+    }
+
+    // ---- skiplist tests ----
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsSkipsWhenIndexMatchesSkiplist() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".system", ".kibana")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, ".system-index-1");
+
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(out));
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsStampsWhenIndexDoesNotMatchSkiplist() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".system", ".kibana")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "user-index");
+
+        Settings out = indexSettingsBuilder.build();
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatSettingsSkipsWhenIndexMatchesSkiplist() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".system")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // Index explicitly sets a different value — normally rejected, but skiplist bypasses it.
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene")
+            .build();
+
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(indexSettings);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, ".system-test");
+
+        // No exception, no stamping — the index is left alone.
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
     }
 
     public void testAnyTranslogDurabilityWhenRestrictSettingFalse() {

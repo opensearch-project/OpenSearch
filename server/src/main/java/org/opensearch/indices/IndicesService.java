@@ -394,16 +394,29 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * If enabled, this setting enforces that indexes will be created with pluggable data-format settings matching the
-     * cluster-level defaults defined in {@code cluster.default.index.pluggable.dataformat.enabled} and
-     * {@code cluster.default.index.pluggable.dataformat} by rejecting any request that specifies an index-level value
+     * cluster-level defaults defined in {@code cluster.pluggable.dataformat.enabled} and
+     * {@code cluster.pluggable.dataformat} by rejecting any request that specifies an index-level value
      * that does not match. If disabled, users may choose the pluggable data-format on a per-index basis using the
      * {@code index.pluggable.dataformat.enabled} and {@code index.pluggable.dataformat} settings.
      */
-    public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING = Setting.boolSetting(
         "cluster.restrict.pluggable.dataformat",
         false,
         Property.NodeScope,
-        Property.Final
+        Property.Dynamic
+    );
+
+    /**
+     * A list of index name prefixes that bypass the pluggable data-format restrict validation and
+     * cluster-default stamping. Indices whose name starts with any of these prefixes will not have
+     * cluster defaults applied and will not be rejected by the restrict setting.
+     */
+    public static final Setting<List<String>> CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST = Setting.listSetting(
+        "cluster.pluggable.dataformat.restrict.skiplist",
+        Collections.emptyList(),
+        s -> s,
+        Property.NodeScope,
+        Property.Dynamic
     );
 
     /**
