@@ -699,7 +699,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000));
+        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(1, 10000));
     }
 
     private Segment randomSegment() {
