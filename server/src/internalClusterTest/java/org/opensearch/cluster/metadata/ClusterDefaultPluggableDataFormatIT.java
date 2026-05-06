@@ -16,6 +16,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.engine.dataformat.stub.MockParquetDataFormatPlugin;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -96,6 +97,38 @@ public class ClusterDefaultPluggableDataFormatIT extends OpenSearchIntegTestCase
         Settings beforeReread = getIndexSettings(indexBefore);
         assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(beforeReread));
         assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(beforeReread));
+    }
+
+    public void testSkiplistBypassesClusterDefaultStamping() {
+        String skippedIndex = ".kibana-01";
+        String normalIndex = "test-pluggable-normal";
+
+        setClusterDefaults(true, "parquet");
+
+        // Add .kibana prefix to skiplist
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".kibana")
+            )
+            .get();
+
+        createIndex(skippedIndex);
+        ensureGreen(skippedIndex);
+
+        createIndex(normalIndex);
+        ensureGreen(normalIndex);
+
+        // Skipped index should NOT have cluster defaults stamped
+        Settings skippedSettings = getIndexSettings(skippedIndex);
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(skippedSettings));
+        assertEquals("", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(skippedSettings));
+
+        // Normal index should have cluster defaults stamped
+        Settings normalSettings = getIndexSettings(normalIndex);
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(normalSettings));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(normalSettings));
     }
 
     private void setClusterDefaults(boolean enabled, String value) {

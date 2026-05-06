@@ -150,7 +150,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         "cluster.restrict.composite.dataformat",
         false,
         Setting.Property.NodeScope,
-        Setting.Property.Final
+        Setting.Property.Dynamic
     );
     public CompositeDataFormatPlugin() {}
 
