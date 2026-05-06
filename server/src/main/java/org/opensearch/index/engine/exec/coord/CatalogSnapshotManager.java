@@ -118,6 +118,10 @@ public class CatalogSnapshotManager implements Closeable {
             shardPath,
             commitFileManager
         );
+
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.afterRefresh(true, latestCatalogSnapshot);
+        }
     }
 
     /**

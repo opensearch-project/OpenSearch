@@ -56,6 +56,7 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -65,8 +66,10 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -95,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -562,10 +566,15 @@ public class DataFormatAwareEngine implements Indexer {
         DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock();
         try {
             currentWriter = lockedWriter.get();
+
             // Writer pool must never return null — it creates on demand via the supplier
             assert currentWriter != null : "writer pool returned null writer";
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
             assert index.primaryTerm() > 0 : "primaryTerm must be positive but was: " + index.primaryTerm();
+            index.parsedDoc().getDocumentInput().addField(engineConfig.getMapperService().fieldType(VersionFieldMapper.NAME), plan.version);
+            index.parsedDoc().getDocumentInput().addField(engineConfig.getMapperService().fieldType(SeqNoFieldMapper.NAME), index.seqNo());
+            index.parsedDoc().getDocumentInput().addField(PrimaryTermFieldType.INSTANCE, index.primaryTerm());
+
             WriteResult result = currentWriter.addDoc(index.parsedDoc().getDocumentInput());
 
             if (result instanceof WriteResult.Success) {
@@ -1157,7 +1166,13 @@ public class DataFormatAwareEngine implements Indexer {
             long count = snapshot.get()
                 .getSegments()
                 .stream()
-                .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
+                .map(
+                    segment -> segment.dfGroupedSearchableFiles()
+                        .values()
+                        .stream()
+                        .findFirst()
+                        .orElseGet(() -> new WriterFileSet("", -1L, Set.of(), 0))
+                )
                 .mapToLong(WriterFileSet::numRows)
                 .sum();
             long totalSize = snapshot.get()
@@ -1419,7 +1434,7 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private void triggerPossibleMerges() {
-        if (Booleans.parseBoolean(System.getProperty(MERGE_ENABLED_PROPERTY, Boolean.FALSE.toString())) == false) {
+        if (Booleans.parseBoolean(System.getProperty(MERGE_ENABLED_PROPERTY, Boolean.TRUE.toString())) == false) {
             logger.debug("Pluggable dataformat merge is disabled via system property [{}], skipping merge", MERGE_ENABLED_PROPERTY);
             return;
         }

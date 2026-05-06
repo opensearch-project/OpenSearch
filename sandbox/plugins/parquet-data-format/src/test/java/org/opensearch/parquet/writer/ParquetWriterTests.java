@@ -33,6 +33,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
+
 public class ParquetWriterTests extends OpenSearchTestCase {
 
     private ArrowBufferPool bufferPool;
@@ -94,9 +97,11 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
         for (int i = 0; i < 10; i++) {
             ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
             doc.addField(idField, i);
             doc.addField(nameField, "user_" + i);
             doc.addField(scoreField, (long) (i * 100));
+            doc.setRowId("__row_id__", i);
             writer.addDoc(doc);
             doc.close();
         }
@@ -121,9 +126,11 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         );
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
         doc.addField(idField, 1);
         doc.addField(nameField, "alice");
         doc.addField(scoreField, 100L);
+        doc.setRowId("__row_id__", 0);
         writer.addDoc(doc);
         doc.close();
 
@@ -139,6 +146,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
             assertNotNull("No ParquetField registered for type: " + ft.typeName(), pf);
             fields.add(new Field(ft.name(), pf.getFieldType(), null));
         }
+        fields.addAll(metadataFields());
         return new Schema(fields);
     }
 }

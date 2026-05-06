@@ -9,10 +9,14 @@
 package org.opensearch.be.lucene;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.TextFieldMapper;
 
 import java.util.Map;
 import java.util.Set;
@@ -30,56 +34,25 @@ import java.util.concurrent.ConcurrentHashMap;
 @ExperimentalApi
 public final class LuceneFieldFactoryRegistry {
 
-    // ── Pre-built Lucene FieldTypes matching OpenSearch mapper defaults ──
-
-    /** Matches {@code TextFieldMapper.Defaults.FIELD_TYPE}. */
-    private static final FieldType TEXT_FIELD_TYPE;
-    static {
-        TEXT_FIELD_TYPE = new FieldType();
-        TEXT_FIELD_TYPE.setTokenized(true);
-        TEXT_FIELD_TYPE.setStored(false);
-        TEXT_FIELD_TYPE.setStoreTermVectors(false);
-        TEXT_FIELD_TYPE.setOmitNorms(false);
-        TEXT_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-        TEXT_FIELD_TYPE.freeze();
-    }
-
-    /** Matches {@code KeywordFieldMapper.Defaults.FIELD_TYPE}. */
-    private static final FieldType KEYWORD_FIELD_TYPE;
-    static {
-        KEYWORD_FIELD_TYPE = new FieldType();
-        KEYWORD_FIELD_TYPE.setTokenized(false);
-        KEYWORD_FIELD_TYPE.setStored(false);
-        KEYWORD_FIELD_TYPE.setOmitNorms(true);
-        KEYWORD_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        KEYWORD_FIELD_TYPE.freeze();
-    }
-
-    /** Matches {@code MatchOnlyTextFieldMapper.FIELD_TYPE}. */
-    private static final FieldType MATCH_ONLY_TEXT_FIELD_TYPE;
-    static {
-        MATCH_ONLY_TEXT_FIELD_TYPE = new FieldType();
-        MATCH_ONLY_TEXT_FIELD_TYPE.setTokenized(true);
-        MATCH_ONLY_TEXT_FIELD_TYPE.setStored(false);
-        MATCH_ONLY_TEXT_FIELD_TYPE.setStoreTermVectors(false);
-        MATCH_ONLY_TEXT_FIELD_TYPE.setOmitNorms(true);
-        MATCH_ONLY_TEXT_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        MATCH_ONLY_TEXT_FIELD_TYPE.freeze();
-    }
-
     // ── Default factories ──
-
-    private static final LuceneFieldFactory TEXT_FACTORY = (doc, ft, value) -> {
-        doc.add(new Field(ft.name(), value.toString(), TEXT_FIELD_TYPE));
+    private static final LuceneFieldFactory TEXT_FACTORY = (doc, ft, value, lft) -> {
+        doc.add(new Field(ft.name(), value.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
     };
 
-    private static final LuceneFieldFactory KEYWORD_FACTORY = (doc, ft, value) -> {
-        BytesRef binaryValue = new BytesRef(value.toString());
-        doc.add(new Field(ft.name(), binaryValue, KEYWORD_FIELD_TYPE));
+    private static final LuceneFieldFactory KEYWORD_FACTORY = (doc, ft, value, lft) -> {
+        doc.add(new Field(ft.name(), value.toString(), KeywordFieldMapper.Defaults.FIELD_TYPE));
     };
 
-    private static final LuceneFieldFactory MATCH_ONLY_TEXT_FACTORY = (doc, ft, value) -> {
-        doc.add(new Field(ft.name(), value.toString(), MATCH_ONLY_TEXT_FIELD_TYPE));
+    private static final LuceneFieldFactory MATCH_ONLY_TEXT_FACTORY = (doc, ft, value, lft) -> {
+        doc.add(new Field(ft.name(), value.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
+    };
+
+    private static final LuceneFieldFactory ID_FIELD_FACTORY = (doc, ft, value, lft) -> {
+        doc.add(new Field(ft.name(), new BytesRef((byte[]) value), IdFieldMapper.Defaults.FIELD_TYPE));
+    };
+
+    private static final LuceneFieldFactory SEQ_NO_FIELD_FACTORY = (doc, ft, value, lft) -> {
+        doc.add(new LongPoint(ft.name(), (long) value));
     };
 
     // ── Registry ──
@@ -90,9 +63,11 @@ public final class LuceneFieldFactoryRegistry {
      * Creates a registry pre-populated with the default full-text-searchable field factories.
      */
     public LuceneFieldFactoryRegistry() {
-        factories.put("text", TEXT_FACTORY);
-        factories.put("keyword", KEYWORD_FACTORY);
-        factories.put("match_only_text", MATCH_ONLY_TEXT_FACTORY);
+        register(TextFieldMapper.CONTENT_TYPE, TEXT_FACTORY);
+        register(KeywordFieldMapper.CONTENT_TYPE, KEYWORD_FACTORY);
+        register(MatchOnlyTextFieldMapper.CONTENT_TYPE, MATCH_ONLY_TEXT_FACTORY);
+        register(IdFieldMapper.CONTENT_TYPE, ID_FIELD_FACTORY);
+        register(SeqNoFieldMapper.CONTENT_TYPE, SEQ_NO_FIELD_FACTORY);
     }
 
     /**

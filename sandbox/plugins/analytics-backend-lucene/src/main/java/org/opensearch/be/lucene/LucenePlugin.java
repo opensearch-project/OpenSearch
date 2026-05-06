@@ -72,12 +72,7 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
     public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig indexingEngineConfig) {
         Committer committer = indexingEngineConfig.committer();
         if (committer instanceof LuceneCommitter luceneCommitter) {
-            return new LuceneIndexingExecutionEngine(
-                DATA_FORMAT,
-                luceneCommitter,
-                indexingEngineConfig.mapperService(),
-                indexingEngineConfig.store()
-            );
+            return new LuceneIndexingExecutionEngine(DATA_FORMAT, luceneCommitter, indexingEngineConfig.store());
         }
         throw new IllegalStateException(
             "LuceneIndexingExecutionEngine requires a LuceneCommitter but got: "

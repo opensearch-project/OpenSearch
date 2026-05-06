@@ -387,6 +387,11 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         public void setRowId(String rowIdFieldName, long rowId) {}
 
         @Override
+        public long getFieldCount(String fieldName) {
+            return 0;
+        }
+
+        @Override
         public void close() {}
 
         public List<Map.Entry<MappedFieldType, Object>> getCapturedFields() {

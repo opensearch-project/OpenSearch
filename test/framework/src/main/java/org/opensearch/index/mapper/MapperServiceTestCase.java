@@ -370,6 +370,11 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         public void setRowId(String rowIdFieldName, long rowId) {}
 
         @Override
+        public long getFieldCount(String fieldName) {
+            return capturedFields.stream().filter(e -> e.getKey().name().equals(fieldName)).count();
+        }
+
+        @Override
         public void close() {}
 
         public List<Map.Entry<MappedFieldType, Object>> getCapturedFields() {
