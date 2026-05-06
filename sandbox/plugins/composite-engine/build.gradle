@@ -48,6 +48,7 @@ dependencies {
   testImplementation project(':sandbox:plugins:parquet-data-format')
   testImplementation project(':sandbox:plugins:analytics-backend-lucene')
   testImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+  internalClusterTestImplementation project(':plugins:arrow-base')
   internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')

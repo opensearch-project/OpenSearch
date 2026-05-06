@@ -57,6 +57,12 @@ import java.io.IOException;
  *       must also be a child of {@link ArrowAllocatorProvider}.</li>
  * </ul>
  *
+ * <p><b>Cross-plugin footgun:</b> bypassing {@link ArrowAllocatorProvider} (e.g. {@code
+ * new RootAllocator()} inside a plugin) does not fail fast — allocation and single-plugin
+ * use still work. But any zero-copy handoff to another plugin's buffers will trip Arrow's
+ * {@code AllocationManager.associate()} check, because roots are compared by identity, not
+ * by address space.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi

@@ -17,10 +17,10 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description = 'Analytics engine hub: discovers and wires query extensions via ExtensiblePlugin SPI.'
   classname = 'org.opensearch.analytics.AnalyticsPlugin'
-  // Extend arrow-flight-rpc so analytics-engine and arrow-flight-rpc share one classloader.
-  // Cross-plugin Arrow types (VectorSchemaRoot, ArrowBatchResponse) only work when loaded
-  // by the same classloader, and zero-copy transfer requires identical class identity on both sides.
-  extendedPlugins = ['arrow-flight-rpc']
+  // Extend arrow-base so analytics-engine shares one Arrow classloader with any peer plugin
+  // (arrow-flight-rpc, analytics-backend-datafusion, parquet-data-format, …). Cross-plugin
+  // Arrow types (VectorSchemaRoot, ArrowBatchResponse) only work when loaded by the same classloader
+  extendedPlugins = ['arrow-base']
 }
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
@@ -58,58 +58,28 @@ dependencies {
   // Shared SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.) + calcite-core transitively.
   api project(':sandbox:libs:analytics-framework')
 
-  // Arrow — provided at runtime by the extended arrow-flight-rpc plugin (same classloader).
-  // compileOnly here to avoid duplicate bundling; the parent plugin's single copy is what
-  // zero-copy Arrow transfer requires.
-  compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
-  compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-
-  // Arrow Flight RPC — compile-only; arrow-flight-rpc is our extendedPlugins parent and
-  // provides these classes at runtime. transitive = false prevents arrow-flight-rpc's
-  // transitives from landing on resolveableCompileOnly and being subtracted from our
-  // runtimeClasspath (bundlePlugin does this subtraction).
-  compileOnly(project(':plugins:arrow-flight-rpc')) {
-    transitive = false
-  }
-  testCompileOnly(project(':plugins:arrow-flight-rpc')) {
-    transitive = false
-  }
-
-  // Provided by arrow-flight-rpc at runtime (api deps in its build.gradle).
-  compileOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  // arrow-base exposes Arrow + Netty core / Jackson / flatbuffers / slf4j / commons-codec
+  // as api deps, so a compileOnly project dep pulls them onto the compile classpath while
+  // keeping them out of the bundled plugin zip (arrow-base ships them at runtime via the
+  // extendedPlugins classloader chain, giving us a shared Arrow class identity for zero-copy).
+  compileOnly project(':plugins:arrow-base')
 
   // Guava — required at compile time because Calcite base classes expose guava types.
   // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
   calciteCompile "com.google.guava:guava:${versions.guava}"
-
-  // Guava for test compilation — Calcite API exposes guava types
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
 
-  // Guava — provided at runtime by the arrow-flight-rpc parent plugin (33.3.1-jre).
-  // Declared compileOnly here only to satisfy the calcite-derived runtime references;
-  // the runtimeClasspath exclude block below removes it from the bundled zip.
-
-  // SLF4J — provided by arrow-flight-rpc at runtime (its api dep).
-  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  // Guava at runtime — arrow-base does NOT provide guava; bundle it here so Calcite-generated
+  // bytecode can resolve com.google.common references.
+  runtimeOnly "com.google.guava:failureaccess:1.0.2"
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
 
   // Calcite code generation (optional in calcite-core POM, needed at runtime for Enumerable pipeline)
   testRuntimeOnly "org.codehaus.janino:janino:3.1.12"
   testRuntimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
 
-  // arrow-memory-netty comes from arrow-flight-rpc (api dep) and provides the
-  // AllocationManager that arrow-memory-core's BaseAllocator discovers via ServiceLoader.
-  // We deliberately do NOT bundle arrow-memory-unsafe here — with a single shared classloader,
-  // arrow-memory-netty's NettyAllocationManager wins the ServiceLoader lookup, which is
-  // required for gRPC's zero-copy Netty buffer path to work.
-
-  // Provided by arrow-flight-rpc at runtime (api deps).
-  compileOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
-
   // commons-math3 — Calcite's TimeFrames.<clinit> references
-  // org.apache.commons.math3.fraction.BigFraction. Not provided by arrow-flight-rpc,
-  // so bundle it into analytics-engine's own zip.
+  // org.apache.commons.math3.fraction.BigFraction. Not provided by arrow-base, so bundle here.
   runtimeOnly "org.apache.commons:commons-math3:3.6.1"
 
   // commons-text — Calcite's SqlFunctions class statically references
@@ -123,26 +93,28 @@ dependencies {
   runtimeOnly "org.apache.commons:commons-text:1.11.0"
 
   // httpcore5/httpclient5 — Avatica's BuiltInConnectionProperty static initializer references
-  // org.apache.hc.core5.util.Timeout. Not provided by arrow-flight-rpc, so bundle here.
+  // org.apache.hc.core5.util.Timeout. Not provided by arrow-base, so bundle here.
   runtimeOnly "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
   runtimeOnly "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
   runtimeOnly "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
 
-  // Unit tests run on a flat classpath (no plugin classloader), so arrow-flight-rpc's
-  // runtime jars must be pulled back in for tests. The bundled plugin is unaffected.
-  // arrow-memory-unsafe is used here (not -netty) because unit tests don't exercise
-  // the Netty allocator path.
-  testRuntimeOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
-  testRuntimeOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  testRuntimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
-  testRuntimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
-  testRuntimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  testRuntimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
-  testRuntimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  testRuntimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  // Unit tests run on a flat classpath (no plugin classloader), so pull arrow-base's runtime
+  // jars in via the project dep — tests then use the same Arrow + Netty allocator as production.
+  testRuntimeOnly project(':plugins:arrow-base')
 
   // Arrow Flight streaming transport for ITs
   internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
+
+  // SQL Unified Query API for PPL parsing
+  testImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
+    exclude group: 'org.opensearch'
+  }
+  testImplementation("org.opensearch.query:unified-query-core:${sqlUnifiedQueryVersion}") {
+    exclude group: 'org.opensearch'
+  }
+  testImplementation("org.opensearch.query:unified-query-ppl:${sqlUnifiedQueryVersion}") {
+    exclude group: 'org.opensearch'
+  }
 
   // Calcite bytecode references @Immutable from immutables — resolve at test compile time
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
@@ -159,9 +131,6 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.named('thirdPartyAudit').configure {
-  // Guava is excluded from runtimeClasspath (see configurations.runtimeClasspath block below) —
-  // its Unsafe violations no longer apply here and listing them would trip forbiddenApis
-  // ("All excluded classes seem to have no issues").
   ignoreMissingClasses(
     // Optional brotli compression support pulled in by httpclient5 — not used by analytics
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
@@ -174,12 +143,28 @@ tasks.named('thirdPartyAudit').configure {
     // Optional Conscrypt provider — TLS support fallback path
     'org.conscrypt.Conscrypt'
   )
+  // Guava's internal Unsafe-using classes — bundled here since arrow-base does not provide guava.
+  ignoreViolations(
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+  )
 }
 
-// Jars provided by the arrow-flight-rpc parent plugin at runtime — strip from the bundled
-// zip to avoid jar hell. Calcite drags guava, slf4j, jackson, commons-codec in transitively.
+// Jars provided by the arrow-base parent plugin at runtime — strip from the bundled
+// zip to avoid jar hell. Calcite drags slf4j, jackson, commons-codec in transitively.
+// Guava is NOT on this list — arrow-base does not bundle guava, so we ship it ourselves.
 configurations.runtimeClasspath {
-  exclude group: 'com.google.guava'
   exclude group: 'org.slf4j', module: 'slf4j-api'
   exclude group: 'commons-codec', module: 'commons-codec'
   exclude group: 'com.fasterxml.jackson.core'
@@ -192,10 +177,8 @@ configurations.all {
 
   resolutionStrategy {
     // Align transitive versions with OpenSearch's managed versions.
-    // Guava pinned to 33.3.1-jre to match arrow-flight-rpc (the extended parent) —
-    // children inherit the parent's loaded Guava at runtime.
     force 'com.google.guava:guava:33.3.1-jre'
-    force 'com.google.guava:failureaccess:1.0.1'
+    force 'com.google.guava:failureaccess:1.0.2'
     force 'com.google.errorprone:error_prone_annotations:2.36.0'
     force 'org.checkerframework:checker-qual:3.43.0'
     force "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
@@ -236,6 +219,12 @@ test {
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
   jvmArgs '-Darrow.memory.debug.allocator=false'
+  // arrow-memory-netty (provided by arrow-base) needs Netty direct-memory access.
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 }
 
 // Arrow/Flight requires these JVM flags

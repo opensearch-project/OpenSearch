@@ -20,6 +20,7 @@ import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.cluster.service.ClusterService;
 
 import java.util.List;

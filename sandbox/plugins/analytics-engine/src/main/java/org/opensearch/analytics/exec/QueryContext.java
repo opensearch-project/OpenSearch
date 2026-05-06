@@ -12,7 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
-import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
+import org.opensearch.arrow.transport.ArrowAllocatorProvider;
 
 import java.util.List;
 import java.util.concurrent.Executor;

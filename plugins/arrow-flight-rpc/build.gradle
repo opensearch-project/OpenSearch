@@ -19,21 +19,10 @@ opensearchplugin {
 }
 
 dependencies {
-  // arrow-base provides the Arrow + Netty core / Jackson / flatbuffers / slf4j / commons-codec
-  // jars at runtime via classloader delegation. Declare them compileOnly here.
+  // arrow-base exposes Arrow + Netty core / Jackson / flatbuffers / slf4j / commons-codec
+  // as api deps, so a compileOnly project dep pulls them onto the compile classpath
+  // while keeping them out of the bundled plugin zip (arrow-base ships them at runtime).
   compileOnly project(':plugins:arrow-base')
-  compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
-  compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
-  compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  compileOnly "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
-  compileOnly "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
-  compileOnly "io.netty:netty-buffer:${versions.netty}"
-  compileOnly "io.netty:netty-common:${versions.netty}"
-  compileOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
-  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
-  compileOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  compileOnly "commons-codec:commons-codec:${versions.commonscodec}"
 
   // Netty codec libs used directly by grpc-netty / flight-core.
   api "io.netty:netty-codec-base:${versions.netty}"
