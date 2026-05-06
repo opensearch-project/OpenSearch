@@ -148,17 +148,22 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * and {@link BalancedShardsAllocator.ModelNode#removeShard}, so this is the single source of truth
      * for the cluster-wide mean during a balance round and cannot drift out of sync with
      * {@link #allocateUnassigned()}, {@link #moveShards()}, and {@link #tryRelocateShard}.
+     * <p>
+     * Returned as {@code double} so that the subsequent ratio computation in
+     * {@link BalancedShardsAllocator.WeightFunction#weight} does not lose precision on multi-TB
+     * clusters (a {@code float} total has only ~1 MB resolution at 10 TB, which can hide
+     * sub-MB shards entirely).
      */
     @Override
-    public float avgDiskUsageInBytesPerNode() {
+    public double avgDiskUsageInBytesPerNode() {
         if (nodes.isEmpty()) {
-            return 0f;
+            return 0.0;
         }
         long total = 0L;
         for (BalancedShardsAllocator.ModelNode node : nodes.values()) {
             total += node.diskUsageInBytes();
         }
-        return ((float) total) / nodes.size();
+        return (double) total / nodes.size();
     }
 
     /**

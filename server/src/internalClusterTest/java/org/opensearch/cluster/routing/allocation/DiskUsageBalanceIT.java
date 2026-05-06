@@ -69,7 +69,12 @@ public class DiskUsageBalanceIT extends OpenSearchIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey()))
+                .setPersistentSettings(
+                    Settings.builder()
+                        .putNull(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey())
+                        .putNull(BalancedShardsAllocator.BALANCE_MODE_SETTING.getKey())
+                        .putNull(BalancedShardsAllocator.THRESHOLD_SETTING.getKey())
+                )
         );
     }
 
@@ -230,5 +235,107 @@ public class DiskUsageBalanceIT extends OpenSearchIntegTestCase {
         final Settings persistent = client().admin().cluster().prepareState().get().getState().getMetadata().persistentSettings();
         final String key = BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey();
         assertThat("disk_usage factor must be unset (default 0.0f) for this test", persistent.get(key, "0.0"), equalTo("0.0"));
+    }
+
+    /**
+     * With {@code balance.mode=ratio}, disk_usage balance enabled, and a lower
+     * {@code threshold} (because threshold is now a relative-deviation fraction rather
+     * than a shard-count delta), the allocator must rebalance by bytes without
+     * destabilizing the cluster: all shards stay assigned and the byte-spread across
+     * nodes does not grow relative to the count-mode baseline.
+     */
+    public void testRatioModeRebalancesByBytes() throws Exception {
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
+        clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
+        clusterInfoService.setShardSizeFunctionAndRefresh(DiskUsageBalanceIT::fakeShardSize);
+
+        final List<String> nodeIds = StreamSupport.stream(
+            client().admin().cluster().prepareState().get().getState().getRoutingNodes().spliterator(),
+            false
+        ).map(RoutingNode::nodeId).collect(Collectors.toList());
+        assertThat("cluster must have 3 data nodes", nodeIds.size(), equalTo(3));
+
+        assertAcked(prepareCreate(INDEX_SMALL).setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(INDEX_LARGE).setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        ensureGreen(INDEX_SMALL, INDEX_LARGE);
+
+        clusterInfoService.refresh();
+
+        final long spreadBefore = spread(getBytesByNodeId(DiskUsageBalanceIT::fakeShardSize));
+        logger.info("--> byte spread before enabling ratio mode = {}", spreadBefore);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(BalancedShardsAllocator.BALANCE_MODE_SETTING.getKey(), "ratio")
+                        .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
+                        // threshold is a relative-deviation fraction in ratio mode.
+                        .put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 0.1f)
+                )
+        );
+
+        clusterInfoService.refresh();
+        assertAcked(client().admin().cluster().prepareReroute());
+
+        assertBusy(() -> {
+            ensureGreen(INDEX_SMALL, INDEX_LARGE);
+            assertThat("still no unassigned shards under ratio mode", totalUnassigned(), equalTo(0));
+            final long spreadAfter = spread(getBytesByNodeId(DiskUsageBalanceIT::fakeShardSize));
+            logger.info("--> byte spread under ratio mode = {}", spreadAfter);
+            assertThat("ratio-mode byte spread should not exceed count-mode baseline", spreadAfter, lessThanOrEqualTo(spreadBefore));
+        }, 30, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    /**
+     * Toggle {@code balance.mode} between {@code count} and {@code ratio} at runtime and
+     * verify the dynamic settings-update consumer rebuilds the weight function without
+     * losing shards or turning the cluster red.
+     */
+    public void testBalanceModeDynamicToggle() throws Exception {
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
+        clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
+        clusterInfoService.setShardSizeFunctionAndRefresh(DiskUsageBalanceIT::fakeShardSize);
+
+        assertAcked(prepareCreate(INDEX_SMALL).setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(INDEX_LARGE).setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        ensureGreen(INDEX_SMALL, INDEX_LARGE);
+
+        for (String mode : new String[] { "ratio", "count", "ratio", "count" }) {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(
+                        Settings.builder()
+                            .put(BalancedShardsAllocator.BALANCE_MODE_SETTING.getKey(), mode)
+                            .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
+                            // threshold has different semantics per mode; pick a permissive value
+                            // that is sensible in both (0.1 is a lower bound in count mode and a
+                            // reasonable fraction in ratio mode).
+                            .put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 0.1f)
+                    )
+            );
+            clusterInfoService.refresh();
+            assertAcked(client().admin().cluster().prepareReroute());
+            assertBusy(() -> {
+                ensureGreen(INDEX_SMALL, INDEX_LARGE);
+                assertThat("no unassigned shards after toggling balance.mode=" + mode, totalUnassigned(), equalTo(0));
+            }, 30, java.util.concurrent.TimeUnit.SECONDS);
+        }
+
+        // Reject an invalid enum value; the setting must refuse and surface a clear error.
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(BalancedShardsAllocator.BALANCE_MODE_SETTING.getKey(), "bogus"))
+                .get();
+            fail("expected IllegalArgumentException for balance.mode=bogus");
+        } catch (IllegalArgumentException expected) {
+            assertThat(expected.getMessage(), org.hamcrest.Matchers.containsString("bogus"));
+        }
     }
 }

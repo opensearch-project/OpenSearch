@@ -156,6 +156,47 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
 
     /**
+     * Selects the scale on which the shard, per-index, and disk-usage balance terms are
+     * expressed in the weight function.
+     *
+     * <ul>
+     *   <li>{@link BalanceMode#COUNT} (default): shard and per-index terms are raw
+     *       shard-count deltas from the cluster average; the disk-usage term is a ratio.
+     *       Preserves historical behavior and {@link #THRESHOLD_SETTING} semantics.</li>
+     *   <li>{@link BalanceMode#RATIO}: all three terms are relative deviations from the
+     *       per-axis cluster average:
+     *       <ul>
+     *         <li>{@code weight_shard(n)  = (n.numShards    - avg)      / max(1, avg)}</li>
+     *         <li>{@code weight_index(n,i)= (n.numShards(i) - avg(i))   / max(1, avg(i))}</li>
+     *         <li>{@code weight_disk(n)   = (n.bytes        - avgBytes) / max(1, avgBytes)}</li>
+     *       </ul>
+     *       All three balance factors ({@link #SHARD_BALANCE_FACTOR_SETTING},
+     *       {@link #INDEX_BALANCE_FACTOR_SETTING}, {@link #DISK_USAGE_BALANCE_FACTOR_SETTING})
+     *       then operate on the same dimensionless scale.</li>
+     * </ul>
+     *
+     * <p><b>Interaction with {@link #THRESHOLD_SETTING}.</b> In {@code count} mode,
+     * {@code threshold} is interpreted as a shard-count delta (default {@code 1.0} meaning
+     * "do not bother unless the imbalance is at least one shard"). In {@code ratio} mode,
+     * {@code threshold} is interpreted as a relative deviation (e.g. {@code 0.1} meaning
+     * "do not bother unless the imbalance is at least 10%"). Operators enabling ratio mode
+     * will typically also lower {@code threshold} from its default of {@code 1.0}.
+     *
+     * <p><b>Sensitivity to small indices.</b> Ratio mode amplifies the weight of indices
+     * with few shards: a single misplaced shard of a 3-shard index is a 33% deviation,
+     * while the same misplacement on a 30-shard index is a 3% deviation. This is
+     * semantically correct (small indices genuinely are more imbalanced per misplaced
+     * shard) but changes prioritization relative to the default mode.
+     */
+    public static final Setting<BalanceMode> BALANCE_MODE_SETTING = new Setting<>(
+        "cluster.routing.allocation.balance.mode",
+        BalanceMode.COUNT.toString(),
+        BalanceMode::parse,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * Move primary shards first from node for shard movement when shards can not stay on node anymore. {@link LocalShardsBalancer#moveShards()}
      */
     public static final Setting<Boolean> SHARD_MOVE_PRIMARY_FIRST_SETTING = Setting.boolSetting(
@@ -281,6 +322,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile float indexBalanceFactor;
     private volatile float shardBalanceFactor;
     private volatile float diskUsageBalanceFactor;
+    private volatile BalanceMode balanceMode;
     private volatile WeightFunction weightFunction;
     private volatile float threshold;
     private volatile long primaryConstraintThreshold;
@@ -300,6 +342,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setShardBalanceFactor(SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setIndexBalanceFactor(INDEX_BALANCE_FACTOR_SETTING.get(settings));
         setDiskUsageBalanceFactor(DISK_USAGE_BALANCE_FACTOR_SETTING.get(settings));
+        setBalanceMode(BALANCE_MODE_SETTING.get(settings));
         setPreferPrimaryShardRebalanceBuffer(PRIMARY_SHARD_REBALANCE_BUFFER.get(settings));
         setIgnoreThrottleInRestore(IGNORE_THROTTLE_FOR_REMOTE_RESTORE.get(settings));
         updateWeightFunction();
@@ -316,6 +359,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, this::updateIndexBalanceFactor);
         clusterSettings.addSettingsUpdateConsumer(SHARD_BALANCE_FACTOR_SETTING, this::updateShardBalanceFactor);
         clusterSettings.addSettingsUpdateConsumer(DISK_USAGE_BALANCE_FACTOR_SETTING, this::updateDiskUsageBalanceFactor);
+        clusterSettings.addSettingsUpdateConsumer(BALANCE_MODE_SETTING, this::updateBalanceMode);
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_SHARD_REBALANCE_BUFFER, this::updatePreferPrimaryShardBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_REBALANCE, this::setPreferPrimaryShardRebalance);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
@@ -368,6 +412,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.diskUsageBalanceFactor = diskUsageBalanceFactor;
     }
 
+    private void setBalanceMode(BalanceMode balanceMode) {
+        this.balanceMode = balanceMode;
+    }
+
     private void setPreferPrimaryShardRebalanceBuffer(float preferPrimaryShardRebalanceBuffer) {
         this.preferPrimaryShardRebalanceBuffer = preferPrimaryShardRebalanceBuffer;
     }
@@ -387,6 +435,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         updateWeightFunction();
     }
 
+    private void updateBalanceMode(BalanceMode balanceMode) {
+        this.balanceMode = balanceMode;
+        updateWeightFunction();
+    }
+
     private void updatePreferPrimaryShardBalanceBuffer(float preferPrimaryShardBalanceBuffer) {
         this.preferPrimaryShardRebalanceBuffer = preferPrimaryShardBalanceBuffer;
         updateWeightFunction();
@@ -400,7 +453,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.preferPrimaryShardRebalanceBuffer,
             this.primaryConstraintThreshold,
             this.preferPrimaryShardBalance,
-            this.preferPrimaryShardRebalance
+            this.preferPrimaryShardRebalance,
+            this.balanceMode == BalanceMode.RATIO
         );
     }
 
@@ -626,6 +680,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final float theta0;
         private final float theta1;
         private final float theta2;
+        private final boolean ratioMode;
         private long primaryConstraintThreshold;
         private AllocationConstraints constraints;
         private RebalanceConstraints rebalanceConstraints;
@@ -637,7 +692,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float preferPrimaryBalanceBuffer,
             long primaryConstraintThreshold,
             boolean preferPrimaryShardBalance,
-            boolean preferPrimaryShardRebalance
+            boolean preferPrimaryShardRebalance,
+            boolean ratioMode
         ) {
             float sum = indexBalance + shardBalance + diskUsageBalance;
             if (sum <= 0.0f) {
@@ -649,6 +705,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
             this.diskUsageBalance = diskUsageBalance;
+            this.ratioMode = ratioMode;
             this.primaryConstraintThreshold = primaryConstraintThreshold;
             RebalanceParameter rebalanceParameter = new RebalanceParameter(preferPrimaryBalanceBuffer);
             this.constraints = new AllocationConstraints();
@@ -681,16 +738,56 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return balancerWeight + rebalanceConstraints.weight(balancer, node, index, primaryConstraintThreshold);
         }
 
+        /**
+         * Computes the balance weight for a single (node, index) pair.
+         *
+         * <p>Two modes are supported, selected by the
+         * {@link #BALANCE_MODE_SETTING} cluster setting:
+         *
+         * <ul>
+         *   <li><b>Default (count-based) mode:</b> {@code weight_shard} and
+         *     {@code weight_index} are raw shard-count deviations while
+         *     {@code weight_disk} is a dimensionless ratio. The three terms are not
+         *     directly comparable in magnitude; see
+         *     {@link #DISK_USAGE_BALANCE_FACTOR_SETTING} javadoc for tuning guidance.</li>
+         *   <li><b>Ratio mode:</b> all three terms are relative deviations normalized by
+         *     the cluster average for that axis, so the three balance factors operate on
+         *     the same dimensionless scale and can be tuned directly relative to each
+         *     other. See {@link #BALANCE_MODE_SETTING} javadoc for threshold guidance.</li>
+         * </ul>
+         *
+         * <p>Numerical precision: the disk term subtracts a {@code long} byte count from a
+         * {@code double} average and divides in {@code double} before casting the final
+         * weighted contribution to {@code float}. This preserves sub-MB resolution on
+         * multi-TB clusters where a {@code float} division would round away small deltas.
+         */
         float weight(ShardsBalancer balancer, ModelNode node, String index) {
-            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
-            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            // The disk-usage deviation is normalized by the cluster average, so the disk term
-            // is a dimensionless ratio while weightShard / weightIndex are raw shard-count
-            // deviations. See DISK_USAGE_BALANCE_FACTOR_SETTING javadoc for calibration guidance.
-            // When the average is zero (empty cluster) the disk term contributes zero.
-            final float avgDiskUsage = balancer.avgDiskUsageInBytesPerNode();
-            final float weightDiskUsage = avgDiskUsage > 0.0f ? (node.diskUsageInBytes() - avgDiskUsage) / avgDiskUsage : 0.0f;
-            return theta0 * weightShard + theta1 * weightIndex + theta2 * weightDiskUsage;
+            final double avgShards = balancer.avgShardsPerNode();
+            final double avgShardsIdx = balancer.avgShardsPerNode(index);
+            final double avgBytes = balancer.avgDiskUsageInBytesPerNode();
+            final double nodeBytes = (double) node.diskUsageInBytes();
+
+            final double shardDelta = node.numShards() - avgShards;
+            final double indexDelta = node.numShards(index) - avgShardsIdx;
+            final double bytesDelta = nodeBytes - avgBytes;
+
+            final double weightShard;
+            final double weightIndex;
+            final double weightDisk;
+            if (ratioMode) {
+                // All three terms are dimensionless relative deviations. Guard against a
+                // zero denominator (empty index / empty cluster) by contributing zero for
+                // that term: a node cannot be "imbalanced" on an axis whose total is zero.
+                weightShard = avgShards > 0.0 ? shardDelta / avgShards : 0.0;
+                weightIndex = avgShardsIdx > 0.0 ? indexDelta / avgShardsIdx : 0.0;
+                weightDisk = avgBytes > 0.0 ? bytesDelta / avgBytes : 0.0;
+            } else {
+                // Historical behavior: raw count deviations for shard/index, ratio for disk.
+                weightShard = shardDelta;
+                weightIndex = indexDelta;
+                weightDisk = avgBytes > 0.0 ? bytesDelta / avgBytes : 0.0;
+            }
+            return (float) (theta0 * weightShard + theta1 * weightIndex + theta2 * weightDisk);
         }
 
         void updateAllocationConstraint(String constraint, boolean enable) {

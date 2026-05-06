@@ -88,13 +88,17 @@ public abstract class ShardsBalancer {
     }
 
     /**
-     * Returns the average disk usage in bytes per node. The default returns {@code 0f}
+     * Returns the average disk usage in bytes per node. The default returns {@code 0.0}
      * so that subclasses which do not track per-shard byte size contribute a neutral
-     * disk-weight component ({@code node.diskUsageInBytes() - 0f}) instead of saturating
-     * the weight function with {@link Float#MAX_VALUE}.
+     * disk-weight component ({@code node.diskUsageInBytes() - 0.0}) instead of saturating
+     * the weight function with {@link Double#MAX_VALUE}.
+     * <p>
+     * Returned as {@code double} rather than {@code float} so that multi-TB cluster totals
+     * retain enough precision for the subsequent ratio computation in
+     * {@link BalancedShardsAllocator.WeightFunction#weight}.
      */
-    public float avgDiskUsageInBytesPerNode() {
-        return 0f;
+    public double avgDiskUsageInBytesPerNode() {
+        return 0.0;
     }
 
 }

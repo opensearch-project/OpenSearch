@@ -50,9 +50,9 @@ public class DiskUsageBalanceTests extends OpenSearchAllocationTestCase {
     private static final class FixedAverageShardsBalancer extends ShardsBalancer {
         private final float avgShards;
         private final float avgShardsForIndex;
-        private final float avgDiskUsageInBytes;
+        private final double avgDiskUsageInBytes;
 
-        FixedAverageShardsBalancer(float avgShards, float avgShardsForIndex, float avgDiskUsageInBytes) {
+        FixedAverageShardsBalancer(float avgShards, float avgShardsForIndex, double avgDiskUsageInBytes) {
             this.avgShards = avgShards;
             this.avgShardsForIndex = avgShardsForIndex;
             this.avgDiskUsageInBytes = avgDiskUsageInBytes;
@@ -79,7 +79,7 @@ public class DiskUsageBalanceTests extends OpenSearchAllocationTestCase {
         }
 
         @Override
-        public float avgDiskUsageInBytesPerNode() {
+        public double avgDiskUsageInBytesPerNode() {
             return avgDiskUsageInBytes;
         }
 
@@ -152,6 +152,7 @@ public class DiskUsageBalanceTests extends OpenSearchAllocationTestCase {
             0.0f,
             0L,
             false,
+            false,
             false
         );
 
@@ -182,6 +183,7 @@ public class DiskUsageBalanceTests extends OpenSearchAllocationTestCase {
             0.0f,
             0L,
             false,
+            false,
             false
         );
 
@@ -202,7 +204,7 @@ public class DiskUsageBalanceTests extends OpenSearchAllocationTestCase {
     public void testSumMustBePositive() {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> new BalancedShardsAllocator.WeightFunction(0.0f, 0.0f, 0.0f, 0.0f, 0L, false, false)
+            () -> new BalancedShardsAllocator.WeightFunction(0.0f, 0.0f, 0.0f, 0.0f, 0L, false, false, false)
         );
         String msg = iae.getMessage() == null ? "" : iae.getMessage();
         assertTrue("expected message to mention sum or '> 0' but was: " + msg, msg.contains("sum") || msg.contains("> 0"));
@@ -247,6 +249,91 @@ public class DiskUsageBalanceTests extends OpenSearchAllocationTestCase {
             "expected rejection message to mention the lower bound, got: " + msg,
             msg.contains("must be >=") || msg.contains("-0.1") || msg.toLowerCase(java.util.Locale.ROOT).contains("disk_usage")
         );
+    }
+
+    /**
+     * 5a. Ratio mode: weights for all three axes (shard, index, disk) must be relative
+     * deviations normalized by the cluster average, so that the balance factors operate
+     * on the same dimensionless scale.
+     */
+    public void testRatioModeNormalizesAllThreeTerms() {
+        final float indexBalance = 0.3f;
+        final float shardBalance = 0.4f;
+        final float diskUsageBalance = 0.3f;
+        BalancedShardsAllocator.WeightFunction ratio = new BalancedShardsAllocator.WeightFunction(
+            indexBalance,
+            shardBalance,
+            diskUsageBalance,
+            0.0f,
+            0L,
+            false,
+            false,
+            true // ratioMode ON
+        );
+
+        // 3-shard index on a node that has 2 of the 3 shards (avgShardsForIndex = 1.0)
+        // Node has 4 total shards (avgShards = 2.0) and 300 bytes (avgBytes = 150)
+        // Ratio weights: (4-2)/2 = 1.0, (2-1)/1 = 1.0, (300-150)/150 = 1.0
+        // All three terms equal → weighted sum = theta0+theta1+theta2 = 1.0
+        BalancedShardsAllocator.ModelNode node = makeModelNode("n1", 100L, 3); // 300 bytes, 3 shards
+        // Force numShards and numShards(INDEX_SMALL) via direct construction rather than
+        // relying on makeModelNode's default behavior (which puts all shards in INDEX_SMALL).
+        // node.numShards() == 3, node.numShards(INDEX_SMALL) == 3
+
+        // For avgShards=2, avgShardsForIndex=1, avgDisk=150:
+        // shard ratio = (3 - 2) / 2 = 0.5
+        // index ratio = (3 - 1) / 1 = 2.0
+        // disk ratio = (300 - 150) / 150 = 1.0
+        ShardsBalancer balancer = new FixedAverageShardsBalancer(2.0f, 1.0f, 150.0);
+        float sum = indexBalance + shardBalance + diskUsageBalance;
+        float theta0 = shardBalance / sum;
+        float theta1 = indexBalance / sum;
+        float theta2 = diskUsageBalance / sum;
+        float expected = theta0 * 0.5f + theta1 * 2.0f + theta2 * 1.0f;
+        assertEquals(expected, ratio.weight(balancer, node, INDEX_SMALL), 1e-4f);
+    }
+
+    /**
+     * 5b. Ratio mode: zero denominators (empty index / empty cluster) must not blow up;
+     * the corresponding term contributes zero because there is no imbalance to measure.
+     */
+    public void testRatioModeHandlesZeroDenominators() {
+        BalancedShardsAllocator.WeightFunction ratio = new BalancedShardsAllocator.WeightFunction(
+            1.0f,
+            1.0f,
+            1.0f,
+            0.0f,
+            0L,
+            false,
+            false,
+            true
+        );
+        BalancedShardsAllocator.ModelNode node = makeModelNode("n1", 0L, 0);
+        ShardsBalancer balancer = new FixedAverageShardsBalancer(0.0f, 0.0f, 0.0);
+        float w = ratio.weight(balancer, node, INDEX_SMALL);
+        assertEquals("empty cluster must yield zero weight, got: " + w, 0.0f, w, 1e-6f);
+    }
+
+    /**
+     * 5c. Default (non-ratio) mode must still produce raw-count shard/index deltas —
+     * this guards against accidentally flipping the default behavior.
+     */
+    public void testDefaultModeKeepsRawCountDeltas() {
+        BalancedShardsAllocator.WeightFunction def = new BalancedShardsAllocator.WeightFunction(
+            0.5f,
+            0.5f,
+            0.0f,
+            0.0f,
+            0L,
+            false,
+            false,
+            false // ratioMode OFF
+        );
+        BalancedShardsAllocator.ModelNode node = makeModelNode("n1", 0L, 10);
+        // avgShards = 2, avgShardsForIndex = 1 → raw deltas: 10-2=8, 10-1=9
+        ShardsBalancer balancer = new FixedAverageShardsBalancer(2.0f, 1.0f, 0.0);
+        float expected = 0.5f * 8.0f + 0.5f * 9.0f;
+        assertEquals(expected, def.weight(balancer, node, INDEX_SMALL), 1e-4f);
     }
 
     /** 6. End-to-end: allocation completes with a heterogeneous ClusterInfoService and disk balance factor. */
