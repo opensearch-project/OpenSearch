@@ -89,7 +89,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
-        FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike")
+        FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
+        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
+        FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
+        FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;

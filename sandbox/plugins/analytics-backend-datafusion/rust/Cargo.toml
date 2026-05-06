@@ -42,6 +42,9 @@ chrono = { workspace = true }
 roaring = "0.10"
 thiserror = { workspace = true }
 
+# convert_tz UDF
+chrono-tz = "0.10"
+
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }

@@ -30,3 +30,4 @@ pub mod query_memory_pool_tracker;
 pub mod runtime_manager;
 pub mod session_context;
 pub mod statistics_cache;
+pub mod udf;

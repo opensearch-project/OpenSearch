@@ -20,3 +20,21 @@ scalar_functions:
           - value: "string"
             name: "match"
         return: boolean
+  - name: "date_part"
+    impls:
+      - args: [{ value: string, name: "part" }, { value: "any1", name: "value" }]
+        return: any1
+
+  - name: "convert_tz"
+    description: "Shift a timestamp from one timezone to another. IANA names and +/-HH:MM offsets."
+    impls:
+      - args:
+          - { value: "any1", name: "ts" }
+          - { value: string, name: "from_tz" }
+          - { value: string, name: "to_tz" }
+        return: any1
+  - name: "to_unixtime"
+    description: "Return a timestamp as Unix epoch seconds."
+    impls:
+      - args: [{ value: "any1", name: "ts" }]
+        return: any1

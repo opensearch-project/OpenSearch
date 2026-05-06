@@ -77,7 +77,10 @@ public enum ScalarFunction {
     EXTRACT(Category.SCALAR, SqlKind.EXTRACT),
 
     // ── Datetime ────────────────────────────────────────────────────
-    TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CONVERT_TZ(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.
@@ -87,7 +90,9 @@ public enum ScalarFunction {
         FULL_TEXT,
         STRING,
         MATH,
-        /** Catch-all for functions that don't fit other categories (CAST, CASE, COALESCE, EXTRACT, etc.). */
+        /**
+         * Catch-all for functions that don't fit other categories (CAST, CASE, COALESCE, EXTRACT, etc.).
+         */
         SCALAR
     }
 
@@ -121,7 +126,9 @@ public enum ScalarFunction {
         return null;
     }
 
-    /** Maps a Calcite SqlFunction to a ScalarFunction by name, or throws if not recognized. */
+    /**
+     * Maps a Calcite SqlFunction to a ScalarFunction by name, or null if not recognized.
+     */
     public static ScalarFunction fromSqlFunction(SqlFunction function) {
         // TODO: Add an explicit functionName field per enum constant instead of relying on
         // valueOf(toUpperCase). This couples enum constant naming to SQL function naming convention.
