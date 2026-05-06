@@ -478,6 +478,27 @@ pub unsafe extern "C" fn df_create_session_context(
 
 #[ffm_safe]
 #[no_mangle]
+pub unsafe extern "C" fn df_create_session_context_indexed(
+    shard_view_ptr: i64,
+    runtime_ptr: i64,
+    table_name_ptr: *const u8,
+    table_name_len: i64,
+    context_id: i64,
+    tree_shape: i32,
+    delegated_predicate_count: i32,
+) -> i64 {
+    let table_name = str_from_raw(table_name_ptr, table_name_len)
+        .map_err(|e| format!("df_create_session_context_indexed: {}", e))?;
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::session_context::create_session_context_indexed(
+            runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count,
+        ))
+        .map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
 pub unsafe extern "C" fn df_cache_manager_remove_files(
     runtime_ptr: i64,
     files_ptr: *const *const u8,
@@ -618,11 +639,23 @@ pub unsafe extern "C" fn df_execute_with_context(
     let mgr = get_rt_manager()?;
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let cpu_executor = mgr.cpu_executor();
-    mgr.io_runtime
-        .block_on(crate::query_executor::execute_with_context(
-            session_handle,
-            plan_bytes,
-            cpu_executor,
-        ))
-        .map_err(|e| e.to_string())
+    // Route based on whether the session was configured for indexed execution
+    let handle_ref = &*(session_ctx_ptr as *const crate::session_context::SessionContextHandle);
+    if handle_ref.indexed_config.is_some() {
+        mgr.io_runtime
+            .block_on(crate::indexed_executor::execute_indexed_with_context(
+                session_ctx_ptr,
+                plan_bytes.to_vec(),
+                cpu_executor,
+            ))
+            .map_err(|e| e.to_string())
+    } else {
+        mgr.io_runtime
+            .block_on(crate::query_executor::execute_with_context(
+                session_ctx_ptr,
+                plan_bytes,
+                cpu_executor,
+            ))
+            .map_err(|e| e.to_string())
+    }
 }

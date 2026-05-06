@@ -15,7 +15,7 @@
 //! Two flavors:
 //!
 //! - [`BoolNode`] — unresolved. Produced by `expr_to_bool_tree`.
-//!   `Collector` leaves carry the serialized query bytes
+//!   `Collector` leaves carry the annotation ID identifying the delegated predicate
 //!   (as extracted from the `index_filter(bytes)` UDF call);
 //!   `Predicate` leaves carry an arbitrary DataFusion
 //!   [`PhysicalExpr`](datafusion::physical_expr::PhysicalExpr) —
@@ -38,12 +38,12 @@ pub enum BoolNode {
     And(Vec<BoolNode>),
     Or(Vec<BoolNode>),
     Not(Box<BoolNode>),
-    /// index-backend query payload. The caller (typically the indexed_executor)
-    /// upcalls into Java with these bytes at query-resolve time to get a
-    /// `provider_key`, then creates per-segment collectors. Bytes are opaque
-    /// to Rust; only the Java factory knows how to interpret them.
+    /// Delegated predicate identified by annotation ID. At query-resolve time,
+    /// the indexed executor upcalls into Java with this ID to get a `provider_key`,
+    /// then creates per-segment collectors. The annotation ID maps to a pre-compiled
+    /// query on the Java side (via FilterDelegationHandle).
     Collector {
-        query_bytes: Arc<[u8]>,
+        annotation_id: i32,
     },
     /// Arbitrary boolean-valued DataFusion expression. At refinement
     /// time, `expr.evaluate(batch)` produces the per-row mask; at page-
@@ -91,13 +91,13 @@ impl BoolNode {
     /// `resolve` (via the `*next` index) relies on this invariant; if you
     /// change one traversal you MUST change the other in lockstep, or
     /// collector-to-leaf matching will silently become wrong.
-    pub fn collector_leaves(&self) -> Vec<Arc<[u8]>> {
+    pub fn collector_leaves(&self) -> Vec<i32> {
         let mut out = Vec::new();
         self.collect_leaves(&mut out);
         out
     }
 
-    fn collect_leaves(&self, out: &mut Vec<Arc<[u8]>>) {
+    fn collect_leaves(&self, out: &mut Vec<i32>) {
         match self {
             BoolNode::And(children) | BoolNode::Or(children) => {
                 for c in children {
@@ -105,8 +105,8 @@ impl BoolNode {
                 }
             }
             BoolNode::Not(child) => child.collect_leaves(out),
-            BoolNode::Collector { query_bytes } => {
-                out.push(Arc::clone(query_bytes));
+            BoolNode::Collector { annotation_id } => {
+                out.push(*annotation_id);
             }
             BoolNode::Predicate(_) => {}
         }
@@ -167,7 +167,7 @@ impl BoolNode {
     /// `(column, op, value)`.
     ///
     /// Caller is responsible for creating the collectors — typically by
-    /// upcalling Java `createProvider(query_bytes)` per leaf to get a
+    /// upcalling Java `createProvider(annotation_id)` per leaf to get a
     /// `provider_key`, then `createCollector(provider_key, seg, min, max)`
     /// per chunk.
     ///
@@ -363,9 +363,9 @@ mod tests {
         }
     }
 
-    fn collector(bytes: &[u8]) -> BoolNode {
+    fn collector(id: i32) -> BoolNode {
         BoolNode::Collector {
-            query_bytes: Arc::from(bytes),
+            annotation_id: id,
         }
     }
 

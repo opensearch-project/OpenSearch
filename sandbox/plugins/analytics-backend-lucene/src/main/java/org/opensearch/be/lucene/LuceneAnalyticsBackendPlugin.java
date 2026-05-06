@@ -14,19 +14,26 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.search.IndexSearcher;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.CommonExecutionContext;
+import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -143,6 +150,37 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     }
 
     private static final Logger LOGGER = LogManager.getLogger(LuceneAnalyticsBackendPlugin.class);
+
+    @Override
+    public FilterDelegationHandle getFilterDelegationHandle(List<DelegatedExpression> expressions, CommonExecutionContext ctx) {
+        ShardScanExecutionContext shardCtx = (ShardScanExecutionContext) ctx;
+        DirectoryReader directoryReader = shardCtx.getReader().getReader(plugin.getDataFormat(), DirectoryReader.class);
+        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
+        return new LuceneFilterDelegationHandle(expressions, queryShardContext, directoryReader);
+    }
+
+    private QueryShardContext buildMinimalQueryShardContext(ShardScanExecutionContext ctx, IndexSearcher searcher) {
+        return new QueryShardContext(
+            0,
+            ctx.getIndexSettings(),
+            null,  // bigArrays
+            null,  // bitsetFilterCache
+            null,  // indexFieldDataLookup
+            ctx.getMapperService(),
+            null,  // similarityService
+            null,  // scriptService
+            null,  // xContentRegistry
+            null,  // namedWriteableRegistry
+            null,  // client
+            searcher,
+            System::currentTimeMillis,
+            null,  // clusterAlias
+            s -> true,  // indexNameMatcher
+            () -> true,  // allowExpensiveQueries
+            null   // valuesSourceRegistry
+        );
+    }
 
     // ---- Serializers ----
 

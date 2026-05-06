@@ -14,7 +14,7 @@
 //!
 //! - `AND` / `OR` / `NOT` → `BoolNode::And` / `Or` / `Not`
 //! - `ScalarFunction` named `COLLECTOR_FUNCTION_NAME` with one `Binary`
-//!   literal argument → `BoolNode::Collector { query_bytes }`. Those bytes
+//!   literal argument → `BoolNode::Collector { annotation_id }`. The ID
 //!   are the serialized backend query payload; they're handed to a Java
 //!   factory at query-resolve time to create a provider.
 //! - **Anything else** → lowered to [`Arc<dyn PhysicalExpr>`] via
@@ -25,7 +25,7 @@
 //!
 //! **The substrait plan is the wire format.** Java never serializes an
 //! `IndexFilterTree`; it rewrites `column = 'value'` on indexed columns to
-//! `index_filter(query_bytes)` UDF calls during the Calcite marking phase,
+//! `delegated_predicate(annotationId)` UDF calls during the Calcite marking phase,
 //! and that survives the substrait round-trip. Rust just reads it back out
 //! of the decoded `LogicalPlan`.
 
@@ -46,7 +46,7 @@ use datafusion::physical_expr::PhysicalExpr;
 use super::bool_tree::BoolNode;
 
 /// The UDF name Calcite emits for indexed-column filter markers.
-pub const COLLECTOR_FUNCTION_NAME: &str = "index_filter";
+pub const COLLECTOR_FUNCTION_NAME: &str = "delegated_predicate";
 
 /// Classification of a query's filter expression — drives the evaluator choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -152,17 +152,17 @@ fn convert_expr(
     }
 }
 
-/// `index_filter(query_bytes)` — a single `Binary` literal arg.
+/// `delegated_predicate(annotationId)` — a single `Int32` literal arg.
 fn convert_collector_function(args: &[Expr]) -> Result<BoolNode, String> {
     if args.len() != 1 {
         return Err(format!(
-            "{} expects 1 arg (query_bytes), got {}",
+            "{} expects 1 arg (annotationId), got {}",
             COLLECTOR_FUNCTION_NAME,
             args.len()
         ));
     }
-    let bytes = extract_binary_literal(&args[0])?;
-    Ok(BoolNode::Collector { query_bytes: bytes })
+    let annotation_id = extract_int32_literal(&args[0])?;
+    Ok(BoolNode::Collector { annotation_id })
 }
 
 /// Strip table qualifiers from `Column` references in an `Expr` tree.
@@ -184,13 +184,11 @@ fn strip_column_qualifiers(expr: &Expr) -> Expr {
         .data
 }
 
-fn extract_binary_literal(expr: &Expr) -> Result<Arc<[u8]>, String> {
+fn extract_int32_literal(expr: &Expr) -> Result<i32, String> {
     match expr {
-        Expr::Literal(ScalarValue::Binary(Some(v)), _) => Ok(Arc::from(v.as_slice())),
-        Expr::Literal(ScalarValue::LargeBinary(Some(v)), _) => Ok(Arc::from(v.as_slice())),
-        Expr::Literal(ScalarValue::FixedSizeBinary(_, Some(v)), _) => Ok(Arc::from(v.as_slice())),
+        Expr::Literal(ScalarValue::Int32(Some(v)), _) => Ok(*v),
         _ => Err(format!(
-            "{} arg must be a Binary literal, got {:?}",
+            "{} arg must be an Int32 literal, got {:?}",
             COLLECTOR_FUNCTION_NAME, expr
         )),
     }
@@ -233,7 +231,7 @@ fn is_and_only_collector_tree(tree: &BoolNode) -> bool {
     }
 }
 
-/// Create the `index_filter(query_bytes) → Boolean` UDF.
+/// Create the `delegated_predicate(annotationId) → Boolean` UDF.
 ///
 /// This UDF exists solely as a marker for `classify_filter` / `expr_to_bool_tree`.
 /// Its body is deliberately wired to return a hard `DataFusionError` if it
@@ -252,15 +250,10 @@ struct IndexFilterUdf {
 
 impl IndexFilterUdf {
     fn new() -> Self {
-        // The UDF takes exactly one binary payload; LargeBinary is accepted
-        // for payloads that overflow Binary's 2 GiB limit. FixedSizeBinary is
-        // also accepted at decode time (see `extract_binary_literal`) but we
-        // don't enumerate every fixed size in the signature.
         Self {
             signature: Signature::one_of(
                 vec![
-                    TypeSignature::Exact(vec![DataType::Binary]),
-                    TypeSignature::Exact(vec![DataType::LargeBinary]),
+                    TypeSignature::Exact(vec![DataType::Int32]),
                 ],
                 Volatility::Immutable,
             ),

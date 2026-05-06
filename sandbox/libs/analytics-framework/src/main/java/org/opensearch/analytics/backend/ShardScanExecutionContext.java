@@ -10,7 +10,9 @@ package org.opensearch.analytics.backend;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.spi.CommonExecutionContext;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.tasks.Task;
 
 /**
@@ -26,6 +28,8 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private final Task task;
     private byte[] fragmentBytes;
     private BufferAllocator allocator;
+    private MapperService mapperService;
+    private IndexSettings indexSettings;
 
     /**
      * Constructs an execution context.
@@ -72,5 +76,25 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     /** Sets the caller-provided allocator. The caller owns its lifecycle; the engine must not close it. */
     public void setAllocator(BufferAllocator allocator) {
         this.allocator = allocator;
+    }
+
+    /** Returns the shard's mapper service for field type resolution. */
+    public MapperService getMapperService() {
+        return mapperService;
+    }
+
+    /** Sets the shard's mapper service. */
+    public void setMapperService(MapperService mapperService) {
+        this.mapperService = mapperService;
+    }
+
+    /** Returns the shard's index settings. */
+    public IndexSettings getIndexSettings() {
+        return indexSettings;
+    }
+
+    /** Sets the shard's index settings. */
+    public void setIndexSettings(IndexSettings indexSettings) {
+        this.indexSettings = indexSettings;
     }
 }

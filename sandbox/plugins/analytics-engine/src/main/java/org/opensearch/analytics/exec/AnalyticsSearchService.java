@@ -19,6 +19,8 @@ import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.DelegationDescriptor;
+import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
@@ -82,7 +84,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
         ResolvedFragment resolved = resolveFragment(request, shard);
         long startNanos = System.nanoTime();
-        try (FragmentResources ctx = startFragment(request, resolved, task)) {
+        try (FragmentResources ctx = startFragment(request, resolved, shard, task)) {
             FragmentExecutionResponse response = collectResponse(ctx.stream(), task);
             long tookNanos = System.nanoTime() - startNanos;
             listener.onFragmentSuccess(resolved.queryId, resolved.stageId, resolved.shardIdStr, tookNanos, response.getRows().size());
@@ -99,7 +101,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
         ResolvedFragment resolved = resolveFragment(request, shard);
         try {
-            return startFragment(request, resolved, task);
+            return startFragment(request, resolved, shard, task);
         } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw e;
@@ -109,13 +111,14 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
     }
 
-    private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, Task task) throws IOException {
+    private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
+        throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         BackendExecutionContext backendContext = null;
         try {
-            ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, task);
+            ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, shard, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
             // Apply instruction handlers in order — each builds upon the previous handler's backend context
@@ -126,6 +129,18 @@ public class AnalyticsSearchService implements AutoCloseable {
                     FragmentInstructionHandler handler = factory.createHandler(node);
                     backendContext = handler.apply(node, ctx, backendContext);
                 }
+            }
+
+            // Handle exchange — if plan has delegation, ask accepting backend for handle and pass to driving
+            // TODO: currently assumes single accepting backend. When multiple accepting backends exist
+            // (e.g., Lucene + Tantivy), group expressions by acceptingBackendId and create one handle per group.
+            DelegationDescriptor delegation = resolved.plan.getDelegationDescriptor();
+            if (delegation != null) {
+                String acceptingBackendId = delegation.delegatedExpressions().getFirst().getAcceptingBackendId();
+                AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
+                FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(
+                    delegation.delegatedExpressions(), ctx);
+                backend.configureFilterDelegation(handle, backendContext);
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
@@ -188,11 +203,14 @@ public class AnalyticsSearchService implements AutoCloseable {
         FragmentExecutionRequest request,
         Reader reader,
         FragmentExecutionRequest.PlanAlternative plan,
+        IndexShard shard,
         Task task
     ) {
         ShardScanExecutionContext ctx = new ShardScanExecutionContext(request.getShardId().getIndexName(), task, reader);
         ctx.setFragmentBytes(plan.getFragmentBytes());
         ctx.setAllocator(allocator);
+        ctx.setMapperService(shard.mapperService());
+        ctx.setIndexSettings(shard.indexSettings());
         return ctx;
     }
 
