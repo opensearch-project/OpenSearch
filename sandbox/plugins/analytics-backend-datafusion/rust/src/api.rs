@@ -44,7 +44,7 @@ use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
-use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
+use datafusion::execution::memory_pool::TrackConsumersPool;
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
@@ -56,6 +56,7 @@ use futures::TryStreamExt;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::local_executor::LocalSession;
+use crate::memory::{DynamicLimitHandle, DynamicLimitPool};
 use crate::partition_stream::PartitionStreamSender;
 use crate::query_memory_pool_tracker::QueryTrackingContext;
 use crate::runtime_manager::RuntimeManager;
@@ -107,10 +108,12 @@ pub async fn create_object_metas(
 }
 
 /// Opaque runtime handle returned to the caller.
-/// Contains the DataFusion RuntimeEnv (memory pool, disk spill, cache).
+/// Contains the DataFusion RuntimeEnv (memory pool, disk spill, cache)
+/// and a handle to change the memory pool limit at runtime.
 pub struct DataFusionRuntime {
     pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
     pub custom_cache_manager: Option<CustomCacheManager>,
+    pub(crate) dynamic_limit_handle: DynamicLimitHandle,
 }
 
 /// Opaque shard view handle returned to the caller.
@@ -129,12 +132,26 @@ pub fn create_global_runtime(
     spill_dir: &str,
     spill_limit: i64,
 ) -> Result<i64, DataFusionError> {
+    if memory_pool_limit < 0 {
+        return Err(DataFusionError::Configuration(format!(
+            "memory_pool_limit must be non-negative, got {}",
+            memory_pool_limit
+        )));
+    }
+    if spill_limit < 0 {
+        return Err(DataFusionError::Configuration(format!(
+            "spill_limit must be non-negative, got {}",
+            spill_limit
+        )));
+    }
+
     let disk_manager = DiskManagerBuilder::default()
         .with_max_temp_directory_size(spill_limit as u64)
         .with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
 
+    let (dynamic_pool, dynamic_limit_handle) = DynamicLimitPool::new(memory_pool_limit as usize);
     let memory_pool = Arc::new(TrackConsumersPool::new(
-        GreedyMemoryPool::new(memory_pool_limit as usize),
+        dynamic_pool,
         NonZeroUsize::new(5).unwrap(),
     ));
 
@@ -151,7 +168,7 @@ pub fn create_global_runtime(
         .with_cache_manager(cache_manager_config)
         .build()?;
 
-    let runtime = DataFusionRuntime { runtime_env, custom_cache_manager };
+    let runtime = DataFusionRuntime { runtime_env, custom_cache_manager, dynamic_limit_handle };
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
 
@@ -163,6 +180,40 @@ pub unsafe fn close_global_runtime(ptr: i64) {
     if ptr != 0 {
         let _ = Box::from_raw(ptr as *mut DataFusionRuntime);
     }
+}
+
+// ---- Memory pool observability and dynamic limit ----
+
+/// Returns the current memory pool usage in bytes.
+///
+/// # Safety
+/// `ptr` must be a valid pointer returned by `create_global_runtime`.
+pub unsafe fn get_memory_pool_usage(ptr: i64) -> i64 {
+    let runtime = &*(ptr as *const DataFusionRuntime);
+    runtime.runtime_env.memory_pool.reserved() as i64
+}
+
+/// Returns the current memory pool limit in bytes.
+///
+/// # Safety
+/// `ptr` must be a valid pointer returned by `create_global_runtime`.
+pub unsafe fn get_memory_pool_limit(ptr: i64) -> i64 {
+    let runtime = &*(ptr as *const DataFusionRuntime);
+    runtime.dynamic_limit_handle.limit() as i64
+}
+
+/// Sets the memory pool limit at runtime. Takes effect for new allocations only.
+/// Returns an error if `new_limit` is negative.
+///
+/// # Safety
+/// `ptr` must be a valid pointer returned by `create_global_runtime`.
+pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), String> {
+    if new_limit < 0 {
+        return Err(format!("Memory pool limit must be non-negative, got {}", new_limit));
+    }
+    let runtime = &*(ptr as *const DataFusionRuntime);
+    runtime.dynamic_limit_handle.set_limit(new_limit as usize);
+    Ok(())
 }
 
 /// Creates a native reader (ShardView) for the given path and files.
