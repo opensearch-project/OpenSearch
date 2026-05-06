@@ -43,7 +43,6 @@ internalClusterTest {
 
 dependencies {
   api project(':libs:opensearch-concurrent-queue')
-  api project(':sandbox:libs:composite-common')
   compileOnly project(':server')
   testImplementation project(':test:framework')
   testImplementation project(':sandbox:plugins:parquet-data-format')

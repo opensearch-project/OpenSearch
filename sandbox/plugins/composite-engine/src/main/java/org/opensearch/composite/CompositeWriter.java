@@ -11,7 +11,6 @@ package org.opensearch.composite;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.queue.Lockable;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -26,7 +25,6 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A composite {@link Writer} that wraps one {@link Writer} per registered data format
@@ -40,16 +38,14 @@ import java.util.concurrent.locks.ReentrantLock;
  * @opensearch.experimental
  */
 @ExperimentalApi
-class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
+class CompositeWriter implements Writer<CompositeDocumentInput> {
 
     private static final Logger logger = LogManager.getLogger(CompositeWriter.class);
 
     private final DataFormat primaryFormat;
     private final Writer<DocumentInput<?>> primaryWriter;
     private final Map<DataFormat, Writer<DocumentInput<?>>> secondaryWritersByFormat;
-    private final ReentrantLock lock;
     private final long writerGeneration;
-    private final RowIdGenerator rowIdGenerator;
     private final AtomicReference<WriterState> state;
 
     /**
@@ -83,7 +79,6 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
      */
     @SuppressWarnings("unchecked")
     CompositeWriter(CompositeIndexingExecutionEngine engine, long writerGeneration) {
-        this.lock = new ReentrantLock();
         this.state = new AtomicReference<>(WriterState.ACTIVE);
         this.writerGeneration = writerGeneration;
 
@@ -96,7 +91,6 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
             secondaries.put(delegate.getDataFormat(), (Writer<DocumentInput<?>>) delegate.createWriter(writerGeneration));
         }
         this.secondaryWritersByFormat = Collections.unmodifiableMap(secondaries);
-        this.rowIdGenerator = new RowIdGenerator(CompositeWriter.class.getName());
     }
 
     @Override
@@ -104,10 +98,6 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
         if (state.get() != WriterState.ACTIVE) {
             throw new IllegalStateException("Cannot add document to writer in state " + state.get());
         }
-        // Row ID must be assigned before writing to any format — it's the cross-format correlation key
-        doc.setRowId(DocumentInput.ROW_ID_FIELD, rowIdGenerator.nextRowId());
-        // Row ID must be non-negative and sequential within this writer
-        assert rowIdGenerator.currentRowId() >= 0 : "row ID must be non-negative but was: " + rowIdGenerator.currentRowId();
 
         // Write to primary first
         WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
@@ -252,20 +242,5 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
      */
     WriterState getState() {
         return state.get();
-    }
-
-    @Override
-    public void lock() {
-        lock.lock();
-    }
-
-    @Override
-    public boolean tryLock() {
-        return lock.tryLock();
-    }
-
-    @Override
-    public void unlock() {
-        lock.unlock();
     }
 }

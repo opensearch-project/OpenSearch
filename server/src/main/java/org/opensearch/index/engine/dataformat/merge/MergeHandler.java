@@ -50,6 +50,7 @@ public class MergeHandler {
     private final MergeListener mergeListener;
     private final Merger merger;
     private final Logger logger;
+    private final Supplier<Long> generationProvider;
 
     /**
      * Creates a new merge handler.
@@ -63,13 +64,15 @@ public class MergeHandler {
         Merger merger,
         ShardId shardId,
         MergePolicy mergePolicy,
-        MergeListener mergeListener
+        MergeListener mergeListener,
+        Supplier<Long> generationProvider
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.snapshotSupplier = snapshotSupplier;
         this.mergePolicy = mergePolicy;
         this.mergeListener = mergeListener;
         this.merger = merger;
+        this.generationProvider = generationProvider;
     }
 
     /**
@@ -213,8 +216,14 @@ public class MergeHandler {
      * @throws IOException if the merge operation fails
      */
     public MergeResult doMerge(OneMerge oneMerge) throws IOException {
-        MergeInput mergeInput = MergeInput.builder().segments(oneMerge.getSegmentsToMerge()).build();
-        return merger.merge(mergeInput);
+        assert oneMerge.getSegmentsToMerge().isEmpty() == false : "merge must have at least one segment";
+        long generation = generationProvider.get();
+        assert generation > 0 : "merge writer generation must be positive but was: " + generation;
+        MergeInput mergeInput = MergeInput.builder().segments(oneMerge.getSegmentsToMerge()).newWriterGeneration(generation).build();
+        MergeResult result = merger.merge(mergeInput);
+        assert result != null : "merger must return a non-null MergeResult";
+        assert result.getMergedWriterFileSet().isEmpty() == false : "merge result must contain at least one format's files";
+        return result;
     }
 
     private synchronized void removeMergingSegments(OneMerge oneMerge) {

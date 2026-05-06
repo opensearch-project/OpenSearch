@@ -14,7 +14,7 @@
 use std::slice;
 use std::str;
 
-use native_bridge_common::ffm_safe;
+use native_bridge_common::{ffm_safe, log_debug};
 
 use crate::native_settings::NativeSettings;
 use crate::merge;
@@ -290,6 +290,12 @@ pub unsafe extern "C" fn parquet_merge_files(
     output_len: i64,
     index_name_ptr: *const u8,
     index_name_len: i64,
+    version_out: *mut i32,
+    num_rows_out: *mut i64,
+    created_by_buf: *mut u8,
+    created_by_buf_len: i64,
+    created_by_len_out: *mut i64,
+    crc32_out: *mut i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
@@ -317,7 +323,7 @@ pub unsafe extern "C" fn parquet_merge_files(
         }
     };
 
-    if sort_cols.is_empty() {
+    let (metadata, crc32) = if sort_cols.is_empty() {
         merge::merge_unsorted(&input_files, output_path, index_name)
     } else {
         merge::merge_sorted(
@@ -329,8 +335,24 @@ pub unsafe extern "C" fn parquet_merge_files(
             &nulls_first_flags,
         )
     }
-    .map(|_| 0)
-    .map_err(|e| format!("{}", e))
+    .map_err(|e| format!("{}", e))?;
+
+    // Write metadata to out-pointers
+    let fm = metadata.file_metadata();
+    if !version_out.is_null() { *version_out = fm.version(); }
+    if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
+    if let Some(cb) = fm.created_by() {
+        if !created_by_buf.is_null() && created_by_buf_len > 0 {
+            let bytes = cb.as_bytes();
+            let n = bytes.len().min(created_by_buf_len as usize);
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), created_by_buf, n);
+            if !created_by_len_out.is_null() { *created_by_len_out = n as i64; }
+        }
+    } else if !created_by_len_out.is_null() {
+        *created_by_len_out = -1;
+    }
+    if !crc32_out.is_null() { *crc32_out = crc32 as i64; }
+    Ok(0)
 }
 
 // ---------------------------------------------------------------------------
