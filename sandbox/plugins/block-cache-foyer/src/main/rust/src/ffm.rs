@@ -11,7 +11,6 @@
 use std::sync::Arc;
 use native_bridge_common::ffm_safe;
 use crate::foyer::foyer_cache::FoyerCache;
-use crate::stats::AggregateBlockCacheStats;
 
 /// Create a [`FoyerCache`] and return an opaque `Arc` handle as `i64`.
 ///
@@ -114,12 +113,10 @@ pub unsafe extern "C" fn foyer_snapshot_stats(ptr: i64, out: *mut i64) -> i64 {
     std::mem::forget(cache);
 
     // Foyer is currently single-tier (disk only): overall and block_level are identical.
-    // When an in-memory tier is added, snapshot each tier separately and assign them independently.
-    let agg = AggregateBlockCacheStats {
-        overall:     single,
-        block_level: single,
-    };
-    let flat = agg.to_flat();
+    // When an in-memory tier is added, snapshot each tier separately and write independently.
+    let mut flat = [0i64; 14];
+    flat[..7].copy_from_slice(&single);  // section 0: overall
+    flat[7..].copy_from_slice(&single);  // section 1: block_level
     for (i, &v) in flat.iter().enumerate() {
         *out.add(i) = v;
     }
