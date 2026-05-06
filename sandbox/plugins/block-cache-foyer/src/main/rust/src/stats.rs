@@ -20,47 +20,12 @@
 //!
 //! The snapshot produces a `[i64; 7]` array whose layout is fixed and
 //! documented on [`BlockCacheStatsCounter::snapshot`]. Java reads this array via
-//! `FoyerBridge.snapshotStats()` and constructs a `BlockCacheStats` Java object
-//! that implements `IBlockCacheStats`.
+//! `FoyerBridge.snapshotStats()` and constructs a `FoyerAggregatedStats` snapshot
+//! (two sections: overall and block-level), which is then projected to a
+//! `BlockCacheStats` record for core consumption.
 
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
-
-/// Aggregate snapshot of block cache statistics, mirroring the structure of
-/// Java's [`AggregateRefCountedCacheStats`] for uniformity.
-///
-/// Today Foyer is a single-tier disk cache (no in-memory tier), so
-/// `overall` and `block_level` always carry identical values. The struct
-/// exists so that callers on the Java side can treat block-cache stats with
-/// the same shape they use for FileCache stats, and so that future Foyer
-/// configurations (e.g. a real in-memory tier alongside the disk tier) can
-/// populate the two fields independently without a breaking change.
-///
-/// # FFM layout
-/// [`foyer_snapshot_stats`][crate::foyer::ffm] writes `14` consecutive
-/// `i64` values: the 7-field snapshot of `overall` followed by the 7-field
-/// snapshot of `block_level`.
-///
-/// Each 7-value section layout:
-/// `[hit_count, hit_bytes, miss_count, miss_bytes, eviction_count, eviction_bytes, used_bytes]`
-#[derive(Default, Debug)]
-pub struct AggregateBlockCacheStats {
-    /// Cross-tier rollup (today: same as `block_level` — Foyer has one tier).
-    pub overall: [i64; 7],
-    /// Block-level (disk tier) stats.
-    pub block_level: [i64; 7],
-}
-
-impl AggregateBlockCacheStats {
-    /// Flatten to a `[i64; 14]` array for FFM transfer.
-    /// Layout: `overall[0..7]` then `block_level[0..7]`.
-    pub fn to_flat(&self) -> [i64; 14] {
-        let mut out = [0i64; 14];
-        out[..7].copy_from_slice(&self.overall);
-        out[7..].copy_from_slice(&self.block_level);
-        out
-    }
-}
 
 /// Atomic stats counters shared between the cache and its event listener.
 ///
