@@ -30,10 +30,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Always-loaded module that manages native (jemalloc) allocator settings.
+ * Always-loaded module that manages runtime tuning for the native (Rust/FFM) layer.
  * <p>
- * Registers dynamic cluster settings for jemalloc decay tuning and applies
- * changes at runtime via the FFM bridge in {@link NativeAllocatorConfig}.
+ * Registers dynamic cluster settings and applies changes at runtime via the FFM bridge.
  */
 public class NativeBridgeModule extends Plugin {
 

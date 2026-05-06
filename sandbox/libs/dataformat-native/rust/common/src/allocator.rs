@@ -12,7 +12,7 @@
 //!   - `>= 0` → success (the stat value in bytes, or 0 for setters)
 //!   - `< 0`  → error pointer. Negate and pass to `native_error_message` / `native_error_free`.
 
-use crate::error::into_error_ptr;
+use crate::error::{ffm_wrap, into_error_ptr};
 use std::sync::OnceLock;
 use tikv_jemalloc_ctl::{epoch, epoch_mib, stats, stats::allocated_mib, stats::resident_mib};
 
@@ -68,36 +68,34 @@ pub fn resident_bytes() -> i64 {
 /// FFI: Returns current jemalloc allocated bytes, or negative error pointer.
 #[no_mangle]
 pub extern "C" fn native_jemalloc_allocated_bytes() -> i64 {
-    allocated_bytes()
+    ffm_wrap("native_jemalloc_allocated_bytes", || refresh_stats().map(|(alloc, _)| alloc))
 }
 
 /// FFI: Returns current jemalloc resident bytes, or negative error pointer.
 #[no_mangle]
 pub extern "C" fn native_jemalloc_resident_bytes() -> i64 {
-    resident_bytes()
+    ffm_wrap("native_jemalloc_resident_bytes", || refresh_stats().map(|(_, res)| res))
 }
 
-/// FFI: Sets dirty_decay_ms for all arenas at runtime. Returns 0 on success, -1 on error.
+/// FFI: Sets dirty_decay_ms for all arenas at runtime. Returns 0 on success, negative error pointer on failure.
 /// Called from Java when the cluster setting `native.jemalloc.dirty_decay_ms` changes.
 #[no_mangle]
-pub extern "C" fn native_jemalloc_set_dirty_decay_ms(ms: i64) -> i32 {
-    set_all_arenas(b"dirty_decay_ms\0", ms)
+pub extern "C" fn native_jemalloc_set_dirty_decay_ms(ms: i64) -> i64 {
+    ffm_wrap("native_jemalloc_set_dirty_decay_ms", || set_all_arenas(b"dirty_decay_ms\0", ms))
 }
 
-/// FFI: Sets muzzy_decay_ms for all arenas at runtime. Returns 0 on success, -1 on error.
+/// FFI: Sets muzzy_decay_ms for all arenas at runtime. Returns 0 on success, negative error pointer on failure.
 /// Called from Java when the cluster setting `native.jemalloc.muzzy_decay_ms` changes.
 #[no_mangle]
-pub extern "C" fn native_jemalloc_set_muzzy_decay_ms(ms: i64) -> i32 {
-    set_all_arenas(b"muzzy_decay_ms\0", ms)
+pub extern "C" fn native_jemalloc_set_muzzy_decay_ms(ms: i64) -> i64 {
+    ffm_wrap("native_jemalloc_set_muzzy_decay_ms", || set_all_arenas(b"muzzy_decay_ms\0", ms))
 }
 
 /// Applies a setting to all existing jemalloc arenas.
 /// Skips arenas that are not available (destroyed or internal).
-fn set_all_arenas(suffix: &[u8], ms: i64) -> i32 {
-    let narenas: u32 = match unsafe { tikv_jemalloc_ctl::raw::read(b"arenas.narenas\0") } {
-        Ok(n) => n,
-        Err(_) => return -1,
-    };
+fn set_all_arenas(suffix: &[u8], ms: i64) -> Result<i64, String> {
+    let narenas: u32 = unsafe { tikv_jemalloc_ctl::raw::read(b"arenas.narenas\0") }
+        .map_err(|e| format!("failed to read arenas.narenas: {}", e))?;
     let suffix_str = std::str::from_utf8(&suffix[..suffix.len() - 1]).unwrap();
     let mut any_success = false;
     for i in 0..narenas {
@@ -106,7 +104,11 @@ fn set_all_arenas(suffix: &[u8], ms: i64) -> i32 {
             any_success = true;
         }
     }
-    if any_success { 0 } else { -1 }
+    if any_success {
+        Ok(0)
+    } else {
+        Err(format!("failed to set {} on any arena", suffix_str))
+    }
 }
 
 #[cfg(test)]
@@ -137,7 +139,7 @@ mod tests {
     #[test]
     fn set_dirty_decay_ms_applies_at_runtime() {
         let rc = native_jemalloc_set_dirty_decay_ms(5000);
-        assert_eq!(rc, 0, "setter should succeed");
+        assert_eq!(rc, 0, "setter should succeed, got {}", rc);
 
         // Read back from arena 0 to verify it took effect
         let actual: isize =
@@ -151,7 +153,7 @@ mod tests {
     #[test]
     fn set_muzzy_decay_ms_applies_at_runtime() {
         let rc = native_jemalloc_set_muzzy_decay_ms(10000);
-        assert_eq!(rc, 0, "setter should succeed");
+        assert_eq!(rc, 0, "setter should succeed, got {}", rc);
 
         let actual: isize =
             unsafe { tikv_jemalloc_ctl::raw::read(b"arena.0.muzzy_decay_ms\0") }.unwrap();

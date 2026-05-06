@@ -7,7 +7,7 @@
  */
 
 opensearchplugin {
-  description = 'Native bridge module: manages jemalloc allocator settings for the native (Rust/FFM) layer.'
+  description = 'Native bridge module: manages runtime tuning for the native (Rust/FFM) layer.'
   classname = 'org.opensearch.nativebridge.NativeBridgeModule'
 }
 

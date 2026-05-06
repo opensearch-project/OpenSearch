@@ -35,7 +35,7 @@ public final class NativeAllocatorConfig {
     static {
         SymbolLookup lookup = NativeLibraryLoader.symbolLookup();
         Linker linker = Linker.nativeLinker();
-        FunctionDescriptor desc = FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG);
+        FunctionDescriptor desc = FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG);
         SET_DIRTY = linker.downcallHandle(lookup.find("native_jemalloc_set_dirty_decay_ms").orElseThrow(), desc);
         SET_MUZZY = linker.downcallHandle(lookup.find("native_jemalloc_set_muzzy_decay_ms").orElseThrow(), desc);
     }
@@ -62,12 +62,9 @@ public final class NativeAllocatorConfig {
 
     private static void applyDecay(MethodHandle handle, String name, long ms) {
         try {
-            int rc = (int) handle.invokeExact(ms);
-            if (rc == 0) {
-                logger.info("jemalloc {} updated to {}", name, ms);
-            } else {
-                logger.warn("Failed to set jemalloc {} to {}", name, ms);
-            }
+            long rc = (long) handle.invokeExact(ms);
+            NativeLibraryLoader.checkResult(rc);
+            logger.info("jemalloc {} updated to {}", name, ms);
         } catch (Throwable t) {
             logger.warn("Error setting jemalloc " + name, t);
         }
