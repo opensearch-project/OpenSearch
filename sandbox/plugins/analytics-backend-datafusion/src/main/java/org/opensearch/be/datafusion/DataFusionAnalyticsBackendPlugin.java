@@ -100,7 +100,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MINUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
-        ScalarFunction.MOD
+        ScalarFunction.MOD,
+        ScalarFunction.YEAR,
+        ScalarFunction.CONVERT_TZ,
+        ScalarFunction.UNIX_TIMESTAMP
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -178,7 +181,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
                     Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
                     Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
-                    Map.entry(ScalarFunction.LIKE, new LikeAdapter())
+                    Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
+                    Map.entry(ScalarFunction.YEAR, new YearAdapter()),
+                    Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
+                    Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter())
                 );
             }
         };

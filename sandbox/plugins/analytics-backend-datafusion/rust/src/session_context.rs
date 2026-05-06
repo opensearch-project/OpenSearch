@@ -99,6 +99,7 @@ pub async unsafe fn create_session_context(
         .build();
 
     let ctx = SessionContext::new_with_state(state);
+    crate::udf::register_all(&ctx);
 
     // Register default ListingTable for parquet scans
     let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))

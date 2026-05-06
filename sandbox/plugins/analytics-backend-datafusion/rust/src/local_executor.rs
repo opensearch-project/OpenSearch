@@ -70,9 +70,9 @@ impl LocalSession {
             .with_runtime_env(runtime_env)
             .with_default_features()
             .build();
-        Self {
-            ctx: SessionContext::new_with_state(state),
-        }
+        let ctx = SessionContext::new_with_state(state);
+        crate::udf::register_all(&ctx);
+        Self { ctx }
     }
 
     /// Registers a streaming input on the session under `name` and returns the
