@@ -10,10 +10,13 @@ package org.opensearch.be.datafusion;
 
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Smoke test for the DataFusion JNI bridge.
@@ -62,5 +65,56 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         readerHandle.close();
 
         NativeBridge.closeGlobalRuntime(runtimePtr);
+    }
+
+    public void testSessionContextCreationAndTableRegistration() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        Path dataDir = createTempDir("datafusion-data");
+        Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
+        Files.copy(testParquet, dataDir.resolve("test.parquet"));
+
+        ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
+
+        // Create session context with table registered
+        SessionContextHandle sessionCtx = NativeBridge.createSessionContext(
+            readerHandle.getPointer(),
+            runtimeHandle.get(),
+            "test_table",
+            0L
+        );
+        assertTrue("SessionContext pointer should be non-zero", sessionCtx.getPointer() != 0);
+
+        // Execute a simple query to verify the session context is properly configured
+        byte[] substrait = NativeBridge.sqlToSubstrait(
+            readerHandle.getPointer(),
+            "test_table",
+            "SELECT message FROM test_table",
+            runtimeHandle.get()
+        );
+        CompletableFuture<Long> future = new CompletableFuture<>();
+        NativeBridge.executeWithContextAsync(sessionCtx.getPointer(), substrait, new ActionListener<>() {
+            @Override
+            public void onResponse(Long streamPtr) {
+                future.complete(streamPtr);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                future.completeExceptionally(exception);
+            }
+        });
+        long streamPtr = future.join();
+        assertTrue("Stream pointer should be non-zero", streamPtr != 0);
+
+        // Session context is consumed by execute — close the Java handle
+        sessionCtx.close();
+
+        NativeBridge.streamClose(streamPtr);
+        readerHandle.close();
+        runtimeHandle.close();
     }
 }

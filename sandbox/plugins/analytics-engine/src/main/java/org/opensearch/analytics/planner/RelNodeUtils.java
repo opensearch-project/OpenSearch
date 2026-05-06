@@ -19,7 +19,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
-import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
@@ -112,29 +111,20 @@ public class RelNodeUtils {
     }
 
     /**
-     * Extracts the single backend from the leaf operator in a resolved fragment.
-     * After resolution, every operator has exactly one viable backend. Throws if
-     * the leaf has more than one (indicates resolution didn't complete).
+     * Finds the first node of the given type in the fragment's single-input chain.
+     * Returns {@code null} if not found.
+     *
+     * <p>TODO: migrate existing findLeaf/findFilter usages in FragmentConversionDriver to use this.
      */
-    public static String extractLeafBackendFromResolvedFragment(RelNode node) {
-        if (node.getInputs().isEmpty()) {
-            if (node instanceof OpenSearchRelNode leafNode) {
-                List<String> backends = leafNode.getViableBackends();
-                if (backends.size() != 1) {
-                    throw new IllegalStateException(
-                        "Expected exactly 1 viable backend on resolved leaf [" + node.getClass().getSimpleName() + "], got " + backends
-                    );
-                }
-                return backends.getFirst();
-            }
-            throw new IllegalStateException("Leaf node [" + node.getClass().getSimpleName() + "] is not an OpenSearchRelNode");
+    @SuppressWarnings("unchecked")
+    public static <T extends RelNode> T findNode(RelNode node, Class<T> type) {
+        if (type.isInstance(node)) {
+            return (T) node;
         }
-        for (RelNode input : node.getInputs()) {
-            String backend = extractLeafBackendFromResolvedFragment(input);
-            if (backend != null) {
-                return backend;
-            }
+        if (!node.getInputs().isEmpty()) {
+            return findNode(node.getInputs().getFirst(), type);
         }
         return null;
     }
+
 }

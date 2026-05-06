@@ -11,9 +11,13 @@ package org.opensearch.analytics.exec.stage;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
+import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
+import org.opensearch.analytics.spi.FragmentInstructionHandler;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.InstructionNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +51,22 @@ final class LocalStageScheduler implements StageScheduler {
             buildChildInputs(stage),
             sink
         );
+
+        // Apply instruction handlers for the reduce stage.
+        // Unlike AnalyticsSearchService (shard path) which resolves the factory from its
+        // local backends map, the coordinator-reduce path has no backends map — the factory
+        // is stored on the Stage during FragmentConversionDriver.convertAll (root stage only,
+        // no serialization needed since reduce executes locally at the coordinator).
+        // TODO: find a cleaner way to provide the factory without storing it on Stage.
+        FragmentInstructionHandlerFactory factory = stage.getInstructionHandlerFactory();
+        if (factory != null) {
+            BackendExecutionContext backendContext = null;
+            for (InstructionNode node : stage.getPlanAlternatives().getFirst().instructions()) {
+                FragmentInstructionHandler handler = factory.createHandler(node);
+                backendContext = handler.apply(node, context, backendContext);
+            }
+        }
+
         ExchangeSink backendSink;
         try {
             backendSink = provider.createSink(context);

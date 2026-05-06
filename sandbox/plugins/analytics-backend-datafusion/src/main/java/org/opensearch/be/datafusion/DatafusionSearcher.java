@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
@@ -45,6 +46,43 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
 
     @Override
     public void search(DatafusionContext context) throws IOException {
+        SessionContextHandle sessionCtx = context.getSessionContextHandle();
+        if (sessionCtx != null) {
+            searchWithSessionContext(context, sessionCtx);
+        } else {
+            searchVanilla(context);
+        }
+    }
+
+    private void searchWithSessionContext(DatafusionContext context, SessionContextHandle sessionCtx) throws IOException {
+        DatafusionQuery query = context.getDatafusionQuery();
+        NativeRuntimeHandle runtimeHandle = context.getNativeRuntime();
+        CompletableFuture<Long> future = new CompletableFuture<>();
+        NativeBridge.executeWithContextAsync(sessionCtx.getPointer(), query.getSubstraitBytes(), new ActionListener<>() {
+            @Override
+            public void onResponse(Long streamPtr) {
+                future.complete(streamPtr);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                future.completeExceptionally(exception);
+            }
+        });
+        long streamPtr;
+        try {
+            streamPtr = future.join();
+        } catch (Exception exception) {
+            throw new IOException("Query execution with session context failed", exception);
+        }
+        // Rust consumed the session context — unregister from live handle set
+        sessionCtx.close();
+        context.setStreamHandle(new StreamHandle(streamPtr, runtimeHandle));
+    }
+
+    // TODO: Remove searchVanilla once all execution paths go through instruction handlers.
+    // Deprecated — retained only for tests that bypass AnalyticsSearchService.
+    private void searchVanilla(DatafusionContext context) throws IOException {
         DatafusionQuery query = context.getDatafusionQuery();
         if (query == null) {
             throw new IllegalStateException("DatafusionQuery must be set before search");
