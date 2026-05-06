@@ -93,6 +93,14 @@ public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearc
         }
     }
 
+    /**
+     * Stable identity string used by segment-replication machinery to name this segment.
+     * Must remain equal across primary (publish) and replica (cleanup) for the same segment.
+     */
+    public String replicationCheckpointName() {
+        return Long.toString(generation);
+    }
+
     @Override
     public String toString() {
         return "Segment{" + "generation=" + generation + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + '}';
