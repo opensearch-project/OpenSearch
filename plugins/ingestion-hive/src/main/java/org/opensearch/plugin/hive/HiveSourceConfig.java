@@ -8,6 +8,9 @@
 
 package org.opensearch.plugin.hive;
 
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.util.ConfigurationUtils;
+
 import java.util.Map;
 
 /**
@@ -57,14 +60,14 @@ public class HiveSourceConfig {
      * @param params the parameter map from ingestion source settings
      */
     public HiveSourceConfig(Map<String, Object> params) {
-        this.metastoreUri = (String) params.get("metastore_uri");
-        this.database = (String) params.get("database");
-        this.table = (String) params.get("table");
+        this.metastoreUri = ConfigurationUtils.readStringProperty(params, "metastore_uri");
+        this.database = ConfigurationUtils.readStringProperty(params, "database");
+        this.table = ConfigurationUtils.readStringProperty(params, "table");
 
-        String interval = (String) params.getOrDefault("monitor_interval", "300s");
-        this.monitorIntervalMillis = parseIntervalMillis(interval);
+        String interval = ConfigurationUtils.readStringProperty(params, "monitor_interval", "300s");
+        this.monitorIntervalMillis = TimeValue.parseTimeValue(interval, "monitor_interval").millis();
 
-        String order = (String) params.getOrDefault("partition_order", "partition-name");
+        String order = ConfigurationUtils.readStringProperty(params, "partition_order", "partition-name");
         if ("create-time".equals(order)) {
             this.partitionOrder = PartitionOrder.CREATE_TIME;
         } else if ("partition-time".equals(order)) {
@@ -73,25 +76,28 @@ public class HiveSourceConfig {
             this.partitionOrder = PartitionOrder.PARTITION_NAME;
         }
 
-        this.partitionTimePattern = (String) params.get("partition_time_pattern");
+        this.partitionTimePattern = ConfigurationUtils.readOptionalStringProperty(params, "partition_time_pattern");
 
-        this.consumeStartOffset = (String) params.get("consume_start_offset");
+        this.consumeStartOffset = ConfigurationUtils.readOptionalStringProperty(params, "consume_start_offset");
         this.numShards = params.containsKey("_number_of_shards")
             ? ((Number) params.get("_number_of_shards")).intValue()
-            : Integer.parseInt(String.valueOf(params.getOrDefault("num_shards", "1")));
+            : ConfigurationUtils.readIntProperty(params, "num_shards", 1);
 
-        String transport = (String) params.getOrDefault("transport_mode", "unframed");
+        String transport = ConfigurationUtils.readStringProperty(params, "transport_mode", "unframed");
         this.transportMode = "framed".equals(transport) ? TransportMode.FRAMED : TransportMode.UNFRAMED;
 
-        this.connectTimeoutMillis = Integer.parseInt(String.valueOf(params.getOrDefault("connect_timeout", "10000")));
-        this.maxRetries = Integer.parseInt(String.valueOf(params.getOrDefault("max_retries", "3")));
-        this.retryIntervalMillis = Long.parseLong(String.valueOf(params.getOrDefault("retry_interval", "5000")));
+        this.connectTimeoutMillis = ConfigurationUtils.readIntProperty(params, "connect_timeout", 10000);
+        this.maxRetries = ConfigurationUtils.readIntProperty(params, "max_retries", 3);
+        this.retryIntervalMillis = TimeValue.parseTimeValue(
+            ConfigurationUtils.readStringProperty(params, "retry_interval", "5s"),
+            "retry_interval"
+        ).millis();
 
-        String auth = (String) params.getOrDefault("authentication", "none");
+        String auth = ConfigurationUtils.readStringProperty(params, "authentication", "none");
         this.authMode = "kerberos".equals(auth) ? AuthMode.KERBEROS : AuthMode.NONE;
-        this.kerberosPrincipal = (String) params.get("kerberos_principal");
-        this.kerberosKeytabPath = (String) params.get("kerberos_keytab");
-        this.metastoreServicePrincipal = (String) params.get("metastore_service_principal");
+        this.kerberosPrincipal = ConfigurationUtils.readOptionalStringProperty(params, "kerberos_principal");
+        this.kerberosKeytabPath = ConfigurationUtils.readOptionalStringProperty(params, "kerberos_keytab");
+        this.metastoreServicePrincipal = ConfigurationUtils.readOptionalStringProperty(params, "metastore_service_principal");
     }
 
     /** Returns the Hive Metastore Thrift URI (e.g., {@code thrift://host:9083}). */
@@ -174,12 +180,4 @@ public class HiveSourceConfig {
         return metastoreServicePrincipal;
     }
 
-    private static long parseIntervalMillis(String interval) {
-        if (interval.endsWith("s")) {
-            return Long.parseLong(interval.substring(0, interval.length() - 1)) * 1000;
-        } else if (interval.endsWith("m")) {
-            return Long.parseLong(interval.substring(0, interval.length() - 1)) * 60 * 1000;
-        }
-        return Long.parseLong(interval);
-    }
 }
