@@ -18,6 +18,7 @@ import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.parquet.io.ColumnIOFactory;
 import org.apache.parquet.io.MessageColumnIO;
 import org.apache.parquet.io.RecordReader;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 
 import java.io.IOException;
@@ -73,7 +74,7 @@ public class ParquetHiveFileReader implements HiveFileReader {
 
     private Map<String, Object> groupToMap(Group record) {
         Map<String, Object> row = new LinkedHashMap<>();
-        org.apache.parquet.schema.GroupType schema = record.getType();
+        GroupType schema = record.getType();
         for (int i = 0; i < schema.getFieldCount(); i++) {
             String fieldName = schema.getFieldName(i);
             if (record.getFieldRepetitionCount(i) == 0) {
@@ -89,7 +90,7 @@ public class ParquetHiveFileReader implements HiveFileReader {
         return row;
     }
 
-    private Object readPrimitiveValue(Group record, org.apache.parquet.schema.GroupType schema, int fieldIndex) {
+    private Object readPrimitiveValue(Group record, GroupType schema, int fieldIndex) {
         switch (schema.getType(fieldIndex).asPrimitiveType().getPrimitiveTypeName()) {
             case BOOLEAN:
                 return record.getBoolean(fieldIndex, 0);
