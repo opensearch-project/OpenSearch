@@ -32,9 +32,6 @@ import java.util.List;
 @ExperimentalApi
 public final class DatafusionSettings {
 
-    // ── Computed default for max_collector_parallelism and target_partitions fallback ──
-    private static final int DEFAULT_PARALLELISM = 1;
-
     // ── New indexed query settings ──
 
     /** Number of rows per batch in the indexed query execution path. */
@@ -120,7 +117,7 @@ public final class DatafusionSettings {
      */
     public static final Setting<Integer> INDEXED_MAX_COLLECTOR_PARALLELISM = Setting.intSetting(
         "datafusion.indexed.max_collector_parallelism",
-        DEFAULT_PARALLELISM,
+        1,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -164,6 +161,12 @@ public final class DatafusionSettings {
     private volatile int maxSliceCount;
 
     /**
+     * Tracks the current concurrent search mode ({@code "auto"}, {@code "all"}, or {@code "none"}).
+     * When mode is {@code "none"}, target_partitions is forced to 1.
+     */
+    private volatile String concurrentSearchMode;
+
+    /**
      * Creates the settings holder, builds the initial {@link WireConfigSnapshot} from
      * the cluster service's settings, and registers listeners for dynamic updates.
      *
@@ -181,8 +184,9 @@ public final class DatafusionSettings {
         int costCollector = INDEXED_COST_COLLECTOR.get(settings);
         int maxCollectorParallelism = INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings);
 
+        this.concurrentSearchMode = SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.get(settings);
         this.maxSliceCount = SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settings);
-        int targetPartitions = deriveTargetPartitions(this.maxSliceCount);
+        int targetPartitions = deriveTargetPartitions(this.concurrentSearchMode, this.maxSliceCount);
 
         this.snapshot = new WireConfigSnapshot(
             batchSize,
@@ -302,7 +306,22 @@ public final class DatafusionSettings {
             WireConfigSnapshot current = snapshot;
             snapshot = new WireConfigSnapshot(
                 current.batchSize(),
-                deriveTargetPartitions(newValue),
+                deriveTargetPartitions(this.concurrentSearchMode, newValue),
+                current.parquetPushdownFilters(),
+                current.minSkipRunDefault(),
+                current.minSkipRunSelectivityThreshold(),
+                current.costPredicate(),
+                current.costCollector(),
+                current.maxCollectorParallelism()
+            );
+        });
+
+        clusterSettings.addSettingsUpdateConsumer(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE, newValue -> {
+            this.concurrentSearchMode = newValue;
+            WireConfigSnapshot current = snapshot;
+            snapshot = new WireConfigSnapshot(
+                current.batchSize(),
+                deriveTargetPartitions(newValue, this.maxSliceCount),
                 current.parquetPushdownFilters(),
                 current.minSkipRunDefault(),
                 current.minSkipRunSelectivityThreshold(),
@@ -324,15 +343,16 @@ public final class DatafusionSettings {
     }
 
     /**
-     * Derives {@code target_partitions} from the {@code search.concurrent.max_slice_count}
-     * setting value. When the value is greater than 0, it is used directly (passthrough).
-     * When 0 (meaning Lucene default slice computation), falls back to
-     * {@code max(1, min(availableProcessors/2, 4))}.
+     * Derives {@code target_partitions} from the concurrent search mode and
+     * {@code search.concurrent.max_slice_count} setting value.
+     * <p>
+     * When mode is {@code "none"}, forces target_partitions to 1 (no concurrency).
+     * Otherwise passes the value through as-is — 0 means "let Rust pick its default."
      */
-    private static int deriveTargetPartitions(int maxSliceCount) {
-        if (maxSliceCount > 0) {
-            return maxSliceCount;
+    private static int deriveTargetPartitions(String mode, int maxSliceCount) {
+        if (SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE.equals(mode)) {
+            return 1;
         }
-        return DEFAULT_PARALLELISM;
+        return maxSliceCount;
     }
 }

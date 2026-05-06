@@ -141,8 +141,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
 
-        this.datafusionSettings = new DatafusionSettings(settings);
-        datafusionSettings.registerListeners(clusterService.getClusterSettings());
+        this.datafusionSettings = new DatafusionSettings(clusterService);
 
         this.substraitExtensions = loadSubstraitExtensions();
 

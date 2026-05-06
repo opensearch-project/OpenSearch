@@ -5,6 +5,7 @@
 //! setup time and copied into hot-path fields — never dereferenced on a
 //! per-batch or per-row hot path.
 
+use datafusion_common::utils::get_available_parallelism;
 use crate::indexed_table::stream::FilterStrategy;
 use crate::indexed_table::eval::single_collector::CollectorCallStrategy;
 
@@ -125,7 +126,12 @@ impl DatafusionQueryConfig {
         };
         Self {
             batch_size: w.batch_size as usize,
-            target_partitions: w.target_partitions as usize,
+            // 0 means "let the runtime decide" — use available CPU parallelism
+            target_partitions: if w.target_partitions == 0 {
+                get_available_parallelism()
+            } else {
+                w.target_partitions as usize
+            },
             parquet_pushdown_filters: w.parquet_pushdown_filters != 0,
             min_skip_run_default: w.min_skip_run_default as usize,
             min_skip_run_selectivity_threshold: w.min_skip_run_selectivity_threshold,
