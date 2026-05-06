@@ -225,7 +225,7 @@ public class UnifiedCacheService implements Closeable {
             fc.getUsed().getBytes()    + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fc.getPinnedUsage().getBytes(),
             fc.getEvicted().getBytes() + bc.evictionBytes(),          // bytes displaced, not count
-            fc.getRemoved().getBytes() + bc.removeBytes(),            // explicit removal bytes
+            fc.getRemoved().getBytes() + bc.removedBytes(),           // explicit removal bytes
             fc.getCacheHits()          + bc.hits(),
             fc.getCacheMisses()        + bc.misses(),
             AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
@@ -237,7 +237,7 @@ public class UnifiedCacheService implements Closeable {
             fcBlock.getUsed()    + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fcBlock.getPinnedUsage(),
             fcBlock.getEvicted() + bc.evictionBytes(),                // bytes displaced
-            fcBlock.getRemoved() + bc.removeBytes(),                  // explicit removal bytes
+            fcBlock.getRemoved() + bc.removedBytes(),                 // explicit removal bytes
             fcBlock.getCacheHits()   + bc.hits(),
             fcBlock.getCacheMisses() + bc.misses(),
             AggregateFileCacheStats.FileCacheStatsType.BLOCK_FILE_STATS

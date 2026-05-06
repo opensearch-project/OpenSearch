@@ -31,9 +31,10 @@ import org.opensearch.common.annotation.ExperimentalApi;
  *   <li>{@code evictionBytes}   — cumulative bytes displaced by evictions.
  *       Used by {@code UnifiedCacheService.mergeStats()} to populate
  *       {@code evictions_in_bytes} in the REST output.</li>
- *   <li>{@code removes}         — cumulative count of explicit invalidations
- *       (e.g. delete-index, segment rename, merge completion).</li>
- *   <li>{@code removeBytes}     — cumulative bytes explicitly removed.
+ *   <li>{@code removed}         — cumulative count of explicit invalidations
+ *       (e.g. delete-index, segment rename, merge completion).
+ *       Mirrors the {@code removed} field in {@code FileCacheStats}.</li>
+ *   <li>{@code removedBytes}    — cumulative bytes explicitly removed.
  *       Used by {@code UnifiedCacheService.mergeStats()} to populate
  *       {@code removed_in_bytes} in the REST output.</li>
  *   <li>{@code memoryBytesUsed} — current bytes occupied in the in-memory tier
@@ -58,8 +59,8 @@ public record BlockCacheStats(
     long missBytes,
     long evictions,
     long evictionBytes,
-    long removes,
-    long removeBytes,
+    long removed,
+    long removedBytes,
     long memoryBytesUsed,
     long diskBytesUsed,
     long totalBytes
