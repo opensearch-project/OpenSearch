@@ -22,8 +22,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This:
  * <ul>
  *   <li>flips an internal flag so the inherited {@link #doClose()} short-circuits;</li>
- *   <li>eagerly closes the Java wrapper — the pointer is removed from
- *       {@link NativeHandle# LIVE_HANDLES}, subsequent {@link #getPointer()} calls
+ *   <li>eagerly closes the Java wrapper — the pointer is removed from LIVE_HANDLES in
+ *       {@link NativeHandle}, subsequent {@link #getPointer()} calls
  *       throw, and {@link NativeHandle#validatePointer(long, String) validatePointer} rejects
  *       the now-dangling pointer value.</li>
  * </ul>
