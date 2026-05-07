@@ -110,6 +110,22 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * correct file and row.
      */
     private void seekToPointer(HivePointer pointer, boolean includeStart) throws Exception {
+        // Handle "latest" reset: skip all existing partitions, only read new ones
+        if ("__LATEST__".equals(pointer.getPartitionName())) {
+            List<MetastoreCatalog.PartitionInfo> existing = catalog.getAllPartitions(config.getDatabase(), config.getTable());
+            for (MetastoreCatalog.PartitionInfo p : existing) {
+                seenPartitions.add(partitionToName(p));
+            }
+            if (!existing.isEmpty()) {
+                MetastoreCatalog.PartitionInfo last = existing.get(existing.size() - 1);
+                watermark = partitionToName(last);
+                watermarkCreateTime = last.getCreateTime();
+            }
+            sequenceNumber = 0;
+            logger.info("Shard {} reset to latest, skipping {} existing partitions", shardId, existing.size());
+            return;
+        }
+
         // Set watermark so discovery includes the pointer's partition and beyond
         this.watermark = pointer.getPartitionName();
         this.watermarkCreateTime = 0;
@@ -199,18 +215,29 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         long maxMessages,
         int timeoutMillis
     ) {
-        try {
+        return executeWithRetry(() -> {
             ensureInitialized();
             if (!resumed && pointer != null && !pointer.getPartitionName().isEmpty()) {
                 seekToPointer(pointer, includeStart);
                 resumed = true;
             }
             return doReadNext(maxMessages);
+        });
+    }
+
+    @Override
+    public List<ReadResult<HivePointer, HiveMessage>> readNext(long maxMessages, int timeoutMillis) {
+        return executeWithRetry(() -> doReadNext(maxMessages));
+    }
+
+    private List<ReadResult<HivePointer, HiveMessage>> executeWithRetry(ReadAction action) {
+        try {
+            return action.execute();
         } catch (TTransportException e) {
             logger.warn("Metastore connection lost for shard {}, attempting reconnect: {}", shardId, e.getMessage());
             try {
                 reconnectMetastore();
-                return doReadNext(maxMessages);
+                return action.execute();
             } catch (Exception retryEx) {
                 logger.error("Failed to recover Metastore connection for shard {}: {}", shardId, retryEx.getMessage());
                 return Collections.emptyList();
@@ -221,23 +248,9 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         }
     }
 
-    @Override
-    public List<ReadResult<HivePointer, HiveMessage>> readNext(long maxMessages, int timeoutMillis) {
-        try {
-            return doReadNext(maxMessages);
-        } catch (TTransportException e) {
-            logger.warn("Metastore connection lost for shard {}, attempting reconnect: {}", shardId, e.getMessage());
-            try {
-                reconnectMetastore();
-                return doReadNext(maxMessages);
-            } catch (Exception retryEx) {
-                logger.error("Failed to recover Metastore connection for shard {}: {}", shardId, retryEx.getMessage());
-                return Collections.emptyList();
-            }
-        } catch (Throwable e) {
-            logger.error("Error reading from Hive table for shard {}: {}", shardId, e.getMessage());
-            return Collections.emptyList();
-        }
+    @FunctionalInterface
+    private interface ReadAction {
+        List<ReadResult<HivePointer, HiveMessage>> execute() throws Exception;
     }
 
     /**
@@ -247,25 +260,33 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private List<ReadResult<HivePointer, HiveMessage>> doReadNext(long maxMessages) throws Exception {
         ensureInitialized();
 
+        // Step 1: Check if it's time to query Metastore for new partitions.
+        // This only triggers when all current work is done and the monitor interval has elapsed.
         if (shouldRefreshPartitions()) {
             discoverNewPartitions();
         }
 
+        // Step 2: If there's nothing to read (no pending partitions, no open file), return empty.
         if (currentWorkIndex >= pendingWork.size() && currentFileReader == null) {
             return Collections.emptyList();
         }
 
+        // Step 3: If no file is currently open, open the next one from pending work.
         if (currentFileReader == null) {
             if (!openNextFile()) {
                 return Collections.emptyList();
             }
         }
 
+        // Step 4: Read rows from the current file, converting each to a JSON message.
+        // When a file is exhausted, move to the next file (possibly in the next partition).
+        // Stop when maxMessages is reached or all pending files are consumed.
         List<ReadResult<HivePointer, HiveMessage>> results = new ArrayList<>();
         long count = 0;
         while (count < maxMessages) {
             Map<String, Object> row = currentFileReader.readNext();
             if (row == null) {
+                // Current file exhausted, try the next file
                 closeCurrentReader();
                 if (!openNextFile()) {
                     break;
@@ -373,18 +394,21 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         while (currentWorkIndex < pendingWork.size()) {
             PartitionWork work = pendingWork.get(currentWorkIndex);
             if (work.currentFileIndex < work.files.size()) {
+                // More files in current partition: open the next one
                 currentFile = work.files.get(work.currentFileIndex);
                 work.currentFileIndex++;
                 currentRowIndex = 0;
                 currentFileReader = createFileReader(currentFile);
                 return true;
             } else {
-                // Partition complete, update watermark
+                // All files in this partition are consumed. Advance watermark so that
+                // future partition discovery skips this partition, then move to the next.
                 watermark = work.partitionName;
                 watermarkCreateTime = work.createTime;
                 currentWorkIndex++;
             }
         }
+        // All pending partitions have been fully read
         return false;
     }
 
@@ -495,12 +519,16 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     @Override
     public IngestionShardPointer latestPointer() {
-        return new HivePointer("", "", 0, sequenceNumber);
+        // Signals that existing partitions should be skipped. The empty partition name with
+        // max sequenceNumber tells seekToPointer to mark all current partitions as seen.
+        return new HivePointer("__LATEST__", "", 0, Long.MAX_VALUE - 1);
     }
 
     @Override
     public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
-        return new HivePointer("", "", 0, 0);
+        throw new UnsupportedOperationException(
+            "Hive ingestion does not support timestamp-based pointer reset. Use 'earliest' or 'latest' instead."
+        );
     }
 
     @Override
@@ -516,8 +544,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     @Override
     public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
         if (pendingWork == null) return 0;
-        int remaining = pendingWork.size() - currentWorkIndex;
-        return remaining;
+        return pendingWork.size() - currentWorkIndex;
     }
 
     /**
@@ -534,34 +561,21 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     }
 
     private static Type hiveTypeToParquetType(String name, String hiveType) {
-        switch (hiveType.toLowerCase(Locale.ROOT)) {
-            case "boolean":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(name);
-            case "tinyint":
-            case "smallint":
-            case "int":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named(name);
-            case "bigint":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(name);
-            case "float":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(name);
-            case "double":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(name);
-            case "string":
-            case "varchar":
-            case "char":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
-            case "binary":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(name);
-            case "timestamp":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.INT96).named(name);
-            case "date":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named(name);
-            case "decimal":
-                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.decimalType(0, 10)).named(name);
-            default:
-                return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
-        }
+        return switch (hiveType.toLowerCase(Locale.ROOT)) {
+            case "boolean" -> Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(name);
+            case "tinyint", "smallint", "int" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named(name);
+            case "bigint" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(name);
+            case "float" -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(name);
+            case "double" -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(name);
+            case "string", "varchar", "char" ->
+                Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
+            case "binary" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(name);
+            case "timestamp" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT96).named(name);
+            case "date" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named(name);
+            case "decimal" ->
+                Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.decimalType(0, 10)).named(name);
+            default -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
+        };
     }
 
     @Override
