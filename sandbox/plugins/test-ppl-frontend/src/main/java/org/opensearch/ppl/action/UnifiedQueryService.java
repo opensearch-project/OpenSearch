@@ -80,6 +80,11 @@ public class UnifiedQueryService {
                 .language(QueryType.PPL)
                 .catalog(DEFAULT_CATALOG, flatSchema)
                 .defaultNamespace(DEFAULT_CATALOG)
+                // The unified PPL parser reuses the v2 AstBuilder, which gates Calcite-only
+                // commands (table, regex, rex, convert) on plugins.calcite.enabled. The unified
+                // path is by definition Calcite-based — flag it on so those commands lower
+                // through the same Project/Filter RelNodes as their non-aliased counterparts.
+                .setting("plugins.calcite.enabled", true)
                 .build()
         ) {
 
