@@ -59,7 +59,7 @@ use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, SchemaRef};
 use datafusion::common::DataFusionError;
-use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
+use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation};
 use parquet::file::metadata::ParquetMetaData;
 
 /// How many batch-sized buffers exist per partition in the pipeline.
@@ -158,7 +158,21 @@ pub fn acquire_budget_with_projection(
     acquire_budget_inner(pool, avg_row_bytes, num_columns, configured_target_partitions, configured_batch_size)
 }
 
+/// Threshold: if jemalloc reports actual allocated is below this fraction of
+/// pool limit, the pool's `try_grow` failure is considered a false positive
+/// (stale reservations, accounting drift). We proceed at full partitions.
+const JEMALLOC_SAFETY_THRESHOLD: f64 = 0.7;
+
 /// Core budget acquisition logic. All public entry points delegate here.
+///
+/// Before reducing `target_partitions`, consults two sources of truth:
+/// 1. DataFusion MemoryPool (`try_grow`) — the accounting model
+/// 2. jemalloc `allocated_bytes()` — the process-level ground truth
+///
+/// Only reduces partitions if BOTH confirm pressure. This prevents false
+/// reductions from stale pool accounting (phantoms from queries whose `Drop`
+/// hasn't propagated yet, or conservative pool math that doesn't reflect
+/// actual RSS).
 fn acquire_budget_inner(
     pool: &Arc<dyn MemoryPool>,
     avg_row_bytes: usize,
@@ -166,8 +180,27 @@ fn acquire_budget_inner(
     configured_target_partitions: usize,
     configured_batch_size: usize,
 ) -> Result<QueryMemoryBudget, DataFusionError> {
+    acquire_budget_impl(pool, avg_row_bytes, num_columns, configured_target_partitions, configured_batch_size, true)
+}
+
+/// Implementation with configurable jemalloc cross-check.
+/// `use_jemalloc_override`: when true, consults jemalloc before reducing.
+/// Set to false in unit tests where pool limits are artificially small.
+fn acquire_budget_impl(
+    pool: &Arc<dyn MemoryPool>,
+    avg_row_bytes: usize,
+    num_columns: usize,
+    configured_target_partitions: usize,
+    configured_batch_size: usize,
+    use_jemalloc_override: bool,
+) -> Result<QueryMemoryBudget, DataFusionError> {
     let mut target_partitions = configured_target_partitions.max(MIN_TARGET_PARTITIONS);
     let mut batch_size = configured_batch_size.max(MIN_BATCH_SIZE);
+
+    let pool_limit = match pool.memory_limit() {
+        MemoryLimit::Finite(limit) => Some(limit),
+        _ => None,
+    };
 
     loop {
         let phantom_bytes = compute_untracked_bytes_with_columns(
@@ -191,9 +224,33 @@ fn acquire_budget_inner(
                 });
             }
             Err(_) => {
-                // Reservation failed — reduce parallelism and retry
                 drop(reservation);
 
+                // Before reducing: consult jemalloc as second source of truth.
+                // If actual process memory is well below the pool limit, the pool's
+                // rejection is a false positive — proceed at current parallelism
+                // by forcing the reservation (infallible grow).
+                if use_jemalloc_override {
+                    if let Some(limit) = pool_limit {
+                        if should_override_pool_rejection(limit) {
+                            let consumer = MemoryConsumer::new(format!(
+                                "query_untracked(partitions={},batch={},jemalloc_override)",
+                                target_partitions, batch_size
+                            ))
+                            .with_can_spill(true);
+                            let reservation = consumer.register(pool);
+                            pool.grow(&reservation, phantom_bytes);
+                            return Ok(QueryMemoryBudget {
+                                target_partitions,
+                                batch_size,
+                                phantom_reservation: reservation,
+                                phantom_bytes,
+                            });
+                        }
+                    }
+                }
+
+                // Both sources confirm pressure — reduce parallelism
                 if target_partitions > MIN_TARGET_PARTITIONS {
                     target_partitions = (target_partitions / 2).max(MIN_TARGET_PARTITIONS);
                 } else if batch_size > MIN_BATCH_SIZE {
@@ -202,7 +259,7 @@ fn acquire_budget_inner(
                     return Err(DataFusionError::ResourcesExhausted(format!(
                         "Cannot reserve untracked memory budget: {} bytes required at \
                          minimum parallelism (partitions={}, batch_size={}, avg_row_bytes={}). \
-                         Pool capacity exhausted.",
+                         Pool capacity exhausted (confirmed by jemalloc).",
                         compute_untracked_bytes(MIN_TARGET_PARTITIONS, MIN_BATCH_SIZE, avg_row_bytes),
                         MIN_TARGET_PARTITIONS,
                         MIN_BATCH_SIZE,
@@ -212,6 +269,23 @@ fn acquire_budget_inner(
             }
         }
     }
+}
+
+/// Consult jemalloc: is the actual process allocated memory below the safety
+/// threshold of the pool limit?
+///
+/// Returns `true` if jemalloc says there's headroom (pool rejection was false
+/// positive). Returns `false` if jemalloc confirms pressure or if stats are
+/// unavailable.
+fn should_override_pool_rejection(pool_limit: usize) -> bool {
+    let allocated = native_bridge_common::allocator::allocated_bytes();
+    if allocated <= 0 {
+        // Stats unavailable or error — don't override, be conservative
+        return false;
+    }
+    let allocated = allocated as usize;
+    let threshold = (pool_limit as f64 * JEMALLOC_SAFETY_THRESHOLD) as usize;
+    allocated < threshold
 }
 
 
@@ -433,17 +507,26 @@ mod tests {
         assert_eq!(pool.reserved(), budget.phantom_bytes);
     }
 
+    /// Helper: acquire budget without jemalloc override (for unit tests with
+    /// artificially small pools where jemalloc would always override).
+    fn acquire_budget_no_override(
+        pool: &Arc<dyn MemoryPool>,
+        schema: &SchemaRef,
+        target_partitions: usize,
+        batch_size: usize,
+    ) -> Result<QueryMemoryBudget, DataFusionError> {
+        let avg_row_bytes = estimate_avg_row_bytes(schema);
+        let num_columns = schema.fields().len();
+        acquire_budget_impl(pool, avg_row_bytes, num_columns, target_partitions, batch_size, false)
+    }
+
     #[test]
     fn acquire_budget_reduces_partitions_under_pressure() {
         // Pool with only 2MB — not enough for 8 partitions
         let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
-        // avg_row=16, batch_bytes=8192*16=131072
-        // per_partition=3*131072+262144=655360 (~640KB)
-        // 8 partitions + output = 8*655360+131072 ≈ 5.4MB — exceeds 2MB pool
         let pool = test_pool(2_000_000);
 
-        let budget = acquire_budget(&pool, &schema, 8, 8192).unwrap();
-        // Should have reduced from 8 to something that fits
+        let budget = acquire_budget_no_override(&pool, &schema, 8, 8192).unwrap();
         assert!(budget.target_partitions < 8);
         assert!(budget.target_partitions >= MIN_TARGET_PARTITIONS);
         assert!(budget.phantom_bytes <= 2_000_000);
@@ -451,12 +534,10 @@ mod tests {
 
     #[test]
     fn acquire_budget_reduces_batch_size_at_min_partitions() {
-        // Pool too small even for 1 partition at full batch_size
         let schema = schema_of(vec![("a", DataType::LargeBinary)]); // 128 bytes/row
-        // 1 partition at 8192 batch: 3*8192*128+262144 = 3407872 (~3.2MB) + output=1MB ≈ 4.3MB
         let pool = test_pool(1_000_000); // 1MB — forces batch reduction
 
-        let budget = acquire_budget(&pool, &schema, 4, 8192).unwrap();
+        let budget = acquire_budget_no_override(&pool, &schema, 4, 8192).unwrap();
         assert_eq!(budget.target_partitions, MIN_TARGET_PARTITIONS);
         assert!(budget.batch_size < 8192);
         assert!(budget.batch_size >= MIN_BATCH_SIZE);
@@ -466,10 +547,8 @@ mod tests {
     fn acquire_budget_rejects_when_fully_exhausted() {
         let pool = test_pool(1000); // Tiny pool — even minimum won't fit
         let schema = schema_of(vec![("a", DataType::Int64)]);
-        // min budget: 1 partition, 1024 batch, 8 bytes/row
-        // = 3*1024*8 + 262144 + 1024*8 = 24576+262144+8192 = 294912 > 1000
 
-        let result = acquire_budget(&pool, &schema, 4, 8192);
+        let result = acquire_budget_no_override(&pool, &schema, 4, 8192);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
