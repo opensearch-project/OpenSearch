@@ -27,6 +27,7 @@ import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
@@ -61,15 +62,25 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
     private final BufferAllocator allocator;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
-        this(backends, List.of());
+        this(backends, List.of(), null);
     }
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, List<AnalyticsOperationListener> listeners) {
+    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, NamedWriteableRegistry namedWriteableRegistry) {
+        this(backends, List.of(), namedWriteableRegistry);
+    }
+
+    public AnalyticsSearchService(
+        Map<String, AnalyticsSearchBackendPlugin> backends,
+        List<AnalyticsOperationListener> listeners,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
         this.allocator = ArrowAllocatorProvider.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -138,8 +149,7 @@ public class AnalyticsSearchService implements AutoCloseable {
             if (delegation != null) {
                 String acceptingBackendId = delegation.delegatedExpressions().getFirst().getAcceptingBackendId();
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
-                FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(
-                    delegation.delegatedExpressions(), ctx);
+                FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
                 backend.configureFilterDelegation(handle, backendContext);
             }
 
@@ -211,6 +221,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         ctx.setAllocator(allocator);
         ctx.setMapperService(shard.mapperService());
         ctx.setIndexSettings(shard.indexSettings());
+        ctx.setNamedWriteableRegistry(namedWriteableRegistry);
         return ctx;
     }
 

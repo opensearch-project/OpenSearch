@@ -145,7 +145,7 @@ fn gen_leaf(rng: &mut StdRng, schema: &SchemaRef, num_collectors: usize) -> Bool
     if make_collector {
         let id = rng.gen_range(0..num_collectors) as u8;
         BoolNode::Collector {
-            query_bytes: Arc::from(&[id][..]),
+            annotation_id: id as i32,
         }
     } else {
         gen_predicate_leaf(rng, schema)
@@ -396,8 +396,8 @@ pub(in crate::indexed_table::tests_e2e) fn collect_collector_tags(tree: &BoolNod
         match n {
             BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| walk(c, out)),
             BoolNode::Not(c) => walk(c, out),
-            BoolNode::Collector { query_bytes } => {
-                out.push(query_bytes[0]);
+            BoolNode::Collector { annotation_id } => {
+                out.push(*annotation_id as u8);
             }
             BoolNode::Predicate(_) => {}
         }

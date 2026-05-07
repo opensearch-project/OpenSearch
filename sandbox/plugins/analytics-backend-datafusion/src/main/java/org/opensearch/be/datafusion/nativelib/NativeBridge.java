@@ -777,8 +777,13 @@ public final class NativeBridge {
             NativeCall.Str table = call.str(tableName);
             long ptr = call.invoke(
                 CREATE_SESSION_CONTEXT_INDEXED,
-                readerPtr, runtimePtr, table.segment(), table.len(), contextId,
-                treeShapeOrdinal, delegatedPredicateCount
+                readerPtr,
+                runtimePtr,
+                table.segment(),
+                table.len(),
+                contextId,
+                treeShapeOrdinal,
+                delegatedPredicateCount
             );
             return new SessionContextHandle(ptr);
         }

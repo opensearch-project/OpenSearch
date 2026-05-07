@@ -120,7 +120,10 @@ public final class FilterTreeCallbacks {
             int wordsWritten = handle.collectDocs(collectorKey, minDoc, maxDoc, view);
             return (wordsWritten < 0) ? -1L : wordsWritten;
         } catch (Throwable throwable) {
-            LOGGER.error(new ParameterizedMessage("collectDocs(collectorKey={}, [{}, {})) failed", collectorKey, minDoc, maxDoc), throwable);
+            LOGGER.error(
+                new ParameterizedMessage("collectDocs(collectorKey={}, [{}, {})) failed", collectorKey, minDoc, maxDoc),
+                throwable
+            );
             return -1L;
         }
     }

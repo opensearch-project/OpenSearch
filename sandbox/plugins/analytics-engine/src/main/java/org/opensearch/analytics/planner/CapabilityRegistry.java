@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.planner;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -51,6 +53,8 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public class CapabilityRegistry {
+
+    private static final Logger LOGGER = LogManager.getLogger(CapabilityRegistry.class);
 
     private final List<AnalyticsSearchBackendPlugin> backends;
     // O(1) backend lookup by name
@@ -170,6 +174,12 @@ public class CapabilityRegistry {
                 projectCapableBackends.add(name);
             }
         }
+        LOGGER.info(
+            "CapabilityRegistry initialized with {} backends: {}. filterIndex keys: {}",
+            backends.size(),
+            backends.stream().map(AnalyticsSearchBackendPlugin::name).toList(),
+            filterIndex.keySet()
+        );
     }
 
     // ---- Operator / delegation lookups ----

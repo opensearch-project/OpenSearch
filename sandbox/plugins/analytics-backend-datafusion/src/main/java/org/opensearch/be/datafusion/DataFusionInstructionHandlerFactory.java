@@ -52,6 +52,11 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     }
 
     @Override
+    public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
+        return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
+    }
+
+    @Override
     public Optional<InstructionNode> createPartialAggregateNode() {
         // TODO: return Optional.of(...) once PartialAggregateInstructionHandler is implemented
         return Optional.empty();

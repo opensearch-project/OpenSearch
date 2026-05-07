@@ -35,6 +35,9 @@ public interface FragmentInstructionHandlerFactory {
         List<DelegatedExpression> delegatedQueries
     );
 
+    /** Creates a shard scan with delegation instruction node — combines scan setup with delegation config. */
+    Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount);
+
     /** Creates a partial aggregate instruction node. */
     Optional<InstructionNode> createPartialAggregateNode();
 

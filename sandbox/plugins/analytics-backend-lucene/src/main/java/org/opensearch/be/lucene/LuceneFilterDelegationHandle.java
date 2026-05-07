@@ -21,6 +21,8 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -53,28 +55,37 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     private final AtomicInteger nextProviderKey = new AtomicInteger(1);
     private final AtomicInteger nextCollectorKey = new AtomicInteger(1);
 
+    // TODO: NamedWriteableRegistry should ideally come from LucenePlugin.createComponents
+    // instead of being threaded through ShardScanExecutionContext from Core.
     LuceneFilterDelegationHandle(
         List<DelegatedExpression> expressions,
         QueryShardContext queryShardContext,
-        DirectoryReader directoryReader
+        DirectoryReader directoryReader,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.directoryReader = directoryReader;
         this.leaves = directoryReader.leaves();
-        this.queriesByAnnotationId = compileQueries(expressions, queryShardContext);
+        this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
     }
 
-    private static Map<Integer, Query> compileQueries(List<DelegatedExpression> expressions, QueryShardContext context) {
+    private static Map<Integer, Query> compileQueries(
+        List<DelegatedExpression> expressions,
+        QueryShardContext context,
+        NamedWriteableRegistry registry
+    ) {
         Map<Integer, Query> queries = new HashMap<>();
         for (DelegatedExpression expr : expressions) {
             try {
-                // TODO: use NamedWriteableAwareStreamInput with proper registry for full QueryBuilder support
-                StreamInput input = StreamInput.wrap(expr.getExpressionBytes());
+                StreamInput rawInput = StreamInput.wrap(expr.getExpressionBytes());
+                StreamInput input = new NamedWriteableAwareStreamInput(rawInput, registry);
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                 Query query = queryBuilder.toQuery(context);
                 queries.put(expr.getAnnotationId(), query);
             } catch (IOException exception) {
                 throw new IllegalStateException(
-                    "Failed to deserialize delegated expression for annotationId=" + expr.getAnnotationId(), exception);
+                    "Failed to deserialize delegated expression for annotationId=" + expr.getAnnotationId(),
+                    exception
+                );
             }
         }
         return queries;

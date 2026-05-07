@@ -10,6 +10,7 @@ package org.opensearch.analytics.backend;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.spi.CommonExecutionContext;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.mapper.MapperService;
@@ -30,6 +31,7 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private BufferAllocator allocator;
     private MapperService mapperService;
     private IndexSettings indexSettings;
+    private NamedWriteableRegistry namedWriteableRegistry;
 
     /**
      * Constructs an execution context.
@@ -96,5 +98,15 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     /** Sets the shard's index settings. */
     public void setIndexSettings(IndexSettings indexSettings) {
         this.indexSettings = indexSettings;
+    }
+
+    /** Returns the NamedWriteableRegistry for deserializing delegated expressions. */
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
+    }
+
+    /** Sets the NamedWriteableRegistry. */
+    public void setNamedWriteableRegistry(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 }

@@ -58,7 +58,7 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
         // Plugins with no extendedPlugins requirement go here. Plugins that need
         // explicit extendedPlugins (so SPI ExtensionLoader walks the right parent
         // classloader) are declared in additionalNodePlugins() below.
-        return List.of(TestPPLPlugin.class, FlightStreamPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class);
+        return List.of(TestPPLPlugin.class, FlightStreamPlugin.class, CompositeDataFormatPlugin.class);
     }
 
     @Override
@@ -70,7 +70,8 @@ public class CoordinatorReduceIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
             classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
-            classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
+            classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName())),
+            classpathPlugin(LucenePlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
 

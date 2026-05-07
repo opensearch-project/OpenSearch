@@ -23,18 +23,12 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public record DelegationDescriptor(
-    FilterTreeShape treeShape,
-    int delegatedPredicateCount,
-    List<DelegatedExpression> delegatedExpressions
-) implements Writeable {
+public record DelegationDescriptor(FilterTreeShape treeShape, int delegatedPredicateCount, List<DelegatedExpression> delegatedExpressions)
+    implements
+        Writeable {
 
     public DelegationDescriptor(StreamInput in) throws IOException {
-        this(
-            in.readEnum(FilterTreeShape.class),
-            in.readVInt(),
-            readExpressions(in)
-        );
+        this(in.readEnum(FilterTreeShape.class), in.readVInt(), readExpressions(in));
     }
 
     @Override

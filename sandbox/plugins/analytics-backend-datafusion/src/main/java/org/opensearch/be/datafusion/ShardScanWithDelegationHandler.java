@@ -60,7 +60,12 @@ public class ShardScanWithDelegationHandler implements FragmentInstructionHandle
         // Single FFM call: creates SessionContext + registers delegated_predicate UDF +
         // configures IndexedTableProvider with treeShape and delegatedPredicateCount
         SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
-            readerPtr, runtimePtr, context.getTableName(), contextId, treeShape.ordinal(), delegatedPredicateCount
+            readerPtr,
+            runtimePtr,
+            context.getTableName(),
+            contextId,
+            treeShape.ordinal(),
+            delegatedPredicateCount
         );
 
         return new DataFusionSessionState(sessionCtxHandle);
