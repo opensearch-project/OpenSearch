@@ -15,27 +15,38 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.ActionRequestMetadata;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.index.Index;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.client.node.NodeClient;
 
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
 public class SearchActionFilterTests extends OpenSearchTestCase {
 
-    private final NodeClient client = mock(NodeClient.class);
+    private final ClusterService clusterService = mock(ClusterService.class);
+    private final IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
     private final Task task = mock(Task.class);
     private final ActionListener<ActionResponse> listener = mock(ActionListener.class);
     private final ActionFilterChain<ActionRequest, ActionResponse> chain = mock(ActionFilterChain.class);
     private final ActionRequestMetadata<ActionRequest, ActionResponse> metadata = mock(ActionRequestMetadata.class);
-    private final SearchActionFilter filter = new SearchActionFilter(client);
+    private final SearchActionFilter filter = new SearchActionFilter(clusterService, indexNameExpressionResolver);
+
+    private static final Settings PLUGGABLE_SETTINGS = Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
 
     public void testOrderRunsAfterSecurityFilter() {
         assertEquals(SearchActionFilter.FILTER_ORDER, filter.order());
@@ -47,17 +58,73 @@ public class SearchActionFilterTests extends OpenSearchTestCase {
         filter.apply(task, BulkAction.NAME, request, metadata, listener, chain);
 
         verify(chain).proceed(task, BulkAction.NAME, request, listener);
-        verify(client, never()).execute(any(), any(), any());
+        verify(listener, never()).onFailure(any());
     }
 
-    // TODO: add tests to verify reroute only happens when the target index has the setting enabled
-
-    public void testReroutesSearchAction() {
+    public void testPassesThroughWhenNoPluggableDataFormat() {
         SearchRequest request = new SearchRequest("test-index");
+        mockIndices(request, new IndexEntry(new Index("test-index", "uuid"), Settings.EMPTY));
 
-        filter.apply(task, SearchAction.NAME, request, metadata, listener, chain);
+        filter.apply(task, SearchAction.NAME, request, this.metadata, listener, chain);
 
-        verify(client).execute(eq(DslExecuteAction.INSTANCE), eq(request), any());
+        verify(chain).proceed(task, SearchAction.NAME, request, listener);
+        verify(listener, never()).onFailure(any());
+    }
+
+    public void testPassesThroughWhenConcreteIndicesEmpty() {
+        SearchRequest request = new SearchRequest("no-match-*");
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(indexNameExpressionResolver.concreteIndices(state, request)).thenReturn(new Index[0]);
+
+        filter.apply(task, SearchAction.NAME, request, this.metadata, listener, chain);
+
+        verify(chain).proceed(task, SearchAction.NAME, request, listener);
+        verify(listener, never()).onFailure(any());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testRejectsWhenAllIndicesHavePluggableDataFormat() {
+        SearchRequest request = new SearchRequest("idx1", "idx2");
+        mockIndices(request, indexEntry("idx1", PLUGGABLE_SETTINGS), indexEntry("idx2", PLUGGABLE_SETTINGS));
+
+        filter.apply(task, SearchAction.NAME, request, this.metadata, listener, chain);
+
+        verify(listener).onFailure(argThat(e -> e instanceof UnsupportedOperationException));
         verify(chain, never()).proceed(any(), any(), any(), any());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testRejectsWhenMixedIndices() {
+        SearchRequest request = new SearchRequest("idx1", "idx2");
+        mockIndices(request, indexEntry("idx1", PLUGGABLE_SETTINGS), indexEntry("idx2", Settings.EMPTY));
+
+        filter.apply(task, SearchAction.NAME, request, this.metadata, listener, chain);
+
+        verify(listener).onFailure(argThat(e -> e instanceof UnsupportedOperationException));
+        verify(chain, never()).proceed(any(), any(), any(), any());
+    }
+
+    private IndexEntry indexEntry(String name, Settings settings) {
+        return new IndexEntry(new Index(name, name + "-uuid"), settings);
+    }
+
+    private void mockIndices(SearchRequest request, IndexEntry... entries) {
+        ClusterState state = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metadata()).thenReturn(metadata);
+
+        Index[] indices = new Index[entries.length];
+        for (int i = 0; i < entries.length; i++) {
+            indices[i] = entries[i].index;
+            IndexMetadata indexMetadata = mock(IndexMetadata.class);
+            when(indexMetadata.getSettings()).thenReturn(entries[i].settings);
+            when(metadata.index(entries[i].index)).thenReturn(indexMetadata);
+        }
+        when(indexNameExpressionResolver.concreteIndices(state, request)).thenReturn(indices);
+    }
+
+    private record IndexEntry(Index index, Settings settings) {
     }
 }

@@ -1240,8 +1240,7 @@ public final class IndexSettings {
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
         derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
-        pluggableDataFormatEnabled = FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-            && scopedSettings.get(PLUGGABLE_DATAFORMAT_ENABLED_SETTING);
+        pluggableDataFormatEnabled = isPluggableDataFormatEnabled(settings);
         pluggedDataFormat = scopedSettings.get(PLUGGABLE_DATAFORMAT_VALUE_SETTING);
         derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);
@@ -2398,6 +2397,16 @@ public final class IndexSettings {
     /**
      * Returns whether the pluggable data format feature is enabled for this index.
      * Requires both the experimental feature flag and the index-level setting.
+     *
+     * @return {@code true} if pluggable data format is enabled
+     */
+    public static boolean isPluggableDataFormatEnabled(Settings settings) {
+        return FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+            && PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(settings);
+    }
+
+    /**
+     * Returns whether pluggable data format is enabled for this index (cached at construction time).
      *
      * @return {@code true} if pluggable data format is enabled
      */
