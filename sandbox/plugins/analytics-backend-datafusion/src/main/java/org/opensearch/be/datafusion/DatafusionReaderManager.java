@@ -86,7 +86,10 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        if (didRefresh == false) return;
+        // Register a reader even when no files were flushed (empty-shard case). Without
+        // this, queries against an empty shard throw "No DataFusion reader available"
+        // because refresh listeners are only invoked when didRefresh==true, but getReader
+        // is called on every query regardless of whether any docs were ever indexed.
         if (readers.containsKey(catalogSnapshot)) return;
         DatafusionReader reader = new DatafusionReader(directoryPath, catalogSnapshot.getSearchableFiles(dataFormat.name()));
         readers.put(catalogSnapshot, reader);

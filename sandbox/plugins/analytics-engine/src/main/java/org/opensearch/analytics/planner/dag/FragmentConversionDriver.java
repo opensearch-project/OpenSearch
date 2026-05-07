@@ -266,8 +266,9 @@ public class FragmentConversionDriver {
         IntraOperatorDelegationBytes delegationBytes
     ) {
         if (node instanceof OpenSearchExchangeReducer) {
-            // Strip ExchangeReducer — StageInputScan below it is the schema source
-            // This should never be reached directly; handled by the parent (final agg)
+            // Root ExchangeReducer — the coordinator fragment is just the reducer over
+            // the data-node child stage's output. Convert the inner subtree (with
+            // StageInputScan as the schema-carrying leaf) as the final-agg fragment.
             return convertor.convertFinalAggFragment(strip(node.getInputs().getFirst(), delegationBytes));
         }
         if (node instanceof OpenSearchRelNode openSearchNode) {
@@ -275,25 +276,18 @@ public class FragmentConversionDriver {
             Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(openSearchNode, node.getCluster().getRexBuilder());
             RelNode strippedNode = openSearchNode.stripAnnotations(strippedInputs, resolver);
 
-            if (!finalAggConverted) {
-                // First OpenSearchRelNode whose ALL inputs are ExchangeReducers is treated as the
-                // boundary between the coordinator-side fragment and the data-node child stages.
-                // For single-input shapes (Sort/Project/Aggregate over a partial agg) this is the
-                // final-aggregate operator; for multi-input shapes (Union) every branch is itself
-                // an ER → StageInputScan, and the entire Union+ER subtree is converted as one
-                // fragment so all branches end up in the same Substrait plan reading from their
-                // respective input partitions.
-                boolean allChildrenAreExchangeReducer = !node.getInputs().isEmpty()
-                    && node.getInputs().stream().allMatch(input -> input instanceof OpenSearchExchangeReducer);
-                if (allChildrenAreExchangeReducer) {
-                    List<RelNode> finalAggInputs = new ArrayList<>(node.getInputs().size());
-                    for (RelNode input : node.getInputs()) {
-                        // Skip the ER, keep StageInputScan below it as the leaf for schema inference.
-                        finalAggInputs.add(strip(input.getInputs().getFirst(), delegationBytes));
-                    }
-                    RelNode finalAggFragment = openSearchNode.stripAnnotations(finalAggInputs, resolver);
-                    return convertor.convertFinalAggFragment(finalAggFragment);
-                }
+            if (!finalAggConverted && isFinalAggBoundary(node)) {
+                // Boundary between coordinator-side fragment and data-node child stages. For
+                // single-input shapes (Sort/Project/Aggregate over a partial agg) this is the
+                // final-aggregate operator; for multi-input shapes (Union, coord-side Join,
+                // future set-ops) every branch is an ER → StageInputScan and the entire
+                // operator+branches subtree converts as one fragment so all branches end up in
+                // the same Substrait plan reading from their respective input partitions.
+                //
+                // strippedInputs already resolves each ER to the StageInputScan below it via
+                // the strip() helper, so strippedNode is the final-agg fragment ready for
+                // conversion — no further per-branch rewrite is needed.
+                return convertor.convertFinalAggFragment(strippedNode);
             }
 
             // Operator above the final-fragment boundary — convert child first, then attach.
@@ -301,6 +295,19 @@ public class FragmentConversionDriver {
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }
         throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
+    }
+
+    /**
+     * True when {@code node} sits on the boundary between the coordinator-side fragment and
+     * the data-node child stages — either a multi-input shape with every branch in its own
+     * ExchangeReducer (Union, coord-side Join) or a single-input operator directly above
+     * one ExchangeReducer (final agg over a partial-agg child stage).
+     */
+    private static boolean isFinalAggBoundary(RelNode node) {
+        if (MultiInputShape.detect(node).isPresent()) {
+            return true;
+        }
+        return node.getInputs().size() == 1 && node.getInputs().getFirst() instanceof OpenSearchExchangeReducer;
     }
 
     /** Recursively strips annotations bottom-up. Keeps OpenSearchStageInputScan as-is. */

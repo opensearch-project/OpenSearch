@@ -43,7 +43,7 @@ import java.util.Set;
  */
 public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugin {
 
-    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION);
+    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION, EngineCapability.JOIN);
 
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = new HashSet<>();
     static {
@@ -166,6 +166,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
                 Set<ProjectCapability> caps = new HashSet<>();
                 for (ScalarFunction op : STANDARD_PROJECT_OPS) {
+                    // supportsLiteralEvaluation=true lets literal-only CAST expressions (rare in
+                    // practice) resolve as well as field-ref ones — DataFusion handles both.
                     caps.add(new ProjectCapability.Scalar(op, Set.copyOf(SUPPORTED_FIELD_TYPES), formats, true));
                 }
                 return Set.copyOf(caps);

@@ -53,6 +53,8 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
         assertSame(batch, it.next());
         assertFalse(it.hasNext());
 
+        // readResult() transferred ownership, so close() is now a no-op — drain batches explicitly.
+        batch.close();
         sink.close();
     }
 
@@ -74,6 +76,10 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
         assertSame(r3, it.next());
         assertFalse(it.hasNext());
 
+        // readResult() transferred ownership, so close() is now a no-op — drain batches explicitly.
+        r1.close();
+        r2.close();
+        r3.close();
         sink.close();
     }
 
@@ -92,6 +98,8 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
         // Field names should come from the second batch
         assertEquals("y", sink.getValueAt("col_a", 0).toString());
 
+        // readResult() not called — releaseUnread() frees buffers so the allocator doesn't leak.
+        sink.releaseUnread();
         sink.close();
     }
 
@@ -104,6 +112,8 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
         assertEquals("hello", sink.getValueAt("col1", 0).toString());
         assertEquals("42", sink.getValueAt("col2", 0).toString());
 
+        // readResult() not called — releaseUnread() frees buffers so the allocator doesn't leak.
+        sink.releaseUnread();
         sink.close();
     }
 
@@ -115,6 +125,8 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
 
         assertNull(sink.getValueAt("nonexistent", 0));
 
+        // readResult() not called — releaseUnread() frees buffers so the allocator doesn't leak.
+        sink.releaseUnread();
         sink.close();
     }
 
@@ -126,6 +138,8 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
 
         assertNull(sink.getValueAt("col1", 5));
 
+        // readResult() not called — releaseUnread() frees buffers so the allocator doesn't leak.
+        sink.releaseUnread();
         sink.close();
     }
 
@@ -137,6 +151,49 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
         assertFalse(it.hasNext());
 
         sink.close();
+    }
+
+    /**
+     * Regression: ShardFragmentStageExecution.onShardTerminated calls {@code outputSink.close()}
+     * BEFORE transitioning to SUCCEEDED, which fires the PlanWalker's completion listener, which
+     * calls {@code readResult()}. The older close() implementation cleared batches eagerly, so
+     * readResult returned an empty list even though feed had delivered rows. Close must leave the
+     * buffered batches intact until the consumer has drained them.
+     */
+    public void testCloseBeforeReadResultRetainsBatches() {
+        RowProducingSink sink = new RowProducingSink();
+
+        VectorSchemaRoot batch = makeVsr(List.of("id"), new Object[][] { { "7" } });
+        sink.feed(batch);
+
+        sink.close();
+
+        // readResult called AFTER close must still return the fed batch.
+        Iterator<VectorSchemaRoot> it = sink.readResult().iterator();
+        assertTrue("close() must not drop buffered batches when result hasn't been read yet", it.hasNext());
+        assertSame(batch, it.next());
+        assertFalse(it.hasNext());
+
+        // Consumer owns the batch after readResult — close it here in lieu of the production
+        // consumer (DefaultPlanExecutor#batchesToRows) closing each batch.
+        batch.close();
+    }
+
+    /**
+     * Error path: releaseUnread() cleans up buffered batches so the query allocator
+     * doesn't detect a leak on the failure path where readResult() never runs.
+     */
+    public void testReleaseUnreadReleasesBatches() {
+        RowProducingSink sink = new RowProducingSink();
+
+        VectorSchemaRoot batch = makeVsr(List.of("id"), new Object[][] { { "x" } });
+        sink.feed(batch);
+
+        // Drop the sink without reading — e.g. query failed before the listener fired.
+        sink.releaseUnread();
+
+        // Following readResult returns empty (batches were released).
+        assertFalse(sink.readResult().iterator().hasNext());
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────

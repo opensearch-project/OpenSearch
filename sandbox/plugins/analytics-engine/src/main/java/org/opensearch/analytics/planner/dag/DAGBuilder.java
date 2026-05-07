@@ -52,7 +52,7 @@ public class DAGBuilder {
             // Root IS an ExchangeReducer — pure gather (no compute above the exchange).
             // Cut directly: child stage is the subtree below, root fragment is
             // ExchangeReducer → StageInputScan.
-            rootFragment = cutSingleton(reducer, counter, childStages, clusterService);
+            rootFragment = cutSingleton(reducer, counter, childStages, registry, clusterService);
         } else {
             rootFragment = sever(cboOutput, counter, childStages, registry, clusterService);
         }
@@ -82,7 +82,7 @@ public class DAGBuilder {
         List<RelNode> newInputs = new ArrayList<>();
         for (RelNode input : node.getInputs()) {
             if (input instanceof OpenSearchExchangeReducer reducer) {
-                newInputs.add(cutSingleton(reducer, counter, childStages, clusterService));
+                newInputs.add(cutSingleton(reducer, counter, childStages, registry, clusterService));
             } else {
                 newInputs.add(sever(input, counter, childStages, registry, clusterService));
             }
@@ -102,27 +102,27 @@ public class DAGBuilder {
         OpenSearchExchangeReducer reducer,
         int[] counter,
         List<Stage> parentChildStages,
+        CapabilityRegistry registry,
         ClusterService clusterService
     ) {
-        // Recurse into child fragment to handle nested exchanges.
-        // TODO: recurse with full sever() (passing registry) when shuffle/broadcast
-        // exchanges are added — not needed for PR2 (pure DF, max 2 stages).
-        // TODO: for joins, each side has its own ExchangeReducer cut producing a
-        // StageInputScan per join input. cutSingleton handles one side; sever() handles
-        // both sides via its input iteration loop.
+        // Recurse into the child fragment with full sever() so any nested ExchangeReducers
+        // (e.g. a Join below a top-level gather Reducer) are also cut into their own child
+        // stages rather than being left intact inside the shard-local fragment.
         List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = reducer.getInput();
+        RelNode childFragment = sever(reducer.getInput(), counter, grandchildren, registry, clusterService);
 
         int childStageId = counter[0]++;
+        // A leaf stage (no grandchildren) runs on shards and needs a ShardTargetResolver.
+        // An intermediate stage (some grandchildren were cut out below) runs at the
+        // coordinator and consumes its grandchildren's outputs via an ExchangeSinkProvider.
+        TargetResolver targetResolver = grandchildren.isEmpty() ? new ShardTargetResolver(childFragment, clusterService) : null;
+        ExchangeSinkProvider childSinkProvider = null;
+        if (!grandchildren.isEmpty()) {
+            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, reducer.getViableBackends());
+            childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        }
         parentChildStages.add(
-            new Stage(
-                childStageId,
-                childFragment,
-                grandchildren,
-                ExchangeInfo.singleton(),
-                null,
-                new ShardTargetResolver(childFragment, clusterService)
-            )
+            new Stage(childStageId, childFragment, grandchildren, ExchangeInfo.singleton(), childSinkProvider, targetResolver)
         );
 
         // Replace the reducer's input with a StageInputScan placeholder.

@@ -69,7 +69,7 @@ import io.substrait.relation.Sort;
  *   <li>{@link #attachPartialAggOnTop(RelNode, byte[])} and
  *       {@link #attachFragmentOnTop(RelNode, byte[])} — convert the wrapping
  *       operator standalone, then rewire its input to the decoded inner plan's
- *       root via {@link #rewire(Plan, Rel)}.</li>
+ *       root via {@link #rewire(Plan, Rel, List)}.</li>
  * </ul>
  *
  * @opensearch.internal
@@ -113,7 +113,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         LOGGER.debug("Attaching partial aggregate on top of {} inner bytes", innerBytes.length);
         Plan inner = decodePlan(innerBytes);
         Rel wrapper = convertStandalone(partialAggFragment);
-        Plan rewired = rewire(inner, withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE));
+        List<String> wrapperNames = rowTypeFieldNames(partialAggFragment);
+        Plan rewired = rewire(inner, withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE), wrapperNames);
         return serializePlan(rewired);
     }
 
@@ -137,7 +138,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // the visitor still walks them top-down to build the wrapper rel.
         RelNode rewritten = rewriteStageInputScans(fragment);
         Rel wrapper = convertStandalone(rewritten);
-        return serializePlan(rewire(inner, wrapper));
+        List<String> wrapperNames = rowTypeFieldNames(fragment);
+        return serializePlan(rewire(inner, wrapper, wrapperNames));
     }
 
     // ── Core conversion helpers ─────────────────────────────────────────────────
@@ -165,7 +167,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * children (e.g. the {@code attachPartialAggOnTop} caller passes a
      * {@code LogicalAggregate} whose input is the already-stripped inner tree); we
      * deliberately discard those children by taking only the outermost rel of the
-     * conversion and rewiring its input during {@link #rewire(Plan, Rel)}.
+     * conversion and rewiring its input during {@link #rewire(Plan, Rel, List)}.
      */
     private Rel convertStandalone(RelNode operator) {
         SubstraitRelVisitor visitor = createVisitor(operator);
@@ -175,18 +177,30 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     /**
      * Rewires the Substrait {@code wrapper} rel to sit above the root relation of
      * {@code inner}. Returns a new {@link Plan} whose single root is
-     * {@code wrapper(inner.root)}. Supports the known single-input wrappers emitted
-     * by our four SPI methods ({@link Aggregate}, {@link Sort}, {@link Filter},
-     * {@link Project}).
+     * {@code wrapper(inner.root)} with {@code wrapperNames} attached as the root's
+     * names list. Supports the known single-input wrappers emitted by our four SPI
+     * methods ({@link Aggregate}, {@link Sort}, {@link Filter}, {@link Project}).
+     *
+     * <p>The names list must describe the flattened leaf schema of the final plan —
+     * one entry per leaf field in the wrapper's output row type. DataFusion's
+     * Substrait consumer walks the top plan's output schema once per leaf and
+     * fails with "Names list must match exactly to nested schema" if the two
+     * disagree (e.g. reusing the inner's pre-wrap names when the wrapper shrinks
+     * or widens the schema, as an Aggregate-over-Join does).
      */
-    static Plan rewire(Plan inner, Rel wrapper) {
+    static Plan rewire(Plan inner, Rel wrapper, List<String> wrapperNames) {
         if (inner.getRoots().isEmpty()) {
             throw new IllegalArgumentException("Inner Substrait plan has no root relation to rewire under wrapper");
         }
         Plan.Root innerRoot = inner.getRoots().get(0);
         Rel innerRel = innerRoot.getInput();
         Rel rewired = replaceInput(wrapper, innerRel);
-        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(innerRoot.getNames()).build()).build();
+        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(wrapperNames).build()).build();
+    }
+
+    /** Top-level output column names of a Calcite RelNode — one entry per leaf field in the row type. */
+    private static List<String> rowTypeFieldNames(RelNode node) {
+        return node.getRowType().getFieldList().stream().map(f -> f.getName()).toList();
     }
 
     private static Rel replaceInput(Rel wrapper, Rel newInput) {

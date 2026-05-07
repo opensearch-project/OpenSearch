@@ -211,6 +211,12 @@ public class PlanWalker {
             switch (to) {
                 case SUCCEEDED -> fireTerminal(() -> completionListener.onResponse(producer.outputSource().readResult()));
                 case FAILED, CANCELLED -> {
+                    // Release any batches the root sink buffered before the failure fired — the
+                    // consumer's happy-path drain (which closes each batch) never runs on this
+                    // branch, so the query allocator's close() would otherwise report a leak.
+                    if (producer.outputSource() instanceof RowProducingSink rps) {
+                        rps.releaseUnread();
+                    }
                     Exception failure = rootExec.getFailure();
                     if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
                         fireTerminal(() -> completionListener.onFailure(new TaskCancelledException("query cancelled")));

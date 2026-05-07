@@ -15,8 +15,10 @@ import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
@@ -38,10 +40,12 @@ import io.substrait.proto.AggregateRel;
 import io.substrait.proto.AggregationPhase;
 import io.substrait.proto.Expression;
 import io.substrait.proto.FilterRel;
+import io.substrait.proto.JoinRel;
 import io.substrait.proto.Plan;
 import io.substrait.proto.PlanRel;
 import io.substrait.proto.ReadRel;
 import io.substrait.proto.Rel;
+import io.substrait.proto.RelRoot;
 import io.substrait.proto.SortRel;
 
 /**
@@ -322,6 +326,71 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         Expression delegatedArg = andFunc.getArguments(1).getValue();
         assertTrue("second AND arg must be a scalar function", delegatedArg.hasScalarFunction());
         assertEquals(7, delegatedArg.getScalarFunction().getArguments(0).getValue().getLiteral().getI32());
+    }
+
+    /**
+     * A {@code LogicalJoin} fragment converts to {@code JoinRel} whose plan root
+     * carries a {@code names} list that matches the concatenated left + right schemas —
+     * DataFusion's Substrait consumer walks the output schema once per leaf field and
+     * fails with "Names list must match exactly to nested schema" if the two disagree.
+     */
+    public void testConvertFinalAggFragment_JoinPreservesFlatNamesList() throws Exception {
+        RelNode leftScan = buildTableScan("left_input", "lk", "lv");
+        RelNode rightScan = buildTableScan("right_input", "rk", "rv");
+        // Equi condition: left.lk = right.rk (left has 2 fields, so right.rk is index 2).
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(leftScan, 0),
+            rexBuilder.makeInputRef(typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true), 2)
+        );
+        LogicalJoin join = LogicalJoin.create(leftScan, rightScan, List.of(), condition, java.util.Set.of(), JoinRelType.INNER);
+
+        byte[] bytes = newConvertor().convertFinalAggFragment(join);
+
+        Plan plan = decodeSubstrait(bytes);
+        RelRoot root = plan.getRelations(0).getRoot();
+        assertTrue("root input must be a JoinRel", root.getInput().hasJoin());
+        JoinRel joinRel = root.getInput().getJoin();
+        assertTrue("JoinRel must carry a left input", joinRel.hasLeft());
+        assertTrue("JoinRel must carry a right input", joinRel.hasRight());
+        // Names list must match the flat concat of left + right schemas — Substrait consumer
+        // walks N leaf fields and expects N names. Any mismatch surfaces as the "Names list
+        // must match exactly to nested schema" error at plan decode time.
+        assertEquals("names list must match join's flat output schema", List.of("lk", "lv", "rk", "rv"), root.getNamesList());
+    }
+
+    /**
+     * Attaching an Aggregate fragment on top of a Join-derived inner plan must override
+     * the names list to the Aggregate's single output column — not the Join's 4-column
+     * names list. DataFusion's consumer walks the final plan's output schema; if we reuse
+     * the inner's names, it reports "Names list must match exactly to nested schema, but
+     * found N uses for M names" where N is the Aggregate's output column count and M is
+     * the Join's.
+     */
+    public void testAttachFragmentOnTop_AggregateOverJoinShrinksNamesList() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner: Join with 4-column output.
+        RelNode leftScan = buildTableScan("left_input", "lk", "lv");
+        RelNode rightScan = buildTableScan("right_input", "rk", "rv");
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(leftScan, 0),
+            rexBuilder.makeInputRef(typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true), 2)
+        );
+        LogicalJoin join = LogicalJoin.create(leftScan, rightScan, List.of(), condition, java.util.Set.of(), JoinRelType.INNER);
+        byte[] innerBytes = convertor.convertFinalAggFragment(join);
+
+        // Outer: Aggregate producing a single count column.
+        LogicalAggregate aggregate = buildSumAggregate(join, 0);
+        byte[] combined = convertor.attachFragmentOnTop(aggregate, innerBytes);
+
+        Plan plan = decodeSubstrait(combined);
+        RelRoot root = plan.getRelations(0).getRoot();
+        assertTrue("root input must be an AggregateRel after rewire", root.getInput().hasAggregate());
+        // Aggregate's output row type has 1 column (`sum_col`), so names must be a single
+        // element — if we'd reused inner's 4-name list, this assertion would fail with 4.
+        assertEquals("names list must match aggregate's 1-column output schema", List.of("sum_col"), root.getNamesList());
     }
 
     /**

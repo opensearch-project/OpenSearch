@@ -30,6 +30,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
+import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
@@ -101,6 +102,7 @@ public class PlannerImpl {
                 new OpenSearchFilterRule(context),
                 new OpenSearchProjectRule(context),
                 new OpenSearchAggregateRule(context),
+                new OpenSearchJoinRule(context),
                 new OpenSearchSortRule(context),
                 new OpenSearchUnionRule(context)
             )

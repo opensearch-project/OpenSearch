@@ -26,7 +26,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldStorageInfo;
-import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.ArrayList;
@@ -163,26 +162,27 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         for (int fieldIndex : fieldIndices) {
             FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorageInfos, fieldIndex);
-            FieldType fieldType = storageInfo.getFieldType();
 
-            Set<String> fieldViable;
             if (storageInfo.isDerived()) {
-                // Post-Union / post-Project columns have no physical storage formats — the
-                // column is materialised at the operator that produced it (e.g. Union of two
-                // branches with divergent storage, or a literal/expression projection). The
-                // filter still has to run somewhere; resolve viability against any backend
-                // that supports the function on this field type, ignoring storage formats.
-                // The format-aware Lucene-pushdown path stays as the primary lookup for
-                // non-derived columns above.
-                // TODO: for FULL_TEXT operators, extract required params from RexCall
-                fieldViable = new HashSet<>(registry.filterBackendsAnyFormat(function, fieldType));
-            } else {
-                // Format-aware: backends that can access this field's storage (doc values + index).
-                // A backend is viable only if it has the field in its own storage formats — ensuring
-                // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
-                // field only when the field has indexFormats=[lucene] set in the mapping).
-                fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
+                // Derived columns (post-Union, post-Project, HAVING on aggregate outputs) have no
+                // physical storage formats. Picking a backend for the filter therefore requires a
+                // within-stage delegation model (DelegationType split plus a DataTransferCapability
+                // telling the planner which backend can read the producing operator's output).
+                // Until that model exists, refuse to produce a plan rather than silently picking
+                // a backend that might not be able to consume the upstream column at runtime.
+                throw new IllegalStateException(
+                    "filter on derived column ["
+                        + storageInfo.getFieldName()
+                        + "] not supported: "
+                        + "delegation model for derived columns is not yet implemented"
+                );
             }
+            // Format-aware: backends that can access this field's storage (doc values + index).
+            // A backend is viable only if it has the field in its own storage formats — ensuring
+            // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
+            // field only when the field has indexFormats=[lucene] set in the mapping).
+            // TODO: for FULL_TEXT operators, extract required params from RexCall
+            Set<String> fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
 
             viableSet.retainAll(fieldViable);
         }

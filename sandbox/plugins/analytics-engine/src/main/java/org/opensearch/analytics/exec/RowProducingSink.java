@@ -87,8 +87,29 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
         batches.add(batch);
     }
 
+    /**
+     * Signals end-of-feed. This sink is the terminal buffer feeding the external query
+     * API — the consumer (e.g. {@code DefaultPlanExecutor#batchesToRows}) drains batches
+     * via {@link #readResult} and closes each one as it is materialized. close() is a
+     * no-op here so that buffered batches survive until the consumer has read them;
+     * producers (e.g. {@code ShardFragmentStageExecution#onShardTerminated}) call close()
+     * BEFORE the root stage transitions to SUCCEEDED, and the consumer runs inside that
+     * transition. Eager release would make readResult return an empty list.
+     *
+     * <p>Error-path cleanup lives with {@link #releaseUnread}, invoked by the query
+     * context when a query fails before the consumer runs.
+     */
     @Override
     public synchronized void close() {
+        // no-op — see javadoc
+    }
+
+    /**
+     * Release any buffered batches that were never drained by the consumer. Intended for
+     * the error path only — on the happy path the consumer closes each batch itself.
+     * Idempotent.
+     */
+    public synchronized void releaseUnread() {
         for (VectorSchemaRoot batch : batches) {
             batch.close();
         }

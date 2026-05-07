@@ -122,13 +122,23 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                         return;
                     }
 
-                    VectorSchemaRoot vsr = toVsr.apply(response);
-                    outputSink.feed(vsr);
-                    metrics.addRowsProcessed(vsr.getRowCount());
+                    try {
+                        VectorSchemaRoot vsr = toVsr.apply(response);
+                        outputSink.feed(vsr);
+                        metrics.addRowsProcessed(vsr.getRowCount());
 
-                    if (isLast) {
-                        metrics.incrementTasksCompleted();
-                        onShardTerminated();
+                        if (isLast) {
+                            metrics.incrementTasksCompleted();
+                            onShardTerminated();
+                        }
+                    } catch (IllegalStateException closed) {
+                        // QueryContext closed while this response was in flight — another
+                        // shard failed and tore down teardown. Silently drop; onShardTerminated
+                        // still needs to run so inFlight drains and the stage's terminal
+                        // transition isn't wedged.
+                        if (isLast) {
+                            onShardTerminated();
+                        }
                     }
                 });
             }
@@ -151,6 +161,14 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     private void onShardTerminated() {
         if (inFlight.decrementAndGet() == 0) {
             Exception captured = getFailure();
+            try {
+                outputSink.close();
+            } catch (Exception closeError) {
+                if (captured == null) {
+                    captureFailure(closeError);
+                    captured = closeError;
+                }
+            }
             transitionTo(captured != null ? StageExecution.State.FAILED : StageExecution.State.SUCCEEDED);
         }
     }
