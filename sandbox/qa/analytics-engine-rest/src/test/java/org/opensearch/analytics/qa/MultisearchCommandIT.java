@@ -97,6 +97,37 @@ public class MultisearchCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── CASE on the eval side — explicit case() expression lowers to CASE WHEN ──
+
+    public void testMultisearchEvalCaseProjection() throws IOException {
+        // PPL `eval x = case(cond, val, …)` lowers to a Calcite SqlKind.CASE which the
+        // analytics planner used to reject with "No backend supports scalar function
+        // [CASE] among [datafusion]" (capability not registered). With CASE in the
+        // project capability set, isthmus translates SqlKind.CASE structurally to a
+        // Substrait IfThen rel that DataFusion's substrait consumer handles natively —
+        // no extension lookup or adapter required.
+        //
+        // Each branch uses an explicit `else` arm so isthmus doesn't have to convert an
+        // untyped NULL literal — `eval bucket = case(int0 < 5, "low" else "rest")` keeps
+        // both arms VARCHAR. The `count(eval(predicate))` idiom (the v2-side
+        // testMultisearchSuccessRatePattern shape) generates an implicit `else NULL`
+        // whose type is SqlTypeName.NULL; isthmus' TypeConverter throws
+        // `Unable to convert the type NULL` on that, tracked separately.
+        //
+        // calcs int0 distribution (see testMultisearchTwoBranchesByCategory): 5 rows < 5,
+        // 6 rows >= 5; the union below feeds 11 rows total to the case-eval. low maps to
+        // ("low", 5), rest (the high branch's contribution) to ("rest", 6).
+        assertRows(
+            "| multisearch"
+                + "    [search source=" + DATASET.indexName + " | where int0 < 5  | fields int0]"
+                + "    [search source=" + DATASET.indexName + " | where int0 >= 5 | fields int0]"
+                + " | eval bucket = case(int0 < 5, \"low\" else \"rest\")"
+                + " | stats count by bucket | sort bucket",
+            row(5L, "low"),
+            row(6L, "rest")
+        );
+    }
+
     // ── arity check — caught at parse, never reaches the analytics path ────────
 
     public void testMultisearchSingleSubsearchRejected() throws IOException {
