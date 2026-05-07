@@ -16,28 +16,40 @@ import java.util.List;
 public class VersionSelectionTests extends GradleUnitTestCase {
 
     @Test
-    public void selectsLatestReleasedVersionBeforeCurrentMinor() {
-        assertEquals("3.4.0", VersionSelection.latestReleasedBeforeCurrentMinor("3.5.1", List.of("3.4.0", "3.5.0", "3.6.0")));
+    public void selectsImmediatePriorVersion() {
+        assertEquals("3.5.0", VersionSelection.latestPriorReleasedVersion("3.5.1", List.of("3.4.0", "3.5.0", "3.6.0")));
     }
 
     @Test
-    public void selectsLatestPatchBeforeCurrentMinor() {
-        assertEquals("3.6.1", VersionSelection.latestReleasedBeforeCurrentMinor("3.7.0", List.of("3.5.0", "3.6.0", "3.6.1")));
+    public void selectsLatestPatchOnSameMinor() {
+        assertEquals("3.6.1", VersionSelection.latestPriorReleasedVersion("3.7.0", List.of("3.5.0", "3.6.0", "3.6.1")));
     }
 
     @Test
-    public void selectsLatestReleaseFromPreviousMajorForFirstMinor() {
-        assertEquals("3.6.1", VersionSelection.latestReleasedBeforeCurrentMinor("4.0.0", List.of("3.6.0", "3.6.1", "4.0.0")));
+    public void returnsNullForInitialMajorRelease() {
+        assertNull(VersionSelection.latestPriorReleasedVersion("4.0.0", List.of("3.6.0", "3.6.1")));
     }
 
     @Test
-    public void ignoresQualifiedReleaseCandidates() {
+    public void ignoresQualifiedVersions() {
         assertEquals(
             "2.19.5",
-            VersionSelection.latestReleasedBeforeCurrentMinor(
-                "3.0.0-beta1",
-                List.of("2.19.4", "2.19.5", "3.0.0-alpha1", "3.0.0-beta1", "3.0.0")
-            )
+            VersionSelection.latestPriorReleasedVersion("2.20.0", List.of("2.19.4", "2.19.5", "2.20.0-alpha1", "2.20.0-beta1"))
         );
+    }
+
+    @Test
+    public void returnsNullForPreReleaseOfInitialMajor() {
+        assertNull(VersionSelection.latestPriorReleasedVersion("4.0.0-beta1", List.of("3.6.0", "3.6.1")));
+    }
+
+    @Test
+    public void selectsPriorVersionOnSameMajorOnly() {
+        assertEquals("4.0.0", VersionSelection.latestPriorReleasedVersion("4.1.0", List.of("3.6.0", "3.6.1", "4.0.0")));
+    }
+
+    @Test
+    public void handlesSnapshotVersion() {
+        assertEquals("3.5.0", VersionSelection.latestPriorReleasedVersion("3.6.0-SNAPSHOT", List.of("3.4.0", "3.5.0")));
     }
 }

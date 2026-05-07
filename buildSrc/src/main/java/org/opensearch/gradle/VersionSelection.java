@@ -17,29 +17,24 @@ public class VersionSelection {
     private VersionSelection() {}
 
     /**
-     * Selects the latest released OpenSearch version before the current minor line.
-     * Maintenance branches must not compare against same-minor or newer-minor releases.
+     * Selects the immediate prior released version to compare against for API compatibility.
+     * Returns null if no prior version exists on the same major line (e.g. initial major release),
+     * signaling that the check should be skipped.
      */
-    public static String latestReleasedBeforeCurrentMinor(String currentVersion, List<String> releasedVersions) {
+    public static String latestPriorReleasedVersion(String currentVersion, List<String> releasedVersions) {
         Version current = Version.fromString(currentVersion);
         List<Version> candidates = releasedVersions.stream()
             .filter(version -> version.matches("\\d+\\.\\d+\\.\\d+"))
             .map(Version::fromString)
-            .filter(releasedVersion -> isBeforeCurrentMinor(current, releasedVersion))
+            .filter(v -> v.getMajor() == current.getMajor())
+            .filter(v -> v.before(current))
             .sorted(Comparator.naturalOrder())
             .collect(Collectors.toList());
 
         if (candidates.isEmpty()) {
-            throw new IllegalStateException("Unable to find a released version before " + current + "'s minor line");
+            return null;
         }
 
         return candidates.get(candidates.size() - 1).toString();
-    }
-
-    private static boolean isBeforeCurrentMinor(Version current, Version releasedVersion) {
-        if (releasedVersion.getMajor() < current.getMajor()) {
-            return true;
-        }
-        return releasedVersion.getMajor() == current.getMajor() && releasedVersion.getMinor() < current.getMinor();
     }
 }
