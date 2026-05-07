@@ -54,26 +54,18 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         List<CatalogSnapshot> committed = initialCommittedSnapshots.isEmpty()
             ? List.of(CatalogSnapshotManager.createInitialSnapshot(0L, 0L, 0L, List.of(), -1L, Map.of()))
             : initialCommittedSnapshots;
-        return new CatalogSnapshotManager(
-            committed,
-            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-            filesToDelete -> {
-                Map<String, java.util.Collection<String>> allFailed = new java.util.HashMap<>();
-                for (FileDeleter deleter : perFormatDeleters.values()) {
-                    try {
-                        Map<String, java.util.Collection<String>> failed = deleter.deleteFiles(filesToDelete);
-                        failed.forEach((k, v) -> allFailed.computeIfAbsent(k, x -> new java.util.ArrayList<>()).addAll(v));
-                    } catch (java.io.IOException e) {
-                        throw new RuntimeException(e);
-                    }
+        return new CatalogSnapshotManager(committed, CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY, filesToDelete -> {
+            Map<String, java.util.Collection<String>> allFailed = new java.util.HashMap<>();
+            for (FileDeleter deleter : perFormatDeleters.values()) {
+                try {
+                    Map<String, java.util.Collection<String>> failed = deleter.deleteFiles(filesToDelete);
+                    failed.forEach((k, v) -> allFailed.computeIfAbsent(k, x -> new java.util.ArrayList<>()).addAll(v));
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException(e);
                 }
-                return allFailed;
-            },
-            Map.of(),
-            List.of(),
-            shardPath,
-            commitFileManager
-        );
+            }
+            return allFailed;
+        }, Map.of(), List.of(), shardPath, commitFileManager);
     }
 
     public void testCommitProducesCorrectNewSnapshot() throws Exception {
