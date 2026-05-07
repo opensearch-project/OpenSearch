@@ -87,7 +87,8 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     @Before
     public void setup() throws Exception {
-        warehouseDir = createTempDir().toFile();
+        warehouseDir = new File(createTempDir().toFile(), java.util.UUID.randomUUID().toString());
+        warehouseDir.mkdirs();
         generateTestData();
         setupHiveMetastore();
         registerTableAndPartitions();
@@ -208,10 +209,65 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         // First record after seek should have sequenceNumber > lastPointer's
         HivePointer firstResumed = resumedBatch.get(0).getPointer();
-        assertTrue("Resumed pointer should be after the seek pointer", firstResumed.getSequenceNumber() > lastPointer.getSequenceNumber());
 
         // sequenceNumber should be exactly lastPointer + 1 (no gap, no re-read)
         assertEquals(lastPointer.getSequenceNumber() + 1, firstResumed.getSequenceNumber());
+
+        // Must resume in the same partition and file, at the next row
+        assertEquals(lastPointer.getPartitionName(), firstResumed.getPartitionName());
+        assertEquals(lastPointer.getFilePath(), firstResumed.getFilePath());
+        assertEquals(lastPointer.getRowIndex() + 1, firstResumed.getRowIndex());
+
+        // Verify data continuity: read all remaining rows and check total count
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> allRemaining = new ArrayList<>(resumedBatch);
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> batch;
+        do {
+            batch = resumedConsumer.readNext(100, 5000);
+            allRemaining.addAll(batch);
+        } while (!batch.isEmpty());
+
+        // First consumer read 10 rows, resumed consumer should read the remaining (450 - 10 = 440)
+        assertEquals(440, allRemaining.size());
+
+        resumedConsumer.close();
+    }
+
+    /**
+     * Test that readNext(pointer, includeStart=true) includes the pointer's row itself.
+     * This is the mode the framework uses on resume.
+     */
+    public void testSeekToPointerInclusive() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", metastoreUri);
+        params.put("database", DATABASE);
+        params.put("table", TABLE_NAME);
+        params.put("_number_of_shards", 1);
+        params.put("monitor_interval", "1s");
+
+        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveShardConsumer consumer = new HiveShardConsumer("test-client", 0, config);
+
+        // Read first batch
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> firstBatch = consumer.readNext(10, 5000);
+        HivePointer lastPointer = firstBatch.get(firstBatch.size() - 1).getPointer();
+        consumer.close();
+
+        // Resume with includeStart=true
+        HiveShardConsumer resumedConsumer = new HiveShardConsumer("test-client-2", 0, config);
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> resumedBatch = resumedConsumer.readNext(
+            lastPointer,
+            true,
+            10,
+            5000
+        );
+        assertFalse(resumedBatch.isEmpty());
+
+        // Should start from the same row (inclusive)
+        HivePointer firstResumed = resumedBatch.get(0).getPointer();
+        assertEquals(lastPointer.getSequenceNumber(), firstResumed.getSequenceNumber());
+        assertEquals(lastPointer.getPartitionName(), firstResumed.getPartitionName());
+        assertEquals(lastPointer.getFilePath(), firstResumed.getFilePath());
+        assertEquals(lastPointer.getRowIndex(), firstResumed.getRowIndex());
 
         resumedConsumer.close();
     }
