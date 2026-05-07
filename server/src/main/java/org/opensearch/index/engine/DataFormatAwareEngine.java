@@ -226,7 +226,19 @@ public class DataFormatAwareEngine implements Indexer {
             store.incRef();
 
             // 1. Create Committer (uses translogPath for safe bootstrap trimming)
-            this.committer = engineConfig.getCommitterFactory().getCommitter(new CommitterConfig(engineConfig));
+            // Encapsulate refreshLock access behind a pre-merge-commit hook: committer-owned
+            // writers (e.g. Lucene MergeIndexWriter) invoke the hook on the merge thread
+            // immediately before the merged segment becomes visible. When Lucene participates
+            // in a merge, its committer wires the hook into a MergedSegmentWarmer that fires
+            // between mergeMiddle and commitMerge — the IndexWriter monitor is not held there,
+            // so acquiring refreshLock via the hook establishes the same refreshLock → IW
+            // monitor ordering that the refresh path uses and avoids lock inversion. Ownership
+            // then transfers to applyMergeChanges, which releases the lock after the catalog
+            // is updated. For merges that do not invoke the hook — pure Parquet merges, or
+            // Lucene merges that skip because the shared writer has no matching segments —
+            // applyMergeChanges acquires refreshLock itself. Either way, applyMergeChanges
+            // releases the lock before returning.
+            this.committer = engineConfig.getCommitterFactory().getCommitter(new CommitterConfig(engineConfig, refreshLock::lock));
 
             // 2. Read translogUUID and history UUID from last committed data
             final Map<String, String> userData = committer.getLastCommittedData();
@@ -1379,9 +1391,20 @@ public class DataFormatAwareEngine implements Indexer {
         assert mergeResult != null : "merge result must not be null";
         assert oneMerge != null : "oneMerge must not be null";
         assert oneMerge.getSegmentsToMerge().isEmpty() == false : "merged segments list must not be empty";
-        refreshLock.lock();
+        // refreshLock may already be held by the merge thread when Lucene participated in the
+        // merge: the Lucene committer's MergedSegmentWarmer acquires it between mergeMiddle and
+        // commitMerge to coordinate with refreshes. When Lucene is not a participant (pure-Parquet
+        // merges, or Lucene merges that skip because the shared writer has no matching segments),
+        // the warmer never fires and the lock is not held on entry; acquire it locally to
+        // serialise the catalog update against concurrent refreshes. Always release on exit.
+        final boolean acquiredHere = refreshLock.isHeldByCurrentThread() == false;
+        if (acquiredHere) {
+            refreshLock.lock();
+        }
         try (GatedCloseable<CatalogSnapshot> oldSnapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+            notifyRefreshListenersBefore();
             catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
+            notifyRefreshListenersAfter(true);
         } catch (Exception ex) {
             try {
                 logger.error(() -> new ParameterizedMessage("Merge failed while registering merged files in Snapshot"), ex);

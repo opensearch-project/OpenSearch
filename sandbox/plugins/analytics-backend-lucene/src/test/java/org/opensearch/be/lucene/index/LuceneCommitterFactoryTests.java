@@ -56,7 +56,7 @@ public class LuceneCommitterFactoryTests extends OpenSearchTestCase {
                 .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, Collections.emptyList()))
                 .build();
             LuceneCommitterFactory committerFactory = new LuceneCommitterFactory();
-            committer = committerFactory.getCommitter(new CommitterConfig(engineConfig));
+            committer = committerFactory.getCommitter(new CommitterConfig(engineConfig, () -> {}));
 
             assertTrue("getCommitter() should return a LuceneCommitter instance", committer instanceof LuceneCommitter);
         } finally {

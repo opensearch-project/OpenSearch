@@ -15,6 +15,8 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
@@ -22,6 +24,8 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
+import org.opensearch.be.lucene.index.LuceneWriter;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -99,6 +103,17 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     private CatalogSnapshot stubSnapshot(long generation) {
+        return stubSnapshot(generation, List.of());
+    }
+
+    /**
+     * Builds a stub snapshot whose segment list contains the given writer generations.
+     * This is required by {@link LuceneReaderManager#afterRefresh}'s assertion, which
+     * compares the snapshot's segment generations against the writer-generation attribute
+     * on each leaf in the refreshed {@link DirectoryReader}.
+     */
+    private CatalogSnapshot stubSnapshot(long generation, List<Long> segmentGenerations) {
+        List<Segment> segs = segmentGenerations.stream().map(g -> Segment.builder(g).build()).toList();
         return new CatalogSnapshot("test", generation, 1) {
             @Override
             protected void closeInternal() {}
@@ -115,7 +130,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
 
             @Override
             public List<Segment> getSegments() {
-                return List.of();
+                return segs;
             }
 
             @Override
@@ -168,11 +183,36 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         };
     }
 
-    private void addDoc(String id) throws IOException {
+    private void addDoc(String id, long generation) throws IOException {
         Document doc = new Document();
         doc.add(new StringField("id", id, Field.Store.YES));
         indexWriter.addDocument(doc);
         indexWriter.commit();
+        stampLatestSegmentGeneration(generation);
+    }
+
+    /**
+     * Stamps the most recently written segment with the {@code writer_generation} attribute
+     * that {@link LuceneReaderManager#afterRefresh}'s assertion expects. In production this
+     * is done by {@code LuceneWriterCodec}; tests that write directly through a plain
+     * {@link IndexWriter} must stamp it themselves.
+     */
+    @SuppressForbidden(reason = "Need reflection to stamp writer_generation on segments for testing")
+    private void stampLatestSegmentGeneration(long generation) throws IOException {
+        try {
+            java.lang.reflect.Field segInfosField = IndexWriter.class.getDeclaredField("segmentInfos");
+            segInfosField.setAccessible(true);
+            SegmentInfos segInfos = (SegmentInfos) segInfosField.get(indexWriter);
+            if (segInfos.size() == 0) {
+                return;
+            }
+            SegmentCommitInfo last = segInfos.asList().get(segInfos.size() - 1);
+            if (last.info.getAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE) == null) {
+                last.info.putAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE, String.valueOf(generation));
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IOException("Failed to stamp writer_generation via reflection", e);
+        }
     }
 
     public void testAfterRefreshCreatesReader() throws IOException {
@@ -195,21 +235,24 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     public void testMultipleRefreshesWithIndexing() throws IOException {
         LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
 
+        // Empty initial reader — no segments yet.
         CatalogSnapshot snap1 = stubSnapshot(1);
         rm.afterRefresh(true, snap1);
         DirectoryReader reader1 = rm.getReader(snap1);
         assertEquals(0, new IndexSearcher(reader1).count(new MatchAllDocsQuery()));
 
-        addDoc("doc1");
-        CatalogSnapshot snap2 = stubSnapshot(2);
+        // Add doc1 in generation 10, refresh. Reader now has one leaf stamped with gen=10.
+        addDoc("doc1", 10L);
+        CatalogSnapshot snap2 = stubSnapshot(2, List.of(10L));
         rm.afterRefresh(true, snap2);
         DirectoryReader reader2 = rm.getReader(snap2);
         assertEquals(1, new IndexSearcher(reader2).count(new MatchAllDocsQuery()));
 
         assertEquals(0, new IndexSearcher(reader1).count(new MatchAllDocsQuery()));
 
-        addDoc("doc2");
-        CatalogSnapshot snap3 = stubSnapshot(3);
+        // Add doc2 in generation 20. Reader now has two leaves stamped with gens {10, 20}.
+        addDoc("doc2", 20L);
+        CatalogSnapshot snap3 = stubSnapshot(3, List.of(10L, 20L));
         rm.afterRefresh(true, snap3);
         DirectoryReader reader3 = rm.getReader(snap3);
         assertEquals(2, new IndexSearcher(reader3).count(new MatchAllDocsQuery()));
@@ -286,7 +329,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             )
             .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, java.util.Collections.emptyList()))
             .build();
-        CommitterConfig cs = new CommitterConfig(engineConfig);
+        CommitterConfig cs = new CommitterConfig(engineConfig, () -> {});
         LuceneCommitter committer = new LuceneCommitter(cs);
 
         try {

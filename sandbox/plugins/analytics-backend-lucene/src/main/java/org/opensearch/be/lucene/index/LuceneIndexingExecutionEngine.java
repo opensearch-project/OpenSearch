@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MergeIndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
@@ -74,7 +75,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private static final Logger logger = LogManager.getLogger(LuceneIndexingExecutionEngine.class);
 
     private final LuceneDataFormat dataFormat;
-    private final IndexWriter sharedWriter;
+    private final MergeIndexWriter sharedWriter;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
@@ -123,7 +124,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      *
      * @return the index writer
      */
-    public IndexWriter getWriter() {
+    public MergeIndexWriter getWriter() {
         return sharedWriter;
     }
 

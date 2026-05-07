@@ -28,6 +28,19 @@ import java.io.IOException;
  * assertion in {@code wrapForMerge}, since pluggable data format merges run on the
  * engine's own merge thread pool rather than Lucene's {@code MergeThread}.
  *
+ * <h2>Coordination with engine refreshes</h2>
+ *
+ * <p>This class itself does not take any engine-level locks. Coordination with the engine's
+ * refresh path is layered on top by installing a {@code MergedSegmentWarmer} on the
+ * {@link IndexWriterConfig} (see {@code LuceneCommitter}). The warmer runs between
+ * {@code mergeMiddle} and {@code commitMerge}, at a point where the {@link IndexWriter}
+ * monitor is <em>not</em> held, and acquires the engine's refresh lock. This establishes the
+ * ordering {@code refreshLock → IndexWriter monitor} on the merge thread, matching the order
+ * used by the engine's refresh path (which takes the refresh lock before calling
+ * {@code addIndexes}). The expensive {@code mergeMiddle} phase therefore runs without holding
+ * the refresh lock, and only the short {@code commitMerge} window is serialized against
+ * refreshes.
+ *
  * @opensearch.experimental
  */
 public class MergeIndexWriter extends IndexWriter {
@@ -52,6 +65,9 @@ public class MergeIndexWriter extends IndexWriter {
      * <p>Duplicate segment prevention is handled by the caller; this method does not
      * validate against concurrent merges on the same segments.
      *
+     * <p>Refresh-lock coordination is handled by the {@code MergedSegmentWarmer} installed on
+     * this writer's {@link IndexWriterConfig} — see the class Javadoc for details.
+     *
      * @param oneMerge       the merge to execute
      * @param mergeGeneration the writer generation for the merged output segment
      * @throws IOException if the merge fails
@@ -63,7 +79,10 @@ public class MergeIndexWriter extends IndexWriter {
             oneMerge.maxNumSegments = -1;
             oneMerge.registerDone = true;
         }
-        // merge() must be called without holding the lock — mergeInit asserts !Thread.holdsLock(this)
+        // merge() must be called without holding the lock — mergeInit asserts !Thread.holdsLock(this).
+        // Refresh-lock acquisition happens inside the MergedSegmentWarmer configured on this writer,
+        // which fires between mergeMiddle and commitMerge while the IW monitor is not held. This
+        // matches the refresh path's lock order (refreshLock → IW monitor) and avoids any inversion.
         merge(oneMerge);
     }
 

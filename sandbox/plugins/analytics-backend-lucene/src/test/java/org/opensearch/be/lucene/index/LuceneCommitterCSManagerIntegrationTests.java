@@ -121,7 +121,9 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             shardPath
         );
         store.createEmpty(org.apache.lucene.util.Version.LATEST);
-        LuceneCommitter committer = new LuceneCommitter(new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir)));
+        LuceneCommitter committer = new LuceneCommitter(
+            new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
+        );
         Path parquetDir = dataPath.resolve(PARQUET_FORMAT);
         Files.createDirectories(parquetDir);
         return new TestEnv(committer, store, shardPath, indexDir, parquetDir, translogDir);
@@ -495,7 +497,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             );
             store.createEmpty(org.apache.lucene.util.Version.LATEST);
             LuceneCommitter committer = new LuceneCommitter(
-                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );
 
             lucene0 = ingestLuceneDocs(committer, store);
@@ -569,7 +571,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
                 shardPath
             );
             LuceneCommitter committer = new LuceneCommitter(
-                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );
 
             assertEquals("Only safe commit remains", 1, DirectoryReader.listCommits(store.directory()).size());
@@ -630,7 +632,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             );
             store.createEmpty(org.apache.lucene.util.Version.LATEST);
             LuceneCommitter committer = new LuceneCommitter(
-                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );
 
             lucene0 = ingestLuceneDocs(committer, store);
@@ -685,7 +687,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
                 shardPath
             );
             LuceneCommitter committer = new LuceneCommitter(
-                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir))
+                new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );
 
             assertEquals(1, DirectoryReader.listCommits(store.directory()).size());

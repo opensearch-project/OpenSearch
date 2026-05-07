@@ -80,14 +80,11 @@ public class LuceneMerger implements Merger {
     private final Path storeDirectory;
     private final LuceneMergeStrategy strategy;
 
-    public LuceneMerger(IndexWriter indexWriter, DataFormat dataFormat, Path storeDirectory) {
+    public LuceneMerger(MergeIndexWriter indexWriter, DataFormat dataFormat, Path storeDirectory) {
         if (indexWriter == null) {
             throw new IllegalArgumentException("IndexWriter must not be null");
         }
-        if (indexWriter instanceof MergeIndexWriter == false) {
-            throw new IllegalArgumentException("IndexWriter must be a MergeIndexWriter, got " + indexWriter.getClass().getName());
-        }
-        this.indexWriter = (MergeIndexWriter) indexWriter;
+        this.indexWriter = indexWriter;
         this.dataFormat = dataFormat;
         this.storeDirectory = storeDirectory;
         // TODO implement primary and integrate the same here
@@ -137,8 +134,21 @@ public class LuceneMerger implements Merger {
         MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping);
         indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());
 
+        // Stamp the merged segment with its writer generation so downstream lookups
+        // (e.g. findMatchingSegments on a subsequent merge) can correlate it.
+        //
+        // This mutation is in-memory only: Lucene writes the .si file exactly once at
+        // segment creation via SegmentInfoFormat.write(...) and does not rewrite it on
+        // later commits, so this attribute will not survive a writer reopen. That is
+        // acceptable here because the attribute is only consumed within the lifetime
+        // of the live IndexWriter's SegmentInfos.
+        SegmentCommitInfo mergedInfo = oneMerge.getMergeInfo();
+        if (mergedInfo != null) {
+            mergedInfo.info.putAttribute(WRITER_GENERATION_ATTRIBUTE, String.valueOf(mergeInput.newWriterGeneration()));
+        }
+
         // Build the merged WriterFileSet from the output segment info
-        WriterFileSet mergedFileSet = buildMergedFileSet(oneMerge.getMergeInfo(), mergeInput.newWriterGeneration());
+        WriterFileSet mergedFileSet = buildMergedFileSet(mergedInfo, mergeInput.newWriterGeneration());
 
         // Delegate RowIdMapping production to the strategy
         RowIdMapping outputMapping = strategy.buildRowIdMapping(oneMerge, mergeInput);

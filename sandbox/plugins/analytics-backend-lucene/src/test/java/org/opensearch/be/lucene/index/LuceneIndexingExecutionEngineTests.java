@@ -126,7 +126,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             null,
             null
         );
-        CommitterConfig settings = new CommitterConfig(engineConfig);
+        CommitterConfig settings = new CommitterConfig(engineConfig, () -> {});
         return new LuceneCommitter(settings);
     }
 
