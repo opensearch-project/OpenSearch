@@ -136,6 +136,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.REGEXP_CONTAINS,
         ScalarFunction.REPLACE,
         ScalarFunction.REGEXP_REPLACE,
+        ScalarFunction.TRANSLATE,
         ScalarFunction.PLUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,

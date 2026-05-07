@@ -89,6 +89,7 @@ public enum ScalarFunction {
     NUMBER_TO_STRING(Category.STRING, SqlKind.OTHER_FUNCTION), // Alias for TOSTRING
     TONUMBER(Category.STRING, SqlKind.OTHER_FUNCTION),
     STRCMP(Category.STRING, SqlKind.OTHER_FUNCTION),
+    TRANSLATE(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Cryptographic hash ─────────────────────────────────────────────
     // md5(x), sha1(x), sha2(x, bitLen) with bitLen ∈ {224,256,384,512}, crc32(x).

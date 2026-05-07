@@ -307,6 +307,51 @@ scalar_functions:
           - value: "string"
             name: "replacement"
         return: string
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "replacement"
+          - value: "varchar<L4>"
+            name: "flags"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "replacement"
+          - value: "string"
+            name: "flags"
+        return: string
+  - name: translate
+    description: >-
+      Character transliteration — replace each character in `input` that appears
+      in `from` with the corresponding character in `to`. Lowering target for
+      PPL's `rex mode=sed` with {@code y/from/to/} transliteration syntax
+      (Calcite `SqlLibraryOperators.TRANSLATE3`). datafusion-substrait resolves
+      the extension name "translate" to DataFusion's native `translate` UDF
+      (datafusion-functions/src/unicode/translate.rs).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "from"
+          - value: "varchar<L3>"
+            name: "to"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "from"
+          - value: "string"
+            name: "to"
+        return: string
 
   # ascii(str) — Unicode code point of the first character.
   - name: "ascii"

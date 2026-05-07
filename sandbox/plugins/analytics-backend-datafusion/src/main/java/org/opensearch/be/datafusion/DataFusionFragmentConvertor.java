@@ -114,6 +114,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_3} → {@code regexp_replace} (regex string
      *       replacement; lowering target for PPL `replace` command on wildcard patterns and for
      *       PPL `replace()` / `regexp_replace()` functions in `eval`).</li>
+     *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_PG_4} → {@code regexp_replace} (4-arg
+     *       PostgreSQL-style with flags string; lowering target for PPL `rex mode=sed` with
+     *       {@code g}/{@code i} flags. Reuses the same DataFusion {@code regexp_replace} UDF as
+     *       the 3-arg form.</li>
+     *   <li>{@link SqlLibraryOperators#TRANSLATE3} → {@code translate} (3-arg character
+     *       transliteration; lowering target for PPL `rex mode=sed` with {@code y/from/to/}
+     *       transliteration syntax). DataFusion's substrait consumer resolves the extension name
+     *       "translate" to its native {@code translate} UDF
+     *       (datafusion-functions/src/unicode/translate.rs).</li>
      * </ul>
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
@@ -147,8 +156,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
-        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_PG_4, "regexp_replace"),
         FunctionMappings.s(SqlLibraryOperators.REVERSE, "reverse"),
+        FunctionMappings.s(SqlLibraryOperators.TRANSLATE3, "translate"),
         FunctionMappings.s(PositionAdapter.STRPOS, "strpos"),
         FunctionMappings.s(StrftimeFunctionAdapter.STRFTIME, "strftime"),
         FunctionMappings.s(ToNumberFunctionAdapter.TONUMBER, "tonumber"),
