@@ -273,6 +273,55 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
     }
 
     /**
+     * Test that PARTITION_TIME mode correctly tracks watermarkPartitionTime across seek and
+     * subsequent discovery, preventing re-reading of already-consumed partitions.
+     */
+    public void testSeekToPointerPartitionTimeMode() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", metastoreUri);
+        params.put("database", DATABASE);
+        params.put("table", TABLE_NAME);
+        params.put("_number_of_shards", 1);
+        params.put("monitor_interval", "1s");
+        params.put("partition_order", "partition-time");
+        params.put("partition_time_pattern", "2026-04-$dt");
+
+        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveShardConsumer consumer = new HiveShardConsumer("test-client", 0, config);
+
+        // Read first batch
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> firstBatch = consumer.readNext(10, 5000);
+        assertFalse(firstBatch.isEmpty());
+        HivePointer lastPointer = firstBatch.get(firstBatch.size() - 1).getPointer();
+        consumer.close();
+
+        // Resume with PARTITION_TIME mode
+        HiveShardConsumer resumedConsumer = new HiveShardConsumer("test-client-2", 0, config);
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> resumedBatch = resumedConsumer.readNext(
+            lastPointer,
+            false,
+            10,
+            5000
+        );
+        assertFalse(resumedBatch.isEmpty());
+
+        // Verify sequenceNumber continuity (no gap = no re-read)
+        HivePointer firstResumed = resumedBatch.get(0).getPointer();
+        assertEquals(lastPointer.getSequenceNumber() + 1, firstResumed.getSequenceNumber());
+
+        // Read all remaining and verify total (450 - 10 = 440)
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> allRemaining = new ArrayList<>(resumedBatch);
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> batch;
+        do {
+            batch = resumedConsumer.readNext(100, 5000);
+            allRemaining.addAll(batch);
+        } while (!batch.isEmpty());
+
+        assertEquals(440, allRemaining.size());
+        resumedConsumer.close();
+    }
+
+    /**
      * Add a new partition with test data to the Hive table.
      */
     private void addPartition(String dtValue, int numRows) throws Exception {
