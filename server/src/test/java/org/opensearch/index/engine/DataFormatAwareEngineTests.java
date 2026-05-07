@@ -1539,11 +1539,12 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat("each refresh with data must notify", observedGenerations.size(), equalTo(numRefreshes));
 
             // Verify the catalog snapshot generation advanced monotonically
+            // +1 because bumpGenerationForNewEngineLifecycle() advances generation at engine open
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
                 assertThat(
-                    "final snapshot generation must equal number of refreshes",
+                    "final snapshot generation must equal number of refreshes + 1 (engine open bump)",
                     ref.get().getGeneration(),
-                    equalTo((long) numRefreshes)
+                    equalTo((long) numRefreshes + 1)
                 );
             }
         }
@@ -1646,9 +1647,10 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             engine.refresh("test");
 
             // beforeRefresh sees the OLD generation (snapshot not yet committed)
-            assertThat("beforeRefresh must see pre-commit generation", genSeenInBefore.get(), equalTo(0L));
+            // +1 offset because bumpGenerationForNewEngineLifecycle() advances generation at engine open
+            assertThat("beforeRefresh must see pre-commit generation", genSeenInBefore.get(), equalTo(1L));
             // afterRefresh sees the NEW generation (snapshot committed)
-            assertThat("afterRefresh must see post-commit generation", genSeenInAfter.get(), equalTo(1L));
+            assertThat("afterRefresh must see post-commit generation", genSeenInAfter.get(), equalTo(2L));
         }
     }
 
