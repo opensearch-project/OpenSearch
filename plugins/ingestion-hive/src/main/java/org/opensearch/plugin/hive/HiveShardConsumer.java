@@ -50,7 +50,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private final HiveSourceConfig config;
     private final int numShards;
 
-    // Metastore and filesystem
+    // Catalog connection for metadata queries (table schema, partition discovery)
     private MetastoreCatalog catalog;
     private FileSystem fileSystem;
     private Configuration hadoopConf;
@@ -58,18 +58,22 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private String tableInputFormat;
     private List<String> partitionKeys;
 
-    // Partition tracking
+    // Partition tracking: watermark tracks the last fully-processed partition so that
+    // incremental discovery only fetches partitions newer than the watermark.
     private String watermark;
     private long watermarkCreateTime;
     private long lastMetastoreQueryTime;
 
-    // Current processing state
+    // Current processing state: pendingWork is the queue of partitions to process.
+    // Each PartitionWork tracks its files and progress. sequenceNumber is a monotonically
+    // increasing counter used for pointer ordering and checkpoint recovery.
     private List<PartitionWork> pendingWork;
     private int currentWorkIndex;
     private HiveFileReader currentFileReader;
     private String currentFile;
     private long currentRowIndex;
     private long sequenceNumber;
+    private boolean resumed;
     private final Set<String> seenPartitions = new HashSet<>();
 
     /**
@@ -98,6 +102,58 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private void reconnectMetastore() throws IOException {
         catalog.reconnect();
         fetchTableSchema();
+    }
+
+    /**
+     * Seeks to the position indicated by the pointer. Sets the watermark to the pointer's partition
+     * so that partition discovery resumes from that point, then seeks within the partition to the
+     * correct file and row.
+     */
+    private void seekToPointer(HivePointer pointer, boolean includeStart) throws Exception {
+        // Set watermark so discovery includes the pointer's partition and beyond
+        this.watermark = pointer.getPartitionName();
+        this.watermarkCreateTime = 0;
+        this.sequenceNumber = includeStart ? pointer.getSequenceNumber() : pointer.getSequenceNumber() + 1;
+        this.pendingWork = new ArrayList<>();
+        this.currentWorkIndex = 0;
+        this.seenPartitions.clear();
+
+        // Discover partitions from the pointer's partition onward
+        discoverNewPartitions();
+
+        // Seek to the correct file within the pointer's partition
+        String targetFile = pointer.getFilePath();
+        long targetRow = includeStart ? pointer.getRowIndex() : pointer.getRowIndex() + 1;
+
+        for (int i = 0; i < pendingWork.size(); i++) {
+            PartitionWork work = pendingWork.get(i);
+            if (work.partitionName.equals(pointer.getPartitionName())) {
+                currentWorkIndex = i;
+                for (int f = 0; f < work.files.size(); f++) {
+                    if (work.files.get(f).equals(targetFile)) {
+                        work.currentFileIndex = f + 1;
+                        currentFile = work.files.get(f);
+                        currentFileReader = createFileReader(currentFile);
+                        // Skip rows up to target position
+                        for (long r = 0; r < targetRow; r++) {
+                            if (currentFileReader.readNext() == null) break;
+                        }
+                        currentRowIndex = targetRow;
+                        logger.info(
+                            "Shard {} seeked to partition={}, file={}, row={}",
+                            shardId,
+                            pointer.getPartitionName(),
+                            targetFile,
+                            targetRow
+                        );
+                        return;
+                    }
+                }
+                break;
+            }
+        }
+        // Partition/file not found, will start from next available partition
+        logger.info("Shard {} seek target not found, continuing from watermark {}", shardId, watermark);
     }
 
     private void fetchTableSchema() throws IOException {
@@ -132,6 +188,10 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         }
     }
 
+    /**
+     * Resumes reading from the given pointer position. Restores watermark, seeks to the
+     * correct partition and file, and skips rows up to the pointer's row index.
+     */
     @Override
     public List<ReadResult<HivePointer, HiveMessage>> readNext(
         HivePointer pointer,
@@ -140,6 +200,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         int timeoutMillis
     ) {
         try {
+            ensureInitialized();
+            if (!resumed && pointer != null && !pointer.getPartitionName().isEmpty()) {
+                seekToPointer(pointer, includeStart);
+                resumed = true;
+            }
             return doReadNext(maxMessages);
         } catch (TTransportException e) {
             logger.warn("Metastore connection lost for shard {}, attempting reconnect: {}", shardId, e.getMessage());
@@ -175,6 +240,10 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         }
     }
 
+    /**
+     * Core read loop. Discovers new partitions if needed, then reads rows from the current
+     * file and converts them to JSON messages. Returns up to maxMessages results per call.
+     */
     private List<ReadResult<HivePointer, HiveMessage>> doReadNext(long maxMessages) throws Exception {
         ensureInitialized();
 
@@ -225,6 +294,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         if (config.getPartitionOrder() == HiveSourceConfig.PartitionOrder.CREATE_TIME) {
             partitions = discoverByCreateTime();
         } else {
+            // PARTITION_NAME and PARTITION_TIME both use name-based filter for discovery;
+            // ordering difference is handled in the sort step below.
             partitions = discoverByPartitionName();
         }
 
@@ -246,7 +317,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 });
         }
 
-        // Filter to partitions assigned to this shard
+        // Assign partitions to this shard using consistent hashing on partition name.
+        // Each shard deterministically owns a subset of partitions (no coordination needed).
         for (MetastoreCatalog.PartitionInfo partition : partitions) {
             String partName = partitionToName(partition);
             if (seenPartitions.contains(partName)) continue;
@@ -271,6 +343,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return catalog.getPartitionsByFilter(config.getDatabase(), config.getTable(), filter);
     }
 
+    // Neither Hive Metastore nor AWS Glue support server-side filtering by createTime.
+    // Client-side filtering after full partition list retrieval is the only option.
     private List<MetastoreCatalog.PartitionInfo> discoverByCreateTime() throws IOException {
         List<MetastoreCatalog.PartitionInfo> all = catalog.getAllPartitions(config.getDatabase(), config.getTable());
         if (watermarkCreateTime <= 0 && (watermark == null || watermark.isEmpty())) {
@@ -279,6 +353,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return all.stream().filter(p -> p.getCreateTime() > watermarkCreateTime).collect(Collectors.toList());
     }
 
+    /**
+     * Determines if it's time to query the Metastore for new partitions.
+     * Only refreshes when all pending work is complete and the monitor interval has elapsed,
+     * preventing excessive Metastore queries during active reading.
+     */
     private boolean shouldRefreshPartitions() {
         if (lastMetastoreQueryTime == 0) return true;
         boolean noPendingWork = currentWorkIndex >= pendingWork.size() && currentFileReader == null;
@@ -286,6 +365,10 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return noPendingWork && intervalElapsed;
     }
 
+    /**
+     * Opens the next data file from the pending work queue. When all files in a partition
+     * are consumed, updates the watermark and advances to the next partition.
+     */
     private boolean openNextFile() throws IOException {
         while (currentWorkIndex < pendingWork.size()) {
             PartitionWork work = pendingWork.get(currentWorkIndex);
