@@ -1,6 +1,6 @@
 # This workflow will check out, build, and publish snapshots of calcite.
 
-name: OpenSearch Lucene snapshots
+name: OpenSearch Calcite Revision
 
 on:
   workflow_dispatch:
