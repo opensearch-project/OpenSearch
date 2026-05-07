@@ -24,4 +24,5 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record SessionContextConfig(long readerPtr, long runtimePtr, String tableName, long contextId, WireConfigSnapshot queryConfig) {}
+public record SessionContextConfig(long readerPtr, long runtimePtr, String tableName, long contextId, WireConfigSnapshot queryConfig) {
+}

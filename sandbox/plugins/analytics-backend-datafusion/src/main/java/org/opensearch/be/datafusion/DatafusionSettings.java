@@ -202,7 +202,36 @@ public final class DatafusionSettings {
         registerListeners(clusterSettings);
     }
 
-    private void registerListeners(ClusterSettings clusterSettings) {
+    /**
+     * Package-private constructor for testing — builds the initial snapshot from
+     * raw settings without registering dynamic update listeners.
+     */
+    DatafusionSettings(Settings settings) {
+        int batchSize = INDEXED_BATCH_SIZE.get(settings);
+        boolean parquetPushdownFilters = INDEXED_PARQUET_PUSHDOWN_FILTERS.get(settings);
+        int minSkipRunDefault = INDEXED_MIN_SKIP_RUN_DEFAULT.get(settings);
+        double minSkipRunSelectivityThreshold = INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(settings);
+        int costPredicate = INDEXED_COST_PREDICATE.get(settings);
+        int costCollector = INDEXED_COST_COLLECTOR.get(settings);
+        int maxCollectorParallelism = INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings);
+
+        this.concurrentSearchMode = SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.get(settings);
+        this.maxSliceCount = SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settings);
+        int targetPartitions = deriveTargetPartitions(this.concurrentSearchMode, this.maxSliceCount);
+
+        this.snapshot = new WireConfigSnapshot(
+            batchSize,
+            targetPartitions,
+            parquetPushdownFilters,
+            minSkipRunDefault,
+            minSkipRunSelectivityThreshold,
+            costPredicate,
+            costCollector,
+            maxCollectorParallelism
+        );
+    }
+
+    void registerListeners(ClusterSettings clusterSettings) {
         clusterSettings.addSettingsUpdateConsumer(INDEXED_BATCH_SIZE, newValue -> {
             WireConfigSnapshot current = snapshot;
             snapshot = new WireConfigSnapshot(
@@ -356,7 +385,7 @@ public final class DatafusionSettings {
         }
 
         // For maxSliceCount == 0 also, we will be owning the concurrency level
-        if(maxSliceCount == 0) {
+        if (maxSliceCount == 0) {
             return Runtime.getRuntime().availableProcessors() / 2;
         }
 
