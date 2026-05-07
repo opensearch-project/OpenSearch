@@ -326,3 +326,13 @@ scalar_functions:
     impls:
       - args: [{ value: string, name: "value" }]
         return: any1
+
+  # json_keys(value) — Rust UDF. rust/src/udf/json_keys.rs. Target of
+  # JsonFunctionAdapters.JsonKeysAdapter. Returns a JSON-array-encoded string
+  # of the top-level keys of the input object; NULL on malformed / non-object
+  # input (parity with legacy `JsonKeysFunctionImpl`).
+  - name: "json_keys"
+    description: "Top-level keys of a JSON object, encoded as a JSON array string; NULL on non-object input."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: any1

@@ -54,4 +54,17 @@ public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
         assertScalarIntStrict("json_array_length('[1,2,3,{\"f1\":1,\"f2\":[5,6]},4]')", 5);
         assertScalarNull("json_array_length('{\"key\": 1}')");
     }
+
+    /**
+     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonKeys}:
+     * object input yields JSON-array-encoded keys (insertion order); array /
+     * non-object inputs yield NULL. `preserve_order` on serde_json in the
+     * DataFusion crate preserves insertion order to match legacy LinkedHashMap.
+     */
+    public void testJsonKeysParityWithLegacy() {
+        assertScalarString("json_keys('{\"f1\":\"abc\",\"f2\":{\"f3\":\"a\",\"f4\":\"b\"}}')", "[\"f1\",\"f2\"]");
+        assertScalarNull("json_keys('[1,2,3,{\"f1\":1,\"f2\":[5,6]},4]')");
+        assertScalarNull("json_keys('not-json')");
+        assertScalarNull("json_keys('42')");
+    }
 }

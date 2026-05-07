@@ -49,8 +49,14 @@ chrono-tz = "0.10"
 
 tokio-metrics = { workspace = true }
 
-# JSON UDFs. serde_json comes from the workspace.
-serde_json = { workspace = true }
+# JSON UDFs. serde_json comes from the workspace; we add `preserve_order` so
+# json_keys / json_object / mutation UDFs iterate object keys in insertion
+# order, matching the legacy SQL-plugin's LinkedHashMap contract (Calcite
+# `JsonFunctions.jsonKeys`). Cargo feature unification means this propagates
+# to every workspace member that uses serde_json, but the feature is
+# strictly additive (preserves input order instead of sorting) so it cannot
+# break existing callers.
+serde_json = { workspace = true, features = ["preserve_order"] }
 # JSONPath evaluator for json_extract (and friends). Matches the legacy SQL-plugin
 # contract where PPL paths of the form `a{i}.b{}` are normalized to `$.a[i].b[*]`
 # and evaluated against a parsed JSON document.

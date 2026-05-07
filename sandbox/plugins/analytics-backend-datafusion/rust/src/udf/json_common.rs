@@ -21,8 +21,9 @@
 // commit so `cargo check` stays clean.
 #![allow(dead_code)]
 
+use datafusion::arrow::array::{ArrayRef, StringArray};
 use datafusion::common::plan_err;
-use datafusion::error::Result;
+use datafusion::error::{DataFusionError, Result};
 use serde_json::Value;
 
 /// Convert a PPL-style path (`a.b{0}.c{}`) to a JSONPath expression
@@ -90,8 +91,17 @@ pub(crate) fn check_arity_range(udf: &str, observed: usize, min: usize, max: usi
     }
 }
 
-fn plan_err_msg(msg: String) -> datafusion::error::DataFusionError {
-    datafusion::error::DataFusionError::Plan(msg)
+fn plan_err_msg(msg: String) -> DataFusionError {
+    DataFusionError::Plan(msg)
+}
+
+/// Downcast an `ArrayRef` to `StringArray`. `coerce_types` with `CoerceMode::Utf8`
+/// canonicalizes every string input to `Utf8` before this point, so a failure
+/// indicates a planner bug rather than bad user input.
+pub(crate) fn as_utf8_array(arr: &ArrayRef) -> Result<&StringArray> {
+    arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
+        DataFusionError::Internal(format!("expected Utf8, got {:?}", arr.data_type()))
+    })
 }
 
 #[cfg(test)]

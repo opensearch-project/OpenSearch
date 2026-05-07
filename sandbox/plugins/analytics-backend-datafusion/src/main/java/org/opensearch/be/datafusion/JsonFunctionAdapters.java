@@ -78,4 +78,27 @@ final class JsonFunctionAdapters {
             super(LOCAL_JSON_ARRAY_LENGTH_OP, List.of(), List.of());
         }
     }
+
+    /**
+     * Cat-4 adapter for PPL's {@code JSON_KEYS(value)}. Plain rename to the
+     * Rust UDF at {@code rust/src/udf/json_keys.rs}; all validation
+     * (malformed JSON, non-object input) lives in the UDF. Return type is
+     * preserved from the original PPL call, matching {@code STRING_FORCE_NULLABLE}
+     * declared on {@code JsonKeysFunctionImpl}.
+     */
+    static class JsonKeysAdapter extends AbstractNameMappingAdapter {
+
+        static final SqlOperator LOCAL_JSON_KEYS_OP = new SqlFunction(
+            "json_keys",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.VARCHAR_NULLABLE,
+            null,
+            OperandTypes.STRING,
+            SqlFunctionCategory.STRING
+        );
+
+        JsonKeysAdapter() {
+            super(LOCAL_JSON_KEYS_OP, List.of(), List.of());
+        }
+    }
 }
