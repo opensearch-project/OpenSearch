@@ -16,6 +16,11 @@ on:
         type: string
         required: false
         default: '21'
+      patch_file_path:
+        description: 'The patch file, default to sandbox/patches/calcite/0001-CALCITE-3745-prefer-TCCL-for-Janino-parent-classloader.patch'
+        type: string
+        required: false
+        default: 'sandbox/patches/calcite/0001-CALCITE-3745-prefer-TCCL-for-Janino-parent-classloader.patch'
 
 jobs:
   publish-snapshots:
@@ -50,7 +55,7 @@ jobs:
 
       - name: Apply Patches and build calcite jars
         run: |
-            git apply os_main/sandbox/patches/calcite/0001-CALCITE-3745-prefer-TCCL-for-Janino-parent-classloader.patch
+            git apply os_main/${{ github.event.inputs.patch_file_path }}
             BASE_VER=`cat os_main/gradle/libs.versions.toml | grep -E "^calcite" | grep -Eo "[0-9]+\.[0-9]+\.[0-9]+"`
             REV=`cat os_main/gradle/libs.versions.toml | grep -E "^calcite_os_rev" | grep -Eo "[0-9]+"`
             CALCITE_VER=$BASE_VER-opensearch-$REV
