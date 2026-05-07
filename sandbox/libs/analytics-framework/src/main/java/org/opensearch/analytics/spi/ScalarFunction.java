@@ -67,6 +67,8 @@ public enum ScalarFunction {
      */
     CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.CONCAT),
     CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REGEXP_REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Math ─────────────────────────────────────────────────────────
     PLUS(Category.MATH, SqlKind.PLUS),
