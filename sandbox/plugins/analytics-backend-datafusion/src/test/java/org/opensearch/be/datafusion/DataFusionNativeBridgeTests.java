@@ -12,6 +12,7 @@ import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -175,6 +176,10 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         });
         long streamPtr = future.join();
         assertTrue("Stream pointer should be non-zero", streamPtr != 0);
+        // Register the stream pointer with NativeHandle's live-handle registry so
+        // streamNext()'s validatePointer() accepts it. Mirrors the production path
+        // in DatafusionSearcher#searchWithSessionContext.
+        StreamHandle streamHandle = new StreamHandle(streamPtr, runtimeHandle);
         sessionCtx.close();
 
         // Drain the stream — this is where the SIGSEGV occurred before the fix.
@@ -182,7 +187,7 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         int batchCount = 0;
         while (true) {
             CompletableFuture<Long> nextFuture = new CompletableFuture<>();
-            NativeBridge.streamNext(runtimePtr, streamPtr, new ActionListener<>() {
+            NativeBridge.streamNext(runtimePtr, streamHandle.getPointer(), new ActionListener<>() {
                 @Override
                 public void onResponse(Long batchPtr) {
                     nextFuture.complete(batchPtr);
@@ -201,7 +206,7 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         }
         assertTrue("Should have drained at least one batch", batchCount > 0);
 
-        NativeBridge.streamClose(streamPtr);
+        streamHandle.close();
         readerHandle.close();
         runtimeHandle.close();
     }

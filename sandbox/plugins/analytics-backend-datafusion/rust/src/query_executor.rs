@@ -203,7 +203,7 @@ mod tests {
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use futures::StreamExt;
 
-    use crate::query_memory_pool_tracker::QueryTrackingContext;
+    use crate::query_tracker::QueryTrackingContext;
     use crate::session_context::SessionContextHandle;
 
     /// Regression test: execute_with_context must keep the SessionContext alive
@@ -250,15 +250,12 @@ mod tests {
             object_metas: Arc::new(vec![]),
             query_context,
         };
-        let ptr = Box::into_raw(Box::new(handle)) as i64;
 
         let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
         rt_builder.worker_threads(2);
         let cpu_executor = crate::executor::DedicatedExecutor::new("test", rt_builder);
 
-        let stream_ptr = unsafe {
-            execute_with_context(ptr, &plan_bytes, cpu_executor.clone()).await.unwrap()
-        };
+        let stream_ptr = execute_with_context(handle, &plan_bytes, cpu_executor.clone()).await.unwrap();
 
         // The stream is now alive but the original SessionContext has been moved
         // into the QueryStreamHandle. Poll the stream to verify no crash.

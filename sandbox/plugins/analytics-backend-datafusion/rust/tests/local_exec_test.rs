@@ -79,6 +79,7 @@ impl RuntimeGuard {
         let rc = unsafe {
             df_create_global_runtime(
                 128 * 1024 * 1024,
+                0,
                 spill_bytes.as_ptr(),
                 spill_bytes.len() as i64,
                 64 * 1024 * 1024,
