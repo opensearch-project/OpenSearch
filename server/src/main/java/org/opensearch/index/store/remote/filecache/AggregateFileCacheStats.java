@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -82,7 +83,7 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         this.fullFileCacheStats = new FileCacheStats(in);
         this.blockFileCacheStats = new FileCacheStats(in);
         this.pinnedFileCacheStats = new FileCacheStats(in);
-        if (in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_3_7_0) && in.readBoolean()) {
             this.pluginBlockCacheStats = new BlockCacheStats(
                 in.readLong(), in.readLong(), in.readLong(), in.readLong(),
                 in.readLong(), in.readLong(), in.readLong(), in.readLong(),
@@ -108,21 +109,23 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         fullFileCacheStats.writeTo(out);
         blockFileCacheStats.writeTo(out);
         pinnedFileCacheStats.writeTo(out);
-        if (pluginBlockCacheStats != null) {
-            out.writeBoolean(true);
-            out.writeLong(pluginBlockCacheStats.hits());
-            out.writeLong(pluginBlockCacheStats.misses());
-            out.writeLong(pluginBlockCacheStats.hitBytes());
-            out.writeLong(pluginBlockCacheStats.missBytes());
-            out.writeLong(pluginBlockCacheStats.evictions());
-            out.writeLong(pluginBlockCacheStats.evictionBytes());
-            out.writeLong(pluginBlockCacheStats.removed());
-            out.writeLong(pluginBlockCacheStats.removedBytes());
-            out.writeLong(pluginBlockCacheStats.memoryBytesUsed());
-            out.writeLong(pluginBlockCacheStats.diskBytesUsed());
-            out.writeLong(pluginBlockCacheStats.totalBytes());
-        } else {
-            out.writeBoolean(false);
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            if (pluginBlockCacheStats != null) {
+                out.writeBoolean(true);
+                out.writeLong(pluginBlockCacheStats.hits());
+                out.writeLong(pluginBlockCacheStats.misses());
+                out.writeLong(pluginBlockCacheStats.hitBytes());
+                out.writeLong(pluginBlockCacheStats.missBytes());
+                out.writeLong(pluginBlockCacheStats.evictions());
+                out.writeLong(pluginBlockCacheStats.evictionBytes());
+                out.writeLong(pluginBlockCacheStats.removed());
+                out.writeLong(pluginBlockCacheStats.removedBytes());
+                out.writeLong(pluginBlockCacheStats.memoryBytesUsed());
+                out.writeLong(pluginBlockCacheStats.diskBytesUsed());
+                out.writeLong(pluginBlockCacheStats.totalBytes());
+            } else {
+                out.writeBoolean(false);
+            }
         }
     }
 
