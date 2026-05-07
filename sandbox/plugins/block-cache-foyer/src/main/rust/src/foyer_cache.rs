@@ -19,7 +19,7 @@ use foyer::{BlockEngineConfig, DeviceBuilder, Event, EventListener, FsDeviceBuil
 use foyer::UringIoEngineConfig;
 
 use crate::range_cache::{CacheKey, SEPARATOR};
-use crate::stats::BlockCacheStatsCounter;
+use crate::stats::FoyerStatsCounter;
 use crate::traits::BlockCache;
 
 // ── I/O engine selection ──────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
 // ── Key index eviction listener ───────────────────────────────────────────────
 
 /// Foyer event listener that removes evicted keys from the key index
-/// and updates the shared [`BlockCacheStats`] counters.
+/// and updates the shared [`FoyerStatsCounter`] counters.
 ///
 /// Shared between [`FoyerCache`] and Foyer via `Arc`. When Foyer evicts,
 /// replaces, or removes an entry, `on_leave` is called, which:
@@ -110,7 +110,7 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
 struct KeyIndexListener {
     key_index: Arc<DashMap<String, Vec<String>>>,
     /// Shared stats counters — updated here for eviction/remove/clear events.
-    stats: Arc<BlockCacheStatsCounter>,
+    stats: Arc<FoyerStatsCounter>,
 }
 
 impl EventListener for KeyIndexListener {
@@ -171,7 +171,7 @@ impl EventListener for KeyIndexListener {
 ///
 /// Wraps a Foyer [`HybridCache`] configured as a disk-only store, together
 /// with a concurrent key index that maps each index prefix to its cached entry
-/// keys, and a set of [`BlockCacheStats`] atomic counters.
+/// keys, and a set of [`FoyerStatsCounter`] atomic counters.
 ///
 /// The key index allows removing all cached entries sharing a common prefix
 /// in O(n) without requiring Foyer to support prefix-scan semantics.
@@ -195,7 +195,7 @@ pub struct FoyerCache {
     _runtime: Arc<tokio::runtime::Runtime>,
     /// Atomic stats counters. Shared with [`KeyIndexListener`].
     /// Exposed for FFM read via `foyer_snapshot_stats`.
-    pub(crate) stats: Arc<BlockCacheStatsCounter>,
+    pub(crate) stats: Arc<FoyerStatsCounter>,
 }
 
 impl FoyerCache {
@@ -220,7 +220,7 @@ impl FoyerCache {
     ) -> Self {
         let disk_dir = disk_dir.into();
         let key_index: Arc<DashMap<String, Vec<String>>> = Arc::new(DashMap::new());
-        let stats = BlockCacheStatsCounter::new();
+        let stats = FoyerStatsCounter::new();
         let listener = Arc::new(KeyIndexListener {
             key_index: Arc::clone(&key_index),
             stats: Arc::clone(&stats),
@@ -282,7 +282,7 @@ impl BlockCache for FoyerCache {
                 let size = e.value().len() as i64;
                 self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
                 // Track bytes served from cache. For variable-size entries this is
-                // more informative than hit_count alone — see BlockCacheStats docs.
+                // more informative than hit_count alone — see FoyerStatsCounter docs.
                 self.stats.hit_bytes.fetch_add(size, Ordering::Relaxed);
                 Some(Bytes::copy_from_slice(e.value()))
             }

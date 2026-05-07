@@ -56,7 +56,7 @@ import static org.opensearch.index.store.remote.utils.FileTypeUtils.INDICES_FOLD
  * @opensearch.api
  */
 @PublicApi(since = "2.7.0")
-public class FileCache implements RefCountedCache<Path, CachedIndexInput>, CacheStatsProvider {
+public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     private static final Logger logger = LogManager.getLogger(FileCache.class);
     private final SegmentedCache<Path, CachedIndexInput> theCache;
 
@@ -242,8 +242,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput>, Cache
     /**
      * Returns the current {@link AggregateFileCacheStats}
      */
-    @Override
-    public AggregateFileCacheStats cacheStats() {
+    public AggregateFileCacheStats fileCacheStats() {
         final AggregateRefCountedCacheStats stats = (AggregateRefCountedCacheStats) stats();
 
         final RefCountedCacheStats overallCacheStats = stats.getOverallCacheStats();

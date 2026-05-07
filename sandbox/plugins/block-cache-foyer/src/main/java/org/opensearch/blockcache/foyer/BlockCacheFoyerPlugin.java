@@ -12,8 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.RatioValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -36,14 +39,15 @@ import java.util.function.Supplier;
 /**
  * Plugin entry point for the Foyer-backed node-level block cache.
  *
- * <p>Implements {@link BlockCacheProvider}: core publishes this SPI as an
- * extension point for consumers to discover via
- * {@code pluginsService.filterPlugins(BlockCacheProvider.class)} when they
- * need a node-level block cache. Consumers are responsible for resolving
- * the cache themselves.
+ * <p>Implements {@link BlockCacheProvider} so core can discover this plugin via
+ * {@code pluginsService.filterPlugins(BlockCacheProvider.class)}.
  *
- * <p>{@code extendedPlugins = []} — this plugin does not extend any other
- * plugin, and no other plugin extends it.
+ * <p>All Foyer settings are owned here and registered via {@link #getSettings()}:
+ * <ul>
+ *   <li>{@code block_cache.size} — fraction of the warm-cache SSD budget given to Foyer.</li>
+ *   <li>{@code block_cache.block_size} — Foyer disk block size.</li>
+ *   <li>{@code block_cache.io_engine} — Foyer I/O engine (auto / io_uring / psync).</li>
+ * </ul>
  *
  * @opensearch.experimental
  */
@@ -51,12 +55,7 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
 
     private static final Logger logger = LogManager.getLogger(BlockCacheFoyerPlugin.class);
 
-    // Foyer cache defaults. Pinned here for deterministic bootstrap; can be promoted
-    // to node settings in a follow-up without changing the SPI surface.
-    private static final long DEFAULT_DISK_BYTES = 1L << 30; // 1 GiB
     private static final String DEFAULT_DISK_DIR_NAME = "foyer-block-cache";
-    private static final long DEFAULT_BLOCK_SIZE_BYTES = 64L * 1024L * 1024L; // 64 MiB
-    private static final String DEFAULT_IO_ENGINE = "auto";
 
     private final AtomicBoolean componentsCreated = new AtomicBoolean(false);
     private volatile FoyerBlockCache cache;
@@ -66,15 +65,59 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
 
     /**
      * Settings constructor (alternate signature used by PluginsService).
-     *
-     * @param settings node settings; currently unused — Foyer defaults are pinned
      */
     public BlockCacheFoyerPlugin(final Settings settings) {}
+
+    // ─── BlockCacheProvider ───────────────────────────────────────────────────
 
     @Override
     public Optional<BlockCache> getBlockCache() {
         return Optional.ofNullable(cache);
     }
+
+    // ─── Plugin.getSettings ───────────────────────────────────────────────────
+
+    /**
+     * Registers Foyer-specific settings with the OpenSearch settings framework.
+     * Includes {@code block_cache.size} (capacity fraction) and Foyer-internal settings
+     * ({@code block_cache.block_size}, {@code block_cache.io_engine}).
+     */
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(
+            FoyerBlockCacheSettings.CACHE_SIZE_SETTING,
+            FoyerBlockCacheSettings.BLOCK_SIZE_SETTING,
+            FoyerBlockCacheSettings.IO_ENGINE_SETTING,
+            FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING
+        );
+    }
+
+    /**
+     * Returns the data-to-cache amplification ratio for this plugin's block cache.
+     * Used by {@code WarmFsService} to compute virtual warm-node capacity for shard placement.
+     */
+    @Override
+    public double dataToCapacityRatio(Settings settings) {
+        return FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(settings);
+    }
+
+    /**
+     * Reports the SSD bytes requested by this plugin from the total warm-cache budget.
+     * Called by {@code Node.java} before {@code createComponents()} so the budget
+     * partition between FileCache and this block cache is settled at startup.
+     *
+     * @param settings         node settings
+     * @param totalBudgetBytes total warm-cache SSD budget (from {@code node.search.cache.size})
+     * @return bytes requested; 0 if the block cache is disabled (size = 0%)
+     */
+    @Override
+    public long requestedCapacityBytes(Settings settings, long totalBudgetBytes) {
+        String cacheSizeRaw = FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(settings);
+        RatioValue ratio = RatioValue.parseRatioValue(cacheSizeRaw);
+        return Math.round(totalBudgetBytes * ratio.getAsRatio());
+    }
+
+    // ─── Plugin lifecycle ─────────────────────────────────────────────────────
 
     @Override
     public Collection<Object> createComponents(
@@ -94,6 +137,16 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
             throw new IllegalStateException("BlockCacheFoyerPlugin.createComponents called more than once");
         }
 
+        final Settings settings = clusterService.getSettings();
+        final long blockSizeBytes = FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(settings).getBytes();
+        final String ioEngine     = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
+        // Re-derive the capacity the same way requestedCapacityBytes() did, so the cache is
+        // initialised with exactly the bytes that were reserved by NodeCacheOrchestrator.
+        final String cacheSizeRaw = FoyerBlockCacheSettings.CACHE_SIZE_SETTING.get(settings);
+        final RatioValue cacheRatio = RatioValue.parseRatioValue(cacheSizeRaw);
+        final long totalBudgetBytes = NodeCacheOrchestrator.computeTotalBudgetBytes(settings, nodeEnvironment);
+        final long diskCapacityBytes = Math.round(totalBudgetBytes * cacheRatio.getAsRatio());
+
         final String diskDir;
         if (environment.dataFiles().length == 0) {
             diskDir = System.getProperty("java.io.tmpdir") + "/" + DEFAULT_DISK_DIR_NAME;
@@ -101,18 +154,25 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
             diskDir = environment.dataFiles()[0].resolve(DEFAULT_DISK_DIR_NAME).toString();
         }
 
+        if (diskCapacityBytes <= 0) {
+            logger.info("BlockCacheFoyerPlugin: block_cache.size=0, Foyer block cache disabled");
+            return List.of();
+        }
+
         try {
-            cache = new FoyerBlockCache(DEFAULT_DISK_BYTES, diskDir, DEFAULT_BLOCK_SIZE_BYTES, DEFAULT_IO_ENGINE);
+            cache = new FoyerBlockCache(diskCapacityBytes, diskDir, blockSizeBytes, ioEngine);
         } catch (final Throwable t) {
             throw new IllegalStateException("Failed to initialise Foyer block cache (diskDir=" + diskDir + ")", t);
         }
-        logger.info("BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={})", diskDir);
+        logger.info(
+            "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={})",
+            diskDir, blockSizeBytes, ioEngine
+        );
         return List.of(cache);
     }
 
     /**
-     * Close the cache. Idempotent; safe to call multiple times. {@link
-     * FoyerBlockCache#close()} is itself idempotent via an {@code AtomicBoolean}.
+     * Close the cache. Idempotent; safe to call multiple times.
      */
     @Override
     public void close() throws IOException {
