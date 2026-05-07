@@ -37,11 +37,6 @@ dependencies {
 
     // Guava for test compilation — Calcite API exposes guava types
     calciteTestCompile "com.google.guava:guava:${versions.guava}"
-    testRuntimeOnly "com.google.guava:guava:${versions.guava}"
-    testRuntimeOnly 'com.google.guava:failureaccess:1.0.2'
-
-    // Calcite annotation compatibility
-    testCompileOnly 'org.immutables:value-annotations:2.8.8'
 }
 
 test {
