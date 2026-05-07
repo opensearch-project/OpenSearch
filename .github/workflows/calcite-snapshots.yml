@@ -7,10 +7,10 @@ on:
     # Inputs the workflow accepts.
     inputs:
       ref:
-        description: 'Calcite ref in github.com/apache/calcite'
+        description: 'Calcite ref in github.com/apache/calcite, default to calcite-1.41.0 tag (c838dd471ca36f5648ef13e5c3c34c6ca0815322)'
         type: string
         required: false
-        default: 'main'
+        default: 'c838dd471ca36f5648ef13e5c3c34c6ca0815322'
       java_version:
         description: 'Java version to use'
         type: string
