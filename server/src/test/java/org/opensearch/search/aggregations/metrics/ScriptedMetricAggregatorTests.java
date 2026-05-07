@@ -126,6 +126,12 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         "combineScriptNoop",
         Collections.emptyMap()
     );
+    private static final Script COMBINE_SCRIPT_NULL = new Script(
+        ScriptType.INLINE,
+        MockScriptEngine.NAME,
+        "combineScriptNull",
+        Collections.emptyMap()
+    );
 
     private static final Script INIT_SCRIPT_PARAMS = new Script(
         ScriptType.INLINE,
@@ -202,6 +208,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
             return state;
         });
+        SCRIPTS.put("combineScriptNull", params -> null);
         SCRIPTS.put("reduceScript", params -> {
             List<?> states = (List<?>) params.get("states");
             return states.stream().filter(a -> a instanceof Number).map(a -> (Number) a).mapToInt(Number::intValue).sum();
@@ -398,6 +405,25 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(numDocs, scriptedMetric.aggregation());
+            }
+        }
+    }
+
+    public void testScriptedMetricWithNullCombineResult() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT_NULL).reduceScript(REDUCE_SCRIPT);
+                ScriptedMetric scriptedMetric = searchAndReduce(
+                    newSearcher(indexReader, true, true),
+                    new MatchAllDocsQuery(),
+                    aggregationBuilder
+                );
+                assertEquals(AGG_NAME, scriptedMetric.getName());
+                assertEquals(0, scriptedMetric.aggregation());
             }
         }
     }
