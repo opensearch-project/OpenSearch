@@ -22,6 +22,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupSearchSettings;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -75,11 +76,21 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         }
 
         // Normalize null settings to empty Settings for storage
-        if (mutableWorkloadGroupFragment.getSettings() == null) {
+        // Ensure override_request_values is always present
+        Settings existingSettings = mutableWorkloadGroupFragment.getSettings();
+        if (existingSettings == null
+            || existingSettings.hasValue(WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.getKey()) == false) {
+            Settings normalized = Settings.builder()
+                .put(existingSettings != null ? existingSettings : Settings.EMPTY)
+                .put(
+                    WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.getKey(),
+                    WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.getDefault(Settings.EMPTY).toString()
+                )
+                .build();
             mutableWorkloadGroupFragment = new MutableWorkloadGroupFragment(
                 mutableWorkloadGroupFragment.getResiliencyMode(),
                 mutableWorkloadGroupFragment.getResourceLimits(),
-                Settings.EMPTY
+                normalized
             );
         }
 
@@ -114,18 +125,31 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         }
         final ResiliencyMode mode = Optional.ofNullable(mutableWorkloadGroupFragment.getResiliencyMode())
             .orElse(existingGroup.getResiliencyMode());
-        // Handle settings update:
-        // null = not specified (keep existing)
-        // empty Settings = explicitly clear (set to empty)
-        // non-empty Settings = replace with new values
+        // Handle settings update with merge semantics:
+        // null settings = not specified in request (keep existing)
+        // empty Settings = clear all settings
+        // non-empty Settings = merge with existing; keys with null values are removed
         final Settings mutableFragmentSettings = mutableWorkloadGroupFragment.getSettings();
         final Settings updatedSettings;
         if (mutableFragmentSettings == null) {
             // Not specified - keep existing
             updatedSettings = Settings.builder().put(existingGroup.getSettings()).build();
+        } else if (mutableFragmentSettings.isEmpty()) {
+            // Explicitly empty - clear all settings
+            updatedSettings = Settings.EMPTY;
         } else {
-            // Specified (empty or non-empty) - use the new value
-            updatedSettings = Settings.builder().put(mutableFragmentSettings).build();
+            // Merge: start with existing settings, overlay new values, remove null-valued keys
+            Settings.Builder builder = Settings.builder().put(existingGroup.getSettings());
+            for (String key : mutableFragmentSettings.keySet()) {
+                String value = mutableFragmentSettings.get(key);
+                if (value == null) {
+                    // null value means "clear this setting"
+                    builder.remove(key);
+                } else {
+                    builder.put(key, value);
+                }
+            }
+            updatedSettings = builder.build();
         }
         return new WorkloadGroup(
             existingGroup.getName(),
@@ -284,6 +308,11 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
                         throw new IllegalArgumentException(fieldName + " is not a valid object in WorkloadGroup");
                     }
                     mutableWorkloadGroupFragment1.parseField(parser, fieldName);
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    if (fieldName.equals(MutableWorkloadGroupFragment.SETTINGS_STRING)) {
+                        // "settings": null means clear all settings
+                        mutableWorkloadGroupFragment1.parseField(parser, fieldName);
+                    }
                 }
             }
             return builder.mutableWorkloadGroupFragment(mutableWorkloadGroupFragment1);

@@ -54,7 +54,7 @@ public class WorkloadGroupMetadataTests extends AbstractDiffableSerializationTes
             "name":"test",\
             "resiliency_mode":"enforced",\
             "resource_limits":{"memory":0.5},\
-            "settings":{"search.default_search_timeout":"30s"},\
+            "settings":{"override_request_values":"false","search.default_search_timeout":"30s"},\
             "updated_at":1720047207}}""";
         assertEquals(expected, builder.toString());
     }

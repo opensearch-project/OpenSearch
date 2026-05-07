@@ -148,14 +148,17 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
     }
 
     public void testSearchSettings() throws Exception {
-        // Create with settings
+        // Create with all search settings
         String createJson = """
             {
                 "name": "search_test",
                 "resiliency_mode": "enforced",
                 "resource_limits": {"cpu": 0.3, "memory": 0.3},
                 "settings": {
-                    "search.default_search_timeout": "30s"
+                    "search.default_search_timeout": "30s",
+                    "search.cancel_after_time_interval": "1m",
+                    "search.max_concurrent_shard_requests": "5",
+                    "search.batched_reduce_size": "512"
                 }
             }""";
         Response response = performOperation("PUT", "_wlm/workload_group", createJson);
@@ -165,13 +168,20 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         Response getResponse = performOperation("GET", "_wlm/workload_group/search_test", null);
         String responseBody = EntityUtils.toString(getResponse.getEntity());
         assertTrue(responseBody.contains("\"settings\""));
+        assertTrue(responseBody.contains("\"override_request_values\":\"false\""));
         assertTrue(responseBody.contains("\"search.default_search_timeout\":\"30s\""));
+        assertTrue(responseBody.contains("\"search.cancel_after_time_interval\":\"1m\""));
+        assertTrue(responseBody.contains("\"search.max_concurrent_shard_requests\":\"5\""));
+        assertTrue(responseBody.contains("\"search.batched_reduce_size\":\"512\""));
 
-        // Update settings
+        // Update search settings
         String updateJson = """
             {
                 "settings": {
-                    "search.default_search_timeout": "1m"
+                    "search.default_search_timeout": "1m",
+                    "search.cancel_after_time_interval": "5m",
+                    "search.max_concurrent_shard_requests": "10",
+                    "search.batched_reduce_size": "256"
                 }
             }""";
         Response updateResponse = performOperation("PUT", "_wlm/workload_group/search_test", updateJson);
@@ -181,8 +191,135 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         Response getResponse2 = performOperation("GET", "_wlm/workload_group/search_test", null);
         String responseBody2 = EntityUtils.toString(getResponse2.getEntity());
         assertTrue(responseBody2.contains("\"search.default_search_timeout\":\"1m\""));
+        assertTrue(responseBody2.contains("\"search.cancel_after_time_interval\":\"5m\""));
+        assertTrue(responseBody2.contains("\"search.max_concurrent_shard_requests\":\"10\""));
+        assertTrue(responseBody2.contains("\"search.batched_reduce_size\":\"256\""));
 
         performOperation("DELETE", "_wlm/workload_group/search_test", null);
+    }
+
+    public void testSearchSettingsOverrideRequestValues() throws Exception {
+        // Create with override_request_values enabled
+        String createJson = """
+            {
+                "name": "override_test",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "settings": {
+                    "search.default_search_timeout": "30s",
+                    "override_request_values": "true"
+                }
+            }""";
+        Response response = performOperation("PUT", "_wlm/workload_group", createJson);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        // Verify override_request_values in GET response
+        Response getResponse = performOperation("GET", "_wlm/workload_group/override_test", null);
+        String responseBody = EntityUtils.toString(getResponse.getEntity());
+        assertTrue(responseBody.contains("\"override_request_values\":\"true\""));
+
+        performOperation("DELETE", "_wlm/workload_group/override_test", null);
+    }
+
+    public void testSearchSettingsInvalidSettingsRejected() throws Exception {
+        // Unknown setting key should be rejected
+        String unknownKeyJson = """
+            {
+                "name": "invalid_test",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "settings": {
+                    "unknown_setting": "value"
+                }
+            }""";
+        assertThrows(ResponseException.class, () -> performOperation("PUT", "_wlm/workload_group", unknownKeyJson));
+
+        // Invalid value for max_concurrent_shard_requests (must be >= 1)
+        String invalidIntJson = """
+            {
+                "name": "invalid_test",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "settings": {
+                    "search.max_concurrent_shard_requests": "0"
+                }
+            }""";
+        assertThrows(ResponseException.class, () -> performOperation("PUT", "_wlm/workload_group", invalidIntJson));
+
+        // Invalid value for batched_reduce_size (must be >= 2)
+        String invalidBatchJson = """
+            {
+                "name": "invalid_test",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "settings": {
+                    "search.batched_reduce_size": "1"
+                }
+            }""";
+        assertThrows(ResponseException.class, () -> performOperation("PUT", "_wlm/workload_group", invalidBatchJson));
+
+        // Invalid time value
+        String invalidTimeJson = """
+            {
+                "name": "invalid_test",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "settings": {
+                    "search.cancel_after_time_interval": "not_a_time"
+                }
+            }""";
+        assertThrows(ResponseException.class, () -> performOperation("PUT", "_wlm/workload_group", invalidTimeJson));
+    }
+
+    public void testSearchSettingsMergeSemantics() throws Exception {
+        // Create with multiple settings
+        String createJson = """
+            {
+                "name": "merge_test",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "settings": {
+                    "search.default_search_timeout": "30s",
+                    "search.max_concurrent_shard_requests": "5",
+                    "override_request_values": "true"
+                }
+            }""";
+        Response response = performOperation("PUT", "_wlm/workload_group", createJson);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        // Update only timeout — other settings should persist
+        String updateJson = """
+            {
+                "settings": {
+                    "search.default_search_timeout": "1m"
+                }
+            }""";
+        Response updateResponse = performOperation("PUT", "_wlm/workload_group/merge_test", updateJson);
+        assertEquals(200, updateResponse.getStatusLine().getStatusCode());
+
+        // Verify merge: timeout updated, max_concurrent persists, override persists
+        Response getResponse = performOperation("GET", "_wlm/workload_group/merge_test", null);
+        String responseBody = EntityUtils.toString(getResponse.getEntity());
+        assertTrue(responseBody.contains("\"search.default_search_timeout\":\"1m\""));
+        assertTrue(responseBody.contains("\"search.max_concurrent_shard_requests\":\"5\""));
+        assertTrue(responseBody.contains("\"override_request_values\":\"true\""));
+
+        // Clear all settings with empty object
+        String clearJson = """
+            {
+                "settings": {}
+            }""";
+        Response clearResponse = performOperation("PUT", "_wlm/workload_group/merge_test", clearJson);
+        assertEquals(200, clearResponse.getStatusLine().getStatusCode());
+
+        // Verify cleared — only override_request_values remains with default
+        Response getResponse2 = performOperation("GET", "_wlm/workload_group/merge_test", null);
+        String responseBody2 = EntityUtils.toString(getResponse2.getEntity());
+        assertTrue(responseBody2.contains("\"override_request_values\":\"false\""));
+        assertFalse(responseBody2.contains("\"search.default_search_timeout\""));
+        assertFalse(responseBody2.contains("\"search.max_concurrent_shard_requests\""));
+
+        performOperation("DELETE", "_wlm/workload_group/merge_test", null);
     }
 
     static String getCreateJson(String name, String resiliencyMode, double cpu, double memory) {
