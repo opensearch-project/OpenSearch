@@ -45,7 +45,6 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     private static final Logger logger = LogManager.getLogger(HiveShardConsumer.class);
 
-    private final String clientId;
     private final int shardId;
     private final HiveSourceConfig config;
     private final int numShards;
@@ -56,7 +55,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private Configuration hadoopConf;
     private MessageType tableSchema;
     private String tableInputFormat;
-    private List<String> partitionKeys;
+    List<String> partitionKeys;
 
     // Partition tracking: watermark tracks the last fully-processed partition so that
     // incremental discovery only fetches partitions newer than the watermark.
@@ -74,6 +73,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private long currentRowIndex;
     private long sequenceNumber;
     private boolean resumed;
+    private boolean seekInclusive;
     private final Set<String> seenPartitions = new HashSet<>();
 
     /**
@@ -84,7 +84,6 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * @param config the Hive source configuration
      */
     public HiveShardConsumer(String clientId, int shardId, HiveSourceConfig config) {
-        this.clientId = clientId;
         this.shardId = shardId;
         this.config = config;
         this.numShards = config.getNumShards();
@@ -126,16 +125,19 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             return;
         }
 
-        // Set watermark so discovery includes the pointer's partition and beyond
+        // Set watermark to the pointer's partition and use inclusive filter so that
+        // discoverNewPartitions fetches this partition and everything after it.
         this.watermark = pointer.getPartitionName();
         this.watermarkCreateTime = 0;
         this.sequenceNumber = includeStart ? pointer.getSequenceNumber() : pointer.getSequenceNumber() + 1;
         this.pendingWork = new ArrayList<>();
         this.currentWorkIndex = 0;
         this.seenPartitions.clear();
+        this.seekInclusive = true;
 
-        // Discover partitions from the pointer's partition onward
+        // Discover partitions from the pointer's partition onward (inclusive)
         discoverNewPartitions();
+        this.seekInclusive = false;
 
         // Seek to the correct file within the pointer's partition
         String targetFile = pointer.getFilePath();
@@ -144,6 +146,10 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         for (int i = 0; i < pendingWork.size(); i++) {
             PartitionWork work = pendingWork.get(i);
             if (work.partitionName.equals(pointer.getPartitionName())) {
+                // Set watermark to the partition before the target so incremental
+                // discovery will include the target partition's successors
+                watermark = pointer.getPartitionName();
+                watermarkCreateTime = work.createTime;
                 currentWorkIndex = i;
                 for (int f = 0; f < work.files.size(); f++) {
                     if (work.files.get(f).equals(targetFile)) {
@@ -168,7 +174,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 break;
             }
         }
-        // Partition/file not found, will start from next available partition
+        // Partition/file not found, set watermark to pointer's partition so next discovery skips past it
+        watermark = pointer.getPartitionName();
         logger.info("Shard {} seek target not found, continuing from watermark {}", shardId, watermark);
     }
 
@@ -328,7 +335,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 partitions.sort(Comparator.comparingInt(MetastoreCatalog.PartitionInfo::getCreateTime));
                 break;
             case PARTITION_TIME:
-                partitions.sort(Comparator.comparing(p -> extractPartitionTime(p)));
+                partitions.sort(Comparator.comparing(this::extractPartitionTime));
                 break;
             default:
                 partitions.sort((a, b) -> {
@@ -360,7 +367,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         if (watermark == null || watermark.isEmpty()) {
             return catalog.getAllPartitions(config.getDatabase(), config.getTable());
         }
-        String filter = buildPartitionFilter(watermark);
+        String filter = buildPartitionFilter(watermark, seekInclusive);
         return catalog.getPartitionsByFilter(config.getDatabase(), config.getTable(), filter);
     }
 
@@ -451,15 +458,34 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return files;
     }
 
-    private String buildPartitionFilter(String watermark) {
-        if (watermark.contains("=")) {
-            String[] parts = watermark.split("=", 2);
-            return parts[0] + " > \"" + parts[1] + "\"";
+    /**
+     * Builds a Metastore partition filter expression that matches partitions lexicographically
+     * after the watermark. For composite partitions (e.g., "year=2024/month=01/day=15"),
+     * generates: (year > "2024") OR (year = "2024" AND month > "01") OR
+     *            (year = "2024" AND month = "01" AND day > "15")
+     * When inclusive is true, uses >= for the last key to include the watermark partition itself.
+     */
+    String buildPartitionFilter(String watermark, boolean inclusive) {
+        String[] segments = watermark.split("/");
+        List<String> clauses = new ArrayList<>();
+        for (int i = 0; i < segments.length; i++) {
+            if (!segments[i].contains("=")) continue;
+            StringBuilder clause = new StringBuilder();
+            for (int j = 0; j < i; j++) {
+                String[] kv = segments[j].split("=", 2);
+                if (!clause.isEmpty()) clause.append(" AND ");
+                clause.append(kv[0]).append(" = \"").append(kv[1]).append("\"");
+            }
+            String[] kv = segments[i].split("=", 2);
+            if (!clause.isEmpty()) clause.append(" AND ");
+            String op = (inclusive && i == segments.length - 1) ? " >= " : " > ";
+            clause.append(kv[0]).append(op).append("\"").append(kv[1]).append("\"");
+            clauses.add("(" + clause + ")");
         }
-        return "";
+        return clauses.isEmpty() ? "" : String.join(" OR ", clauses);
     }
 
-    private String partitionToName(MetastoreCatalog.PartitionInfo partition) {
+    String partitionToName(MetastoreCatalog.PartitionInfo partition) {
         List<String> values = partition.getValues();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < partitionKeys.size(); i++) {
@@ -473,7 +499,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * Extracts a timestamp string from partition values using the configured partition_time_pattern.
      * Pattern variables like $year, $month, $day are replaced with the corresponding partition key values.
      */
-    private String extractPartitionTime(MetastoreCatalog.PartitionInfo partition) {
+    String extractPartitionTime(MetastoreCatalog.PartitionInfo partition) {
         String pattern = config.getPartitionTimePattern();
         if (pattern == null) {
             return String.join("/", partition.getValues());
@@ -486,7 +512,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return result;
     }
 
-    private byte[] rowToJson(Map<String, Object> row) {
+    byte[] rowToJson(Map<String, Object> row) {
         StringBuilder sb = new StringBuilder("{");
         boolean first = true;
         for (Map.Entry<String, Object> entry : row.entrySet()) {
@@ -552,7 +578,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * Used as the projection schema so that files with fewer columns
      * return null for missing fields.
      */
-    private static MessageType hiveSchemaToParquet(List<MetastoreCatalog.ColumnInfo> columns) {
+    static MessageType hiveSchemaToParquet(List<MetastoreCatalog.ColumnInfo> columns) {
         Types.MessageTypeBuilder builder = Types.buildMessage();
         for (MetastoreCatalog.ColumnInfo col : columns) {
             builder.addField(hiveTypeToParquetType(col.getName(), col.getType()));
@@ -567,13 +593,15 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
             case "bigint" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(name);
             case "float" -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(name);
             case "double" -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(name);
-            case "string", "varchar", "char" ->
-                Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
+            case "string", "varchar", "char" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named(name);
             case "binary" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(name);
             case "timestamp" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT96).named(name);
             case "date" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named(name);
-            case "decimal" ->
-                Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.decimalType(0, 10)).named(name);
+            case "decimal" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.decimalType(0, 10))
+                .named(name);
             default -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
         };
     }
