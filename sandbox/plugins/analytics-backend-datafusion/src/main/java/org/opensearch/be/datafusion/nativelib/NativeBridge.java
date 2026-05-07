@@ -75,6 +75,7 @@ public final class NativeBridge {
     private static final MethodHandle CREATE_SESSION_CONTEXT;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
+    private static final MethodHandle CANCEL_QUERY;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -344,6 +345,8 @@ public final class NativeBridge {
             )
         );
 
+        CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+
         // Hand the five filter-tree upcall stubs to Rust now. No explicit
         // caller step required — as soon as this class is loaded, callbacks
         // are installed and `df_execute_indexed_query` can dispatch into Java.
@@ -583,6 +586,13 @@ public final class NativeBridge {
 
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
+    }
+
+    // ---- Cancellation ----
+
+    /** Fires the cancellation token for the given context. No-op if already completed. */
+    public static void cancelQuery(long contextId) {
+        NativeCall.invokeVoid(CANCEL_QUERY, contextId);
     }
 
     // ---- Stubs ----
