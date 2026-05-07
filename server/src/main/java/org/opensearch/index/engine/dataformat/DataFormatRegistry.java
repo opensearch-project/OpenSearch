@@ -108,6 +108,22 @@ public class DataFormatRegistry {
     }
 
     /**
+     * Returns the plugin registered for the given format name, or {@code null} if not found.
+     * Used by composite plugins to look up sub-format plugins directly without going through
+     * the registry's top-level methods (which would cause infinite recursion).
+     *
+     * @param formatName the data format name (e.g., "parquet", "lucene")
+     * @return the plugin, or null if no plugin is registered for the format
+     */
+    public DataFormatPlugin getPlugin(String formatName) {
+        if (formatName == null) {
+            return null;
+        }
+        DataFormat format = dataFormats.get(formatName);
+        return format != null ? dataFormatPluginRegistry.get(format) : null;
+    }
+
+    /**
      * Returns all registered data formats that support a specific capability for a field type.
      *
      * @param fieldType the field type name
@@ -133,6 +149,53 @@ public class DataFormatRegistry {
      */
     public Set<DataFormat> getRegisteredFormats() {
         return Set.copyOf(dataFormatPluginRegistry.keySet());
+    }
+
+    /**
+     * Returns all {@link StoreStrategy} instances that apply to the active
+     * data format of the given index, keyed by the format name the strategy
+     * applies to.
+     *
+     * <p>Called once per shard at open time. The store layer uses the returned
+     * strategies to construct per-shard native file registries, seed them from
+     * remote metadata, and route directory events.
+     *
+     * @param indexSettings the index settings for this shard
+     * @return the map of applicable strategies, or an empty map when no
+     *         pluggable data format is configured or the configured format
+     *         does not participate in the tiered store
+     */
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
+            DataFormat format = dataFormats.get(dataformatName);
+            if (format != null) {
+                DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+                if (plugin != null) {
+                    Map<DataFormat, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+                    return strategies == null ? Map.of() : Map.copyOf(strategies);
+                }
+            }
+        }
+        return Map.of();
+    }
+
+    /**
+     * Returns store strategies for a specific data format, bypassing the
+     * {@code pluggable_dataformat} index setting lookup. Used by composite
+     * plugins to resolve child strategies without recursion.
+     *
+     * @param indexSettings the index settings
+     * @param dataFormat    the specific data format to get strategies for
+     * @return map of data format to strategy, or empty map if the format is not registered
+     */
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormat dataFormat) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return Map.of();
+        }
+        Map<DataFormat, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+        return strategies == null ? Map.of() : strategies;
     }
 
     /**

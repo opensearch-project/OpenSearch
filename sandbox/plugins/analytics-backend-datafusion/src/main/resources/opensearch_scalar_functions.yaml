@@ -154,3 +154,53 @@ scalar_functions:
           - value: i32
             name: scale
         return: fp64
+  - name: replace
+    description: >-
+      Literal string replacement — replace every occurrence of `search` in `input`
+      with `replacement`. Lowering target for PPL's `replace` command on
+      non-wildcard patterns (Calcite `SqlStdOperatorTable.REPLACE`).
+      datafusion-substrait resolves the extension name "replace" to DataFusion's
+      native `replace` UDF (datafusion-functions/src/string/replace.rs).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "search"
+          - value: "varchar<L3>"
+            name: "replacement"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "search"
+          - value: "string"
+            name: "replacement"
+        return: string
+  - name: regexp_replace
+    description: >-
+      Regex string replacement — replace every match of `pattern` in `input`
+      with `replacement`. Lowering target for PPL's `replace` command on
+      wildcard patterns (after `*` → regex conversion) and for the PPL
+      `replace()` / `regexp_replace()` functions in `eval`. Calcite emits
+      `SqlLibraryOperators.REGEXP_REPLACE_3`. datafusion-substrait resolves
+      the extension name "regexp_replace" to DataFusion's native `regexp_replace`
+      UDF (datafusion-functions/src/regex/regexpreplace.rs).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "replacement"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "replacement"
+        return: string

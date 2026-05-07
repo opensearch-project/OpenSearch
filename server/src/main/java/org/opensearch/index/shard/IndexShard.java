@@ -4448,7 +4448,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // After each internal refresh, update the LuceneFieldTracker with merged FieldInfos from
         // the reader. This lets DocumentParser enforce the per-shard Lucene field-count limit for
         // dynamic_properties without requiring access to the IndexWriter directly.
-        if (mapperService != null) {
+        if (mapperService != null && indexSettings.isPluggableDataFormatEnabled() == false) {
             internalRefreshListener.add(new ReferenceManager.RefreshListener() {
                 @Override
                 public void beforeRefresh() {}

@@ -94,6 +94,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         if (file == null || metadata == null || metadata.numRows() == 0) {
             return FileInfos.empty();
         }
+        assert metadata.numRows() > 0 : "flushed metadata must have positive row count";
+
         Path filePath = Path.of(file);
         String fileName = filePath.getFileName().toString();
 
@@ -103,7 +105,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         }
 
         WriterFileSet writerFileSet = WriterFileSet.builder()
-            .directory(filePath.getParent().getFileName())
+            .directory(filePath.getParent().toAbsolutePath())
             .writerGeneration(writerGeneration)
             .addFile(fileName)
             .addNumRows(metadata.numRows())
@@ -120,17 +122,6 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     public long generation() {
         return writerGeneration;
     }
-
-    @Override
-    public void lock() {}
-
-    @Override
-    public boolean tryLock() {
-        return false;
-    }
-
-    @Override
-    public void unlock() {}
 
     @Override
     public void close() throws IOException {
