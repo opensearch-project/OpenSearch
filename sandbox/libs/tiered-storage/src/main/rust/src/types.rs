@@ -14,7 +14,6 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
 use dashmap::mapref::one::Ref;
-use object_store::ObjectStore;
 
 // ---------------------------------------------------------------------------
 // FileRegistryError
@@ -54,8 +53,6 @@ pub enum FileLocation {
     Local = 0,
     /// File exists only on a remote object store.
     Remote = 1,
-    /// File exists on both local disk and remote store.
-    Both = 2,
 }
 
 impl fmt::Display for FileLocation {
@@ -63,7 +60,6 @@ impl fmt::Display for FileLocation {
         match self {
             Self::Local => write!(f, "Local"),
             Self::Remote => write!(f, "Remote"),
-            Self::Both => write!(f, "Both"),
         }
     }
 }
@@ -77,7 +73,6 @@ impl FileLocation {
         match v {
             0 => Some(Self::Local),
             1 => Some(Self::Remote),
-            2 => Some(Self::Both),
             _ => None,
         }
     }
@@ -89,21 +84,19 @@ impl FileLocation {
 
 /// Per-file metadata stored in the registry.
 ///
-/// Fields are ordered by alignment to minimise struct padding.
-/// Ref counting is managed directly on the entry via `acquire()` / `release()`.
+/// Per-file entry in the tiered storage registry.
+///
+/// Tracks location, remote path, size, and active reader count.
+/// The remote store lives on `TieredObjectStore`, not per-entry.
 pub struct TieredFileEntry {
     /// Number of active readers. Atomic for lock-free concurrent access.
     pub(crate) active_reads: AtomicI64,
     /// Path on the remote store. Stored as `Arc<str>` for cheap cloning.
     pub(crate) remote_path: Option<Arc<str>>,
-    /// Repository key for looking up the remote [`ObjectStore`].
-    pub(crate) repo_key: Option<Arc<str>>,
-    /// Remote [`ObjectStore`] reference, resolved at registration time.
-    pub(crate) remote_store: Option<Arc<dyn ObjectStore>>,
-    /// Cached file size in bytes (from head or put).
-    pub(crate) size: Option<u64>,
     /// Current location of the file data.
     pub(crate) location: FileLocation,
+    /// File size in bytes. Cached at registration time for head()/list() without I/O.
+    pub(crate) size: u64,
 }
 
 impl fmt::Debug for TieredFileEntry {
@@ -111,37 +104,30 @@ impl fmt::Debug for TieredFileEntry {
         f.debug_struct("TieredFileEntry")
             .field("location", &self.location)
             .field("remote_path", &self.remote_path)
-            .field("repo_key", &self.repo_key)
-            .field(
-                "remote_store",
-                if self.remote_store.is_some() {
-                    &"Some(...)" as &dyn fmt::Debug
-                } else {
-                    &"None" as &dyn fmt::Debug
-                },
-            )
-            .field("active_reads", &self.active_reads.load(Ordering::SeqCst))
             .field("size", &self.size)
+            .field("active_reads", &self.active_reads.load(Ordering::SeqCst))
             .finish()
     }
 }
 
 impl TieredFileEntry {
     /// Create a new entry with the given location and zero active readers.
-    pub fn new(
-        location: FileLocation,
-        remote_path: Option<Arc<str>>,
-        repo_key: Option<String>,
-        remote_store: Option<Arc<dyn ObjectStore>>,
-        size: Option<u64>,
-    ) -> Self {
+    pub fn new(location: FileLocation, remote_path: Option<Arc<str>>) -> Self {
         Self {
             active_reads: AtomicI64::new(0),
             remote_path,
-            repo_key: repo_key.map(Arc::from),
-            remote_store,
-            size,
             location,
+            size: 0,
+        }
+    }
+
+    /// Create a new entry with location, remote path, and cached size.
+    pub fn with_size(location: FileLocation, remote_path: Option<Arc<str>>, size: u64) -> Self {
+        Self {
+            active_reads: AtomicI64::new(0),
+            remote_path,
+            location,
+            size,
         }
     }
 
@@ -185,21 +171,9 @@ impl TieredFileEntry {
         self.remote_path.as_deref()
     }
 
-    /// Repository key, if any.
+    /// Cached file size in bytes (0 if not cached).
     #[must_use]
-    pub fn repo_key(&self) -> Option<&str> {
-        self.repo_key.as_deref()
-    }
-
-    /// Remote [`ObjectStore`] reference, if any.
-    #[must_use]
-    pub fn remote_store(&self) -> Option<&Arc<dyn ObjectStore>> {
-        self.remote_store.as_ref()
-    }
-
-    /// Cached file size.
-    #[must_use]
-    pub fn file_size(&self) -> Option<u64> {
+    pub fn size(&self) -> u64 {
         self.size
     }
 }
@@ -238,9 +212,9 @@ impl<'a> ReadGuard<'a> {
         self.entry.value().remote_path()
     }
 
-    /// Remote [`ObjectStore`] reference, if any.
-    pub fn remote_store(&self) -> Option<&Arc<dyn ObjectStore>> {
-        self.entry.value().remote_store()
+    /// Cached file size in bytes (0 if not cached).
+    pub fn size(&self) -> u64 {
+        self.entry.value().size()
     }
 
     /// Current reference count (including this guard).

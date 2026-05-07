@@ -33,6 +33,9 @@ dependencies {
   implementation 'org.checkerframework:checker-qual:3.43.0'
   implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  implementation "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
   // jackson-core is on the server classpath; jackson-databind and jackson-annotations are not.
   compileOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}") {

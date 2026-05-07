@@ -237,17 +237,6 @@ final class CompositeTestHelper {
         public long generation() {
             return 0;
         }
-
-        @Override
-        public void lock() {}
-
-        @Override
-        public boolean tryLock() {
-            return true;
-        }
-
-        @Override
-        public void unlock() {}
     }
 
     /**

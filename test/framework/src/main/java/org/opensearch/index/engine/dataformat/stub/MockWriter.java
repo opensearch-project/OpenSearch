@@ -63,16 +63,5 @@ public class MockWriter implements Writer<MockDocumentInput> {
     }
 
     @Override
-    public void lock() {}
-
-    @Override
-    public boolean tryLock() {
-        return true;
-    }
-
-    @Override
-    public void unlock() {}
-
-    @Override
     public void close() {}
 }
