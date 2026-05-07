@@ -69,6 +69,10 @@ pub struct QueryStreamHandle {
     /// Held for its `Drop` impl — marks the query completed when the
     /// stream is closed.
     _query_tracking_context: QueryTrackingContext,
+    /// Keeps the SessionContext alive while the stream is being consumed.
+    /// The physical plan may reference state (e.g. RuntimeEnv, caches) owned
+    /// by the session; dropping it prematurely causes use-after-free.
+    _session_ctx: Option<datafusion::prelude::SessionContext>,
 }
 
 impl QueryStreamHandle {
@@ -79,7 +83,25 @@ impl QueryStreamHandle {
         Self {
             stream,
             _query_tracking_context: query_context,
+            _session_ctx: None,
         }
+    }
+
+    pub fn with_session_context(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        ctx: datafusion::prelude::SessionContext,
+    ) -> Self {
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: Some(ctx),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn stream_mut(&mut self) -> &mut RecordBatchStreamAdapter<CrossRtStream> {
+        &mut self.stream
     }
 }
 
