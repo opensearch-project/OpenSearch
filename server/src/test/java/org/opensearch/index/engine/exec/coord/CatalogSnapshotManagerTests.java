@@ -48,7 +48,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
     private static CatalogSnapshotManager replicaManager(
         ShardPath shardPath,
         List<CatalogSnapshot> initialCommittedSnapshots,
-        Map<String, FileDeleter> fileDeleters,
+        Map<String, FileDeleter> perFormatDeleters,
         CommitFileManager commitFileManager
     ) throws IOException {
         List<CatalogSnapshot> committed = initialCommittedSnapshots.isEmpty()
@@ -57,7 +57,18 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         return new CatalogSnapshotManager(
             committed,
             CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-            fileDeleters,
+            filesToDelete -> {
+                Map<String, java.util.Collection<String>> allFailed = new java.util.HashMap<>();
+                for (FileDeleter deleter : perFormatDeleters.values()) {
+                    try {
+                        Map<String, java.util.Collection<String>> failed = deleter.deleteFiles(filesToDelete);
+                        failed.forEach((k, v) -> allFailed.computeIfAbsent(k, x -> new java.util.ArrayList<>()).addAll(v));
+                    } catch (java.io.IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                return allFailed;
+            },
             Map.of(),
             List.of(),
             shardPath,
