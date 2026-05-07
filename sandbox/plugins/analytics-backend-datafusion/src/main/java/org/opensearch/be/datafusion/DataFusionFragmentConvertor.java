@@ -160,8 +160,13 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     // ── Core conversion helpers ─────────────────────────────────────────────────
 
     private byte[] convertToSubstrait(RelNode fragment) {
-        RelRoot root = RelRoot.of(fragment, SqlKind.SELECT);
-        SubstraitRelVisitor visitor = createVisitor(fragment);
+        // Rewrite SqlTypeName.NULL literals (Calcite's untyped null, emitted for the
+        // implicit ELSE arm of CASE) to typed nulls — isthmus' TypeConverter rejects NULL
+        // with "Unable to convert the type NULL". The widening only changes literal type
+        // tags; semantics and field names (used by Plan.Root.names) are unchanged.
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+        RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
+        SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel = visitor.apply(root.rel);
 
         List<String> fieldNames = root.fields.stream().map(field -> field.getValue()).toList();
@@ -185,8 +190,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * conversion and rewiring its input during {@link #rewire(Plan, Rel, List)}.
      */
     private Rel convertStandalone(RelNode operator) {
-        SubstraitRelVisitor visitor = createVisitor(operator);
-        return visitor.apply(operator);
+        // Same untyped-NULL preprocessing rationale as convertToSubstrait — the standalone
+        // wrapper conversion is just as susceptible to a SqlTypeName.NULL literal lurking in
+        // a CASE call attached on top of an inner plan.
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
+        SubstraitRelVisitor visitor = createVisitor(preprocessed);
+        return visitor.apply(preprocessed);
     }
 
     /**

@@ -128,6 +128,36 @@ public class MultisearchCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── CASE with implicit ELSE NULL — `count(eval(predicate))` shape ──────────
+
+    public void testMultisearchCountEvalConditionalCount() throws IOException {
+        // Mirror of the v2-side `CalciteMultisearchCommandIT.testMultisearchSuccessRatePattern`:
+        // `count(eval(predicate))` is PPL's conditional-count idiom. Calcite lowers it to
+        // `COUNT(CASE WHEN predicate THEN <projected> END)`, where the implicit ELSE arm
+        // becomes a `RexLiteral` with `SqlTypeName.NULL`. Isthmus' TypeConverter rejects
+        // NULL with "Unable to convert the type NULL".
+        //
+        // The {@link UntypedNullPreprocessor} pass added in this PR rewrites every
+        // SqlTypeName.NULL operand in a CASE call to a typed null literal matching the
+        // CASE's resolved return type before the SubstraitRelVisitor sees the plan. CASE
+        // itself is registered in the project capability set so the planner doesn't reject
+        // the operator before substrait emission either.
+        //
+        // calcs int0 distribution (see testMultisearchTwoBranchesByCategory): 5 rows < 5,
+        // 6 rows >= 5; 6 nulls excluded by both branch predicates. After multisearch,
+        // 11 rows feed the count-eval. `count(eval(class = "low"))` matches 5 (the low-bucketed
+        // rows), `count(eval(class = "high"))` matches 6, and `count()` totals 11.
+        assertRows(
+            "| multisearch"
+                + "    [search source=" + DATASET.indexName + " | where int0 < 5  | eval class = \"low\"  | fields int0, class]"
+                + "    [search source=" + DATASET.indexName + " | where int0 >= 5 | eval class = \"high\" | fields int0, class]"
+                + " | stats count(eval(class = \"low\"))  as low_count,"
+                + "         count(eval(class = \"high\")) as high_count,"
+                + "         count() as grand_count",
+            row(5L, 6L, 11L)
+        );
+    }
+
     // ── arity check — caught at parse, never reaches the analytics path ────────
 
     public void testMultisearchSingleSubsearchRejected() throws IOException {
