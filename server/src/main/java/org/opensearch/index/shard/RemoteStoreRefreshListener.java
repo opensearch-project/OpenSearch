@@ -286,6 +286,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                                 uploadMetadata(localSegmentsPostRefresh, catalogSnapshot, checkpoint);
                                 logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
+                                evictUploadedChecksums(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
                                     refreshClockTimeMs,
@@ -395,6 +396,17 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             .filter(file -> !localSegmentsPostRefresh.contains(file))
             .collect(Collectors.toSet())
             .forEach(localSegmentChecksumMap::remove);
+    }
+
+    /**
+     * Evicts pre-computed checksums for files that have been successfully uploaded.
+     * Once uploaded, the checksum is stored in remote metadata and no longer needed in the local cache.
+     */
+    private void evictUploadedChecksums(Collection<String> uploadedFiles) {
+        DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
+        if (dfasd != null) {
+            dfasd.evictChecksums(uploadedFiles);
+        }
     }
 
     private void beforeSegmentsSync() {

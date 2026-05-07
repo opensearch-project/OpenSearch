@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
@@ -67,5 +68,20 @@ public interface FormatChecksumStrategy {
      * Clears all cached checksums. Called during cleanup/close.
      */
     default void clearChecksums() {}
+
+    /**
+     * Creates a {@link VerifyingIndexOutput} that computes and verifies checksums
+     * using this format's algorithm during the write pass (streaming).
+     *
+     * <p>Override this to provide format-specific verification (e.g., CRC32C for Parquet).
+     * The default uses CRC32 via {@link Store.DataFormatVerifyingIndexOutput}.
+     *
+     * @param metadata the expected file metadata (length, checksum)
+     * @param output the underlying index output to wrap
+     * @return a verifying output that checks integrity on {@code verify()}
+     */
+    default VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
+        return new Store.DataFormatVerifyingIndexOutput(metadata, output);
+    }
 
 }
