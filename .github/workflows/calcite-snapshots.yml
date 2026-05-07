@@ -1,4 +1,4 @@
-# This workflow will check out, build, and publish snapshots of lucene.
+# This workflow will check out, build, and publish snapshots of calcite.
 
 name: OpenSearch Lucene snapshots
 
