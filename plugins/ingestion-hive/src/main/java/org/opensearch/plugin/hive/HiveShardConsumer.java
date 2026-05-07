@@ -9,9 +9,6 @@
 package org.opensearch.plugin.hive;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.security.SecurityUtil;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.authentication.util.KerberosName;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -22,29 +19,14 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
-import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TSaslClientTransport;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.apache.thrift.transport.layered.TFramedTransport;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
-import org.opensearch.plugin.hive.metastore.FieldSchema;
-import org.opensearch.plugin.hive.metastore.GetTableRequest;
-import org.opensearch.plugin.hive.metastore.GetTableResult;
-import org.opensearch.plugin.hive.metastore.Partition;
-import org.opensearch.plugin.hive.metastore.Table;
-import org.opensearch.plugin.hive.metastore.ThriftHiveMetastore;
 import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
-
-import javax.security.sasl.SaslException;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -69,8 +51,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private final int numShards;
 
     // Metastore and filesystem
-    private ThriftHiveMetastore.Client metastoreClient;
-    private TTransport metastoreTransport;
+    private MetastoreCatalog catalog;
     private FileSystem fileSystem;
     private Configuration hadoopConf;
     private MessageType tableSchema;
@@ -112,183 +93,35 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     }
 
     /**
-     * Connects to Hive Metastore with retry logic.
-     * Supports framed/unframed transport and optional Kerberos (SASL/GSSAPI) authentication.
-     */
-    private void connectToMetastore() throws TTransportException {
-        String uri = config.getMetastoreUri().replace("thrift://", "");
-        String[] hostPort = uri.split(":");
-        String host = hostPort[0];
-        int port = Integer.parseInt(hostPort[1]);
-
-        if (config.getAuthMode() == HiveSourceConfig.AuthMode.KERBEROS) {
-            loginWithKerberos();
-        }
-
-        TTransportException lastException = null;
-        for (int attempt = 0; attempt <= config.getMaxRetries(); attempt++) {
-            try {
-                if (attempt > 0) {
-                    logger.info("Retrying Metastore connection for shard {} (attempt {}/{})", shardId, attempt, config.getMaxRetries());
-                    Thread.sleep(config.getRetryIntervalMillis());
-                }
-
-                TSocket socket = new TSocket(host, port, config.getConnectTimeoutMillis());
-                TTransport transport;
-                if (config.getTransportMode() == HiveSourceConfig.TransportMode.FRAMED) {
-                    transport = new TFramedTransport(socket);
-                } else {
-                    transport = socket;
-                }
-
-                if (config.getAuthMode() == HiveSourceConfig.AuthMode.KERBEROS) {
-                    transport = createSaslTransport(transport, host);
-                    final TTransport saslTransport = transport;
-                    try {
-                        UserGroupInformation.getLoginUser().doAs((PrivilegedExceptionAction<Void>) () -> {
-                            saslTransport.open();
-                            return null;
-                        });
-                    } catch (Exception e) {
-                        throw new TTransportException("SASL open failed: " + e.getMessage(), e);
-                    }
-                } else {
-                    transport.open();
-                }
-
-                metastoreTransport = transport;
-                metastoreClient = new ThriftHiveMetastore.Client(new TBinaryProtocol(transport));
-                logger.info(
-                    "Connected to Hive Metastore for shard {} at {}:{} (transport={}, auth={})",
-                    shardId,
-                    host,
-                    port,
-                    config.getTransportMode(),
-                    config.getAuthMode()
-                );
-                return;
-            } catch (TTransportException e) {
-                lastException = e;
-                logger.warn("Failed to connect to Metastore for shard {} (attempt {}): {}", shardId, attempt + 1, e.getMessage());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new TTransportException("Interrupted during retry", e);
-            }
-        }
-        throw lastException;
-    }
-
-    /**
      * Closes and reconnects to Metastore. Used for recovery after connection failures.
      */
-    private void reconnectMetastore() throws TTransportException {
-        closeMetastore();
-        connectToMetastore();
-        // Re-fetch table schema after reconnect
-        try {
-            fetchTableSchema();
-        } catch (TException e) {
-            throw new TTransportException("Failed to fetch table schema after reconnect", e);
-        }
+    private void reconnectMetastore() throws IOException {
+        catalog.reconnect();
+        fetchTableSchema();
     }
 
-    private void closeMetastore() {
-        if (metastoreTransport != null) {
-            try {
-                metastoreTransport.close();
-            } catch (Exception e) {
-                logger.debug("Error closing metastore transport", e);
-            }
-            metastoreTransport = null;
-            metastoreClient = null;
-        }
-    }
-
-    /**
-     * Authenticates with Kerberos using the configured keytab and principal.
-     */
-    private void loginWithKerberos() throws TTransportException {
-        try {
-            AccessController.doPrivilegedChecked(() -> {
-                Configuration conf = new Configuration();
-                conf.set("hadoop.security.authentication", "kerberos");
-                UserGroupInformation.setConfiguration(conf);
-                UserGroupInformation.loginUserFromKeytab(
-                    config.getKerberosPrincipal(),
-                    config.getKerberosKeytabPath()
-                );
-                logger.info("Kerberos login successful for principal {}", config.getKerberosPrincipal());
-            });
-        } catch (Exception e) {
-            throw new TTransportException("Kerberos login failed: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Wraps the transport with SASL/GSSAPI for Kerberos authentication.
-     */
-    private TTransport createSaslTransport(TTransport baseTransport, String host) throws TTransportException {
-        try {
-            String servicePrincipal = config.getMetastoreServicePrincipal();
-            if (servicePrincipal == null) {
-                servicePrincipal = "hive/" + host;
-            } else {
-                servicePrincipal = SecurityUtil.getServerPrincipal(servicePrincipal, host);
-            }
-            KerberosName kerberosName = new KerberosName(servicePrincipal);
-            String saslServiceName = kerberosName.getServiceName();
-            String saslHost = kerberosName.getHostName();
-
-            return new TSaslClientTransport(
-                "GSSAPI",
-                null,
-                saslServiceName,
-                saslHost,
-                Map.of("javax.security.sasl.qop", "auth", "javax.security.sasl.server.authentication", "true"),
-                null,
-                baseTransport
-            );
-        } catch (SaslException e) {
-            throw new TTransportException("Failed to create SASL transport: " + e.getMessage(), e);
-        } catch (IOException e) {
-            throw new TTransportException("Failed to resolve service principal: " + e.getMessage(), e);
-        }
-    }
-
-    private void fetchTableSchema() throws TException {
-        GetTableRequest req = new GetTableRequest();
-        req.setDbName(config.getDatabase());
-        req.setTblName(config.getTable());
-        GetTableResult result = metastoreClient.get_table_req(req);
-        Table table = result.getTable();
-        tableInputFormat = table.getSd().getInputFormat();
-        tableSchema = hiveSchemaToParquet(table.getSd().getCols());
-        partitionKeys = table.getPartitionKeys().stream().map(FieldSchema::getName).collect(Collectors.toList());
+    private void fetchTableSchema() throws IOException {
+        MetastoreCatalog.TableInfo tableInfo = catalog.getTableInfo(config.getDatabase(), config.getTable());
+        tableInputFormat = tableInfo.getInputFormat();
+        tableSchema = hiveSchemaToParquet(tableInfo.getColumns());
+        partitionKeys = tableInfo.getPartitionKeys();
         logger.info("Table schema for shard {}: {}", shardId, tableSchema);
     }
 
     private void ensureInitialized() throws Exception {
-        if (metastoreClient == null) {
+        if (catalog == null) {
             logger.info("Initializing HiveShardConsumer for shard {} with metastore URI: {}", shardId, config.getMetastoreUri());
 
-            connectToMetastore();
+            catalog = new ThriftMetastoreCatalog(config);
+            catalog.connect();
 
-            hadoopConf = AccessController.doPrivilegedChecked(() -> {
+            AccessController.doPrivilegedChecked(() -> {
                 ClassLoader original = Thread.currentThread().getContextClassLoader();
                 try {
                     Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
-                    Configuration conf = new Configuration();
-                    conf.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem");
-                    return conf;
-                } finally {
-                    Thread.currentThread().setContextClassLoader(original);
-                }
-            });
-            fileSystem = AccessController.doPrivilegedChecked(() -> {
-                ClassLoader original = Thread.currentThread().getContextClassLoader();
-                try {
-                    Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
-                    return FileSystem.get(hadoopConf);
+                    hadoopConf = new Configuration();
+                    hadoopConf.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem");
+                    fileSystem = FileSystem.get(hadoopConf);
                 } finally {
                     Thread.currentThread().setContextClassLoader(original);
                 }
@@ -388,7 +221,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * Supports both partition-name and create-time ordering strategies.
      */
     private void discoverNewPartitions() throws Exception {
-        List<Partition> partitions;
+        List<MetastoreCatalog.PartitionInfo> partitions;
         if (config.getPartitionOrder() == HiveSourceConfig.PartitionOrder.CREATE_TIME) {
             partitions = discoverByCreateTime();
         } else {
@@ -400,7 +233,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         // Sort partitions according to ordering strategy
         switch (config.getPartitionOrder()) {
             case CREATE_TIME:
-                partitions.sort(Comparator.comparingInt(Partition::getCreateTime));
+                partitions.sort(Comparator.comparingInt(MetastoreCatalog.PartitionInfo::getCreateTime));
                 break;
             case PARTITION_TIME:
                 partitions.sort(Comparator.comparing(p -> extractPartitionTime(p)));
@@ -414,11 +247,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         }
 
         // Filter to partitions assigned to this shard
-        for (Partition partition : partitions) {
+        for (MetastoreCatalog.PartitionInfo partition : partitions) {
             String partName = partitionToName(partition);
             if (seenPartitions.contains(partName)) continue;
             if (Math.floorMod(partName.hashCode(), numShards) == shardId) {
-                List<String> files = listDataFiles(partition.getSd().getLocation());
+                List<String> files = listDataFiles(partition.getLocation());
                 if (!files.isEmpty()) {
                     pendingWork.add(new PartitionWork(partName, files, partition.getCreateTime()));
                     seenPartitions.add(partName);
@@ -430,17 +263,16 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         lastMetastoreQueryTime = System.currentTimeMillis();
     }
 
-    private List<Partition> discoverByPartitionName() throws TException {
+    private List<MetastoreCatalog.PartitionInfo> discoverByPartitionName() throws IOException {
         if (watermark == null || watermark.isEmpty()) {
-            return metastoreClient.get_partitions(config.getDatabase(), config.getTable(), (short) -1);
+            return catalog.getAllPartitions(config.getDatabase(), config.getTable());
         }
         String filter = buildPartitionFilter(watermark);
-        return metastoreClient.get_partitions_by_filter(config.getDatabase(), config.getTable(), filter, (short) -1);
+        return catalog.getPartitionsByFilter(config.getDatabase(), config.getTable(), filter);
     }
 
-    private List<Partition> discoverByCreateTime() throws TException {
-        // create-time mode: get all partitions and filter by createTime > watermarkCreateTime
-        List<Partition> all = metastoreClient.get_partitions(config.getDatabase(), config.getTable(), (short) -1);
+    private List<MetastoreCatalog.PartitionInfo> discoverByCreateTime() throws IOException {
+        List<MetastoreCatalog.PartitionInfo> all = catalog.getAllPartitions(config.getDatabase(), config.getTable());
         if (watermarkCreateTime <= 0 && (watermark == null || watermark.isEmpty())) {
             return all;
         }
@@ -520,7 +352,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return "";
     }
 
-    private String partitionToName(Partition partition) {
+    private String partitionToName(MetastoreCatalog.PartitionInfo partition) {
         List<String> values = partition.getValues();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < partitionKeys.size(); i++) {
@@ -534,7 +366,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * Extracts a timestamp string from partition values using the configured partition_time_pattern.
      * Pattern variables like $year, $month, $day are replaced with the corresponding partition key values.
      */
-    private String extractPartitionTime(Partition partition) {
+    private String extractPartitionTime(MetastoreCatalog.PartitionInfo partition) {
         String pattern = config.getPartitionTimePattern();
         if (pattern == null) {
             return String.join("/", partition.getValues());
@@ -610,9 +442,9 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      * Used as the projection schema so that files with fewer columns
      * return null for missing fields.
      */
-    private static MessageType hiveSchemaToParquet(List<FieldSchema> columns) {
+    private static MessageType hiveSchemaToParquet(List<MetastoreCatalog.ColumnInfo> columns) {
         Types.MessageTypeBuilder builder = Types.buildMessage();
-        for (FieldSchema col : columns) {
+        for (MetastoreCatalog.ColumnInfo col : columns) {
             builder.addField(hiveTypeToParquetType(col.getName(), col.getType()));
         }
         return builder.named("table");
@@ -652,7 +484,9 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     @Override
     public void close() throws IOException {
         closeCurrentReader();
-        closeMetastore();
+        if (catalog != null) {
+            catalog.close();
+        }
         if (fileSystem != null) {
             fileSystem.close();
         }
