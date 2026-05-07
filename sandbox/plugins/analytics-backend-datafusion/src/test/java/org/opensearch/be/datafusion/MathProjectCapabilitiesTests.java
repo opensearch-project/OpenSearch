@@ -38,9 +38,9 @@ public class MathProjectCapabilitiesTests extends OpenSearchTestCase {
         return seen;
     }
 
-    public void testTier1MathFunctionsAreProjectCapable() {
+    public void testMathFunctionsAreProjectCapable() {
         Set<ScalarFunction> projectable = exposedProjectScalars();
-        ScalarFunction[] tier1 = new ScalarFunction[] {
+        ScalarFunction[] functions = new ScalarFunction[] {
             ScalarFunction.ABS,
             ScalarFunction.ACOS,
             ScalarFunction.ASIN,
@@ -66,26 +66,26 @@ public class MathProjectCapabilitiesTests extends OpenSearchTestCase {
             ScalarFunction.SIN,
             ScalarFunction.TAN,
             ScalarFunction.TRUNCATE, };
-        for (ScalarFunction f : tier1) {
-            assertTrue("Tier-1 function not registered as Scalar project capability: " + f, projectable.contains(f));
+        for (ScalarFunction f : functions) {
+            assertTrue("function not registered as Scalar project capability: " + f, projectable.contains(f));
         }
     }
 
-    public void testTier2AdapterTargetFunctionsAreProjectCapable() {
+    public void testAdapterTargetFunctionsAreProjectCapable() {
         Set<ScalarFunction> projectable = exposedProjectScalars();
-        ScalarFunction[] tier2 = new ScalarFunction[] {
+        ScalarFunction[] functions = new ScalarFunction[] {
             ScalarFunction.COSH,
             ScalarFunction.SINH,
             ScalarFunction.E,
             ScalarFunction.EXPM1,
             ScalarFunction.SCALAR_MAX,
             ScalarFunction.SCALAR_MIN, };
-        for (ScalarFunction f : tier2) {
-            assertTrue("Tier-2 adapter target not registered as Scalar project capability: " + f, projectable.contains(f));
+        for (ScalarFunction f : functions) {
+            assertTrue("adapter target not registered as Scalar project capability: " + f, projectable.contains(f));
         }
     }
 
-    public void testTier2AdapterTargetFunctionsHaveAdapters() {
+    public void testAdapterTargetFunctionsHaveAdapters() {
         DataFusionAnalyticsBackendPlugin backendPlugin = new DataFusionAnalyticsBackendPlugin(new DataFusionPlugin());
         Map<ScalarFunction, ScalarFunctionAdapter> adapters = backendPlugin.getCapabilityProvider().scalarFunctionAdapters();
         assertNotNull("SINH must have an adapter registered", adapters.get(ScalarFunction.SINH));

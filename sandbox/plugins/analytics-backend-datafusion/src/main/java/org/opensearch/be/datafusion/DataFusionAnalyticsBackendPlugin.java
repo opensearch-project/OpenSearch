@@ -109,7 +109,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.SUBSTRING,
         ScalarFunction.SARG_PREDICATE,
         ScalarFunction.MINUS,
-        ScalarFunction.ABS,
         ScalarFunction.ACOS,
         ScalarFunction.ASIN,
         ScalarFunction.ATAN,
