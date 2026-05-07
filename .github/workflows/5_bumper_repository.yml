@@ -173,6 +173,7 @@ jobs:
           # Remove the files to prevent them from being included in the revert commit
           git checkout HEAD -- VERSION.json 2>/dev/null || true
           git checkout HEAD -- CHANGELOG.md 2>/dev/null || true
+          git checkout HEAD -- distribution/packages/src/rpm/wazuh-indexer.rpm.spec 2>/dev/null || true
           # Add any other repository-specific version files here
 
           if git diff --staged --quiet; then
