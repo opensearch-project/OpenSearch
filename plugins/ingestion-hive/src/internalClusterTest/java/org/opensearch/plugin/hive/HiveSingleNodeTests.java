@@ -24,6 +24,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.hive.metastore.Database;
 import org.opensearch.plugin.hive.metastore.FieldSchema;
@@ -45,6 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -169,6 +171,49 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
             SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
             return response.getHits().getTotalHits().value() == 550;
         });
+    }
+
+    /**
+     * Test that readNext(pointer, ...) correctly resumes from the given position
+     * without re-reading earlier data.
+     */
+    public void testSeekToPointer() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", metastoreUri);
+        params.put("database", DATABASE);
+        params.put("table", TABLE_NAME);
+        params.put("_number_of_shards", 1);
+        params.put("monitor_interval", "1s");
+
+        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveShardConsumer consumer = new HiveShardConsumer("test-client", 0, config);
+
+        // Read first batch from earliest
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> firstBatch = consumer.readNext(10, 5000);
+        assertFalse("Should have read some records", firstBatch.isEmpty());
+
+        // Remember the last pointer from first batch
+        HivePointer lastPointer = firstBatch.get(firstBatch.size() - 1).getPointer();
+        consumer.close();
+
+        // Create a new consumer and seek to the last pointer (exclusive)
+        HiveShardConsumer resumedConsumer = new HiveShardConsumer("test-client-2", 0, config);
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> resumedBatch = resumedConsumer.readNext(
+            lastPointer,
+            false,
+            10,
+            5000
+        );
+        assertFalse("Should have read records after seek", resumedBatch.isEmpty());
+
+        // First record after seek should have sequenceNumber > lastPointer's
+        HivePointer firstResumed = resumedBatch.get(0).getPointer();
+        assertTrue("Resumed pointer should be after the seek pointer", firstResumed.getSequenceNumber() > lastPointer.getSequenceNumber());
+
+        // sequenceNumber should be exactly lastPointer + 1 (no gap, no re-read)
+        assertEquals(lastPointer.getSequenceNumber() + 1, firstResumed.getSequenceNumber());
+
+        resumedConsumer.close();
     }
 
     /**
