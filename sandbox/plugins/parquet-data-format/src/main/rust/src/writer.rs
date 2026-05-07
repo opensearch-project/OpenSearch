@@ -323,8 +323,8 @@ impl NativeParquetWriter {
 
         log_debug!("Created {} sorted chunks, merging via streaming k-way merge", batch_count);
 
-        // merge_sorted returns CRC32 of the final merged output
-        let crc32 = merge_sorted(
+        // merge_sorted returns metadata and CRC32 of the final merged output
+        let (_metadata, crc32) = merge_sorted(
             &chunk_paths,
             output_filename,
             index_name,

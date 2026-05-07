@@ -25,7 +25,7 @@ pub fn merge_unsorted(
     input_files: &[String],
     output_path: &str,
     index_name: &str,
-) -> MergeResult<u32> {
+) -> MergeResult<(parquet::file::metadata::ParquetMetaData, u32)> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
         .map(|r| r.clone())
@@ -91,15 +91,15 @@ pub fn merge_unsorted(
         }
     }
 
-    let (_metadata, crc32) = ctx.finish()?;
+    let (metadata, crc32) = ctx.finish()?;
 
     log_debug!(
-        "[RUST] Unsorted merge complete: {} total rows written to '{}' in {} row groups, crc32={:#010x}",
-        _metadata.file_metadata().num_rows(),
+        "[RUST] Unsorted merge complete: {} total rows written to '{}' within {} row groups, crc32={:#010x}",
+        metadata.file_metadata().num_rows(),
         output_path,
-        _metadata.num_row_groups(),
+        metadata.num_row_groups(),
         crc32
     );
 
-    Ok(crc32)
+    Ok((metadata, crc32))
 }

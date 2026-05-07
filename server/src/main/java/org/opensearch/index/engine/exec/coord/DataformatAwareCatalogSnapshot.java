@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -177,6 +178,8 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        Map<String, String> userData = new HashMap<>(this.userData);
+        userData.remove(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY);
         out.writeMap(userData, StreamOutput::writeString, StreamOutput::writeString);
         out.writeLong(id);
         out.writeLong(lastWriterGeneration);

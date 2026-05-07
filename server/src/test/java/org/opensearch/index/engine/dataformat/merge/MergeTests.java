@@ -104,7 +104,7 @@ public class MergeTests extends OpenSearchTestCase {
 
     private MergeHandler createNoopHandler(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier) {
         Merger noopMerger = mergeInput -> new MergeResult(Map.of());
-        return new MergeHandler(snapshotSupplier, noopMerger, SHARD_ID, NOOP_MERGE_POLICY, NOOP_MERGE_LISTENER);
+        return new MergeHandler(snapshotSupplier, noopMerger, SHARD_ID, NOOP_MERGE_POLICY, NOOP_MERGE_LISTENER, () -> 1L);
     }
 
     private MergeHandler createHandlerWithRealPolicy(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier, Merger merger) {
@@ -112,7 +112,7 @@ public class MergeTests extends OpenSearchTestCase {
             new IndexSettings(newIndexMeta("test", Settings.EMPTY), Settings.EMPTY).getMergePolicy(true),
             SHARD_ID
         );
-        return new MergeHandler(snapshotSupplier, merger, SHARD_ID, policy, policy);
+        return new MergeHandler(snapshotSupplier, merger, SHARD_ID, policy, policy, () -> 1L);
     }
 
     private static Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplierOf(List<Segment> segments) {
@@ -298,11 +298,24 @@ public class MergeTests extends OpenSearchTestCase {
     // ---- MergeHandler doMerge tests ----
 
     public void testDoMergeReturnsResult() throws IOException {
-        MergeResult expectedResult = new MergeResult(Map.of());
+        Path dir = createTempDir();
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet inputWfs = new WriterFileSet(dir.toString(), 1L, Set.of("input.dat"), 10);
+        Segment seg = Segment.builder(1L).addSearchableFiles(format, inputWfs).build();
+
+        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 10);
+        MergeResult expectedResult = new MergeResult(Map.of(format, mergedWfs));
         Merger merger = mergeInput -> expectedResult;
 
-        MergeHandler handler = new MergeHandler(emptySnapshotSupplier(), merger, SHARD_ID, NOOP_MERGE_POLICY, NOOP_MERGE_LISTENER);
-        MergeResult result = handler.doMerge(new OneMerge(Collections.emptyList()));
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(seg)),
+            merger,
+            SHARD_ID,
+            NOOP_MERGE_POLICY,
+            NOOP_MERGE_LISTENER,
+            () -> 1L
+        );
+        MergeResult result = handler.doMerge(new OneMerge(List.of(seg)));
 
         assertSame(expectedResult, result);
     }
@@ -370,7 +383,9 @@ public class MergeTests extends OpenSearchTestCase {
 
     public void testTriggerMergesExecutesMergeThread() throws Exception {
         List<Segment> segments = createSegments(15);
-        MergeResult mergeResult = new MergeResult(Map.of());
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 15);
+        MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
         CountDownLatch latch = new CountDownLatch(1);
 
         Merger merger = mergeInput -> {
@@ -413,7 +428,9 @@ public class MergeTests extends OpenSearchTestCase {
 
     public void testForceMergeExecutesMerges() throws Exception {
         List<Segment> segments = createSegments(3);
-        MergeResult mergeResult = new MergeResult(Map.of());
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 3);
+        MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
         CountDownLatch latch = new CountDownLatch(1);
 
         Merger merger = mergeInput -> mergeResult;
