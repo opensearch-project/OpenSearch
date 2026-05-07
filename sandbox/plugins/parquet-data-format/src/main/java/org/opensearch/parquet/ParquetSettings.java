@@ -25,6 +25,24 @@ public final class ParquetSettings {
     public static final String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
     public static final int DEFAULT_MAX_ROWS_PER_VSR = 50000;
 
+    /**
+     * Floor applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. Mirrors the
+     * {@code indices.memory.min_native_index_buffer_size} pattern in {@code IndexingMemoryController}.
+     */
+    public static final ByteSizeValue DEFAULT_MIN_NATIVE_ALLOCATION = new ByteSizeValue(512, ByteSizeUnit.MB);
+
+    /**
+     * Ceiling applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. Mirrors the
+     * {@code indices.memory.max_native_index_buffer_size} pattern in {@code IndexingMemoryController}.
+     */
+    public static final ByteSizeValue DEFAULT_MAX_NATIVE_ALLOCATION_CEILING = new ByteSizeValue(8, ByteSizeUnit.GB);
+
+    /**
+     * Default per-VSR child allocator cap. Bounds memory a single in-flight VectorSchemaRoot can
+     * hold so one writer cannot monopolize the root allocator.
+     */
+    public static final ByteSizeValue DEFAULT_CHILD_ALLOCATION = new ByteSizeValue(256, ByteSizeUnit.MB);
+
     /** Group setting prefix for all Parquet settings. */
     public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting("index.parquet.", Setting.Property.IndexScope);
 
@@ -90,10 +108,48 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Maximum native memory allocation for Arrow buffers, as a percentage of non-heap memory (default 10%). */
+    /**
+     * Maximum native memory allocation for Arrow buffers. Accepts a percentage of non-heap memory
+     * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "10%"}) or an absolute byte
+     * size (e.g. {@code "2gb"}). When a percentage is supplied, the resolved value is clamped by
+     * {@link #MIN_NATIVE_ALLOCATION} and {@link #MAX_NATIVE_ALLOCATION_CEILING}.
+     */
     public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
         "parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
+        Setting.Property.NodeScope
+    );
+
+    /** Floor applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. */
+    public static final Setting<ByteSizeValue> MIN_NATIVE_ALLOCATION = Setting.byteSizeSetting(
+        "parquet.min_native_allocation",
+        DEFAULT_MIN_NATIVE_ALLOCATION,
+        new ByteSizeValue(0, ByteSizeUnit.BYTES),
+        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Ceiling applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. {@code -1} disables
+     * the ceiling.
+     */
+    public static final Setting<ByteSizeValue> MAX_NATIVE_ALLOCATION_CEILING = Setting.byteSizeSetting(
+        "parquet.max_native_allocation_ceiling",
+        DEFAULT_MAX_NATIVE_ALLOCATION_CEILING,
+        new ByteSizeValue(-1),
+        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Per-VSR child allocator cap. Bounds memory a single in-flight VectorSchemaRoot can hold,
+     * preventing one writer from monopolizing the root allocator.
+     */
+    public static final Setting<ByteSizeValue> CHILD_ALLOCATION = Setting.byteSizeSetting(
+        "parquet.arrow.child_allocation",
+        DEFAULT_CHILD_ALLOCATION,
+        new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
         Setting.Property.NodeScope
     );
 
@@ -165,6 +221,9 @@ public final class ParquetSettings {
             BLOOM_FILTER_FPP,
             BLOOM_FILTER_NDV,
             MAX_NATIVE_ALLOCATION,
+            MIN_NATIVE_ALLOCATION,
+            MAX_NATIVE_ALLOCATION_CEILING,
+            CHILD_ALLOCATION,
             MAX_ROWS_PER_VSR,
             SORT_IN_MEMORY_THRESHOLD,
             SORT_BATCH_SIZE,

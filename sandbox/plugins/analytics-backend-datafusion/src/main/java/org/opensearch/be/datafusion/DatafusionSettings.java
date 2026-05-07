@@ -168,7 +168,11 @@ public final class DatafusionSettings {
 
         // Runtime settings — memory pool, spill, and reduce input mode
         DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT,
+        DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT_MIN,
+        DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT_MAX,
         DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT,
+        DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT_MIN,
+        DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT_MAX,
         DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE,
 
         // Cache settings — metadata and statistics cache configuration
