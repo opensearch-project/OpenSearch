@@ -757,8 +757,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try {
             assert metadata.writtenBy() != null;
             final DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(directory);
-            if (dfasd != null && DataFormatAwareStoreDirectory.isDefaultFormat(FileMetadata.parseDataFormat(fileName)) == false) {
-                output = new DataFormatVerifyingIndexOutput(metadata, output);
+            if (dfasd != null) {
+                output = dfasd.createVerifyingOutput(metadata, output);
             } else {
                 output = new LuceneVerifyingIndexOutput(metadata, output);
             }

@@ -106,7 +106,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
         // Register the pre-computed CRC32 so the upload path can read it in O(1)
         if (checksumStrategy != null && metadata.crc32() != 0) {
-            checksumStrategy.registerChecksum(fileName, metadata.crc32(), writerGeneration);
+            checksumStrategy.registerChecksum(dataFormat.name() + "/" + fileName, metadata.crc32(), writerGeneration);
         }
 
         WriterFileSet writerFileSet = WriterFileSet.builder()

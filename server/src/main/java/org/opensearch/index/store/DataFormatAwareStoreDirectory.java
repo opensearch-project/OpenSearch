@@ -268,7 +268,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      */
     private long calculateChecksum(FileMetadata fm) throws IOException {
         String fileIdentifier = toFileIdentifier(fm);
-        FormatChecksumStrategy strategy = checksumStrategies.get(fm.dataFormat());
+        FormatChecksumStrategy strategy = checksumStrategies.getOrDefault(fm.dataFormat(), DEFAULT_CHECKSUM_STRATEGY);
         return strategy.computeChecksum(this, fileIdentifier);
     }
 
@@ -290,6 +290,40 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      */
     public FormatChecksumStrategy getChecksumStrategy(String format) {
         return checksumStrategies.get(format);
+    }
+
+    /**
+     * Evicts pre-computed checksums for the given files from their respective format strategies.
+     * Called after successful upload to prevent unbounded cache growth.
+     *
+     * @param files collection of format-prefixed file names (e.g., "parquet/_parquet_file_gen_1.parquet")
+     */
+    public void evictChecksums(Collection<String> files) {
+        for (String file : files) {
+            String format = FileMetadata.parseDataFormat(file);
+            if (isDefaultFormat(format)) {
+                continue;
+            }
+            FormatChecksumStrategy strategy = checksumStrategies.get(format);
+            if (strategy instanceof PrecomputedChecksumStrategy precomputed) {
+                precomputed.evictChecksum(file);
+            }
+        }
+    }
+
+    /**
+     * Creates a {@link VerifyingIndexOutput} appropriate for the given file's format.
+     * Delegates to the format's {@link FormatChecksumStrategy#createVerifyingOutput} so that
+     * each format can use its own checksum algorithm (e.g., CRC32C for Parquet, codec footer for Lucene).
+     *
+     * @param metadata the expected file metadata (length, checksum)
+     * @param output the underlying index output to wrap
+     * @return a format-appropriate verifying output
+     */
+    public VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
+        String format = FileMetadata.parseDataFormat(metadata.name());
+        FormatChecksumStrategy strategy = checksumStrategies.getOrDefault(format, DEFAULT_CHECKSUM_STRATEGY);
+        return strategy.createVerifyingOutput(metadata, output);
     }
 
     /**
