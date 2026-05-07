@@ -33,6 +33,8 @@ public final class TieredStorageBridge {
     private static final MethodHandle DESTROY;
     private static final MethodHandle REGISTER_FILES;
     private static final MethodHandle REMOVE_FILE;
+    private static final MethodHandle GET_OBJECT_STORE_BOX_PTR;
+    private static final MethodHandle DESTROY_OBJECT_STORE_BOX_PTR;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -61,6 +63,14 @@ public final class TieredStorageBridge {
             lib.find("ts_remove_file").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
+        GET_OBJECT_STORE_BOX_PTR = linker.downcallHandle(
+            lib.find("ts_get_object_store_box_ptr").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        // Optional — graceful if native library is stale and symbol not yet available.
+        DESTROY_OBJECT_STORE_BOX_PTR = lib.find("ts_destroy_object_store_box_ptr")
+            .map(sym -> linker.downcallHandle(sym, FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)))
+            .orElse(null);
     }
 
     private TieredStorageBridge() {}
@@ -138,6 +148,37 @@ public final class TieredStorageBridge {
             NativeLibraryLoader.checkResult((long) REMOVE_FILE.invokeExact(storePtr, seg, (long) path.length()));
         } catch (Throwable t) {
             throw new RuntimeException("Failed to remove file: " + path, t);
+        }
+    }
+
+    /**
+     * Get a Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer from a TieredObjectStore Arc pointer.
+     * This is the format that DataFusion's df_create_reader expects.
+     * The returned pointer shares ownership with the original — free it with destroyObjectStoreBoxPtr.
+     *
+     * @param tieredStorePtr the Arc&lt;TieredObjectStore&gt; pointer from createTieredObjectStore
+     * @return Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer for DataFusion
+     */
+    public static long getObjectStoreBoxPtr(long tieredStorePtr) {
+        try {
+            return NativeLibraryLoader.checkResult((long) GET_OBJECT_STORE_BOX_PTR.invokeExact(tieredStorePtr));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to get object store box ptr", t);
+        }
+    }
+
+    /**
+     * Free a Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer returned by getObjectStoreBoxPtr.
+     * Drops the Box and decrements the Arc strong count.
+     * No-op if the native symbol is not available (stale library).
+     */
+    public static void destroyObjectStoreBoxPtr(long boxPtr) {
+        if (boxPtr <= 0) return;
+        if (DESTROY_OBJECT_STORE_BOX_PTR == null) return;
+        try {
+            NativeLibraryLoader.checkResult((long) DESTROY_OBJECT_STORE_BOX_PTR.invokeExact(boxPtr));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to destroy object store box ptr", t);
         }
     }
 }

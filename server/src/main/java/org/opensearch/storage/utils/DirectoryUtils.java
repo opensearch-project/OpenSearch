@@ -46,13 +46,6 @@ public class DirectoryUtils {
     }
 
     /**
-     * Alias for {@link #unwrapFSDirectory(Directory)}.
-     */
-    public static FSDirectory getFSDirectory(Directory dir) {
-        return unwrapFSDirectory(dir);
-    }
-
-    /**
      * Resolves the file path for a given file name in the directory.
      * @param localDirectory the directory
      * @param fileName the file name

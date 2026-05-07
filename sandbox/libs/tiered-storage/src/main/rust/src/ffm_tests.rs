@@ -53,3 +53,71 @@ fn test_register_files_invalid_location_returns_error() {
 
     assert_eq!(ts_destroy_tiered_object_store(store_ptr), 0);
 }
+
+#[test]
+fn test_get_object_store_box_ptr_null_returns_error() {
+    assert!(ts_get_object_store_box_ptr(0) < 0);
+}
+
+#[test]
+fn test_destroy_object_store_box_ptr_null_returns_error() {
+    assert!(ts_destroy_object_store_box_ptr(0) < 0);
+}
+
+#[test]
+fn test_get_and_destroy_object_store_box_ptr_round_trip() {
+    let store_ptr = ts_create_tiered_object_store(0, 0);
+    assert!(store_ptr > 0);
+
+    // Get a boxed pointer — this increments the Arc refcount
+    let box_ptr = ts_get_object_store_box_ptr(store_ptr);
+    assert!(box_ptr > 0);
+    assert_ne!(box_ptr, store_ptr); // different pointer (Box wrapping Arc)
+
+    // Destroy the box — decrements Arc refcount
+    assert_eq!(ts_destroy_object_store_box_ptr(box_ptr), 0);
+
+    // Original store still alive — destroy it
+    assert_eq!(ts_destroy_tiered_object_store(store_ptr), 0);
+}
+
+#[test]
+fn test_get_object_store_box_ptr_multiple_calls() {
+    let store_ptr = ts_create_tiered_object_store(0, 0);
+    assert!(store_ptr > 0);
+
+    // Multiple box pointers can coexist (simulates multiple reader managers)
+    let box1 = ts_get_object_store_box_ptr(store_ptr);
+    let box2 = ts_get_object_store_box_ptr(store_ptr);
+    assert!(box1 > 0);
+    assert!(box2 > 0);
+    assert_ne!(box1, box2); // each call creates a new Box
+
+    // Destroy both boxes
+    assert_eq!(ts_destroy_object_store_box_ptr(box1), 0);
+    assert_eq!(ts_destroy_object_store_box_ptr(box2), 0);
+
+    // Original store still alive
+    assert_eq!(ts_destroy_tiered_object_store(store_ptr), 0);
+}
+
+#[test]
+fn test_create_with_remote_does_not_consume_pointer() {
+    // Simulate node-level remote store: create a Box<Arc<dyn ObjectStore>>
+    let remote: Arc<dyn ObjectStore> = Arc::new(object_store::local::LocalFileSystem::new());
+    let remote_box = Box::new(remote);
+    let remote_ptr = Box::into_raw(remote_box) as i64;
+
+    // Create two TieredObjectStores sharing the same remote pointer
+    let store1 = ts_create_tiered_object_store(0, remote_ptr);
+    let store2 = ts_create_tiered_object_store(0, remote_ptr);
+    assert!(store1 > 0);
+    assert!(store2 > 0);
+
+    // Both stores work — remote pointer not consumed
+    assert_eq!(ts_destroy_tiered_object_store(store1), 0);
+    assert_eq!(ts_destroy_tiered_object_store(store2), 0);
+
+    // Clean up the remote Box (simulates repository.doClose())
+    let _remote_box = unsafe { Box::from_raw(remote_ptr as *mut Arc<dyn ObjectStore>) };
+}

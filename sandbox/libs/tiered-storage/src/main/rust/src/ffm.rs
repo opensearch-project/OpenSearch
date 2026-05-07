@@ -70,7 +70,8 @@ unsafe fn arc_from_ptr(ptr: i64) -> Result<Arc<TieredObjectStore>, String> {
 /// - `local_store_box_ptr`: if non-zero, a `Box<Arc<dyn ObjectStore>>` pointer for local I/O.
 ///   If 0, creates a default `LocalFileSystem::new()`.
 /// - `remote_store_box_ptr`: if non-zero, a `Box<Arc<dyn ObjectStore>>` pointer from a repository
-///   plugin. Ownership is taken and the store is set via `set_remote()`. If 0, no remote store.
+///   plugin. The Arc is cloned (ownership is NOT taken — the pointer remains valid for other
+///   shards). If 0, no remote store.
 #[ffm_safe]
 #[no_mangle]
 pub extern "C" fn ts_create_tiered_object_store(
@@ -88,14 +89,49 @@ pub extern "C" fn ts_create_tiered_object_store(
     let store = Arc::new(TieredObjectStore::new(file_registry, local));
 
     if remote_store_box_ptr != NULL_PTR {
-        let remote_arc: Arc<dyn ObjectStore> =
-            *unsafe { Box::from_raw(remote_store_box_ptr as *mut Arc<dyn ObjectStore>) };
+        // IMPORTANT: Do NOT consume the Box — the pointer is node-level and shared
+        // across multiple shards. Clone the Arc out of the Box without taking ownership.
+        let remote_box = unsafe { &*(remote_store_box_ptr as *const Arc<dyn ObjectStore>) };
+        let remote_arc = Arc::clone(remote_box);
         store.set_remote(remote_arc);
     }
 
     let ptr = Arc::into_raw(store) as i64;
     native_bridge_common::log_info!("ffm: ts_create_tiered_object_store ptr={}", ptr);
     Ok(ptr)
+}
+
+/// Returns a `Box<Arc<dyn ObjectStore>>` pointer from an existing TieredObjectStore Arc pointer.
+/// This is the format that `df_create_reader` expects — a boxed fat pointer to the trait object.
+/// Each call creates a new Box with its own Arc clone — caller must free with
+/// `ts_destroy_object_store_box_ptr`.
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn ts_get_object_store_box_ptr(tiered_store_ptr: i64) -> i64 {
+    if tiered_store_ptr == NULL_PTR {
+        return Err("ts_get_object_store_box_ptr: null pointer".to_string());
+    }
+    // Increment strong count so we don't consume the original Arc
+    unsafe { Arc::increment_strong_count(tiered_store_ptr as *const TieredObjectStore) };
+    let arc: Arc<TieredObjectStore> = unsafe { Arc::from_raw(tiered_store_ptr as *const TieredObjectStore) };
+    // Coerce to trait object and box it
+    let boxed: Box<Arc<dyn ObjectStore>> = Box::new(arc as Arc<dyn ObjectStore>);
+    let ptr = Box::into_raw(boxed) as i64;
+    native_bridge_common::log_info!("ffm: ts_get_object_store_box_ptr input={}, output={}", tiered_store_ptr, ptr);
+    Ok(ptr)
+}
+
+/// Destroy a `Box<Arc<dyn ObjectStore>>` pointer returned by `ts_get_object_store_box_ptr`.
+/// Drops the Box and decrements the Arc strong count.
+#[ffm_safe]
+#[no_mangle]
+pub extern "C" fn ts_destroy_object_store_box_ptr(ptr: i64) -> i64 {
+    if ptr == NULL_PTR {
+        return Err("ts_destroy_object_store_box_ptr: null pointer (0)".to_string());
+    }
+    let _boxed = unsafe { Box::from_raw(ptr as *mut Arc<dyn ObjectStore>) };
+    native_bridge_common::log_info!("ffm: ts_destroy_object_store_box_ptr ptr={}", ptr);
+    Ok(0)
 }
 
 /// Destroy a [`TieredObjectStore`].

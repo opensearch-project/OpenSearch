@@ -146,6 +146,24 @@ impl TieredObjectStore {
         drop(guard); // release before I/O — Arc keeps store alive
         Some((rp, store))
     }
+
+    /// Checks if a local read error is NotFound and the file has since transitioned
+    /// to REMOTE in the registry (e.g., afterSyncToRemote deleted the local copy).
+    /// Returns the remote path + store if retry is possible, None otherwise.
+    fn should_retry_remote(&self, path_str: &str, err: &object_store::Error) -> Option<(Path, Arc<dyn ObjectStore>)> {
+        if matches!(err, object_store::Error::NotFound { .. }) {
+            let resolved = self.resolve_remote(path_str);
+            if resolved.is_some() {
+                native_bridge_common::log_info!(
+                    "TieredObjectStore: LOCAL NotFound, file transitioned to REMOTE — retrying path='{}'",
+                    path_str
+                );
+            }
+            resolved
+        } else {
+            None
+        }
+    }
 }
 
 impl fmt::Debug for TieredObjectStore {
@@ -201,25 +219,28 @@ impl ObjectStore for TieredObjectStore {
     }
 
     /// Primary read path: check registry for remote routing, otherwise local.
+    /// If local read fails with NotFound and file transitioned to REMOTE, retries from remote.
     async fn get_opts(&self, location: &Path, options: GetOptions) -> OsResult<GetResult> {
         let path_str = location.as_ref();
 
         if let Some((rp, store)) = self.resolve_remote(path_str) {
             native_bridge_common::log_debug!(
-                "TieredObjectStore: get_opts routing REMOTE path='{}'",
+                "TieredObjectStore: get_opts REMOTE path='{}'",
                 path_str
             );
             return store.get_opts(&rp, options).await;
         }
 
-        native_bridge_common::log_debug!(
-            "TieredObjectStore: get_opts routing LOCAL path='{}'",
-            path_str
-        );
-        self.local.get_opts(location, options).await
+        let result = self.local.get_opts(location, options.clone()).await;
+        if let Err(ref e) = result {
+            if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
+                return store.get_opts(&rp, options).await;
+            }
+        }
+        result
     }
 
-    /// Range read: same routing as `get_opts`.
+    /// Range read with local-fail-retry-remote.
     async fn get_range(&self, location: &Path, range: Range<u64>) -> OsResult<Bytes> {
         let path_str = location.as_ref();
 
@@ -227,10 +248,16 @@ impl ObjectStore for TieredObjectStore {
             return store.get_range(&rp, range).await;
         }
 
-        self.local.get_range(location, range).await
+        let result = self.local.get_range(location, range.clone()).await;
+        if let Err(ref e) = result {
+            if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
+                return store.get_range(&rp, range).await;
+            }
+        }
+        result
     }
 
-    /// Multi-range read: same routing as `get_opts` for the entire batch.
+    /// Multi-range read with local-fail-retry-remote.
     async fn get_ranges(&self, location: &Path, ranges: &[Range<u64>]) -> OsResult<Vec<Bytes>> {
         let path_str = location.as_ref();
 
@@ -238,7 +265,13 @@ impl ObjectStore for TieredObjectStore {
             return store.get_ranges(&rp, ranges).await;
         }
 
-        self.local.get_ranges(location, ranges).await
+        let result = self.local.get_ranges(location, ranges).await;
+        if let Err(ref e) = result {
+            if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
+                return store.get_ranges(&rp, ranges).await;
+            }
+        }
+        result
     }
 
     /// Head: check registry first (cached size), then local, then remote.

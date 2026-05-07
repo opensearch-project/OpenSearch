@@ -358,6 +358,53 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
         registry.close();
     }
 
+    public void testGetFormatStoreHandlesSkipsClosedHandles() throws IOException {
+        DataFormatStoreHandler handler = mock(DataFormatStoreHandler.class);
+        NativeStoreHandle closedHandle = new NativeStoreHandle(99L, ptr -> {});
+        closedHandle.close(); // close it before returning
+        when(handler.getFormatStoreHandle()).thenReturn(closedHandle);
+
+        StoreStrategy strategy = createTestStrategy(handler);
+        RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir();
+
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath,
+            true,
+            NativeStoreRepository.EMPTY,
+            Map.of(PARQUET_FORMAT, strategy),
+            remoteDir
+        );
+
+        Map<DataFormat, NativeStoreHandle> handles = registry.getFormatStoreHandles();
+        assertTrue("Closed handles should not be returned", handles.isEmpty());
+
+        registry.close();
+    }
+
+    public void testGetFormatStoreHandlesReturnsSameHandleOnMultipleCalls() throws IOException {
+        DataFormatStoreHandler handler = mock(DataFormatStoreHandler.class);
+        NativeStoreHandle liveHandle = new NativeStoreHandle(77L, ptr -> {});
+        when(handler.getFormatStoreHandle()).thenReturn(liveHandle);
+
+        StoreStrategy strategy = createTestStrategy(handler);
+        RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir();
+
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath,
+            true,
+            NativeStoreRepository.EMPTY,
+            Map.of(PARQUET_FORMAT, strategy),
+            remoteDir
+        );
+
+        Map<DataFormat, NativeStoreHandle> handles1 = registry.getFormatStoreHandles();
+        Map<DataFormat, NativeStoreHandle> handles2 = registry.getFormatStoreHandles();
+        assertSame("Same handle should be returned on multiple calls", handles1.get(PARQUET_FORMAT), handles2.get(PARQUET_FORMAT));
+
+        liveHandle.close();
+        registry.close();
+    }
+
     public void testGetFormatStoreHandlesEmptyWhenNoHandlers() {
         Map<DataFormat, NativeStoreHandle> handles = StoreStrategyRegistry.EMPTY.getFormatStoreHandles();
         assertTrue(handles.isEmpty());

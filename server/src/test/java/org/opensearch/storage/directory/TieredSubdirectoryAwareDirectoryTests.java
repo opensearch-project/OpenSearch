@@ -446,7 +446,10 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
         try {
             String parquetFile = "parquet/seg_create.parquet";
             writeParquetFileToDisk(parquetFile);
-            expectThrows(Exception.class, () -> directory.fileLength(parquetFile));
+            // File exists locally but not in remote metadata — should be readable from local.
+            // This is the translog bump edge case: file created locally, not yet synced.
+            long len = directory.fileLength(parquetFile);
+            assertTrue("Local format file should have non-zero length", len > 0);
         } finally {
             directory.close();
         }
@@ -726,6 +729,75 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
             );
             assertTrue(ex.getMessage().contains("parquet/unknown.parquet"));
             assertTrue(ex.getMessage().contains("no remote filename"));
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Local-to-remote routing and afterSyncToRemote local delete tests
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testOpenInputRoutesToLocalWhenNotInRemoteMetadata() throws IOException {
+        directory = buildDirectoryWithParquetFormat().directory;
+        try {
+            String parquetFile = "parquet/seg_local_only.parquet";
+            writeParquetFileToDisk(parquetFile);
+            // File exists locally but NOT in remote metadata → should read from local
+            IndexInput input = directory.openInput(parquetFile, IOContext.DEFAULT);
+            assertNotNull(input);
+            assertTrue("Local format file should have non-zero length", input.length() > 0);
+            input.close();
+        } finally {
+            directory.close();
+        }
+    }
+
+    public void testOpenInputRoutesToRemoteWhenInRemoteMetadata() throws IOException {
+        directory = buildDirectoryWithParquetFormat().directory;
+        populateData();
+        try {
+            String parquetFile = "parquet/seg_remote.parquet";
+            addParquetMetadataEntry(parquetFile, "seg_remote.parquet__UUID1");
+            // File is in remote metadata → should route to remote directory
+            // (remote directory is mocked, so this verifies routing not actual read)
+            IndexInput input = directory.openInput(parquetFile, IOContext.DEFAULT);
+            assertNotNull(input);
+            input.close();
+        } finally {
+            directory.close();
+        }
+    }
+
+    public void testAfterSyncToRemoteDeletesLocalCopy() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        try {
+            String parquetFile = "parquet/seg_delete_local.parquet";
+            writeParquetFileToDisk(parquetFile);
+            // Verify file exists locally
+            assertTrue(java.nio.file.Files.exists(shardPath.getDataPath().resolve(parquetFile)));
+            // Simulate sync: add remote metadata entry
+            addParquetMetadataEntry(parquetFile, "seg_delete_local.parquet__UUID1");
+            // afterSyncToRemote should register as REMOTE and delete local copy
+            w.directory.afterSyncToRemote(parquetFile);
+            // Local file should be gone
+            assertFalse(
+                "Local file should be deleted after sync to remote",
+                java.nio.file.Files.exists(shardPath.getDataPath().resolve(parquetFile))
+            );
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    public void testAfterSyncToRemoteNoErrorWhenLocalAlreadyGone() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        try {
+            String parquetFile = "parquet/seg_already_gone.parquet";
+            // Don't write file to disk — it's already gone
+            addParquetMetadataEntry(parquetFile, "seg_already_gone.parquet__UUID1");
+            // Should not throw — catches NoSuchFileException silently
+            w.directory.afterSyncToRemote(parquetFile);
         } finally {
             w.directory.close();
         }

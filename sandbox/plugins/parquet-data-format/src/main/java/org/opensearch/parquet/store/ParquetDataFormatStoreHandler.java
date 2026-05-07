@@ -41,6 +41,8 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
 
     private static final Logger logger = LogManager.getLogger(ParquetDataFormatStoreHandler.class);
     private final NativeStoreHandle storeHandle;
+    /** Cached native object store handle for DataFusion readers — created lazily, closed with the handler. */
+    private volatile NativeStoreHandle nativeStoreForReader;
 
     /**
      * Creates a per-shard native file registry.
@@ -99,11 +101,34 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
 
     @Override
     public NativeStoreHandle getFormatStoreHandle() {
-        return storeHandle;
+        if (storeHandle.isLive() == false) {
+            return NativeStoreHandle.EMPTY;
+        }
+        // Lazily create the boxed pointer once — same lifetime as the handler (shard lifetime).
+        // The box holds an Arc clone of the TieredObjectStore, keeping it alive independently.
+        if (nativeStoreForReader == null) {
+            synchronized (this) {
+                if (nativeStoreForReader == null) {
+                    try {
+                        long boxPtr = TieredStorageBridge.getObjectStoreBoxPtr(storeHandle.getPointer());
+                        if (boxPtr > 0) {
+                            nativeStoreForReader = new NativeStoreHandle(boxPtr, TieredStorageBridge::destroyObjectStoreBoxPtr);
+                        }
+                    } catch (Exception e) {
+                        logger.error("getFormatStoreHandle: failed to get object store box ptr", e);
+                    }
+                }
+            }
+        }
+        return nativeStoreForReader != null ? nativeStoreForReader : NativeStoreHandle.EMPTY;
     }
 
     @Override
     public void close() throws IOException {
+        // Close box handle first (decrements Arc refcount), then the store handle (frees TieredObjectStore).
+        if (nativeStoreForReader != null) {
+            nativeStoreForReader.close();
+        }
         storeHandle.close();
     }
 }

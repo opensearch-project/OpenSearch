@@ -398,7 +398,7 @@ public class CompositeDirectory extends FilterDirectory implements RemoteSyncLis
     }
 
     private FSDirectory getLocalFSDirectory() {
-        return DirectoryUtils.getFSDirectory(localDirectory);
+        return DirectoryUtils.unwrapFSDirectory(localDirectory);
     }
 
     /**
@@ -417,8 +417,8 @@ public class CompositeDirectory extends FilterDirectory implements RemoteSyncLis
             "File Cache not initialized on this Node, cannot create Composite Directory without FileCache"
         );
         try {
-            DirectoryUtils.getFSDirectory(localDirectory);
-        } catch (IllegalStateException e) {
+            DirectoryUtils.unwrapFSDirectory(localDirectory);
+        } catch (IllegalArgumentException e) {
             throw new IllegalStateException("For Composite Directory, local directory must be of type FSDirectory");
         }
         if (remoteDirectory instanceof RemoteSegmentStoreDirectory == false) throw new IllegalStateException(

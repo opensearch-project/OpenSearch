@@ -968,12 +968,9 @@ public class Node implements Closeable {
             dataFormatAwareStoreDirectoryFactories.put("default", new DefaultDataFormatAwareStoreDirectoryFactory());
 
             // Register tiered factory for warm+format indices
-            final TieredStoragePrefetchSettings tieredStoragePrefetchSettings = new TieredStoragePrefetchSettings(
-                settingsModule.getClusterSettings()
-            );
             dataFormatAwareStoreDirectoryFactories.put(
                 TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY,
-                new TieredDataFormatAwareStoreDirectoryFactory(() -> tieredStoragePrefetchSettings)
+                new TieredDataFormatAwareStoreDirectoryFactory(tieredStoragePrefetchSettingsSupplier)
             );
 
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(

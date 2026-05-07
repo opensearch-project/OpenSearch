@@ -96,10 +96,12 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
         if (isFormatFile(name)) {
-            // TODO (writable warm): when LOCAL format files exist, add acquireRead/releaseRead
-            // ref counting. Pattern: acquireRead → localDirectory.openInput → wrap in
-            // RefCountedIndexInput → releaseRead on close. Currently all format files are REMOTE.
-            return remoteDirectory.openInput(name, context);
+            // Check if file exists in remote directory (already synced) — route to remote.
+            // Otherwise read from local (translog bump edge case, file not yet synced).
+            if (remoteDirectory.getExistingRemoteFilename(name) != null) {
+                return remoteDirectory.openInput(name, context);
+            }
+            return in.openInput(name, context);
         }
         return tieredDirectory.openInput(name, context);
     }
@@ -107,9 +109,11 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
     @Override
     public long fileLength(String name) throws IOException {
         if (isFormatFile(name)) {
-            // TODO (writable warm): route LOCAL → localDirectory, REMOTE → remoteDirectory
-            // based on registry location. Currently all format files are REMOTE.
-            return remoteDirectory.fileLength(name);
+            // Same routing as openInput — check remote first.
+            if (remoteDirectory.getExistingRemoteFilename(name) != null) {
+                return remoteDirectory.fileLength(name);
+            }
+            return in.fileLength(name);
         }
         return tieredDirectory.fileLength(name);
     }
@@ -155,6 +159,16 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
                 size = 0;
             }
             strategies.onUploaded(file, remoteDirectory.getRemoteBasePath(), blobKey, size);
+            // On warm, no local parquet files should remain — delete after sync.
+            // Safe because: (1) the file is now REMOTE in the registry, so new readers
+            // route to remote, and (2) TieredObjectStore retries from remote if local NotFound.
+            try {
+                in.deleteFile(file);
+            } catch (java.nio.file.NoSuchFileException e) {
+                // Already gone — fine
+            } catch (IOException e) {
+                logger.warn("[TieredSubdirAwareDir] afterSyncToRemote: failed to delete local copy of file={}", file, e);
+            }
             return;
         }
         tieredDirectory.afterSyncToRemote(file);
