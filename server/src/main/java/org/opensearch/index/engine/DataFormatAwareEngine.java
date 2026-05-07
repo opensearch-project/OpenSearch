@@ -495,8 +495,10 @@ public class DataFormatAwareEngine implements Indexer {
     @Override
     public Engine.IndexResult index(Engine.Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
-        assert (index.origin() == Engine.Operation.Origin.PRIMARY || index.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY)
-            : "DataFormatAwareEngine only supports PRIMARY origin but got: " + index.origin();
+        assert (index.origin() == Engine.Operation.Origin.PRIMARY
+            || index.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY
+            || index.origin() == Engine.Operation.Origin.LOCAL_RESET)
+            : "DataFormatAwareEngine only supports PRIMARY or recovery origins but got: " + index.origin();
         final boolean doThrottle = index.origin().isRecovery() == false;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -754,9 +756,6 @@ public class DataFormatAwareEngine implements Indexer {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             refreshLock.lock();
-            // ToDo: This is temporary api for replication end to end testing. It needs to be removed ones internal refresh flow is
-            // implemented.
-            invokeInternalRefreshListenersBefore();
             try (GatedCloseable<CatalogSnapshot> catalogSnapshot = catalogSnapshotManager.acquireSnapshot()) {
                 if (store.tryIncRef()) {
                     try {
@@ -1128,41 +1127,6 @@ public class DataFormatAwareEngine implements Indexer {
     @Override
     public long currentOngoingRefreshCheckpoint() {
         return lastRefreshedCheckpointListener.pendingCheckpoint();
-    }
-
-    /**
-     * Invokes {@code beforeRefresh()} on every internal refresh listener. Exceptions are logged
-     * and swallowed. Caller must hold {@code readLock + refreshLock}.
-     * ToDo: This is temporary api for replication end to end testing. It needs to be removed ones internal refresh flow is implemented.
-     */
-    private void invokeInternalRefreshListenersBefore() {
-        final List<ReferenceManager.RefreshListener> listeners = engineConfig.getInternalRefreshListener();
-        if (listeners == null || listeners.isEmpty()) {
-            return;
-        }
-        for (ReferenceManager.RefreshListener listener : listeners) {
-            try {
-                listener.beforeRefresh();
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("internal refresh listener [{}] beforeRefresh failed", listener), e);
-            }
-        }
-    }
-
-    /** Same as {@link #invokeInternalRefreshListenersBefore()} but fires {@code afterRefresh}. */
-    // ToDo: This is temporary api for replication end to end testing. It needs to be removed ones internal refresh flow is implemented.
-    private void invokeInternalRefreshListenersAfter(boolean didRefresh) {
-        final List<ReferenceManager.RefreshListener> listeners = engineConfig.getInternalRefreshListener();
-        if (listeners == null || listeners.isEmpty()) {
-            return;
-        }
-        for (ReferenceManager.RefreshListener listener : listeners) {
-            try {
-                listener.afterRefresh(didRefresh);
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("internal refresh listener [{}] afterRefresh failed", listener), e);
-            }
-        }
     }
 
     @Override

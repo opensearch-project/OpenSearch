@@ -227,7 +227,7 @@ public class CatalogSnapshotManager implements Closeable {
             newSnapshot = new DataformatAwareCatalogSnapshot(
                 latestCatalogSnapshot.getId() + 1,
                 latestCatalogSnapshot.getGeneration() + 1,
-                latestCatalogSnapshot.getVersion(),
+                latestCatalogSnapshot.getVersion() + 1,
                 refreshedSegments,
                 latestCatalogSnapshot.getLastWriterGeneration() + 1,
                 latestCatalogSnapshot.getUserData(),
