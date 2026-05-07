@@ -10,57 +10,31 @@ package org.opensearch.be.datafusion;
 
 /**
  * End-to-end smoke tests for PPL {@code json_*} scalar functions routed through
- * PPL → Calcite → Substrait → DataFusion. Mirrors the {@link ScalarDateTimeFunctionIT}
- * one-method-per-function pattern: each method exercises literal-arg and
- * column-valued paths, edge cases are covered in Rust unit tests.
- *
- * <p>Bank fixture (see {@link BaseScalarFunctionIT}) carries a {@code json_str}
- * keyword column — row 1 is {@code "[1,2,3]"}, row 6 is {@code "{\"k\":1}"}. The
- * {@code where account_number=1} row pin baked into
- * {@link BaseScalarFunctionIT#evalScalar} prevents Calcite const-folding the
- * outer query, and literals in the eval expression still traverse the full
- * Substrait + UDF path end-to-end (the adapter, the Sig, the UDF's coerce_types
- * and invoke_with_args all fire).
+ * PPL → Calcite → Substrait → DataFusion. One method per function for happy-path
+ * + column-valued coverage; {@code *ParityWithLegacy} methods replay the legacy
+ * SQL plugin's {@code CalcitePPLJsonBuiltinFunctionIT} fixtures verbatim.
+ * Edge cases are covered in Rust unit tests.
  */
 public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
 
-    /**
-     * Covers happy path + NULL-on-non-array + NULL-on-malformed via the scalar
-     * fast-path, plus a column-valued invocation that exercises the Arrow
-     * columnar path in {@code invoke_with_args}.
-     */
+    /** Happy path + NULL-on-non-array/malformed (scalar fast-path) + column-valued (Arrow columnar path). */
     public void testJsonArrayLength() {
-        // Scalar fast-path — literal arg constant-folded in Substrait, forced
-        // through the UDF by the row-pin in evalScalar.
         assertScalarIntStrict("json_array_length('[1,2,3]')", 3);
         assertScalarIntStrict("json_array_length('[]')", 0);
         assertScalarNull("json_array_length('{\"k\":1}')");
         assertScalarNull("json_array_length('not-json')");
-
-        // Columnar path — real keyword-typed field from the bank fixture. Row
-        // 1's json_str is '[1,2,3]' → length 3. This is the branch production
-        // traffic actually hits; literal-only coverage leaves it unexercised.
+        // Columnar path: bank fixture's json_str row 1 is '[1,2,3]'.
         assertScalarIntStrict("json_array_length(json_str)", 3);
     }
 
-    /**
-     * Parity replay of the legacy SQL plugin's
-     * {@code CalcitePPLJsonBuiltinFunctionIT.testJsonArrayLength} fixture
-     * (query returns rows 4, 5, null). Encodes the parity relationship as an
-     * automated assertion so future changes can't silently diverge from legacy.
-     */
+    /** Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonArrayLength}. */
     public void testJsonArrayLengthParityWithLegacy() {
         assertScalarIntStrict("json_array_length('[1,2,3,4]')", 4);
         assertScalarIntStrict("json_array_length('[1,2,3,{\"f1\":1,\"f2\":[5,6]},4]')", 5);
         assertScalarNull("json_array_length('{\"key\": 1}')");
     }
 
-    /**
-     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonKeys}:
-     * object input yields JSON-array-encoded keys (insertion order); array /
-     * non-object inputs yield NULL. `preserve_order` on serde_json in the
-     * DataFusion crate preserves insertion order to match legacy LinkedHashMap.
-     */
+    /** Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonKeys} — insertion order preserved via {@code serde_json} {@code preserve_order}. */
     public void testJsonKeysParityWithLegacy() {
         assertScalarString("json_keys('{\"f1\":\"abc\",\"f2\":{\"f3\":\"a\",\"f4\":\"b\"}}')", "[\"f1\",\"f2\"]");
         assertScalarNull("json_keys('[1,2,3,{\"f1\":1,\"f2\":[5,6]},4]')");
@@ -68,15 +42,7 @@ public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
         assertScalarNull("json_keys('42')");
     }
 
-    /**
-     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonExtract},
-     * {@code testJsonExtractWithMultiplyResult},
-     * {@code testJsonExtractReturnsNullForMissingPathAndNullValue} and
-     * {@code testJsonExtractMultiPathWithMissingPath}. The legacy fixture's
-     * byte-for-byte expected output survives our serde_json round-trip because
-     * {@code preserve_order} is enabled and no integer↔double coercion happens
-     * (see {@code rust/Cargo.toml}'s serde_json feature declaration).
-     */
+    /** Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonExtract*} — byte-for-byte match via {@code serde_json} {@code preserve_order} + no integer↔double coercion. */
     public void testJsonExtractParityWithLegacy() {
         String candidate = "[{\"name\":\"London\",\"Bridges\":[{\"name\":\"Tower Bridge\",\"length\":801.0},"
             + "{\"name\":\"Millennium Bridge\",\"length\":1066.0}]},"
@@ -117,13 +83,7 @@ public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
         assertScalarString("json_extract('{\"name\": \"John\"}', 'name', 'age')", "[\"John\",null]");
     }
 
-    /**
-     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonSet*} —
-     * wildcard replace, missing path unchanged, and partial-wildcard set. All
-     * values stored as JSON strings because the Rust UDF coerces every arg to
-     * Utf8, matching the legacy fixture's {@code "b":"3"} (stringified, not
-     * numeric) outputs.
-     */
+    /** Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonSet*} — values stored as JSON strings matches legacy {@code "b":"3"} outputs (Utf8 arg coercion). */
     public void testJsonSetParityWithLegacy() {
         // testJsonSet: wildcard replace across every array element.
         assertScalarString("json_set('{\"a\":[{\"b\":1},{\"b\":2}]}', 'a{}.b', '3')", "{\"a\":[{\"b\":\"3\"},{\"b\":\"3\"}]}");
@@ -139,14 +99,7 @@ public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
         );
     }
 
-    /**
-     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonAppend}.
-     * Legacy passes nested {@code json_object(...)} / {@code json_array(...)}
-     * as sibling eval expressions; Calcite evaluates those constructors to
-     * stringified JSON before the outer call, so substituting the literal
-     * stringified JSON here reproduces the same observable contract (legacy
-     * `"{\"name\":\"Tomy\"...}"` element = our literal-string argument).
-     */
+    /** Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonAppend} — nested {@code json_object}/{@code json_array} constructors replaced with their stringified equivalents (same observable contract). */
     public void testJsonAppendParityWithLegacy() {
         // Case a: pre-stringified json_object(...) appended as a single array element.
         assertScalarString(
@@ -172,13 +125,33 @@ public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
         );
     }
 
-    /**
-     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonDelete*}
-     * — flat-key delete, nested-key delete, missing-path-unchanged, and
-     * wildcard-array delete. Output order is preserved because the plugin's
-     * serde_json dependency enables the {@code preserve_order} feature
-     * (see {@code rust/Cargo.toml}).
-     */
+    /** Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonExtend} — case c diverges from append: a JSON-array value is spread (not pushed as a single element). */
+    public void testJsonExtendParityWithLegacy() {
+        // Case a: stringified json_object value — not a JSON array → single push.
+        assertScalarString(
+            "json_extend('{\"teacher\":[\"Alice\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}',"
+                + " 'student', '{\"name\":\"Tommy\",\"rank\":5}')",
+            "{\"teacher\":[\"Alice\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2},"
+                + "\"{\\\"name\\\":\\\"Tommy\\\",\\\"rank\\\":5}\"]}"
+        );
+
+        // Case b: plain strings — each fails List-parse → each pushed individually.
+        assertScalarString(
+            "json_extend('{\"teacher\":[\"Alice\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}',"
+                + " 'teacher', 'Tom', 'teacher', 'Walt')",
+            "{\"teacher\":[\"Alice\",\"Tom\",\"Walt\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}"
+        );
+
+        // Case c: stringified json_array — parses as JSON array → elements spread.
+        assertScalarString(
+            "json_extend('{\"school\":{\"teacher\":[\"Alice\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}}',"
+                + " 'school.teacher', '[\"Tom\",\"Walt\"]')",
+            "{\"school\":{\"teacher\":[\"Alice\",\"Tom\",\"Walt\"],"
+                + "\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}}"
+        );
+    }
+
+    /** Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonDelete*} — output order preserved via {@code serde_json} {@code preserve_order}. */
     public void testJsonDeleteParityWithLegacy() {
         // testJsonDelete: flat-key delete of two fields.
         assertScalarString(

@@ -6,26 +6,12 @@
  * compatible open source license.
  */
 
-//! `json_extract(value, path1, [path2, ...])` — extract JSON value(s) by
-//! PPL-path. Mirrors the legacy SQL plugin's `JsonExtractFunctionImpl`, which
-//! delegates to Calcite's stateful `jsonQuery` / `jsonValue` pair.
-//!
-//! # Observable semantics (matches `CalcitePPLJsonBuiltinFunctionIT`'s
-//! `testJsonExtract*` fixtures):
-//!
-//! | path count | match shape                  | output                                      |
-//! |-----------|-------------------------------|---------------------------------------------|
-//! | 1          | single scalar (non-string)   | `.to_string()` of the JSON scalar, e.g. `801.0` |
-//! | 1          | single string                | the unquoted string                         |
-//! | 1          | single object / array        | JSON-serialized                             |
-//! | 1          | multi match (wildcard)       | JSON-array of elements                      |
-//! | 1          | no match / explicit-null     | NULL                                        |
-//! | ≥2         | (per-path result above, NULL→`null` element) → wrapped in a JSON array ||
-//!
-//! `< 2` total args → NULL (legacy short-circuit `JsonExtractFunctionImpl.eval`).
-//! Malformed document or malformed path → NULL. Any-NULL-arg → NULL (the
-//! short-circuit already covers this in the scalar fast-path; for column-valued
-//! args we check explicit nulls per row).
+//! `json_extract(value, path1, [path2, ...])` — extract JSON value(s) by PPL-path
+//! (parity with legacy `JsonExtractFunctionImpl` → Calcite `jsonQuery` / `jsonValue`).
+//! Single-path: scalar → `.to_string()`, string → unquoted, object/array →
+//! JSON-serialized, wildcard multi-match → JSON-array, miss/explicit-null → NULL.
+//! Multi-path: per-path results (NULL → `null` element) wrapped in a JSON array.
+//! `< 2` args / any-NULL-arg / malformed doc / malformed path → NULL.
 
 use std::any::Any;
 use std::sync::Arc;

@@ -6,28 +6,11 @@
  * compatible open source license.
  */
 
-//! Shared helpers for the PPL `json_*` UDFs.
-//!
-//! Four concerns live here so the per-function modules stay thin:
-//! 1. **PPL-path → JSONPath** conversion (`convert_ppl_path`) — mirrors the
-//!    SQL-plugin's `JsonUtils.convertToJsonPath`: `a{i}.b{}` ⇒ `$.a[i].b[*]`.
-//! 2. **PPL-path → segment vector** (`parse_ppl_segments`) — tokenises the
-//!    same input into `Segment::{Field, Index, Wildcard}` for native mutation.
-//! 3. **Mutation walker** (`walk_mut`) — traverses a `serde_json::Value` by
-//!    PPL segments, invoking the supplied closure at each terminal match.
-//!    Missing intermediate keys are silently skipped, matching legacy
-//!    `ctx.delete` (Jayway `SUPPRESS_EXCEPTIONS`) semantics.
-//! 4. **Parsing** (`parse`) — `serde_json::from_str` with malformed-to-`None`.
-//!
-//! Kept deliberately small: only helpers that at least two UDFs use land here.
-
-// The mutation walker + segment parser are introduced alongside json_delete
-// but also used by json_set / json_append / json_extend in follow-up commits
-// on the same PR. Silence dead-code warnings until every consumer lands.
-#![allow(dead_code)]
+//! Shared helpers for the PPL `json_*` UDFs: PPL-path parsing (to both JSONPath
+//! strings and typed segment vectors), a segment-based mutation walker used by
+//! the write UDFs, and a malformed-to-`None` JSON parser.
 
 use datafusion::arrow::array::{ArrayRef, StringArray};
-use datafusion::common::plan_err;
 use datafusion::error::{DataFusionError, Result};
 use serde_json::Value;
 
@@ -188,15 +171,6 @@ pub(crate) fn check_arity(udf: &str, observed: usize, expected: usize) -> Result
         .ok_or_else(|| plan_err_msg(format!("{udf} expects {expected} arguments, got {observed}")))
 }
 
-/// Inclusive-range arity guard for varargs UDFs.
-pub(crate) fn check_arity_range(udf: &str, observed: usize, min: usize, max: usize) -> Result<()> {
-    if (min..=max).contains(&observed) {
-        Ok(())
-    } else {
-        plan_err!("{udf} expects between {min} and {max} arguments, got {observed}")
-    }
-}
-
 fn plan_err_msg(msg: String) -> DataFusionError {
     DataFusionError::Plan(msg)
 }
@@ -240,8 +214,6 @@ mod tests {
     fn arity_guards() {
         assert!(check_arity("f", 1, 1).is_ok());
         assert!(check_arity("f", 2, 1).is_err());
-        assert!(check_arity_range("f", 3, 2, 4).is_ok());
-        assert!(check_arity_range("f", 1, 2, 4).is_err());
     }
 
     #[test]

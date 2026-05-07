@@ -7,29 +7,13 @@
  */
 
 //! `json_set(value, path1, val1, [path2, val2, ...])` — replace the value at
-//! each PPL-path match. Mirrors the legacy SQL plugin's `JsonSetFunctionImpl`,
-//! which delegates to Calcite's `JsonFunctions.jsonSet` (Jayway `ctx.set`
-//! wrapped in an `if (ctx.read(k) != null)` guard — *replace-only*, never
-//! inserts a new key).
+//! each path match (parity with legacy `JsonSetFunctionImpl` → Jayway
+//! `ctx.set` guarded by `ctx.read != null`: *replace-only*, never inserts).
+//! Missing paths are no-ops; any-NULL-arg / odd trailing arg / malformed-doc /
+//! malformed-path → NULL.
 //!
-//! # Observable semantics (verified against
-//! `CalcitePPLJsonBuiltinFunctionIT.testJsonSet*`):
-//!
-//! | input                                      | (path, value)       | output                                  |
-//! |--------------------------------------------|---------------------|-----------------------------------------|
-//! | `{"a":[{"b":1},{"b":2}]}`                  | `a{}.b`, `"3"`      | `{"a":[{"b":"3"},{"b":"3"}]}`           |
-//! | `{"a":[{"b":1},{"b":2}]}`                  | `a{}.b.d`, `"3"`    | input unchanged (path doesn't exist)    |
-//! | `{"a":[{"b":1},{"b":{"c":2}}]}`            | `a{}.b.c`, `"3"`    | `{"a":[{"b":1},{"b":{"c":"3"}}]}`       |
-//! | NULL doc / any NULL arg / odd trailing arg | —                   | NULL                                    |
-//! | malformed doc / malformed path             | —                   | NULL                                    |
-//!
-//! Values are always stored as JSON strings because every UDF arg is coerced
-//! to Utf8 — matching the legacy fixture `"b":"3"` (not `"b":3`).
-//!
-//! # Division of labor with the Java adapter
-//!
-//! `JsonFunctionAdapters.JsonSetAdapter` renames the Calcite operator to
-//! `json_set` so isthmus resolves to this UDF via the YAML signature.
+//! Values always store as JSON strings because every UDF arg is coerced to
+//! Utf8 upstream — matching the legacy fixture `"b":"3"` (not `"b":3`).
 
 use std::any::Any;
 use std::sync::Arc;

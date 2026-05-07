@@ -6,28 +6,10 @@
  * compatible open source license.
  */
 
-//! `json_array_length(value)` — length of a JSON array.
-//!
-//! # Observable semantics (matches legacy SQL plugin's
-//! `JsonArrayLengthFunctionImpl`; verified by the SQL plugin IT
-//! `CalcitePPLJsonBuiltinFunctionIT.testJsonArrayLength`):
-//!
-//! | input                       | output    |
-//! |-----------------------------|-----------|
-//! | JSON array `[e0, ..., eN]`  | `N+1`     |
-//! | NULL                        | NULL      |
-//! | non-array JSON (object, scalar) | NULL  |
-//! | malformed / unparseable JSON    | NULL  |
-//!
-//! Only plan-time arity / type failures (e.g. non-string argument) surface as
-//! `plan_err!`. Runtime input — of any content — never errors.
-//!
-//! # Division of labor with the Java adapter
-//!
-//! `JsonFunctionAdapters.JsonArrayLengthAdapter` is a plain
-//! `AbstractNameMappingAdapter` rename — it doesn't touch operands. All
-//! validation is in this UDF: `coerce_types` enforces Utf8 via
-//! `CoerceMode::Utf8`, `invoke_with_args` handles malformed / non-array → NULL.
+//! `json_array_length(value)` — length of a JSON array (parity with legacy
+//! `JsonArrayLengthFunctionImpl`; verified by `CalcitePPLJsonBuiltinFunctionIT.testJsonArrayLength`).
+//! NULL / non-array / malformed → NULL. Only plan-time arity / type failures
+//! surface as `plan_err!`; runtime input of any content never errors.
 
 use std::any::Any;
 use std::sync::Arc;

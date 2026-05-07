@@ -7,11 +7,8 @@
  */
 
 //! `json_keys(value)` — top-level keys of a JSON object, encoded as a JSON-array
-//! string. Non-object / malformed / NULL input → NULL. Mirrors the legacy SQL
-//! plugin's `JsonKeysFunctionImpl`, which delegates to Calcite
-//! `JsonFunctions.jsonKeys` (returns `"null"` — converted to SQL NULL — for
-//! array, scalar, or missing input) and our "malformed → NULL" decision
-//! documented in `json_udf_legacy_semantics.md`.
+//! string (parity with legacy `JsonKeysFunctionImpl` → Calcite
+//! `JsonFunctions.jsonKeys`). Non-object / malformed / NULL input → NULL.
 
 use std::any::Any;
 use std::sync::Arc;

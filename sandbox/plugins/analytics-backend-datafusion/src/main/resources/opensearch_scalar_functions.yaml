@@ -318,29 +318,21 @@ scalar_functions:
         nullability: DECLARED_OUTPUT
         return: fp64
 
-  # json_array_length(value) — Rust UDF. rust/src/udf/json_array_length.rs.
-  # Target of JsonFunctionAdapters.JsonArrayLengthAdapter's rewrite. Returns
-  # NULL on malformed / non-array input (parity with legacy SQL plugin).
+  # PPL json_* UDFs — Rust implementations under rust/src/udf/<name>.rs,
+  # surfaced to Calcite via JsonFunctionAdapters. All return NULL on malformed
+  # input; per-function semantics are documented in the Rust module headers.
   - name: "json_array_length"
     description: "Length of a JSON array; NULL on malformed or non-array input."
     impls:
       - args: [{ value: string, name: "value" }]
         return: any1
 
-  # json_keys(value) — Rust UDF. rust/src/udf/json_keys.rs. Target of
-  # JsonFunctionAdapters.JsonKeysAdapter. Returns a JSON-array-encoded string
-  # of the top-level keys of the input object; NULL on malformed / non-object
-  # input (parity with legacy `JsonKeysFunctionImpl`).
   - name: "json_keys"
     description: "Top-level keys of a JSON object, encoded as a JSON array string; NULL on non-object input."
     impls:
       - args: [{ value: string, name: "value" }]
         return: any1
 
-  # json_extract(value, path1, path2, ...) — Rust UDF. rust/src/udf/json_extract.rs.
-  # Target of JsonFunctionAdapters.JsonExtractAdapter. Single path → extracted
-  # value's string form (scalar via `.toString()`, object/array jsonized);
-  # multi-path → JSON-array-encoded results with `null` slots for misses.
   - name: "json_extract"
     description: "Extract JSON value(s) at PPL path(s); single → stringified match, multi → JSON-array string."
     impls:
@@ -348,35 +340,29 @@ scalar_functions:
         variadic: { min: 1 }
         return: string
 
-  # json_delete(value, path1, path2, ...) — Rust UDF. rust/src/udf/json_delete.rs.
-  # Target of JsonFunctionAdapters.JsonDeleteAdapter. Removes each PPL-path
-  # match from the input document; missing paths are a no-op (parity with
-  # Jayway's SUPPRESS_EXCEPTIONS behaviour in legacy `JsonDeleteFunctionImpl`).
   - name: "json_delete"
-    description: "Remove PPL-path matches from a JSON document; missing paths are no-ops, NULL on malformed input."
+    description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."
     impls:
       - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
         variadic: { min: 1 }
         return: string
 
-  # json_set(value, path1, val1, path2, val2, ...) — Rust UDF. rust/src/udf/json_set.rs.
-  # Target of JsonFunctionAdapters.JsonSetAdapter. Replace-only: each PPL-path
-  # match is overwritten with the paired value; missing paths are no-ops
-  # (parity with Jayway `ctx.set` guarded by `ctx.read != null`).
   - name: "json_set"
-    description: "Replace values at PPL-path matches in a JSON document; missing paths are no-ops, NULL on malformed input."
+    description: "Replace values at PPL-path matches (replace-only; missing paths are no-ops)."
     impls:
       - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
         variadic: { min: 1 }
         return: string
 
-  # json_append(value, path1, val1, path2, val2, ...) — Rust UDF. rust/src/udf/json_append.rs.
-  # Target of JsonFunctionAdapters.JsonAppendAdapter. Push-only: each PPL-path
-  # match that resolves to an array has the paired value pushed as a single
-  # element; non-array / missing targets are silent no-ops (parity with legacy
-  # `JsonFunctions.jsonInsert` routed through the Collection-parent branch).
   - name: "json_append"
-    description: "Push values onto PPL-path-matched arrays in a JSON document; non-array targets are no-ops, NULL on malformed input."
+    description: "Push values onto PPL-path-matched arrays; non-array / missing targets are no-ops."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "json_extend"
+    description: "Spread JSON-array values onto PPL-path-matched arrays; scalar values fall back to append."
     impls:
       - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
         variadic: { min: 1 }

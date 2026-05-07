@@ -49,17 +49,24 @@ chrono-tz = "0.10"
 
 tokio-metrics = { workspace = true }
 
-# JSON UDFs. serde_json comes from the workspace; we add `preserve_order` so
-# json_keys / json_object / mutation UDFs iterate object keys in insertion
-# order, matching the legacy SQL-plugin's LinkedHashMap contract (Calcite
-# `JsonFunctions.jsonKeys`). Cargo feature unification means this propagates
-# to every workspace member that uses serde_json, but the feature is
-# strictly additive (preserves input order instead of sorting) so it cannot
-# break existing callers.
+# serde_json `preserve_order` — backs `Map<String,Value>` with `IndexMap`
+# instead of `BTreeMap` so json_keys / mutation UDFs see object keys in
+# insertion order (parity with legacy SQL-plugin's LinkedHashMap; required by
+# `testJsonKeysParityWithLegacy` + byte-for-byte json_extract fixtures).
+# Cargo's feature unification propagates this to every workspace member that
+# pulls in serde_json. Audit (2026-05-07): the five other consumers
+# (parquet-data-format, native-repository-{s3,gcs,azure,fs}) only call
+# `serde_json::from_str` into typed config structs, whose field layout is
+# fixed at the type level — `preserve_order` is inert for them, so the
+# feature is additive with no observable blast radius outside this crate.
 serde_json = { workspace = true, features = ["preserve_order"] }
-# JSONPath evaluator for json_extract (and friends). Matches the legacy SQL-plugin
-# contract where PPL paths of the form `a{i}.b{}` are normalized to `$.a[i].b[*]`
-# and evaluated against a parsed JSON document.
+# jsonpath-rust 0.7 — JSONPath evaluator for json_extract. Published at
+# https://github.com/besok/jsonpath-rust (crates.io). We pin `0.7` (latest
+# `0.7.5`) rather than tracking the newer `1.0` release line because 0.7's
+# `JsonPathValue` enum exposes the Found/NoValue distinction json_extract
+# relies on to render missing-path matches as literal `null` elements in the
+# multi-path JSON-array output. Moving to 1.x is a follow-up once we can
+# reproduce that distinction against the new API surface.
 jsonpath-rust = "0.7"
 
 [dev-dependencies]

@@ -19,18 +19,18 @@ import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import java.util.List;
 
 /**
- * Container for PPL JSON-function scalar adapters. Each inner class rewrites a
- * Calcite call for a PPL {@code json_*} operator to a locally-declared
- * {@link SqlOperator} whose name matches the corresponding Rust UDF registered
- * by {@code rust/src/udf/<name>.rs}.
+ * Container for PPL JSON-function scalar adapters. Each inner class is a plain
+ * name-mapping rewrite from a Calcite call to a locally-declared
+ * {@link SqlOperator} whose name matches the corresponding Rust UDF at
+ * {@code rust/src/udf/<name>.rs}. All validation (malformed JSON, malformed
+ * path, arity / pairing, any-NULL propagation) lives in the Rust UDF; the
+ * adapter does not inspect arguments. Return type is preserved from the
+ * original PPL call by {@link AbstractNameMappingAdapter#adapt}, matching the
+ * {@code *_FORCE_NULLABLE} declaration on the legacy {@code Json*FunctionImpl}.
  *
- * <p>All JSON UDFs ship as new Rust UDFs paired with a Java adapter rename: no
- * DataFusion builtin and no Substrait stdlib equivalent. Simple renames extend
- * {@link AbstractNameMappingAdapter}.
- *
- * <p>Each inner adapter's {@code LOCAL_*_OP} must also be registered in
+ * <p>Each {@code LOCAL_*_OP} must also be registered in
  * {@link DataFusionFragmentConvertor#ADDITIONAL_SCALAR_SIGS} via a
- * {@code FunctionMappings.s(...)} entry matching the UDF's name.
+ * {@code FunctionMappings.s(...)} entry keyed by the UDF's name.
  *
  * @opensearch.internal
  */
@@ -38,31 +38,9 @@ final class JsonFunctionAdapters {
 
     private JsonFunctionAdapters() {}
 
-    /**
-     * Adapter for PPL's {@code JSON_ARRAY_LENGTH(value)}. Rewrites to the
-     * locally-declared {@link #LOCAL_JSON_ARRAY_LENGTH_OP}; isthmus resolves it
-     * against the {@code json_array_length} YAML signature; DataFusion routes to
-     * the Rust UDF ({@code rust/src/udf/json_array_length.rs}). All validation
-     * (malformed JSON, non-array) happens inside the UDF — the adapter is a
-     * plain rename.
-     *
-     * <p>Return type is preserved from the original PPL call via
-     * {@link AbstractNameMappingAdapter#adapt}, matching PPL's
-     * {@code INTEGER_FORCE_NULLABLE} declaration from
-     * {@code JsonArrayLengthFunctionImpl}.
-     */
+    /** {@code JSON_ARRAY_LENGTH(value)} → length of a JSON array; NULL on non-array / malformed input. */
     static class JsonArrayLengthAdapter extends AbstractNameMappingAdapter {
 
-        /**
-         * Locally-declared target operator. The name {@code "json_array_length"}
-         * matches the Rust UDF registered in {@code rust/src/udf/json_array_length.rs}
-         * so DataFusion's substrait consumer resolves to it by name.
-         * {@link SqlKind#OTHER_FUNCTION} keeps this off Calcite's builtin
-         * resolution path; {@link OperandTypes#STRING} reflects the PPL contract.
-         * {@link ReturnTypes#INTEGER_NULLABLE} is a placeholder — the return
-         * type on the rewritten call is preserved from the original by
-         * {@link AbstractNameMappingAdapter#adapt}.
-         */
         static final SqlOperator LOCAL_JSON_ARRAY_LENGTH_OP = new SqlFunction(
             "json_array_length",
             SqlKind.OTHER_FUNCTION,
@@ -77,13 +55,7 @@ final class JsonFunctionAdapters {
         }
     }
 
-    /**
-     * Adapter for PPL's {@code JSON_KEYS(value)}. Plain rename to the
-     * Rust UDF at {@code rust/src/udf/json_keys.rs}; all validation
-     * (malformed JSON, non-object input) lives in the UDF. Return type is
-     * preserved from the original PPL call, matching {@code STRING_FORCE_NULLABLE}
-     * declared on {@code JsonKeysFunctionImpl}.
-     */
+    /** {@code JSON_KEYS(value)} → JSON-array-encoded top-level keys; NULL on non-object / malformed input. */
     static class JsonKeysAdapter extends AbstractNameMappingAdapter {
 
         static final SqlOperator LOCAL_JSON_KEYS_OP = new SqlFunction(
@@ -100,17 +72,7 @@ final class JsonFunctionAdapters {
         }
     }
 
-    /**
-     * Adapter for PPL's {@code JSON_EXTRACT(value, path1, [path2, ...])}. Plain
-     * rename to the Rust UDF at {@code rust/src/udf/json_extract.rs}; all
-     * validation (arity short-circuit, malformed JSON, malformed path, per-path
-     * NULL) lives in the UDF. Return type is preserved from the original PPL
-     * call, matching {@code STRING_FORCE_NULLABLE} declared on
-     * {@code JsonExtractFunctionImpl}.
-     *
-     * <p>Operands are homogeneously-typed strings, so the substrait YAML
-     * signature uses a single {@code variadic: {min: 1}} declaration.
-     */
+    /** {@code JSON_EXTRACT(value, path1, [path2, ...])} — single path → stringified match; multi-path → JSON-array wrap with {@code null} slots for misses. */
     static class JsonExtractAdapter extends AbstractNameMappingAdapter {
 
         static final SqlOperator LOCAL_JSON_EXTRACT_OP = new SqlFunction(
@@ -127,18 +89,7 @@ final class JsonFunctionAdapters {
         }
     }
 
-    /**
-     * Adapter for PPL's {@code JSON_DELETE(value, path1, [path2, ...])}. Plain
-     * rename to the Rust UDF at {@code rust/src/udf/json_delete.rs}; all
-     * validation (malformed JSON, malformed path, any-NULL-arg propagation)
-     * lives in the UDF. Return type is preserved from the original PPL call,
-     * matching {@code STRING_FORCE_NULLABLE} declared on
-     * {@code JsonDeleteFunctionImpl}.
-     *
-     * <p>Operands are homogeneously-typed strings; the substrait YAML
-     * signature uses {@code variadic: {min: 1}} so isthmus accepts any
-     * non-zero path count.
-     */
+    /** {@code JSON_DELETE(value, path1, [path2, ...])} — remove PPL-path matches; missing paths are no-ops. */
     static class JsonDeleteAdapter extends AbstractNameMappingAdapter {
 
         static final SqlOperator LOCAL_JSON_DELETE_OP = new SqlFunction(
@@ -155,16 +106,7 @@ final class JsonFunctionAdapters {
         }
     }
 
-    /**
-     * Adapter for PPL's {@code JSON_SET(value, path1, val1, [path2, val2, ...])}.
-     * Plain rename to the Rust UDF at {@code rust/src/udf/json_set.rs}; all
-     * validation (arity / pairing, malformed JSON, malformed path) lives in the
-     * UDF. Return type is preserved from the original PPL call, matching
-     * {@code STRING_FORCE_NULLABLE} declared on {@code JsonSetFunctionImpl}.
-     *
-     * <p>Replace-only semantics: missing paths are no-ops (parity with legacy
-     * `JsonFunctions.jsonSet`'s `ctx.read != null` guard).
-     */
+    /** {@code JSON_SET(value, path1, val1, [path2, val2, ...])} — replace-only; missing paths are no-ops (parity with legacy {@code ctx.read != null} guard). */
     static class JsonSetAdapter extends AbstractNameMappingAdapter {
 
         static final SqlOperator LOCAL_JSON_SET_OP = new SqlFunction(
@@ -181,18 +123,7 @@ final class JsonFunctionAdapters {
         }
     }
 
-    /**
-     * Adapter for PPL's {@code JSON_APPEND(value, path1, val1, [path2, val2, ...])}.
-     * Plain rename to the Rust UDF at {@code rust/src/udf/json_append.rs}; all
-     * validation (arity / pairing, malformed JSON, malformed path) lives in the
-     * UDF. Return type is preserved from the original PPL call, matching
-     * {@code STRING_FORCE_NULLABLE} declared on {@code JsonAppendFunctionImpl}.
-     *
-     * <p>Push-only semantics: values are pushed onto array-valued targets;
-     * non-array / missing targets are silent no-ops (parity with legacy
-     * `JsonFunctions.jsonInsert` + `.meaningless_key` trick routing to the
-     * {@code Collection.add} branch).
-     */
+    /** {@code JSON_APPEND(value, path1, val1, [path2, val2, ...])} — push-only onto array-valued targets; non-array / missing targets are no-ops. */
     static class JsonAppendAdapter extends AbstractNameMappingAdapter {
 
         static final SqlOperator LOCAL_JSON_APPEND_OP = new SqlFunction(
@@ -206,6 +137,23 @@ final class JsonFunctionAdapters {
 
         JsonAppendAdapter() {
             super(LOCAL_JSON_APPEND_OP, List.of(), List.of());
+        }
+    }
+
+    /** {@code JSON_EXTEND(value, path1, val1, [path2, val2, ...])} — spread-or-append: JSON-array values are spread element-wise; otherwise the whole value is pushed as one string element. */
+    static class JsonExtendAdapter extends AbstractNameMappingAdapter {
+
+        static final SqlOperator LOCAL_JSON_EXTEND_OP = new SqlFunction(
+            "json_extend",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.VARCHAR_NULLABLE,
+            null,
+            OperandTypes.VARIADIC,
+            SqlFunctionCategory.STRING
+        );
+
+        JsonExtendAdapter() {
+            super(LOCAL_JSON_EXTEND_OP, List.of(), List.of());
         }
     }
 }

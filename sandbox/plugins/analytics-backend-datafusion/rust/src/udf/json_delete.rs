@@ -6,32 +6,12 @@
  * compatible open source license.
  */
 
-//! `json_delete(value, path1, [path2, ...])` — remove one or more PPL-path
-//! matches from a JSON document. Mirrors the legacy SQL plugin's
-//! `JsonDeleteFunctionImpl`, which delegates to Calcite's `JsonFunctions.jsonRemove`
-//! (Jayway `JsonPath.delete` under `SUPPRESS_EXCEPTIONS`, applied per pathspec).
-//!
-//! # Observable semantics (verified against
-//! `CalcitePPLJsonBuiltinFunctionIT.testJsonDelete*`):
-//!
-//! | input                            | path(s)             | output                                          |
-//! |---------------------------------|---------------------|-------------------------------------------------|
-//! | `{"a":1,"b":2,"c":3}`           | `b`                 | `{"a":1,"c":3}`                                 |
-//! | `{"f1":"abc","f2":{"f3":"a","f4":"b"}}` | `f2.f3`     | `{"f1":"abc","f2":{"f4":"b"}}`                  |
-//! | `{"f1":"abc","f2":{"f3":"a"}}`  | `f2.f100`           | input unchanged (missing path is a no-op)       |
-//! | `{"teacher":"A","student":[{"name":"B","rank":1},{"name":"C","rank":2}]}` | `teacher`, `student{}.rank` | `{"student":[{"name":"B"},{"name":"C"}]}` |
-//! | NULL doc or any NULL path       | —                   | NULL                                            |
-//! | malformed doc                   | —                   | NULL                                            |
-//!
-//! Output order is preserved because the plugin's serde_json dependency enables
-//! the `preserve_order` feature (see `rust/Cargo.toml`).
-//!
-//! # Division of labor with the Java adapter
-//!
-//! `JsonFunctionAdapters.JsonDeleteAdapter` renames the Calcite operator to
-//! `json_delete` so isthmus resolves to this UDF via the `variadic: {min: 1}`
-//! YAML signature. All validation (malformed JSON, malformed path, NULL
-//! propagation) lives here.
+//! `json_delete(value, path1, [path2, ...])` — remove path-matched entries
+//! from a JSON document (parity with legacy `JsonDeleteFunctionImpl` → Jayway
+//! `JsonPath.delete` under `SUPPRESS_EXCEPTIONS`, applied per pathspec).
+//! Missing paths are no-ops; any-NULL-arg / malformed-doc / malformed-path →
+//! NULL. Output key order is preserved via `serde_json`'s `preserve_order`
+//! feature (see `rust/Cargo.toml`).
 
 use std::any::Any;
 use std::sync::Arc;
