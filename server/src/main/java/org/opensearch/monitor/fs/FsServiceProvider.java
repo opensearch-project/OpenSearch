@@ -34,22 +34,19 @@ public class FsServiceProvider {
     private final NodeCacheOrchestrator nodeCacheOrchestrator;
     private final FileCacheSettings fileCacheSettings;
     private final IndicesService indicesService;
-    private final long virtualBlockCacheBytes;
 
     public FsServiceProvider(
         Settings settings,
         NodeEnvironment nodeEnvironment,
         NodeCacheOrchestrator nodeCacheOrchestrator,
         ClusterSettings clusterSettings,
-        IndicesService indicesService,
-        long virtualBlockCacheBytes
+        IndicesService indicesService
     ) {
         this.settings = settings;
         this.nodeEnvironment = nodeEnvironment;
         this.nodeCacheOrchestrator = nodeCacheOrchestrator;
         this.fileCacheSettings = new FileCacheSettings(settings, clusterSettings);
         this.indicesService = indicesService;
-        this.virtualBlockCacheBytes = virtualBlockCacheBytes;
     }
 
     /**
@@ -64,11 +61,9 @@ public class FsServiceProvider {
                 nodeEnvironment,
                 fileCacheSettings,
                 indicesService,
-                nodeCacheOrchestrator,
-                virtualBlockCacheBytes
+                nodeCacheOrchestrator
             );
         }
-        // Non-warm nodes: no block cache; nodeCacheOrchestrator may be null.
         return new FsService(settings, nodeEnvironment,
             nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null);
     }

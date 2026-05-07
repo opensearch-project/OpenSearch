@@ -71,6 +71,19 @@ public interface BlockCacheProvider {
     }
 
     /**
+     * Called by core after the budget phase to inform this plugin of the exact
+     * bytes reserved for it. Plugins should store this value and use it in
+     * {@code createComponents()} instead of re-deriving their capacity.
+     *
+     * <p>Called once, before {@code createComponents()}.
+     *
+     * @param bytes the exact SSD bytes reserved for this plugin's block cache
+     */
+    default void setReservedCapacityBytes(long bytes) {
+        // Default no-op for backward compatibility.
+    }
+
+    /**
      * Returns the node-scoped {@link BlockCache} published by this plugin, or
      * {@link Optional#empty()} if no cache is available (e.g. capacity is zero).
      *

@@ -34,31 +34,22 @@ public class WarmFsService extends FsService {
     private final FileCacheSettings fileCacheSettings;
     private final IndicesService indicesService;
     private final NodeCacheOrchestrator nodeCacheOrchestrator;
-    /**
-     * Pre-computed virtual bytes that all registered block-cache plugins can serve.
-     * Equals Σ(plugin_i.reservedBytes × plugin_i.dataToCapacityRatio), computed once
-     * in Node.java before construction.
-     */
-    private final long virtualBlockCacheBytes;
 
     public WarmFsService(
         Settings settings,
         NodeEnvironment nodeEnvironment,
         FileCacheSettings fileCacheSettings,
         IndicesService indicesService,
-        NodeCacheOrchestrator nodeCacheOrchestrator,
-        long virtualBlockCacheBytes
+        NodeCacheOrchestrator nodeCacheOrchestrator
     ) {
         super(settings, nodeEnvironment, nodeCacheOrchestrator.fileCache());
         this.fileCacheSettings = fileCacheSettings;
         this.indicesService = indicesService;
         this.nodeCacheOrchestrator = nodeCacheOrchestrator;
-        this.virtualBlockCacheBytes = virtualBlockCacheBytes;
     }
 
     @Override
     public FsInfo stats() {
-        // Virtual capacity = (file-cache SSD × fileCacheRatio) + pre-computed block-cache virtual bytes
         final double dataToFileCacheRatio = fileCacheSettings.getRemoteDataRatio();
 
         final long fileCacheCapacity  = nodeCacheOrchestrator.fileCache().capacity();
@@ -66,7 +57,7 @@ public class WarmFsService extends FsService {
         final long totalCacheCapacity = fileCacheCapacity + blockCacheCapacity;
 
         final long totalBytes = (long) (dataToFileCacheRatio * fileCacheCapacity)
-                              + virtualBlockCacheBytes;
+                              + nodeCacheOrchestrator.virtualBlockCacheBytes();
 
         // Used bytes from primary shards
         long usedBytes = 0;

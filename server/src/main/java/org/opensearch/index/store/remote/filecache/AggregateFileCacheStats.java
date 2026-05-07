@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.plugins.BlockCacheStats;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -41,6 +43,13 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
     private final FileCacheStats blockFileCacheStats;
     private final FileCacheStats pinnedFileCacheStats;
 
+    /**
+     * Aggregated stats from all registered {@link org.opensearch.plugins.BlockCache} plugins.
+     * Null when no block cache plugins are active; rendered as a separate section in REST output.
+     */
+    @Nullable
+    private final BlockCacheStats pluginBlockCacheStats;
+
     public AggregateFileCacheStats(
         final long timestamp,
         final FileCacheStats overallFileCacheStats,
@@ -48,11 +57,23 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         final FileCacheStats blockFileCacheStats,
         FileCacheStats pinnedFileCacheStats
     ) {
+        this(timestamp, overallFileCacheStats, fullFileCacheStats, blockFileCacheStats, pinnedFileCacheStats, null);
+    }
+
+    public AggregateFileCacheStats(
+        final long timestamp,
+        final FileCacheStats overallFileCacheStats,
+        final FileCacheStats fullFileCacheStats,
+        final FileCacheStats blockFileCacheStats,
+        final FileCacheStats pinnedFileCacheStats,
+        @Nullable final BlockCacheStats pluginBlockCacheStats
+    ) {
         this.timestamp = timestamp;
         this.overallFileCacheStats = overallFileCacheStats;
         this.fullFileCacheStats = fullFileCacheStats;
         this.blockFileCacheStats = blockFileCacheStats;
         this.pinnedFileCacheStats = pinnedFileCacheStats;
+        this.pluginBlockCacheStats = pluginBlockCacheStats;
     }
 
     public AggregateFileCacheStats(final StreamInput in) throws IOException {
@@ -61,6 +82,15 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         this.fullFileCacheStats = new FileCacheStats(in);
         this.blockFileCacheStats = new FileCacheStats(in);
         this.pinnedFileCacheStats = new FileCacheStats(in);
+        if (in.readBoolean()) {
+            this.pluginBlockCacheStats = new BlockCacheStats(
+                in.readLong(), in.readLong(), in.readLong(), in.readLong(),
+                in.readLong(), in.readLong(), in.readLong(), in.readLong(),
+                in.readLong(), in.readLong(), in.readLong()
+            );
+        } else {
+            this.pluginBlockCacheStats = null;
+        }
     }
 
     public static short calculatePercentage(long used, long max) {
@@ -78,6 +108,22 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         fullFileCacheStats.writeTo(out);
         blockFileCacheStats.writeTo(out);
         pinnedFileCacheStats.writeTo(out);
+        if (pluginBlockCacheStats != null) {
+            out.writeBoolean(true);
+            out.writeLong(pluginBlockCacheStats.hits());
+            out.writeLong(pluginBlockCacheStats.misses());
+            out.writeLong(pluginBlockCacheStats.hitBytes());
+            out.writeLong(pluginBlockCacheStats.missBytes());
+            out.writeLong(pluginBlockCacheStats.evictions());
+            out.writeLong(pluginBlockCacheStats.evictionBytes());
+            out.writeLong(pluginBlockCacheStats.removed());
+            out.writeLong(pluginBlockCacheStats.removedBytes());
+            out.writeLong(pluginBlockCacheStats.memoryBytesUsed());
+            out.writeLong(pluginBlockCacheStats.diskBytesUsed());
+            out.writeLong(pluginBlockCacheStats.totalBytes());
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     public long getTimestamp() {
@@ -141,6 +187,11 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return pinnedFileCacheStats;
     }
 
+    @Nullable
+    public BlockCacheStats getPluginBlockCacheStats() {
+        return pluginBlockCacheStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.AGGREGATE_FILE_CACHE);
@@ -159,6 +210,23 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         fullFileCacheStats.toXContent(builder, params);
         blockFileCacheStats.toXContent(builder, params);
         pinnedFileCacheStats.toXContent(builder, params);
+        if (pluginBlockCacheStats != null) {
+            builder.startObject(Fields.PLUGIN_BLOCK_CACHE);
+            builder.field(Fields.HIT_COUNT, pluginBlockCacheStats.hits());
+            builder.field(Fields.MISS_COUNT, pluginBlockCacheStats.misses());
+            builder.humanReadableField(Fields.HIT_BYTES, Fields.HIT_BYTES,
+                new ByteSizeValue(pluginBlockCacheStats.hitBytes()));
+            builder.humanReadableField(Fields.MISS_BYTES, Fields.MISS_BYTES,
+                new ByteSizeValue(pluginBlockCacheStats.missBytes()));
+            builder.field(Fields.EVICTION_COUNT, pluginBlockCacheStats.evictions());
+            builder.humanReadableField(Fields.EVICTIONS_IN_BYTES, Fields.EVICTIONS,
+                new ByteSizeValue(pluginBlockCacheStats.evictionBytes()));
+            builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED,
+                new ByteSizeValue(pluginBlockCacheStats.diskBytesUsed() + pluginBlockCacheStats.memoryBytesUsed()));
+            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL,
+                new ByteSizeValue(pluginBlockCacheStats.totalBytes()));
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
@@ -184,6 +252,11 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
 
         static final String HIT_COUNT = "hit_count";
         static final String MISS_COUNT = "miss_count";
+
+        static final String PLUGIN_BLOCK_CACHE = "block_cache";
+        static final String HIT_BYTES = "hit_bytes";
+        static final String MISS_BYTES = "miss_bytes";
+        static final String EVICTION_COUNT = "eviction_count";
     }
 
     /**

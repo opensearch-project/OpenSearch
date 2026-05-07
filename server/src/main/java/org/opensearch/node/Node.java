@@ -819,19 +819,13 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings()
             );
 
-            // Compute once; used for both block-cache budget partitioning and virtual-capacity reporting.
-            final long totalBudgetBytes = DiscoveryNode.isWarmNode(settings)
-                ? NodeCacheOrchestrator.computeTotalBudgetBytes(settings, nodeEnvironment) : 0L;
+            // Block-cache providers discovered once, reused for budget, registration, and capacity.
+            final List<org.opensearch.plugins.BlockCacheProvider> blockCacheProviders =
+                pluginsService.filterPlugins(org.opensearch.plugins.BlockCacheProvider.class);
 
             if (DiscoveryNode.isWarmNode(settings)) {
-                // Ask each BlockCacheProvider plugin how many SSD bytes it needs from the total
-                // warm-cache budget. This is done before createComponents() so the budget
-                // partition is settled when NodeCacheOrchestrator creates FileCache.
-                long blockCacheBytes = pluginsService.filterPlugins(org.opensearch.plugins.BlockCacheProvider.class)
-                    .stream()
-                    .mapToLong(p -> p.requestedCapacityBytes(settings, totalBudgetBytes))
-                    .sum();
-                this.nodeCacheOrchestrator = NodeCacheOrchestrator.create(settings, nodeEnvironment, blockCacheBytes);
+                this.nodeCacheOrchestrator = NodeCacheOrchestrator.create(
+                    settings, nodeEnvironment, blockCacheProviders);
             }
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
@@ -1093,22 +1087,12 @@ public class Node implements Closeable {
             );
             ingestServiceReference.set(ingestService);
 
-            // Compute virtual block-cache bytes: each plugin's reserved capacity multiplied by
-            // its own data-to-cache ratio, then summed across all registered plugins.
-            final long virtualBlockCacheBytes = pluginsService.filterPlugins(
-                    org.opensearch.plugins.BlockCacheProvider.class)
-                .stream()
-                .mapToLong(p -> (long)(
-                    p.requestedCapacityBytes(settings, totalBudgetBytes)
-                    * p.dataToCapacityRatio(settings)))
-                .sum();
             final FsServiceProvider fsServiceProvider = new FsServiceProvider(
                 settings,
                 nodeEnvironment,
                 nodeCacheOrchestrator,
                 settingsModule.getClusterSettings(),
-                indicesService,
-                virtualBlockCacheBytes
+                indicesService
             );
             final MonitorService monitorService = new MonitorService(settings, threadPool, fsServiceProvider);
 
@@ -1223,10 +1207,7 @@ public class Node implements Closeable {
             pluginComponents.addAll(searchBackEndPluginComponents);
 
             if (nodeCacheOrchestrator != null) {
-                for (org.opensearch.plugins.BlockCacheProvider p :
-                        pluginsService.filterPlugins(org.opensearch.plugins.BlockCacheProvider.class)) {
-                    p.getBlockCache().ifPresent(nodeCacheOrchestrator::addBlockCache);
-                }
+                nodeCacheOrchestrator.registerProviders(blockCacheProviders);
             }
 
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);

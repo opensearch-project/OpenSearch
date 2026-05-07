@@ -19,7 +19,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * implementations that do not track a particular metric should return zero for
  * that field rather than throwing.
  *
- * <h3>Field semantics</h3>
+ * <p><b>Field semantics:</b></p>
  * <ul>
  *   <li>{@code hits}            — cumulative count of lookups served from the cache.</li>
  *   <li>{@code misses}          — cumulative count of lookups that did not find an entry.</li>
