@@ -186,14 +186,17 @@ tasks.named('forbiddenApisInternalClusterTest').configure { forbidSleep() }
 
 // Set to current version by default
 def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
-if (japicmpCompareTarget == null) { /* use latest released version on the same major line */
-    // Read the list from maven central.
-    // Fetch the metadata and parse the xml into Version instances, pick the immediate prior release.
+if (japicmpCompareTarget == null) {
+    // Fetch released versions from maven central, pick the latest on the same major line before current.
+    def currentVersion = org.opensearch.gradle.Version.fromString(org.opensearch.gradle.VersionProperties.getOpenSearch())
     japicmpCompareTarget = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
-        org.opensearch.gradle.VersionSelection.latestPriorReleasedVersion(
-            org.opensearch.gradle.VersionProperties.getOpenSearch(),
-            new XmlParser().parse(s).versioning.versions.version.collect { it.text() }
-        )
+        new XmlParser().parse(s).versioning.versions.version
+            .collect { it.text() }
+            .findAll { it ==~ /\d+\.\d+\.\d+/ }
+            .collect { org.opensearch.gradle.Version.fromString(it) }
+            .findAll { it.getMajor() == currentVersion.getMajor() && it.before(currentVersion) }
+            .toSorted()
+            .with { it.empty ? null : it.last().toString() }
     }
     if (japicmpCompareTarget == null) {
         logger.lifecycle("No prior released version found on the same major line. Skipping japicmp.")
