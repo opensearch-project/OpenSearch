@@ -270,6 +270,10 @@ import org.opensearch.snapshots.RestoreService;
 import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.storage.common.tiering.TieringUtils;
+import org.opensearch.storage.directory.TieredDirectoryFactory;
+import org.opensearch.storage.metrics.TierActionMetrics;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.storage.tiering.HotToWarmTieringService;
 import org.opensearch.storage.tiering.WarmToHotTieringService;
 import org.opensearch.task.commons.clients.TaskManagerClient;
@@ -900,6 +904,17 @@ public class Node implements Closeable {
             pluginsService.filterPlugins(IngestionConsumerPlugin.class)
                 .forEach(plugin -> ingestionConsumerFactories.putAll(plugin.getIngestionConsumerFactories()));
 
+            // Initialize tiered storage prefetch settings
+            final TieredStoragePrefetchSettings tieredStoragePrefetchSettings;
+            final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
+            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+                tieredStoragePrefetchSettings = new TieredStoragePrefetchSettings(clusterService.getClusterSettings());
+                tieredStoragePrefetchSettingsSupplier = () -> tieredStoragePrefetchSettings;
+            } else {
+                tieredStoragePrefetchSettings = null;
+                tieredStoragePrefetchSettingsSupplier = () -> null;
+            }
+
             final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
                 repositoriesServiceReference::get,
                 threadPool,
@@ -936,6 +951,14 @@ public class Node implements Closeable {
                     compositeDirectoryFactories.put(k, v);
                 });
             compositeDirectoryFactories.put("default", new DefaultCompositeDirectoryFactory());
+
+            // Register tiered storage directory factories
+            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+                compositeDirectoryFactories.put(
+                    TieringUtils.TIERED_COMPOSITE_INDEX_TYPE,
+                    new TieredDirectoryFactory(tieredStoragePrefetchSettingsSupplier)
+                );
+            }
             final Map<String, org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories =
                 new HashMap<>();
 
@@ -1730,6 +1753,7 @@ public class Node implements Closeable {
                 if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
                     b.bind(HotToWarmTieringService.class).asEagerSingleton();
                     b.bind(WarmToHotTieringService.class).asEagerSingleton();
+                    b.bind(TierActionMetrics.class).toInstance(new TierActionMetrics(metricsRegistry));
                 }
             });
             injector = modules.createInjector();

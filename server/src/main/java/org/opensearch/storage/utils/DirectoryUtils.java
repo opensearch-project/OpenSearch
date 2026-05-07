@@ -10,21 +10,58 @@ package org.opensearch.storage.utils;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FilterDirectory;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.nio.file.Path;
 
 /**
  * Utility methods for directory path resolution in tiered storage.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class DirectoryUtils {
 
+    /** Suffix for switchable file paths. */
     public static final String SWITCHABLE_PREFIX = "_switchable";
 
+    /**
+     * Resolves the file path for a given file name in the directory.
+     * @param localDirectory the directory
+     * @param fileName the file name
+     * @return the resolved path
+     */
     public static Path getFilePath(Directory localDirectory, String fileName) {
-        return ((FSDirectory) localDirectory).getDirectory().resolve(fileName);
+        return unwrapFSDirectory(localDirectory).getDirectory().resolve(fileName);
     }
 
+    /**
+     * Resolves the switchable file path for a given file name in the directory.
+     * @param localDirectory the directory
+     * @param fileName the file name
+     * @return the resolved switchable path
+     */
     public static Path getFilePathSwitchable(Directory localDirectory, String fileName) {
-        return ((FSDirectory) localDirectory).getDirectory().resolve(fileName + SWITCHABLE_PREFIX);
+        return unwrapFSDirectory(localDirectory).getDirectory().resolve(fileName + SWITCHABLE_PREFIX);
+    }
+
+    /**
+     * Unwraps a directory chain to find the underlying FSDirectory.
+     * Handles cases where the directory is wrapped in FilterDirectory layers
+     * such as BucketedCompositeDirectory.
+     * @param directory the directory to unwrap
+     * @return the underlying FSDirectory
+     * @throws IllegalArgumentException if no FSDirectory is found in the chain
+     */
+    public static FSDirectory unwrapFSDirectory(Directory directory) {
+        Directory current = directory;
+        while (current instanceof FilterDirectory) {
+            current = ((FilterDirectory) current).getDelegate();
+        }
+        if (current instanceof FSDirectory) {
+            return (FSDirectory) current;
+        }
+        throw new IllegalArgumentException("Expected FSDirectory but got: " + directory.getClass().getName());
     }
 }
