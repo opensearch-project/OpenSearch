@@ -184,6 +184,35 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         assertEquals("2024/01/15", result);
     }
 
+    public void testDiscoverByPartitionTimeFiltersCorrectly() {
+        // Verify that PARTITION_TIME mode uses extracted time comparison, not lexicographic.
+        // hour=2 is lexicographically > hour=11, but time-wise hour=11 > hour=2.
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        params.put("_number_of_shards", 1);
+        params.put("partition_order", "partition-time");
+        params.put("partition_time_pattern", "2024-01-01 $hour:00:00");
+        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveShardConsumer consumer = new HiveShardConsumer("test", 0, config);
+        consumer.partitionKeys = List.of("hour");
+
+        MetastoreCatalog.PartitionInfo hour2 = new MetastoreCatalog.PartitionInfo(List.of("2"), "/data/hour=2", 0);
+        MetastoreCatalog.PartitionInfo hour11 = new MetastoreCatalog.PartitionInfo(List.of("11"), "/data/hour=11", 0);
+
+        // hour=2 extracts to "2024-01-01 2:00:00", hour=11 extracts to "2024-01-01 11:00:00"
+        String time2 = consumer.extractPartitionTime(hour2);
+        String time11 = consumer.extractPartitionTime(hour11);
+
+        assertEquals("2024-01-01 2:00:00", time2);
+        assertEquals("2024-01-01 11:00:00", time11);
+
+        // In lexicographic order: "2024-01-01 2:00:00" > "2024-01-01 11:00:00" (because '2' > '1')
+        // This confirms that lexicographic comparison would give wrong results for non-padded hours.
+        assertTrue("Lexicographic comparison gives wrong order for non-padded hours", time2.compareTo(time11) > 0);
+    }
+
     // --- partitionToName tests ---
 
     public void testPartitionToNameSingleKey() {

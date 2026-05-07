@@ -29,11 +29,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -60,6 +58,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     // Partition tracking: watermark tracks the last fully-processed partition so that
     // incremental discovery only fetches partitions newer than the watermark.
     private String watermark;
+    private String watermarkPartitionTime;
     private long watermarkCreateTime;
     private long lastMetastoreQueryTime;
 
@@ -74,7 +73,6 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
     private long sequenceNumber;
     private boolean resumed;
     private boolean seekInclusive;
-    private final Set<String> seenPartitions = new HashSet<>();
 
     /**
      * Creates a new HiveShardConsumer.
@@ -112,13 +110,10 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         // Handle "latest" reset: skip all existing partitions, only read new ones
         if ("__LATEST__".equals(pointer.getPartitionName())) {
             List<MetastoreCatalog.PartitionInfo> existing = catalog.getAllPartitions(config.getDatabase(), config.getTable());
-            for (MetastoreCatalog.PartitionInfo p : existing) {
-                seenPartitions.add(partitionToName(p));
-            }
             if (!existing.isEmpty()) {
-                MetastoreCatalog.PartitionInfo last = existing.get(existing.size() - 1);
-                watermark = partitionToName(last);
-                watermarkCreateTime = last.getCreateTime();
+                watermark = existing.stream().map(this::partitionToName).max(String::compareTo).orElse("");
+                watermarkPartitionTime = existing.stream().map(this::extractPartitionTime).max(String::compareTo).orElse("");
+                watermarkCreateTime = existing.stream().mapToInt(MetastoreCatalog.PartitionInfo::getCreateTime).max().orElse(0);
             }
             sequenceNumber = 0;
             logger.info("Shard {} reset to latest, skipping {} existing partitions", shardId, existing.size());
@@ -132,7 +127,6 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         this.sequenceNumber = includeStart ? pointer.getSequenceNumber() : pointer.getSequenceNumber() + 1;
         this.pendingWork = new ArrayList<>();
         this.currentWorkIndex = 0;
-        this.seenPartitions.clear();
         this.seekInclusive = true;
 
         // Discover partitions from the pointer's partition onward (inclusive)
@@ -319,12 +313,19 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      */
     private void discoverNewPartitions() throws Exception {
         List<MetastoreCatalog.PartitionInfo> partitions;
-        if (config.getPartitionOrder() == HiveSourceConfig.PartitionOrder.CREATE_TIME) {
-            partitions = discoverByCreateTime();
-        } else {
-            // PARTITION_NAME and PARTITION_TIME both use name-based filter for discovery;
-            // ordering difference is handled in the sort step below.
-            partitions = discoverByPartitionName();
+        switch (config.getPartitionOrder()) {
+            case CREATE_TIME:
+                partitions = discoverByCreateTime();
+                break;
+            case PARTITION_TIME:
+                // Partition-time ordering cannot use Metastore server-side filter because
+                // lexicographic order may differ from extracted time order (e.g., hour=2 vs hour=11).
+                // Full retrieval with client-side filtering by extracted time is required.
+                partitions = discoverByPartitionTime();
+                break;
+            default:
+                partitions = discoverByPartitionName();
+                break;
         }
 
         logger.info("Shard {} discovered {} candidate partitions from Metastore", shardId, partitions.size());
@@ -349,12 +350,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         // Each shard deterministically owns a subset of partitions (no coordination needed).
         for (MetastoreCatalog.PartitionInfo partition : partitions) {
             String partName = partitionToName(partition);
-            if (seenPartitions.contains(partName)) continue;
             if (Math.floorMod(partName.hashCode(), numShards) == shardId) {
                 List<String> files = listDataFiles(partition.getLocation());
                 if (!files.isEmpty()) {
-                    pendingWork.add(new PartitionWork(partName, files, partition.getCreateTime()));
-                    seenPartitions.add(partName);
+                    String partTime = extractPartitionTime(partition);
+                    pendingWork.add(new PartitionWork(partName, partTime, files, partition.getCreateTime()));
                     logger.info("Shard {} assigned partition {} with {} files", shardId, partName, files.size());
                 }
             }
@@ -369,6 +369,16 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         }
         String filter = buildPartitionFilter(watermark, seekInclusive);
         return catalog.getPartitionsByFilter(config.getDatabase(), config.getTable(), filter);
+    }
+
+    // Partition-time mode: full retrieval with client-side filtering by extracted timestamp.
+    // Cannot use Metastore filter because lexicographic order may differ from time order.
+    private List<MetastoreCatalog.PartitionInfo> discoverByPartitionTime() throws IOException {
+        List<MetastoreCatalog.PartitionInfo> all = catalog.getAllPartitions(config.getDatabase(), config.getTable());
+        if (watermarkPartitionTime == null || watermarkPartitionTime.isEmpty()) {
+            return all;
+        }
+        return all.stream().filter(p -> extractPartitionTime(p).compareTo(watermarkPartitionTime) > 0).collect(Collectors.toList());
     }
 
     // Neither Hive Metastore nor AWS Glue support server-side filtering by createTime.
@@ -411,6 +421,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 // All files in this partition are consumed. Advance watermark so that
                 // future partition discovery skips this partition, then move to the next.
                 watermark = work.partitionName;
+                watermarkPartitionTime = work.partitionTime;
                 watermarkCreateTime = work.createTime;
                 currentWorkIndex++;
             }
@@ -622,12 +633,14 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
      */
     private static class PartitionWork {
         final String partitionName;
+        final String partitionTime;
         final List<String> files;
         final int createTime;
         int currentFileIndex;
 
-        PartitionWork(String partitionName, List<String> files, int createTime) {
+        PartitionWork(String partitionName, String partitionTime, List<String> files, int createTime) {
             this.partitionName = partitionName;
+            this.partitionTime = partitionTime;
             this.files = files;
             this.createTime = createTime;
             this.currentFileIndex = 0;
