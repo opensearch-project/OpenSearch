@@ -38,25 +38,16 @@ pub fn ffm_safe(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let sig = &input.sig;
     let body = &input.block;
 
+    let fn_name = input.sig.ident.to_string();
     let expanded = quote! {
         #(#attrs)*
         #vis #sig {
-            match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(
-                || -> ::std::result::Result<i64, ::std::string::String> #body
-            )) {
-                Ok(Ok(v)) => v,
-                Ok(Err(msg)) => native_bridge_common::error::into_error_ptr(msg),
-                Err(panic) => {
-                    let msg = if let Some(s) = panic.downcast_ref::<String>() {
-                        s.clone()
-                    } else if let Some(s) = panic.downcast_ref::<&str>() {
-                        s.to_string()
-                    } else {
-                        "unknown panic".to_string()
-                    };
-                    native_bridge_common::error::into_error_ptr(msg)
-                }
-            }
+            native_bridge_common::error::ffm_wrap(
+                #fn_name,
+                ::std::panic::AssertUnwindSafe(
+                    || -> ::std::result::Result<i64, ::std::string::String> #body
+                ),
+            )
         }
     };
 

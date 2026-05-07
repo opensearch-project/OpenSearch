@@ -1,0 +1,20 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'Native bridge module: manages runtime tuning for the native (Rust/FFM) layer.'
+  classname = 'org.opensearch.nativebridge.NativeBridgeModule'
+}
+
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
+dependencies {
+  implementation project(':sandbox:libs:dataformat-native')
+  compileOnly project(':server')
+  testImplementation project(':test:framework')
+}

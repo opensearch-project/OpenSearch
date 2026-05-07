@@ -44,6 +44,9 @@ public final class NativeBridge {
     private static final MethodHandle SHUTDOWN_RUNTIME_MANAGER;
     private static final MethodHandle CREATE_GLOBAL_RUNTIME;
     private static final MethodHandle CLOSE_GLOBAL_RUNTIME;
+    private static final MethodHandle GET_MEMORY_POOL_USAGE;
+    private static final MethodHandle GET_MEMORY_POOL_LIMIT;
+    private static final MethodHandle SET_MEMORY_POOL_LIMIT;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
     private static final MethodHandle EXECUTE_QUERY;
@@ -59,6 +62,19 @@ public final class NativeBridge {
     private static final MethodHandle SENDER_SEND;
     private static final MethodHandle SENDER_CLOSE;
     private static final MethodHandle REGISTER_MEMTABLE;
+    private static final MethodHandle CREATE_CUSTOM_CACHE_MANAGER;
+    private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
+    private static final MethodHandle CREATE_CACHE;
+    private static final MethodHandle CACHE_MANAGER_ADD_FILES;
+    private static final MethodHandle CACHE_MANAGER_REMOVE_FILES;
+    private static final MethodHandle CACHE_MANAGER_CLEAR;
+    private static final MethodHandle CACHE_MANAGER_CLEAR_BY_TYPE;
+    private static final MethodHandle CACHE_MANAGER_GET_MEMORY_BY_TYPE;
+    private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
+    private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
+    private static final MethodHandle CREATE_SESSION_CONTEXT;
+    private static final MethodHandle CLOSE_SESSION_CONTEXT;
+    private static final MethodHandle EXECUTE_WITH_CONTEXT;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -79,6 +95,7 @@ public final class NativeBridge {
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
@@ -88,6 +105,21 @@ public final class NativeBridge {
         CLOSE_GLOBAL_RUNTIME = linker.downcallHandle(
             lib.find("df_close_global_runtime").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        GET_MEMORY_POOL_USAGE = linker.downcallHandle(
+            lib.find("df_get_memory_pool_usage").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        GET_MEMORY_POOL_LIMIT = linker.downcallHandle(
+            lib.find("df_get_memory_pool_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        SET_MEMORY_POOL_LIMIT = linker.downcallHandle(
+            lib.find("df_set_memory_pool_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         CREATE_READER = linker.downcallHandle(
@@ -218,10 +250,114 @@ public final class NativeBridge {
             )
         );
 
+        CREATE_CUSTOM_CACHE_MANAGER = linker.downcallHandle(
+            lib.find("df_create_custom_cache_manager").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG)
+        );
+
+        DESTROY_CUSTOM_CACHE_MANAGER = linker.downcallHandle(
+            lib.find("df_destroy_custom_cache_manager").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_create_cache(mgr_ptr, type_ptr, type_len, size_limit, eviction_ptr, eviction_len)
+        CREATE_CACHE = linker.downcallHandle(
+            lib.find("df_create_cache").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        // ── SessionContext decomposition bindings ──
+        CREATE_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_create_session_context").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        // i64 df_cache_manager_add_files(runtime_ptr, files_ptr, files_len_ptr, files_count)
+        CACHE_MANAGER_ADD_FILES = linker.downcallHandle(
+            lib.find("df_cache_manager_add_files").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        CACHE_MANAGER_REMOVE_FILES = linker.downcallHandle(
+            lib.find("df_cache_manager_remove_files").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        CACHE_MANAGER_CLEAR = linker.downcallHandle(
+            lib.find("df_cache_manager_clear").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_cache_manager_clear_by_type(runtime_ptr, type_ptr, type_len)
+        CACHE_MANAGER_CLEAR_BY_TYPE = linker.downcallHandle(
+            lib.find("df_cache_manager_clear_by_type").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        CACHE_MANAGER_GET_MEMORY_BY_TYPE = linker.downcallHandle(
+            lib.find("df_cache_manager_get_memory_by_type").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        CACHE_MANAGER_GET_TOTAL_MEMORY = linker.downcallHandle(
+            lib.find("df_cache_manager_get_total_memory").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_cache_manager_contains_by_type(runtime_ptr, type_ptr, type_len, file_ptr, file_len)
+        CACHE_MANAGER_CONTAINS_BY_TYPE = linker.downcallHandle(
+            lib.find("df_cache_manager_contains_by_type").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
         // Hand the five filter-tree upcall stubs to Rust now. No explicit
         // caller step required — as soon as this class is loaded, callbacks
         // are installed and `df_execute_indexed_query` can dispatch into Java.
         installFilterTreeCallbacks(linker);
+
+        CLOSE_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_close_session_context").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        EXECUTE_WITH_CONTEXT = linker.downcallHandle(
+            lib.find("df_execute_with_context").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
     }
 
     private NativeBridge() {}
@@ -336,13 +472,36 @@ public final class NativeBridge {
     public static long createGlobalRuntime(long memoryLimit, long cacheManagerPtr, String spillDir, long spillLimit) {
         try (var call = new NativeCall()) {
             var dir = call.str(spillDir);
-            return call.invoke(CREATE_GLOBAL_RUNTIME, memoryLimit, dir.segment(), dir.len(), spillLimit);
+            return call.invoke(CREATE_GLOBAL_RUNTIME, memoryLimit, cacheManagerPtr, dir.segment(), dir.len(), spillLimit);
         }
     }
 
     /** Frees the native runtime. Safe to call once. */
     public static void closeGlobalRuntime(long ptr) {
         NativeCall.invokeVoid(CLOSE_GLOBAL_RUNTIME, ptr);
+    }
+
+    // ---- Memory pool observability and dynamic limit ----
+
+    /** Returns current memory pool usage in bytes. */
+    public static long getMemoryPoolUsage(long runtimePtr) {
+        try (var call = new NativeCall()) {
+            return call.invoke(GET_MEMORY_POOL_USAGE, runtimePtr);
+        }
+    }
+
+    /** Returns current memory pool limit in bytes. */
+    public static long getMemoryPoolLimit(long runtimePtr) {
+        try (var call = new NativeCall()) {
+            return call.invoke(GET_MEMORY_POOL_LIMIT, runtimePtr);
+        }
+    }
+
+    /** Sets the memory pool limit at runtime. Takes effect for new allocations only. */
+    public static void setMemoryPoolLimit(long runtimePtr, long newLimitBytes) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_MEMORY_POOL_LIMIT, runtimePtr, newLimitBytes);
+        }
     }
 
     // ---- Reader management (confined Arena for path + file strings) ----
@@ -551,9 +710,108 @@ public final class NativeBridge {
         }
     }
 
-    public static void cacheManagerAddFiles(long runtimePtr, String[] filePaths) {}
+    public static long createCustomCacheManager() {
+        try {
+            return NativeLibraryLoader.checkResult((long) CREATE_CUSTOM_CACHE_MANAGER.invokeExact());
+        } catch (Throwable t) {
+            throw t instanceof RuntimeException ? (RuntimeException) t : new RuntimeException(t);
+        }
+    }
+    // ---- SessionContext decomposition ----
 
-    public static void cacheManagerRemoveFiles(long runtimePtr, String[] filePaths) {}
+    /**
+     * Creates a SessionContext with the default ListingTable registered.
+     * Returns a tracked handle consumed by {@link #executeWithContextAsync}.
+     */
+    public static SessionContextHandle createSessionContext(long readerPtr, long runtimePtr, String tableName, long contextId) {
+        NativeHandle.validatePointer(readerPtr, "reader");
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        try (var call = new NativeCall()) {
+            var table = call.str(tableName);
+            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId);
+            return new SessionContextHandle(ptr);
+        }
+    }
+
+    /**
+     * Executes a Substrait plan against the configured SessionContext.
+     * Consumes the session context handle (freed internally when stream closes).
+     */
+    /** Frees a native SessionContext handle. Safe to call once. */
+    public static void closeSessionContext(long ptr) {
+        NativeCall.invokeVoid(CLOSE_SESSION_CONTEXT, ptr);
+    }
+
+    public static void executeWithContextAsync(long sessionCtxPtr, byte[] substraitPlan, ActionListener<Long> listener) {
+        NativeHandle.validatePointer(sessionCtxPtr, "sessionContext");
+        try (var call = new NativeCall()) {
+            long result = call.invoke(EXECUTE_WITH_CONTEXT, sessionCtxPtr, call.bytes(substraitPlan), (long) substraitPlan.length);
+            listener.onResponse(result);
+        } catch (Throwable throwable) {
+            listener.onFailure(throwable instanceof Exception ? (Exception) throwable : new RuntimeException(throwable));
+        }
+    }
+
+    public static void destroyCustomCacheManager(long ptr) {
+        NativeCall.invokeVoid(DESTROY_CUSTOM_CACHE_MANAGER, ptr);
+    }
+
+    public static void createCache(long cacheManagerPtr, String cacheType, long sizeLimit, String evictionType) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            var eviction = call.str(evictionType);
+            call.invoke(CREATE_CACHE, cacheManagerPtr, type.segment(), type.len(), sizeLimit, eviction.segment(), eviction.len());
+        }
+    }
+
+    public static void cacheManagerAddFiles(long runtimePtr, String[] filePaths) {
+        try (var call = new NativeCall()) {
+            var f = call.strArray(filePaths);
+            call.invoke(CACHE_MANAGER_ADD_FILES, runtimePtr, f.ptrs(), f.lens(), f.count());
+        }
+    }
+
+    public static void cacheManagerRemoveFiles(long runtimePtr, String[] filePaths) {
+        try (var call = new NativeCall()) {
+            var f = call.strArray(filePaths);
+            call.invoke(CACHE_MANAGER_REMOVE_FILES, runtimePtr, f.ptrs(), f.lens(), f.count());
+        }
+    }
+
+    public static void cacheManagerClear(long runtimePtr) {
+        try (var call = new NativeCall()) {
+            call.invoke(CACHE_MANAGER_CLEAR, runtimePtr);
+        }
+    }
+
+    public static void cacheManagerClearByCacheType(long runtimePtr, String cacheType) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            call.invoke(CACHE_MANAGER_CLEAR_BY_TYPE, runtimePtr, type.segment(), type.len());
+        }
+    }
+
+    public static long cacheManagerGetMemoryConsumedForCacheType(long runtimePtr, String cacheType) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            return call.invoke(CACHE_MANAGER_GET_MEMORY_BY_TYPE, runtimePtr, type.segment(), type.len());
+        }
+    }
+
+    public static long cacheManagerGetTotalMemoryConsumed(long runtimePtr) {
+        try (var call = new NativeCall()) {
+            return call.invoke(CACHE_MANAGER_GET_TOTAL_MEMORY, runtimePtr);
+        }
+    }
+
+    public static boolean cacheManagerGetItemByCacheType(long runtimePtr, String cacheType, String filePath) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            var file = call.str(filePath);
+            long result = call.invoke(CACHE_MANAGER_CONTAINS_BY_TYPE, runtimePtr, type.segment(), type.len(), file.segment(), file.len());
+            return result != 0;
+        }
+    }
 
     public static void initLogger() {}
 }

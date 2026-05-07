@@ -15,7 +15,6 @@ import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -153,15 +152,11 @@ public class OpenSearchFilterRule extends RelOptRule {
             );
         }
 
-        ScalarFunction function = null;
-        if (predicate.getOperator() instanceof SqlFunction sqlFunction) {
-            function = ScalarFunction.fromSqlFunction(sqlFunction);
-        }
+        ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(predicate.getOperator());
         if (function == null) {
-            function = ScalarFunction.fromSqlKind(predicate.getKind());
-        }
-        if (function == null) {
-            throw new IllegalStateException("Unrecognized filter operator [" + predicate.getKind() + "]");
+            throw new IllegalStateException(
+                "Unrecognized filter operator [" + predicate.getOperator().getName() + " / " + predicate.getKind() + "]"
+            );
         }
 
         Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
@@ -170,23 +165,24 @@ public class OpenSearchFilterRule extends RelOptRule {
             FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorageInfos, fieldIndex);
             FieldType fieldType = storageInfo.getFieldType();
 
-            // TODO: for FULL_TEXT operators, extract required params from RexCall
+            Set<String> fieldViable;
             if (storageInfo.isDerived()) {
-                // Derived column marking is not yet implemented.
-                // Requires DelegationType split (NATIVE_INDEX vs ARROW_BATCH) and
-                // DataTransferCapability-based execution model for within-stage delegation.
-                throw new UnsupportedOperationException(
-                    "Filter on derived column ["
-                        + storageInfo.getFieldName()
-                        + "] is not yet supported. Marking on derived/expression columns requires "
-                        + "a implementation for delegation model."
-                );
+                // Post-Union / post-Project columns have no physical storage formats — the
+                // column is materialised at the operator that produced it (e.g. Union of two
+                // branches with divergent storage, or a literal/expression projection). The
+                // filter still has to run somewhere; resolve viability against any backend
+                // that supports the function on this field type, ignoring storage formats.
+                // The format-aware Lucene-pushdown path stays as the primary lookup for
+                // non-derived columns above.
+                // TODO: for FULL_TEXT operators, extract required params from RexCall
+                fieldViable = new HashSet<>(registry.filterBackendsAnyFormat(function, fieldType));
+            } else {
+                // Format-aware: backends that can access this field's storage (doc values + index).
+                // A backend is viable only if it has the field in its own storage formats — ensuring
+                // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
+                // field only when the field has indexFormats=[lucene] set in the mapping).
+                fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
             }
-            // Format-aware: backends that can access this field's storage (doc values + index).
-            // A backend is viable only if it has the field in its own storage formats — ensuring
-            // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
-            // field only when the field has indexFormats=[lucene] set in the mapping).
-            Set<String> fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
 
             viableSet.retainAll(fieldViable);
         }

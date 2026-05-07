@@ -33,6 +33,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
+import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 
 import java.util.List;
 
@@ -100,7 +101,8 @@ public class PlannerImpl {
                 new OpenSearchFilterRule(context),
                 new OpenSearchProjectRule(context),
                 new OpenSearchAggregateRule(context),
-                new OpenSearchSortRule(context)
+                new OpenSearchSortRule(context),
+                new OpenSearchUnionRule(context)
             )
         );
 

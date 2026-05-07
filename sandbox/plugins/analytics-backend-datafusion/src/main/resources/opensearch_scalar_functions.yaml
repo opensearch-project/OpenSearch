@@ -1,0 +1,61 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:scalar_functions
+scalar_functions:
+  - name: ilike
+    description: >-
+      Case-insensitive LIKE. Semantics match DataFusion's ILikeExpr
+      (datafusion-substrait maps the extension name "ilike" to a case-insensitive
+      LikeExpr).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "match"
+        return: boolean
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "match"
+        return: boolean
+  - name: "date_part"
+    impls:
+      - args: [{ value: string, name: "part" }, { value: "any1", name: "value" }]
+        return: any1
+
+  - name: "convert_tz"
+    description: "Shift a timestamp from one timezone to another. IANA names and +/-HH:MM offsets."
+    impls:
+      - args:
+          - { value: "any1", name: "ts" }
+          - { value: string, name: "from_tz" }
+          - { value: string, name: "to_tz" }
+        return: any1
+  - name: "to_unixtime"
+    description: "Return a timestamp as Unix epoch seconds."
+    impls:
+      - args: [{ value: "any1", name: "ts" }]
+        return: any1
+  - name: regex_match
+    description: >-
+      Regular expression containment match (boolean). Lowering target for PPL's
+      `regex` command and `regexp_match()` function — both emit Calcite's
+      `SqlLibraryOperators.REGEXP_CONTAINS`, which DataFusionFragmentConvertor
+      maps to this extension. datafusion-substrait resolves the extension name
+      "regex_match" to `datafusion::logical_expr::Operator::RegexMatch`, which
+      executes against arrow-string's regex kernel and returns BOOLEAN.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: boolean
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: boolean
