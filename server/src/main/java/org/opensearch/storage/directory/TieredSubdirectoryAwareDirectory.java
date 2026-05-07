@@ -167,7 +167,7 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
             } catch (java.nio.file.NoSuchFileException e) {
                 // Already gone — fine
             } catch (IOException e) {
-                logger.warn("[TieredSubdirAwareDir] afterSyncToRemote: failed to delete local copy of file={}", file, e);
+                logger.warn("afterSyncToRemote: failed to delete local copy of file={}", file);
             }
             return;
         }

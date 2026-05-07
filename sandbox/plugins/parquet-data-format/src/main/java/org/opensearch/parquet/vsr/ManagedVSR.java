@@ -49,7 +49,7 @@ public class ManagedVSR implements AutoCloseable {
     private final VectorSchemaRoot vsr;
     private final BufferAllocator allocator;
     private final AtomicReference<VSRState> state = new AtomicReference<>(VSRState.ACTIVE);
-    private final Map<String, Field> fields = new HashMap<>();
+    private final Map<String, FieldVector> fields = new HashMap<>();
 
     /**
      * Creates a new ManagedVSR.
@@ -63,7 +63,7 @@ public class ManagedVSR implements AutoCloseable {
         this.vsr = VectorSchemaRoot.create(schema, allocator);
         this.allocator = allocator;
         for (Field field : vsr.getSchema().getFields()) {
-            fields.put(field.getName(), field);
+            fields.put(field.getName(), vsr.getVector(field));
         }
     }
 
@@ -93,8 +93,7 @@ public class ManagedVSR implements AutoCloseable {
         if (state.get() != VSRState.ACTIVE) {
             throw new IllegalStateException("Cannot access vector in VSR state: " + state.get());
         }
-        Field field = fields.get(fieldName);
-        return field != null ? vsr.getVector(field) : null;
+        return fields.get(fieldName);
     }
 
     /** Transitions this VSR from ACTIVE to FROZEN state. */

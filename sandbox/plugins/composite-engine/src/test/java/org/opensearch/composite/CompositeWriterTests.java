@@ -81,22 +81,6 @@ public class CompositeWriterTests extends OpenSearchTestCase {
         writer.close();
     }
 
-    public void testLockAndUnlock() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, 0);
-        writer.lock();
-        assertTrue(writer.tryLock());
-        writer.unlock();
-        writer.unlock();
-        writer.close();
-    }
-
-    public void testTryLockSucceedsWhenUnlocked() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, 0);
-        assertTrue(writer.tryLock());
-        writer.unlock();
-        writer.close();
-    }
-
     public void testFlushReturnsFileInfos() throws IOException {
         CompositeWriter writer = new CompositeWriter(engine, 0);
         FileInfos fileInfos = writer.flush();

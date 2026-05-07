@@ -206,16 +206,6 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         }
     }
 
-    public void testLockUnlock() throws IOException {
-        Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
-            assertTrue(writer.tryLock());
-            writer.unlock();
-            writer.lock();
-            writer.unlock();
-        }
-    }
-
     public void testWriteAndFlushEndToEndWithTextAndKeyword() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("body");

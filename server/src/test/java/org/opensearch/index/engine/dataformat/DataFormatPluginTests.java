@@ -279,7 +279,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
             List.of(CatalogSnapshotManager.createInitialSnapshot(1L, 1L, 0L, rr1.refreshedSegments(), 1L, Map.of())),
             CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-            Map.of(),
+            files -> Map.of(),
             Map.of(),
             List.of(),
             null,
@@ -379,7 +379,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
             List.of(CatalogSnapshotManager.createInitialSnapshot(1L, 1L, 0L, List.of(seg), 1L, Map.of())),
             CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-            Map.of(),
+            files -> Map.of(),
             Map.of(),
             List.of(),
             null,
