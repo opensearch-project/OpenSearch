@@ -143,6 +143,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 // Set watermark to the partition before the target so incremental
                 // discovery will include the target partition's successors
                 watermark = pointer.getPartitionName();
+                watermarkPartitionTime = work.partitionTime;
                 watermarkCreateTime = work.createTime;
                 currentWorkIndex = i;
                 for (int f = 0; f < work.files.size(); f++) {
