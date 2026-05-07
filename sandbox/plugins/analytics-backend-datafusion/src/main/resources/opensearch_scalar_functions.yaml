@@ -253,3 +253,67 @@ scalar_functions:
           - value: "string"
             name: "replacement"
         return: string
+
+  # ascii(str) — Unicode code point of the first character.
+  - name: "ascii"
+    description: "Return the unicode code point of the first character of the input string."
+    impls:
+      - args:
+          - { name: str, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+      - args:
+          - { name: str, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+
+  # strpos(str, substr) — 1-based position of substr in str, 0 if not found.
+  # Target of PPL's `locate` and `position` adapters.
+  - name: "strpos"
+    description: "Return the 1-based position of `substr` within `str`, or 0 when absent."
+    impls:
+      - args:
+          - { name: str, value: "string" }
+          - { name: substr, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+      - args:
+          - { name: str, value: "varchar<L1>" }
+          - { name: substr, value: "varchar<L2>" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+      - args:
+          - { name: str, value: "string" }
+          - { name: substr, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+      - args:
+          - { name: str, value: "varchar<L1>" }
+          - { name: substr, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+
+  # tostring(x, format) — (hex / binary / commas / duration / duration_millis).
+  - name: "tostring"
+    description: "Convert a number to a string using the requested format (hex/binary/commas/duration/duration_millis)."
+    impls:
+      - args:
+          - { name: value, value: i64 }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+      - args:
+          - { name: value, value: fp64 }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # tonumber(string, base) — parse `string` as a base-N integer
+  - name: "tonumber"
+    description: "Parse a string to a number in the given radix (2-36). Returns NULL on parse failure."
+    impls:
+      - args:
+          - { name: value, value: string }
+          - { name: base, value: i32 }
+        nullability: DECLARED_OUTPUT
+        return: fp64
