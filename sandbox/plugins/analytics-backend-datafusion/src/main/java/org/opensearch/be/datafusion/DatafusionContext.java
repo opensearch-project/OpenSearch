@@ -54,7 +54,19 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
                 streamHandle = null;
             }
         } finally {
-            engineSearcher.close();
+            try {
+                // Safety net for aborted-search paths: if the SessionContext was created but
+                // executeWithContextAsync never ran (or ran and the context is being closed
+                // without handing off the handle), doClose() calls df_close_session_context.
+                // On the happy path the handle is already marked consumed and this close()
+                // is a no-op.
+                if (sessionContextHandle != null) {
+                    sessionContextHandle.close();
+                    sessionContextHandle = null;
+                }
+            } finally {
+                engineSearcher.close();
+            }
         }
     }
 
