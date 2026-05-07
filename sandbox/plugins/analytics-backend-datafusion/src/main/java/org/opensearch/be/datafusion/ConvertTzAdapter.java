@@ -33,7 +33,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Cat-3b adapter for PPL's {@code CONVERT_TZ(ts, from_tz, to_tz)}. Two jobs in
+ * Adapter for PPL's {@code CONVERT_TZ(ts, from_tz, to_tz)}. Two jobs in
  * priority order:
  *
  * <ol>

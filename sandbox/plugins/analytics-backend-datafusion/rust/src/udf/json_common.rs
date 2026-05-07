@@ -16,9 +16,9 @@
 //!
 //! Kept deliberately small: only helpers that at least two UDFs use land here.
 
-// Consumers (`json_valid`, `json_keys`, `json_extract`, mutation UDFs) land in
-// follow-up commits on the same PR; silence dead-code warnings for the parser
-// commit so `cargo check` stays clean.
+// Consumers (`json_valid`, mutation UDFs) land in follow-up commits on the
+// same PR; silence dead-code warnings so `cargo check` stays clean while
+// only a subset of helpers have in-tree callers.
 #![allow(dead_code)]
 
 use datafusion::arrow::array::{ArrayRef, StringArray};

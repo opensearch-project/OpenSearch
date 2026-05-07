@@ -116,6 +116,7 @@ pub(crate) fn coerce_args(
 pub mod convert_tz;
 pub(crate) mod json_common;
 pub mod json_array_length;
+pub mod json_extract;
 pub mod json_keys;
 pub mod tonumber;
 pub mod tostring;
@@ -130,11 +131,12 @@ pub mod tostring;
 pub fn register_all(ctx: &SessionContext) {
     convert_tz::register_all(ctx);
     json_array_length::register_all(ctx);
+    json_extract::register_all(ctx);
     json_keys::register_all(ctx);
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, json_array_length, json_keys, tonumber, tostring registered"
+        "OpenSearch UDF register_all: convert_tz, json_array_length, json_extract, json_keys, tonumber, tostring registered"
     );
 }
 

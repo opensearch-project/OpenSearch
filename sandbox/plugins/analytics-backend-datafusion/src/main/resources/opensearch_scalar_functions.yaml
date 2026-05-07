@@ -336,3 +336,14 @@ scalar_functions:
     impls:
       - args: [{ value: string, name: "value" }]
         return: any1
+
+  # json_extract(value, path1, path2, ...) — Rust UDF. rust/src/udf/json_extract.rs.
+  # Target of JsonFunctionAdapters.JsonExtractAdapter. Single path → extracted
+  # value's string form (scalar via `.toString()`, object/array jsonized);
+  # multi-path → JSON-array-encoded results with `null` slots for misses.
+  - name: "json_extract"
+    description: "Extract JSON value(s) at PPL path(s); single → stringified match, multi → JSON-array string."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string

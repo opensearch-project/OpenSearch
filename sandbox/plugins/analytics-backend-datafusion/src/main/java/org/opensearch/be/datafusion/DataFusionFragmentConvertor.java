@@ -92,6 +92,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
      *   <li>{@link JsonFunctionAdapters.JsonArrayLengthAdapter#LOCAL_JSON_ARRAY_LENGTH_OP} →
      *       {@code json_array_length} (Rust UDF).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonExtractAdapter#LOCAL_JSON_EXTRACT_OP} →
+     *       {@code json_extract} (Rust UDF, homogeneous-string variadic).</li>
      *   <li>{@link JsonFunctionAdapters.JsonKeysAdapter#LOCAL_JSON_KEYS_OP} →
      *       {@code json_keys} (Rust UDF).</li>
      *   <li>{@link SqlLibraryOperators#REGEXP_CONTAINS} → {@code regex_match} (boolean regex match;
@@ -135,6 +137,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
         FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME),
         FunctionMappings.s(JsonFunctionAdapters.JsonArrayLengthAdapter.LOCAL_JSON_ARRAY_LENGTH_OP, "json_array_length"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
         FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys")
     );
 

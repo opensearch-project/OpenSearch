@@ -24,11 +24,9 @@ import java.util.List;
  * {@link SqlOperator} whose name matches the corresponding Rust UDF registered
  * by {@code rust/src/udf/<name>.rs}.
  *
- * <p>All JSON UDFs are Cat-4 (new Rust UDF + Java adapter rename): no DataFusion
- * builtin and no Substrait stdlib equivalent. Simple renames extend
- * {@link AbstractNameMappingAdapter}; path-aware / literal-canonicalizing JSON
- * functions implement {@link org.opensearch.analytics.spi.ScalarFunctionAdapter}
- * directly (see {@link ConvertTzAdapter} for the precedent).
+ * <p>All JSON UDFs ship as new Rust UDFs paired with a Java adapter rename: no
+ * DataFusion builtin and no Substrait stdlib equivalent. Simple renames extend
+ * {@link AbstractNameMappingAdapter}.
  *
  * <p>Each inner adapter's {@code LOCAL_*_OP} must also be registered in
  * {@link DataFusionFragmentConvertor#ADDITIONAL_SCALAR_SIGS} via a
@@ -41,7 +39,7 @@ final class JsonFunctionAdapters {
     private JsonFunctionAdapters() {}
 
     /**
-     * Cat-4 adapter for PPL's {@code JSON_ARRAY_LENGTH(value)}. Rewrites to the
+     * Adapter for PPL's {@code JSON_ARRAY_LENGTH(value)}. Rewrites to the
      * locally-declared {@link #LOCAL_JSON_ARRAY_LENGTH_OP}; isthmus resolves it
      * against the {@code json_array_length} YAML signature; DataFusion routes to
      * the Rust UDF ({@code rust/src/udf/json_array_length.rs}). All validation
@@ -80,7 +78,7 @@ final class JsonFunctionAdapters {
     }
 
     /**
-     * Cat-4 adapter for PPL's {@code JSON_KEYS(value)}. Plain rename to the
+     * Adapter for PPL's {@code JSON_KEYS(value)}. Plain rename to the
      * Rust UDF at {@code rust/src/udf/json_keys.rs}; all validation
      * (malformed JSON, non-object input) lives in the UDF. Return type is
      * preserved from the original PPL call, matching {@code STRING_FORCE_NULLABLE}
@@ -99,6 +97,33 @@ final class JsonFunctionAdapters {
 
         JsonKeysAdapter() {
             super(LOCAL_JSON_KEYS_OP, List.of(), List.of());
+        }
+    }
+
+    /**
+     * Adapter for PPL's {@code JSON_EXTRACT(value, path1, [path2, ...])}. Plain
+     * rename to the Rust UDF at {@code rust/src/udf/json_extract.rs}; all
+     * validation (arity short-circuit, malformed JSON, malformed path, per-path
+     * NULL) lives in the UDF. Return type is preserved from the original PPL
+     * call, matching {@code STRING_FORCE_NULLABLE} declared on
+     * {@code JsonExtractFunctionImpl}.
+     *
+     * <p>Operands are homogeneously-typed strings, so the substrait YAML
+     * signature uses a single {@code variadic: {min: 1}} declaration.
+     */
+    static class JsonExtractAdapter extends AbstractNameMappingAdapter {
+
+        static final SqlOperator LOCAL_JSON_EXTRACT_OP = new SqlFunction(
+            "json_extract",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.VARCHAR_NULLABLE,
+            null,
+            OperandTypes.VARIADIC,
+            SqlFunctionCategory.STRING
+        );
+
+        JsonExtractAdapter() {
+            super(LOCAL_JSON_EXTRACT_OP, List.of(), List.of());
         }
     }
 }

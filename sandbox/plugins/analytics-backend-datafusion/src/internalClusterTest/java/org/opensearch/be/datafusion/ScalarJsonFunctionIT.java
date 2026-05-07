@@ -67,4 +67,53 @@ public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
         assertScalarNull("json_keys('not-json')");
         assertScalarNull("json_keys('42')");
     }
+
+    /**
+     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonExtract},
+     * {@code testJsonExtractWithMultiplyResult},
+     * {@code testJsonExtractReturnsNullForMissingPathAndNullValue} and
+     * {@code testJsonExtractMultiPathWithMissingPath}. The legacy fixture's
+     * byte-for-byte expected output survives our serde_json round-trip because
+     * {@code preserve_order} is enabled and no integer↔double coercion happens
+     * (see {@code rust/Cargo.toml}'s serde_json feature declaration).
+     */
+    public void testJsonExtractParityWithLegacy() {
+        String candidate = "[{\"name\":\"London\",\"Bridges\":[{\"name\":\"Tower Bridge\",\"length\":801.0},"
+            + "{\"name\":\"Millennium Bridge\",\"length\":1066.0}]},"
+            + "{\"name\":\"Venice\",\"Bridges\":[{\"name\":\"Rialto Bridge\",\"length\":157.0},"
+            + "{\"type\":\"Bridge of Sighs\",\"length\":36.0},"
+            + "{\"type\":\"Ponte della Paglia\"}]},"
+            + "{\"name\":\"San Francisco\",\"Bridges\":[{\"name\":\"Golden Gate Bridge\",\"length\":8981.0},"
+            + "{\"name\":\"Bay Bridge\",\"length\":23556.0}]}]";
+
+        // Single-path, wildcard-at-root over top-level array → 3 matches wrapped
+        // in a JSON array. Round-tripped bytes equal the input because
+        // preserve_order + no numeric coercion.
+        assertScalarString("json_extract('" + candidate + "', '{}')", candidate);
+
+        // Single-path scalar match — legacy `.toString()` on Double(8981.0).
+        assertScalarString("json_extract('" + candidate + "', '{2}.Bridges{0}.length')", "8981.0");
+
+        // Wildcard-over-wildcard-missing-key: only Venice entries without a
+        // `name` field expose a `type`, so two matches wrap into a JSON array.
+        assertScalarString("json_extract('" + candidate + "', '{}.Bridges{}.type')", "[\"Bridge of Sighs\",\"Ponte della Paglia\"]");
+
+        // Single-path object match — jsonized with insertion order preserved.
+        assertScalarString("json_extract('" + candidate + "', '{2}.Bridges{0}')", "{\"name\":\"Golden Gate Bridge\",\"length\":8981.0}");
+
+        // Multi-path with wildcard-multi + scalar-match → outer array wraps
+        // the two per-path results (array + scalar) as-is.
+        assertScalarString(
+            "json_extract('" + candidate + "', '{}.Bridges{}.type', '{2}.Bridges{0}.length')",
+            "[[\"Bridge of Sighs\",\"Ponte della Paglia\"],8981.0]"
+        );
+
+        // Missing path (empty object) and explicit-null both resolve to SQL NULL.
+        assertScalarNull("json_extract('{}', 'name')");
+        assertScalarNull("json_extract('{\"name\": null}', 'name')");
+
+        // Multi-path with missing path yields literal `null` element in the
+        // outer JSON array.
+        assertScalarString("json_extract('{\"name\": \"John\"}', 'name', 'age')", "[\"John\",null]");
+    }
 }
