@@ -632,9 +632,14 @@ pub unsafe fn sender_send(
 
     // `from_ffi` takes the array by value (consumes it) and the schema by
     // reference (it is still dropped when `ffi_schema` goes out of scope).
-    let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+    let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
         DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
     })?;
+
+    // Buffers from Java's Flight RPC deserialization may not meet Rust's
+    // native alignment requirements. align_buffers() is a no-op for
+    // already-aligned buffers; only misaligned ones are reallocated.
+    array_data.align_buffers();
 
     let struct_array = StructArray::from(array_data);
     let batch = RecordBatch::from(struct_array);
