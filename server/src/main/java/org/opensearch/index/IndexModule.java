@@ -105,6 +105,7 @@ import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.storage.directory.TieredDataFormatAwareStoreDirectoryFactory;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -1175,6 +1176,14 @@ public final class IndexModule {
     ) {
         if (dataFormatAwareStoreDirectoryFactories.isEmpty()) {
             return null;
+        }
+        if (indexSettings.isWarmIndex() && indexSettings.isPluggableDataFormatEnabled()) {
+            DataFormatAwareStoreDirectoryFactory tiered = dataFormatAwareStoreDirectoryFactories.get(
+                TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY
+            );
+            if (tiered != null) {
+                return tiered;
+            }
         }
         return dataFormatAwareStoreDirectoryFactories.get("default");
     }
