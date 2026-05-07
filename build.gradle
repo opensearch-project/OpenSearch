@@ -419,7 +419,6 @@ gradle.projectsEvaluated {
     project.tasks.withType(Test) { task ->
       if (task != null) {
         task.jvmArgs += [
-            "--add-modules=jdk.incubator.vector",
             "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED",
             "--enable-native-access=ALL-UNNAMED"
         ]

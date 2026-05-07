@@ -57,6 +57,7 @@ compileJava {
 }
 
 test {
+  jvmArgs += ['--add-modules=jdk.incubator.vector']
   systemProperty 'opensearch.experimental.feature.simd.rounding.enabled', 'forced'
 }
 
