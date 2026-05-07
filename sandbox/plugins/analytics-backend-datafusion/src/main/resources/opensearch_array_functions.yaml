@@ -69,6 +69,20 @@ scalar_functions:
             name: array
         return: "list<any1>"
 
+  - name: array_element
+    description: >-
+      Return the element at the given 1-based position. Calcite's
+      {@code SqlStdOperatorTable.ITEM} (used by PPL's {@code mvindex(arr, N)}
+      single-element form via {@code MVIndexFunctionImp.resolveSingleElement})
+      renames to this for DataFusion. Returns null if the index is out of range.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: array
+          - value: "i64"
+            name: index
+        return: "any1?"
+
   - name: array_to_string
     description: >-
       Join array elements into a single string using a separator. Calcite's

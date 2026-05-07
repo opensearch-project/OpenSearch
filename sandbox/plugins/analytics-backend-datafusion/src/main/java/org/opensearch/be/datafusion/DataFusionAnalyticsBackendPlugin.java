@@ -234,8 +234,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // standard scalar FieldType and matches against SUPPORTED_FIELD_TYPES.
         // ARRAY_LENGTH returns BIGINT → FieldType.LONG; ARRAY_JOIN returns VARCHAR →
         // FieldType.KEYWORD (renamed to DataFusion `array_to_string` via {@link ArrayToStringAdapter}).
+        // ITEM returns the array's element type (any of the supported scalar types) — used by
+        // PPL `mvindex(arr, N)` single-element form.
         ScalarFunction.ARRAY_LENGTH,
-        ScalarFunction.ARRAY_JOIN
+        ScalarFunction.ARRAY_JOIN,
+        ScalarFunction.ITEM
     );
 
     /**
@@ -350,6 +353,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
                     Map.entry(ScalarFunction.ARRAY_SLICE, new ArraySliceAdapter()),
+                    Map.entry(ScalarFunction.ITEM, new ArrayElementAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),

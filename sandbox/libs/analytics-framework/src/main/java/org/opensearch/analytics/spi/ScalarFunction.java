@@ -196,7 +196,16 @@ public enum ScalarFunction {
      * is named {@code array_to_string}, so the DataFusion backend rewrites to that
      * via a name-mapping adapter.
      */
-    ARRAY_JOIN(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    ARRAY_JOIN(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * Calcite's {@code SqlStdOperatorTable.ITEM} — element access ({@code arr[N]}).
+     * PPL's {@code mvindex(arr, N)} single-element form lowers through
+     * {@code MVIndexFunctionImp.resolveSingleElement} to ITEM with a 1-based index
+     * (already converted from PPL's 0-based input). DataFusion's native equivalent
+     * is {@code array_element}, also 1-based; the DataFusion backend renames via a
+     * name-mapping adapter.
+     */
+    ITEM(Category.SCALAR, SqlKind.ITEM);
 
     /**
      * Category of scalar function.
