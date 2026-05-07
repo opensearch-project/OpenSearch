@@ -352,6 +352,87 @@ scalar_functions:
           - value: "string"
             name: "to"
         return: string
+  - name: rex_extract
+    description: >-
+      Extract the first occurrence of a regex named or numbered capture group
+      from a string (Java-Pattern-compatible regex). Lowering target for PPL's
+      `rex field=f "(?<g>...)"` extract command (single-match form) — emitted
+      by the SQL plugin as a custom Calcite UDF named `REX_EXTRACT`. The
+      analytics-engine adapter rewrites the call to a local Calcite operator
+      whose `FunctionMappings.Sig` resolves to this Substrait extension; the
+      Rust UDF implementation lives at
+      sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_extract.rs.
+      Returns NULL when the pattern doesn't match, the group doesn't exist, or
+      either operand is NULL.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "group"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "group"
+        return: string
+  - name: rex_extract_multi
+    description: >-
+      Extract up to `max_match` occurrences of a regex named or numbered
+      capture group from a string, returned as a `list<varchar>`. Lowering
+      target for PPL's `rex field=f "(?<g>...)" max_match=N`. `max_match=0`
+      is unbounded. The Rust UDF implementation lives at
+      sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_extract_multi.rs.
+      Returns NULL (not an empty list) when no matches are found.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "group"
+          - value: i32
+            name: "max_match"
+        return: list<varchar<L1>>
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "group"
+          - value: i32
+            name: "max_match"
+        return: list<string>
+  - name: rex_offset
+    description: >-
+      Compute the start-end offsets of every named capture group from the
+      first regex match, formatted as `"name1=start1-end1&name2=start2-end2"`
+      (group names sorted alphabetically). Lowering target for PPL's
+      `rex field=f "(?<g>...)" offset_field=name`. The Rust UDF implementation
+      lives at sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_offset.rs.
+      Returns NULL when the pattern doesn't match or has no named groups.
+      The end position is inclusive (matches the SQL plugin's Java
+      RexOffsetFunction: `end - 1`).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: string
 
   # ascii(str) — Unicode code point of the first character.
   - name: "ascii"

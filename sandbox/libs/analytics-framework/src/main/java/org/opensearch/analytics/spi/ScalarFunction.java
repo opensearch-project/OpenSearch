@@ -90,6 +90,9 @@ public enum ScalarFunction {
     TONUMBER(Category.STRING, SqlKind.OTHER_FUNCTION),
     STRCMP(Category.STRING, SqlKind.OTHER_FUNCTION),
     TRANSLATE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_EXTRACT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_EXTRACT_MULTI(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_OFFSET(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Cryptographic hash ─────────────────────────────────────────────
     // md5(x), sha1(x), sha2(x, bitLen) with bitLen ∈ {224,256,384,512}, crc32(x).

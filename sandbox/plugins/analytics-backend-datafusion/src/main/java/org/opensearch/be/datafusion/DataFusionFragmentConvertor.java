@@ -123,6 +123,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *       transliteration syntax). DataFusion's substrait consumer resolves the extension name
      *       "translate" to its native {@code translate} UDF
      *       (datafusion-functions/src/unicode/translate.rs).</li>
+     *   <li>{@link RexExtractAdapter#LOCAL_REX_EXTRACT_OP} → {@code rex_extract} (Rust UDF;
+     *       single-match named/numbered group extract). Lowering target for PPL
+     *       {@code rex field=f "(?<g>...)"} extract command.</li>
+     *   <li>{@link RexExtractMultiAdapter#LOCAL_REX_EXTRACT_MULTI_OP} → {@code rex_extract_multi}
+     *       (Rust UDF; multi-match named/numbered group extract returning {@code list<varchar>}).
+     *       Lowering target for PPL {@code rex ... max_match=N}.</li>
+     *   <li>{@link RexOffsetAdapter#LOCAL_REX_OFFSET_OP} → {@code rex_offset} (Rust UDF;
+     *       named-group position emission as a single string). Lowering target for PPL
+     *       {@code rex ... offset_field=name}.</li>
      * </ul>
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
@@ -168,6 +177,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.CRC32, "crc32"),
         FunctionMappings.s(Sha2FunctionAdapter.DIGEST, "digest"),
         FunctionMappings.s(Sha2FunctionAdapter.ENCODE, "encode"),
+        FunctionMappings.s(RexExtractAdapter.LOCAL_REX_EXTRACT_OP, "rex_extract"),
+        FunctionMappings.s(RexExtractMultiAdapter.LOCAL_REX_EXTRACT_MULTI_OP, "rex_extract_multi"),
+        FunctionMappings.s(RexOffsetAdapter.LOCAL_REX_OFFSET_OP, "rex_offset"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
         FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
         FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),

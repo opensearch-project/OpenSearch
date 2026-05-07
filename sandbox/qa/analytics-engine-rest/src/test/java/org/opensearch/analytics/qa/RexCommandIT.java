@@ -192,6 +192,110 @@ public class RexCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── extract mode (Rust UDFs: rex_extract / rex_extract_multi / rex_offset) ──
+
+    public void testRexExtractSingleNamedGroup() throws IOException {
+        // Extract first letter of each str1 value into a new column. The 17 calcs
+        // rows have str1 values that ALL start with an uppercase letter, so the
+        // capture group always matches.
+        assertRows(
+            "source=" + DATASET.indexName
+                + " | where str1='CLAMP ON LAMPS'"
+                + " | rex field=str1 \"(?<initial>[A-Z])\""
+                + " | fields str1, initial | head 1",
+            row("CLAMP ON LAMPS", "C")
+        );
+    }
+
+    public void testRexExtractMultipleNamedGroups() throws IOException {
+        // Two named groups in one pattern — the SQL plugin's visitor emits one
+        // REX_EXTRACT call per group, so the analytics-engine path runs the
+        // Rust UDF twice (once per output column). Verifies the planner's
+        // RexCall→adapter→rex_extract round-trip works for multi-group patterns.
+        assertRows(
+            "source=" + DATASET.indexName
+                + " | where str1='BINDER ACCESSORIES'"
+                + " | rex field=str1 \"(?<first>[A-Z]+) (?<second>[A-Z]+)\""
+                + " | fields first, second | head 1",
+            row("BINDER", "ACCESSORIES")
+        );
+    }
+
+    public void testRexExtractMissingGroupReturnsNull() throws IOException {
+        // Pattern matches but the named group never participates → NULL column.
+        // 'CLAMP ON LAMPS' has no digit anywhere; group 'd' is null.
+        assertRows(
+            "source=" + DATASET.indexName
+                + " | where str1='CLAMP ON LAMPS'"
+                + " | rex field=str1 \"(?<d>\\d+)\""
+                + " | fields str1, d | head 1",
+            row("CLAMP ON LAMPS", null)
+        );
+    }
+
+    public void testRexExtractMultiCapturesAll() throws IOException {
+        // max_match=0 (unbounded) — extract every word from str1. 'BUSINESS ENVELOPES'
+        // has 2 words; the rust UDF returns a list<varchar> of size 2.
+        // The IT framework parses the list as a JSON array.
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName
+                + " | where str1='BUSINESS ENVELOPES'"
+                + " | rex field=str1 \"(?<word>[A-Z]+)\" max_match=0"
+                + " | fields word | head 1"
+        );
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        assertNotNull("rows missing", rows);
+        assertEquals("expected 1 row", 1, rows.size());
+        Object cell = rows.get(0).get(0);
+        assertEquals("expected list of 2 words", List.of("BUSINESS", "ENVELOPES"), cell);
+    }
+
+    public void testRexExtractMultiBoundedByMaxMatch() throws IOException {
+        // max_match=2 caps the result at 2 even though 'CORDED KEYBOARDS' has more
+        // word fragments matching. 'CORDED KEYBOARDS' actually only has 2 words —
+        // use 'DOT MATRIX PRINTERS' (3 words) to test the cap meaningfully.
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName
+                + " | where str1='DOT MATRIX PRINTERS'"
+                + " | rex field=str1 \"(?<word>[A-Z]+)\" max_match=2"
+                + " | fields word | head 1"
+        );
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        assertNotNull("rows missing", rows);
+        assertEquals("expected 1 row", 1, rows.size());
+        assertEquals("max_match=2 should cap at 2 elements", List.of("DOT", "MATRIX"), rows.get(0).get(0));
+    }
+
+    public void testRexExtractWithOffsetField() throws IOException {
+        // offset_field=positions emits a "name=start-end&..." string. For
+        // 'BINDER ACCESSORIES' with pattern (?<first>[A-Z]+) (?<second>[A-Z]+):
+        //   first matches at 0-5 (6 chars: 'BINDER') → offset "first=0-5"
+        //   second matches at 7-16 (10 chars: 'ACCESSORIES') → offset "second=7-16"
+        // Wait: ACCESSORIES is 11 chars at positions 7-17, so end-1 = 17.
+        // Let me reverify: B(0)I(1)N(2)D(3)E(4)R(5) (6)A(7)C(8)C(9)E(10)S(11)S(12)O(13)R(14)I(15)E(16)S(17).
+        // So second=7-17. Names are sorted alphabetically: first then second.
+        assertRows(
+            "source=" + DATASET.indexName
+                + " | where str1='BINDER ACCESSORIES'"
+                + " | rex field=str1 \"(?<first>[A-Z]+) (?<second>[A-Z]+)\" offset_field=positions"
+                + " | fields positions | head 1",
+            row("first=0-5&second=7-17")
+        );
+    }
+
+    public void testRexExtractNoMatchPassesThroughAsNull() throws IOException {
+        // Pattern doesn't match the input → extracted column is NULL for that row.
+        assertRows(
+            "source=" + DATASET.indexName
+                + " | where str1='ERICSSON'"
+                + " | rex field=str1 \"(?<digit>\\d+)\""
+                + " | fields str1, digit | head 1",
+            row("ERICSSON", null)
+        );
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────────
 
     private static List<Object> row(Object... values) {
