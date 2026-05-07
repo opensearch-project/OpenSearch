@@ -22,7 +22,9 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -51,17 +53,22 @@ public class ParquetHiveFileReader implements HiveFileReader {
 
     @Override
     public Map<String, Object> readNext() throws IOException {
+        // Parquet files are divided into row groups. When the current row group is exhausted,
+        // advance to the next one. If no more row groups exist, the file is fully read.
         if (recordReader == null || rowsRemainingInGroup <= 0) {
             PageReadStore rowGroup = reader.readNextRowGroup();
             if (rowGroup == null) {
-                return null;
+                return null; // End of file
             }
+            // Build a record reader that maps file columns to the projection schema.
+            // This handles schema evolution: missing columns become null, extra columns are ignored.
             MessageType fileSchema = reader.getFooter().getFileMetaData().getSchema();
             MessageColumnIO columnIO = new ColumnIOFactory().getColumnIO(projectionSchema, fileSchema);
             recordReader = columnIO.getRecordReader(rowGroup, new GroupRecordConverter(projectionSchema));
             rowsRemainingInGroup = rowGroup.getRowCount();
         }
 
+        // Read one row from the current row group and convert to a Map
         Group record = recordReader.read();
         rowsRemainingInGroup--;
         return groupToMap(record);
@@ -72,41 +79,72 @@ public class ParquetHiveFileReader implements HiveFileReader {
         reader.close();
     }
 
+    /**
+     * Converts a Parquet Group (one row) to a Map of column name -> value.
+     * Handles three cases per field:
+     *   - repetitionCount == 0: field is absent in this row -> null
+     *   - repetitionCount == 1: single value (most common)
+     *   - repetitionCount > 1: repeated field (Hive ARRAY) -> List of values
+     */
     private Map<String, Object> groupToMap(Group record) {
         Map<String, Object> row = new LinkedHashMap<>();
         GroupType schema = record.getType();
         for (int i = 0; i < schema.getFieldCount(); i++) {
             String fieldName = schema.getFieldName(i);
-            if (record.getFieldRepetitionCount(i) == 0) {
+            int repetitionCount = record.getFieldRepetitionCount(i);
+            if (repetitionCount == 0) {
                 row.put(fieldName, null);
                 continue;
             }
             if (schema.getType(i).isPrimitive()) {
-                row.put(fieldName, readPrimitiveValue(record, schema, i));
+                if (repetitionCount == 1) {
+                    row.put(fieldName, readPrimitiveValue(record, schema, i));
+                } else {
+                    List<Object> values = new ArrayList<>();
+                    for (int r = 0; r < repetitionCount; r++) {
+                        values.add(readPrimitiveValueAt(record, schema, i, r));
+                    }
+                    row.put(fieldName, values);
+                }
             } else {
-                row.put(fieldName, record.getValueToString(i, 0));
+                // Non-primitive (nested struct/group): serialize to string representation
+                if (repetitionCount == 1) {
+                    row.put(fieldName, groupToString(record.getGroup(i, 0)));
+                } else {
+                    List<Object> values = new ArrayList<>();
+                    for (int r = 0; r < repetitionCount; r++) {
+                        values.add(groupToString(record.getGroup(i, r)));
+                    }
+                    row.put(fieldName, values);
+                }
             }
         }
         return row;
     }
 
+    private String groupToString(Group group) {
+        return group.toString();
+    }
+
     private Object readPrimitiveValue(Group record, GroupType schema, int fieldIndex) {
-        switch (schema.getType(fieldIndex).asPrimitiveType().getPrimitiveTypeName()) {
-            case BOOLEAN:
-                return record.getBoolean(fieldIndex, 0);
-            case INT32:
-                return record.getInteger(fieldIndex, 0);
-            case INT64:
-                return record.getLong(fieldIndex, 0);
-            case FLOAT:
-                return record.getFloat(fieldIndex, 0);
-            case DOUBLE:
-                return record.getDouble(fieldIndex, 0);
-            case BINARY:
-            case FIXED_LEN_BYTE_ARRAY:
-                return record.getString(fieldIndex, 0);
-            default:
-                return record.getValueToString(fieldIndex, 0);
-        }
+        return readPrimitiveValueAt(record, schema, fieldIndex, 0);
+    }
+
+    private Object readPrimitiveValueAt(Group record, GroupType schema, int fieldIndex, int valueIndex) {
+        return switch (schema.getType(fieldIndex).asPrimitiveType().getPrimitiveTypeName()) {
+            case BOOLEAN -> record.getBoolean(fieldIndex, valueIndex);
+            case INT32 -> record.getInteger(fieldIndex, valueIndex);
+            case INT64 -> record.getLong(fieldIndex, valueIndex);
+            case FLOAT -> record.getFloat(fieldIndex, valueIndex);
+            case DOUBLE -> record.getDouble(fieldIndex, valueIndex);
+            case BINARY, FIXED_LEN_BYTE_ARRAY -> {
+                org.apache.parquet.schema.LogicalTypeAnnotation annotation = schema.getType(fieldIndex).getLogicalTypeAnnotation();
+                if (annotation instanceof org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation) {
+                    yield record.getString(fieldIndex, valueIndex);
+                }
+                yield java.util.Base64.getEncoder().encodeToString(record.getBinary(fieldIndex, valueIndex).getBytes());
+            }
+            case INT96 -> record.getValueToString(fieldIndex, valueIndex);
+        };
     }
 }
