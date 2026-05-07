@@ -8,6 +8,8 @@
 
 package org.opensearch.parquet.bridge;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
@@ -27,6 +29,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 
+// The Tokio IO runtime worker thread (used by the Rust merge k-way merge sort) is a process-lifetime
+// singleton that persists after tests complete. It polls for new async IO tasks between merges.
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
 
     private static final String INDEX_NAME = "merge-test-index";
