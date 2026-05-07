@@ -640,11 +640,13 @@ pub unsafe extern "C" fn df_execute_with_context(
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let cpu_executor = mgr.cpu_executor();
     // Route based on whether the session was configured for indexed execution
-    let handle_ref = &*(session_ctx_ptr as *const crate::session_context::SessionContextHandle);
-    if handle_ref.indexed_config.is_some() {
+    if session_handle.indexed_config.is_some() {
+        // TODO: refactor execute_indexed_with_context to take SessionContextHandle directly
+        // (like execute_with_context) instead of i64 raw pointer — avoids this re-boxing.
+        let ptr = Box::into_raw(Box::new(session_handle)) as i64;
         mgr.io_runtime
             .block_on(crate::indexed_executor::execute_indexed_with_context(
-                session_ctx_ptr,
+                ptr,
                 plan_bytes.to_vec(),
                 cpu_executor,
             ))
@@ -652,7 +654,7 @@ pub unsafe extern "C" fn df_execute_with_context(
     } else {
         mgr.io_runtime
             .block_on(crate::query_executor::execute_with_context(
-                session_ctx_ptr,
+                session_handle,
                 plan_bytes,
                 cpu_executor,
             ))

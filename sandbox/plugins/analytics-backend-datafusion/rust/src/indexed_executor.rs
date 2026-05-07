@@ -158,7 +158,7 @@ pub async fn execute_indexed_query(
         ctx,
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
-        query_context: crate::query_memory_pool_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone()),
+        query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone()),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
     };
