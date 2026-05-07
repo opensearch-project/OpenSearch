@@ -170,6 +170,7 @@ import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
+import org.opensearch.index.store.DefaultDataFormatAwareStoreDirectoryFactory;
 import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -271,6 +272,7 @@ import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.storage.common.tiering.TieringUtils;
+import org.opensearch.storage.directory.TieredDataFormatAwareStoreDirectoryFactory;
 import org.opensearch.storage.directory.TieredDirectoryFactory;
 import org.opensearch.storage.metrics.TierActionMetrics;
 import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
@@ -963,9 +965,12 @@ public class Node implements Closeable {
                 new HashMap<>();
 
             // Register default factory
+            dataFormatAwareStoreDirectoryFactories.put("default", new DefaultDataFormatAwareStoreDirectoryFactory());
+
+            // Register tiered factory for warm+format indices
             dataFormatAwareStoreDirectoryFactories.put(
-                "default",
-                new org.opensearch.index.store.DefaultDataFormatAwareStoreDirectoryFactory()
+                TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY,
+                new TieredDataFormatAwareStoreDirectoryFactory(tieredStoragePrefetchSettingsSupplier)
             );
 
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(

@@ -74,6 +74,18 @@ public class DirectoryUtilsTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("Expected FSDirectory but got"));
     }
 
+    public void testUnwrapFSDirectoryAlias() {
+        FSDirectory result = DirectoryUtils.unwrapFSDirectory(fsDirectory);
+        assertSame(fsDirectory, result);
+    }
+
+    public void testUnwrapFSDirectoryWrapped() {
+        FilterDirectory wrapped = new FilterDirectory(fsDirectory) {
+        };
+        FSDirectory result = DirectoryUtils.unwrapFSDirectory(wrapped);
+        assertSame(fsDirectory, result);
+    }
+
     public void testGetFilePath() {
         Path result = DirectoryUtils.getFilePath(fsDirectory, "test_file.si");
         assertEquals(tempDir.resolve("test_file.si"), result);
