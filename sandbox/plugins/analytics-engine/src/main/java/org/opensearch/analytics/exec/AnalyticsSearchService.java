@@ -23,7 +23,7 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
-import org.opensearch.arrow.transport.ArrowAllocatorProvider;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -48,7 +48,7 @@ import java.util.Map;
  * {@link IndexShard} from the transport action.
  *
  * <p>Owns a service-lifetime {@link BufferAllocator} shared by every fragment, obtained as a child of the
- * node-level root via {@link ArrowAllocatorProvider}. One allocator per service means memory accounting is
+ * node-level root via {@link ArrowAllocatorService}. One allocator per service means memory accounting is
  * reported at the service level. For the streaming path, Arrow Flight's outbound handler co-locates its
  * transfer target on the same root (see {@code FlightOutboundHandler#processBatchTask}), keeping transfers
  * same-root and avoiding the known cross-allocator bug with foreign-backed buffers from the C Data Interface.
@@ -59,32 +59,69 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
-    private final BufferAllocator allocator;
+    private final java.util.function.Supplier<ArrowAllocatorService> allocatorServiceSupplier;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private TaskResourceTrackingService taskResourceTrackingService;
+    private volatile BufferAllocator allocator;
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
-        this(backends, List.of(), null);
+    public AnalyticsSearchService(
+        Map<String, AnalyticsSearchBackendPlugin> backends,
+        java.util.function.Supplier<ArrowAllocatorService> allocatorServiceSupplier
+    ) {
+        this(backends, List.of(), allocatorServiceSupplier, null);
     }
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, NamedWriteableRegistry namedWriteableRegistry) {
-        this(backends, List.of(), namedWriteableRegistry);
+    public AnalyticsSearchService(
+        Map<String, AnalyticsSearchBackendPlugin> backends,
+        java.util.function.Supplier<ArrowAllocatorService> allocatorServiceSupplier,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
+        this(backends, List.of(), allocatorServiceSupplier, namedWriteableRegistry);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
+        java.util.function.Supplier<ArrowAllocatorService> allocatorServiceSupplier,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
-        this.allocator = ArrowAllocatorProvider.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
+        this.allocatorServiceSupplier = allocatorServiceSupplier;
         this.namedWriteableRegistry = namedWriteableRegistry;
+    }
+
+    private BufferAllocator allocator() {
+        BufferAllocator a = allocator;
+        if (a == null) {
+            synchronized (this) {
+                a = allocator;
+                if (a == null) {
+                    ArrowAllocatorService service = allocatorServiceSupplier.get();
+                    if (service == null) {
+                        throw new IllegalStateException(
+                            "ArrowAllocatorService not yet available; arrow-base plugin must be installed and loaded"
+                        );
+                    }
+                    a = service.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
+                    allocator = a;
+                }
+            }
+        }
+        return a;
     }
 
     @Override
     public void close() {
-        allocator.close();
+        BufferAllocator a = allocator;
+        if (a != null) {
+            try {
+                a.close();
+            } catch (IllegalStateException ignored) {
+                // Root may have already been closed by arrow-base's plugin shutdown, which cascades
+                // to children. Plugin close order is not guaranteed; swallow to stay idempotent.
+            }
+        }
     }
 
     public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
@@ -220,7 +257,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     ) {
         ShardScanExecutionContext ctx = new ShardScanExecutionContext(request.getShardId().getIndexName(), task, reader);
         ctx.setFragmentBytes(plan.getFragmentBytes());
-        ctx.setAllocator(allocator);
+        ctx.setAllocator(allocator());
         ctx.setMapperService(shard.mapperService());
         ctx.setIndexSettings(shard.indexSettings());
         ctx.setNamedWriteableRegistry(namedWriteableRegistry);

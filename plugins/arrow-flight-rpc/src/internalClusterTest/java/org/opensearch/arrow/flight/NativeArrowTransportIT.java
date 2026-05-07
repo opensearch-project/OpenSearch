@@ -24,8 +24,8 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.arrow.plugin.ArrowBasePlugin;
-import org.opensearch.arrow.transport.ArrowAllocatorProvider;
 import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.arrow.transport.ArrowBatchResponseHandler;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -350,18 +350,6 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
      * batches via sendResponseBatch(). The framework does zero-copy transfer
      * on the executor thread.
      */
-    public static class TestAllocatorHolder {
-        private final BufferAllocator allocator;
-
-        TestAllocatorHolder(BufferAllocator allocator) {
-            this.allocator = allocator;
-        }
-
-        BufferAllocator get() {
-            return allocator;
-        }
-    }
-
     public static class TransportTestArrowAction extends TransportAction<TestArrowRequest, TestArrowResponse> {
         private final BufferAllocator allocator;
 
@@ -369,10 +357,10 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         public TransportTestArrowAction(
             StreamTransportService streamTransportService,
             ActionFilters actionFilters,
-            TestAllocatorHolder allocatorHolder
+            ArrowAllocatorService allocatorService
         ) {
             super(TestArrowAction.NAME, actionFilters, streamTransportService.getTaskManager());
-            this.allocator = allocatorHolder.get();
+            this.allocator = allocatorService.newChildAllocator("native-arrow-test", Long.MAX_VALUE);
             streamTransportService.registerRequestHandler(
                 TestArrowAction.NAME,
                 ThreadPool.Names.GENERIC,
@@ -502,35 +490,12 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
     }
 
     public static class NativeArrowTestPlugin extends Plugin implements ActionPlugin {
-        private final BufferAllocator allocator = ArrowAllocatorProvider.newChildAllocator("native-arrow-test", Long.MAX_VALUE);
 
         public NativeArrowTestPlugin() {}
 
         @Override
-        public Collection<Object> createComponents(
-            org.opensearch.transport.client.Client client,
-            org.opensearch.cluster.service.ClusterService clusterService,
-            ThreadPool threadPool,
-            org.opensearch.watcher.ResourceWatcherService resourceWatcherService,
-            org.opensearch.script.ScriptService scriptService,
-            org.opensearch.core.xcontent.NamedXContentRegistry xContentRegistry,
-            org.opensearch.env.Environment environment,
-            org.opensearch.env.NodeEnvironment nodeEnvironment,
-            org.opensearch.core.common.io.stream.NamedWriteableRegistry namedWriteableRegistry,
-            org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver,
-            java.util.function.Supplier<org.opensearch.repositories.RepositoriesService> repositoriesServiceSupplier
-        ) {
-            return List.of(new TestAllocatorHolder(allocator));
-        }
-
-        @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             return List.of(new ActionHandler<>(TestArrowAction.INSTANCE, TransportTestArrowAction.class));
-        }
-
-        @Override
-        public void close() {
-            allocator.close();
         }
     }
 }

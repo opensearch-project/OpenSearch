@@ -52,10 +52,10 @@ public class TransportNativeArrowStreamDataAction extends TransportAction<Native
     public TransportNativeArrowStreamDataAction(
         StreamTransportService streamTransportService,
         ActionFilters actionFilters,
-        ExampleAllocator exampleAllocator
+        org.opensearch.arrow.memory.ArrowAllocatorService allocatorService
     ) {
         super(NativeArrowStreamDataAction.NAME, actionFilters, streamTransportService.getTaskManager());
-        this.allocator = exampleAllocator.get();
+        this.allocator = allocatorService.newChildAllocator("stream-transport-example", Long.MAX_VALUE);
         streamTransportService.registerRequestHandler(
             NativeArrowStreamDataAction.NAME,
             ThreadPool.Names.GENERIC,

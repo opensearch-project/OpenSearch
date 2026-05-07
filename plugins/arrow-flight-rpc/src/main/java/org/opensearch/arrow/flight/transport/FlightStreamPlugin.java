@@ -16,9 +16,13 @@ import org.opensearch.arrow.flight.stats.FlightStatsAction;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.arrow.flight.stats.FlightStatsRestHandler;
 import org.opensearch.arrow.flight.stats.TransportFlightStatsAction;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.AbstractModule;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.inject.Module;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -56,6 +60,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -65,6 +70,7 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
 
     private final boolean isStreamTransportEnabled;
     private FlightStatsCollector statsCollector;
+    private final ArrowAllocatorServiceHolder allocatorHolder = new ArrowAllocatorServiceHolder();
 
     /**
      * Constructor for FlightStreamPluginImpl.
@@ -117,7 +123,21 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
         List<Object> components = new ArrayList<>();
         statsCollector = new FlightStatsCollector();
         components.add(statsCollector);
+        components.add(allocatorHolder);
         return components;
+    }
+
+    @Override
+    public Collection<Module> createGuiceModules() {
+        if (!isStreamTransportEnabled) {
+            return Collections.emptyList();
+        }
+        return Collections.singletonList(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bind(ArrowAllocatorServiceBridge.class).asEagerSingleton();
+            }
+        });
     }
 
     /**
@@ -157,7 +177,8 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
                     networkService,
                     tracer,
                     sslContextProvider,
-                    statsCollector
+                    statsCollector,
+                    allocatorHolder
                 )
             );
         }
@@ -198,7 +219,8 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
                     networkService,
                     tracer,
                     null,
-                    statsCollector
+                    statsCollector,
+                    allocatorHolder
                 )
             );
         }
@@ -305,5 +327,42 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
                 addAll(ServerConfig.getSettings());
             }
         };
+    }
+
+    /**
+     * Per-plugin-instance holder for the {@link ArrowAllocatorService}. Guice populates this via
+     * {@link ArrowAllocatorServiceBridge} after the injector is built; {@code FlightTransport}
+     * reads it via {@link #get()} at {@code doStart()} time, which runs after injector
+     * construction. Holding it on the plugin instance (not a static field) keeps each node in
+     * {@code InternalTestCluster} bound to its own allocator service.
+     */
+    public static final class ArrowAllocatorServiceHolder implements Supplier<ArrowAllocatorService> {
+
+        /** Creates an empty holder. Populated later by {@link ArrowAllocatorServiceBridge}. */
+        public ArrowAllocatorServiceHolder() {}
+
+        private final AtomicReference<ArrowAllocatorService> ref = new AtomicReference<>();
+
+        void set(ArrowAllocatorService service) {
+            ref.set(service);
+        }
+
+        @Override
+        public ArrowAllocatorService get() {
+            return ref.get();
+        }
+    }
+
+    /**
+     * Guice-constructed bridge that copies the injected {@link ArrowAllocatorService} into the
+     * plugin's per-instance {@link ArrowAllocatorServiceHolder}. Registered as an eager
+     * singleton in {@link #createGuiceModules()} so Guice constructs it inside
+     * {@code createInjector()} — before transports start and before anyone reads the holder.
+     */
+    public static final class ArrowAllocatorServiceBridge {
+        @Inject
+        public ArrowAllocatorServiceBridge(ArrowAllocatorService service, ArrowAllocatorServiceHolder holder) {
+            holder.set(service);
+        }
     }
 }

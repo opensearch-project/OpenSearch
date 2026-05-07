@@ -46,22 +46,22 @@ import java.io.IOException;
  *
  * <p><b>Allocator rules:</b>
  * <ul>
- *   <li><b>Send side:</b> Use a child of {@link ArrowAllocatorProvider}. All allocators
- *       must share the same root so zero-copy transfers pass Arrow's
+ *   <li><b>Send side:</b> Use a child of {@link org.opensearch.arrow.memory.ArrowAllocatorService}.
+ *       All allocators must share the same root so zero-copy transfers pass Arrow's
  *       {@code AllocationManager} associate check.</li>
  *   <li><b>Send side:</b> Allocators must outlive the transport stream — some transports
  *       (e.g., gRPC zero-copy) retain buffer references beyond stream completion. Do not
  *       create and close a child allocator per request.</li>
  *   <li><b>Receive side:</b> The transport transfers vectors from its own allocator into
  *       the response. The consumer can then transfer them into its own allocator — which
- *       must also be a child of {@link ArrowAllocatorProvider}.</li>
+ *       must also be a child of {@link org.opensearch.arrow.memory.ArrowAllocatorService}.</li>
  * </ul>
  *
- * <p><b>Cross-plugin footgun:</b> bypassing {@link ArrowAllocatorProvider} (e.g. {@code
- * new RootAllocator()} inside a plugin) does not fail fast — allocation and single-plugin
- * use still work. But any zero-copy handoff to another plugin's buffers will trip Arrow's
- * {@code AllocationManager.associate()} check, because roots are compared by identity, not
- * by address space.
+ * <p><b>Cross-plugin footgun:</b> bypassing {@link org.opensearch.arrow.memory.ArrowAllocatorService}
+ * (e.g. {@code new RootAllocator()} inside a plugin) does not fail fast — allocation and
+ * single-plugin use still work. But any zero-copy handoff to another plugin's buffers will trip
+ * Arrow's {@code AllocationManager.associate()} check, because roots are compared by identity,
+ * not by address space.
  *
  * @opensearch.experimental
  */
