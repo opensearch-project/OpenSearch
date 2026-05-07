@@ -317,13 +317,7 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         // For this regression, the inner doesn't need to be a final-agg — a bare scan-shaped
         // plan with 3-column rowType is enough to surface the wrapper-vs-inner names mismatch.
         // Use convertFinalAggFragment so the inner Plan.Root.names is the 3-column scan list.
-        RelNode innerStageScan = new OpenSearchStageInputScan(
-            cluster,
-            cluster.traitSet(),
-            0,
-            wideStageRowType,
-            List.of("datafusion")
-        );
+        RelNode innerStageScan = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 0, wideStageRowType, List.of("datafusion"));
         // Wrap it in a no-op aggregate so the convertor accepts it as a final-agg fragment shape.
         // The inner's Plan.Root.names then carries the agg-output (1 col, "sum_col"), but the
         // *wrapper* we attach above has its own output rowType.
