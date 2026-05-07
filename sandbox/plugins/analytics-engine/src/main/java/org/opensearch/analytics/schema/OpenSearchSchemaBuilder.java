@@ -116,23 +116,38 @@ public class OpenSearchSchemaBuilder {
             @Override
             public RelDataType getRowType(RelDataTypeFactory typeFactory) {
                 RelDataTypeFactory.Builder builder = typeFactory.builder();
-                for (Map.Entry<String, Object> fieldEntry : properties.entrySet()) {
-                    String fieldName = fieldEntry.getKey();
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> fieldProps = (Map<String, Object>) fieldEntry.getValue();
-                    String fieldType = (String) fieldProps.get("type");
-                    if (fieldType == null) {
-                        continue;
-                    }
-                    // Skip nested and object types
-                    if ("nested".equals(fieldType) || "object".equals(fieldType)) {
-                        continue;
-                    }
-                    SqlTypeName sqlType = mapFieldType(fieldType);
-                    builder.add(fieldName, typeFactory.createTypeWithNullability(typeFactory.createSqlType(sqlType), true));
-                }
+                addLeafFields(builder, typeFactory, properties, "");
                 return builder.build();
             }
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void addLeafFields(
+        RelDataTypeFactory.Builder builder,
+        RelDataTypeFactory typeFactory,
+        Map<String, Object> properties,
+        String pathPrefix
+    ) {
+        for (Map.Entry<String, Object> fieldEntry : properties.entrySet()) {
+            String fieldName = pathPrefix.isEmpty() ? fieldEntry.getKey() : pathPrefix + "." + fieldEntry.getKey();
+            Map<String, Object> fieldProps = (Map<String, Object>) fieldEntry.getValue();
+            String fieldType = (String) fieldProps.get("type");
+            // Object types: implicit when "properties" is present without "type", or explicit "type: object".
+            // Recurse into sub-properties so dotted leaf paths ("city.location.latitude") appear as flat columns.
+            if (fieldType == null || "object".equals(fieldType)) {
+                Map<String, Object> nested = (Map<String, Object>) fieldProps.get("properties");
+                if (nested != null) {
+                    addLeafFields(builder, typeFactory, nested, fieldName);
+                }
+                continue;
+            }
+            // Nested type (array-of-sub-docs) is a different beast — deferred.
+            if ("nested".equals(fieldType)) {
+                continue;
+            }
+            SqlTypeName sqlType = mapFieldType(fieldType);
+            builder.add(fieldName, typeFactory.createTypeWithNullability(typeFactory.createSqlType(sqlType), true));
+        }
     }
 }

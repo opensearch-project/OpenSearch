@@ -1,0 +1,7 @@
+{"index": {"_id": "1"}}
+{"id": "1", "city": {"name": "Seattle", "population": 750000, "location": {"latitude": 47.6062, "longitude": -122.3321}}, "account": {"owner": "alice", "balance": 1000.50}}
+{"index": {"_id": "2"}}
+{"id": "2", "city": {"name": "Portland", "population": 650000, "location": {"latitude": 45.5152, "longitude": -122.6784}}, "account": {"owner": "bob", "balance": 2500.00}}
+{"index": {"_id": "3"}}
+{"id": "3", "city": {"name": "Austin", "population": 980000, "location": {"latitude": 30.2672, "longitude": -97.7431}}, "account": {"owner": "carol", "balance": 300.25}}
+
