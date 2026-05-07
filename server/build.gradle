@@ -178,18 +178,21 @@ tasks.named('forbiddenApisInternalClusterTest').configure { forbidSleep() }
 
 // Set to current version by default
 def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
-if (japicmpCompareTarget == null) { /* use latest released version */
-    // Read the list from maven central.
-    // Fetch the metadata and parse the xml into Version instances, pick the latest one
+if (japicmpCompareTarget == null) {
+    // Fetch released versions from maven central, pick the latest on the same major line before current.
+    def currentVersion = org.opensearch.gradle.Version.fromString(org.opensearch.gradle.VersionProperties.getOpenSearch())
     japicmpCompareTarget = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
-        new XmlParser().parse(s)
-           .versioning.versions.version
-           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
-           .collect { org.opensearch.gradle.Version.fromString(it) }
-           .toSorted()
-           .last()
-           .toString()
-        }
+        new XmlParser().parse(s).versioning.versions.version
+            .collect { it.text() }
+            .findAll { it ==~ /\d+\.\d+\.\d+/ }
+            .collect { org.opensearch.gradle.Version.fromString(it) }
+            .findAll { it.getMajor() == currentVersion.getMajor() && it.before(currentVersion) }
+            .toSorted()
+            .with { it.empty ? null : it.last().toString() }
+    }
+    if (japicmpCompareTarget == null) {
+        logger.lifecycle("No prior released version found on the same major line. Skipping japicmp.")
+    }
 }
 
 def generateModulesList = tasks.register("generateModulesList") {
@@ -496,22 +499,25 @@ tasks.named("sourcesJar").configure {
   }
 }
 
-/** Compares the current build against a laltest released version or the version supplied through 'japicmp.compare.version' system property */
+/** Compares the current build against a latest released version or the version supplied through 'japicmp.compare.version' system property */
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
-    logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
-    // See please https://github.com/siom79/japicmp/issues/201
-    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE" ]
-    oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
-    newClasspath.from(tasks.named('jar'))
-    onlyModified = true
-    failOnModification = true
-    ignoreMissingClasses = true
-    failOnSourceIncompatibility = true
-    annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
-    annotationExcludes = ['@org.opensearch.common.annotation.InternalApi', '@org.opensearch.common.annotation.ExperimentalApi']
-    txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
-    htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
-    dependsOn downloadJapicmpCompareTarget
+    enabled = japicmpCompareTarget != null
+    if (japicmpCompareTarget != null) {
+        logger.lifecycle("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
+        // See please https://github.com/siom79/japicmp/issues/201
+        compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE" ]
+        oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
+        newClasspath.from(tasks.named('jar'))
+        onlyModified = true
+        failOnModification = true
+        ignoreMissingClasses = true
+        failOnSourceIncompatibility = true
+        annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
+        annotationExcludes = ['@org.opensearch.common.annotation.InternalApi', '@org.opensearch.common.annotation.ExperimentalApi']
+        txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
+        htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
+        dependsOn downloadJapicmpCompareTarget
+    }
 }
 
 /** If the Java API Comparison task failed, print a hint if the change should be merged from its target branch */
