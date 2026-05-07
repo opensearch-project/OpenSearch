@@ -118,6 +118,28 @@ public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
     }
 
     /**
+     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonSet*} —
+     * wildcard replace, missing path unchanged, and partial-wildcard set. All
+     * values stored as JSON strings because the Rust UDF coerces every arg to
+     * Utf8, matching the legacy fixture's {@code "b":"3"} (stringified, not
+     * numeric) outputs.
+     */
+    public void testJsonSetParityWithLegacy() {
+        // testJsonSet: wildcard replace across every array element.
+        assertScalarString("json_set('{\"a\":[{\"b\":1},{\"b\":2}]}', 'a{}.b', '3')", "{\"a\":[{\"b\":\"3\"},{\"b\":\"3\"}]}");
+
+        // testJsonSetWithWrongPath: 'a{}.b.d' doesn't exist — input unchanged.
+        assertScalarString("json_set('{\"a\":[{\"b\":1},{\"b\":2}]}', 'a{}.b.d', '3')", "{\"a\":[{\"b\":1},{\"b\":2}]}");
+
+        // testJsonSetPartialSet: wildcard where only one branch has the full
+        // path; only the matching branch is rewritten.
+        assertScalarString(
+            "json_set('{\"a\":[{\"b\":1},{\"b\":{\"c\":2}}]}', 'a{}.b.c', '3')",
+            "{\"a\":[{\"b\":1},{\"b\":{\"c\":\"3\"}}]}"
+        );
+    }
+
+    /**
      * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonDelete*}
      * — flat-key delete, nested-key delete, missing-path-unchanged, and
      * wildcard-array delete. Output order is preserved because the plugin's

@@ -119,6 +119,7 @@ pub mod json_array_length;
 pub mod json_delete;
 pub mod json_extract;
 pub mod json_keys;
+pub mod json_set;
 pub mod tonumber;
 pub mod tostring;
 
@@ -135,10 +136,11 @@ pub fn register_all(ctx: &SessionContext) {
     json_delete::register_all(ctx);
     json_extract::register_all(ctx);
     json_keys::register_all(ctx);
+    json_set::register_all(ctx);
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, json_array_length, json_delete, json_extract, json_keys, tonumber, tostring registered"
+        "OpenSearch UDF register_all: convert_tz, json_array_length, json_delete, json_extract, json_keys, json_set, tonumber, tostring registered"
     );
 }
 

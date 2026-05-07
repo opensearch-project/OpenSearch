@@ -358,3 +358,14 @@ scalar_functions:
       - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
         variadic: { min: 1 }
         return: string
+
+  # json_set(value, path1, val1, path2, val2, ...) — Rust UDF. rust/src/udf/json_set.rs.
+  # Target of JsonFunctionAdapters.JsonSetAdapter. Replace-only: each PPL-path
+  # match is overwritten with the paired value; missing paths are no-ops
+  # (parity with Jayway `ctx.set` guarded by `ctx.read != null`).
+  - name: "json_set"
+    description: "Replace values at PPL-path matches in a JSON document; missing paths are no-ops, NULL on malformed input."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string

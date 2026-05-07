@@ -225,7 +225,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.JSON_ARRAY_LENGTH,
         ScalarFunction.JSON_DELETE,
         ScalarFunction.JSON_EXTRACT,
-        ScalarFunction.JSON_KEYS
+        ScalarFunction.JSON_KEYS,
+        ScalarFunction.JSON_SET
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -337,6 +338,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_DELETE, new JsonFunctionAdapters.JsonDeleteAdapter()),
                     Map.entry(ScalarFunction.JSON_EXTRACT, new JsonFunctionAdapters.JsonExtractAdapter()),
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
+                    Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
                     Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),
                     Map.entry(ScalarFunction.MICROSECOND, DatePartAdapters.microsecond()),

@@ -98,6 +98,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *       {@code json_extract} (Rust UDF, homogeneous-string variadic).</li>
      *   <li>{@link JsonFunctionAdapters.JsonKeysAdapter#LOCAL_JSON_KEYS_OP} →
      *       {@code json_keys} (Rust UDF).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonSetAdapter#LOCAL_JSON_SET_OP} →
+     *       {@code json_set} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
      *   <li>{@link SqlLibraryOperators#REGEXP_CONTAINS} → {@code regex_match} (boolean regex match;
      *       resolved by DataFusion's substrait consumer to {@code Operator::RegexMatch}, the same
      *       binary operator that backs PostgreSQL's {@code ~} regex match). Lowering target for PPL
@@ -141,7 +143,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(JsonFunctionAdapters.JsonArrayLengthAdapter.LOCAL_JSON_ARRAY_LENGTH_OP, "json_array_length"),
         FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
-        FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys")
+        FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;

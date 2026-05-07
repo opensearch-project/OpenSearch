@@ -154,4 +154,30 @@ final class JsonFunctionAdapters {
             super(LOCAL_JSON_DELETE_OP, List.of(), List.of());
         }
     }
+
+    /**
+     * Adapter for PPL's {@code JSON_SET(value, path1, val1, [path2, val2, ...])}.
+     * Plain rename to the Rust UDF at {@code rust/src/udf/json_set.rs}; all
+     * validation (arity / pairing, malformed JSON, malformed path) lives in the
+     * UDF. Return type is preserved from the original PPL call, matching
+     * {@code STRING_FORCE_NULLABLE} declared on {@code JsonSetFunctionImpl}.
+     *
+     * <p>Replace-only semantics: missing paths are no-ops (parity with legacy
+     * `JsonFunctions.jsonSet`'s `ctx.read != null` guard).
+     */
+    static class JsonSetAdapter extends AbstractNameMappingAdapter {
+
+        static final SqlOperator LOCAL_JSON_SET_OP = new SqlFunction(
+            "json_set",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.VARCHAR_NULLABLE,
+            null,
+            OperandTypes.VARIADIC,
+            SqlFunctionCategory.STRING
+        );
+
+        JsonSetAdapter() {
+            super(LOCAL_JSON_SET_OP, List.of(), List.of());
+        }
+    }
 }
