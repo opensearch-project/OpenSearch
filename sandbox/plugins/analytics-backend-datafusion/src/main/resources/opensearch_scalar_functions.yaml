@@ -369,3 +369,15 @@ scalar_functions:
       - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
         variadic: { min: 1 }
         return: string
+
+  # json_append(value, path1, val1, path2, val2, ...) — Rust UDF. rust/src/udf/json_append.rs.
+  # Target of JsonFunctionAdapters.JsonAppendAdapter. Push-only: each PPL-path
+  # match that resolves to an array has the paired value pushed as a single
+  # element; non-array / missing targets are silent no-ops (parity with legacy
+  # `JsonFunctions.jsonInsert` routed through the Collection-parent branch).
+  - name: "json_append"
+    description: "Push values onto PPL-path-matched arrays in a JSON document; non-array targets are no-ops, NULL on malformed input."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string

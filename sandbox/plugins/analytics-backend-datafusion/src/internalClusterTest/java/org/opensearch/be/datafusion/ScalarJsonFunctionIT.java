@@ -140,6 +140,39 @@ public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
     }
 
     /**
+     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonAppend}.
+     * Legacy passes nested {@code json_object(...)} / {@code json_array(...)}
+     * as sibling eval expressions; Calcite evaluates those constructors to
+     * stringified JSON before the outer call, so substituting the literal
+     * stringified JSON here reproduces the same observable contract (legacy
+     * `"{\"name\":\"Tomy\"...}"` element = our literal-string argument).
+     */
+    public void testJsonAppendParityWithLegacy() {
+        // Case a: pre-stringified json_object(...) appended as a single array element.
+        assertScalarString(
+            "json_append('{\"teacher\":[\"Alice\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}',"
+                + " 'student', '{\"name\":\"Tomy\",\"rank\":5}')",
+            "{\"teacher\":[\"Alice\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2},"
+                + "\"{\\\"name\\\":\\\"Tomy\\\",\\\"rank\\\":5}\"]}"
+        );
+
+        // Case b: multi-pair append on the same target.
+        assertScalarString(
+            "json_append('{\"teacher\":[\"Alice\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}',"
+                + " 'teacher', 'Tom', 'teacher', 'Walt')",
+            "{\"teacher\":[\"Alice\",\"Tom\",\"Walt\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}"
+        );
+
+        // Case c: nested-path + pre-stringified json_array(...) appended as a single string element.
+        assertScalarString(
+            "json_append('{\"school\":{\"teacher\":[\"Alice\"],\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}}',"
+                + " 'school.teacher', '[\"Tom\",\"Walt\"]')",
+            "{\"school\":{\"teacher\":[\"Alice\",\"[\\\"Tom\\\",\\\"Walt\\\"]\"],"
+                + "\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}}"
+        );
+    }
+
+    /**
      * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonDelete*}
      * — flat-key delete, nested-key delete, missing-path-unchanged, and
      * wildcard-array delete. Output order is preserved because the plugin's

@@ -171,6 +171,7 @@ public enum ScalarFunction {
     UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
+    JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_DELETE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTRACT(Category.SCALAR, SqlKind.OTHER_FUNCTION),

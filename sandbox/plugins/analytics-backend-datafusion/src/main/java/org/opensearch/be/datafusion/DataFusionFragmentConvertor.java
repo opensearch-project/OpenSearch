@@ -90,6 +90,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of YearAdapter's rewrite).</li>
      *   <li>{@link ConvertTzAdapter#LOCAL_CONVERT_TZ_OP} → {@code convert_tz} (Rust UDF).</li>
      *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonAppendAdapter#LOCAL_JSON_APPEND_OP} →
+     *       {@code json_append} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
      *   <li>{@link JsonFunctionAdapters.JsonArrayLengthAdapter#LOCAL_JSON_ARRAY_LENGTH_OP} →
      *       {@code json_array_length} (Rust UDF).</li>
      *   <li>{@link JsonFunctionAdapters.JsonDeleteAdapter#LOCAL_JSON_DELETE_OP} →
@@ -140,11 +142,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
         FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
         FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME),
+        FunctionMappings.s(JsonFunctionAdapters.JsonAppendAdapter.LOCAL_JSON_APPEND_OP, "json_append"),
         FunctionMappings.s(JsonFunctionAdapters.JsonArrayLengthAdapter.LOCAL_JSON_ARRAY_LENGTH_OP, "json_array_length"),
         FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
         FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
-        FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set")
+        FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;
