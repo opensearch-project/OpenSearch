@@ -176,16 +176,22 @@ pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
 // QueryTrackingContext
 // ---------------------------------------------------------------------------
 
-/// Per-query context that owns the memory pool and tracker.
+/// Per-query context that owns the memory pool, tracker, and phantom reservation.
 ///
 /// - On creation: registers the tracker in the global registry.
 /// - On [`Drop`]: marks the tracker completed and logs final metrics.
 ///   The tracker stays in the registry for JNI retrieval.
+///   The phantom reservation is released, freeing pool capacity.
 ///
 /// For `context_id == 0` (unset), no tracking is performed.
 #[derive(Debug)]
 pub struct QueryTrackingContext {
     tracker: Option<Arc<QueryTracker>>,
+    /// Phantom reservation that occupies pool capacity for untracked memory
+    /// (in-flight batches, decode buffers, channel buffers). Holding this
+    /// ensures operators see realistic available capacity and spill earlier.
+    /// Released on drop (query completion).
+    phantom_reservation: Option<MemoryReservation>,
 }
 
 impl QueryTrackingContext {
@@ -193,17 +199,16 @@ impl QueryTrackingContext {
     /// disabled and `memory_pool()` returns `None`.
     pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>) -> Self {
         if context_id == 0 {
-            return Self { tracker: None };
+            return Self {
+                tracker: None,
+                phantom_reservation: None,
+            };
         }
         let query_pool = Arc::new(QueryMemoryPool::new(global_pool));
         let tracker = Arc::new(QueryTracker {
             start_time: Instant::now(),
             context_id,
             memory_pool: query_pool,
-            // CancellationToken is a thread-safe, cloneable handle that can be used to
-            // signal cancellation to async tasks via `token.cancelled().await` in a
-            // `tokio::select!` branch. Calling `token.cancel()` fires all waiters.
-            // See: https://github.com/tokio-rs/tokio/blob/master/tokio-util/src/sync/cancellation_token/tree_node.rs
             cancellation_token: CancellationToken::new(),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
@@ -211,7 +216,27 @@ impl QueryTrackingContext {
         QUERY_REGISTRY.insert(context_id, Arc::clone(&tracker));
         Self {
             tracker: Some(tracker),
+            phantom_reservation: None,
         }
+    }
+
+    /// Attach a phantom reservation from [`crate::query_memory_budget::acquire_budget`].
+    ///
+    /// The reservation represents untracked memory (in-flight batches, decode
+    /// buffers, channel buffers) and is held for the query's lifetime. It makes
+    /// the pool see the full memory footprint, causing spillable operators to
+    /// spill earlier rather than letting the process exceed its RSS target.
+    ///
+    /// Must be called after construction and before the query starts executing.
+    pub fn set_phantom_reservation(&mut self, reservation: MemoryReservation) {
+        self.phantom_reservation = Some(reservation);
+    }
+
+    /// Returns the phantom reservation size in bytes, or 0 if none is set.
+    pub fn phantom_bytes(&self) -> usize {
+        self.phantom_reservation
+            .as_ref()
+            .map_or(0, |r| r.size())
     }
 
     /// The per-query memory pool to install in a `RuntimeEnv`, or `None`
@@ -228,14 +253,19 @@ impl QueryTrackingContext {
 
 impl Drop for QueryTrackingContext {
     fn drop(&mut self) {
+        // Drop phantom reservation first — frees pool capacity before marking complete
+        let phantom_bytes = self.phantom_bytes();
+        self.phantom_reservation = None;
+
         if let Some(tracker) = &self.tracker {
             tracker.mark_completed();
             debug!(
-                "Query completed ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
+                "Query completed ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B, phantom={}B",
                 tracker.context_id,
                 tracker.wall_secs(),
                 tracker.memory_pool.current_bytes(),
                 tracker.memory_pool.peak_bytes(),
+                phantom_bytes,
             );
         }
     }

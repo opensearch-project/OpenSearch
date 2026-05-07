@@ -283,10 +283,46 @@ pub async unsafe fn execute_query(
 
     // Create per-query context — auto-registers in the global registry
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let query_context = QueryTrackingContext::new(context_id, global_pool);
+    let mut query_context = QueryTrackingContext::new(context_id, global_pool.clone());
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
+
+    // Acquire a memory budget: reserves phantom capacity from the pool for
+    // untracked memory (in-flight batches, decode buffers, channel buffers).
+    // If the pool is under pressure, this adaptively reduces target_partitions
+    // and/or batch_size. Operators sharing the same pool will see reduced
+    // headroom and spill to disk earlier — keeping total RSS bounded.
+    //
+    // Best-effort: only enforces budget if the schema is already cached (zero
+    // I/O). If not cached, runs at full configured parallelism — the schema
+    // will be cached after the first query, so subsequent queries benefit.
+    let (effective_target_partitions, effective_batch_size) =
+        match try_schema_from_cache(shard_view, &runtime.runtime_env) {
+            Some(schema) => {
+                match crate::query_memory_budget::acquire_budget(
+                    &global_pool,
+                    &schema,
+                    query_config.target_partitions,
+                    query_config.batch_size,
+                ) {
+                    Ok(budget) => {
+                        let tp = budget.target_partitions;
+                        let bs = budget.batch_size;
+                        query_context.set_phantom_reservation(budget.phantom_reservation);
+                        (tp, bs)
+                    }
+                    Err(_) => {
+                        // Pool fully exhausted — run at minimum parallelism as best effort
+                        (1, query_config.batch_size)
+                    }
+                }
+            }
+            None => {
+                // Schema not cached — skip budget enforcement, run at full config
+                (query_config.target_partitions, query_config.batch_size)
+            }
+        };
 
     // Peek at the substrait extensions list to see if this is an indexed query.
     // The `index_filter` UDF name appears there if Calcite planted any
@@ -296,9 +332,14 @@ pub async unsafe fn execute_query(
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
 
+    // Apply budget-adjusted config
+    let mut budgeted_config = query_config.clone();
+    budgeted_config.target_partitions = effective_target_partitions;
+    budgeted_config.batch_size = effective_batch_size;
+
     let query_future = async {
         if is_indexed {
-            let qc = Arc::new(query_config);
+            let qc = Arc::new(budgeted_config);
             crate::indexed_executor::execute_indexed_query(
                 plan_bytes.to_vec(),
                 table_name.to_string(),
@@ -318,7 +359,7 @@ pub async unsafe fn execute_query(
                 runtime,
                 cpu_executor,
                 query_memory_pool,
-                &query_config,
+                &budgeted_config,
             ).await
         }
     };
@@ -331,6 +372,31 @@ pub async unsafe fn execute_query(
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
     let handle = QueryStreamHandle::new(stream, query_context);
     Ok(Box::into_raw(Box::new(handle)) as i64)
+}
+
+/// Best-effort schema resolution from the file metadata cache.
+///
+/// Checks if parquet metadata is already cached for the first file in the shard
+/// view. If yes, extracts the Arrow schema via `as_any()` downcast (zero I/O).
+/// If not cached, returns `None` — the caller should skip budget enforcement
+/// rather than paying the cost of reading the parquet footer.
+fn try_schema_from_cache(
+    shard_view: &ShardView,
+    runtime_env: &datafusion::execution::runtime_env::RuntimeEnv,
+) -> Option<datafusion::arrow::datatypes::SchemaRef> {
+    use parquet::arrow::parquet_to_arrow_schema;
+    use parquet::file::metadata::ParquetMetaData;
+
+    let cache = runtime_env.cache_manager.get_file_metadata_cache();
+    let first_meta = shard_view.object_metas.first()?;
+    let cached = cache.get(first_meta)?;
+    let parquet_meta = cached.as_any().downcast_ref::<ParquetMetaData>()?;
+    parquet_to_arrow_schema(
+        parquet_meta.file_metadata().schema_descr(),
+        parquet_meta.file_metadata().key_value_metadata(),
+    )
+    .ok()
+    .map(Arc::new)
 }
 
 /// Cheap check: scan the substrait plan bytes for the `index_filter` function
