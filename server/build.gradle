@@ -186,18 +186,15 @@ tasks.named('forbiddenApisInternalClusterTest').configure { forbidSleep() }
 
 // Set to current version by default
 def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
-if (japicmpCompareTarget == null) { /* use latest released version */
+if (japicmpCompareTarget == null) { /* use latest released version from the previous minor line */
     // Read the list from maven central.
-    // Fetch the metadata and parse the xml into Version instances, pick the latest one
+    // Fetch the metadata and parse the xml into Version instances, pick the latest previous minor.
     japicmpCompareTarget = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
-        new XmlParser().parse(s)
-           .versioning.versions.version
-           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
-           .collect { org.opensearch.gradle.Version.fromString(it) }
-           .toSorted()
-           .last()
-           .toString()
-        }
+        org.opensearch.gradle.VersionSelection.latestReleasedBeforeCurrentMinor(
+            org.opensearch.gradle.VersionProperties.getOpenSearch(),
+            new XmlParser().parse(s).versioning.versions.version.collect { it.text() }
+        )
+    }
 }
 
 def generateModulesList = tasks.register("generateModulesList") {
