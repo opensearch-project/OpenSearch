@@ -172,6 +172,7 @@ public enum ScalarFunction {
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_DELETE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTRACT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 

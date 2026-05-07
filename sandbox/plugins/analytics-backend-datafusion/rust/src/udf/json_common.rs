@@ -8,17 +8,22 @@
 
 //! Shared helpers for the PPL `json_*` UDFs.
 //!
-//! Three concerns live here so the per-function modules stay thin:
+//! Four concerns live here so the per-function modules stay thin:
 //! 1. **PPL-path → JSONPath** conversion (`convert_ppl_path`) — mirrors the
 //!    SQL-plugin's `JsonUtils.convertToJsonPath`: `a{i}.b{}` ⇒ `$.a[i].b[*]`.
-//! 2. **Parsing** (`parse`) — `serde_json::from_str` with malformed-to-`None`.
-//! 3. **Arity guards** — `plan_err!` wrappers at the top of `invoke_with_args`.
+//! 2. **PPL-path → segment vector** (`parse_ppl_segments`) — tokenises the
+//!    same input into `Segment::{Field, Index, Wildcard}` for native mutation.
+//! 3. **Mutation walker** (`walk_mut`) — traverses a `serde_json::Value` by
+//!    PPL segments, invoking the supplied closure at each terminal match.
+//!    Missing intermediate keys are silently skipped, matching legacy
+//!    `ctx.delete` (Jayway `SUPPRESS_EXCEPTIONS`) semantics.
+//! 4. **Parsing** (`parse`) — `serde_json::from_str` with malformed-to-`None`.
 //!
 //! Kept deliberately small: only helpers that at least two UDFs use land here.
 
-// Consumers (`json_valid`, mutation UDFs) land in follow-up commits on the
-// same PR; silence dead-code warnings so `cargo check` stays clean while
-// only a subset of helpers have in-tree callers.
+// The mutation walker + segment parser are introduced alongside json_delete
+// but also used by json_set / json_append / json_extend in follow-up commits
+// on the same PR. Silence dead-code warnings until every consumer lands.
 #![allow(dead_code)]
 
 use datafusion::arrow::array::{ArrayRef, StringArray};
@@ -73,6 +78,107 @@ pub(crate) fn convert_ppl_path(input: &str) -> Result<String> {
 /// `json_udf_legacy_semantics.md`).
 pub(crate) fn parse(s: &str) -> Option<Value> {
     serde_json::from_str(s).ok()
+}
+
+/// One tokenised step of a PPL path. Mirrors the three cases `convert_ppl_path`
+/// handles: bare identifier (field), `{n}` (array index), `{}` (array wildcard).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Segment<'a> {
+    Field(&'a str),
+    Index(usize),
+    Wildcard,
+}
+
+/// Tokenise a PPL path into `Segment`s without allocating for field names.
+/// Returns a planning error for unmatched `{` or a non-numeric index — the
+/// same inputs `convert_ppl_path` rejects.
+pub(crate) fn parse_ppl_segments(input: &str) -> Result<Vec<Segment<'_>>> {
+    let mut out = Vec::new();
+    let mut rest = input;
+    while !rest.is_empty() {
+        match rest.as_bytes()[0] {
+            b'{' => {
+                let end = rest.find('}').ok_or_else(|| {
+                    DataFusionError::Plan(format!("Unmatched '{{' in JSON path: {input}"))
+                })?;
+                let idx = rest[1..end].trim();
+                if idx.is_empty() {
+                    out.push(Segment::Wildcard);
+                } else {
+                    let parsed = idx.parse::<usize>().map_err(|_| {
+                        DataFusionError::Plan(format!(
+                            "Non-numeric array index '{idx}' in JSON path: {input}"
+                        ))
+                    })?;
+                    out.push(Segment::Index(parsed));
+                }
+                rest = &rest[end + 1..];
+            }
+            b'.' => rest = &rest[1..],
+            _ => {
+                let cut = rest.find(['.', '{']).unwrap_or(rest.len());
+                if cut > 0 {
+                    out.push(Segment::Field(&rest[..cut]));
+                }
+                rest = &rest[cut..];
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Drive `apply` against every terminal `(parent, final_segment)` reached by
+/// `segments` inside `root`. Missing intermediate keys / out-of-range indices
+/// are silently skipped (matching Jayway's `SUPPRESS_EXCEPTIONS` behaviour
+/// that legacy mutation UDFs rely on). Wildcard segments fan out across every
+/// element of the current array; descending through a non-container
+/// short-circuits that branch.
+///
+/// Empty `segments` is a no-op: PPL mutation UDFs reject a root-only path at
+/// the call site before reaching the walker.
+pub(crate) fn walk_mut<F>(root: &mut Value, segments: &[Segment<'_>], mut apply: F)
+where
+    F: FnMut(&mut Value, &Segment<'_>),
+{
+    if segments.is_empty() {
+        return;
+    }
+    walk_mut_inner(root, segments, &mut apply);
+}
+
+fn walk_mut_inner<F>(node: &mut Value, segments: &[Segment<'_>], apply: &mut F)
+where
+    F: FnMut(&mut Value, &Segment<'_>),
+{
+    let (head, tail) = segments.split_first().expect("non-empty checked by caller");
+    if tail.is_empty() {
+        // Parent is `node`; the final segment names the slot to mutate.
+        apply(node, head);
+        return;
+    }
+    match head {
+        Segment::Field(name) => {
+            if let Value::Object(map) = node {
+                if let Some(child) = map.get_mut(*name) {
+                    walk_mut_inner(child, tail, apply);
+                }
+            }
+        }
+        Segment::Index(i) => {
+            if let Value::Array(arr) = node {
+                if let Some(child) = arr.get_mut(*i) {
+                    walk_mut_inner(child, tail, apply);
+                }
+            }
+        }
+        Segment::Wildcard => {
+            if let Value::Array(arr) = node {
+                for child in arr.iter_mut() {
+                    walk_mut_inner(child, tail, apply);
+                }
+            }
+        }
+    }
 }
 
 /// Standard arity guard.
@@ -136,5 +242,81 @@ mod tests {
         assert!(check_arity("f", 2, 1).is_err());
         assert!(check_arity_range("f", 3, 2, 4).is_ok());
         assert!(check_arity_range("f", 1, 2, 4).is_err());
+    }
+
+    #[test]
+    fn parse_ppl_segments_tokenises_field_index_and_wildcard() {
+        assert_eq!(parse_ppl_segments("").unwrap(), Vec::<Segment>::new());
+        assert_eq!(parse_ppl_segments("a").unwrap(), vec![Segment::Field("a")]);
+        assert_eq!(
+            parse_ppl_segments("a.b{0}.c{}").unwrap(),
+            vec![
+                Segment::Field("a"),
+                Segment::Field("b"),
+                Segment::Index(0),
+                Segment::Field("c"),
+                Segment::Wildcard,
+            ]
+        );
+        assert!(parse_ppl_segments("a{0").is_err());
+        assert!(parse_ppl_segments("a{x}").is_err());
+    }
+
+    fn v(s: &str) -> Value {
+        serde_json::from_str(s).unwrap()
+    }
+
+    #[test]
+    fn walk_mut_deletes_flat_key() {
+        let mut doc = v(r#"{"a":1,"b":2,"c":3}"#);
+        let segs = parse_ppl_segments("b").unwrap();
+        walk_mut(&mut doc, &segs, |parent, seg| {
+            if let (Value::Object(map), Segment::Field(name)) = (parent, seg) {
+                map.shift_remove(*name);
+            }
+        });
+        assert_eq!(serde_json::to_string(&doc).unwrap(), r#"{"a":1,"c":3}"#);
+    }
+
+    #[test]
+    fn walk_mut_handles_missing_path_as_noop() {
+        let mut doc = v(r#"{"f1":"abc","f2":{"f3":"a"}}"#);
+        let segs = parse_ppl_segments("f2.nope").unwrap();
+        walk_mut(&mut doc, &segs, |parent, seg| {
+            if let (Value::Object(map), Segment::Field(name)) = (parent, seg) {
+                map.shift_remove(*name);
+            }
+        });
+        assert_eq!(
+            serde_json::to_string(&doc).unwrap(),
+            r#"{"f1":"abc","f2":{"f3":"a"}}"#
+        );
+    }
+
+    #[test]
+    fn walk_mut_wildcard_fans_out_across_array() {
+        let mut doc = v(r#"{"xs":[{"k":1,"v":10},{"k":2,"v":20}]}"#);
+        let segs = parse_ppl_segments("xs{}.v").unwrap();
+        walk_mut(&mut doc, &segs, |parent, seg| {
+            if let (Value::Object(map), Segment::Field(name)) = (parent, seg) {
+                map.shift_remove(*name);
+            }
+        });
+        assert_eq!(
+            serde_json::to_string(&doc).unwrap(),
+            r#"{"xs":[{"k":1},{"k":2}]}"#
+        );
+    }
+
+    #[test]
+    fn walk_mut_index_out_of_range_is_noop() {
+        let mut doc = v(r#"{"xs":[{"k":1}]}"#);
+        let segs = parse_ppl_segments("xs{5}.k").unwrap();
+        walk_mut(&mut doc, &segs, |parent, seg| {
+            if let (Value::Object(map), Segment::Field(name)) = (parent, seg) {
+                map.shift_remove(*name);
+            }
+        });
+        assert_eq!(serde_json::to_string(&doc).unwrap(), r#"{"xs":[{"k":1}]}"#);
     }
 }

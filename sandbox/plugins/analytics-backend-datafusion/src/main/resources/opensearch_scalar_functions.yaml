@@ -347,3 +347,14 @@ scalar_functions:
       - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
         variadic: { min: 1 }
         return: string
+
+  # json_delete(value, path1, path2, ...) — Rust UDF. rust/src/udf/json_delete.rs.
+  # Target of JsonFunctionAdapters.JsonDeleteAdapter. Removes each PPL-path
+  # match from the input document; missing paths are a no-op (parity with
+  # Jayway's SUPPRESS_EXCEPTIONS behaviour in legacy `JsonDeleteFunctionImpl`).
+  - name: "json_delete"
+    description: "Remove PPL-path matches from a JSON document; missing paths are no-ops, NULL on malformed input."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string

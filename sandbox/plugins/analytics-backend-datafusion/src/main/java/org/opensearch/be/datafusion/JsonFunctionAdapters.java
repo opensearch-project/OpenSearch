@@ -126,4 +126,32 @@ final class JsonFunctionAdapters {
             super(LOCAL_JSON_EXTRACT_OP, List.of(), List.of());
         }
     }
+
+    /**
+     * Adapter for PPL's {@code JSON_DELETE(value, path1, [path2, ...])}. Plain
+     * rename to the Rust UDF at {@code rust/src/udf/json_delete.rs}; all
+     * validation (malformed JSON, malformed path, any-NULL-arg propagation)
+     * lives in the UDF. Return type is preserved from the original PPL call,
+     * matching {@code STRING_FORCE_NULLABLE} declared on
+     * {@code JsonDeleteFunctionImpl}.
+     *
+     * <p>Operands are homogeneously-typed strings; the substrait YAML
+     * signature uses {@code variadic: {min: 1}} so isthmus accepts any
+     * non-zero path count.
+     */
+    static class JsonDeleteAdapter extends AbstractNameMappingAdapter {
+
+        static final SqlOperator LOCAL_JSON_DELETE_OP = new SqlFunction(
+            "json_delete",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.VARCHAR_NULLABLE,
+            null,
+            OperandTypes.VARIADIC,
+            SqlFunctionCategory.STRING
+        );
+
+        JsonDeleteAdapter() {
+            super(LOCAL_JSON_DELETE_OP, List.of(), List.of());
+        }
+    }
 }

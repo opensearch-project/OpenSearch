@@ -116,4 +116,37 @@ public class ScalarJsonFunctionIT extends BaseScalarFunctionIT {
         // outer JSON array.
         assertScalarString("json_extract('{\"name\": \"John\"}', 'name', 'age')", "[\"John\",null]");
     }
+
+    /**
+     * Parity replay of {@code CalcitePPLJsonBuiltinFunctionIT.testJsonDelete*}
+     * — flat-key delete, nested-key delete, missing-path-unchanged, and
+     * wildcard-array delete. Output order is preserved because the plugin's
+     * serde_json dependency enables the {@code preserve_order} feature
+     * (see {@code rust/Cargo.toml}).
+     */
+    public void testJsonDeleteParityWithLegacy() {
+        // testJsonDelete: flat-key delete of two fields.
+        assertScalarString(
+            "json_delete('{\"account_number\":1,\"balance\":39225,\"age\":32,\"gender\":\"M\"}', 'age', 'gender')",
+            "{\"account_number\":1,\"balance\":39225}"
+        );
+
+        // testJsonDeleteWithNested: delete a single nested key.
+        assertScalarString(
+            "json_delete('{\"f1\":\"abc\",\"f2\":{\"f3\":\"a\",\"f4\":\"b\"}}', 'f2.f3')",
+            "{\"f1\":\"abc\",\"f2\":{\"f4\":\"b\"}}"
+        );
+
+        // testJsonDeleteWithNestedNothing: missing nested key leaves input unchanged.
+        assertScalarString(
+            "json_delete('{\"f1\":\"abc\",\"f2\":{\"f3\":\"a\",\"f4\":\"b\"}}', 'f2.f100')",
+            "{\"f1\":\"abc\",\"f2\":{\"f3\":\"a\",\"f4\":\"b\"}}"
+        );
+
+        // testJsonDeleteWithNestedAndArray: wildcard path drops one key from every array element.
+        assertScalarString(
+            "json_delete('{\"teacher\":\"Alice\",\"student\":[{\"name\":\"Bob\",\"rank\":1},{\"name\":\"Charlie\",\"rank\":2}]}', 'teacher', 'student{}.rank')",
+            "{\"student\":[{\"name\":\"Bob\"},{\"name\":\"Charlie\"}]}"
+        );
+    }
 }
