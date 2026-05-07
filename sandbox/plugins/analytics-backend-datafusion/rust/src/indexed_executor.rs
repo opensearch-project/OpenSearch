@@ -78,19 +78,19 @@ use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetric
 /// Execute an indexed query.
 ///
 /// `shard_view` carries the segment's parquet paths (populated when the reader
-/// was built from a catalog snapshot). `num_partitions` comes from the caller's
-/// session config. `query_memory_pool` is the per-query tracker (same as
-/// vanilla path) — `None` disables tracking and uses the global pool.
+/// was built from a catalog snapshot). `query_memory_pool` is the per-query
+/// tracker (same as vanilla path) — `None` disables tracking and uses the
+/// global pool.
 pub async fn execute_indexed_query(
     substrait_bytes: Vec<u8>,
     table_name: String,
     shard_view: &ShardView,
-    num_partitions: usize,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
     query_memory_pool: Option<Arc<dyn MemoryPool>>,
     query_config: Arc<DatafusionQueryConfig>,
 ) -> Result<i64, DataFusionError> {
+    let num_partitions = query_config.target_partitions.max(1);
     // Share caches with the global runtime (same as vanilla path): list-files
     // pre-populated with the reader's object_metas, file-metadata and
     // file-statistics inherited from the global runtime for cross-query reuse.
@@ -383,9 +383,6 @@ pub async fn execute_indexed_query(
         store: Arc::clone(&store),
         store_url,
         evaluator_factory: factory,
-        target_partitions: num_partitions.max(1),
-        force_strategy: query_config.force_strategy,
-        force_pushdown: query_config.force_pushdown,
         pushdown_predicate,
         query_config: Arc::clone(&query_config),
         predicate_columns,

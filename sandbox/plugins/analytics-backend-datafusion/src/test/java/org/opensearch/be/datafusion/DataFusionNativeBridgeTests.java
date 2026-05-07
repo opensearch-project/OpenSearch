@@ -10,11 +10,12 @@ package org.opensearch.be.datafusion;
 
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
-import org.opensearch.be.datafusion.nativelib.SessionContextConfig;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
@@ -81,14 +82,20 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
 
         // Create session context with table registered
-        SessionContextConfig config = new SessionContextConfig(
+        long queryConfigPtr;
+        Arena arena = Arena.ofConfined();
+        MemorySegment configSegment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
+        WireConfigSnapshot.builder().build().writeTo(configSegment);
+        queryConfigPtr = configSegment.address();
+
+        SessionContextHandle sessionCtx = NativeBridge.createSessionContext(
             readerHandle.getPointer(),
             runtimeHandle.get(),
             "test_table",
             0L,
-            new WireConfigSnapshot(8192, 4, false, 1024, 0.03, 1, 10, 1)
+            queryConfigPtr
         );
-        SessionContextHandle sessionCtx = NativeBridge.createSessionContext(config);
+        arena.close();
         assertTrue("SessionContext pointer should be non-zero", sessionCtx.getPointer() != 0);
 
         // Execute a simple query to verify the session context is properly configured

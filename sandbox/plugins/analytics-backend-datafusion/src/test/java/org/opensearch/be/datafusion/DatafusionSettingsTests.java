@@ -19,22 +19,22 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
     public void testBatchSizeSettingDefinition() {
         assertEquals("datafusion.indexed.batch_size", DatafusionSettings.INDEXED_BATCH_SIZE.getKey());
         assertEquals(Integer.valueOf(8192), DatafusionSettings.INDEXED_BATCH_SIZE.get(Settings.EMPTY));
-        assertTrue("batch_size must be dynamic", DatafusionSettings.INDEXED_BATCH_SIZE.isDynamic());
-        assertTrue("batch_size must have node scope", DatafusionSettings.INDEXED_BATCH_SIZE.hasNodeScope());
+        assertTrue(DatafusionSettings.INDEXED_BATCH_SIZE.isDynamic());
+        assertTrue(DatafusionSettings.INDEXED_BATCH_SIZE.hasNodeScope());
     }
 
     public void testParquetPushdownFiltersSettingDefinition() {
         assertEquals("datafusion.indexed.parquet_pushdown_filters", DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS.getKey());
         assertEquals(Boolean.FALSE, DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS.get(Settings.EMPTY));
-        assertTrue("parquet_pushdown_filters must be dynamic", DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS.isDynamic());
-        assertTrue("parquet_pushdown_filters must have node scope", DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS.hasNodeScope());
+        assertTrue(DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS.isDynamic());
+        assertTrue(DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS.hasNodeScope());
     }
 
     public void testMinSkipRunDefaultSettingDefinition() {
         assertEquals("datafusion.indexed.min_skip_run_default", DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT.getKey());
         assertEquals(Integer.valueOf(1024), DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT.get(Settings.EMPTY));
-        assertTrue("min_skip_run_default must be dynamic", DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT.isDynamic());
-        assertTrue("min_skip_run_default must have node scope", DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT.hasNodeScope());
+        assertTrue(DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT.isDynamic());
+        assertTrue(DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT.hasNodeScope());
     }
 
     public void testMinSkipRunSelectivityThresholdSettingDefinition() {
@@ -43,45 +43,39 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
             DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.getKey()
         );
         assertEquals(0.03, DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(Settings.EMPTY), 1e-15);
-        assertTrue(
-            "min_skip_run_selectivity_threshold must be dynamic",
-            DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.isDynamic()
-        );
-        assertTrue(
-            "min_skip_run_selectivity_threshold must have node scope",
-            DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.hasNodeScope()
-        );
+        assertTrue(DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.isDynamic());
+        assertTrue(DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.hasNodeScope());
     }
 
-    public void testCostPredicateSettingDefinition() {
-        assertEquals("datafusion.indexed.cost_predicate", DatafusionSettings.INDEXED_COST_PREDICATE.getKey());
-        assertEquals(Integer.valueOf(1), DatafusionSettings.INDEXED_COST_PREDICATE.get(Settings.EMPTY));
-        assertTrue("cost_predicate must be dynamic", DatafusionSettings.INDEXED_COST_PREDICATE.isDynamic());
-        assertTrue("cost_predicate must have node scope", DatafusionSettings.INDEXED_COST_PREDICATE.hasNodeScope());
+    public void testSingleCollectorStrategySettingDefinition() {
+        assertEquals("datafusion.indexed.single_collector_strategy", DatafusionSettings.INDEXED_SINGLE_COLLECTOR_STRATEGY.getKey());
+        assertEquals("page_range_split", DatafusionSettings.INDEXED_SINGLE_COLLECTOR_STRATEGY.get(Settings.EMPTY));
+        assertTrue(DatafusionSettings.INDEXED_SINGLE_COLLECTOR_STRATEGY.isDynamic());
+        assertTrue(DatafusionSettings.INDEXED_SINGLE_COLLECTOR_STRATEGY.hasNodeScope());
     }
 
-    public void testCostCollectorSettingDefinition() {
-        assertEquals("datafusion.indexed.cost_collector", DatafusionSettings.INDEXED_COST_COLLECTOR.getKey());
-        assertEquals(Integer.valueOf(10), DatafusionSettings.INDEXED_COST_COLLECTOR.get(Settings.EMPTY));
-        assertTrue("cost_collector must be dynamic", DatafusionSettings.INDEXED_COST_COLLECTOR.isDynamic());
-        assertTrue("cost_collector must have node scope", DatafusionSettings.INDEXED_COST_COLLECTOR.hasNodeScope());
+    public void testTreeCollectorStrategySettingDefinition() {
+        assertEquals("datafusion.indexed.tree_collector_strategy", DatafusionSettings.INDEXED_TREE_COLLECTOR_STRATEGY.getKey());
+        assertEquals("tighten_outer_bounds", DatafusionSettings.INDEXED_TREE_COLLECTOR_STRATEGY.get(Settings.EMPTY));
+        assertTrue(DatafusionSettings.INDEXED_TREE_COLLECTOR_STRATEGY.isDynamic());
+        assertTrue(DatafusionSettings.INDEXED_TREE_COLLECTOR_STRATEGY.hasNodeScope());
     }
 
     public void testMaxCollectorParallelismSettingDefinition() {
         assertEquals("datafusion.indexed.max_collector_parallelism", DatafusionSettings.INDEXED_MAX_COLLECTOR_PARALLELISM.getKey());
         assertEquals(Integer.valueOf(1), DatafusionSettings.INDEXED_MAX_COLLECTOR_PARALLELISM.get(Settings.EMPTY));
-        assertTrue("max_collector_parallelism must be dynamic", DatafusionSettings.INDEXED_MAX_COLLECTOR_PARALLELISM.isDynamic());
-        assertTrue("max_collector_parallelism must have node scope", DatafusionSettings.INDEXED_MAX_COLLECTOR_PARALLELISM.hasNodeScope());
+        assertTrue(DatafusionSettings.INDEXED_MAX_COLLECTOR_PARALLELISM.isDynamic());
+        assertTrue(DatafusionSettings.INDEXED_MAX_COLLECTOR_PARALLELISM.hasNodeScope());
     }
 
     public void testAllSettingsContainsAllExpectedSettings() {
-        assertEquals("ALL_SETTINGS must contain 16 entries (9 existing + 7 new)", 16, DatafusionSettings.ALL_SETTINGS.size());
+        assertEquals(16, DatafusionSettings.ALL_SETTINGS.size());
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_BATCH_SIZE));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_COST_PREDICATE));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_COST_COLLECTOR));
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_SINGLE_COLLECTOR_STRATEGY));
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_TREE_COLLECTOR_STRATEGY));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MAX_COLLECTOR_PARALLELISM));
     }
 
@@ -93,8 +87,8 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
         assertEquals(false, snapshot.parquetPushdownFilters());
         assertEquals(1024, snapshot.minSkipRunDefault());
         assertEquals(0.03, snapshot.minSkipRunSelectivityThreshold(), 1e-15);
-        assertEquals(1, snapshot.costPredicate());
-        assertEquals(10, snapshot.costCollector());
+        assertEquals(2, snapshot.singleCollectorStrategy()); // page_range_split
+        assertEquals(1, snapshot.treeCollectorStrategy()); // tighten_outer_bounds
         assertEquals(1, snapshot.maxCollectorParallelism());
         assertEquals(DEFAULT_PARALLELISM, snapshot.targetPartitions());
     }
@@ -104,16 +98,14 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
             .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), 8)
             .build();
         DatafusionSettings ds = new DatafusionSettings(settings);
-        WireConfigSnapshot snapshot = ds.getSnapshot();
 
-        assertEquals(Math.min(8, Runtime.getRuntime().availableProcessors()), snapshot.targetPartitions());
+        assertEquals(Math.min(8, Runtime.getRuntime().availableProcessors()), ds.getSnapshot().targetPartitions());
     }
 
     public void testTargetPartitionsFallbackWhenZero() {
         DatafusionSettings ds = new DatafusionSettings(Settings.EMPTY);
-        WireConfigSnapshot snapshot = ds.getSnapshot();
 
-        assertEquals(DEFAULT_PARALLELISM, snapshot.targetPartitions());
+        assertEquals(DEFAULT_PARALLELISM, ds.getSnapshot().targetPartitions());
     }
 
     public void testTargetPartitionsForcedToOneWhenModeNone() {
@@ -122,21 +114,25 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
             .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), 16)
             .build();
         DatafusionSettings ds = new DatafusionSettings(settings);
-        WireConfigSnapshot snapshot = ds.getSnapshot();
 
-        assertEquals(1, snapshot.targetPartitions());
+        assertEquals(1, ds.getSnapshot().targetPartitions());
     }
 
     public void testTargetPartitionsCappedAtAvailableProcessors() {
         int processors = Runtime.getRuntime().availableProcessors();
-        int overCommit = processors + 10;
         Settings settings = Settings.builder()
-            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), overCommit)
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), processors + 10)
             .build();
         DatafusionSettings ds = new DatafusionSettings(settings);
-        WireConfigSnapshot snapshot = ds.getSnapshot();
 
-        assertEquals(processors, snapshot.targetPartitions());
+        assertEquals(processors, ds.getSnapshot().targetPartitions());
+    }
+
+    public void testStrategyToWireValueMapping() {
+        assertEquals(0, DatafusionSettings.strategyToWireValue("full_range"));
+        assertEquals(1, DatafusionSettings.strategyToWireValue("tighten_outer_bounds"));
+        assertEquals(2, DatafusionSettings.strategyToWireValue("page_range_split"));
+        expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.strategyToWireValue("invalid"));
     }
 
     public void testBatchSizeZeroIsRejected() {
@@ -152,5 +148,15 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
     public void testSelectivityThresholdAboveBoundIsRejected() {
         Settings settings = Settings.builder().put("datafusion.indexed.min_skip_run_selectivity_threshold", 1.1).build();
         expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.get(settings));
+    }
+
+    public void testInvalidSingleCollectorStrategyIsRejected() {
+        Settings settings = Settings.builder().put("datafusion.indexed.single_collector_strategy", "bogus").build();
+        expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings));
+    }
+
+    public void testInvalidTreeCollectorStrategyIsRejected() {
+        Settings settings = Settings.builder().put("datafusion.indexed.tree_collector_strategy", "bogus").build();
+        expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.INDEXED_TREE_COLLECTOR_STRATEGY.get(settings));
     }
 }

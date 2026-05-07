@@ -64,77 +64,35 @@ public class DatafusionDynamicSettingsIT extends OpenSearchIntegTestCase {
             .build();
     }
 
-    public void testBatchSizeCanBeUpdatedDynamically() {
+    public void testAllIndexedSettingsCanBeUpdatedDynamically() {
         ClusterUpdateSettingsResponse response = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("datafusion.indexed.batch_size", 16384).build())
+            .setTransientSettings(
+                Settings.builder()
+                    .put("datafusion.indexed.batch_size", 16384)
+                    .put("datafusion.indexed.parquet_pushdown_filters", true)
+                    .put("datafusion.indexed.min_skip_run_default", 2048)
+                    .put("datafusion.indexed.min_skip_run_selectivity_threshold", 0.5)
+                    .put("datafusion.indexed.single_collector_strategy", "full_range")
+                    .put("datafusion.indexed.tree_collector_strategy", "page_range_split")
+                    .put("datafusion.indexed.max_collector_parallelism", 4)
+                    .build()
+            )
             .get();
         assertTrue(response.isAcknowledged());
-        assertEquals("16384", response.getTransientSettings().get("datafusion.indexed.batch_size"));
+
+        Settings transientSettings = response.getTransientSettings();
+        assertEquals("16384", transientSettings.get("datafusion.indexed.batch_size"));
+        assertEquals("true", transientSettings.get("datafusion.indexed.parquet_pushdown_filters"));
+        assertEquals("2048", transientSettings.get("datafusion.indexed.min_skip_run_default"));
+        assertEquals("0.5", transientSettings.get("datafusion.indexed.min_skip_run_selectivity_threshold"));
+        assertEquals("full_range", transientSettings.get("datafusion.indexed.single_collector_strategy"));
+        assertEquals("page_range_split", transientSettings.get("datafusion.indexed.tree_collector_strategy"));
+        assertEquals("4", transientSettings.get("datafusion.indexed.max_collector_parallelism"));
     }
 
-    public void testParquetPushdownFiltersCanBeUpdatedDynamically() {
-        ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("datafusion.indexed.parquet_pushdown_filters", true).build())
-            .get();
-        assertTrue(response.isAcknowledged());
-        assertEquals("true", response.getTransientSettings().get("datafusion.indexed.parquet_pushdown_filters"));
-    }
-
-    public void testMinSkipRunDefaultCanBeUpdatedDynamically() {
-        ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("datafusion.indexed.min_skip_run_default", 2048).build())
-            .get();
-        assertTrue(response.isAcknowledged());
-        assertEquals("2048", response.getTransientSettings().get("datafusion.indexed.min_skip_run_default"));
-    }
-
-    public void testSelectivityThresholdCanBeUpdatedDynamically() {
-        ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("datafusion.indexed.min_skip_run_selectivity_threshold", 0.5).build())
-            .get();
-        assertTrue(response.isAcknowledged());
-        assertEquals("0.5", response.getTransientSettings().get("datafusion.indexed.min_skip_run_selectivity_threshold"));
-    }
-
-    public void testCostPredicateCanBeUpdatedDynamically() {
-        ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("datafusion.indexed.cost_predicate", 5).build())
-            .get();
-        assertTrue(response.isAcknowledged());
-        assertEquals("5", response.getTransientSettings().get("datafusion.indexed.cost_predicate"));
-    }
-
-    public void testCostCollectorCanBeUpdatedDynamically() {
-        ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("datafusion.indexed.cost_collector", 25).build())
-            .get();
-        assertTrue(response.isAcknowledged());
-        assertEquals("25", response.getTransientSettings().get("datafusion.indexed.cost_collector"));
-    }
-
-    public void testMaxCollectorParallelismCanBeUpdatedDynamically() {
-        ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("datafusion.indexed.max_collector_parallelism", 4).build())
-            .get();
-        assertTrue(response.isAcknowledged());
-        assertEquals("4", response.getTransientSettings().get("datafusion.indexed.max_collector_parallelism"));
-    }
-
-    public void testInvalidBatchSizeIsRejected() {
+    public void testInvalidValuesAreRejected() {
         expectThrows(
             IllegalArgumentException.class,
             () -> client().admin()
@@ -143,9 +101,7 @@ public class DatafusionDynamicSettingsIT extends OpenSearchIntegTestCase {
                 .setTransientSettings(Settings.builder().put("datafusion.indexed.batch_size", 0).build())
                 .get()
         );
-    }
 
-    public void testInvalidSelectivityThresholdIsRejected() {
         expectThrows(
             IllegalArgumentException.class,
             () -> client().admin()
@@ -154,40 +110,14 @@ public class DatafusionDynamicSettingsIT extends OpenSearchIntegTestCase {
                 .setTransientSettings(Settings.builder().put("datafusion.indexed.min_skip_run_selectivity_threshold", 1.5).build())
                 .get()
         );
-    }
 
-    public void testMultipleSettingsCanBeUpdatedAtOnce() {
-        ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .put("datafusion.indexed.batch_size", 4096)
-                    .put("datafusion.indexed.cost_collector", 50)
-                    .put("datafusion.indexed.max_collector_parallelism", 2)
-                    .build()
-            )
-            .get();
-        assertTrue(response.isAcknowledged());
-
-        Settings transient_ = response.getTransientSettings();
-        assertEquals("4096", transient_.get("datafusion.indexed.batch_size"));
-        assertEquals("50", transient_.get("datafusion.indexed.cost_collector"));
-        assertEquals("2", transient_.get("datafusion.indexed.max_collector_parallelism"));
-    }
-
-    public void testSettingsCanBeResetToDefault() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("datafusion.indexed.batch_size", 4096).build())
-            .get();
-
-        ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull("datafusion.indexed.batch_size").build())
-            .get();
-        assertTrue(response.isAcknowledged());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("datafusion.indexed.single_collector_strategy", "bogus").build())
+                .get()
+        );
     }
 }

@@ -20,17 +20,7 @@ import java.util.Set;
 public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
 
     private static final int ITERATIONS = 200;
-
-    private static final int SETTING_BATCH_SIZE = 0;
-    private static final int SETTING_PARQUET_PUSHDOWN_FILTERS = 1;
-    private static final int SETTING_MIN_SKIP_RUN_DEFAULT = 2;
-    private static final int SETTING_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD = 3;
-    private static final int SETTING_COST_PREDICATE = 4;
-    private static final int SETTING_COST_COLLECTOR = 5;
-    private static final int SETTING_MAX_COLLECTOR_PARALLELISM = 6;
-    private static final int SETTING_MAX_SLICE_COUNT = 7;
-    private static final int SETTING_CONCURRENT_SEARCH_MODE = 8;
-    private static final int NUM_SETTINGS = 9;
+    private static final String[] STRATEGIES = { "full_range", "tighten_outer_bounds", "page_range_split" };
 
     private ClusterSettings createClusterSettings() {
         Set<Setting<?>> settingsSet = new HashSet<>(DatafusionSettings.ALL_SETTINGS);
@@ -47,11 +37,11 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
 
             WireConfigSnapshot before = datafusionSettings.getSnapshot();
 
-            int settingIndex = randomIntBetween(0, NUM_SETTINGS - 1);
+            int settingIndex = randomIntBetween(0, 8);
             Settings newSettings;
 
             switch (settingIndex) {
-                case SETTING_BATCH_SIZE:
+                case 0: // batch_size
                     int newBatchSize = randomIntBetween(1, 1_000_000);
                     newSettings = Settings.builder().put("datafusion.indexed.batch_size", newBatchSize).build();
                     clusterSettings.applySettings(newSettings);
@@ -61,12 +51,12 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
                     assertEquals(before.parquetPushdownFilters(), afterBatch.parquetPushdownFilters());
                     assertEquals(before.minSkipRunDefault(), afterBatch.minSkipRunDefault());
                     assertEquals(before.minSkipRunSelectivityThreshold(), afterBatch.minSkipRunSelectivityThreshold(), 0.0);
-                    assertEquals(before.costPredicate(), afterBatch.costPredicate());
-                    assertEquals(before.costCollector(), afterBatch.costCollector());
+                    assertEquals(before.singleCollectorStrategy(), afterBatch.singleCollectorStrategy());
+                    assertEquals(before.treeCollectorStrategy(), afterBatch.treeCollectorStrategy());
                     assertEquals(before.maxCollectorParallelism(), afterBatch.maxCollectorParallelism());
                     break;
 
-                case SETTING_PARQUET_PUSHDOWN_FILTERS:
+                case 1: // parquet_pushdown_filters
                     boolean newPushdown = before.parquetPushdownFilters() == false;
                     newSettings = Settings.builder().put("datafusion.indexed.parquet_pushdown_filters", newPushdown).build();
                     clusterSettings.applySettings(newSettings);
@@ -76,12 +66,12 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
                     assertEquals(before.targetPartitions(), afterPushdown.targetPartitions());
                     assertEquals(before.minSkipRunDefault(), afterPushdown.minSkipRunDefault());
                     assertEquals(before.minSkipRunSelectivityThreshold(), afterPushdown.minSkipRunSelectivityThreshold(), 0.0);
-                    assertEquals(before.costPredicate(), afterPushdown.costPredicate());
-                    assertEquals(before.costCollector(), afterPushdown.costCollector());
+                    assertEquals(before.singleCollectorStrategy(), afterPushdown.singleCollectorStrategy());
+                    assertEquals(before.treeCollectorStrategy(), afterPushdown.treeCollectorStrategy());
                     assertEquals(before.maxCollectorParallelism(), afterPushdown.maxCollectorParallelism());
                     break;
 
-                case SETTING_MIN_SKIP_RUN_DEFAULT:
+                case 2: // min_skip_run_default
                     int newMinSkipRun = randomIntBetween(1, 100_000);
                     newSettings = Settings.builder().put("datafusion.indexed.min_skip_run_default", newMinSkipRun).build();
                     clusterSettings.applySettings(newSettings);
@@ -91,12 +81,12 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
                     assertEquals(before.targetPartitions(), afterSkipRun.targetPartitions());
                     assertEquals(before.parquetPushdownFilters(), afterSkipRun.parquetPushdownFilters());
                     assertEquals(before.minSkipRunSelectivityThreshold(), afterSkipRun.minSkipRunSelectivityThreshold(), 0.0);
-                    assertEquals(before.costPredicate(), afterSkipRun.costPredicate());
-                    assertEquals(before.costCollector(), afterSkipRun.costCollector());
+                    assertEquals(before.singleCollectorStrategy(), afterSkipRun.singleCollectorStrategy());
+                    assertEquals(before.treeCollectorStrategy(), afterSkipRun.treeCollectorStrategy());
                     assertEquals(before.maxCollectorParallelism(), afterSkipRun.maxCollectorParallelism());
                     break;
 
-                case SETTING_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD:
+                case 3: // min_skip_run_selectivity_threshold
                     double newThreshold = randomDoubleBetween(0.0, 1.0, true);
                     newSettings = Settings.builder().put("datafusion.indexed.min_skip_run_selectivity_threshold", newThreshold).build();
                     clusterSettings.applySettings(newSettings);
@@ -106,42 +96,42 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
                     assertEquals(before.targetPartitions(), afterThreshold.targetPartitions());
                     assertEquals(before.parquetPushdownFilters(), afterThreshold.parquetPushdownFilters());
                     assertEquals(before.minSkipRunDefault(), afterThreshold.minSkipRunDefault());
-                    assertEquals(before.costPredicate(), afterThreshold.costPredicate());
-                    assertEquals(before.costCollector(), afterThreshold.costCollector());
+                    assertEquals(before.singleCollectorStrategy(), afterThreshold.singleCollectorStrategy());
+                    assertEquals(before.treeCollectorStrategy(), afterThreshold.treeCollectorStrategy());
                     assertEquals(before.maxCollectorParallelism(), afterThreshold.maxCollectorParallelism());
                     break;
 
-                case SETTING_COST_PREDICATE:
-                    int newCostPredicate = randomIntBetween(0, 1000);
-                    newSettings = Settings.builder().put("datafusion.indexed.cost_predicate", newCostPredicate).build();
+                case 4: // single_collector_strategy
+                    String newSingle = STRATEGIES[randomIntBetween(0, 2)];
+                    newSettings = Settings.builder().put("datafusion.indexed.single_collector_strategy", newSingle).build();
                     clusterSettings.applySettings(newSettings);
-                    WireConfigSnapshot afterCostPred = datafusionSettings.getSnapshot();
-                    assertEquals(newCostPredicate, afterCostPred.costPredicate());
-                    assertEquals(before.batchSize(), afterCostPred.batchSize());
-                    assertEquals(before.targetPartitions(), afterCostPred.targetPartitions());
-                    assertEquals(before.parquetPushdownFilters(), afterCostPred.parquetPushdownFilters());
-                    assertEquals(before.minSkipRunDefault(), afterCostPred.minSkipRunDefault());
-                    assertEquals(before.minSkipRunSelectivityThreshold(), afterCostPred.minSkipRunSelectivityThreshold(), 0.0);
-                    assertEquals(before.costCollector(), afterCostPred.costCollector());
-                    assertEquals(before.maxCollectorParallelism(), afterCostPred.maxCollectorParallelism());
+                    WireConfigSnapshot afterSingle = datafusionSettings.getSnapshot();
+                    assertEquals(DatafusionSettings.strategyToWireValue(newSingle), afterSingle.singleCollectorStrategy());
+                    assertEquals(before.batchSize(), afterSingle.batchSize());
+                    assertEquals(before.targetPartitions(), afterSingle.targetPartitions());
+                    assertEquals(before.parquetPushdownFilters(), afterSingle.parquetPushdownFilters());
+                    assertEquals(before.minSkipRunDefault(), afterSingle.minSkipRunDefault());
+                    assertEquals(before.minSkipRunSelectivityThreshold(), afterSingle.minSkipRunSelectivityThreshold(), 0.0);
+                    assertEquals(before.treeCollectorStrategy(), afterSingle.treeCollectorStrategy());
+                    assertEquals(before.maxCollectorParallelism(), afterSingle.maxCollectorParallelism());
                     break;
 
-                case SETTING_COST_COLLECTOR:
-                    int newCostCollector = randomIntBetween(0, 1000);
-                    newSettings = Settings.builder().put("datafusion.indexed.cost_collector", newCostCollector).build();
+                case 5: // tree_collector_strategy
+                    String newTree = STRATEGIES[randomIntBetween(0, 2)];
+                    newSettings = Settings.builder().put("datafusion.indexed.tree_collector_strategy", newTree).build();
                     clusterSettings.applySettings(newSettings);
-                    WireConfigSnapshot afterCostColl = datafusionSettings.getSnapshot();
-                    assertEquals(newCostCollector, afterCostColl.costCollector());
-                    assertEquals(before.batchSize(), afterCostColl.batchSize());
-                    assertEquals(before.targetPartitions(), afterCostColl.targetPartitions());
-                    assertEquals(before.parquetPushdownFilters(), afterCostColl.parquetPushdownFilters());
-                    assertEquals(before.minSkipRunDefault(), afterCostColl.minSkipRunDefault());
-                    assertEquals(before.minSkipRunSelectivityThreshold(), afterCostColl.minSkipRunSelectivityThreshold(), 0.0);
-                    assertEquals(before.costPredicate(), afterCostColl.costPredicate());
-                    assertEquals(before.maxCollectorParallelism(), afterCostColl.maxCollectorParallelism());
+                    WireConfigSnapshot afterTree = datafusionSettings.getSnapshot();
+                    assertEquals(DatafusionSettings.strategyToWireValue(newTree), afterTree.treeCollectorStrategy());
+                    assertEquals(before.batchSize(), afterTree.batchSize());
+                    assertEquals(before.targetPartitions(), afterTree.targetPartitions());
+                    assertEquals(before.parquetPushdownFilters(), afterTree.parquetPushdownFilters());
+                    assertEquals(before.minSkipRunDefault(), afterTree.minSkipRunDefault());
+                    assertEquals(before.minSkipRunSelectivityThreshold(), afterTree.minSkipRunSelectivityThreshold(), 0.0);
+                    assertEquals(before.singleCollectorStrategy(), afterTree.singleCollectorStrategy());
+                    assertEquals(before.maxCollectorParallelism(), afterTree.maxCollectorParallelism());
                     break;
 
-                case SETTING_MAX_COLLECTOR_PARALLELISM:
+                case 6: // max_collector_parallelism
                     int newMaxParallelism = randomIntBetween(1, 64);
                     newSettings = Settings.builder().put("datafusion.indexed.max_collector_parallelism", newMaxParallelism).build();
                     clusterSettings.applySettings(newSettings);
@@ -152,11 +142,11 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
                     assertEquals(before.parquetPushdownFilters(), afterParallelism.parquetPushdownFilters());
                     assertEquals(before.minSkipRunDefault(), afterParallelism.minSkipRunDefault());
                     assertEquals(before.minSkipRunSelectivityThreshold(), afterParallelism.minSkipRunSelectivityThreshold(), 0.0);
-                    assertEquals(before.costPredicate(), afterParallelism.costPredicate());
-                    assertEquals(before.costCollector(), afterParallelism.costCollector());
+                    assertEquals(before.singleCollectorStrategy(), afterParallelism.singleCollectorStrategy());
+                    assertEquals(before.treeCollectorStrategy(), afterParallelism.treeCollectorStrategy());
                     break;
 
-                case SETTING_MAX_SLICE_COUNT:
+                case 7: // max_slice_count
                     int newSliceCount = randomIntBetween(1, 32);
                     newSettings = Settings.builder().put("search.concurrent.max_slice_count", newSliceCount).build();
                     clusterSettings.applySettings(newSettings);
@@ -166,12 +156,12 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
                     assertEquals(before.parquetPushdownFilters(), afterSlice.parquetPushdownFilters());
                     assertEquals(before.minSkipRunDefault(), afterSlice.minSkipRunDefault());
                     assertEquals(before.minSkipRunSelectivityThreshold(), afterSlice.minSkipRunSelectivityThreshold(), 0.0);
-                    assertEquals(before.costPredicate(), afterSlice.costPredicate());
-                    assertEquals(before.costCollector(), afterSlice.costCollector());
+                    assertEquals(before.singleCollectorStrategy(), afterSlice.singleCollectorStrategy());
+                    assertEquals(before.treeCollectorStrategy(), afterSlice.treeCollectorStrategy());
                     assertEquals(before.maxCollectorParallelism(), afterSlice.maxCollectorParallelism());
                     break;
 
-                case SETTING_CONCURRENT_SEARCH_MODE:
+                case 8: // concurrent_search_mode
                     newSettings = Settings.builder().put("search.concurrent_segment_search.mode", "none").build();
                     clusterSettings.applySettings(newSettings);
                     WireConfigSnapshot afterMode = datafusionSettings.getSnapshot();
@@ -180,8 +170,8 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
                     assertEquals(before.parquetPushdownFilters(), afterMode.parquetPushdownFilters());
                     assertEquals(before.minSkipRunDefault(), afterMode.minSkipRunDefault());
                     assertEquals(before.minSkipRunSelectivityThreshold(), afterMode.minSkipRunSelectivityThreshold(), 0.0);
-                    assertEquals(before.costPredicate(), afterMode.costPredicate());
-                    assertEquals(before.costCollector(), afterMode.costCollector());
+                    assertEquals(before.singleCollectorStrategy(), afterMode.singleCollectorStrategy());
+                    assertEquals(before.treeCollectorStrategy(), afterMode.treeCollectorStrategy());
                     assertEquals(before.maxCollectorParallelism(), afterMode.maxCollectorParallelism());
                     break;
 
@@ -198,13 +188,13 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
             datafusionSettings.registerListeners(clusterSettings);
 
             int newBatchSize = randomIntBetween(1, 1_000_000);
-            int newCostCollector = randomIntBetween(0, 1000);
+            String newSingleStrategy = STRATEGIES[randomIntBetween(0, 2)];
             double newThreshold = randomDoubleBetween(0.0, 1.0, true);
 
             clusterSettings.applySettings(
                 Settings.builder()
                     .put("datafusion.indexed.batch_size", newBatchSize)
-                    .put("datafusion.indexed.cost_collector", newCostCollector)
+                    .put("datafusion.indexed.single_collector_strategy", newSingleStrategy)
                     .put("datafusion.indexed.min_skip_run_selectivity_threshold", newThreshold)
                     .build()
             );
@@ -212,11 +202,11 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
             WireConfigSnapshot finalSnapshot = datafusionSettings.getSnapshot();
 
             assertEquals(newBatchSize, finalSnapshot.batchSize());
-            assertEquals(newCostCollector, finalSnapshot.costCollector());
+            assertEquals(DatafusionSettings.strategyToWireValue(newSingleStrategy), finalSnapshot.singleCollectorStrategy());
             assertEquals(newThreshold, finalSnapshot.minSkipRunSelectivityThreshold(), 1e-15);
             assertEquals(false, finalSnapshot.parquetPushdownFilters());
             assertEquals(1024, finalSnapshot.minSkipRunDefault());
-            assertEquals(1, finalSnapshot.costPredicate());
+            assertEquals(1, finalSnapshot.maxCollectorParallelism());
         }
     }
 }

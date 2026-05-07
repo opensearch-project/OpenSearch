@@ -13,7 +13,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * Immutable configuration record for creating a native SessionContext via
- * {@link NativeBridge#createSessionContext(SessionContextConfig)}.
+ * {@link NativeBridge#createSessionContext(long, long, String, long, long)}.
  *
  * @param readerPtr   pointer to the native DataFusion reader (shard view)
  * @param runtimePtr  pointer to the native DataFusion runtime

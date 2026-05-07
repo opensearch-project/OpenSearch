@@ -14,10 +14,11 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
-import org.opensearch.be.datafusion.nativelib.SessionContextConfig;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -144,14 +145,17 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     private ShardScanExecutionContext createExecutionContext(String tableName, byte[] substrait, DatafusionContext dfContext) {
         ShardScanExecutionContext execCtx = new ShardScanExecutionContext(tableName, null, null);
         execCtx.setFragmentBytes(substrait);
-        SessionContextConfig sessionConfig = new SessionContextConfig(
+        Arena arena = Arena.ofConfined();
+        MemorySegment configSegment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
+        WireConfigSnapshot.builder().build().writeTo(configSegment);
+        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
             readerHandle.getPointer(),
             runtimeHandle.get(),
             tableName,
             0L,
-            new WireConfigSnapshot(8192, 4, false, 1024, 0.03, 1, 10, 1)
+            configSegment.address()
         );
-        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(sessionConfig);
+        arena.close();
         dfContext.setSessionContextHandle(sessionCtxHandle);
         return execCtx;
     }

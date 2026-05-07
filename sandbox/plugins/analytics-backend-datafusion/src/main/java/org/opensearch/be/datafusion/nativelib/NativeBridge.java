@@ -9,14 +9,12 @@
 package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.analytics.backend.jni.NativeHandle;
-import org.opensearch.be.datafusion.WireConfigSnapshot;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
-import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
@@ -735,23 +733,21 @@ public final class NativeBridge {
     /**
      * Creates a SessionContext with the default ListingTable registered.
      * Returns a tracked handle consumed by {@link #executeWithContextAsync}.
+     *
+     * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      */
-    public static SessionContextHandle createSessionContext(SessionContextConfig config) {
-        NativeHandle.validatePointer(config.readerPtr(), "reader");
-        NativeHandle.validatePointer(config.runtimePtr(), "runtime");
+    public static SessionContextHandle createSessionContext(
+        long readerPtr,
+        long runtimePtr,
+        String tableName,
+        long contextId,
+        long queryConfigPtr
+    ) {
+        NativeHandle.validatePointer(readerPtr, "reader");
+        NativeHandle.validatePointer(runtimePtr, "runtime");
         try (var call = new NativeCall()) {
-            var table = call.str(config.tableName());
-            MemorySegment segment = call.buf((int) WireConfigSnapshot.BYTE_SIZE);
-            config.queryConfig().writeTo(segment);
-            long ptr = call.invoke(
-                CREATE_SESSION_CONTEXT,
-                config.readerPtr(),
-                config.runtimePtr(),
-                table.segment(),
-                table.len(),
-                config.contextId(),
-                segment.address()
-            );
+            var table = call.str(tableName);
+            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId, queryConfigPtr);
             return new SessionContextHandle(ptr);
         }
     }
