@@ -25,6 +25,7 @@ use std::time::Instant;
 use dashmap::DashMap;
 use log::debug;
 use once_cell::sync::Lazy;
+use tokio_util::sync::CancellationToken;
 
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
@@ -115,6 +116,7 @@ pub struct QueryTracker {
     pub start_time: Instant,
     pub context_id: i64,
     pub memory_pool: Arc<QueryMemoryPool>,
+    pub cancellation_token: CancellationToken,
     completed: AtomicBool,
     wall_nanos: std::sync::atomic::AtomicU64,
 }
@@ -157,6 +159,19 @@ pub fn drain_completed_query(context_id: i64) -> Option<Arc<QueryTracker>> {
         .map(|(_, t)| t)
 }
 
+/// Fire the cancellation token for the given context_id.
+/// No-op for unknown or already-completed queries.
+pub fn cancel_query(context_id: i64) {
+    if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
+        tracker.cancellation_token.cancel();
+    }
+}
+
+/// Clone the cancellation token for the given context_id, if registered.
+pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
+    QUERY_REGISTRY.get(&context_id).map(|t| t.cancellation_token.clone())
+}
+
 // ---------------------------------------------------------------------------
 // QueryTrackingContext
 // ---------------------------------------------------------------------------
@@ -185,6 +200,11 @@ impl QueryTrackingContext {
             start_time: Instant::now(),
             context_id,
             memory_pool: query_pool,
+            // CancellationToken is a thread-safe, cloneable handle that can be used to
+            // signal cancellation to async tasks via `token.cancelled().await` in a
+            // `tokio::select!` branch. Calling `token.cancel()` fires all waiters.
+            // See: https://github.com/tokio-rs/tokio/blob/master/tokio-util/src/sync/cancellation_token/tree_node.rs
+            cancellation_token: CancellationToken::new(),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
@@ -198,6 +218,11 @@ impl QueryTrackingContext {
     /// if tracking is disabled.
     pub fn memory_pool(&self) -> Option<Arc<QueryMemoryPool>> {
         self.tracker.as_ref().map(|t| Arc::clone(&t.memory_pool))
+    }
+
+    /// The context_id for this query, or 0 if tracking is disabled.
+    pub fn context_id(&self) -> i64 {
+        self.tracker.as_ref().map_or(0, |t| t.context_id)
     }
 }
 

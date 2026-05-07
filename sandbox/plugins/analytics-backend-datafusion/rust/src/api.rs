@@ -53,12 +53,13 @@ use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
 
+use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::local_executor::LocalSession;
 use crate::memory::{DynamicLimitHandle, DynamicLimitPool};
 use crate::partition_stream::PartitionStreamSender;
-use crate::query_memory_pool_tracker::QueryTrackingContext;
+use crate::query_tracker::{self, QueryTrackingContext};
 use crate::runtime_manager::RuntimeManager;
 
 /// Bundles a stream with its query tracking context so that dropping the
@@ -259,6 +260,8 @@ pub unsafe fn close_reader(ptr: i64) {
 
 /// Executes a query. Returns a heap-allocated pointer (as i64) to the result stream.
 /// Caller must call `stream_close` exactly once to free it.
+/// If `context_id != 0`, registers a cancellation token in ACTIVE_QUERIES before
+/// execution so `cancel_query()` can interrupt it even during planning.
 ///
 /// This is an async function — the bridge layer decides how to run it
 /// (`block_on` for synchronous delivery, `spawn` for async delivery).
@@ -290,32 +293,39 @@ pub async unsafe fn execute_query(
     // index_filter(bytes) calls. Cheap — just bytes inspection.
     let is_indexed = plan_bytes_mentions_index_filter(plan_bytes);
 
-    let stream_ptr = if is_indexed {
-        let qc = Arc::new(query_config);
-        crate::indexed_executor::execute_indexed_query(
-            plan_bytes.to_vec(),
-            table_name.to_string(),
-            shard_view,
-            qc.target_partitions.max(1),
-            runtime,
-            cpu_executor,
-            query_memory_pool,
-            qc,
-        )
-        .await?
-    } else {
-        crate::query_executor::execute_query(
-            shard_view.table_path.clone(),
-            shard_view.object_metas.clone(),
-            table_name.to_string(),
-            plan_bytes.to_vec(),
-            runtime,
-            cpu_executor,
-            query_memory_pool,
-            &query_config,
-        )
-        .await?
+    // Register cancellation token.
+    let token = query_tracker::get_cancellation_token(context_id);
+
+    let query_future = async {
+        if is_indexed {
+            let qc = Arc::new(query_config);
+            crate::indexed_executor::execute_indexed_query(
+                plan_bytes.to_vec(),
+                table_name.to_string(),
+                shard_view,
+                qc.target_partitions.max(1),
+                runtime,
+                cpu_executor,
+                query_memory_pool,
+                qc,
+            ).await
+        } else {
+            crate::query_executor::execute_query(
+                shard_view.table_path.clone(),
+                shard_view.object_metas.clone(),
+                table_name.to_string(),
+                plan_bytes.to_vec(),
+                runtime,
+                cpu_executor,
+                query_memory_pool,
+                &query_config,
+            ).await
+        }
     };
+
+    let stream_ptr = cancellation::cancellable(token.as_ref(), context_id, query_future)
+        .await
+        .map_err(|e| DataFusionError::Execution(e))?;
 
     // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
@@ -356,7 +366,8 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 
 /// Loads the next record batch from the stream.
 ///
-/// Returns a heap-allocated FFI_ArrowArray pointer (as i64), or 0 if end-of-stream.
+/// Returns a heap-allocated FFI_ArrowArray pointer (as i64), or 0 if end-of-stream
+/// or cancelled.
 ///
 /// This is an async function — the bridge layer decides how to run it.
 ///
@@ -365,8 +376,14 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// on the same stream.
 pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
+    let token = query_tracker::get_cancellation_token(handle._query_tracking_context.context_id());
 
-    let result = handle.stream.try_next().await?;
+    let result = cancellation::cancellable_or(
+        token.as_ref(),
+        None,
+        async { handle.stream.try_next().await.map_err(|e: DataFusionError| e) },
+    ).await
+    .map_err(|e| DataFusionError::Execution(e))?;
 
     match result {
         Some(batch) => {
@@ -389,6 +406,12 @@ pub unsafe fn stream_close(stream_ptr: i64) {
         // The context's Drop impl marks the query completed in the registry.
         let _ = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
     }
+}
+
+/// Fires the cancellation token for the given context_id.
+/// No-op for unknown or already-completed queries.
+pub fn cancel_query(context_id: i64) {
+    query_tracker::cancel_query(context_id);
 }
 
 /// Converts SQL to Substrait plan bytes (test only).

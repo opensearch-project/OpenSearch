@@ -29,7 +29,7 @@ use log::error;
 use object_store::ObjectMeta;
 
 use crate::api::{DataFusionRuntime, ShardView};
-use crate::query_memory_pool_tracker::QueryTrackingContext;
+use crate::query_tracker::QueryTrackingContext;
 
 /// Opaque handle holding a configured SessionContext between FFM calls.
 pub struct SessionContextHandle {
