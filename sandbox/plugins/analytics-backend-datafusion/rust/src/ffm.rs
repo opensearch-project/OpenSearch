@@ -624,16 +624,6 @@ pub unsafe extern "C" fn df_execute_with_context(
     plan_ptr: *const u8,
     plan_len: i64,
 ) -> i64 {
-    // Consume the session context handle on entry. Ownership transfers here
-    // regardless of whether the remainder of this function succeeds, returns an
-    // error via `?`, or panics — RAII (or `catch_unwind` drop-during-unwind)
-    // drops `session_handle` and frees the underlying SessionContext resources.
-    //
-    // This matches the Java-side contract: SessionContextHandle.markConsumed() is
-    // invoked in a `finally` after the FFM downcall, so every observable path from
-    // Java's perspective ("call.invoke ran") maps to "Rust consumed the handle".
-    // If we were to run fallible or panic-prone code (e.g. `get_rt_manager()?`)
-    // before Box::from_raw, the handle would leak on those paths.
     let session_handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
 
     let mgr = get_rt_manager()?;
