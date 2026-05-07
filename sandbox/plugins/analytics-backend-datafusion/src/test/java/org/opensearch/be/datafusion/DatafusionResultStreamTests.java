@@ -181,7 +181,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             new byte[] { 0, 1, 2 },
             runtimeHandle.get(),
             0L,
-            0L,
+            queryConfigPtr,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long ptr) {
@@ -224,7 +224,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             substrait,
             tempRuntime.get(),
             0L,
-            0L,
+            queryConfigPtr,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long p) {
@@ -277,7 +277,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             substrait,
             runtimeHandle.get(),
             0L,
-            0L,
+            queryConfigPtr,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long ptr) {
