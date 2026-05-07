@@ -96,6 +96,16 @@ PUT /my-secure-index
 - Table data stored as Parquet files on a filesystem accessible from OpenSearch nodes
 - For Kerberos: a valid keytab and `krb5.conf` configured on OpenSearch nodes
 
+## Delivery Guarantees
+
+The plugin provides **exactly-once** semantics when the document `_id` is derived from
+a unique field in the source data (via `mapper_type: field_mapping`). In this case,
+duplicate deliveries after a crash result in idempotent overwrites to the same `_id`.
+
+When `_id` is auto-generated (no unique field mapping), the guarantee is **at-least-once**.
+A node crash between indexing a document and advancing the checkpoint pointer may cause
+that document to be re-indexed with a new `_id` upon recovery.
+
 ## Thrift Code Generation
 
 The Metastore client code is generated from `src/main/thrift/hive_metastore.thrift`. To regenerate after modifying the IDL:
