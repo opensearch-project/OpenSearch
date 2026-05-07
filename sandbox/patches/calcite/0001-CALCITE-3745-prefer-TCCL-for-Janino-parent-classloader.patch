@@ -1,0 +1,151 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Mustang <mustang@opensearch.local>
+Date: Wed, 6 May 2026 00:00:00 -0700
+Subject: [PATCH] CALCITE-3745: TCCL-chained classloader for Janino parent CL
+
+Introduce a TcclChainedClassLoader utility that resolves classes via the
+thread context classloader first, falling back to the Calcite-local CL
+if a name is not found on TCCL. Every site that configures Janino's
+parent classloader (EnumerableInterpretable, JaninoRexCompiler,
+RexExecutable, JaninoRelMetadataProvider) now uses the chained loader.
+
+This keeps Calcite's internal types always resolvable while making
+child-plugin UDFs visible when the host (OpenSearch's extendedPlugins)
+sets TCCL to the child classloader.
+---
+ .../enumerable/EnumerableInterpretable.java   |  3 +-
+ .../interpreter/JaninoRexCompiler.java        |  3 +-
+ .../metadata/JaninoRelMetadataProvider.java   |  4 +-
+ .../org/apache/calcite/rex/RexExecutable.java |  4 +-
+ .../calcite/util/TcclChainedClassLoader.java  | 61 +++++++++++++++++++
+ 5 files changed, 71 insertions(+), 4 deletions(-)
+ create mode 100644 core/src/main/java/org/apache/calcite/util/TcclChainedClassLoader.java
+
+diff --git a/core/src/main/java/org/apache/calcite/adapter/enumerable/EnumerableInterpretable.java b/core/src/main/java/org/apache/calcite/adapter/enumerable/EnumerableInterpretable.java
+index 5f32ab1..1c9ce19 100644
+--- a/core/src/main/java/org/apache/calcite/adapter/enumerable/EnumerableInterpretable.java
++++ b/core/src/main/java/org/apache/calcite/adapter/enumerable/EnumerableInterpretable.java
+@@ -145,7 +145,8 @@ static Bindable getBindable(ClassDeclaration expr, String classBody, int fieldCo
+           "Unable to instantiate java compiler", e);
+     }
+     final ISimpleCompiler compiler = compilerFactory.newSimpleCompiler();
+-    compiler.setParentClassLoader(classLoader);
++    compiler.setParentClassLoader(
++        org.apache.calcite.util.TcclChainedClassLoader.chain(classLoader));
+     final String s = "public final class " + expr.name + " implements "
+         + (fieldCount == 1
+           ? Bindable.class.getCanonicalName() + ", " + Typed.class.getCanonicalName()
+diff --git a/core/src/main/java/org/apache/calcite/interpreter/JaninoRexCompiler.java b/core/src/main/java/org/apache/calcite/interpreter/JaninoRexCompiler.java
+index bca4f85..d6de426 100644
+--- a/core/src/main/java/org/apache/calcite/interpreter/JaninoRexCompiler.java
++++ b/core/src/main/java/org/apache/calcite/interpreter/JaninoRexCompiler.java
+@@ -211,7 +211,8 @@ static Scalar.Producer getScalar(ClassDeclaration expr, String s)
+     IClassBodyEvaluator cbe = compilerFactory.newClassBodyEvaluator();
+     cbe.setClassName(expr.name);
+     cbe.setImplementedInterfaces(new Class[] {Scalar.Producer.class});
+-    cbe.setParentClassLoader(classLoader);
++    cbe.setParentClassLoader(
++        org.apache.calcite.util.TcclChainedClassLoader.chain(classLoader));
+     if (CalciteSystemProperty.DEBUG.value()) {
+       // Add line numbers to the generated janino class
+       cbe.setDebuggingInformation(true, true, true);
+diff --git a/core/src/main/java/org/apache/calcite/rel/metadata/JaninoRelMetadataProvider.java b/core/src/main/java/org/apache/calcite/rel/metadata/JaninoRelMetadataProvider.java
+index 135b11e..34a5e4b 100644
+--- a/core/src/main/java/org/apache/calcite/rel/metadata/JaninoRelMetadataProvider.java
++++ b/core/src/main/java/org/apache/calcite/rel/metadata/JaninoRelMetadataProvider.java
+@@ -157,7 +157,9 @@ static  <MH extends MetadataHandler<?>> MH compile(String className,
+     }
+ 
+     final ISimpleCompiler compiler = compilerFactory.newSimpleCompiler();
+-    compiler.setParentClassLoader(JaninoRexCompiler.class.getClassLoader());
++    compiler.setParentClassLoader(
++        org.apache.calcite.util.TcclChainedClassLoader.chain(
++            JaninoRexCompiler.class.getClassLoader()));
+ 
+     if (CalciteSystemProperty.DEBUG.value()) {
+       // Add line numbers to the generated janino class
+diff --git a/core/src/main/java/org/apache/calcite/rex/RexExecutable.java b/core/src/main/java/org/apache/calcite/rex/RexExecutable.java
+index 8828654..1e91951 100644
+--- a/core/src/main/java/org/apache/calcite/rex/RexExecutable.java
++++ b/core/src/main/java/org/apache/calcite/rex/RexExecutable.java
+@@ -60,7 +60,9 @@ public RexExecutable(String code, Object reason) {
+       cbe.setClassName(GENERATED_CLASS_NAME);
+       cbe.setExtendedClass(Utilities.class);
+       cbe.setImplementedInterfaces(new Class[] {Function1.class, Serializable.class});
+-      cbe.setParentClassLoader(RexExecutable.class.getClassLoader());
++      cbe.setParentClassLoader(
++          org.apache.calcite.util.TcclChainedClassLoader.chain(
++              RexExecutable.class.getClassLoader()));
+       cbe.cook(new Scanner(null, new StringReader(code)));
+       Class c = cbe.getClazz();
+       //noinspection unchecked
+diff --git a/core/src/main/java/org/apache/calcite/util/TcclChainedClassLoader.java b/core/src/main/java/org/apache/calcite/util/TcclChainedClassLoader.java
+new file mode 100644
+index 0000000..259d71c
+--- /dev/null
++++ b/core/src/main/java/org/apache/calcite/util/TcclChainedClassLoader.java
+@@ -0,0 +1,61 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one or more
++ * contributor license agreements.  See the NOTICE file distributed with
++ * this work for additional information regarding copyright ownership.
++ * The ASF licenses this file to you under the Apache License, Version 2.0
++ * (the "License"); you may not use this file except in compliance with
++ * the License.  You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package org.apache.calcite.util;
++
++/**
++ * CALCITE-3745 (OpenSearch patch): helper to build a classloader that
++ * prefers the thread context classloader for name resolution but falls back
++ * to a supplied Calcite-local classloader for Calcite's own internal types.
++ *
++ * <p>When Calcite is embedded under a parent plugin classloader (e.g. in
++ * OpenSearch's {@code extendedPlugins} layout), child plugins register UDFs
++ * that end up referenced by name in Janino-generated code. The default
++ * {@code SomeCalciteClass.class.getClassLoader()} cannot see those UDFs.
++ * Using TCCL alone breaks in contexts where TCCL is a stripped-down
++ * classloader that has no view of Calcite's own internal types. Chaining
++ * solves both cases.
++ */
++public final class TcclChainedClassLoader {
++  private TcclChainedClassLoader() {}
++
++  /**
++   * Returns a classloader that resolves classes by consulting the thread
++   * context classloader first, then falling back to {@code fallback}. If
++   * TCCL is unset or identical to {@code fallback}, the fallback is
++   * returned unchanged.
++   */
++  public static ClassLoader chain(ClassLoader fallback) {
++    final ClassLoader tccl = Thread.currentThread().getContextClassLoader();
++    if (tccl == null || tccl == fallback) {
++      return fallback;
++    }
++    return new ClassLoader(fallback) {
++      @Override protected Class<?> loadClass(String name, boolean resolve)
++          throws ClassNotFoundException {
++        try {
++          Class<?> c = tccl.loadClass(name);
++          if (resolve) {
++            resolveClass(c);
++          }
++          return c;
++        } catch (ClassNotFoundException e) {
++          return super.loadClass(name, resolve);
++        }
++      }
++    };
++  }
++}
+-- 
+2.50.1 (Apple Git-155)
+

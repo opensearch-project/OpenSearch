@@ -104,6 +104,11 @@ opentelemetrysemconv  = "1.40.0"
 arrow                 = "18.1.0"
 flatbuffers           = "2.0.0"
 
+# calcite is locally patched and published to OpenSearch maven snapshots; see .github/workflows/calcite-snapshots.yml.
+# Published as org.apache.calcite:calcite-core:${calcite}-opensearch-${calcite_os_rev}.
+calcite               = "1.41.0"
+calcite_os_rev        = "1"
+
 [libraries]
 antlr4-runtime = { group = "org.antlr", name = "antlr4-runtime", version.ref = "antlr4" }
 asm-analysis = { group = "org.ow2.asm", name = "asm-analysis", version.ref = "asm" }
