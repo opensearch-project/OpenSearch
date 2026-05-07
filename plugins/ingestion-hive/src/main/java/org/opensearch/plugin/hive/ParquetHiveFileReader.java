@@ -19,10 +19,12 @@ import org.apache.parquet.io.ColumnIOFactory;
 import org.apache.parquet.io.MessageColumnIO;
 import org.apache.parquet.io.RecordReader;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -138,11 +140,11 @@ public class ParquetHiveFileReader implements HiveFileReader {
             case FLOAT -> record.getFloat(fieldIndex, valueIndex);
             case DOUBLE -> record.getDouble(fieldIndex, valueIndex);
             case BINARY, FIXED_LEN_BYTE_ARRAY -> {
-                org.apache.parquet.schema.LogicalTypeAnnotation annotation = schema.getType(fieldIndex).getLogicalTypeAnnotation();
-                if (annotation instanceof org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation) {
+                LogicalTypeAnnotation annotation = schema.getType(fieldIndex).getLogicalTypeAnnotation();
+                if (annotation instanceof LogicalTypeAnnotation.StringLogicalTypeAnnotation) {
                     yield record.getString(fieldIndex, valueIndex);
                 }
-                yield java.util.Base64.getEncoder().encodeToString(record.getBinary(fieldIndex, valueIndex).getBytes());
+                yield Base64.getEncoder().encodeToString(record.getBinary(fieldIndex, valueIndex).getBytes());
             }
             case INT96 -> record.getValueToString(fieldIndex, valueIndex);
         };

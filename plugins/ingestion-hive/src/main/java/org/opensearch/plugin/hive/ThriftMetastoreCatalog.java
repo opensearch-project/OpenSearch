@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.hive;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authentication.util.KerberosName;
@@ -191,7 +192,7 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
     private void loginWithKerberos() throws TTransportException {
         try {
             AccessController.doPrivilegedChecked(() -> {
-                org.apache.hadoop.conf.Configuration conf = new org.apache.hadoop.conf.Configuration();
+                Configuration conf = new Configuration();
                 conf.set("hadoop.security.authentication", "kerberos");
                 UserGroupInformation.setConfiguration(conf);
                 UserGroupInformation.loginUserFromKeytab(config.getKerberosPrincipal(), config.getKerberosKeytabPath());
