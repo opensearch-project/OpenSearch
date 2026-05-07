@@ -557,8 +557,8 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     @Override
     public IngestionShardPointer latestPointer() {
-        // Signals that existing partitions should be skipped. The empty partition name with
-        // max sequenceNumber tells seekToPointer to mark all current partitions as seen.
+        // Signals that existing partitions should be skipped. seekToPointer sets all watermarks
+        // to their respective maximums so that subsequent discovery returns no existing partitions.
         return new HivePointer("__LATEST__", "", 0, Long.MAX_VALUE - 1);
     }
 
