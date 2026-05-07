@@ -347,12 +347,22 @@ public final class DatafusionSettings {
      * {@code search.concurrent.max_slice_count} setting value.
      * <p>
      * When mode is {@code "none"}, forces target_partitions to 1 (no concurrency).
-     * Otherwise passes the value through as-is — 0 means "let Rust pick its default."
+     * When {@code max_slice_count} is 0, uses 50% of available CPU cores.
+     * Otherwise caps the value at 100% of available CPU cores.
      */
     private static int deriveTargetPartitions(String mode, int maxSliceCount) {
         if (SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE.equals(mode)) {
             return 1;
         }
-        return maxSliceCount;
+
+        // For maxSliceCount == 0 also, we will be owning the concurrency level
+        if(maxSliceCount == 0) {
+            return Runtime.getRuntime().availableProcessors() / 2;
+        }
+
+        // Even if the user set's a higher value, we will still want to limit the number
+        // of slices to the number of available processors
+        // to avoid over-subscription and ensure reasonable performance
+        return Math.min(maxSliceCount, Runtime.getRuntime().availableProcessors());
     }
 }
