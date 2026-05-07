@@ -61,9 +61,40 @@ final class LocalStageScheduler implements StageScheduler {
         FragmentInstructionHandlerFactory factory = stage.getInstructionHandlerFactory();
         if (factory != null) {
             BackendExecutionContext backendContext = null;
-            for (InstructionNode node : stage.getPlanAlternatives().getFirst().instructions()) {
-                FragmentInstructionHandler handler = factory.createHandler(node);
-                backendContext = handler.apply(node, context, backendContext);
+            Throwable primaryFailure = null;
+            try {
+                for (InstructionNode node : stage.getPlanAlternatives().getFirst().instructions()) {
+                    FragmentInstructionHandler handler = factory.createHandler(node);
+                    BackendExecutionContext previous = backendContext;
+                    backendContext = handler.apply(node, context, backendContext);
+                    // A handler that returns a new reference implicitly abandons the previous
+                    // context — close it now so its resources aren't orphaned.
+                    if (previous != null && previous != backendContext) {
+                        previous.close();
+                    }
+                }
+            } catch (Throwable t) {
+                primaryFailure = t;
+            } finally {
+                // The reduce path does not currently hand backendContext off to the sink
+                // provider — any resources attached by instruction handlers must be released
+                // here. Close is idempotent so a future handoff can coexist with this call.
+                if (backendContext != null) {
+                    try {
+                        backendContext.close();
+                    } catch (Exception closeFailure) {
+                        if (primaryFailure != null) {
+                            primaryFailure.addSuppressed(closeFailure);
+                        } else {
+                            primaryFailure = closeFailure;
+                        }
+                    }
+                }
+            }
+            if (primaryFailure != null) {
+                if (primaryFailure instanceof RuntimeException re) throw re;
+                if (primaryFailure instanceof Error err) throw err;
+                throw new RuntimeException("Instruction handler failed for stageId=" + stage.getStageId(), primaryFailure);
             }
         }
 

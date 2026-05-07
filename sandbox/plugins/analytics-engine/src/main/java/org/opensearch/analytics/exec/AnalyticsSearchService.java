@@ -113,12 +113,12 @@ public class AnalyticsSearchService implements AutoCloseable {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
+        BackendExecutionContext backendContext = null;
         try {
             ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
             // Apply instruction handlers in order — each builds upon the previous handler's backend context
-            BackendExecutionContext backendContext = null;
             List<InstructionNode> instructions = resolved.plan.getInstructions();
             if (!instructions.isEmpty()) {
                 FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
@@ -136,6 +136,16 @@ public class AnalyticsSearchService implements AutoCloseable {
                 new FragmentResources(gatedReader, engine, stream).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
+            }
+            // Close the backend execution context as a safety net for failure paths that
+            // never reached / never finished the engine construction — if the handle was
+            // already transferred, close() is a no-op (implementations must be idempotent).
+            if (backendContext != null) {
+                try {
+                    backendContext.close();
+                } catch (Exception suppressed) {
+                    e.addSuppressed(suppressed);
+                }
             }
             throw e;
         }
