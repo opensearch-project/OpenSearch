@@ -299,13 +299,17 @@ pub async unsafe fn execute_query(
     // will be cached after the first query, so subsequent queries benefit.
     let (effective_target_partitions, effective_batch_size) =
         match try_schema_from_cache(shard_view, &runtime.runtime_env) {
-            Some(schema) => {
-                match crate::query_memory_budget::acquire_budget(
+            Some(cached) => {
+                // Use measured row bytes from parquet metadata (tight estimate)
+                // instead of static type-based guesses (2-3× over-estimate).
+                let budget_result = crate::query_memory_budget::acquire_budget_from_metadata(
                     &global_pool,
-                    &schema,
+                    &cached.schema,
+                    &cached.metadata,
                     query_config.target_partitions,
                     query_config.batch_size,
-                ) {
+                );
+                match budget_result {
                     Ok(budget) => {
                         let tp = budget.target_partitions;
                         let bs = budget.batch_size;
@@ -374,16 +378,22 @@ pub async unsafe fn execute_query(
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
-/// Best-effort schema resolution from the file metadata cache.
+/// Cached schema and metadata from the file metadata cache.
+struct CachedSchemaInfo {
+    schema: datafusion::arrow::datatypes::SchemaRef,
+    metadata: Arc<parquet::file::metadata::ParquetMetaData>,
+}
+
+/// Best-effort schema + metadata resolution from the file metadata cache.
 ///
 /// Checks if parquet metadata is already cached for the first file in the shard
-/// view. If yes, extracts the Arrow schema via `as_any()` downcast (zero I/O).
-/// If not cached, returns `None` — the caller should skip budget enforcement
-/// rather than paying the cost of reading the parquet footer.
+/// view. If yes, extracts the Arrow schema and returns the metadata for row-width
+/// estimation (zero I/O). If not cached, returns `None` — the caller should skip
+/// budget enforcement rather than paying the cost of reading the parquet footer.
 fn try_schema_from_cache(
     shard_view: &ShardView,
     runtime_env: &datafusion::execution::runtime_env::RuntimeEnv,
-) -> Option<datafusion::arrow::datatypes::SchemaRef> {
+) -> Option<CachedSchemaInfo> {
     use parquet::arrow::parquet_to_arrow_schema;
     use parquet::file::metadata::ParquetMetaData;
 
@@ -391,12 +401,16 @@ fn try_schema_from_cache(
     let first_meta = shard_view.object_metas.first()?;
     let cached = cache.get(first_meta)?;
     let parquet_meta = cached.as_any().downcast_ref::<ParquetMetaData>()?;
-    parquet_to_arrow_schema(
+    let schema = parquet_to_arrow_schema(
         parquet_meta.file_metadata().schema_descr(),
         parquet_meta.file_metadata().key_value_metadata(),
     )
     .ok()
-    .map(Arc::new)
+    .map(Arc::new)?;
+    // Clone the ParquetMetaData into an Arc for the budget function.
+    // This is cheap — ParquetMetaData internally holds Arcs for row group metadata.
+    let metadata = Arc::new(parquet_meta.clone());
+    Some(CachedSchemaInfo { schema, metadata })
 }
 
 /// Cheap check: scan the substrait plan bytes for the `index_filter` function
