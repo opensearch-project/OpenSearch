@@ -193,7 +193,16 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             }
             // Build filesystem-level per-format deleters so IndexFileDeleter can clean up orphan
             // files at construction time (equivalent to NRTReplicationEngine.cleanUnreferencedFiles).
-            Map<String, FileDeleter> fileDeleters = buildReplicaFileDeleters(store.shardPath(), engineConfig.getDataFormatRegistry());
+            Map<String, FileDeleter> perFormatDeleters = buildReplicaFileDeleters(store.shardPath(), engineConfig.getDataFormatRegistry());
+            // Combine per-format deleters into a single FileDeleter for CatalogSnapshotManager
+            FileDeleter compositeDeleter = filesToDelete -> {
+                Map<String, Collection<String>> allFailed = new HashMap<>();
+                for (FileDeleter deleter : perFormatDeleters.values()) {
+                    Map<String, Collection<String>> failed = deleter.deleteFiles(filesToDelete);
+                    failed.forEach((k, v) -> allFailed.computeIfAbsent(k, x -> new java.util.ArrayList<>()).addAll(v));
+                }
+                return allFailed;
+            };
             List<CatalogSnapshot> committed = initialCommittedSnapshots.isEmpty()
                 ? List.of(createInitialSnapshot(0L, 0L, 0L, List.of(), -1L, userData))
                 : initialCommittedSnapshots;
@@ -201,7 +210,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             catalogSnapshotManagerRef = new CatalogSnapshotManager(
                 committed,
                 CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                fileDeleters,
+                compositeDeleter,
                 Map.of(),
                 List.of(),
                 store.shardPath(),
