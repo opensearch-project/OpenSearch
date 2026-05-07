@@ -142,15 +142,9 @@ public class UntypedNullPreprocessorTests extends OpenSearchTestCase {
         RelNode rewritten = UntypedNullPreprocessor.rewrite(project);
         LogicalProject rewrittenProj = (LogicalProject) rewritten;
         RexCall rewrittenCase = (RexCall) rewrittenProj.getProjects().get(0);
-        // Operands unchanged structurally and by type.
-        for (int i = 0; i < 3; i++) {
-            assertEquals(
-                "Operand " + i + " should be unchanged when no untyped null is present",
-                caseExpr.accept(new org.apache.calcite.rex.RexShuttle() {}).toString(),
-                rewrittenCase.toString()
-            );
-            break;
-        }
+        // Whole CASE expression is structurally unchanged when no untyped nulls are present
+        // — the rewriter only fires on SqlTypeName.NULL operands.
+        assertEquals("CASE expression should be unchanged when no untyped null is present", caseExpr.toString(), rewrittenCase.toString());
     }
 
     /**
