@@ -71,13 +71,90 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
     }
 
     /**
+     * Test that ref_path with locale loads dictionary from the ref_path directory.
+     * Expected: config/{ref_path}/hunspell/{locale}/
+     */
+    public void testRefPathWithLocaleLoadsDictionaryFromDirectory() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("index.analysis.filter.my_hunspell.type", "hunspell")
+            .put("index.analysis.filter.my_hunspell.ref_path", "analyzers/test-dict")
+            .put("index.analysis.filter.my_hunspell.locale", "en_US")
+            .build();
+
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"));
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
+        assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
+        HunspellTokenFilterFactory hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
+        assertThat(hunspellTokenFilter.dedup(), is(true));
+    }
+
+    /**
+     * Test that ref_path without locale throws IllegalArgumentException.
+     * The locale is required when using ref_path.
+     */
+    public void testRefPathWithoutLocaleThrowsException() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("index.analysis.filter.my_hunspell.type", "hunspell")
+            .put("index.analysis.filter.my_hunspell.ref_path", "analyzers/test-dict")
+            // locale intentionally omitted
+            .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"))
+        );
+        assertThat(e.getMessage(), containsString("locale"));
+        assertThat(e.getMessage(), containsString("required"));
+    }
+
+    /**
+     * Test that non-existent ref_path directory throws exception.
+     */
+    public void testNonExistentRefPathThrowsException() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("index.analysis.filter.my_hunspell.type", "hunspell")
+            .put("index.analysis.filter.my_hunspell.ref_path", "non-existent-dict")
+            .put("index.analysis.filter.my_hunspell.locale", "en_US")
+            .build();
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"))
+        );
+        // The exception message should indicate the ref_path or dictionary was not found
+        assertThat(e.getMessage(), containsString("non-existent-dict"));
+    }
+
+    /**
+     * Test that non-existent locale in ref_path throws exception.
+     */
+    public void testNonExistentLocaleInRefPathThrowsException() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("index.analysis.filter.my_hunspell.type", "hunspell")
+            .put("index.analysis.filter.my_hunspell.ref_path", "analyzers/test-dict")
+            .put("index.analysis.filter.my_hunspell.locale", "fr_FR")  // locale doesn't exist in test-dict
+            .build();
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"))
+        );
+        // The exception message should indicate the locale was not found
+        assertThat(e.getMessage(), containsString("fr_FR"));
+    }
+
+    /**
      * Test dedup and longestOnly settings work with ref_path.
      */
     public void testRefPathWithDedupAndLongestOnly() throws IOException {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put("index.analysis.filter.my_hunspell.type", "hunspell")
-            .put("index.analysis.filter.my_hunspell.ref_path", "test-pkg")
+            .put("index.analysis.filter.my_hunspell.ref_path", "analyzers/test-dict")
             .put("index.analysis.filter.my_hunspell.locale", "en_US")
             .put("index.analysis.filter.my_hunspell.dedup", false)
             .put("index.analysis.filter.my_hunspell.longest_only", true)
@@ -125,124 +202,116 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test validatePackageIdentifier accepts valid identifiers.
+     * Test validateRefPath/validateLocale accepts valid identifiers.
      */
-    public void testValidatePackageIdentifierAcceptsValid() {
+    public void testValidateRefPathAndLocaleAcceptsValid() {
         // These should not throw
-        HunspellTokenFilterFactory.validatePackageIdentifier("pkg-1234", "ref_path");
-        HunspellTokenFilterFactory.validatePackageIdentifier("en_US", "locale");
-        HunspellTokenFilterFactory.validatePackageIdentifier("my-package-v2", "ref_path");
-        HunspellTokenFilterFactory.validatePackageIdentifier("en_US_custom", "locale");
-        HunspellTokenFilterFactory.validatePackageIdentifier("a", "ref_path"); // single char
-        HunspellTokenFilterFactory.validatePackageIdentifier("AB", "ref_path"); // two chars
+        HunspellTokenFilterFactory.validateRefPath("analyzers/my-dict");
+        HunspellTokenFilterFactory.validateLocale("en_US");
+        HunspellTokenFilterFactory.validateRefPath("my-dict-v2");
+        HunspellTokenFilterFactory.validateLocale("en_US_custom");
+        HunspellTokenFilterFactory.validateRefPath("a"); // single char
+        HunspellTokenFilterFactory.validateRefPath("AB"); // two chars
+        HunspellTokenFilterFactory.validateRefPath("dict-v1"); // hyphen in middle
     }
 
     /**
-     * Test validatePackageIdentifier rejects null.
+     * Test validateRefPath/validateLocale rejects null.
      */
-    public void testValidatePackageIdentifierRejectsNull() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier(null, "ref_path")
-        );
+    public void testValidateRefPathRejectsNull() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> HunspellTokenFilterFactory.validateRefPath(null));
         assertThat(e.getMessage(), containsString("null or empty"));
     }
 
     /**
-     * Test validatePackageIdentifier rejects empty string.
+     * Test validateRefPath/validateLocale rejects empty string.
      */
-    public void testValidatePackageIdentifierRejectsEmpty() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier("", "ref_path")
-        );
+    public void testValidateRefPathRejectsEmpty() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> HunspellTokenFilterFactory.validateRefPath(""));
         assertThat(e.getMessage(), containsString("null or empty"));
     }
 
     /**
-     * Test validatePackageIdentifier rejects slash.
+     * Test validateRefPath/validateLocale rejects backslash.
      */
-    public void testValidatePackageIdentifierRejectsSlash() {
+    public void testValidateRefPathRejectsBackslash() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier("foo/bar", "ref_path")
+            () -> HunspellTokenFilterFactory.validateRefPath("foo\\bar")
         );
         assertThat(e.getMessage(), containsString("Only alphanumeric"));
     }
 
     /**
-     * Test validatePackageIdentifier rejects backslash.
+     * Test validateRefPath/validateLocale rejects colon (cache key separator).
      */
-    public void testValidatePackageIdentifierRejectsBackslash() {
+    public void testValidateRefPathRejectsColon() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier("foo\\bar", "ref_path")
+            () -> HunspellTokenFilterFactory.validateRefPath("dict:inject")
         );
         assertThat(e.getMessage(), containsString("Only alphanumeric"));
     }
 
     /**
-     * Test validatePackageIdentifier rejects colon (cache key separator).
+     * Test validateRefPath/validateLocale rejects leading dot.
      */
-    public void testValidatePackageIdentifierRejectsColon() {
+    public void testValidateRefPathRejectsLeadingDot() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier("pkg:inject", "ref_path")
+            () -> HunspellTokenFilterFactory.validateRefPath(".hidden")
         );
         assertThat(e.getMessage(), containsString("Only alphanumeric"));
     }
 
     /**
-     * Test validatePackageIdentifier rejects dots.
+     * Test validateRefPath/validateLocale rejects trailing dot.
      */
-    public void testValidatePackageIdentifierRejectsDots() {
+    public void testValidateRefPathRejectsTrailingDot() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier("pkg.v1", "ref_path")
+            () -> HunspellTokenFilterFactory.validateRefPath("dict.")
         );
         assertThat(e.getMessage(), containsString("Only alphanumeric"));
     }
 
     /**
-     * Test validatePackageIdentifier rejects double dots (path traversal).
+     * Test validateRefPath/validateLocale rejects double dots (path traversal).
      */
-    public void testValidatePackageIdentifierRejectsDoubleDots() {
+    public void testValidateLocaleRejectsDoubleDots() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier("foo..bar", "ref_path")
+            () -> HunspellTokenFilterFactory.validateLocale("foo..bar")
+        );
+        assertThat(e.getMessage(), containsString("Only alphanumeric characters, hyphens, and underscores are allowed."));
+    }
+
+    /**
+     * Test validateRefPath/validateLocale rejects ".." (pure path traversal).
+     */
+    public void testValidateRefPathRejectsPureDotDot() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> HunspellTokenFilterFactory.validateRefPath(".."));
+        assertThat(e.getMessage(), containsString("Only alphanumeric"));
+    }
+
+    /**
+     * Test validateRefPath/validateLocale rejects spaces.
+     */
+    public void testValidateRefPathRejectsSpaces() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HunspellTokenFilterFactory.validateRefPath("my dict")
         );
         assertThat(e.getMessage(), containsString("Only alphanumeric"));
     }
 
     /**
-     * Test validatePackageIdentifier rejects ".." (pure path traversal).
+     * Test validateRefPath/validateLocale rejects special characters.
      */
-    public void testValidatePackageIdentifierRejectsPureDotDot() {
+    public void testValidateRefPathRejectsSpecialChars() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier("..", "ref_path")
-        );
-        assertThat(e.getMessage(), containsString("Only alphanumeric"));
-    }
-
-    /**
-     * Test validatePackageIdentifier rejects spaces.
-     */
-    public void testValidatePackageIdentifierRejectsSpaces() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier("my package", "ref_path")
-        );
-        assertThat(e.getMessage(), containsString("Only alphanumeric"));
-    }
-
-    /**
-     * Test validatePackageIdentifier rejects special characters.
-     */
-    public void testValidatePackageIdentifierRejectsSpecialChars() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HunspellTokenFilterFactory.validatePackageIdentifier("pkg@v1", "ref_path")
+            () -> HunspellTokenFilterFactory.validateRefPath("dict@v1")
         );
         assertThat(e.getMessage(), containsString("Only alphanumeric"));
     }
@@ -254,7 +323,7 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put("index.analysis.filter.my_hunspell.type", "hunspell")
-            .put("index.analysis.filter.my_hunspell.ref_path", "test-pkg")
+            .put("index.analysis.filter.my_hunspell.ref_path", "analyzers/test-dict")
             .put("index.analysis.filter.my_hunspell.locale", "en_US")
             .build();
 
@@ -298,4 +367,5 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
         assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
     }
+
 }
