@@ -81,15 +81,24 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /**
      * Maps backend-specific Calcite operators to their Substrait extension names so Isthmus
-     * serializes them through our {@code SimpleExtension} catalog. Every mapping here
-     * corresponds to a function declared either in the Substrait default catalog, in
-     * {@code opensearch_scalar_functions.yaml} or {@code delegation_functions.yaml}
+     * serializes them through our {@code SimpleExtension} catalog:
+     * <ul>
+     *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
+     *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
+     *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
+     *   <li>{@link SqlLibraryOperators#REGEXP_CONTAINS} → {@code regex_match} (boolean regex match;
+     *       resolved by DataFusion's substrait consumer to {@code Operator::RegexMatch}, the same
+     *       binary operator that backs PostgreSQL's {@code ~} regex match). Lowering target for PPL
+     *       {@code regex} command and {@code regexp_match()} function.</li>
+     * </ul>
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
+        FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match")
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
         FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),

@@ -1,15 +1,6 @@
 %YAML 1.2
 ---
 urn: extension:org.opensearch:scalar_functions
-# Substrait extension signatures for scalar functions DataFusion supports
-# natively but the Substrait default catalog does not declare. Each entry is
-# paired with a FunctionMappings.Sig entry in
-# DataFusionFragmentConvertor#ADDITIONAL_SCALAR_SIGS so isthmus emits the matching
-# extension name, which DataFusion's substrait consumer resolves via its scalar
-# function registry (https://datafusion.apache.org/user-guide/sql/scalar_functions.html).
-#
-# No custom Rust UDF is required for any of these — DataFusion's built-in scalar
-# functions already implement them under the names listed here.
 scalar_functions:
   - name: ilike
     description: >-
@@ -46,6 +37,27 @@ scalar_functions:
     impls:
       - args: [{ value: "any1", name: "ts" }]
         return: any1
+  - name: regex_match
+    description: >-
+      Regular expression containment match (boolean). Lowering target for PPL's
+      `regex` command and `regexp_match()` function — both emit Calcite's
+      `SqlLibraryOperators.REGEXP_CONTAINS`, which DataFusionFragmentConvertor
+      maps to this extension. datafusion-substrait resolves the extension name
+      "regex_match" to `datafusion::logical_expr::Operator::RegexMatch`, which
+      executes against arrow-string's regex kernel and returns BOOLEAN.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: boolean
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: boolean
   - name: cbrt
     description: >-
       Cube root. Resolves to DataFusion's built-in `cbrt` scalar function.

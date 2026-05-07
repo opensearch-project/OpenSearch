@@ -73,6 +73,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IS_NOT_NULL,
         ScalarFunction.IN,
         ScalarFunction.LIKE,
+        ScalarFunction.REGEXP_CONTAINS,
         ScalarFunction.SARG_PREDICATE,
         ScalarFunction.PLUS,
         ScalarFunction.MINUS,
@@ -99,6 +100,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.CAST,
         ScalarFunction.CONCAT,
         ScalarFunction.SAFE_CAST,
+        // ABS / SUBSTRING — `eval x = abs(...)` and `eval s = substring(...)` projections that PPL
+        // sort-pushdown moves into the project tree (see CalciteSortCommandIT
+        // testPushdownSortExpressionContainsNull and CalcitePPLSortIT
+        // testPushdownSortStringExpression). DataFusion has both natively; isthmus default catalog
+        // already binds them.
+        ScalarFunction.ABS,
+        ScalarFunction.SUBSTRING,
         ScalarFunction.SARG_PREDICATE,
         ScalarFunction.MINUS,
         ScalarFunction.ABS,
@@ -115,6 +123,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.LESS_THAN_OR_EQUAL,
         ScalarFunction.IN,
         ScalarFunction.LIKE,
+        ScalarFunction.REGEXP_CONTAINS,
         ScalarFunction.PLUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
