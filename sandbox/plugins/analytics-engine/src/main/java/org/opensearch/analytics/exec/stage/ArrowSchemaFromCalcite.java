@@ -40,10 +40,33 @@ final class ArrowSchemaFromCalcite {
     public static Schema arrowSchemaFromRowType(RelDataType rowType) {
         List<Field> fields = new ArrayList<>();
         for (RelDataTypeField f : rowType.getFieldList()) {
-            ArrowType arrowType = toArrowType(f.getType().getSqlTypeName());
-            fields.add(new Field(f.getName(), new FieldType(true, arrowType, null), null));
+            fields.add(toArrowField(f.getName(), f.getType()));
         }
         return new Schema(fields);
+    }
+
+    /**
+     * Build an Arrow {@link Field} from a Calcite type. For scalar types this is a
+     * leaf field with the appropriate {@link ArrowType}; for ARRAY this is a
+     * {@code List<T>} whose single child is the recursively-converted element type
+     * (Arrow names the child {@code $data$} by convention — kept here for parity with
+     * Arrow's own builders so downstream tooling that walks list children by name
+     * doesn't break).
+     */
+    private static Field toArrowField(String name, RelDataType type) {
+        SqlTypeName sqlTypeName = type.getSqlTypeName();
+        if (sqlTypeName == SqlTypeName.ARRAY) {
+            RelDataType elementType = type.getComponentType();
+            if (elementType == null) {
+                throw new IllegalArgumentException(
+                    "ARRAY type with no component type for field [" + name + "]; cannot derive list element schema"
+                );
+            }
+            Field elementField = toArrowField("$data$", elementType);
+            return new Field(name, new FieldType(true, ArrowType.List.INSTANCE, null), List.of(elementField));
+        }
+        ArrowType arrowType = toArrowType(sqlTypeName);
+        return new Field(name, new FieldType(true, arrowType, null), null);
     }
 
     private static ArrowType toArrowType(SqlTypeName sqlTypeName) {

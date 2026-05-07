@@ -153,7 +153,19 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
-        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace")
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        // Array S0 ladder — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS /
+        // ARRAY_RETURNING_PROJECT_OPS for the capability registration. ARRAY_LENGTH /
+        // ARRAY_SLICE / ARRAY_DISTINCT pass through under their Calcite-stdlib names
+        // (DataFusion's substrait consumer resolves them natively). MakeArrayAdapter /
+        // ArrayToStringAdapter / ArrayElementAdapter rewrite PPL `array(...)` /
+        // `mvjoin(...)` / `mvindex(...)` single-element to locally-declared SqlFunctions
+        // so isthmus emits Substrait calls with DataFusion's native function names.
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_SLICE, "array_slice"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_DISTINCT, "array_distinct"),
+        FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),
+        FunctionMappings.s(ArrayToStringAdapter.LOCAL_ARRAY_TO_STRING_OP, "array_to_string")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;

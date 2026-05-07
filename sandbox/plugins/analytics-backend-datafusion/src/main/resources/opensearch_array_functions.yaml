@@ -1,0 +1,88 @@
+%YAML 1.2
+---
+# Substrait extension declaring the array-producing and array-consuming scalar
+# functions DataFusion's native runtime can execute. Substrait's standard
+# extension catalog has no array_* entries, so isthmus' RexExpressionConverter
+# would fail with "Unable to convert call …" until we declare them here.
+#
+# DataFusion's `datafusion-substrait` consumer resolves these names to native
+# DataFusion implementations (datafusion-functions-array crate):
+#   make_array       → array constructor
+#   array_length     → array length
+#   array_slice      → array slice (1-based, inclusive)
+#   array_distinct   → array distinct elements
+#   array_to_string  → join array elements with a separator
+urn: extension:org.opensearch:array_functions
+scalar_functions:
+  - name: make_array
+    description: >-
+      Construct an array literal from variadic operands. All operands must share
+      a common element type (Calcite type-widens at the operator level before
+      emission). Returns a list of that element type.
+    impls:
+      - args:
+          - value: any1
+            name: element
+        variadic:
+          min: 0
+        return: "list<any1>"
+
+  - name: array_length
+    description: >-
+      Return the number of elements in the array, or NULL if the array is NULL.
+      Calcite's {@code SqlLibraryOperators.ARRAY_LENGTH} lowers to this name.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: array
+        return: "i64?"
+
+  - name: array_slice
+    description: >-
+      Return a sub-array slice [from, to] (1-based, inclusive on both ends).
+      Calcite's {@code SqlLibraryOperators.ARRAY_SLICE} lowers to this name.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: array
+          - value: "i64"
+            name: from
+          - value: "i64"
+            name: to
+        return: "list<any1>"
+      - args:
+          - value: "list<any1>"
+            name: array
+          - value: "i32"
+            name: from
+          - value: "i32"
+            name: to
+        return: "list<any1>"
+
+  - name: array_distinct
+    description: >-
+      Return the array with duplicate elements removed (preserving first occurrence).
+      Calcite's {@code SqlLibraryOperators.ARRAY_DISTINCT} lowers to this name.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: array
+        return: "list<any1>"
+
+  - name: array_to_string
+    description: >-
+      Join array elements into a single string using a separator. Calcite's
+      {@code SqlLibraryOperators.ARRAY_JOIN} renames to this for DataFusion.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: array
+          - value: "string"
+            name: separator
+        return: "string?"
+      - args:
+          - value: "list<any1>"
+            name: array
+          - value: "varchar<L1>"
+            name: separator
+        return: "string?"

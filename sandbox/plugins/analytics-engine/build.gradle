@@ -104,9 +104,14 @@ dependencies {
   // so bundle it into analytics-engine's own zip.
   runtimeOnly "org.apache.commons:commons-math3:3.6.1"
 
-  // commons-text — Calcite's SqlFunctions.<clinit> references
-  // org.apache.commons.text.similarity.LevenshteinDistance. Must be loaded via
-  // the same classloader as calcite-core so that <clinit> succeeds.
+  // commons-text — Calcite's SqlFunctions class statically references
+  // org.apache.commons.text.similarity.LevenshteinDistance (used by SQL fuzzy-match
+  // helpers, also pulled in transitively when constant-folding array literals via
+  // ReduceExpressionsRule). Must be loaded via the same classloader as calcite-core
+  // so that SqlFunctions.<clinit> succeeds; otherwise it throws NoClassDefFoundError
+  // on first use and poisons every subsequent Calcite operation in the JVM — symptom
+  // is a single failing analytics query taking the cluster's planner thread offline
+  // for the rest of the run.
   runtimeOnly "org.apache.commons:commons-text:1.11.0"
 
   // httpcore5/httpclient5 — Avatica's BuiltInConnectionProperty static initializer references

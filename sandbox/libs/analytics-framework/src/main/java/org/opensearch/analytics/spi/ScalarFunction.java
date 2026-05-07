@@ -177,7 +177,26 @@ public enum ScalarFunction {
     JSON_EXTEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTRACT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── Array ────────────────────────────────────────────────────────
+    /**
+     * PPL {@code array(a, b, …)} constructor — resolves through the SQL plugin's
+     * {@code ArrayFunctionImpl} UDF named {@code "array"}. DataFusion's native
+     * equivalent is {@code make_array}, so a backend that supports this needs a
+     * name-mapping adapter (see {@code MakeArrayAdapter} in the DataFusion backend).
+     */
+    ARRAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    ARRAY_SLICE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    ARRAY_DISTINCT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * Calcite's {@code ARRAY_JOIN} — joins array elements with a separator. PPL
+     * {@code mvjoin} is registered to this operator. DataFusion's native equivalent
+     * is named {@code array_to_string}, so the DataFusion backend rewrites to that
+     * via a name-mapping adapter.
+     */
+    ARRAY_JOIN(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.

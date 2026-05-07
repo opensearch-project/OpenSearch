@@ -228,7 +228,32 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.JSON_EXTEND,
         ScalarFunction.JSON_EXTRACT,
         ScalarFunction.JSON_KEYS,
-        ScalarFunction.JSON_SET
+        ScalarFunction.JSON_SET,
+        // Array functions whose RETURN type is element-typed (not ARRAY itself), so the
+        // capability lookup at OpenSearchProjectRule resolves the call's return type to a
+        // standard scalar FieldType and matches against SUPPORTED_FIELD_TYPES.
+        // ARRAY_LENGTH returns BIGINT → FieldType.LONG; ARRAY_JOIN returns VARCHAR →
+        // FieldType.KEYWORD (renamed to DataFusion `array_to_string` via {@link ArrayToStringAdapter}).
+        ScalarFunction.ARRAY_LENGTH,
+        ScalarFunction.ARRAY_JOIN
+    );
+
+    /**
+     * Project-side scalar functions whose return type is {@code ARRAY}. Registered separately
+     * because the capability lookup keys on the call's return type, and for these the lookup
+     * resolves to {@link FieldType#ARRAY} — which is intentionally not in
+     * {@link #SUPPORTED_FIELD_TYPES} (filter and aggregate operators have no meaningful semantics
+     * over array-typed values, so we don't want them claiming viability there).
+     *
+     * <p>{@code ARRAY} (PPL {@code array(a, b, …)} constructor) renames to DataFusion's
+     * {@code make_array} via {@link MakeArrayAdapter}. {@code ARRAY_SLICE} and
+     * {@code ARRAY_DISTINCT} pass through by name (Calcite stdlib operator names match
+     * DataFusion's native names — isthmus default catalog binds them).
+     */
+    private static final Set<ScalarFunction> ARRAY_RETURNING_PROJECT_OPS = Set.of(
+        ScalarFunction.ARRAY,
+        ScalarFunction.ARRAY_SLICE,
+        ScalarFunction.ARRAY_DISTINCT
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -289,6 +314,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 for (ScalarFunction op : STANDARD_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.copyOf(SUPPORTED_FIELD_TYPES), formats, true));
                 }
+                for (ScalarFunction op : ARRAY_RETURNING_PROJECT_OPS) {
+                    caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.ARRAY), formats, true));
+                }
                 return Set.copyOf(caps);
             }
 
@@ -319,6 +347,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DateTimeAdapters.CurrentDateAdapter currentDate = new DateTimeAdapters.CurrentDateAdapter();
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
                 return Map.ofEntries(
+                    Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
+                    Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
+                    Map.entry(ScalarFunction.ARRAY_SLICE, new ArraySliceAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
