@@ -131,7 +131,7 @@ public class CatalogSnapshotManager implements Closeable {
      * lands strictly after any prior primary's last commit for the same shard.
      * Prevents {@code RemoteStoreUtils#verifyNoMultipleWriters} collisions on primary relocation.
      */
-    public synchronized void bumpGenerationForNewEngineLifecycle() {
+    public synchronized void bumpGenerationForNewEngineLifecycle() throws IOException {
         commitNewSnapshot(latestCatalogSnapshot.getSegments());
     }
 
