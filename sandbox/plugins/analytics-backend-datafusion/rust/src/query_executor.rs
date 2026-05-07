@@ -185,6 +185,94 @@ pub async fn execute_with_context(
         cross_rt_stream,
     );
 
-    let stream_handle = crate::api::QueryStreamHandle::new(wrapped, handle.query_context);
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx);
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use arrow::array::{Int32Array, RecordBatch};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::datasource::MemTable;
+    use datafusion::execution::context::SessionContext;
+    use datafusion::execution::memory_pool::GreedyMemoryPool;
+    use datafusion::execution::runtime_env::RuntimeEnvBuilder;
+    use datafusion::execution::SessionStateBuilder;
+    use datafusion_substrait::logical_plan::producer::to_substrait_plan;
+    use futures::StreamExt;
+
+    use crate::query_memory_pool_tracker::QueryTrackingContext;
+    use crate::session_context::SessionContextHandle;
+
+    /// Regression test: execute_with_context must keep the SessionContext alive
+    /// for the lifetime of the returned stream. Without the fix, the SessionContext
+    /// drops when execute_with_context returns, causing a use-after-free (SIGSEGV)
+    /// when the stream is later polled or dropped.
+    #[tokio::test]
+    async fn test_session_context_outlives_stream() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("value", DataType::Int32, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(Int32Array::from(vec![1, 2, 3]))],
+        ).unwrap();
+
+        let runtime_env = RuntimeEnvBuilder::new()
+            .with_memory_pool(Arc::new(GreedyMemoryPool::new(64 * 1024 * 1024)))
+            .build()
+            .unwrap();
+
+        let state = SessionStateBuilder::new()
+            .with_runtime_env(Arc::from(runtime_env.clone()))
+            .with_default_features()
+            .build();
+        let ctx = SessionContext::new_with_state(state);
+        let table = MemTable::try_new(schema.clone(), vec![vec![batch]]).unwrap();
+        ctx.register_table("test_table", Arc::new(table)).unwrap();
+
+        let plan = ctx.sql("SELECT value FROM test_table")
+            .await.unwrap()
+            .logical_plan()
+            .clone();
+        let substrait = to_substrait_plan(&plan, &ctx.state()).unwrap();
+        let mut plan_bytes = Vec::new();
+        prost::Message::encode(&substrait, &mut plan_bytes).unwrap();
+
+        let global_pool = Arc::new(GreedyMemoryPool::new(64 * 1024 * 1024));
+        let query_context = QueryTrackingContext::new(0, global_pool);
+
+        let handle = SessionContextHandle {
+            ctx,
+            table_path: ListingTableUrl::parse("file:///tmp/unused").unwrap(),
+            object_metas: Arc::new(vec![]),
+            query_context,
+        };
+        let ptr = Box::into_raw(Box::new(handle)) as i64;
+
+        let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
+        rt_builder.worker_threads(2);
+        let cpu_executor = crate::executor::DedicatedExecutor::new("test", rt_builder);
+
+        let stream_ptr = unsafe {
+            execute_with_context(ptr, &plan_bytes, cpu_executor.clone()).await.unwrap()
+        };
+
+        // The stream is now alive but the original SessionContext has been moved
+        // into the QueryStreamHandle. Poll the stream to verify no crash.
+        let stream_handle = unsafe {
+            &mut *(stream_ptr as *mut crate::api::QueryStreamHandle)
+        };
+        let mut count = 0;
+        while let Some(batch) = stream_handle.stream_mut().next().await {
+            count += batch.unwrap().num_rows();
+        }
+        assert_eq!(count, 3);
+
+        // Clean up
+        unsafe { let _ = Box::from_raw(stream_ptr as *mut crate::api::QueryStreamHandle); }
+        cpu_executor.shutdown();
+    }
 }

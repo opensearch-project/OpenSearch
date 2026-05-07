@@ -125,4 +125,84 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         readerHandle.close();
         runtimeHandle.close();
     }
+
+    /**
+     * Regression test for use-after-free in execute_with_context.
+     * Without the fix, the SessionContext is dropped when execute_with_context returns,
+     * but the stream still references SessionState internals (optimizer rules, RuntimeEnv).
+     * Draining the stream after execution triggers a SIGSEGV when the freed memory is
+     * accessed — typically in drop_in_place
+     * With the fix, the SessionContext is moved into the QueryStreamHandle and stays
+     * alive until the stream is closed.
+     */
+    public void testSessionContextSurvivesStreamDrain() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        Path dataDir = createTempDir("datafusion-data");
+        Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
+        Files.copy(testParquet, dataDir.resolve("test.parquet"));
+
+        ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
+
+        SessionContextHandle sessionCtx = NativeBridge.createSessionContext(
+            readerHandle.getPointer(),
+            runtimeHandle.get(),
+            "test_table",
+            0L
+        );
+
+        byte[] substrait = NativeBridge.sqlToSubstrait(
+            readerHandle.getPointer(),
+            "test_table",
+            "SELECT message FROM test_table",
+            runtimeHandle.get()
+        );
+
+        CompletableFuture<Long> future = new CompletableFuture<>();
+        NativeBridge.executeWithContextAsync(sessionCtx.getPointer(), substrait, new ActionListener<>() {
+            @Override
+            public void onResponse(Long streamPtr) {
+                future.complete(streamPtr);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                future.completeExceptionally(exception);
+            }
+        });
+        long streamPtr = future.join();
+        assertTrue("Stream pointer should be non-zero", streamPtr != 0);
+        sessionCtx.close();
+
+        // Drain the stream — this is where the SIGSEGV occurred before the fix.
+        // streamNext returns 0 when exhausted.
+        int batchCount = 0;
+        while (true) {
+            CompletableFuture<Long> nextFuture = new CompletableFuture<>();
+            NativeBridge.streamNext(runtimePtr, streamPtr, new ActionListener<>() {
+                @Override
+                public void onResponse(Long batchPtr) {
+                    nextFuture.complete(batchPtr);
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    nextFuture.completeExceptionally(exception);
+                }
+            });
+            long batchPtr = nextFuture.join();
+            if (batchPtr == 0) {
+                break;
+            }
+            batchCount++;
+        }
+        assertTrue("Should have drained at least one batch", batchCount > 0);
+
+        NativeBridge.streamClose(streamPtr);
+        readerHandle.close();
+        runtimeHandle.close();
+    }
 }
