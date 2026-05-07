@@ -757,7 +757,9 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
-        ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
+        // Skip document parsing — this replica engine only writes to translog.
+        // Segments arrive via segment replication, not by indexing parsed documents.
+        ParsedDocument doc = new ParsedDocument(null, null, source.id(), null, null, source.source(), source.getMediaType(), null);
         if (docMapper.getMapping() != null) {
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }

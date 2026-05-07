@@ -4602,17 +4602,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isReadOnlyReplica = false;
         }
 
-        logger.warn(
-            "[DFA-DIAG] newEngineConfig shardId={} primary={} isRelocationTarget={} stage={} isSegRepOrRemote={} shouldSeedRemoteStore={} → isReadOnlyReplica={}",
-            shardId,
-            shardRouting.primary(),
-            shardRouting.isRelocationTarget(),
-            recoveryState == null ? "null" : recoveryState.getStage(),
-            indexSettings.isSegRepEnabledOrRemoteNode(),
-            shouldSeedRemoteStore(),
-            isReadOnlyReplica
-        );
-
         return this.engineConfigFactory.newEngineConfig(
             shardId,
             threadPool,
