@@ -56,7 +56,7 @@ dependencies {
   runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
   runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
 
-  runtimeOnly "com.google.guava:failureaccess:1.0.1"
+  runtimeOnly "com.google.guava:failureaccess:1.0.2"
   runtimeOnly('com.google.guava:guava:33.3.1-jre') {
     attributes {
       attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')

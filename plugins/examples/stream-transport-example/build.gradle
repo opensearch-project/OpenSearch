@@ -11,7 +11,7 @@ opensearchplugin {
 }
 dependencies {
   compileOnly project(':plugins:arrow-base')
-  compileOnly project(':plugins:arrow-flight-rpc')
+  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
 }
 testingConventions.enabled = false
 internalClusterTest {

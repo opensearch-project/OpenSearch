@@ -115,11 +115,11 @@ public class ArrowBatchResponseTests extends OpenSearchTestCase {
         root.close();
     }
 
-    public void testWriteToIsNoOp() throws IOException {
+    public void testWriteToFailsFast() {
         VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
         TestResponse response = new TestResponse(root);
         StreamOutput mockOut = mock(StreamOutput.class);
-        response.writeTo(mockOut);
+        expectThrows(UnsupportedOperationException.class, () -> response.writeTo(mockOut));
         verifyNoInteractions(mockOut);
         root.close();
     }

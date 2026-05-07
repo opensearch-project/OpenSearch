@@ -37,6 +37,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Data-node service that executes plan fragments against local shards.
@@ -66,14 +67,14 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
-        java.util.function.Supplier<ArrowAllocatorService> allocatorServiceSupplier
+        Supplier<ArrowAllocatorService> allocatorServiceSupplier
     ) {
         this(backends, List.of(), allocatorServiceSupplier, null);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
-        java.util.function.Supplier<ArrowAllocatorService> allocatorServiceSupplier,
+        Supplier<ArrowAllocatorService> allocatorServiceSupplier,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this(backends, List.of(), allocatorServiceSupplier, namedWriteableRegistry);
@@ -82,7 +83,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
-        java.util.function.Supplier<ArrowAllocatorService> allocatorServiceSupplier,
+        Supplier<ArrowAllocatorService> allocatorServiceSupplier,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.backends = backends;

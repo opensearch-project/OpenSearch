@@ -39,6 +39,10 @@ import java.util.function.Supplier;
  * {@code extendedPlugins = ['arrow-base']} so they share this plugin's classloader — a
  * single copy of the Arrow classes lets Arrow-carrying transport types cross plugin
  * boundaries.
+ *
+ * <p>Implements {@link ExtensiblePlugin} purely for the classloader side-effect of being
+ * a valid parent in {@code extendedPlugins} chains. This plugin does not define or consume
+ * any SPI — do not add {@code loadExtensions()} hooks here.
  */
 public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
 

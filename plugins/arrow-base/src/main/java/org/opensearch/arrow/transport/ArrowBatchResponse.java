@@ -9,6 +9,7 @@
 package org.opensearch.arrow.transport;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -46,7 +47,7 @@ import java.io.IOException;
  *
  * <p><b>Allocator rules:</b>
  * <ul>
- *   <li><b>Send side:</b> Use a child of {@link org.opensearch.arrow.memory.ArrowAllocatorService}.
+ *   <li><b>Send side:</b> Use a child of {@link ArrowAllocatorService}.
  *       All allocators must share the same root so zero-copy transfers pass Arrow's
  *       {@code AllocationManager} associate check.</li>
  *   <li><b>Send side:</b> Allocators must outlive the transport stream — some transports
@@ -54,10 +55,10 @@ import java.io.IOException;
  *       create and close a child allocator per request.</li>
  *   <li><b>Receive side:</b> The transport transfers vectors from its own allocator into
  *       the response. The consumer can then transfer them into its own allocator — which
- *       must also be a child of {@link org.opensearch.arrow.memory.ArrowAllocatorService}.</li>
+ *       must also be a child of {@link ArrowAllocatorService}.</li>
  * </ul>
  *
- * <p><b>Cross-plugin footgun:</b> bypassing {@link org.opensearch.arrow.memory.ArrowAllocatorService}
+ * <p><b>Cross-plugin footgun:</b> bypassing {@link ArrowAllocatorService}
  * (e.g. {@code new RootAllocator()} inside a plugin) does not fail fast — allocation and
  * single-plugin use still work. But any zero-copy handoff to another plugin's buffers will trip
  * Arrow's {@code AllocationManager.associate()} check, because roots are compared by identity,
@@ -104,7 +105,11 @@ public abstract class ArrowBatchResponse extends ActionResponse {
     }
 
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        // no-op: the transport transfers vectors directly, bypassing byte serialization.
+    public final void writeTo(StreamOutput out) {
+        // Symmetric fail-fast with the receive-side constructor: an Arrow-aware transport
+        // transfers vectors directly and never invokes writeTo. Reaching this method means the
+        // response was routed through a non-Arrow transport, which would silently drop the
+        // batch — surface it instead of producing an empty response on the wire.
+        throw new UnsupportedOperationException("ArrowBatchResponse is serialized by the Arrow-aware transport, not via StreamOutput");
     }
 }

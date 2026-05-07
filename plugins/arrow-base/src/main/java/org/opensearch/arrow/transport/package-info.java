@@ -9,6 +9,6 @@
 /**
  * Transport integration contracts for native Arrow request/response flows. A concrete
  * Arrow-aware transport (e.g., Arrow Flight over gRPC) implements these to carry
- * {@link org.opensearch.arrow.transport.ArrowBatchResponse} batches without serialization.
+ * {@link ArrowBatchResponse} batches without serialization.
  */
 package org.opensearch.arrow.transport;

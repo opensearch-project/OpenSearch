@@ -8,7 +8,7 @@
 
 /**
  * Node-level Arrow memory management. Plugins that produce or consume Arrow data
- * obtain child allocators from {@link org.opensearch.arrow.memory.ArrowAllocatorService},
+ * obtain child allocators from {@link ArrowAllocatorService},
  * which roots them under a single per-node {@link org.apache.arrow.memory.RootAllocator}
  * so cross-plugin buffer handoffs pass Arrow's {@code AllocationManager.associate} check.
  */

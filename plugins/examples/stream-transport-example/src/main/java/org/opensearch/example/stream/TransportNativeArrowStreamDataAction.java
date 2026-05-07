@@ -18,6 +18,7 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
@@ -52,7 +53,7 @@ public class TransportNativeArrowStreamDataAction extends TransportAction<Native
     public TransportNativeArrowStreamDataAction(
         StreamTransportService streamTransportService,
         ActionFilters actionFilters,
-        org.opensearch.arrow.memory.ArrowAllocatorService allocatorService
+        ArrowAllocatorService allocatorService
     ) {
         super(NativeArrowStreamDataAction.NAME, actionFilters, streamTransportService.getTaskManager());
         this.allocator = allocatorService.newChildAllocator("stream-transport-example", Long.MAX_VALUE);
