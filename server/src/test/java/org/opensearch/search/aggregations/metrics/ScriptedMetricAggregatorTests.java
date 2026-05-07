@@ -416,7 +416,10 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
-                aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT_NULL).reduceScript(REDUCE_SCRIPT);
+                aggregationBuilder.initScript(INIT_SCRIPT)
+                    .mapScript(MAP_SCRIPT)
+                    .combineScript(COMBINE_SCRIPT_NULL)
+                    .reduceScript(REDUCE_SCRIPT);
                 ScriptedMetric scriptedMetric = searchAndReduce(
                     newSearcher(indexReader, true, true),
                     new MatchAllDocsQuery(),
