@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.CRC32;
@@ -81,6 +82,16 @@ public class PrecomputedChecksumStrategy implements FormatChecksumStrategy {
         if (fileName != null) {
             checksumCache.remove(fileName);
         }
+    }
+
+    /**
+     * Retains only checksums for files in the given set, evicting all others.
+     * Called after successful upload with the current catalog snapshot's file set.
+     *
+     * @param activeFiles the set of files currently in the catalog snapshot
+     */
+    public void retainOnly(Collection<String> activeFiles) {
+        checksumCache.keySet().retainAll(activeFiles);
     }
 
     private static long computeFullFileCrc32(Directory dir, String fileName) throws IOException {
