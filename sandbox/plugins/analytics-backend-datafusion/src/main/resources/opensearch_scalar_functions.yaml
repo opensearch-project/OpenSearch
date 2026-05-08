@@ -433,6 +433,23 @@ scalar_functions:
           - value: "string"
             name: "pattern"
         return: string
+  - name: array_length
+    description: >-
+      Number of elements in a list. Lowering target for PPL's `array_length()`
+      function (Calcite `SqlLibraryOperators.ARRAY_LENGTH`). Needed end-to-end
+      so PPL queries can size the list returned by `rex` extract-mode
+      (`eval count = array_length(g)` after `rex field=f "(?<g>...)"`).
+      datafusion-substrait resolves the extension name "array_length" to
+      DataFusion's native `array_length` UDF.
+    impls:
+      - args:
+          - value: "list<varchar<L1>>"
+            name: "input"
+        return: i64
+      - args:
+          - value: "list<string>"
+            name: "input"
+        return: i64
 
   # ascii(str) — Unicode code point of the first character.
   - name: "ascii"

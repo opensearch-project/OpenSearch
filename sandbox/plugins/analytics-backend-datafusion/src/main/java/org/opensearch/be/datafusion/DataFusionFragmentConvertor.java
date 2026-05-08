@@ -180,6 +180,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(RexExtractAdapter.LOCAL_REX_EXTRACT_OP, "rex_extract"),
         FunctionMappings.s(RexExtractMultiAdapter.LOCAL_REX_EXTRACT_MULTI_OP, "rex_extract_multi"),
         FunctionMappings.s(RexOffsetAdapter.LOCAL_REX_OFFSET_OP, "rex_offset"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
         FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
         FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),

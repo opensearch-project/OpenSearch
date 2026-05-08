@@ -140,6 +140,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.REX_EXTRACT,
         ScalarFunction.REX_EXTRACT_MULTI,
         ScalarFunction.REX_OFFSET,
+        // ARRAY_LENGTH — counts elements in array<*>; needed end-to-end so PPL queries can size
+        // the list returned by `rex field=f "(?<g>...)"` extract-mode (CalciteRexCommandIT's
+        // testRexMaxMatch{Zero,Within,At}DefaultLimit and testRexMaxMatchConfigurableLimit all
+        // do `eval count = array_length(g)`). DataFusion has it natively; isthmus default
+        // catalog binds it.
+        ScalarFunction.ARRAY_LENGTH,
         ScalarFunction.PLUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
