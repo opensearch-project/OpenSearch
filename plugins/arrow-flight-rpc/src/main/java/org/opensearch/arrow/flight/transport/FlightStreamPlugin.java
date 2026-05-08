@@ -360,6 +360,12 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
      * {@code createInjector()} — before transports start and before anyone reads the holder.
      */
     public static final class ArrowAllocatorServiceBridge {
+        /**
+         * Guice-invoked constructor that stores the injected service into the holder.
+         *
+         * @param service injected {@link ArrowAllocatorService} from arrow-base
+         * @param holder  per-plugin-instance holder to populate
+         */
         @Inject
         public ArrowAllocatorServiceBridge(ArrowAllocatorService service, ArrowAllocatorServiceHolder holder) {
             holder.set(service);
