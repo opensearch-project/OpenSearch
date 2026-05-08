@@ -10,7 +10,9 @@ use crate::io::register_io_runtime;
 use log::info;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::runtime::{Builder, Runtime};
+use std::time::Duration;
+use tokio::runtime::{Builder, Handle, Runtime};
+use tokio::task::JoinHandle;
 use tokio_metrics::RuntimeMonitor;
 
 /// Exponential moving average stored as fixed-point (×1000) in an AtomicU64.
@@ -76,15 +78,28 @@ impl CpuContention {
     }
 }
 
+/// Shared state updated by the background metrics ticker.
+/// The hot path (`cpu_contention()`) only reads these atomics — no sampling,
+/// no iteration over worker queues, no jemalloc epoch advance.
+struct MetricsTicker {
+    ema_alive_tasks: EmaSignal,
+    ema_queued_tasks: EmaSignal,
+    ema_jemalloc_allocated: EmaSignal,
+    num_workers: AtomicU64,
+}
+
+/// How often the background ticker samples runtime metrics.
+/// 50ms balances responsiveness (20 samples/sec) with negligible CPU cost.
+const TICKER_INTERVAL: Duration = Duration::from_millis(50);
+
 // RuntimeManager — owns IO runtime + CPU DedicatedExecutor.
 pub struct RuntimeManager {
     pub io_runtime: Arc<Runtime>,
     pub cpu_executor: DedicatedExecutor,
     pub io_monitor: RuntimeMonitor,
     pub cpu_monitor: Option<RuntimeMonitor>,
-    /// Smoothed CPU contention signals (EMA, alpha=0.3).
-    ema_alive_tasks: EmaSignal,
-    ema_queued_tasks: EmaSignal,
+    metrics: Arc<MetricsTicker>,
+    _ticker_handle: Option<JoinHandle<()>>,
 }
 
 impl RuntimeManager {
@@ -120,13 +135,54 @@ impl RuntimeManager {
             .handle()
             .map(|h| RuntimeMonitor::new(&h));
 
+        let metrics = Arc::new(MetricsTicker {
+            ema_alive_tasks: EmaSignal::new(0.0),
+            ema_queued_tasks: EmaSignal::new(0.0),
+            ema_jemalloc_allocated: EmaSignal::new(0.0),
+            num_workers: AtomicU64::new(cpu_threads as u64),
+        });
+
+        // Spawn background ticker on IO runtime — samples CPU metrics + jemalloc
+        // every TICKER_INTERVAL and feeds into EMA. The hot path only reads atomics.
+        let ticker_handle = if let Some(cpu_handle) = cpu_executor.handle() {
+            let metrics_clone = Arc::clone(&metrics);
+            let handle = io_runtime.spawn(async move {
+                let mut interval = tokio::time::interval(TICKER_INTERVAL);
+                loop {
+                    interval.tick().await;
+                    let rt_metrics = cpu_handle.metrics();
+                    let num_workers = rt_metrics.num_workers();
+                    let alive_tasks = rt_metrics.num_alive_tasks();
+                    let global_queue = rt_metrics.global_queue_depth();
+                    let local_queue_total: usize = (0..num_workers)
+                        .map(|w| rt_metrics.worker_local_queue_depth(w))
+                        .sum();
+                    let queued_tasks = global_queue + local_queue_total;
+
+                    metrics_clone.ema_alive_tasks.update(alive_tasks as f64);
+                    metrics_clone.ema_queued_tasks.update(queued_tasks as f64);
+                    metrics_clone.num_workers.store(num_workers as u64, Ordering::Relaxed);
+
+                    // Sample jemalloc and publish smoothed value for query_budget
+                    let allocated = native_bridge_common::allocator::allocated_bytes();
+                    if allocated > 0 {
+                        let smoothed = metrics_clone.ema_jemalloc_allocated.update(allocated as f64);
+                        crate::query_budget::publish_smoothed_jemalloc(smoothed as usize);
+                    }
+                }
+            });
+            Some(handle)
+        } else {
+            None
+        };
+
         Self {
             io_runtime,
             cpu_executor,
             io_monitor,
             cpu_monitor,
-            ema_alive_tasks: EmaSignal::new(0.0),
-            ema_queued_tasks: EmaSignal::new(0.0),
+            metrics,
+            _ticker_handle: ticker_handle,
         }
     }
 
@@ -144,35 +200,26 @@ impl RuntimeManager {
 
     /// Smoothed CPU executor contention state (EMA, alpha=0.3).
     ///
-    /// Each call samples the instantaneous metrics, feeds them into the EMA,
-    /// and returns the smoothed values. This prevents a single transient spike
-    /// (query burst completing, GC pause releasing memory) from causing
-    /// unnecessary partition reduction for the next query.
+    /// Reads pre-computed values from the background ticker — zero sampling,
+    /// zero worker-queue iteration on the hot path. Just 3 atomic loads (~5ns).
     ///
-    /// Convergence: ~3-5 calls to reflect a sustained change. A single spike
-    /// contributes 30% to the EMA — not enough to cross the contention
-    /// threshold alone.
+    /// The ticker runs every 50ms on the IO runtime, feeding instantaneous
+    /// metrics into the EMA. This means the values returned here are at most
+    /// 50ms stale — acceptable for partition decisions that affect queries
+    /// lasting seconds.
     pub fn cpu_contention(&self) -> CpuContention {
-        let Some(metrics) = self.cpu_executor.runtime_metrics() else {
-            return CpuContention::default();
-        };
-        let num_workers = metrics.num_workers();
-        let alive_tasks = metrics.num_alive_tasks();
-        let global_queue = metrics.global_queue_depth();
-        let local_queue_total: usize = (0..num_workers)
-            .map(|w| metrics.worker_local_queue_depth(w))
-            .sum();
-        let queued_tasks = global_queue + local_queue_total;
-
-        // Feed instantaneous samples into EMA
-        let smoothed_alive = self.ema_alive_tasks.update(alive_tasks as f64);
-        let smoothed_queued = self.ema_queued_tasks.update(queued_tasks as f64);
-
         CpuContention {
-            num_workers,
-            alive_tasks: smoothed_alive as usize,
-            queued_tasks: smoothed_queued as usize,
+            num_workers: self.metrics.num_workers.load(Ordering::Relaxed) as usize,
+            alive_tasks: self.metrics.ema_alive_tasks.get() as usize,
+            queued_tasks: self.metrics.ema_queued_tasks.get() as usize,
         }
+    }
+
+    /// Smoothed jemalloc allocated bytes. Updated by the background ticker.
+    /// Used by `query_budget::should_override_pool_rejection` instead of
+    /// calling jemalloc directly on the hot path.
+    pub fn smoothed_jemalloc_allocated(&self) -> usize {
+        self.metrics.ema_jemalloc_allocated.get() as usize
     }
 
     pub fn shutdown(&self) {
