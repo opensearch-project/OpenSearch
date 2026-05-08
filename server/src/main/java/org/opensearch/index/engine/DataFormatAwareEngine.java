@@ -296,7 +296,8 @@ public class DataFormatAwareEngine implements Indexer {
                     Optional.ofNullable(indexingExecutionEngine.getProvider()),
                     indexingExecutionEngine.getDataFormat(),
                     registry,
-                    store.shardPath()
+                    store.shardPath(),
+                    store.getDataformatAwareStoreHandles()
                 )
             );
 

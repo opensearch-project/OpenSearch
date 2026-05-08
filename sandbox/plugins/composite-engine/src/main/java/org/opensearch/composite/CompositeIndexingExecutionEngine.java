@@ -377,7 +377,13 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     private ReaderManagerConfig readerManagerConfig(ReaderManagerConfig config, DataFormat toAugment) {
-        return new ReaderManagerConfig(config.indexStoreProvider(), toAugment, config.registry(), config.shardPath());
+        return new ReaderManagerConfig(
+            config.indexStoreProvider(),
+            toAugment,
+            config.registry(),
+            config.shardPath(),
+            config.dataformatAwareStoreHandles()
+        );
     }
 
     /**

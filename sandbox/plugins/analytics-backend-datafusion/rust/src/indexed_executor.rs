@@ -123,6 +123,12 @@ pub async fn execute_indexed_query(
         .build()
         .map_err(|e| DataFusionError::Execution(format!("runtime env: {}", e)))?;
 
+    // Register shard-specific object store on file:// scheme for this query.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        Arc::clone(&shard_view.store),
+    );
+
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
     // Indexed path fans out via IndexedExec partitions (derived from
