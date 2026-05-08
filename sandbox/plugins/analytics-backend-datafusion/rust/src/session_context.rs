@@ -29,6 +29,7 @@ use log::error;
 use object_store::ObjectMeta;
 
 use crate::api::{DataFusionRuntime, ShardView};
+use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::query_tracker::QueryTrackingContext;
 
 /// Opaque handle holding a configured SessionContext between FFM calls.
@@ -40,6 +41,8 @@ pub struct SessionContextHandle {
     pub table_name: String,
     /// When set, indicates this session uses the indexed execution path with filter delegation.
     pub indexed_config: Option<IndexedExecutionConfig>,
+    /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
+    pub query_config: DatafusionQueryConfig,
 }
 
 /// Configuration for indexed execution with filter delegation, provided by Java.
@@ -55,6 +58,7 @@ pub async unsafe fn create_session_context(
     shard_view_ptr: i64,
     table_name: &str,
     context_id: i64,
+    query_config: DatafusionQueryConfig,
 ) -> Result<i64, DataFusionError> {
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
     let shard_view = &*(shard_view_ptr as *const ShardView);
@@ -95,7 +99,6 @@ pub async unsafe fn create_session_context(
         e
     })?;
 
-    let query_config = crate::datafusion_query_config::DatafusionQueryConfig::default();
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
     config.options_mut().execution.target_partitions = query_config.target_partitions;
@@ -108,7 +111,6 @@ pub async unsafe fn create_session_context(
         .build();
 
     let ctx = SessionContext::new_with_state(state);
-    crate::udf::register_all(&ctx);
 
     // Register default ListingTable for parquet scans
     let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
@@ -128,16 +130,26 @@ pub async unsafe fn create_session_context(
         .with_schema(resolved_schema);
 
     let provider = Arc::new(ListingTable::try_new(table_config).map_err(|e| {
-        error!("create_session_context: failed to create listing table: {}", e);
+        error!(
+            "create_session_context: failed to create listing table: {}",
+            e
+        );
         e
     })?);
 
     ctx.register_table(table_name, provider).map_err(|e| {
-        error!("create_session_context: failed to register table '{}': {}", table_name, e);
+        error!(
+            "create_session_context: failed to register table '{}': {}",
+            table_name, e
+        );
         e
     })?;
 
-    error!("create_session_context: successfully registered table '{}', table_name_len={}", table_name, table_name.len());
+    error!(
+        "create_session_context: successfully registered table '{}', table_name_len={}",
+        table_name,
+        table_name.len()
+    );
 
     let handle = SessionContextHandle {
         ctx,
@@ -146,6 +158,7 @@ pub async unsafe fn create_session_context(
         query_context,
         table_name: table_name.to_string(),
         indexed_config: None,
+        query_config,
     };
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
@@ -170,9 +183,10 @@ pub async unsafe fn create_session_context_indexed(
     context_id: i64,
     tree_shape: i32,
     delegated_predicate_count: i32,
+    query_config: DatafusionQueryConfig,
 ) -> Result<i64, DataFusionError> {
     // Create base session context (same as non-indexed path)
-    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id).await?;
+    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, query_config).await?;
 
     // Augment with indexed config and UDF registration
     let handle = &mut *(ptr as *mut SessionContextHandle);
