@@ -23,13 +23,18 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
+import org.opensearch.parquet.ParquetSettings;
+import org.opensearch.parquet.bridge.NativeSettings;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
+import org.opensearch.parquet.merge.ParquetMergeExecutor;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +43,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_DATA_FORMAT;
 
 /**
  * Per-shard Parquet indexing execution engine.
@@ -59,17 +66,19 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private static final Logger logger = LogManager.getLogger(ParquetIndexingEngine.class);
 
     /** Prefix for generated Parquet file names. */
-    public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
+    static final String FILE_NAME_PREFIX = "_parquet_file_generation";
     /** File extension for Parquet files. */
-    public static final String FILE_NAME_EXT = ".parquet";
+    static final String FILE_NAME_EXT = ".parquet";
 
     private final ParquetDataFormat dataFormat;
     private final ShardPath shardPath;
     private final Supplier<Schema> schemaSupplier;
     private final ArrowBufferPool bufferPool;
-    private final Settings settings;
+    private final IndexSettings indexSettings;
+    private final Settings nodeSettings;
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
+    private final Merger parquetMerger;
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -120,16 +129,21 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.bufferPool = new ArrowBufferPool(settings);
-        this.settings = settings;
+        this.indexSettings = indexSettings;
+        this.nodeSettings = settings;
         this.threadPool = threadPool;
         this.checksumStrategy = checksumStrategy;
         try {
-            Files.createDirectory(shardPath.resolve("parquet"));
+            Files.createDirectory(shardPath.resolve(dataFormat.name()));
         } catch (FileAlreadyExistsException ex) {
             logger.warn("Directory already exists: {}", shardPath.resolve("parquet"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        this.parquetMerger = new ParquetMergeExecutor(
+            new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath, checksumStrategy::registerChecksum)
+        );
+        pushSettingsToRust();
     }
 
     /**
@@ -141,20 +155,42 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         return checksumStrategy;
     }
 
+    private void pushSettingsToRust() {
+        Settings settings = indexSettings.getSettings();
+        NativeSettings config = NativeSettings.builder()
+            .indexName(indexSettings.getIndex().getName())
+            .compressionType(ParquetSettings.COMPRESSION_TYPE.get(settings))
+            .compressionLevel(ParquetSettings.COMPRESSION_LEVEL.get(settings))
+            .pageSizeBytes(ParquetSettings.PAGE_SIZE_BYTES.get(settings).getBytes())
+            .pageRowLimit(ParquetSettings.PAGE_ROW_LIMIT.get(settings))
+            .dictSizeBytes(ParquetSettings.DICT_SIZE_BYTES.get(settings).getBytes())
+            .bloomFilterEnabled(ParquetSettings.BLOOM_FILTER_ENABLED.get(settings))
+            .bloomFilterFpp(ParquetSettings.BLOOM_FILTER_FPP.get(settings))
+            .bloomFilterNdv(ParquetSettings.BLOOM_FILTER_NDV.get(settings))
+            .sortInMemoryThresholdBytes(ParquetSettings.SORT_IN_MEMORY_THRESHOLD.get(settings).getBytes())
+            .sortBatchSize(ParquetSettings.SORT_BATCH_SIZE.get(settings))
+            .rowGroupMaxRows(ParquetSettings.ROW_GROUP_MAX_ROWS.get(settings))
+            .mergeBatchSize(ParquetSettings.MERGE_BATCH_SIZE.get(settings))
+            .mergeRayonThreads(ParquetSettings.MERGE_RAYON_THREADS.get(nodeSettings))
+            .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
+            .build();
+        try {
+            RustBridge.onSettingsUpdate(config);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to push Parquet settings to Rust store", e);
+        }
+    }
+
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
-        Path filePath = Path.of(
-            shardPath.getDataPath().toString(),
-            dataFormat.name(),
-            FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT
-        );
+        Path filePath = buildParquetFilePath(shardPath, writerGeneration, null);
         return new ParquetWriter(
             filePath.toString(),
             writerGeneration,
             dataFormat,
             schemaSupplier.get(),
             bufferPool,
-            settings,
+            indexSettings,
             threadPool,
             checksumStrategy
         );
@@ -167,7 +203,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public Merger getMerger() {
-        return null;
+        return parquetMerger;
     }
 
     @Override
@@ -199,7 +235,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         }
         Collection<String> failed = new ArrayList<>();
         for (String fileName : parquetFiles) {
-            Path filePath = Path.of(fileName);
+            // Resolve relative file names against the shard's parquet directory
+            Path filePath = shardPath.getDataPath().resolve(dataFormat.name()).resolve(fileName);
             logger.debug("Deleting parquet file: {}", filePath);
             if (Files.deleteIfExists(filePath) == false) {
                 logger.warn("Failed to delete parquet file: {}", filePath);
@@ -221,6 +258,44 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public void close() throws IOException {
+        try {
+            RustBridge.removeSettings(indexSettings.getIndex().getName());
+        } catch (Exception e) {
+            logger.warn(
+                "Failed to remove Parquet settings from Rust store for index [{}]: {}",
+                indexSettings.getIndex().getName(),
+                e.getMessage()
+            );
+        }
         bufferPool.close();
+    }
+
+    /**
+     * Builds a full file path for a Parquet file within the shard's data directory.
+     *
+     * @param shardPath        the shard's directory path
+     * @param writerGeneration the writer generation number
+     * @param additionalPrefix an optional prefix to append (e.g., "merged")
+     * @return the full file path
+     */
+    public static Path buildParquetFilePath(ShardPath shardPath, long writerGeneration, String additionalPrefix) {
+        String subDirectory = PARQUET_DATA_FORMAT.name();
+        return shardPath.getDataPath().resolve(subDirectory).resolve(buildParquetFileName(writerGeneration, additionalPrefix));
+    }
+
+    /**
+     * Builds a Parquet file name with optional additional prefix.
+     *
+     * @param writerGeneration the writer generation number
+     * @param additionalPrefix an optional prefix to append (e.g., "merged")
+     * @return the formatted file name
+     */
+    public static String buildParquetFileName(long writerGeneration, String additionalPrefix) {
+        StringBuilder fileNameBuilder = new StringBuilder(FILE_NAME_PREFIX);
+        if (additionalPrefix != null) {
+            fileNameBuilder.append("_").append(additionalPrefix);
+        }
+        fileNameBuilder.append("_").append(Long.toHexString(writerGeneration)).append(FILE_NAME_EXT);
+        return fileNameBuilder.toString();
     }
 }

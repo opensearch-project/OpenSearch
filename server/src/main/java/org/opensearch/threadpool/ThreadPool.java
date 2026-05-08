@@ -115,6 +115,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SNAPSHOT = "snapshot";
         public static final String SNAPSHOT_DELETION = "snapshot_deletion";
         public static final String FORCE_MERGE = "force_merge";
+        public static final String MERGE = "merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
         public static final String SYSTEM_READ = "system_read";
@@ -124,6 +125,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REMOTE_PURGE = "remote_purge";
         public static final String REMOTE_REFRESH_RETRY = "remote_refresh_retry";
         public static final String REMOTE_RECOVERY = "remote_recovery";
+        /** Thread pool name for remote downloads in tiered storage. */
+        public static final String REMOTE_DOWNLOAD = "remote_download";
         public static final String REMOTE_STATE_READ = "remote_state_read";
         public static final String INDEX_SEARCHER = "index_searcher";
         public static final String REMOTE_STATE_CHECKSUM = "remote_state_checksum";
@@ -194,6 +197,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.SNAPSHOT, ThreadPoolType.SCALING);
         map.put(Names.SNAPSHOT_DELETION, ThreadPoolType.SCALING);
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
+        map.put(Names.MERGE, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
         map.put(Names.SEARCH_THROTTLED, ThreadPoolType.RESIZABLE);
@@ -204,6 +208,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_REFRESH_RETRY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
+        map.put(Names.REMOTE_DOWNLOAD, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_STATE_READ, ThreadPoolType.FIXED);
         map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
         map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.FIXED);
@@ -300,6 +305,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.FORCE_MERGE,
             new FixedExecutorBuilder(settings, Names.FORCE_MERGE, oneEighthAllocatedProcessors(allocatedProcessors), -1)
         );
+        builders.put(Names.MERGE, new ScalingExecutorBuilder(Names.MERGE, 1, allocatedProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(
             Names.FETCH_SHARD_STORE,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))
@@ -320,6 +326,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.REMOTE_RECOVERY,
             new ScalingExecutorBuilder(
                 Names.REMOTE_RECOVERY,
+                1,
+                twiceAllocatedProcessors(allocatedProcessors),
+                TimeValue.timeValueMinutes(5)
+            )
+        );
+        builders.put(
+            Names.REMOTE_DOWNLOAD,
+            new ScalingExecutorBuilder(
+                Names.REMOTE_DOWNLOAD,
                 1,
                 twiceAllocatedProcessors(allocatedProcessors),
                 TimeValue.timeValueMinutes(5)

@@ -50,6 +50,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -64,6 +65,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
@@ -138,6 +140,7 @@ import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParseContext.Document;
@@ -243,6 +246,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -9350,6 +9354,125 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         return testParsedDocument(id, null, testDocumentWithTextField(), source, null);
+    }
+
+    /**
+     * Verifies that {@code getSegmentFileSizes} correctly accumulates sizes for all files in a
+     * segment, including multiple files that share the same extension.
+     *
+     * <p>When fuzzy-set-for-doc-ID is enabled, {@link
+     * org.opensearch.index.codec.PerFieldMappingPostingFormatCodec} assigns
+     * {@code FuzzyFilterPostingsFormat} to the {@code _id} field and the standard Lucene format to
+     * all other text fields. Because these are two distinct {@code PostingsFormat} implementations,
+     * Lucene's {@code PerFieldPostingsFormat} writes a separate file group for each, producing
+     * multiple files with the same extension in one segment (e.g. two {@code .tim} files, two
+     * {@code .doc} files, etc.).
+     *
+     * <p>The bug was that {@code getSegmentFileSizes} used {@code Map.put(extension, length)},
+     * which silently overwrote earlier entries, causing the reported {@code file_sizes} total to be
+     * less than the actual on-disk size. The fix replaces {@code put} with
+     * {@code map.merge(extension, length, Long::sum)} so every file's bytes are counted.
+     */
+    public void testSegmentFileSizesAccumulatesAllFilesIncludingDuplicateExtensions() throws Exception {
+        // Disable compound file so each Lucene file is a separate entry in the directory,
+        // making it straightforward to compare the expected total (sum of file lengths from the
+        // directory) against the actual total reported by segmentsStats.
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test_file_sizes",
+            Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_USE_COMPOUND_FILE.getKey(), false).build()
+        );
+        // Enable fuzzy set for doc ID so that _id uses FuzzyFilterPostingsFormat while other
+        // text fields use the standard Lucene format. Two distinct PostingsFormat instances
+        // in one segment cause PerFieldPostingsFormat to write two file groups that share
+        // extensions, which is exactly the condition that exposed the map.put() bug.
+        indexSettings.setEnableFuzzySetForDocId(true);
+
+        // Mock MapperService so that PerFieldMappingPostingFormatCodec sees a non-null field
+        // type for _id (required for the FuzzyFilter branch to be reached).
+        MappedFieldType idFieldType = mock(MappedFieldType.class);
+        when(idFieldType.unwrap()).thenReturn(idFieldType);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fieldType(any())).thenReturn(null);
+        when(mapperService.fieldType(IdFieldMapper.NAME)).thenReturn(idFieldType);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        when(mapperService.isCompositeIndexPresent()).thenReturn(false);
+
+        CodecService codecService = new CodecService(mapperService, indexSettings, logger, List.of());
+
+        try (Store store = createStore()) {
+            Path translogPath = createTempDir();
+            // Build a base config then rebuild it with our custom CodecService.
+            EngineConfig base = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, null);
+            EngineConfig engineConfig = new EngineConfig.Builder().shardId(base.getShardId())
+                .threadPool(base.getThreadPool())
+                .indexSettings(indexSettings)
+                .warmer(base.getWarmer())
+                .store(store)
+                .mergePolicy(NoMergePolicy.INSTANCE)
+                .analyzer(base.getAnalyzer())
+                .similarity(base.getSimilarity())
+                .codecService(codecService)
+                .eventListener(base.getEventListener())
+                .queryCache(base.getQueryCache())
+                .queryCachingPolicy(base.getQueryCachingPolicy())
+                .translogConfig(base.getTranslogConfig())
+                .flushMergesAfter(base.getFlushMergesAfter())
+                .externalRefreshListener(base.getExternalRefreshListener())
+                .internalRefreshListener(base.getInternalRefreshListener())
+                .indexSort(base.getIndexSort())
+                .circuitBreakerService(base.getCircuitBreakerService())
+                .globalCheckpointSupplier(base.getGlobalCheckpointSupplier())
+                .retentionLeasesSupplier(base.retentionLeasesSupplier())
+                .primaryTermSupplier(base.getPrimaryTermSupplier())
+                .tombstoneDocSupplier(base.getTombstoneDocSupplier())
+                .build();
+
+            try (InternalEngine engine = createEngine(engineConfig)) {
+                // Index one document. The _id field goes through FuzzyFilterPostingsFormat;
+                // the "value" text field goes through the standard format. Both end up in the
+                // same segment, guaranteeing multiple files per extension.
+                ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+                engine.index(indexForDoc(doc));
+                engine.flush(true, true);
+                engine.refresh("test");
+
+                // Compute the expected total: sum of the actual on-disk lengths of every file
+                // that belongs to the flushed segment.
+                long expectedTotal = 0;
+                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                    for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
+                        SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                        for (String file : segmentReader.getSegmentInfo().files()) {
+                            if (IndexFileNames.getExtension(file) == null) {
+                                continue;
+                            }
+                            long len = store.directory().fileLength(file);
+                            if (len == 0L) {
+                                continue;
+                            }
+                            expectedTotal += len;
+                        }
+                    }
+                }
+                assertThat("expected at least one segment file after flush", expectedTotal, greaterThan(0L));
+
+                // Compute the actual total reported by segmentsStats with file sizes enabled.
+                SegmentsStats stats = engine.segmentsStats(true, false);
+                Map<String, Long> fileSizes = stats.getFileSizes();
+                assertFalse("file_sizes must not be empty when include_segment_file_sizes=true", fileSizes.isEmpty());
+                long actualTotal = fileSizes.values().stream().mapToLong(Long::longValue).sum();
+
+                // With the old map.put() bug, actualTotal < expectedTotal whenever the codec
+                // writes more than one file per extension (as the FuzzyFilter + standard
+                // postings formats do). With the fix (map.merge(Long::sum)) all bytes are counted.
+                assertEquals(
+                    "file_sizes total must equal the actual sum of all segment file sizes; "
+                        + "a mismatch means some files were silently dropped due to duplicate extensions",
+                    expectedTotal,
+                    actualTotal
+                );
+            }
+        }
     }
 
 }

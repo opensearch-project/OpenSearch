@@ -14,15 +14,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.analytics.spi.MultiInputExchangeSink;
 
 /**
  * {@link StageExecution} implementation for COORDINATOR_REDUCE stages. Holds a
  * backend-provided {@link ExchangeSink} (from {@link org.opensearch.analytics.spi.ExchangeSinkProvider})
  * and routes all child stage output into it via {@link #inputSink(int)}.
- *
- * <p>This is a placeholder shape: the backend sink accepts batches but there is
- * no contract yet for draining its output downstream. The drain/output contract
- * will be re-introduced when a real backend implementation lands.
  *
  * <p>Lifecycle:
  * {@code CREATED → RUNNING → (SUCCEEDED | FAILED | CANCELLED)}
@@ -43,17 +40,36 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
         logger.info("[LocalStage] CREATED stageId={} childCount={}", stage.getStageId(), stage.getChildStages().size());
     }
 
-    // All children feed into the single backend sink.
+    /**
+     * Per-child input sink resolution. When the backend sink is a
+     * {@link MultiInputExchangeSink} (multi-input shapes such as Union), returns the
+     * sink for the named child stage so each child writes to its own input partition.
+     * Otherwise returns the backend sink unchanged — the single-input case where every
+     * child feeds the only registered partition.
+     */
     @Override
     public ExchangeSink inputSink(int childStageId) {
+        if (backendSink instanceof MultiInputExchangeSink multi) {
+            return multi.sinkForChild(childStageId);
+        }
         return backendSink;
     }
 
-    // No output drain contract yet. Will be reintroduced when a real backend
-    // implementation is wired up.
+    /**
+     * Returns the downstream sink as an {@link ExchangeSource}. The backend sink's
+     * {@code close()} drains native batches into this same downstream as the
+     * last step of {@link #start()}, so by the time the walker reads via
+     * {@code outputSource().readResult()} every result batch is already buffered
+     * here.
+     */
     @Override
     public ExchangeSource outputSource() {
-        throw new UnsupportedOperationException("LocalStageExecution has no output source yet — backend drain contract pending");
+        if (downstream instanceof ExchangeSource source) {
+            return source;
+        }
+        throw new UnsupportedOperationException(
+            "downstream sink " + downstream.getClass().getSimpleName() + " does not implement ExchangeSource"
+        );
     }
 
     @Override
@@ -62,7 +78,6 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
         logger.info("[LocalStage] start() stageId={}", stage.getStageId());
         try {
             backendSink.close();
-            downstream.close();
             if (transitionTo(State.SUCCEEDED)) {
                 logger.info("[LocalStage] SUCCEEDED stageId={}", stage.getStageId());
             }

@@ -65,11 +65,20 @@ public class OpenSearchProjectRule extends RelOptRule {
         // SqlKind → viable backends map once per onMatch() call, and (b) returning
         // childViableBackends directly when all candidates pass to avoid allocation.
         List<RexNode> annotatedExprs = new ArrayList<>(project.getProjects().size());
+        boolean requiresBackendCapabilityEvaluation = false;
         for (RexNode expr : project.getProjects()) {
-            annotatedExprs.add(annotateExpr(expr, childViableBackends));
+            RexNode annotated = annotateExpr(expr, childViableBackends);
+            annotatedExprs.add(annotated);
+            if (annotated instanceof AnnotatedProjectExpression) {
+                requiresBackendCapabilityEvaluation = true;
+            }
         }
 
-        List<String> viableBackends = computeProjectViableBackends(annotatedExprs, childViableBackends);
+        // Passthrough projection: no RexCall to evaluate, so any child backend can emit it.
+        List<String> viableBackends = requiresBackendCapabilityEvaluation
+            ? computeProjectViableBackends(annotatedExprs, childViableBackends)
+            : childViableBackends;
+
         if (viableBackends.isEmpty()) {
             throw new IllegalStateException("No backend can execute all project expressions among " + childViableBackends);
         }
@@ -110,9 +119,9 @@ public class OpenSearchProjectRule extends RelOptRule {
         // Standard scalar function
         List<String> scalarViable = resolveScalarViableBackends(rexCall, childViableBackends);
         if (scalarViable.isEmpty()) {
-            throw new IllegalStateException(
-                "No backend supports scalar function [" + ScalarFunction.fromSqlKind(rexCall.getKind()) + "] among " + childViableBackends
-            );
+            ScalarFunction resolved = ScalarFunction.fromSqlOperatorWithFallback(rexCall.getOperator());
+            String label = resolved != null ? resolved.name() : rexCall.getOperator().getName();
+            throw new IllegalStateException("No backend supports scalar function [" + label + "] among " + childViableBackends);
         }
 
         // Recurse into operands
@@ -149,11 +158,27 @@ public class OpenSearchProjectRule extends RelOptRule {
     }
 
     private List<String> resolveScalarViableBackends(RexCall rexCall, List<String> childViableBackends) {
-        ScalarFunction scalarFunc = ScalarFunction.fromSqlKind(rexCall.getKind());
+        ScalarFunction scalarFunc = ScalarFunction.fromSqlOperatorWithFallback(rexCall.getOperator());
         if (scalarFunc == null) {
             return List.of();
         }
         FieldType fieldType = FieldType.fromSqlTypeName(rexCall.getType().getSqlTypeName());
+        // Polymorphic UDF fallback: Calcite UDFs with indeterminate return types (SqlTypeName.ANY)
+        // — e.g. PPL's ScalarMaxFunction / ScalarMinFunction — do not map to a concrete FieldType
+        // directly. When a viability check for such a call lands here, fall back to the first
+        // operand's type. The scalar function's backend capabilities are defined over operand
+        // types anyway (SCALAR_MAX(double, double, ...) → DOUBLE), so inferring from operands
+        // preserves correct backend dispatch while deferring actual type-tightening until the
+        // backend's ScalarFunctionAdapter rewrites the call to a typed library operator.
+        if (fieldType == null) {
+            for (RexNode operand : rexCall.getOperands()) {
+                FieldType operandType = FieldType.fromSqlTypeName(operand.getType().getSqlTypeName());
+                if (operandType != null) {
+                    fieldType = operandType;
+                    break;
+                }
+            }
+        }
         if (fieldType == null) {
             return List.of();
         }

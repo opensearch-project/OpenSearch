@@ -16,7 +16,7 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
-import org.opensearch.analytics.spi.FilterOperator;
+import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -50,17 +50,17 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         SUPPORTED_TYPES.add(FieldType.BOOLEAN);
     }
 
-    private static final Set<FilterOperator> STANDARD_OPS = Set.of(
-        FilterOperator.EQUALS,
-        FilterOperator.NOT_EQUALS,
-        FilterOperator.GREATER_THAN,
-        FilterOperator.GREATER_THAN_OR_EQUAL,
-        FilterOperator.LESS_THAN,
-        FilterOperator.LESS_THAN_OR_EQUAL,
-        FilterOperator.IS_NULL,
-        FilterOperator.IS_NOT_NULL,
-        FilterOperator.IN,
-        FilterOperator.LIKE
+    private static final Set<ScalarFunction> STANDARD_OPS = Set.of(
+        ScalarFunction.EQUALS,
+        ScalarFunction.NOT_EQUALS,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL,
+        ScalarFunction.IS_NULL,
+        ScalarFunction.IS_NOT_NULL,
+        ScalarFunction.IN,
+        ScalarFunction.LIKE
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -75,7 +75,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     private static final Set<FilterCapability> FILTER_CAPS;
     static {
         Set<FilterCapability> caps = new HashSet<>();
-        for (FilterOperator op : STANDARD_OPS) {
+        for (ScalarFunction op : STANDARD_OPS) {
             caps.add(new FilterCapability.Standard(op, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         FILTER_CAPS = caps;
@@ -100,7 +100,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     @Override
     public ExchangeSinkProvider getExchangeSinkProvider() {
         // Stub — real implementation provided by DataFusion backend
-        return bytes -> new ExchangeSink() {
+        return context -> new ExchangeSink() {
             @Override
             public void feed(VectorSchemaRoot batch) {}
 

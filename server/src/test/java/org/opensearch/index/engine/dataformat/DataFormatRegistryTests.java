@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -146,7 +147,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
         IndexingExecutionEngine<?, ?> engine = registry.getIndexingEngine(
-            new IndexingEngineConfig(null, mapperService, indexSettings, null, null),
+            new IndexingEngineConfig(null, mapperService, indexSettings, null, null, Map.of()),
             format
         );
         assertNotNull(engine);
@@ -162,7 +163,10 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> registry.getIndexingEngine(new IndexingEngineConfig(null, mapperService, indexSettings, null, null), unregistered)
+            () -> registry.getIndexingEngine(
+                new IndexingEngineConfig(null, mapperService, indexSettings, null, null, Map.of()),
+                unregistered
+            )
         );
         assertTrue(e.getMessage().contains("unknown"));
     }
@@ -285,5 +289,128 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         Set<DataFormat> formats = registry.getRegisteredFormats();
 
         expectThrows(UnsupportedOperationException.class, () -> formats.add(new MockDataFormat("new", 1L, Set.of())));
+    }
+
+    public void testGetFormatDescriptorsByDataFormatReturnsDescriptors() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format);
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of("columnar"));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(indexSettings, format);
+        assertNotNull(descriptors);
+    }
+
+    public void testGetFormatDescriptorsByDataFormatReturnsEmptyForUnregisteredFormat() {
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of());
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+        MockDataFormat unregistered = new MockDataFormat("unknown", 1L, Set.of());
+
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(indexSettings, unregistered);
+        assertTrue(descriptors.isEmpty());
+    }
+
+    public void testGetStoreStrategiesEmptyWhenNoPluggableDataformat() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        Map<DataFormat, StoreStrategy> result = registry.getStoreStrategies(indexSettings);
+        assertTrue("Should return empty map when no pluggable_dataformat setting", result.isEmpty());
+    }
+
+    public void testGetStoreStrategiesEmptyWhenPluginReturnsNone() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .put("index.pluggable.dataformat", "columnar")
+            .put("index.pluggable.dataformat.enabled", true)
+            .build();
+        IndexSettings settingsWithFormat = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+
+        // MockDataFormatPlugin does not override getStoreStrategies, so the default returns
+        // an empty map.
+        Map<DataFormat, StoreStrategy> result = registry.getStoreStrategies(settingsWithFormat);
+        assertTrue("Should return empty map when plugin provides no strategy", result.isEmpty());
+    }
+
+    public void testGetStoreStrategiesEmptyWhenFormatNameNotRegistered() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .put("index.pluggable.dataformat", "unknown")
+            .put("index.pluggable.dataformat.enabled", true)
+            .build();
+        IndexSettings settingsWithFormat = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+
+        Map<DataFormat, StoreStrategy> result = registry.getStoreStrategies(settingsWithFormat);
+        assertTrue("Should return empty map when format name not registered", result.isEmpty());
+    }
+
+    public void testGetPluginReturnsPluginForRegisteredFormat() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format);
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        DataFormatPlugin result = registry.getPlugin("columnar");
+        assertNotNull("Should return plugin for registered format", result);
+        assertSame("Should return the same plugin instance", plugin, result);
+    }
+
+    public void testGetPluginReturnsNullForUnknownFormat() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        assertNull("Should return null for unknown format", registry.getPlugin("unknown"));
+    }
+
+    public void testGetPluginReturnsNullForNullName() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        assertNull("Should return empty map for null name", registry.getPlugin(null));
     }
 }

@@ -18,13 +18,16 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
-import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.apache.calcite.rex.RexShuttle;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * OpenSearch custom Project carrying viable backend list and per-expression annotations.
@@ -116,10 +119,33 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        return stripAnnotations(strippedChildren, OperatorAnnotation::unwrap);
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
+        // OpenSearchProjectRule.annotateExpr recurses into operands when validating viable
+        // backends, so a top-level call like COALESCE(num0, CEIL(num1)) ends up with the inner
+        // CEIL also wrapped. The supplied annotationResolver controls how each top-level
+        // wrapper is unwrapped (defaults to OperatorAnnotation::unwrap, returning the original
+        // RexNode); a RexShuttle then sweeps the resolver's result to strip any remaining
+        // nested wrappers. Substrait conversion only recognizes the underlying RexCall shape,
+        // so every wrapper at every depth must be removed before the plan is handed to a
+        // backend's FragmentConvertor.
+        RexShuttle nestedAnnotationStripper = new RexShuttle() {
+            @Override
+            public RexNode visitCall(RexCall call) {
+                if (call instanceof AnnotatedProjectExpression nested) {
+                    return nested.getOriginal().accept(this);
+                }
+                return super.visitCall(call);
+            }
+        };
         List<RexNode> strippedExprs = new ArrayList<>();
         for (RexNode expr : getProjects()) {
             if (expr instanceof AnnotatedProjectExpression annotated) {
-                strippedExprs.add(annotated.unwrap());
+                RexNode resolved = annotationResolver.apply(annotated);
+                strippedExprs.add(resolved.accept(nestedAnnotationStripper));
             } else {
                 // Plain expressions have no annotation to strip — pass through.
                 strippedExprs.add(expr);

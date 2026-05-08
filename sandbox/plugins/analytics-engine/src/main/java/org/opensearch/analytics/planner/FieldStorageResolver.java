@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner;
 
+import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -92,11 +93,11 @@ public class FieldStorageResolver {
     }
 
     private static FieldStorageInfo resolveField(String fieldName, String fieldType, Map<String, Object> fieldProps, String primaryFormat) {
-        // Doc values: present for all types except text, unless explicitly disabled
-        boolean hasDocValues = !"text".equals(fieldType) && !Boolean.FALSE.equals(fieldProps.get("doc_values"));
+        // Doc values: present for all types unless explicitly disabled
+        boolean hasDocValues = !Boolean.FALSE.equals(fieldProps.get("doc_values"));
 
-        // Index: only when explicitly set to true in mapping
-        boolean isIndexed = Boolean.TRUE.equals(fieldProps.get("index"));
+        // Index: only when explicitly set to false in mapping - enabled by default.
+        boolean isIndexed = !Boolean.FALSE.equals(fieldProps.get("index"));
 
         // Stored fields: only when explicitly set to true in mapping
         boolean isStored = Boolean.TRUE.equals(fieldProps.get("store"));

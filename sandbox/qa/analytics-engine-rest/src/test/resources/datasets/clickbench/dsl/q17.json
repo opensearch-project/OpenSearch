@@ -1,0 +1,31 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "aggregations": {
+    "UserID|SearchPhrase": {
+      "multi_terms": {
+        "terms": [
+          {
+            "field": "UserID"
+          },
+          {
+            "field": "SearchPhrase"
+          }
+        ],
+        "size": 10,
+        "min_doc_count": 1,
+        "shard_min_doc_count": 0,
+        "show_term_doc_count_error": false,
+        "order": [
+          {
+            "_count": "desc"
+          },
+          {
+            "_key": "asc"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1614,6 +1614,11 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
+        public boolean skipsDeserialization() {
+            return delegate.skipsDeserialization();
+        }
+
+        @Override
         public String toString() {
             return getClass().getName() + "/" + delegate.toString();
         }
@@ -1834,6 +1839,11 @@ public class TransportService extends AbstractLifecycleComponent
                     @Override
                     public T read(StreamInput in) throws IOException {
                         return handler.read(in);
+                    }
+
+                    @Override
+                    public boolean skipsDeserialization() {
+                        return handler.skipsDeserialization();
                     }
 
                     @Override

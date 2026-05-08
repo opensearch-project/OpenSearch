@@ -32,13 +32,17 @@ tasks.named('internalClusterTest').configure {
 }
 
 internalClusterTest {
+  // arrow-memory-netty initialization requires these Netty Unsafe flags
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
 dependencies {
   api project(':libs:opensearch-concurrent-queue')
-  api project(':sandbox:libs:composite-common')
   compileOnly project(':server')
   testImplementation project(':test:framework')
   testImplementation project(':sandbox:plugins:parquet-data-format')
@@ -47,4 +51,5 @@ dependencies {
   internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+  internalClusterTestImplementation project(':sandbox:libs:analytics-framework')
 }

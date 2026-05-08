@@ -15,7 +15,10 @@ import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.spi.DelegationDescriptor;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.cluster.service.ClusterService;
 
 import java.util.ArrayList;
@@ -76,8 +79,33 @@ final class ShardFragmentStageScheduler implements StageScheduler {
     private static List<FragmentExecutionRequest.PlanAlternative> buildPlanAlternatives(Stage stage) {
         List<FragmentExecutionRequest.PlanAlternative> alternatives = new ArrayList<>();
         for (StagePlan plan : stage.getPlanAlternatives()) {
-            alternatives.add(new FragmentExecutionRequest.PlanAlternative(plan.backendId(), plan.convertedBytes()));
+            DelegationDescriptor delegationDescriptor = buildDelegationDescriptor(plan);
+            alternatives.add(
+                new FragmentExecutionRequest.PlanAlternative(
+                    plan.backendId(),
+                    plan.convertedBytes(),
+                    plan.instructions(),
+                    delegationDescriptor
+                )
+            );
         }
         return alternatives;
+    }
+
+    private static DelegationDescriptor buildDelegationDescriptor(StagePlan plan) {
+        if (plan.delegatedExpressions().isEmpty()) {
+            return null;
+        }
+        // Extract treeShape and count from the ShardScanWithDelegationInstructionNode
+        for (InstructionNode node : plan.instructions()) {
+            if (node instanceof ShardScanWithDelegationInstructionNode delegationNode) {
+                return new DelegationDescriptor(
+                    delegationNode.getTreeShape(),
+                    delegationNode.getDelegatedPredicateCount(),
+                    plan.delegatedExpressions()
+                );
+            }
+        }
+        return null;
     }
 }

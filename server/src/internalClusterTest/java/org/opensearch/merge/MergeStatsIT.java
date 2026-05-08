@@ -75,38 +75,44 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         ClusterState state = getClusterState();
         List<String> nodes = state.nodes().getNodes().values().stream().map(DiscoveryNode::getName).toList();
 
-        // ensure merge is executed
+        // Wait for the force merge itself to finish. The warmer push to the replica is triggered
+        // during the merge but its receive-side accounting on the replica completes asynchronously,
+        // so we still need to poll the cross-node counters below.
         for (String index : indices) {
-            client().admin().indices().forceMerge(new ForceMergeRequest(index).maxNumSegments(2));
+            client().admin().indices().forceMerge(new ForceMergeRequest(index).maxNumSegments(2)).get();
         }
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
         nodesStatsRequest.indices(CommonStatsFlags.ALL);
         for (String node : nodes) {
-            NodesStatsResponse response = client(node).admin().cluster().nodesStats(nodesStatsRequest).get();
+            assertBusy(() -> {
+                NodesStatsResponse response = client(node).admin().cluster().nodesStats(nodesStatsRequest).get();
 
-            // Shard stats
-            List<NodeStats> allNodesStats = response.getNodes();
-            assertEquals(2, allNodesStats.size());
-            for (NodeStats nodeStats : allNodesStats) {
-                assertNotNull(nodeStats.getIndices());
-                MergeStats mergeStats = nodeStats.getIndices().getMerge();
-                assertNotNull(mergeStats);
-                assertMergeStats(mergeStats, StatsScope.AGGREGATED);
-                MergedSegmentWarmerStats mergedSegmentWarmerStats = mergeStats.getWarmerStats();
-                assertNotNull(mergedSegmentWarmerStats);
-                assertMergedSegmentWarmerStats(mergedSegmentWarmerStats, StatsScope.AGGREGATED);
-            }
+                List<NodeStats> allNodesStats = response.getNodes();
+                assertEquals(2, allNodesStats.size());
+                for (NodeStats nodeStats : allNodesStats) {
+                    assertNotNull(nodeStats.getIndices());
+                    MergeStats mergeStats = nodeStats.getIndices().getMerge();
+                    assertNotNull(mergeStats);
+                    assertMergeStats(mergeStats, StatsScope.AGGREGATED);
+                    MergedSegmentWarmerStats mergedSegmentWarmerStats = mergeStats.getWarmerStats();
+                    assertNotNull(mergedSegmentWarmerStats);
+                    assertMergedSegmentWarmerStats(mergedSegmentWarmerStats, StatsScope.AGGREGATED);
+                }
 
-            assertEquals(
-                "Expected sent size by node 2 to be equal to recieved size by node 1.",
-                allNodesStats.get(0).getIndices().getMerge().getWarmerStats().getTotalReceivedSize(),
-                allNodesStats.get(1).getIndices().getMerge().getWarmerStats().getTotalSentSize()
-            );
-            assertEquals(
-                "Expected sent size by node 1 to be equal to recieved size by node 2.",
-                allNodesStats.get(0).getIndices().getMerge().getWarmerStats().getTotalSentSize(),
-                allNodesStats.get(1).getIndices().getMerge().getWarmerStats().getTotalReceivedSize()
-            );
+                // Primary-sent and replica-received byte counters are maintained on different
+                // nodes and updated by different callbacks in the warmer flow, so they only
+                // reconcile once the async warmer push has fully completed on both sides.
+                assertEquals(
+                    "Expected sent size by node 2 to be equal to recieved size by node 1.",
+                    allNodesStats.get(0).getIndices().getMerge().getWarmerStats().getTotalReceivedSize(),
+                    allNodesStats.get(1).getIndices().getMerge().getWarmerStats().getTotalSentSize()
+                );
+                assertEquals(
+                    "Expected sent size by node 1 to be equal to recieved size by node 2.",
+                    allNodesStats.get(0).getIndices().getMerge().getWarmerStats().getTotalSentSize(),
+                    allNodesStats.get(1).getIndices().getMerge().getWarmerStats().getTotalReceivedSize()
+                );
+            }, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -118,52 +124,61 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         ClusterState state = getClusterState();
         List<String> nodes = state.nodes().getNodes().values().stream().map(DiscoveryNode::getName).toList();
 
-        // ensure merge is executed
+        // Wait for the force merge itself to finish. The warmer push to the replica is triggered
+        // during the merge but its receive-side accounting on the replica completes asynchronously,
+        // so we still need to poll the cross-shard counters below.
         for (String index : indices) {
-            client().admin().indices().forceMerge(new ForceMergeRequest(index).maxNumSegments(2));
+            client().admin().indices().forceMerge(new ForceMergeRequest(index).maxNumSegments(2)).get();
         }
-        Map<String, Map<String, ByteSizeValue>> shardsSentAndReceivedSize = new HashMap<>();
 
-        for (String node : nodes) {
-            IndicesStatsResponse response = client(node).admin().indices().stats(new IndicesStatsRequest()).get();
+        assertBusy(() -> {
+            // Re-collect stats on every attempt; the primary-sent and replica-received byte
+            // counters are maintained on different nodes and updated by different callbacks
+            // in the warmer flow, so they only reconcile once the async warmer push has
+            // fully completed on both sides.
+            Map<String, Map<String, ByteSizeValue>> shardsSentAndReceivedSize = new HashMap<>();
 
-            // Shard stats
-            ShardStats[] allShardStats = response.getShards();
-            assertEquals(4, allShardStats.length);
+            for (String node : nodes) {
+                IndicesStatsResponse response = client(node).admin().indices().stats(new IndicesStatsRequest()).get();
 
-            for (ShardStats shardStats : allShardStats) {
-                StatsScope type = shardStats.getShardRouting().primary() ? StatsScope.PRIMARY_SHARD : StatsScope.REPLICA_SHARD;
-                CommonStats commonStats = shardStats.getStats();
-                assertNotNull(commonStats);
-                MergeStats mergeStats = commonStats.getMerge();
-                assertNotNull(mergeStats);
-                assertMergeStats(mergeStats, type);
-                MergedSegmentWarmerStats mergedSegmentWarmerStats = mergeStats.getWarmerStats();
-                assertNotNull(mergedSegmentWarmerStats);
-                assertMergedSegmentWarmerStats(mergedSegmentWarmerStats, type);
+                // Shard stats
+                ShardStats[] allShardStats = response.getShards();
+                assertEquals(4, allShardStats.length);
 
-                String primaryOrReplica = type.equals(StatsScope.PRIMARY_SHARD) ? "[P]" : "[R]";
-                shardsSentAndReceivedSize.put(shardStats.getShardRouting().shardId() + primaryOrReplica, new HashMap<>() {
-                    {
-                        put("RECEIVED", mergedSegmentWarmerStats.getTotalReceivedSize());
-                        put("SENT", mergedSegmentWarmerStats.getTotalSentSize());
-                    }
-                });
+                for (ShardStats shardStats : allShardStats) {
+                    StatsScope type = shardStats.getShardRouting().primary() ? StatsScope.PRIMARY_SHARD : StatsScope.REPLICA_SHARD;
+                    CommonStats commonStats = shardStats.getStats();
+                    assertNotNull(commonStats);
+                    MergeStats mergeStats = commonStats.getMerge();
+                    assertNotNull(mergeStats);
+                    assertMergeStats(mergeStats, type);
+                    MergedSegmentWarmerStats mergedSegmentWarmerStats = mergeStats.getWarmerStats();
+                    assertNotNull(mergedSegmentWarmerStats);
+                    assertMergedSegmentWarmerStats(mergedSegmentWarmerStats, type);
+
+                    String primaryOrReplica = type.equals(StatsScope.PRIMARY_SHARD) ? "[P]" : "[R]";
+                    shardsSentAndReceivedSize.put(shardStats.getShardRouting().shardId() + primaryOrReplica, new HashMap<>() {
+                        {
+                            put("RECEIVED", mergedSegmentWarmerStats.getTotalReceivedSize());
+                            put("SENT", mergedSegmentWarmerStats.getTotalSentSize());
+                        }
+                    });
+                }
             }
-        }
 
-        for (int shard = 0; shard <= 1; shard++) {
-            assertEquals(
-                "Expected sent size by primary shard to be equal to recieved size by replica shard.",
-                shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][R]").get("RECEIVED"),
-                shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][P]").get("SENT")
-            );
-            assertEquals(
-                "Expected sent size by replica shard to be equal to recieved size by primary shard.",
-                shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][R]").get("SENT"),
-                shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][P]").get("RECEIVED")
-            );
-        }
+            for (int shard = 0; shard <= 1; shard++) {
+                assertEquals(
+                    "Expected sent size by primary shard to be equal to recieved size by replica shard.",
+                    shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][R]").get("RECEIVED"),
+                    shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][P]").get("SENT")
+                );
+                assertEquals(
+                    "Expected sent size by replica shard to be equal to recieved size by primary shard.",
+                    shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][R]").get("SENT"),
+                    shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][P]").get("RECEIVED")
+                );
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testIndicesStats() throws Exception {
@@ -173,41 +188,45 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         ClusterState state = getClusterState();
         List<String> nodes = state.nodes().getNodes().values().stream().map(DiscoveryNode::getName).toList();
 
-        // ensure merge is executed
+        // Wait for the force merge itself to finish. The warmer push to the replica is triggered
+        // during the merge but its receive-side accounting on the replica completes asynchronously,
+        // so we still need to poll the aggregated warmer counters below.
         for (String index : indices) {
-            client().admin().indices().forceMerge(new ForceMergeRequest(index).maxNumSegments(2));
+            client().admin().indices().forceMerge(new ForceMergeRequest(index).maxNumSegments(2)).get();
         }
 
         for (String node : nodes) {
-            IndicesStatsResponse response = client(node).admin().indices().stats(new IndicesStatsRequest()).get();
+            assertBusy(() -> {
+                IndicesStatsResponse response = client(node).admin().indices().stats(new IndicesStatsRequest()).get();
 
-            // Shard stats
-            Map<String, IndexStats> allIndicesStats = response.getIndices();
-            assertEquals(1, allIndicesStats.size());
-            for (String index : indices) {
-                IndexStats indexStats = allIndicesStats.get(index);
-                CommonStats totalStats = indexStats.getTotal();
-                CommonStats priStats = indexStats.getPrimaries();
-                assertNotNull(totalStats);
-                assertNotNull(priStats);
+                // Shard stats
+                Map<String, IndexStats> allIndicesStats = response.getIndices();
+                assertEquals(1, allIndicesStats.size());
+                for (String index : indices) {
+                    IndexStats indexStats = allIndicesStats.get(index);
+                    CommonStats totalStats = indexStats.getTotal();
+                    CommonStats priStats = indexStats.getPrimaries();
+                    assertNotNull(totalStats);
+                    assertNotNull(priStats);
 
-                MergeStats totalMergeStats = totalStats.getMerge();
-                assertNotNull(totalMergeStats);
-                MergeStats priMergeStats = priStats.getMerge();
-                assertNotNull(priMergeStats);
+                    MergeStats totalMergeStats = totalStats.getMerge();
+                    assertNotNull(totalMergeStats);
+                    MergeStats priMergeStats = priStats.getMerge();
+                    assertNotNull(priMergeStats);
 
-                assertMergeStats(priMergeStats, StatsScope.PRIMARY_SHARD);
-                assertMergeStats(totalMergeStats, StatsScope.AGGREGATED);
+                    assertMergeStats(priMergeStats, StatsScope.PRIMARY_SHARD);
+                    assertMergeStats(totalMergeStats, StatsScope.AGGREGATED);
 
-                MergedSegmentWarmerStats totalMergedSegmentWarmerStats = totalMergeStats.getWarmerStats();
-                MergedSegmentWarmerStats priMergedSegmentWarmerStats = priMergeStats.getWarmerStats();
+                    MergedSegmentWarmerStats totalMergedSegmentWarmerStats = totalMergeStats.getWarmerStats();
+                    MergedSegmentWarmerStats priMergedSegmentWarmerStats = priMergeStats.getWarmerStats();
 
-                assertNotNull(totalMergedSegmentWarmerStats);
-                assertNotNull(priMergedSegmentWarmerStats);
+                    assertNotNull(totalMergedSegmentWarmerStats);
+                    assertNotNull(priMergedSegmentWarmerStats);
 
-                assertMergedSegmentWarmerStats(priMergedSegmentWarmerStats, StatsScope.PRIMARY_SHARD);
-                assertMergedSegmentWarmerStats(totalMergedSegmentWarmerStats, StatsScope.AGGREGATED);
-            }
+                    assertMergedSegmentWarmerStats(priMergedSegmentWarmerStats, StatsScope.PRIMARY_SHARD);
+                    assertMergedSegmentWarmerStats(totalMergedSegmentWarmerStats, StatsScope.AGGREGATED);
+                }
+            }, 30, TimeUnit.SECONDS);
         }
     }
 

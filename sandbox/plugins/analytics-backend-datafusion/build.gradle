@@ -12,35 +12,54 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
+repositories {
+  maven {
+    name = 'OpenSearch Snapshots'
+    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+  }
+}
+
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
-// Guava is forbidden on compile classpaths by OpenSearch. Calcite's TableScan
-// references ImmutableList, so tests need it. Bypass via custom configuration.
+// Guava is forbidden on compile classpaths by OpenSearch. The fragment convertor's
+// StageInputTableScan extends Calcite TableScan (which leaks ImmutableList in its
+// constructor signature), and tests use Calcite types directly. Bypass via custom
+// configurations on both main and test compileClasspath while keeping Guava off the
+// plugin's runtime bundle (provided by analytics-engine).
 configurations {
+  calciteCompile
   calciteTestCompile
+  compileClasspath { exclude group: 'com.google.guava' }
   testCompileClasspath { exclude group: 'com.google.guava' }
 }
+sourceSets.main.compileClasspath += configurations.calciteCompile
 sourceSets.test.compileClasspath += configurations.calciteTestCompile
 
 dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
+  // Canonical stats SPI classes (PluginStats, BackendStatsProvider)
+  implementation project(':sandbox:libs:plugin-stats-spi')
+
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
+  // analytics-engine's RelNode types (OpenSearchStageInputScan) are referenced by the
+  // fragment convertor for pre-isthmus rewrite. compileOnly — provided at runtime by
+  // the parent analytics-engine plugin (extendedPlugins above).
+  compileOnly project(':sandbox:plugins:analytics-engine')
 
   compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // Apache Arrow dependencies.
-  // arrow-vector + arrow-memory-core are provided at runtime by the parent analytics-engine
-  // plugin (we extend it via extendedPlugins); compile-only here to avoid duplicate bundling
+  // arrow-vector + arrow-memory-core + arrow-format + flatbuffers are provided at runtime
+  // by the parent analytics-engine plugin; compile-only here to avoid duplicate bundling
   // and license files.
   compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
-  // Provided at runtime by parent analytics-engine plugin; compileOnly to avoid jar hell.
   compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
   compileOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
@@ -51,11 +70,18 @@ dependencies {
   compileOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 
   // Substrait — Calcite RelNode to Substrait plan conversion for DataFusion native runtime
-  implementation "io.substrait:isthmus:0.67.0"
-  implementation "io.substrait:core:0.67.0"
+  implementation "io.substrait:isthmus:0.89.1"
+  implementation "io.substrait:core:0.89.1"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
 
+  calciteCompile "com.google.guava:guava:${versions.guava}"
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
+
+  // Planner + Lucene backend for end-to-end delegation unit tests
+  testImplementation project(':sandbox:plugins:analytics-engine')
+  testImplementation project(':sandbox:plugins:analytics-backend-lucene')
+  testCompileOnly 'org.immutables:value-annotations:2.8.8'
+
 }
 
 test {
@@ -65,16 +91,103 @@ test {
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Rust unit + fuzz tests for the opensearch-datafusion crate.
+// Run as part of `check` so `./gradlew check` (and CI) exercises the
+// randomized E2E suite alongside the Java tests.
+// ═══════════════════════════════════════════════════════════════════
+def rustWorkspaceDir = file("${project(':sandbox:libs:dataformat-native').projectDir}/rust")
+
+task cargoTest(type: Exec) {
+  description = 'Run Rust unit + fuzz tests for opensearch-datafusion crate'
+  group = 'verification'
+  workingDir rustWorkspaceDir
+
+  def cargoExecutable = 'cargo'
+  def possibleCargoPaths = [
+    System.getenv('HOME') + '/.cargo/bin/cargo',
+    '/usr/local/bin/cargo',
+    'cargo'
+  ]
+  for (String path : possibleCargoPaths) {
+    if (new File(path).exists()) { cargoExecutable = path; break }
+  }
+
+  commandLine cargoExecutable, 'test', '-p', 'opensearch-datafusion', '--lib'
+
+  // Seed forwarding for the randomized fuzz suite:
+  //
+  // 1. `-PindexedE2eSeed=<hex>` overrides everything (explicit).
+  // 2. Otherwise, tie the Rust fuzz seed to OpenSearch's build-wide
+  //    `tests.seed` (the same seed Lucene-style tests use; already
+  //    printed by `GlobalBuildInfoPlugin` as "Random Testing Seed").
+  //    When a CI run's Java tests fail with `-Dtests.seed=ABC123`, the
+  //    Rust fuzz seed is the same — one reproducer fits all.
+  // 3. If neither is set (rare; usually only on fresh local runs where
+  //    `tests.seed` isn't configured yet), let `master_seed()` on the
+  //    Rust side generate a fresh system-time seed and print the
+  //    reproducer.
+  def explicitSeed = project.hasProperty('indexedE2eSeed')
+    ? project.property('indexedE2eSeed').toString()
+    : System.getProperty('tests.seed')
+  if (explicitSeed != null && !explicitSeed.isEmpty()) {
+    environment 'INDEXED_E2E_SEED', explicitSeed
+  }
+
+  // Rebuild trigger: any Rust source in this crate.
+  inputs.files fileTree("${projectDir}/rust/src")
+  inputs.file "${projectDir}/rust/Cargo.toml"
+  // Marker file so gradle treats this task as cached when inputs don't change.
+  outputs.file "${projectDir}/rust/target/gradle-cargoTest.stamp"
+  doLast {
+    file("${projectDir}/rust/target").mkdirs()
+    file("${projectDir}/rust/target/gradle-cargoTest.stamp").text = new Date().toString()
+  }
+}
+
+check.dependsOn cargoTest
+
+configurations.all {
+  exclude group: 'com.github.babbel', module: 'okhttp-aws-signer'
+
+  resolutionStrategy {
+    force 'com.google.guava:guava:33.4.0-jre'
+    force 'com.google.guava:failureaccess:1.0.2'
+    force 'com.google.errorprone:error_prone_annotations:2.36.0'
+    force 'org.checkerframework:checker-qual:3.43.0'
+    force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+    force "org.slf4j:slf4j-api:${versions.slf4j}"
+    force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+    force "org.locationtech.jts:jts-core:${versions.jts}"
+    force "commons-codec:commons-codec:${versions.commonscodec}"
+    force "joda-time:joda-time:2.12.7"
+    force "org.yaml:snakeyaml:2.4"
+    force "org.codehaus.janino:janino:3.1.12"
+    force "org.codehaus.janino:commons-compiler:3.1.12"
+    force "commons-io:commons-io:${versions.commonsio}"
+    force "org.apache.commons:commons-lang3:3.18.0"
+    force "org.apache.commons:commons-text:1.11.0"
+    force "commons-logging:commons-logging:1.3.5"
+    force "net.minidev:json-smart:2.5.2"
+    force "org.apache.httpcomponents.client5:httpclient5:5.6"
+    force "org.apache.httpcomponents.core5:httpcore5:5.4"
+    force "com.squareup.okhttp3:okhttp:4.12.0"
+    force "org.jetbrains.kotlin:kotlin-stdlib:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
+    force "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+    force "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  }
+}
+
 tasks.withType(JavaCompile).configureEach {
   // Arrow references Jackson annotations not on classpath — harmless warnings
   options.compilerArgs -= '-Werror'
-}
-
-tasks.named('thirdPartyAudit').configure {
-  ignoreMissingClasses(
-    // Optional Calcite DDL parser — lives in calcite-server module, not needed at runtime
-    'org.apache.calcite.sql.parser.ddl.SqlDdlParserImpl'
-  )
 }
 
 // TODO: Remove once back-end is built out with test suite
@@ -82,8 +195,62 @@ testingConventions.enabled = false
 
 tasks.named('forbiddenPatterns').configure {
     exclude '**/*.parquet'
+    exclude '**/*.dylib'
+    exclude '**/*.so'
+    exclude '**/*.dll'
+}
+
+// ---- Property-based tests (jqwik / JUnit 5 Platform) ----
+
+sourceSets {
+  propertyTest {
+    java {
+      srcDir 'src/propertyTest/java'
+    }
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
+}
+
+configurations {
+  propertyTestImplementation.extendsFrom implementation, compileOnly
+  propertyTestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+dependencies {
+  propertyTestImplementation "net.jqwik:jqwik:${versions.jqwik}"
+  propertyTestImplementation "org.junit.jupiter:junit-jupiter-api:${versions.junit_jupiter}"
+  propertyTestRuntimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit_platform}"
+  // Jackson for JSON parsing in property tests
+  propertyTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+}
+
+tasks.register('propertyTest', Test) {
+  description = 'Run jqwik property-based tests'
+  group = 'verification'
+  useJUnitPlatform {
+    includeEngines 'jqwik'
+  }
+  testClassesDirs = sourceSets.propertyTest.output.classesDirs
+  classpath = sourceSets.propertyTest.runtimeClasspath
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  // Disable the security manager for property tests (jqwik is not compatible)
+  systemProperty 'tests.security.manager', 'false'
 }
 
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
     enabled = false
 }
+
+tasks.named('thirdPartyAudit').configure {
+    ignoreMissingClasses(
+        // SqlDdlParserImpl is generated by Calcite at build time and not bundled in the
+        // calcite-core jar; substrait-isthmus references it through reflection in optional code paths.
+        'org.apache.calcite.sql.parser.ddl.SqlDdlParserImpl',
+        'org.apache.calcite.server.ServerDdlExecutor'
+    )
+}
+
+// jqwik property tests don't ship with the randomized-testing framework that
+// forbiddenApis signatures reference — skip the check for this source set.
+tasks.matching { it.name == 'forbiddenApisPropertyTest' }.configureEach { enabled = false }

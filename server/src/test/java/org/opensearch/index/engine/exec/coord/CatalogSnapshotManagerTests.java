@@ -10,6 +10,10 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.merge.OneMerge;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.FileDeleter;
@@ -195,7 +199,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             CatalogSnapshotManager manager = new CatalogSnapshotManager(
                 List.of(new DataformatAwareCatalogSnapshot(id, generation, version, segments, lastWriterGeneration, userData)),
                 CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                Map.of(),
+                files -> Map.of(),
                 Map.of(),
                 List.of(),
                 null,
@@ -270,6 +274,108 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         manager.close();
     }
 
+    public void testApplyMergeResultsReplacesSegments() throws Exception {
+        DataFormat format = new MockDataFormat();
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200);
+        WriterFileSet wfs3 = new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300);
+        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 300);
+
+        Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
+        Segment seg3 = new Segment(3L, Map.of(format.name(), wfs3));
+
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(new DataformatAwareCatalogSnapshot(0, 0, 1, List.of(seg1, seg2, seg3), 0, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            files -> Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            null
+        );
+        try {
+            MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+            OneMerge oneMerge = new OneMerge(List.of(seg1, seg2));
+
+            manager.applyMergeResults(mergeResult, oneMerge);
+
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                List<Segment> segments = ref.get().getSegments();
+                assertEquals(2, segments.size());
+                // merged segment replaces at position of first merged segment
+                assertEquals(4L, segments.get(0).generation());
+                assertEquals(Set.of("merged.cfs"), segments.get(0).dfGroupedSearchableFiles().get(format.name()).files());
+                // unmerged segment preserved
+                assertEquals(seg3, segments.get(1));
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testApplyMergeResultsWhenAllMergedSegmentsRemoved() throws Exception {
+        DataFormat format = new MockDataFormat();
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200);
+        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 300);
+
+        Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
+
+        // Manager has seg1 and seg2 — the segments being merged are present
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(new DataformatAwareCatalogSnapshot(0, 0, 1, List.of(seg1, seg2), 0, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            files -> Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            null
+        );
+        try {
+            MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+            OneMerge oneMerge = new OneMerge(List.of(seg1, seg2));
+
+            manager.applyMergeResults(mergeResult, oneMerge);
+
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                List<Segment> segments = ref.get().getSegments();
+                // Both source segments replaced by merged segment
+                assertEquals(1, segments.size());
+                assertEquals(3L, segments.get(0).generation());
+                assertEquals(Set.of("merged.cfs"), segments.get(0).dfGroupedSearchableFiles().get(format.name()).files());
+                assertEquals(300, segments.get(0).dfGroupedSearchableFiles().get(format.name()).numRows());
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testApplyMergeResultsWithEmptyWriterFileSetMapThrows() throws Exception {
+        DataFormat format = new MockDataFormat();
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
+        Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
+
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(new DataformatAwareCatalogSnapshot(0, 0, 1, List.of(seg1), 0, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            files -> Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            null
+        );
+        try {
+            MergeResult mergeResult = new MergeResult(Map.of());
+            OneMerge oneMerge = new OneMerge(List.of(seg1));
+
+            expectThrows(IllegalArgumentException.class, () -> manager.applyMergeResults(mergeResult, oneMerge));
+        } finally {
+            manager.close();
+        }
+    }
+
     // --- File deletion and commit lifecycle tests ---
 
     private static Map<String, String> commitUserData(long maxSeqNo, long localCheckpoint, String translogUUID) {
@@ -310,7 +416,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
             List.of(new DataformatAwareCatalogSnapshot(1L, 1L, 0L, cs1Segments, 1L, userData)),
             policy,
-            Map.of("parquet", tracker),
+            tracker,
             Map.of(),
             List.of(),
             null,
@@ -363,7 +469,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
             List.of(new DataformatAwareCatalogSnapshot(1L, 1L, 0L, cs1Segments, 1L, commitUserData(100, 100, translogUUID))),
             policy,
-            Map.of("parquet", tracker),
+            tracker,
             Map.of(),
             List.of(),
             null,
@@ -418,7 +524,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 )
             ),
             policy,
-            Map.of("parquet", tracker),
+            tracker,
             Map.of(),
             List.of(),
             null,
@@ -484,7 +590,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 )
             ),
             policy,
-            Map.of("parquet", tracker),
+            tracker,
             Map.of(),
             List.of(),
             null,
@@ -545,7 +651,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 )
             ),
             policy,
-            Map.of("parquet", tracker),
+            tracker,
             Map.of(),
             List.of(),
             null,
@@ -593,7 +699,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000));
+        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(1, 10000));
     }
 
     private Segment randomSegment() {
@@ -630,16 +736,16 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
     }
 
     private CatalogSnapshotManager createManager(List<Segment> segments, Map<String, String> userData) throws IOException {
-        return createManager(segments, userData, CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY, Map.of());
+        return createManager(segments, userData, CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY, files -> Map.of());
     }
 
     private CatalogSnapshotManager createManager(
         List<Segment> segments,
         Map<String, String> userData,
         CatalogSnapshotDeletionPolicy policy,
-        Map<String, FileDeleter> fileDeleters
+        FileDeleter fileDeleter
     ) throws IOException {
         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 0L, segments, 1L, userData);
-        return new CatalogSnapshotManager(List.of(snapshot), policy, fileDeleters, Map.of(), List.of(), null, null);
+        return new CatalogSnapshotManager(List.of(snapshot), policy, fileDeleter, Map.of(), List.of(), null, null);
     }
 }

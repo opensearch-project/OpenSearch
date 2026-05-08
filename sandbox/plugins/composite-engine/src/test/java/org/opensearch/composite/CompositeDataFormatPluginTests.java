@@ -8,14 +8,20 @@
 
 package org.opensearch.composite;
 
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -46,58 +52,119 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
     public void testGetFormatDescriptorsDelegatestoPlugins() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
 
-        // Build index settings with parquet as secondary
-        Settings settings = Settings.builder()
-            .put("index.composite.primary_data_format", "lucene")
-            .putList("index.composite.secondary_data_formats", "parquet")
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put("index.composite.primary_data_format", "lucene")
+                .putList("index.composite.secondary_data_formats", "parquet")
+                .build()
+        );
 
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
-        when(registry.format("parquet")).thenReturn(CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of()));
-        when(registry.getFormatDescriptors(indexSettings)).thenReturn(
+        DataFormat parquetFormat = CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of());
+        when(registry.format("parquet")).thenReturn(parquetFormat);
+        when(registry.format("lucene")).thenReturn(CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of()));
+        when(registry.getFormatDescriptors(indexSettings, parquetFormat)).thenReturn(
             Map.of(
                 "parquet",
-                new org.opensearch.index.engine.dataformat.DataFormatDescriptor(
+                (Supplier<DataFormatDescriptor>) () -> new DataFormatDescriptor(
                     "parquet",
                     new org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler()
                 )
             )
         );
 
-        Map<String, org.opensearch.index.engine.dataformat.DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(
-            indexSettings,
-            registry
-        );
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = plugin.getFormatDescriptors(indexSettings, registry);
         assertEquals(1, descriptors.size());
         assertTrue(descriptors.containsKey("parquet"));
-        assertEquals("parquet", descriptors.get("parquet").getFormatName());
+        assertEquals("parquet", descriptors.get("parquet").get().getFormatName());
     }
 
     public void testGetFormatDescriptorsEmptyWhenNoPluginsMatch() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
 
-        Settings settings = Settings.builder()
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        IndexSettings indexSettings = buildIndexSettings(Settings.EMPTY);
 
-        Map<String, org.opensearch.index.engine.dataformat.DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(
-            indexSettings,
-            registry
-        );
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = plugin.getFormatDescriptors(indexSettings, registry);
         assertTrue(descriptors.isEmpty());
+    }
+
+    public void testGetStoreStrategiesEmptyWhenNoSubPlugins() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+
+        IndexSettings indexSettings = buildIndexSettings(Settings.builder().put("index.composite.primary_data_format", "parquet").build());
+        // Registry resolves the format but the composite pipeline finds no plugin → empty map.
+        DataFormat parquetFormat = CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of());
+        when(registry.format("parquet")).thenReturn(parquetFormat);
+        when(registry.getStoreStrategies(indexSettings, parquetFormat)).thenReturn(Map.of());
+
+        Map<DataFormat, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
+        assertTrue("Should return empty when no sub-plugin found", result.isEmpty());
+    }
+
+    public void testGetStoreStrategiesCollectsFromPrimaryPlugin() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+
+        IndexSettings indexSettings = buildIndexSettings(Settings.builder().put("index.composite.primary_data_format", "parquet").build());
+
+        DataFormat parquetFormat = CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of());
+        StoreStrategy parquetStrategy = mock(StoreStrategy.class);
+        when(registry.format("parquet")).thenReturn(parquetFormat);
+        when(registry.getStoreStrategies(indexSettings, parquetFormat)).thenReturn(Map.of(parquetFormat, parquetStrategy));
+
+        Map<DataFormat, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
+        assertEquals(1, result.size());
+        assertSame(parquetStrategy, result.get(parquetFormat));
+    }
+
+    public void testGetStoreStrategiesCollectsPrimaryAndSecondary() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+
+        IndexSettings indexSettings = buildIndexSettings(
+            Settings.builder()
+                .put("index.composite.primary_data_format", "lucene")
+                .putList("index.composite.secondary_data_formats", "parquet")
+                .build()
+        );
+
+        DataFormat luceneFormat = CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of());
+        DataFormat parquetFormat = CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of());
+        StoreStrategy parquetStrategy = mock(StoreStrategy.class);
+
+        when(registry.format("lucene")).thenReturn(luceneFormat);
+        when(registry.format("parquet")).thenReturn(parquetFormat);
+        when(registry.getStoreStrategies(indexSettings, luceneFormat)).thenReturn(Map.of());
+        when(registry.getStoreStrategies(indexSettings, parquetFormat)).thenReturn(Map.of(parquetFormat, parquetStrategy));
+
+        Map<DataFormat, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
+        assertEquals(1, result.size());
+        assertSame(parquetStrategy, result.get(parquetFormat));
+    }
+
+    public void testGetStoreStrategiesEmptyForDefaultPrimaryWithoutPlugin() {
+        CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
+        DataFormatRegistry registry = mock(DataFormatRegistry.class);
+
+        IndexSettings indexSettings = buildIndexSettings(Settings.EMPTY); // defaults: primary=lucene, secondary=[]
+        DataFormat luceneFormat = CompositeTestHelper.stubFormat("lucene", 1, java.util.Set.of());
+        when(registry.format("lucene")).thenReturn(luceneFormat);
+        when(registry.getStoreStrategies(indexSettings, luceneFormat)).thenReturn(Map.of());
+
+        Map<DataFormat, StoreStrategy> result = plugin.getStoreStrategies(indexSettings, registry);
+        assertTrue("Should return empty when lucene sub-plugin not found", result.isEmpty());
+    }
+
+    private static IndexSettings buildIndexSettings(Settings extra) {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(extra)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
+        return new IndexSettings(indexMetadata, Settings.EMPTY);
     }
 }

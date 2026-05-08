@@ -20,7 +20,7 @@ import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -28,23 +28,25 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Sandbox plugin that provides a {@link CompositeIndexingExecutionEngine} for
- * orchestrating multi-format indexing. Discovers {@link DataFormatPlugin} instances
- * during node bootstrap via the {@link ExtensiblePlugin} SPI and creates a composite
- * engine when composite indexing is enabled for an index.
- * <p>
- * Registers two index settings:
+ * orchestrating multi-format indexing. Discovers {@link DataFormatPlugin}
+ * instances during node bootstrap via the {@link ExtensiblePlugin} SPI and
+ * creates a composite engine when composite indexing is enabled for an index.
+ *
+ * <p>Registers two index settings:
  * <ul>
- *   <li>{@code index.composite.primary_data_format} — designates the primary format (default {@code "lucene"})</li>
- *   <li>{@code index.composite.secondary_data_formats} — lists the secondary formats (default empty)</li>
+ *   <li>{@code index.composite.primary_data_format} — designates the primary
+ *       format (default {@code "lucene"})</li>
+ *   <li>{@code index.composite.secondary_data_formats} — lists the secondary
+ *       formats (default empty)</li>
  * </ul>
- * <p>
- * Format plugins (e.g., Parquet) extend this plugin by declaring
+ *
+ * <p>Format plugins (e.g., Parquet) extend this plugin by declaring
  * {@code extendedPlugins = ['composite-engine']} in their {@code build.gradle}
- * and implementing {@link DataFormatPlugin}. The {@link ExtensiblePlugin} SPI
- * discovers them automatically during node bootstrap.
+ * and implementing {@link DataFormatPlugin}.
  *
  * @opensearch.experimental
  */
@@ -77,7 +79,6 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Setting.Property.Final
     );
 
-    /** Creates a new composite engine plugin. */
     public CompositeDataFormatPlugin() {}
 
     @Override
@@ -87,42 +88,63 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
 
     @Override
     public DataFormat getDataFormat() {
-        // TODO: Dataformat for Composite is per index, while this one talks about cluster level. Switching it off for now
         return new CompositeDataFormat();
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
-        Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
-        for (Map.Entry<String, DataFormatDescriptor> entry : getFormatDescriptors(settings.indexSettings(), settings.registry())
-            .entrySet()) {
-            strategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
-        }
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
         return new CompositeIndexingExecutionEngine(
             settings.indexSettings(),
             settings.mapperService(),
             settings.committer(),
             settings.registry(),
             settings.store(),
-            strategies
+            settings.checksumStrategies()
         );
     }
 
     @Override
-    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
         Settings settings = indexSettings.getSettings();
         String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
         List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
 
-        Map<String, DataFormatDescriptor> descriptors = new HashMap<>();
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = new HashMap<>();
         if (primaryFormatName != null) {
-            descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
+            descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings, dataFormatRegistry.format(primaryFormatName)));
         }
         for (String secondaryName : secondaryFormatNames) {
             if (secondaryName != null) {
-                descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
+                descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings, dataFormatRegistry.format(secondaryName)));
             }
         }
         return Map.copyOf(descriptors);
+    }
+
+    /**
+     * Returns the store strategies from every participating sub-format plugin
+     * (primary + secondary), keyed by format name. Mirrors {@link #getFormatDescriptors}:
+     * each participating format is resolved through the registry, which delegates
+     * to the sub-plugin without re-entering this composite.
+     */
+    @Override
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        Settings settings = indexSettings.getSettings();
+        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
+
+        Map<DataFormat, StoreStrategy> strategies = new HashMap<>();
+        if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
+            strategies.putAll(dataFormatRegistry.getStoreStrategies(indexSettings, dataFormatRegistry.format(primaryFormatName)));
+        }
+        for (String secondaryName : secondaryFormatNames) {
+            if (secondaryName != null && secondaryName.isEmpty() == false) {
+                strategies.putAll(dataFormatRegistry.getStoreStrategies(indexSettings, dataFormatRegistry.format(secondaryName)));
+            }
+        }
+        return Map.copyOf(strategies);
     }
 }
