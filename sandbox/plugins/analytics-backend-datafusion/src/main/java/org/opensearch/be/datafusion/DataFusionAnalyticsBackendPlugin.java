@@ -163,12 +163,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.SCALAR_MAX,
         ScalarFunction.SCALAR_MIN,
         // Date-part extractors rewrite to date_part(<unit>, ts) via DatePartAdapters.
-        // Functions whose DF-builtin semantics diverge from legacy PPL are intentionally
-        // left to the legacy engine until a dedicated Rust UDF lands (matches the
-        // convert_tz / to_unixtime pattern already in this plugin): SECOND/DAYOFWEEK
-        // (DOUBLE vs INT, Sun=0 vs Sun=1), SYSDATE (per-row vs query-constant),
-        // DATE_FORMAT/TIME_FORMAT (MySQL dialect), STRFTIME (POSIX dialect), plus the
-        // 2-arg forms of FROM_UNIXTIME/DATETIME with no matching DF signature.
+        // Functions whose DF-builtin semantics diverge from legacy PPL (SECOND / DAYOFWEEK /
+        // SYSDATE / DATE_FORMAT / TIME_FORMAT / STRFTIME, plus 2-arg FROM_UNIXTIME / DATETIME)
+        // are omitted here and stay on the legacy engine until a dedicated Rust UDF lands —
+        // matching the convert_tz / to_unixtime pattern already in this plugin.
         ScalarFunction.YEAR,
         ScalarFunction.QUARTER,
         ScalarFunction.MONTH,

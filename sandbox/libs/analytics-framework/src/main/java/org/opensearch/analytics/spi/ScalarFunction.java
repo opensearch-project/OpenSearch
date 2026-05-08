@@ -139,14 +139,10 @@ public enum ScalarFunction {
     DAYOFMONTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     DAYOFYEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     DAY_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    DAYOFWEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    DAY_OF_WEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     HOUR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     HOUR_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     MINUTE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     MINUTE_OF_HOUR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    SECOND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    SECOND_OF_MINUTE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     MICROSECOND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     WEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     WEEK_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
@@ -156,18 +152,8 @@ public enum ScalarFunction {
     CURDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CURRENT_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CURTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    SYSDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    FROM_UNIXTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    DATETIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    MAKETIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CONVERT_TZ(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    // DATE_FORMAT/TIME_FORMAT/STRFTIME all lower to DF's to_char(ts, fmt); chrono-dialect.
-    DATE_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    TIME_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    STRFTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.
