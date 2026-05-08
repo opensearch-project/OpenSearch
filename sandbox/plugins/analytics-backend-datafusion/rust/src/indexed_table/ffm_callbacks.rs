@@ -11,7 +11,7 @@
 //! Four callback slots, populated once at startup by
 //! `df_register_filter_tree_callbacks` (see `ffm.rs`):
 //!
-//! - `createProvider(queryBytes, queryBytesLen) -> providerKey|-1`
+//! - `createProvider(annotationId) -> providerKey|-1`
 //! - `createCollector(providerKey, segmentOrd, minDoc, maxDoc) -> collectorKey|-1`
 //! - `collectDocs(collectorKey, minDoc, maxDoc, outBuf, outWordCap) -> wordsWritten|-1`
 //! - `releaseCollector(collectorKey)`
@@ -26,7 +26,7 @@ use super::index::RowGroupDocsCollector;
 
 // ── Callback signatures ───────────────────────────────────────────────
 
-type CreateProviderFn = unsafe extern "C" fn(*const u8, i64) -> i32;
+type CreateProviderFn = unsafe extern "C" fn(i32) -> i32;
 type ReleaseProviderFn = unsafe extern "C" fn(i32);
 type CreateCollectorFn = unsafe extern "C" fn(i32, i32, i32, i32) -> i32;
 type CollectDocsFn = unsafe extern "C" fn(i32, i32, i32, *mut u64, i64) -> i64;
@@ -133,14 +133,14 @@ impl Drop for ProviderHandle {
     }
 }
 
-/// Create a provider from serialized backend query bytes by upcalling Java.
-pub fn create_provider(query_bytes: &[u8]) -> Result<ProviderHandle, String> {
+/// Create a provider by annotation ID by upcalling Java.
+pub fn create_provider(annotation_id: i32) -> Result<ProviderHandle, String> {
     let create = load_create_provider()?;
-    let key = unsafe { create(query_bytes.as_ptr(), query_bytes.len() as i64) };
+    let key = unsafe { create(annotation_id) };
     if key < 0 {
         return Err(format!(
-            "createProvider failed: len={} -> {}",
-            query_bytes.len(),
+            "createProvider failed: annotation_id={} -> {}",
+            annotation_id,
             key
         ));
     }

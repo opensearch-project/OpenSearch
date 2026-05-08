@@ -185,6 +185,6 @@ pub async fn execute_with_context(
         cross_rt_stream,
     );
 
-    let stream_handle = crate::api::QueryStreamHandle::new(wrapped, handle.query_context);
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx);
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

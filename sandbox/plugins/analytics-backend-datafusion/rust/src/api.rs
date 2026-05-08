@@ -69,6 +69,10 @@ pub struct QueryStreamHandle {
     /// Held for its `Drop` impl — marks the query completed when the
     /// stream is closed.
     _query_tracking_context: QueryTrackingContext,
+    /// Keeps the SessionContext alive while the stream is being consumed.
+    /// The physical plan may reference state (e.g. RuntimeEnv, caches) owned
+    /// by the session; dropping it prematurely causes use-after-free.
+    _session_ctx: Option<datafusion::prelude::SessionContext>,
 }
 
 impl QueryStreamHandle {
@@ -79,6 +83,19 @@ impl QueryStreamHandle {
         Self {
             stream,
             _query_tracking_context: query_context,
+            _session_ctx: None,
+        }
+    }
+
+    pub fn with_session_context(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        ctx: datafusion::prelude::SessionContext,
+    ) -> Self {
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: Some(ctx),
         }
     }
 }
@@ -632,9 +649,14 @@ pub unsafe fn sender_send(
 
     // `from_ffi` takes the array by value (consumes it) and the schema by
     // reference (it is still dropped when `ffi_schema` goes out of scope).
-    let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+    let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
         DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
     })?;
+
+    // Buffers from Java's Flight RPC deserialization may not meet Rust's
+    // native alignment requirements. align_buffers() is a no-op for
+    // already-aligned buffers; only misaligned ones are reallocated.
+    array_data.align_buffers();
 
     let struct_array = StructArray::from(array_data);
     let batch = RecordBatch::from(struct_array);

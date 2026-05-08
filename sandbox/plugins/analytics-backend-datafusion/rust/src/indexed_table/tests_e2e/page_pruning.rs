@@ -141,7 +141,7 @@ fn pred_node(expr: Arc<dyn PhysicalExpr>) -> BoolNode {
 
 fn collector_leaf(tag: u8) -> BoolNode {
     BoolNode::Collector {
-        query_bytes: Arc::from(&[tag][..]),
+        annotation_id: tag as i32,
     }
 }
 
@@ -271,7 +271,7 @@ fn build_pp_map(
 
 fn wire_collectors_dfs(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>) {
     match node {
-        BoolNode::Collector { query_bytes } => out.push(collector_for_tag(query_bytes[0])),
+        BoolNode::Collector { annotation_id } => out.push(collector_for_tag(*annotation_id as u8)),
         BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| wire_collectors_dfs(c, out)),
         BoolNode::Not(c) => wire_collectors_dfs(c, out),
         BoolNode::Predicate(_) => {}
