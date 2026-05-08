@@ -43,6 +43,10 @@ pub struct SessionContextHandle {
     pub indexed_config: Option<IndexedExecutionConfig>,
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
     pub query_config: DatafusionQueryConfig,
+    /// Aggregate execution mode for distributed partial/final stripping.
+    pub(crate) aggregate_mode: crate::agg_mode::Mode,
+    /// Pre-prepared physical plan (set by prepare_partial_plan / prepare_final_plan).
+    pub(crate) prepared_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
 }
 
 /// Configuration for indexed execution with filter delegation, provided by Java.
@@ -108,6 +112,7 @@ pub async unsafe fn create_session_context(
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
         .build();
 
     let ctx = SessionContext::new_with_state(state);
@@ -164,6 +169,8 @@ pub async unsafe fn create_session_context(
         table_name: table_name.to_string(),
         indexed_config: None,
         query_config,
+        aggregate_mode: crate::agg_mode::Mode::Default,
+        prepared_plan: None,
     };
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }

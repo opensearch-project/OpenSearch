@@ -61,14 +61,12 @@ impl LocalSession {
     /// every batch consumed or produced by this session counts against the
     /// same limits as the shard-scan path.
     pub fn new(runtime_env: &RuntimeEnv) -> Self {
-        // Cheaply clone the env so the session owns a handle independent of
-        // the caller. `RuntimeEnv` internally holds `Arc`s — this is a
-        // lightweight clone, not a deep copy of the pool or disk manager.
         let runtime_env = Arc::new(runtime_env.clone());
         let state = SessionStateBuilder::new()
             .with_config(SessionConfig::new())
             .with_runtime_env(runtime_env)
             .with_default_features()
+            .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
             .build();
         let ctx = SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
