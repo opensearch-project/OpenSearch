@@ -293,20 +293,20 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
     }
 
     /**
-     * Evicts pre-computed checksums for the given files from their respective format strategies.
-     * Called after successful upload to prevent unbounded cache growth.
+     * Retains only checksums for files present in the current catalog snapshot, evicting all stale entries.
+     * Called after successful upload to keep the cache bounded to the active file set.
      *
-     * @param files collection of format-prefixed file names (e.g., "parquet/_parquet_file_gen_1.parquet")
+     * @param currentSnapshotFiles the files in the current catalog snapshot (format-prefixed)
      */
-    public void evictChecksums(Collection<String> files) {
-        for (String file : files) {
-            String format = FileMetadata.parseDataFormat(file);
-            if (isDefaultFormat(format)) {
+    public void evictStaleChecksums(Collection<String> currentSnapshotFiles) {
+        for (Map.Entry<String, FormatChecksumStrategy> entry : checksumStrategies.entrySet()) {
+            if (isDefaultFormat(entry.getKey())) {
                 continue;
             }
-            FormatChecksumStrategy strategy = checksumStrategies.get(format);
-            if (strategy instanceof PrecomputedChecksumStrategy precomputed) {
-                precomputed.evictChecksum(file);
+            if (entry.getValue() instanceof PrecomputedChecksumStrategy precomputed) {
+                String prefix = entry.getKey() + "/";
+                Set<String> activeForFormat = currentSnapshotFiles.stream().filter(f -> f.startsWith(prefix)).collect(Collectors.toSet());
+                precomputed.retainOnly(activeForFormat);
             }
         }
     }
