@@ -32,6 +32,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Install protobuf compiler
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Rust clippy
+        run: cargo clippy --manifest-path sandbox/libs/dataformat-native/rust/Cargo.toml -- -D warnings
       - name: Run sandbox check
         run: ./gradlew check -p sandbox -Dsandbox.enabled=true
       - name: Upload test results
