@@ -109,6 +109,10 @@ flatbuffers           = "2.0.0"
 calcite               = "1.41.0"
 calcite_os_rev        = "1"
 
+# property-based testing
+jqwik                 = "1.9.2"
+junit_jupiter         = "5.11.3"
+junit_platform        = "1.11.3"
 [libraries]
 antlr4-runtime = { group = "org.antlr", name = "antlr4-runtime", version.ref = "antlr4" }
 asm-analysis = { group = "org.ow2.asm", name = "asm-analysis", version.ref = "asm" }

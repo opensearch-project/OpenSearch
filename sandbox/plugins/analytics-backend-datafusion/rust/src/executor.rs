@@ -160,6 +160,14 @@ impl DedicatedExecutor {
         }
     }
 
+    /// Returns a clone of the underlying Tokio runtime `Handle`, if the
+    /// executor has not been shut down. Used to create a
+    /// `tokio_metrics::RuntimeMonitor` for the CPU runtime.
+    pub fn handle(&self) -> Option<Handle> {
+        let state = self.state.read();
+        state.handle.clone()
+    }
+
     pub fn shutdown(&self) {
         let mut state = self.state.write();
         state.handle = None;
