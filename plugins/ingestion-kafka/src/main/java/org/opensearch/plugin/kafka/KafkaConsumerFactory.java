@@ -55,14 +55,8 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<IngestionS
     @Override
     public KafkaOffset parsePointerFromString(String pointer) {
         if (pointer.contains(":")) {
-            // Multi-partition format: "partition:offset"
-            String[] parts = pointer.split(":", -1);
-            if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Invalid multi-partition pointer format. Expected 'partition:offset' (e.g., '3:42'), got: " + pointer
-                );
-            }
-            return new KafkaPartitionOffset(Integer.parseInt(parts[0]), Long.parseLong(parts[1]));
+            // Multi-partition format: "partition:offset" — delegate to the shared parser.
+            return KafkaPartitionOffset.parse(pointer);
         }
         return new KafkaOffset(Long.valueOf(pointer));
     }

@@ -264,13 +264,8 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
                 "Multi-partition mode requires offset in 'partition:offset' format (e.g., '3:42'), got: " + offset
             );
         }
-        String[] parts = offset.split(":", -1);
-        if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty()) {
-            throw new IllegalArgumentException(
-                "Invalid multi-partition pointer format. Expected 'partition:offset' (e.g., '3:42'), got: " + offset
-            );
-        }
-        return new KafkaPartitionOffset(Integer.parseInt(parts[0]), Long.parseLong(parts[1]));
+        // Shared parser with KafkaConsumerFactory.parsePointerFromString
+        return KafkaPartitionOffset.parse(offset);
     }
 
     /**
