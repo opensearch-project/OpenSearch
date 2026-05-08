@@ -91,7 +91,8 @@ final class DataFormatAwareITUtils {
                 md == null
             );
             int sep = originalName.indexOf('/');
-            Path blobDir = sep < 0 ? shardDiskPath : shardDiskPath.resolve(originalName.substring(0, sep));
+            // Non-default formats (e.g. parquet/) are siblings of data/, not children
+            Path blobDir = sep < 0 ? shardDiskPath : shardDiskPath.getParent().resolve(originalName.substring(0, sep));
             Path blobFile = blobDir.resolve(md.getUploadedFilename());
             assertTrue(
                 "remote blob missing on disk: " + blobFile + " for catalog file " + originalName + " on " + shard.routingEntry(),

@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
@@ -17,6 +18,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
@@ -39,6 +41,7 @@ import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
@@ -827,7 +830,25 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
     @Override
     public DocsStats docStats() {
-        return new DocsStats(0, 0, 0);
+        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
+            long count = snapshot.get()
+                .getSegments()
+                .stream()
+                .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
+                .mapToLong(WriterFileSet::numRows)
+                .sum();
+            long totalSize = snapshot.get()
+                .getSegments()
+                .stream()
+                .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
+                .mapToLong(WriterFileSet::getTotalSize)
+                .sum();
+            assert count >= 0 : "doc count must be non-negative but was: " + count;
+            assert totalSize >= 0 : "total size must be non-negative but was: " + totalSize;
+            return new DocsStats.Builder().deleted(0L).count(count).totalSizeInBytes(totalSize).build();
+        } catch (IOException ex) {
+            throw new OpenSearchException(ex);
+        }
     }
 
     @Override
@@ -945,7 +966,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
      * <p>
      * Each deleter is a thin wrapper over {@link Files#deleteIfExists(Path)} scoped to the
      * format's on-disk directory — matching the path convention used by
-     * {@link org.opensearch.index.engine.exec.coord.OrphanFileScanner}.
+     * {@link org.opensearch.index.engine.exec.coord}.
      */
     // Visible for testing.
     static Map<String, FileDeleter> buildReplicaFileDeleters(ShardPath shardPath, DataFormatRegistry registry) {
@@ -973,6 +994,8 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                     } catch (NoSuchFileException ignored) {
                         // already gone — treat as success
                     } catch (IOException e) {
+                        LogManager.getLogger(DataFormatAwareNRTReplicationEngine.class)
+                            .warn("Failed to delete file [{}] in format [{}]: {}", name, formatName, e.getMessage());
                         failed.add(name);
                     }
                 }
