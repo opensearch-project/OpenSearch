@@ -273,9 +273,8 @@ public class NodeCacheOrchestrator implements Closeable {
     /**
      * Returns aggregate stats across all caches for {@code _nodes/stats aggregate_file_cache}.
      *
-     * <p>Block cache counters are folded into the merged overall/block sections for
-     * backward compatibility, and also exposed as a dedicated {@code block_cache}
-     * section via {@link AggregateFileCacheStats#getPluginBlockCacheStats()}.
+     * <p>Block cache counters are folded into the merged overall/block sections so that
+     * the top-level and sub-section numbers reflect the true cross-cache rollup.
      */
     public AggregateFileCacheStats aggregateStats() {
         AggregateFileCacheStats fileCacheStats = fileCache.fileCacheStats();
@@ -300,8 +299,7 @@ public class NodeCacheOrchestrator implements Closeable {
                 AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS),
             merged.getFullFileCacheStats(),
             merged.getBlockFileCacheStats(),
-            merged.getPinnedFileCacheStats(),
-            combined
+            merged.getPinnedFileCacheStats()
         );
     }
 
