@@ -20,23 +20,72 @@ scalar_functions:
             name: "match"
         return: boolean
   - name: "date_part"
-    impls:
-      - args: [{ value: string, name: "part" }, { value: "any1", name: "value" }]
-        return: any1
+    description: >-
+      Extract a numeric component (year, month, day, etc.) from a timestamp/date.
+      DataFusion returns fp64 for every part name, so the signature pins fp64
+      regardless of which part is requested.
 
-  - name: "convert_tz"
-    description: "Shift a timestamp from one timezone to another. IANA names and +/-HH:MM offsets."
+      The `part` slot is declared as `value: string`, not an `options:`
+      EnumArgument. `DatePartAdapters` prepends a VARCHAR literal (e.g.
+      `"year"`) via `rexBuilder.makeLiteral(…, VARCHAR, true)`; that is not a
+      `SqlIntervalQualifier` enum symbol, so isthmus's `FunctionConverter.matchKeys`
+      emits the token `str` for that operand, and the probe key matches this
+      sig's `str_…` form. An `options:` declaration would serialize under a
+      `req`/`opt` key and never match.
+
+      The value slot is declared with the concrete timestamp family
+      (`precision_timestamp<P>` / `date`) rather than `any1`: Calcite's `date`
+      field type emits `precision_timestamp<0>?` at the Rex level, and
+      matchKeys encodes the nullable-precision metadata into the probe key;
+      `any1` cannot bind through the composite 2-arg key in this context.
     impls:
       - args:
-          - { value: "any1", name: "ts" }
+          - { value: string, name: "part" }
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: fp64
+      - args:
+          - { value: string, name: "part" }
+          - { value: "date", name: "value" }
+        return: fp64
+  - name: "convert_tz"
+    description: >-
+      Shift a timestamp from one timezone to another. IANA names and +/-HH:MM
+      offsets. The first slot pins `precision_timestamp<P>` for the same
+      reason documented on date_part — `any1` cannot bind the nullable-
+      precision-timestamp metadata through a multi-arg composite match key.
+    impls:
+      - args:
+          - { value: "precision_timestamp<P>", name: "ts" }
           - { value: string, name: "from_tz" }
           - { value: string, name: "to_tz" }
-        return: any1
+        return: timestamp
   - name: "to_unixtime"
     description: "Return a timestamp as Unix epoch seconds."
     impls:
       - args: [{ value: "any1", name: "ts" }]
-        return: any1
+        return: i64
+  - name: "now"
+    description: >-
+      Returns the current wall-clock timestamp. DataFusion's builtin `now` —
+      evaluated once per query, constant across the plan. Lowering target for
+      PPL `now()`, `current_timestamp()`, and `sysdate()`.
+    impls:
+      - args: []
+        return: timestamp
+  - name: "current_date"
+    description: >-
+      Returns today's date (no time component). DataFusion's builtin
+      `current_date`. Lowering target for PPL `current_date()` / `curdate()`.
+    impls:
+      - args: []
+        return: date
+  - name: "current_time"
+    description: >-
+      Returns the current wall-clock time (no date component). DataFusion's
+      builtin `current_time`. Lowering target for PPL `current_time()` / `curtime()`.
+    impls:
+      - args: []
+        return: time
   - name: regex_match
     description: >-
       Regular expression containment match (boolean). Lowering target for PPL's

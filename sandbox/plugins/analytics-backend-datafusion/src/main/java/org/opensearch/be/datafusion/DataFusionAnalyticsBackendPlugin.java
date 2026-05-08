@@ -112,11 +112,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // rejects the operator with "No backend supports scalar function [CASE] among [datafusion]"
         // before substrait emission.
         ScalarFunction.CASE,
-        // ABS / SUBSTRING — `eval x = abs(...)` and `eval s = substring(...)` projections that PPL
-        // sort-pushdown moves into the project tree (see CalciteSortCommandIT
-        // testPushdownSortExpressionContainsNull and CalcitePPLSortIT
-        // testPushdownSortStringExpression). DataFusion has both natively; isthmus default catalog
-        // already binds them.
+        // ABS / SUBSTRING — PPL sort-pushdown moves these into the project tree; DataFusion has
+        // both natively and isthmus's default catalog binds them, so no adapter needed.
         ScalarFunction.ABS,
         ScalarFunction.SUBSTRING,
         ScalarFunction.SARG_PREDICATE,
@@ -165,9 +162,45 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.EXPM1,
         ScalarFunction.SCALAR_MAX,
         ScalarFunction.SCALAR_MIN,
+        // Date-part extractors rewrite to date_part(<unit>, ts) via DatePartAdapters.
+        // Functions whose DF-builtin semantics diverge from legacy PPL (SECOND / DAYOFWEEK /
+        // SYSDATE / DATE_FORMAT / TIME_FORMAT / STRFTIME, plus 2-arg FROM_UNIXTIME / DATETIME)
+        // are omitted here and stay on the legacy engine until a dedicated Rust UDF lands —
+        // matching the convert_tz / to_unixtime pattern already in this plugin.
         ScalarFunction.YEAR,
+        ScalarFunction.QUARTER,
+        ScalarFunction.MONTH,
+        ScalarFunction.MONTH_OF_YEAR,
+        ScalarFunction.DAY,
+        ScalarFunction.DAYOFMONTH,
+        ScalarFunction.DAYOFYEAR,
+        ScalarFunction.DAY_OF_YEAR,
+        ScalarFunction.HOUR,
+        ScalarFunction.HOUR_OF_DAY,
+        ScalarFunction.MINUTE,
+        ScalarFunction.MINUTE_OF_HOUR,
+        ScalarFunction.MICROSECOND,
+        ScalarFunction.WEEK,
+        ScalarFunction.WEEK_OF_YEAR,
+        // Niladic now/current_* family maps 1:1 to DF builtins.
+        ScalarFunction.NOW,
+        ScalarFunction.CURRENT_TIMESTAMP,
+        ScalarFunction.CURRENT_DATE,
+        ScalarFunction.CURDATE,
+        ScalarFunction.CURRENT_TIME,
+        ScalarFunction.CURTIME,
         ScalarFunction.CONVERT_TZ,
         ScalarFunction.UNIX_TIMESTAMP
+        // DATE(expr) / TIME(expr) / MAKETIME(h,m,s) are intentionally not advertised:
+        // PPL's Calcite binding for these returns VARCHAR rather than DATE/TIME, so
+        // downstream `year(date(ts))` / `hour(maketime(...))` lowers to
+        // date_part(string, string?) — no matching DataFusion signature. Left on the
+        // legacy engine until PPL wires them to produce real DATE/TIME types.
+        // EXTRACT(unit FROM ts) is also not advertised: isthmus resolves SqlKind.EXTRACT
+        // through scalar-function lookup rather than emitting a native Substrait extract,
+        // and we'd need a dedicated adapter + yaml entry to route it to DataFusion's
+        // date_part. Left on legacy engine until that adapter lands; PPL date-part
+        // functions cover the same semantics.
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -245,18 +278,45 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
-                // Add new (ScalarFunction, ScalarFunctionAdapter) pairs in alphabetical order for
-                // readability — the Map.ofEntries form keeps spotless happy past the 5-pair point
-                // where Map.of becomes single-line and unreadable.
+                // Map entries are alphabetical (Map.ofEntries past 5 pairs, else spotless inlines).
+                // Alias pairs share an adapter instance but need separate enum entries because
+                // ScalarFunction.fromSqlFunction resolves by enum name.
+                DatePartAdapters month = DatePartAdapters.month();
+                DatePartAdapters day = DatePartAdapters.day();
+                DatePartAdapters dayOfYear = DatePartAdapters.dayOfYear();
+                DatePartAdapters hour = DatePartAdapters.hour();
+                DatePartAdapters minute = DatePartAdapters.minute();
+                DatePartAdapters week = DatePartAdapters.week();
+                DateTimeAdapters.NowAdapter now = new DateTimeAdapters.NowAdapter();
+                DateTimeAdapters.CurrentDateAdapter currentDate = new DateTimeAdapters.CurrentDateAdapter();
+                DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
+                    Map.entry(ScalarFunction.CURDATE, currentDate),
+                    Map.entry(ScalarFunction.CURRENT_DATE, currentDate),
+                    Map.entry(ScalarFunction.CURRENT_TIME, currentTime),
+                    Map.entry(ScalarFunction.CURRENT_TIMESTAMP, now),
+                    Map.entry(ScalarFunction.CURTIME, currentTime),
+                    Map.entry(ScalarFunction.DAY, day),
+                    Map.entry(ScalarFunction.DAYOFMONTH, day),
+                    Map.entry(ScalarFunction.DAYOFYEAR, dayOfYear),
+                    Map.entry(ScalarFunction.DAY_OF_YEAR, dayOfYear),
                     Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
                     Map.entry(ScalarFunction.E, new EConstantAdapter()),
                     Map.entry(ScalarFunction.EXPM1, new Expm1Adapter()),
+                    Map.entry(ScalarFunction.HOUR, hour),
+                    Map.entry(ScalarFunction.HOUR_OF_DAY, hour),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
+                    Map.entry(ScalarFunction.MICROSECOND, DatePartAdapters.microsecond()),
+                    Map.entry(ScalarFunction.MINUTE, minute),
+                    Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
                     Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
+                    Map.entry(ScalarFunction.MONTH, month),
+                    Map.entry(ScalarFunction.MONTH_OF_YEAR, month),
+                    Map.entry(ScalarFunction.NOW, now),
+                    Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
                     Map.entry(ScalarFunction.SCALAR_MAX, nameMapping(SqlLibraryOperators.GREATEST)),
@@ -265,7 +325,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
-                    Map.entry(ScalarFunction.YEAR, new YearAdapter())
+                    Map.entry(ScalarFunction.WEEK, week),
+                    Map.entry(ScalarFunction.WEEK_OF_YEAR, week),
+                    Map.entry(ScalarFunction.YEAR, DatePartAdapters.year())
                 );
             }
         };

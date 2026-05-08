@@ -127,8 +127,31 @@ public enum ScalarFunction {
     EXTRACT(Category.SCALAR, SqlKind.EXTRACT),
 
     // ── Datetime ────────────────────────────────────────────────────
+    // fromSqlFunction resolves via valueOf(name.toUpperCase()), so the enum name IS
+    // the wire contract. Aliases each need their own entry; the adapter map points
+    // them at one shared instance.
     TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    QUARTER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTH_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYOFMONTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYOFYEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAY_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    HOUR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    HOUR_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE_OF_HOUR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MICROSECOND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    WEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    WEEK_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    NOW(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURRENT_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURRENT_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURRENT_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CONVERT_TZ(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
