@@ -216,4 +216,118 @@ mod tests {
         let second = c.take_pending_delta();
         assert_eq!(second, 0);
     }
+
+    /// Simulates a full query lifecycle: estimate → observe → correct → converge.
+    /// Measures the final bloat ratio (corrected_phantom / ideal_phantom).
+    #[test]
+    fn convergence_bloat_ratio() {
+        // Schema estimate: 100 bytes/row → batch = 100 * 8192 = 819200
+        // Actual at runtime: 56 bytes/row → batch = 56 * 8192 = 458752
+        // 10 pipeline slots (4 partitions × 3 buffers + 1 output)
+        let estimated_batch = 100 * 8192;
+        let actual_batch = 56 * 8192;
+        let pipeline_slots = 13; // 4×3 + 1
+        let initial_phantom = estimated_batch * pipeline_slots;
+
+        let c = PhantomCorrector::new(initial_phantom, estimated_batch, pipeline_slots);
+
+        // Simulate 50 batches (typical scan of ~400K rows)
+        let mut phantom = initial_phantom as i64;
+        for i in 0..50 {
+            c.observe_batch(actual_batch);
+            let delta = c.take_pending_delta();
+            if delta != 0 {
+                phantom += delta;
+            }
+        }
+
+        let ideal_phantom = actual_batch as i64 * pipeline_slots as i64;
+        let bloat_ratio = phantom as f64 / ideal_phantom as f64;
+
+        println!(
+            "Convergence after 50 batches: phantom={}B, ideal={}B, ratio={:.2}x",
+            phantom, ideal_phantom, bloat_ratio
+        );
+
+        // After convergence, phantom should be within 15% of ideal (1.0-1.15x)
+        assert!(
+            bloat_ratio >= 0.85 && bloat_ratio <= 1.15,
+            "Bloat ratio {:.2}x is outside [0.85, 1.15] — corrector not converging",
+            bloat_ratio
+        );
+    }
+
+    /// Measures convergence with metadata-seeded corrector (tighter from start).
+    #[test]
+    fn metadata_seeded_convergence() {
+        // Metadata says 60 bytes/row, actual is 56 — very close
+        let measured_batch = 60 * 8192;
+        let actual_batch = 56 * 8192;
+        let pipeline_slots = 13;
+        let initial_phantom = measured_batch * pipeline_slots;
+
+        let c = PhantomCorrector::new_from_metadata(initial_phantom, measured_batch, pipeline_slots);
+
+        let mut phantom = initial_phantom as i64;
+        for _ in 0..20 {
+            c.observe_batch(actual_batch);
+            let delta = c.take_pending_delta();
+            if delta != 0 {
+                phantom += delta;
+            }
+        }
+
+        let ideal_phantom = actual_batch as i64 * pipeline_slots as i64;
+        let bloat_ratio = phantom as f64 / ideal_phantom as f64;
+
+        println!(
+            "Metadata-seeded convergence after 20 batches: phantom={}B, ideal={}B, ratio={:.2}x",
+            phantom, ideal_phantom, bloat_ratio
+        );
+
+        // Should be even tighter since starting point was already close
+        assert!(
+            bloat_ratio >= 0.90 && bloat_ratio <= 1.10,
+            "Metadata-seeded bloat ratio {:.2}x is outside [0.90, 1.10]",
+            bloat_ratio
+        );
+    }
+
+    /// Measures overhead: the initial over-estimate before correction kicks in.
+    /// This is the "bloat window" — how much excess phantom is held during warmup.
+    #[test]
+    fn initial_bloat_before_correction() {
+        let estimated_batch = 100 * 8192; // schema-based (over-estimate)
+        let actual_batch = 40 * 8192;     // actual (2.5x smaller)
+        let pipeline_slots = 13;
+        let initial_phantom = estimated_batch * pipeline_slots;
+
+        let c = PhantomCorrector::new(initial_phantom, estimated_batch, pipeline_slots);
+
+        // Count batches until first correction fires
+        let mut first_correction_at = 0usize;
+        for i in 0..50 {
+            c.observe_batch(actual_batch);
+            let delta = c.take_pending_delta();
+            if delta != 0 && first_correction_at == 0 {
+                first_correction_at = i + 1;
+                break;
+            }
+        }
+
+        let ideal_phantom = actual_batch * pipeline_slots;
+        let initial_bloat = initial_phantom as f64 / ideal_phantom as f64;
+
+        println!(
+            "Initial bloat: {:.2}x (corrects after {} batches = {} rows)",
+            initial_bloat, first_correction_at, first_correction_at * 8192
+        );
+
+        // First correction should fire within 4-8 batches (warmup + interval)
+        assert!(
+            first_correction_at <= 8,
+            "First correction took {} batches — too slow",
+            first_correction_at
+        );
+    }
 }
