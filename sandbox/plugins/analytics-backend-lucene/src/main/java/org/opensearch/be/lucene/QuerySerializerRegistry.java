@@ -29,7 +29,7 @@ import java.util.Map;
  * that the Lucene backend can deserialize at the data node.
  */
 final class QuerySerializerRegistry {
- 
+
     private static final Map<ScalarFunction, DelegatedPredicateSerializer> SERIALIZERS = Map.ofEntries(
         Map.entry(ScalarFunction.MATCH, QuerySerializerRegistry::serializeMatch),
         Map.entry(ScalarFunction.MATCH_PHRASE, QuerySerializerRegistry::serializeMatchPhrase),
@@ -115,6 +115,57 @@ final class QuerySerializerRegistry {
         // TODO: Use ConversionUtils.extractOptionalParams(call, 2) to extract optional params
         // (default_operator, analyzer, flags, minimum_should_match) and apply them to the QueryBuilder.
         SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(fieldValue);
+        for (String field : fields) {
+            queryBuilder.field(field);
+        }
+        return ConversionUtils.serializeQueryBuilder(queryBuilder);
+    }
+
+    private static byte[] serializeMatchPhrase(RexCall call, List<FieldStorageInfo> fieldStorage) {
+        String fieldName = ConversionUtils.extractFieldFromRelevanceMap(call, 0, fieldStorage);
+        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder(fieldName, queryText);
+        return ConversionUtils.serializeQueryBuilder(queryBuilder);
+    }
+
+    private static byte[] serializeMatchBoolPrefix(RexCall call, List<FieldStorageInfo> fieldStorage) {
+        String fieldName = ConversionUtils.extractFieldFromRelevanceMap(call, 0, fieldStorage);
+        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, queryText);
+        return ConversionUtils.serializeQueryBuilder(queryBuilder);
+    }
+
+    private static byte[] serializeMatchPhrasePrefix(RexCall call, List<FieldStorageInfo> fieldStorage) {
+        String fieldName = ConversionUtils.extractFieldFromRelevanceMap(call, 0, fieldStorage);
+        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        MatchPhrasePrefixQueryBuilder queryBuilder = new MatchPhrasePrefixQueryBuilder(fieldName, queryText);
+        return ConversionUtils.serializeQueryBuilder(queryBuilder);
+    }
+
+    private static byte[] serializeMultiMatch(RexCall call, List<FieldStorageInfo> fieldStorage) {
+        List<String> fields = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
+        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        // TODO: extract per-field boost values from operand 0 and pass to QueryBuilder
+        MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder(queryText, fields.toArray(String[]::new));
+        return ConversionUtils.serializeQueryBuilder(queryBuilder);
+    }
+
+    private static byte[] serializeQueryString(RexCall call, List<FieldStorageInfo> fieldStorage) {
+        List<String> fields = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
+        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        // TODO: extract per-field boost values from operand 0 and pass to QueryBuilder
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(queryText);
+        for (String field : fields) {
+            queryBuilder.field(field);
+        }
+        return ConversionUtils.serializeQueryBuilder(queryBuilder);
+    }
+
+    private static byte[] serializeSimpleQueryString(RexCall call, List<FieldStorageInfo> fieldStorage) {
+        List<String> fields = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
+        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        // TODO: extract per-field boost values from operand 0 and pass to QueryBuilder
+        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(queryText);
         for (String field : fields) {
             queryBuilder.field(field);
         }
