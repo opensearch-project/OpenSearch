@@ -36,6 +36,7 @@ struct WriterState {
     writer: Arc<Mutex<ArrowWriter<CrcWriter<File>>>>,
     settings: NativeSettings,
     crc_handle: crate::crc_writer::CrcHandle,
+    writer_generation: i64,
 }
 
 lazy_static! {
@@ -71,10 +72,11 @@ impl NativeParquetWriter {
         sort_columns: Vec<String>,
         reverse_sorts: Vec<bool>,
         nulls_first: Vec<bool>,
+        writer_generation: i64,
     ) -> Result<(), Box<dyn std::error::Error>> {
         log_debug!(
-            "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}, nulls_first: {:?}",
-            filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first
+            "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}, nulls_first: {:?}, generation: {}",
+            filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, writer_generation
         );
 
         if (schema_address as *mut u8).is_null() {
@@ -105,7 +107,7 @@ impl NativeParquetWriter {
         settings.reverse_sorts = reverse_sorts;
         settings.nulls_first = nulls_first;
 
-        let props = WriterPropertiesBuilder::build(&settings);
+        let props = WriterPropertiesBuilder::build_with_generation(&settings, Some(writer_generation));
 
         SETTINGS_STORE.insert(index_name, settings.clone());
 
@@ -115,6 +117,7 @@ impl NativeParquetWriter {
             writer: Arc::new(Mutex::new(writer)),
             settings,
             crc_handle,
+            writer_generation,
         });
 
         Ok(())
@@ -160,7 +163,7 @@ impl NativeParquetWriter {
         log_debug!("finalize_writer called for file: {} (temp: {})", filename, temp_filename);
 
         if let Some((_, state)) = WRITERS.remove(&temp_filename) {
-            let WriterState { writer: writer_arc, settings, crc_handle } = state;
+            let WriterState { writer: writer_arc, settings, crc_handle, writer_generation } = state;
             let index_name = settings.index_name.as_deref().unwrap_or("");
             match Arc::try_unwrap(writer_arc) {
                 Ok(mutex) => {
@@ -170,7 +173,7 @@ impl NativeParquetWriter {
                             let temp_crc32 = crc_handle.crc32();
                             log_debug!("Successfully closed temp writer for: {}", temp_filename);
 
-                            let crc32 = Self::sort_and_rewrite_parquet(&temp_filename, &filename, index_name, &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first, temp_crc32)?;
+                            let crc32 = Self::sort_and_rewrite_parquet(&temp_filename, &filename, index_name, &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first, temp_crc32, writer_generation)?;
 
                             if Path::new(&temp_filename).exists() {
                                 if let Err(e) = std::fs::remove_file(&temp_filename) {
@@ -217,6 +220,7 @@ impl NativeParquetWriter {
         reverse_sorts: &[bool],
         nulls_first: &[bool],
         temp_crc32: u32,
+        writer_generation: i64,
     ) -> Result<u32, Box<dyn std::error::Error>> {
         log_debug!(
             "sort_and_rewrite_parquet: temp={}, output={}, sort_columns={:?}, reverse_sorts={:?}, nulls_first={:?}",
@@ -237,7 +241,7 @@ impl NativeParquetWriter {
         let file_size = std::fs::metadata(temp_filename)?.len();
 
         if file_size <= config.get_sort_in_memory_threshold_bytes() {
-            Self::sort_small_file(temp_filename, output_filename, index_name, sort_columns, reverse_sorts, nulls_first)
+            Self::sort_small_file(temp_filename, output_filename, index_name, sort_columns, reverse_sorts, nulls_first, writer_generation)
         } else {
             Self::sort_large_file(temp_filename, output_filename, index_name, sort_columns, reverse_sorts, nulls_first, config.get_sort_batch_size())
         }
@@ -251,6 +255,7 @@ impl NativeParquetWriter {
         sort_columns: &[String],
         reverse_sorts: &[bool],
         nulls_first: &[bool],
+        writer_generation: i64,
     ) -> Result<u32, Box<dyn std::error::Error>> {
         log_debug!("Using in-memory sort for small file: {}", temp_filename);
 
@@ -273,7 +278,7 @@ impl NativeParquetWriter {
         let sorted_batch = Self::sort_batch(&batch, sort_columns, reverse_sorts, nulls_first)?;
         let final_batch = Self::rewrite_row_ids(&sorted_batch, &schema)?;
 
-        let crc32 = Self::write_final_file(output_filename, index_name, &final_batch, schema)?;
+        let crc32 = Self::write_final_file(output_filename, index_name, &final_batch, schema, Some(writer_generation))?;
         Ok(crc32)
     }
 
@@ -309,7 +314,7 @@ impl NativeParquetWriter {
                 .to_string_lossy()
                 .to_string();
             // CRC for temp chunks is not needed, discard it
-            Self::write_final_file(&chunk_filename, index_name, &sorted_batch, schema)?;
+            Self::write_final_file(&chunk_filename, index_name, &sorted_batch, schema, None)?;
 
             chunk_paths.push(chunk_filename);
             batch_count += 1;
@@ -323,8 +328,9 @@ impl NativeParquetWriter {
 
         log_debug!("Created {} sorted chunks, merging via streaming k-way merge", batch_count);
 
-        // merge_sorted returns metadata and CRC32 of the final merged output
-        let (_metadata, crc32) = merge_sorted(
+        // merge_sorted returns MergeOutput; we discard it here because the
+        // sort-and-rewrite path produces the final file directly.
+        let _merge_output = merge_sorted(
             &chunk_paths,
             output_filename,
             index_name,
@@ -338,7 +344,7 @@ impl NativeParquetWriter {
             let _ = std::fs::remove_file(path);
         }
 
-        Ok(crc32)
+        Ok(0)
     }
 
     fn sort_batch(
@@ -401,12 +407,13 @@ impl NativeParquetWriter {
         index_name: &str,
         batch: &RecordBatch,
         schema: Arc<arrow::datatypes::Schema>,
+        writer_generation: Option<i64>,
     ) -> Result<u32, Box<dyn std::error::Error>> {
         let config = SETTINGS_STORE
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
-        let props = WriterPropertiesBuilder::build(&config);
+        let props = WriterPropertiesBuilder::build_with_generation(&config, writer_generation);
         let file = File::create(output_filename)?;
         let (crc_file, crc_handle) = CrcWriter::new(file);
         let mut writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;

@@ -1646,4 +1646,98 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             assertThat("afterRefresh must see post-commit generation", genSeenInAfter.get(), equalTo(1L));
         }
     }
+
+    /**
+     * Covers {@code DataFormatAwareEngine.applyMergeChanges}: a forceMerge over two
+     * previously-refreshed segments must (1) replace the source segments in the catalog
+     * with a single merged segment, (2) invoke beforeRefresh/afterRefresh exactly once
+     * each on registered refresh listeners while holding the refresh lock, and
+     * (3) release the refresh lock on exit so a subsequent {@code refresh()} proceeds.
+     *
+     * <p>The system-property gate on {@code MERGE_ENABLED_PROPERTY} applies only to
+     * the background {@code triggerPossibleMerges()} path; {@code forceMerge} routes
+     * straight to {@code MergeScheduler.forceMerge} and does not consult it, so this
+     * test drives the merge end-to-end without touching system properties.
+     */
+    public void testApplyMergeChangesUpdatesCatalogAndNotifiesListeners() throws Exception {
+        AtomicInteger beforeCalls = new AtomicInteger();
+        AtomicInteger afterCalls = new AtomicInteger();
+        // Records call order: 'B' for beforeRefresh, 'A' for afterRefresh.
+        StringBuilder callOrder = new StringBuilder();
+
+        ReferenceManager.RefreshListener listener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+                synchronized (callOrder) {
+                    callOrder.append('B');
+                }
+                beforeCalls.incrementAndGet();
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                synchronized (callOrder) {
+                    callOrder.append('A');
+                }
+                afterCalls.incrementAndGet();
+            }
+        };
+
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        EngineConfig config = buildDFAEngineConfig(store, translogPath, List.of(listener), List.of());
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // Produce two segments via two refresh cycles so the merger has something to combine.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("seed-1");
+            engine.index(indexOp(createParsedDocWithInput("2", null)));
+            engine.refresh("seed-2");
+
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("two segments before merge", ref.get().getSegments().size(), equalTo(2));
+            }
+
+            // Drain the listener counters from the two seed refreshes.
+            final int beforeAfterSeed = beforeCalls.get();
+            final int afterAfterSeed = afterCalls.get();
+            assertThat("each refresh must invoke beforeRefresh once", beforeAfterSeed, equalTo(2));
+            assertThat("each refresh must invoke afterRefresh once", afterAfterSeed, equalTo(2));
+
+            // forceMerge submits the merge to the FORCE_MERGE executor and returns without
+            // waiting. Poll the catalog until the merged snapshot is visible (or fail fast).
+            engine.forceMerge(false, 1, false, false, false, "test-force-merge");
+
+            assertBusy(() -> {
+                try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                    assertThat("merge must collapse to a single segment", ref.get().getSegments().size(), equalTo(1));
+                }
+            }, 10, java.util.concurrent.TimeUnit.SECONDS);
+
+            // applyMergeChanges must have invoked the listeners exactly once each, in order.
+            assertThat("beforeRefresh must fire exactly once for the merge", beforeCalls.get() - beforeAfterSeed, equalTo(1));
+            assertThat("afterRefresh must fire exactly once for the merge", afterCalls.get() - afterAfterSeed, equalTo(1));
+            synchronized (callOrder) {
+                // Seed cycles contribute "BABA"; the merge must append exactly "BA".
+                assertThat("call order must be before-then-after for every cycle", callOrder.toString(), equalTo("BABABA"));
+            }
+
+            // Sanity: the refreshLock must have been released. A follow-up refresh must
+            // complete without blocking, and the catalog generation must have advanced.
+            long genBeforeFinalRefresh;
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                genBeforeFinalRefresh = ref.get().getGeneration();
+            }
+            engine.index(indexOp(createParsedDocWithInput("3", null)));
+            engine.refresh("post-merge");
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat(
+                    "refresh after merge must advance the catalog generation",
+                    ref.get().getGeneration(),
+                    greaterThan(genBeforeFinalRefresh)
+                );
+            }
+        }
+    }
 }

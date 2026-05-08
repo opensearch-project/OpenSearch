@@ -9,7 +9,7 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.opensearch.be.lucene.LuceneFieldFactory;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -26,8 +26,9 @@ import org.opensearch.index.mapper.MappedFieldType;
  * Only field types registered in the registry are accepted. Attempting to add a field
  * of an unregistered type throws {@link IllegalArgumentException}.
  *
- * The row ID field is stored as a {@link NumericDocValuesField} for efficient doc-value
- * access, maintaining 1:1 correspondence between Lucene doc IDs and Parquet row offsets.
+ * The row ID field is stored as a {@link SortedNumericDocValuesField} for efficient doc-value
+ * access and compatibility with the {@code SortedNumericSortField}-based IndexSort,
+ * maintaining 1:1 correspondence between Lucene doc IDs and Parquet row offsets.
  *
  * @opensearch.experimental
  */
@@ -95,7 +96,7 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     }
 
     /**
-     * Stores the row ID as a {@link NumericDocValuesField} to maintain 1:1 correspondence
+     * Stores the row ID as a {@link SortedNumericDocValuesField} to maintain 1:1 correspondence
      * between Lucene doc IDs and Parquet row offsets.
      *
      * @param rowIdFieldName the name of the row ID field
@@ -103,7 +104,7 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
      */
     @Override
     public void setRowId(String rowIdFieldName, long rowId) {
-        document.add(new NumericDocValuesField(rowIdFieldName, rowId));
+        document.add(new SortedNumericDocValuesField(rowIdFieldName, rowId));
     }
 
     /** No-op — this document input holds no closeable resources. */
