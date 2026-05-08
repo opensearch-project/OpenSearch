@@ -100,13 +100,21 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
-        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
-        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace")
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
+        FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
+        FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
+        FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
+        FunctionMappings.s(SqlStdOperatorTable.PI, "pi"),
+        FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
+        FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
+        FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME)
     );
 
     private final SimpleExtension.ExtensionCollection extensions;

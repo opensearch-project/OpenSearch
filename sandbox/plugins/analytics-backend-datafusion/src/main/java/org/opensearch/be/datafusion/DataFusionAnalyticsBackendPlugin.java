@@ -8,7 +8,10 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -117,6 +120,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.ABS,
         ScalarFunction.SUBSTRING,
         ScalarFunction.SARG_PREDICATE,
+        ScalarFunction.MINUS,
+        ScalarFunction.ACOS,
+        ScalarFunction.ASIN,
+        ScalarFunction.ATAN,
+        ScalarFunction.ATAN2,
+        ScalarFunction.CBRT,
         ScalarFunction.EQUALS,
         ScalarFunction.NOT_EQUALS,
         ScalarFunction.GREATER_THAN,
@@ -129,10 +138,33 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.REPLACE,
         ScalarFunction.REGEXP_REPLACE,
         ScalarFunction.PLUS,
-        ScalarFunction.MINUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
         ScalarFunction.MOD,
+        ScalarFunction.COS,
+        ScalarFunction.COT,
+        ScalarFunction.DEGREES,
+        ScalarFunction.EXP,
+        ScalarFunction.FLOOR,
+        ScalarFunction.LN,
+        ScalarFunction.LOG,
+        ScalarFunction.LOG10,
+        ScalarFunction.LOG2,
+        ScalarFunction.PI,
+        ScalarFunction.POWER,
+        ScalarFunction.RADIANS,
+        ScalarFunction.RAND,
+        ScalarFunction.ROUND,
+        ScalarFunction.SIGN,
+        ScalarFunction.SIN,
+        ScalarFunction.TAN,
+        ScalarFunction.TRUNCATE,
+        ScalarFunction.COSH,
+        ScalarFunction.SINH,
+        ScalarFunction.E,
+        ScalarFunction.EXPM1,
+        ScalarFunction.SCALAR_MAX,
+        ScalarFunction.SCALAR_MIN,
         ScalarFunction.YEAR,
         ScalarFunction.CONVERT_TZ,
         ScalarFunction.UNIX_TIMESTAMP
@@ -219,16 +251,33 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
+                    Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
                     Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
+                    Map.entry(ScalarFunction.E, new EConstantAdapter()),
+                    Map.entry(ScalarFunction.EXPM1, new Expm1Adapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
                     Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
+                    Map.entry(ScalarFunction.SCALAR_MAX, nameMapping(SqlLibraryOperators.GREATEST)),
+                    Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
+                    Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
+                    Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
                     Map.entry(ScalarFunction.YEAR, new YearAdapter())
                 );
             }
+        };
+    }
+
+    /**
+     * Pure rename from a PPL scalar to {@code target} — no prepend / append operands.
+     * Concrete subclass of {@link AbstractNameMappingAdapter} because the abstract
+     * base cannot be instantiated directly.
+     */
+    private static AbstractNameMappingAdapter nameMapping(SqlOperator target) {
+        return new AbstractNameMappingAdapter(target, java.util.List.of(), java.util.List.of()) {
         };
     }
 
