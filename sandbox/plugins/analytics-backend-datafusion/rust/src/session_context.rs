@@ -41,6 +41,8 @@ pub struct SessionContextHandle {
     pub table_name: String,
     /// When set, indicates this session uses the indexed execution path with filter delegation.
     pub indexed_config: Option<IndexedExecutionConfig>,
+    /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
+    pub query_config: DatafusionQueryConfig,
 }
 
 /// Configuration for indexed execution with filter delegation, provided by Java.
@@ -156,6 +158,7 @@ pub async unsafe fn create_session_context(
         query_context,
         table_name: table_name.to_string(),
         indexed_config: None,
+        query_config,
     };
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
@@ -180,9 +183,10 @@ pub async unsafe fn create_session_context_indexed(
     context_id: i64,
     tree_shape: i32,
     delegated_predicate_count: i32,
+    query_config: DatafusionQueryConfig,
 ) -> Result<i64, DataFusionError> {
     // Create base session context (same as non-indexed path)
-    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id).await?;
+    let ptr = create_session_context(runtime_ptr, shard_view_ptr, table_name, context_id, query_config).await?;
 
     // Augment with indexed config and UDF registration
     let handle = &mut *(ptr as *mut SessionContextHandle);

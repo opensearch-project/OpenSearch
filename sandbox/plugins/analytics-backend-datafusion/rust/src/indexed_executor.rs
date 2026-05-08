@@ -161,6 +161,7 @@ pub async fn execute_indexed_query(
         query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone()),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
+        query_config: Arc::unwrap_or_clone(query_config),
     };
     let ptr = Box::into_raw(Box::new(handle)) as i64;
     unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor).await }
@@ -410,7 +411,7 @@ pub async unsafe fn execute_indexed_with_context(
         }
     });
 
-    let query_config = Arc::new(crate::datafusion_query_config::DatafusionQueryConfig::default());
+    let query_config = Arc::new(handle.query_config);
     let num_partitions = query_config.target_partitions.max(1);
     let ctx = handle.ctx;
     let table_name = handle.table_name;

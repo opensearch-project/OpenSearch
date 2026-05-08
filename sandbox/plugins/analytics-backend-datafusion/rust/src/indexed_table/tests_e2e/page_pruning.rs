@@ -57,7 +57,7 @@ use tempfile::NamedTempFile;
 
 use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::{
-    subtree_cost, BitmapTreeEvaluator, CollectorLeafBitmaps, COST_SCALE,
+    subtree_cost, BitmapTreeEvaluator, CollectorLeafBitmaps,
 };
 use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
 use crate::indexed_table::eval::{

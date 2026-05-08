@@ -507,13 +507,16 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     context_id: i64,
     tree_shape: i32,
     delegated_predicate_count: i32,
+    query_config_ptr: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context_indexed: {}", e))?;
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::session_context::create_session_context_indexed(
-            runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count,
+            runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count, query_config,
         ))
         .map_err(|e| e.to_string())
 }
