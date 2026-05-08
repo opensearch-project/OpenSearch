@@ -309,7 +309,7 @@ pub async unsafe fn execute_query(
     // If the CPU executor already has more queued tasks than workers, adding
     // more partition tasks just increases queueing latency without improving
     // throughput. Scale down to spare capacity.
-    let cpu_capped_partitions = crate::query_memory_budget::cap_partitions_for_cpu(
+    let cpu_capped_partitions = crate::query_budget::cap_partitions_for_cpu(
         query_config.target_partitions,
         &manager.cpu_contention(),
     );
@@ -323,7 +323,7 @@ pub async unsafe fn execute_query(
     let (effective_target_partitions, effective_batch_size) =
         match try_schema_from_cache(shard_view, &runtime.runtime_env) {
             Some(cached) => {
-                let budget_result = crate::query_memory_budget::acquire_budget_from_metadata(
+                let budget_result = crate::query_budget::acquire_budget_from_metadata(
                     &global_pool,
                     &cached.schema,
                     &cached.metadata,

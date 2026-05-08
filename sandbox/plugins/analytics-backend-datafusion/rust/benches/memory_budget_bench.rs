@@ -1,4 +1,4 @@
-//! Benchmark for query_memory_budget overhead at various concurrency levels.
+//! Benchmark for query_budget overhead at various concurrency levels.
 //!
 //! Measures:
 //! 1. `acquire_budget` latency at different pool utilization levels
@@ -12,7 +12,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::execution::memory_pool::{
     GreedyMemoryPool, MemoryConsumer, MemoryPool, TrackConsumersPool,
 };
-use opensearch_datafusion::query_memory_budget::{acquire_budget, estimate_avg_row_bytes};
+use opensearch_datafusion::query_budget::{acquire_budget, estimate_avg_row_bytes};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 

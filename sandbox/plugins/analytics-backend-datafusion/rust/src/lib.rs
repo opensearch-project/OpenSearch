@@ -26,7 +26,7 @@ pub mod io;
 pub mod local_executor;
 pub mod memory;
 pub mod partition_stream;
-pub mod query_memory_budget;
+pub mod query_budget;
 pub mod query_executor;
 pub mod query_tracker;
 pub mod runtime_manager;

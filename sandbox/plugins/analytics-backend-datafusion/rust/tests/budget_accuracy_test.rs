@@ -39,7 +39,7 @@ use prost::Message;
 use substrait::proto::Plan;
 use tempfile::TempDir;
 
-use opensearch_datafusion::query_memory_budget::{estimate_avg_row_bytes, acquire_budget, acquire_budget_from_metadata};
+use opensearch_datafusion::query_budget::{estimate_avg_row_bytes, acquire_budget, acquire_budget_from_metadata};
 
 /// Create parquet test data with a known schema.
 fn create_parquet_data(dir: &std::path::Path, num_rows: usize, num_files: usize) -> Arc<Schema> {

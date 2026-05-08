@@ -220,7 +220,7 @@ impl QueryTrackingContext {
         }
     }
 
-    /// Attach a phantom reservation from [`crate::query_memory_budget::acquire_budget`].
+    /// Attach a phantom reservation from [`crate::query_budget::acquire_budget`].
     ///
     /// The reservation represents untracked memory (in-flight batches, decode
     /// buffers, channel buffers) and is held for the query's lifetime. It makes

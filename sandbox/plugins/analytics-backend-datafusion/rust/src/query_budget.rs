@@ -6,7 +6,19 @@
  * compatible open source license.
  */
 
-//! Per-query memory budgeting with spill-on-exceed semantics.
+//! Per-query budgeting with spill-on-exceed semantics.
+//!
+//! # TODO: Cardinality-aware operator headroom
+//!
+//! When parquet column statistics include `distinct_count` (NDV), the budget
+//! could leave proportional headroom for hash aggregation / distinct operators:
+//!   headroom = NDV × (key_bytes + accumulator_bytes_per_group)
+//! This would prevent the phantom from starving high-cardinality GROUP BY
+//! queries that need large hash tables. Without NDV, operators rely on
+//! DataFusion's spill mechanism (safe but slower). Sources for NDV:
+//! - Parquet column chunk statistics (`Statistics::distinct_count()`)
+//! - OpenSearch field mappings with known cardinality (keyword fields)
+//! - Query-level hint via `DatafusionQueryConfig`
 //!
 //! # Problem
 //!
