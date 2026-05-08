@@ -50,6 +50,6 @@ jobs:
           role-to-assume: ${{ env.MAVEN_SNAPSHOTS_S3_ROLE }}
           aws-region: us-east-1
 
-      - name: Publish snapshots to maven
+      - name: Publish snapshots to maven (with sandbox)
         run: |
-          ./gradlew publishNebulaPublicationToSnapshotsRepository -Pcrypto.standard=FIPS-140-3
+          ./gradlew publishNebulaPublicationToSnapshotsRepository -Dsandbox.enabled=true -Pcrypto.standard=FIPS-140-3
