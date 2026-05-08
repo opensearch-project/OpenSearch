@@ -122,6 +122,7 @@ pub mod json_extend;
 pub mod json_extract;
 pub mod json_keys;
 pub mod json_set;
+pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
 pub mod tonumber;
@@ -145,10 +146,11 @@ pub fn register_all(ctx: &SessionContext) {
     json_set::register_all(ctx);
     mvzip::register_all(ctx);
     mvfind::register_all(ctx);
+    mvappend::register_all(ctx);
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, mvzip, mvfind, tonumber, tostring registered"
+        "OpenSearch UDF register_all: convert_tz, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, mvzip, mvfind, mvappend, tonumber, tostring registered"
     );
 }
 

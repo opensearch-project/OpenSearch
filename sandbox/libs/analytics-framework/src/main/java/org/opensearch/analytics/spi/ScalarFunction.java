@@ -221,7 +221,16 @@ public enum ScalarFunction {
      * DataFusion stdlib equivalent — the analytics-backend-datafusion plugin
      * ships a custom Rust UDF (`udf::mvfind`) registered on its session context.
      */
-    MVFIND(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    MVFIND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code mvappend(arg1, arg2, …)} — flatten a mixed list of array and
+     * scalar arguments into one array, dropping null args and null elements.
+     * Resolves through the SQL plugin's {@code MVAppendFunctionImpl} UDF named
+     * {@code "mvappend"}. DataFusion's {@code array_concat} only accepts arrays
+     * and preserves nulls, so the analytics-backend-datafusion plugin ships a
+     * custom Rust UDF ({@code udf::mvappend}) registered on its session context.
+     */
+    MVAPPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.

@@ -263,7 +263,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.ARRAY_DISTINCT,
         // PPL `mvzip` returns ARRAY<VARCHAR>; backed by a custom Rust UDF on the DataFusion
         // session context (`udf::mvzip`), routed via {@link MvzipAdapter}.
-        ScalarFunction.MVZIP
+        ScalarFunction.MVZIP,
+        // PPL `mvappend` returns ARRAY<commonType>; backed by a custom Rust UDF
+        // (`udf::mvappend`), routed via {@link MvappendAdapter}.
+        ScalarFunction.MVAPPEND
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -363,6 +366,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.ITEM, new ArrayElementAdapter()),
                     Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
+                    Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),

@@ -168,7 +168,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(ArrayToStringAdapter.LOCAL_ARRAY_TO_STRING_OP, "array_to_string"),
         FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
         FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
-        FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind")
+        FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
+        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;

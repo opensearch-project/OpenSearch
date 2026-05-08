@@ -83,6 +83,22 @@ scalar_functions:
             name: index
         return: "any1?"
 
+  - name: mvappend
+    description: >-
+      Flatten a mixed list of array and scalar arguments into one array,
+      dropping null arguments and null elements within array arguments. Returns
+      NULL if no non-null elements were collected. PPL surface is
+      {@code mvappend(arg1, arg2, …)}; backed by a custom Rust UDF on the
+      analytics-backend-datafusion plugin (DataFusion's array_concat only
+      accepts arrays and preserves nulls — different semantics).
+    impls:
+      - args:
+          - value: "any1"
+            name: arg
+        variadic:
+          min: 1
+        return: "list<any1?>"
+
   - name: mvfind
     description: >-
       Find the 0-based index of the first array element matching a regex pattern,
