@@ -15,18 +15,30 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * End-to-end smoke test for the streaming coordinator-reduce path:
+ * End-to-end tests for the distributed partial/final aggregate path:
  *
  * <pre>
- *   PPL → planner → multi-shard SHARD_FRAGMENT dispatch → DataFusion shard scan
- *       → ExchangeSink.feed → DatafusionReduceSink (Substrait SUM via convertFinalAggFragment)
+ *   PPL → planner (AggregateDecompositionResolver) → multi-shard SHARD_FRAGMENT dispatch
+ *       → DataFusion partial-agg (prepare_partial_plan, force_aggregate_mode(Partial))
+ *       → ExchangeSink.feed → DatafusionReduceSink (prepare_final_plan,
+ *                             force_aggregate_mode(Final), execute_local_prepared_plan)
  *       → drain → downstream → assembled PPLResponse
  * </pre>
  *
- * <p>Builds a parquet-backed composite index with two shards, indexes a small
- * deterministic dataset, then runs a {@code stats sum(value) as total} aggregate.
- * The total is a function of the indexed values × shard count; any drift in
- * shard fan-out, sink wiring, or final-agg merge will show up as a mismatch.
+ * <p>Each test exercises a distinct branch of the resolver's four-case decomposition:
+ * <ul>
+ *   <li>{@link #testScalarSumAcrossShards()} — pass-through
+ *       ({@code AggregateFunction.intermediateFields == null})</li>
+ *   <li>{@link #testScalarCountAcrossShards()} — function-swap
+ *       (COUNT → SUM at FINAL over a single-field intermediate)</li>
+ *   <li>{@link #testAvgAcrossShards()} — primitive decomposition
+ *       (multi-field intermediate + {@code finalExpression} wrap)</li>
+ *   <li>{@link #testDistinctCountAcrossShards()} — engine-native merge
+ *       (Binary intermediate, reducer == self; HLL merge inside DataFusion)</li>
+ *   <li>{@link #testGroupedSumAcrossShards()} — group keys propagate through
+ *       partial/final without affecting the aggregate-call decomposition path</li>
+ *   <li>{@link #testQ10ShapeAcrossShards()} — all four families in one query, grouped</li>
+ * </ul>
  *
  * <p>Requires a 2-node cluster (configured in build.gradle) so that shards
  * are distributed across nodes, exercising the coordinator-reduce path.
@@ -36,6 +48,10 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     private static final String INDEX = "coord_reduce_e2e";
     private static final int NUM_SHARDS = 2;
     private static final int DOCS_PER_SHARD = 10;
+    /**
+     * Constant value used for {@link #INDEX}: every doc has {@code value=VALUE}. Makes the
+     * deterministic SUM / AVG predictable regardless of which shard a doc lands on.
+     */
     private static final int VALUE = 7;
 
     /**
@@ -44,25 +60,13 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
      * and returns the deterministic total.
      */
     public void testScalarSumAcrossShards() throws Exception {
-        createParquetBackedIndex();
-        indexDeterministicDocs();
+        createParquetBackedIndex(INDEX);
+        indexConstantValueDocs(INDEX);
 
         Map<String, Object> result = executePPL("source = " + INDEX + " | stats sum(value) as total");
+        List<List<Object>> rows = scalarRows(result, "total");
 
-        @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
-        assertNotNull("columns must not be null", columns);
-        assertTrue("columns must contain 'total', got " + columns, columns.contains("total"));
-
-        @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
-        assertNotNull("rows must not be null", rows);
-        assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
-
-        int idx = columns.indexOf("total");
-        Object cell = rows.get(0).get(idx);
-        assertNotNull("SUM(value) cell must not be null — coordinator-reduce returned no value", cell);
-        long actual = ((Number) cell).longValue();
+        long actual = ((Number) rows.get(0).get(0)).longValue();
         long expected = (long) VALUE * NUM_SHARDS * DOCS_PER_SHARD;
         assertEquals(
             "SUM(value) across " + NUM_SHARDS + " shards × " + DOCS_PER_SHARD + " docs × value=" + VALUE + " = " + expected,
@@ -71,9 +75,144 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         );
     }
 
-    private void createParquetBackedIndex() throws Exception {
+    /**
+     * {@code stats count() as cnt} — function-swap at FINAL. PARTIAL emits COUNT(*) as Int64;
+     * resolver rewrites FINAL's COUNT to SUM over the partial-count column.
+     */
+    public void testScalarCountAcrossShards() throws Exception {
+        createParquetBackedIndex(INDEX);
+        indexConstantValueDocs(INDEX);
+
+        Map<String, Object> result = executePPL("source = " + INDEX + " | stats count() as cnt");
+        List<List<Object>> rows = scalarRows(result, "cnt");
+
+        long actual = ((Number) rows.get(0).get(0)).longValue();
+        long expected = (long) NUM_SHARDS * DOCS_PER_SHARD;
+        assertEquals("COUNT() across shards", expected, actual);
+    }
+
+    /**
+     * {@code stats avg(value) as a} — primitive decomposition. PARTIAL emits
+     * {@code [count:Int64, sum:Float64]}; FINAL reduces each with SUM and a Project wraps
+     * {@code finalExpression = sum/count}. Exercises the multi-field intermediate path.
+     */
+    public void testAvgAcrossShards() throws Exception {
+        createParquetBackedIndex(INDEX);
+        indexConstantValueDocs(INDEX);
+
+        Map<String, Object> result = executePPL("source = " + INDEX + " | stats avg(value) as a");
+        List<List<Object>> rows = scalarRows(result, "a");
+
+        double actual = ((Number) rows.get(0).get(0)).doubleValue();
+        assertEquals("AVG(value) across shards should be " + VALUE, (double) VALUE, actual, 0.001);
+    }
+
+    /**
+     * {@code stats dc(value) as dc} — engine-native merge. PARTIAL emits a single Binary
+     * HLL sketch; resolver rebinds FINAL's arg to the sketch column and DataFusion's
+     * approx_distinct Final merges sketches in-place. Tolerance is 10% (standard HLL
+     * accuracy).
+     */
+    public void testDistinctCountAcrossShards() throws Exception {
+        String index = "coord_reduce_dc";
+        createParquetBackedIndex(index);
+        indexVaryingValueDocs(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats dc(value) as dc");
+        List<List<Object>> rows = scalarRows(result, "dc");
+
+        long actual = ((Number) rows.get(0).get(0)).longValue();
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        assertTrue(
+            "dc(value) should be approximately " + totalDocs + " (±10%), got " + actual,
+            actual >= totalDocs * 0.9 && actual <= totalDocs * 1.1
+        );
+    }
+
+    /**
+     * {@code stats sum(value) as total by value} — group-by flows through partial/final
+     * without interacting with the aggregate-call decomposition (key columns sit at the
+     * front of the row type).
+     */
+    public void testGroupedSumAcrossShards() throws Exception {
+        createParquetBackedIndex(INDEX);
+        indexConstantValueDocs(INDEX);
+
+        Map<String, Object> result = executePPL("source = " + INDEX + " | stats sum(value) as total by value");
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("grouped agg on a single-valued column must return exactly 1 group", 1, rows.size());
+    }
+
+    /**
+     * Q10 shape: SUM + COUNT + AVG + DC together, grouped. Exercises all four resolver
+     * branches in a single query and validates column positions in the final Project
+     * wrapper produced for AVG.
+     *
+     * <p>pf2 had this test ignored because its {@code decomposeFinalFragment} mishandled
+     * parent Project expressions after decomposition. pf4's single-pass
+     * {@code AggregateDecompositionResolver} builds the Project wrapper correctly from
+     * intermediateFields + finalExpression, so the test runs here.
+     */
+    public void testQ10ShapeAcrossShards() throws Exception {
+        createParquetBackedIndex(INDEX);
+        indexConstantValueDocs(INDEX);
+
+        Map<String, Object> result = executePPL(
+            "source = " + INDEX + " | stats sum(value) as s, count() as c, avg(value) as a, dc(value) as d by value"
+        );
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("Q10-shape on a single-valued column must return exactly 1 group", 1, rows.size());
+
+        List<Object> row = rows.get(0);
+        long totalDocs = (long) NUM_SHARDS * DOCS_PER_SHARD;
+        assertEquals("SUM", (long) VALUE * totalDocs, ((Number) row.get(columns.indexOf("s"))).longValue());
+        assertEquals("COUNT", totalDocs, ((Number) row.get(columns.indexOf("c"))).longValue());
+        assertEquals("AVG", (double) VALUE, ((Number) row.get(columns.indexOf("a"))).doubleValue(), 0.001);
+        // DC on a single-valued column: exact result is 1.
+        long dcValue = ((Number) row.get(columns.indexOf("d"))).longValue();
+        assertTrue("dc on single-valued column should be 1 (±small HLL error), got " + dcValue, dcValue >= 1 && dcValue <= 2);
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the {@code rows} list from a scalar-aggregate PPL response, asserting that
+     * the single row contains the requested named column. Parameterised so each test
+     * doesn't repeat the null/empty checks.
+     */
+    private static List<List<Object>> scalarRows(Map<String, Object> result, String columnName) {
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        assertTrue("columns must contain '" + columnName + "', got " + columns, columns.contains(columnName));
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
+
+        Object cell = rows.get(0).get(columns.indexOf(columnName));
+        assertNotNull("cell for '" + columnName + "' must not be null — coordinator-reduce returned no value", cell);
+        return rows;
+    }
+
+    /**
+     * Creates a 2-shard parquet-backed composite index with a single integer field {@code value}.
+     * Uses a per-call name so DC (varying values) and the other tests (constant value) can
+     * live in the same JVM without the bulk indexing steps colliding.
+     */
+    private void createParquetBackedIndex(String indexName) throws Exception {
         try {
-            client().performRequest(new Request("DELETE", "/" + INDEX));
+            client().performRequest(new Request("DELETE", "/" + indexName));
         } catch (Exception ignored) {}
 
         String body = "{"
@@ -92,31 +231,49 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "}"
             + "}";
 
-        Request createIndex = new Request("PUT", "/" + INDEX);
+        Request createIndex = new Request("PUT", "/" + indexName);
         createIndex.setJsonEntity(body);
-        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index");
+        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index " + indexName);
         assertEquals("index creation must be acknowledged", true, response.get("acknowledged"));
 
-        Request health = new Request("GET", "/_cluster/health/" + INDEX);
+        Request health = new Request("GET", "/_cluster/health/" + indexName);
         health.addParameter("wait_for_status", "green");
         health.addParameter("timeout", "30s");
         client().performRequest(health);
     }
 
-    private void indexDeterministicDocs() throws Exception {
-        int total = NUM_SHARDS * DOCS_PER_SHARD;
+    /** Indexes {@link #NUM_SHARDS} × {@link #DOCS_PER_SHARD} docs, each with {@code value=VALUE}. */
+    private void indexConstantValueDocs(String indexName) throws Exception {
         StringBuilder bulk = new StringBuilder();
+        int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
             bulk.append("{\"index\": {\"_id\": \"").append(i).append("\"}}\n");
             bulk.append("{\"value\": ").append(VALUE).append("}\n");
         }
+        bulkAndRefresh(indexName, bulk.toString());
+    }
 
-        Request bulkRequest = new Request("POST", "/" + INDEX + "/_bulk");
-        bulkRequest.setJsonEntity(bulk.toString());
+    /**
+     * Indexes {@link #NUM_SHARDS} × {@link #DOCS_PER_SHARD} docs with {@code value = i+1},
+     * giving a distinct value per doc — required for the DC test to have a meaningful
+     * cardinality to approximate.
+     */
+    private void indexVaryingValueDocs(String indexName) throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        int total = NUM_SHARDS * DOCS_PER_SHARD;
+        for (int i = 0; i < total; i++) {
+            bulk.append("{\"index\": {\"_id\": \"v").append(i).append("\"}}\n");
+            bulk.append("{\"value\": ").append(i + 1).append("}\n");
+        }
+        bulkAndRefresh(indexName, bulk.toString());
+    }
+
+    private void bulkAndRefresh(String indexName, String bulkBody) throws Exception {
+        Request bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        bulkRequest.setJsonEntity(bulkBody);
         bulkRequest.addParameter("refresh", "true");
         client().performRequest(bulkRequest);
-
-        client().performRequest(new Request("POST", "/" + INDEX + "/_flush?force=true"));
+        client().performRequest(new Request("POST", "/" + indexName + "/_flush?force=true"));
     }
 
     private Map<String, Object> executePPL(String ppl) throws Exception {
