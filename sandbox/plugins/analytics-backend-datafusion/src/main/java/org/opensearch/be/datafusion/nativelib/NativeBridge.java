@@ -73,6 +73,7 @@ public final class NativeBridge {
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
+    private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
@@ -288,6 +289,20 @@ public final class NativeBridge {
             )
         );
 
+        CREATE_SESSION_CONTEXT_INDEXED = linker.downcallHandle(
+            lib.find("df_create_session_context_indexed").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT
+            )
+        );
+
         // i64 df_cache_manager_add_files(runtime_ptr, files_ptr, files_len_ptr, files_count)
         CACHE_MANAGER_ADD_FILES = linker.downcallHandle(
             lib.find("df_cache_manager_add_files").orElseThrow(),
@@ -374,7 +389,7 @@ public final class NativeBridge {
             MethodHandle createProvider = lookup.findStatic(
                 cb,
                 "createProvider",
-                java.lang.invoke.MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, long.class)
+                java.lang.invoke.MethodType.methodType(int.class, int.class)
             );
             MethodHandle releaseProvider = lookup.findStatic(
                 cb,
@@ -406,7 +421,7 @@ public final class NativeBridge {
 
             java.lang.foreign.MemorySegment createProviderStub = linker.upcallStub(
                 createProvider,
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT),
                 arena
             );
             java.lang.foreign.MemorySegment releaseProviderStub = linker.upcallStub(
@@ -739,6 +754,37 @@ public final class NativeBridge {
         try (var call = new NativeCall()) {
             var table = call.str(tableName);
             long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId);
+            return new SessionContextHandle(ptr);
+        }
+    }
+
+    /**
+     * Creates a SessionContext configured for indexed execution with filter delegation.
+     * Registers the delegated_predicate UDF and stores treeShape + delegatedPredicateCount
+     * on the Rust handle for use during execution.
+     */
+    public static SessionContextHandle createSessionContextForIndexedExecution(
+        long readerPtr,
+        long runtimePtr,
+        String tableName,
+        long contextId,
+        int treeShapeOrdinal,
+        int delegatedPredicateCount
+    ) {
+        NativeHandle.validatePointer(readerPtr, "reader");
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        try (NativeCall call = new NativeCall()) {
+            NativeCall.Str table = call.str(tableName);
+            long ptr = call.invoke(
+                CREATE_SESSION_CONTEXT_INDEXED,
+                readerPtr,
+                runtimePtr,
+                table.segment(),
+                table.len(),
+                contextId,
+                treeShapeOrdinal,
+                delegatedPredicateCount
+            );
             return new SessionContextHandle(ptr);
         }
     }

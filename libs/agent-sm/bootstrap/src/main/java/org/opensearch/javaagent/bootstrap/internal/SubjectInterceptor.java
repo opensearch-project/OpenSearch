@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.javaagent;
+package org.opensearch.javaagent.bootstrap.internal;
 
 import javax.security.auth.Subject;
 

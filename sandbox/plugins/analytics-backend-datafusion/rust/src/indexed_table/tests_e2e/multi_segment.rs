@@ -983,7 +983,7 @@ async fn wide_multi_segment_collector_and_two_predicates() {
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
         BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         },
         pred_wide_int("price", Operator::Gt, 50),
         pred_wide_int("qty", Operator::Lt, 3),
@@ -1001,7 +1001,7 @@ async fn wide_multi_segment_or_of_predicates_under_collector() {
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
         BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         },
         BoolNode::Or(vec![
             pred_wide_str("region", Operator::Eq, "us-east"),
@@ -1021,7 +1021,7 @@ async fn wide_multi_segment_not_and_three_column_predicates() {
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
         BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         },
         BoolNode::Not(Box::new(pred_wide_int("price", Operator::Lt, 30))),
         pred_wide_int("qty", Operator::Gt, 2),
@@ -1043,7 +1043,7 @@ async fn wide_multi_segment_deep_tree_four_predicate_columns() {
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
         BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         },
         BoolNode::Or(vec![
             BoolNode::And(vec![
