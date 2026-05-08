@@ -76,7 +76,11 @@ class ArraySliceAdapter implements ScalarFunctionAdapter {
         if (operands.size() != 3) {
             // Defensive: unexpected arity. Fall through with BIGINT coercion only — the substrait
             // converter will surface a missing-signature error with a clear message.
-            return rexBuilder.makeCall(original.getType(), original.getOperator(), coerceIndexes(rexBuilder, typeFactory, bigint, operands));
+            return rexBuilder.makeCall(
+                original.getType(),
+                original.getOperator(),
+                coerceIndexes(rexBuilder, typeFactory, bigint, operands)
+            );
         }
         List<RexNode> coerced = coerceIndexes(rexBuilder, typeFactory, bigint, operands);
         RexNode array = coerced.get(0);
@@ -88,7 +92,12 @@ class ArraySliceAdapter implements ScalarFunctionAdapter {
         return rexBuilder.makeCall(original.getType(), original.getOperator(), List.of(array, oneBasedStart, endInclusive));
     }
 
-    private static List<RexNode> coerceIndexes(RexBuilder rexBuilder, RelDataTypeFactory typeFactory, RelDataType bigint, List<RexNode> operands) {
+    private static List<RexNode> coerceIndexes(
+        RexBuilder rexBuilder,
+        RelDataTypeFactory typeFactory,
+        RelDataType bigint,
+        List<RexNode> operands
+    ) {
         List<RexNode> coerced = new ArrayList<>(operands.size());
         for (int i = 0; i < operands.size(); i++) {
             RexNode operand = operands.get(i);
