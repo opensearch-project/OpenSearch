@@ -37,14 +37,22 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.FilterDelegationInstructionNode;
+import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.analytics.spi.FragmentInstructionHandler;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
+import org.opensearch.analytics.spi.ShardScanInstructionNode;
+import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -67,6 +75,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -140,11 +149,11 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         StagePlan plan = leaf.getPlanAlternatives().getFirst();
 
         // Verify delegation happened
-        assertFalse("delegatedQueries should not be empty", plan.delegatedQueries().isEmpty());
-        assertEquals("should have exactly one delegated query", 1, plan.delegatedQueries().size());
+        assertFalse("delegatedExpressions should not be empty", plan.delegatedExpressions().isEmpty());
+        assertEquals("should have exactly one delegated expression", 1, plan.delegatedExpressions().size());
 
         // Deserialize and verify the MatchQueryBuilder
-        byte[] queryBytes = plan.delegatedQueries().values().iterator().next();
+        byte[] queryBytes = plan.delegatedExpressions().getFirst().getExpressionBytes();
         try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(queryBytes), WRITEABLE_REGISTRY)) {
             QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
             assertTrue("Should be MatchQueryBuilder", deserialized instanceof MatchQueryBuilder);
@@ -279,6 +288,45 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
                 @Override
                 public byte[] attachPartialAggOnTop(RelNode partialAggFragment, byte[] innerBytes) {
                     return innerBytes;
+                }
+            };
+        }
+
+        @Override
+        public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
+            return new FragmentInstructionHandlerFactory() {
+                @Override
+                public Optional<InstructionNode> createShardScanNode() {
+                    return Optional.of(new ShardScanInstructionNode());
+                }
+
+                @Override
+                public Optional<InstructionNode> createFilterDelegationNode(
+                    FilterTreeShape treeShape,
+                    int delegatedPredicateCount,
+                    List<DelegatedExpression> delegatedExpressions
+                ) {
+                    return Optional.of(new FilterDelegationInstructionNode(treeShape, delegatedPredicateCount, delegatedExpressions));
+                }
+
+                @Override
+                public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
+                    return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
+                }
+
+                @Override
+                public Optional<InstructionNode> createPartialAggregateNode() {
+                    return Optional.empty();
+                }
+
+                @Override
+                public Optional<InstructionNode> createFinalAggregateNode() {
+                    return Optional.empty();
+                }
+
+                @Override
+                public FragmentInstructionHandler<?> createHandler(InstructionNode node) {
+                    throw new UnsupportedOperationException("mock");
                 }
             };
         }

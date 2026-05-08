@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.CRC32;
 
+import static org.mockito.Mockito.mock;
+
 public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
 
     private Path tempDir;
@@ -966,4 +968,37 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         assertEquals("orc", dataFormatAwareStoreDirectory.getDataFormat("orc/data.orc"));
         assertEquals("custom", dataFormatAwareStoreDirectory.getDataFormat("custom/myfile.dat"));
     }
+
+    public void testAfterSyncToRemoteWithNonRemoteSyncAwareDelegate() {
+        // Default constructor wraps delegate in SubdirectoryAwareDirectory which does NOT
+        // implement RemoteSyncListener → afterSyncToRemote should be a no-op
+        dataFormatAwareStoreDirectory.afterSyncToRemote("_0.cfe");
+        // No exception = pass. The inner SubdirectoryAwareDirectory is not RemoteSyncListener.
+    }
+
+    public void testAfterSyncToRemoteWithRemoteSyncAwareDelegate() {
+        // We need a Directory that is also RemoteSyncListener — use the abstract helper
+        RemoteSyncListenerMockDirectory syncAwareDir = mock(RemoteSyncListenerMockDirectory.class);
+
+        DataFormatAwareStoreDirectory dir = DataFormatAwareStoreDirectory.withDirectoryDelegate(syncAwareDir, shardPath, Map.of());
+        dir.afterSyncToRemote("_0.cfe");
+        org.mockito.Mockito.verify(syncAwareDir).afterSyncToRemote("_0.cfe");
+    }
+
+    public void testDirectDelegateConstructorDoesNotDoubleWrap() throws IOException {
+        // withDirectDelegate should use the delegate as-is
+        SubdirectoryAwareDirectory subdirAware = new SubdirectoryAwareDirectory(fsDirectory, shardPath);
+        DataFormatAwareStoreDirectory dir = DataFormatAwareStoreDirectory.withDirectoryDelegate(subdirAware, shardPath, Map.of());
+
+        // The delegate should be the SubdirectoryAwareDirectory directly, not wrapped again
+        org.apache.lucene.store.Directory delegate = org.apache.lucene.store.FilterDirectory.unwrap(dir);
+        // unwrap goes all the way to the leaf — should be FSDirectory
+        assertTrue("Leaf should be FSDirectory", delegate instanceof FSDirectory);
+        dir.close();
+    }
+
+    /**
+     * Helper interface for mocking a Directory that also implements RemoteSyncListener.
+     */
+    abstract static class RemoteSyncListenerMockDirectory extends org.apache.lucene.store.Directory implements RemoteSyncListener {}
 }

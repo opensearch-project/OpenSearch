@@ -44,18 +44,22 @@ use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
-use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
+use datafusion::execution::memory_pool::TrackConsumersPool;
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
+use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
-use datafusion::execution::SessionStateBuilder;
+use datafusion::execution::{SessionState, SessionStateBuilder};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
 
+use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
+use crate::custom_cache_manager::CustomCacheManager;
 use crate::local_executor::LocalSession;
+use crate::memory::{DynamicLimitHandle, DynamicLimitPool};
 use crate::partition_stream::PartitionStreamSender;
-use crate::query_memory_pool_tracker::QueryTrackingContext;
+use crate::query_tracker::{self, QueryTrackingContext};
 use crate::runtime_manager::RuntimeManager;
 
 /// Bundles a stream with its query tracking context so that dropping the
@@ -65,6 +69,10 @@ pub struct QueryStreamHandle {
     /// Held for its `Drop` impl — marks the query completed when the
     /// stream is closed.
     _query_tracking_context: QueryTrackingContext,
+    /// Keeps the SessionContext alive while the stream is being consumed.
+    /// The physical plan may reference state (e.g. RuntimeEnv, caches) owned
+    /// by the session; dropping it prematurely causes use-after-free.
+    _session_ctx: Option<datafusion::prelude::SessionContext>,
 }
 
 impl QueryStreamHandle {
@@ -75,6 +83,19 @@ impl QueryStreamHandle {
         Self {
             stream,
             _query_tracking_context: query_context,
+            _session_ctx: None,
+        }
+    }
+
+    pub fn with_session_context(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        ctx: datafusion::prelude::SessionContext,
+    ) -> Self {
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: Some(ctx),
         }
     }
 }
@@ -105,9 +126,12 @@ pub async fn create_object_metas(
 }
 
 /// Opaque runtime handle returned to the caller.
-/// Contains the DataFusion RuntimeEnv (memory pool, disk spill, cache).
+/// Contains the DataFusion RuntimeEnv (memory pool, disk spill, cache)
+/// and a handle to change the memory pool limit at runtime.
 pub struct DataFusionRuntime {
     pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
+    pub custom_cache_manager: Option<CustomCacheManager>,
+    pub(crate) dynamic_limit_handle: DynamicLimitHandle,
 }
 
 /// Opaque shard view handle returned to the caller.
@@ -122,24 +146,47 @@ pub struct ShardView {
 /// Caller must call `close_global_runtime` exactly once to free it.
 pub fn create_global_runtime(
     memory_pool_limit: i64,
+    cache_manager_ptr: i64,
     spill_dir: &str,
     spill_limit: i64,
 ) -> Result<i64, DataFusionError> {
+    if memory_pool_limit < 0 {
+        return Err(DataFusionError::Configuration(format!(
+            "memory_pool_limit must be non-negative, got {}",
+            memory_pool_limit
+        )));
+    }
+    if spill_limit < 0 {
+        return Err(DataFusionError::Configuration(format!(
+            "spill_limit must be non-negative, got {}",
+            spill_limit
+        )));
+    }
+
     let disk_manager = DiskManagerBuilder::default()
         .with_max_temp_directory_size(spill_limit as u64)
         .with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
 
+    let (dynamic_pool, dynamic_limit_handle) = DynamicLimitPool::new(memory_pool_limit as usize);
     let memory_pool = Arc::new(TrackConsumersPool::new(
-        GreedyMemoryPool::new(memory_pool_limit as usize),
+        dynamic_pool,
         NonZeroUsize::new(5).unwrap(),
     ));
+
+    let (cache_manager_config, custom_cache_manager) = if cache_manager_ptr != 0 {
+        let mgr = unsafe { *Box::from_raw(cache_manager_ptr as *mut CustomCacheManager) };
+        (mgr.build_cache_manager_config(), Some(mgr))
+    } else {
+        (CacheManagerConfig::default(), None)
+    };
 
     let runtime_env = RuntimeEnvBuilder::new()
         .with_memory_pool(memory_pool)
         .with_disk_manager_builder(disk_manager)
+        .with_cache_manager(cache_manager_config)
         .build()?;
 
-    let runtime = DataFusionRuntime { runtime_env };
+    let runtime = DataFusionRuntime { runtime_env, custom_cache_manager, dynamic_limit_handle };
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
 
@@ -151,6 +198,40 @@ pub unsafe fn close_global_runtime(ptr: i64) {
     if ptr != 0 {
         let _ = Box::from_raw(ptr as *mut DataFusionRuntime);
     }
+}
+
+// ---- Memory pool observability and dynamic limit ----
+
+/// Returns the current memory pool usage in bytes.
+///
+/// # Safety
+/// `ptr` must be a valid pointer returned by `create_global_runtime`.
+pub unsafe fn get_memory_pool_usage(ptr: i64) -> i64 {
+    let runtime = &*(ptr as *const DataFusionRuntime);
+    runtime.runtime_env.memory_pool.reserved() as i64
+}
+
+/// Returns the current memory pool limit in bytes.
+///
+/// # Safety
+/// `ptr` must be a valid pointer returned by `create_global_runtime`.
+pub unsafe fn get_memory_pool_limit(ptr: i64) -> i64 {
+    let runtime = &*(ptr as *const DataFusionRuntime);
+    runtime.dynamic_limit_handle.limit() as i64
+}
+
+/// Sets the memory pool limit at runtime. Takes effect for new allocations only.
+/// Returns an error if `new_limit` is negative.
+///
+/// # Safety
+/// `ptr` must be a valid pointer returned by `create_global_runtime`.
+pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), String> {
+    if new_limit < 0 {
+        return Err(format!("Memory pool limit must be non-negative, got {}", new_limit));
+    }
+    let runtime = &*(ptr as *const DataFusionRuntime);
+    runtime.dynamic_limit_handle.set_limit(new_limit as usize);
+    Ok(())
 }
 
 /// Creates a native reader (ShardView) for the given path and files.
@@ -196,6 +277,8 @@ pub unsafe fn close_reader(ptr: i64) {
 
 /// Executes a query. Returns a heap-allocated pointer (as i64) to the result stream.
 /// Caller must call `stream_close` exactly once to free it.
+/// If `context_id != 0`, registers a cancellation token in ACTIVE_QUERIES before
+/// execution so `cancel_query()` can interrupt it even during planning.
 ///
 /// This is an async function — the bridge layer decides how to run it
 /// (`block_on` for synchronous delivery, `spawn` for async delivery).
@@ -227,32 +310,39 @@ pub async unsafe fn execute_query(
     // index_filter(bytes) calls. Cheap — just bytes inspection.
     let is_indexed = plan_bytes_mentions_index_filter(plan_bytes);
 
-    let stream_ptr = if is_indexed {
-        let qc = Arc::new(query_config);
-        crate::indexed_executor::execute_indexed_query(
-            plan_bytes.to_vec(),
-            table_name.to_string(),
-            shard_view,
-            qc.target_partitions.max(1),
-            runtime,
-            cpu_executor,
-            query_memory_pool,
-            qc,
-        )
-        .await?
-    } else {
-        crate::query_executor::execute_query(
-            shard_view.table_path.clone(),
-            shard_view.object_metas.clone(),
-            table_name.to_string(),
-            plan_bytes.to_vec(),
-            runtime,
-            cpu_executor,
-            query_memory_pool,
-            &query_config,
-        )
-        .await?
+    // Register cancellation token.
+    let token = query_tracker::get_cancellation_token(context_id);
+
+    let query_future = async {
+        if is_indexed {
+            let qc = Arc::new(query_config);
+            crate::indexed_executor::execute_indexed_query(
+                plan_bytes.to_vec(),
+                table_name.to_string(),
+                shard_view,
+                qc.target_partitions.max(1),
+                runtime,
+                cpu_executor,
+                query_memory_pool,
+                qc,
+            ).await
+        } else {
+            crate::query_executor::execute_query(
+                shard_view.table_path.clone(),
+                shard_view.object_metas.clone(),
+                table_name.to_string(),
+                plan_bytes.to_vec(),
+                runtime,
+                cpu_executor,
+                query_memory_pool,
+                &query_config,
+            ).await
+        }
     };
+
+    let stream_ptr = cancellation::cancellable(token.as_ref(), context_id, query_future)
+        .await
+        .map_err(|e| DataFusionError::Execution(e))?;
 
     // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
@@ -293,7 +383,8 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 
 /// Loads the next record batch from the stream.
 ///
-/// Returns a heap-allocated FFI_ArrowArray pointer (as i64), or 0 if end-of-stream.
+/// Returns a heap-allocated FFI_ArrowArray pointer (as i64), or 0 if end-of-stream
+/// or cancelled.
 ///
 /// This is an async function — the bridge layer decides how to run it.
 ///
@@ -302,8 +393,14 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// on the same stream.
 pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
+    let token = query_tracker::get_cancellation_token(handle._query_tracking_context.context_id());
 
-    let result = handle.stream.try_next().await?;
+    let result = cancellation::cancellable_or(
+        token.as_ref(),
+        None,
+        async { handle.stream.try_next().await.map_err(|e: DataFusionError| e) },
+    ).await
+    .map_err(|e| DataFusionError::Execution(e))?;
 
     match result {
         Some(batch) => {
@@ -326,6 +423,12 @@ pub unsafe fn stream_close(stream_ptr: i64) {
         // The context's Drop impl marks the query completed in the registry.
         let _ = Box::from_raw(stream_ptr as *mut QueryStreamHandle);
     }
+}
+
+/// Fires the cancellation token for the given context_id.
+/// No-op for unknown or already-completed queries.
+pub fn cancel_query(context_id: i64) {
+    query_tracker::cancel_query(context_id);
 }
 
 /// Converts SQL to Substrait plan bytes (test only).
@@ -380,6 +483,7 @@ pub unsafe fn sql_to_substrait(
             .with_default_features()
             .build();
         let ctx = datafusion::prelude::SessionContext::new_with_state(state);
+        crate::udf::register_all(&ctx);
 
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
             .with_file_extension(".parquet")
@@ -545,9 +649,14 @@ pub unsafe fn sender_send(
 
     // `from_ffi` takes the array by value (consumes it) and the schema by
     // reference (it is still dropped when `ffi_schema` goes out of scope).
-    let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+    let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
         DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
     })?;
+
+    // Buffers from Java's Flight RPC deserialization may not meet Rust's
+    // native alignment requirements. align_buffers() is a no-op for
+    // already-aligned buffers; only misaligned ones are reallocated.
+    array_data.align_buffers();
 
     let struct_array = StructArray::from(array_data);
     let batch = RecordBatch::from(struct_array);

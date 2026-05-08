@@ -8,10 +8,11 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.SearchExecutionContext;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 
@@ -30,7 +31,8 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     private final NativeRuntimeHandle nativeRuntime;
     private DatafusionQuery datafusionQuery;
     private StreamHandle streamHandle;
-    private SearchShardTask task;
+    private Task task;
+    private SessionContextHandle sessionContextHandle;
 
     /**
      * Creates a DataFusion execution context
@@ -38,7 +40,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
      * @param reader the DataFusion reader providing index data
      * @param nativeRuntime handle to the native DataFusion runtime
      */
-    public DatafusionContext(SearchShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
+    public DatafusionContext(Task task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
         this.task = task;
         this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
         this.nativeRuntime = nativeRuntime;
@@ -52,7 +54,19 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
                 streamHandle = null;
             }
         } finally {
-            engineSearcher.close();
+            try {
+                // Safety net for aborted-search paths: if the SessionContext was created but
+                // executeWithContextAsync never ran (or ran and the context is being closed
+                // without handing off the handle), doClose() calls df_close_session_context.
+                // On the happy path the handle is already marked consumed and this close()
+                // is a no-op.
+                if (sessionContextHandle != null) {
+                    sessionContextHandle.close();
+                    sessionContextHandle = null;
+                }
+            } finally {
+                engineSearcher.close();
+            }
         }
     }
 
@@ -101,12 +115,20 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     }
 
     @Override
-    public SearchShardTask task() {
+    public Task task() {
         return task;
     }
 
     @Override
     public DatafusionSearcher getSearcher() {
         return engineSearcher;
+    }
+
+    public SessionContextHandle getSessionContextHandle() {
+        return sessionContextHandle;
+    }
+
+    public void setSessionContextHandle(SessionContextHandle sessionContextHandle) {
+        this.sessionContextHandle = sessionContextHandle;
     }
 }

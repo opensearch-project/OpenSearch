@@ -18,6 +18,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalSort;
+import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
@@ -207,11 +208,15 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
     /**
      * A final-agg fragment whose leaf is an {@link OpenSearchStageInputScan}
-     * converts to {@code AggregateRel(ReadRel(namedTable=[__stage_<id>_input__]))}.
+     * converts to {@code AggregateRel(ReadRel(namedTable=["input-<childStageId>"]))}.
+     * The stage-input id is per-child so multi-input shapes (Union) get distinct names
+     * for each registered DataFusion partition; single-input shapes still arrive at
+     * the conventional {@code "input-0"} when childStageId is 0.
      */
     public void testConvertFinalAggFragment_WithStageInputScanLeaf() throws Exception {
         RelDataType stageRowType = rowType("A");
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 7, stageRowType, List.of("datafusion"));
+        int childStageId = 7;
+        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), childStageId, stageRowType, List.of("datafusion"));
         LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
 
         byte[] bytes = newConvertor().convertFinalAggFragment(finalAgg);
@@ -227,8 +232,8 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         Rel inner = agg.getInput();
         assertTrue("Aggregate input must be a ReadRel", inner.hasRead());
         assertEquals(
-            "StageInputScan must be emitted as a ReadRel with the stage-input id",
-            List.of(DatafusionReduceSink.INPUT_ID),
+            "StageInputScan must be emitted as a ReadRel with the per-child stage-input id",
+            List.of("input-" + childStageId),
             inner.getRead().getNamedTable().getNamesList()
         );
     }
@@ -242,7 +247,8 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         // Inner: final-agg over stage-input.
         RelDataType stageRowType = rowType("A");
-        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, stageRowType, List.of("datafusion"));
+        int childStageId = 3;
+        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), childStageId, stageRowType, List.of("datafusion"));
         LogicalAggregate finalAgg = buildSumAggregate(stageInput, 0);
         byte[] innerBytes = convertor.convertFinalAggFragment(finalAgg);
 
@@ -264,7 +270,164 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("Sort input must be an AggregateRel", inner.hasAggregate());
         Rel aggInput = inner.getAggregate().getInput();
         assertTrue("Agg input must be a ReadRel", aggInput.hasRead());
-        assertEquals(List.of(DatafusionReduceSink.INPUT_ID), aggInput.getRead().getNamedTable().getNamesList());
+        assertEquals(List.of("input-" + childStageId), aggInput.getRead().getNamedTable().getNamesList());
+    }
+
+    /**
+     * Regression: {@code attachPartialAggOnTop} must populate {@code Plan.Root.names}
+     * with the *wrapper aggregate's* output column names — not the inner scan's.
+     * Using the inner's names causes DataFusion's substrait consumer to fail
+     * {@code make_renamed_schema} with "Names list must match exactly to nested
+     * schema, but found {wrapper-width} uses for {inner-width} names" whenever
+     * the wrapper reshapes the schema (Aggregate, Project, etc).
+     */
+    public void testAttachPartialAggOnTop_PlanRootNamesMatchWrapperOutput() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner scan has 3 columns; the partial-aggregate emits 1 (sum over col 0).
+        RelNode scan = buildTableScan("test_index", "A", "B", "C");
+        byte[] innerBytes = convertor.convertShardScanFragment("test_index", scan);
+        LogicalAggregate partialAgg = buildSumAggregate(scan, 0);
+
+        byte[] combined = convertor.attachPartialAggOnTop(partialAgg, innerBytes);
+
+        Plan plan = decodeSubstrait(combined);
+        List<String> rootNames = plan.getRelations(0).getRoot().getNamesList();
+        assertEquals(
+            "Plan.Root.names must match the wrapper aggregate's output schema (1 column), not the inner scan's (3 columns)",
+            List.of("sum_col"),
+            rootNames
+        );
+    }
+
+    /**
+     * Regression: {@code attachFragmentOnTop} for an Aggregate over a multi-column
+     * inner plan (e.g. Union of two stage-input scans) must populate
+     * {@code Plan.Root.names} with the aggregate's output names. Mirrors the
+     * multisearch coordinator-stage shape {@code Aggregate(Union(StageInputScan,
+     * StageInputScan))}.
+     */
+    public void testAttachFragmentOnTop_AggregateOverMultiColumnInner_PlanRootNamesMatchWrapperOutput() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner: a final-agg fragment whose StageInputScan rowType is intentionally wide
+        // (3 columns). The aggregate above narrows it to 1 column.
+        RelDataType wideStageRowType = rowType("A", "B", "C");
+        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 0, wideStageRowType, List.of("datafusion"));
+        // For this regression, the inner doesn't need to be a final-agg — a bare scan-shaped
+        // plan with 3-column rowType is enough to surface the wrapper-vs-inner names mismatch.
+        // Use convertFinalAggFragment so the inner Plan.Root.names is the 3-column scan list.
+        RelNode innerStageScan = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 0, wideStageRowType, List.of("datafusion"));
+        // Wrap it in a no-op aggregate so the convertor accepts it as a final-agg fragment shape.
+        // The inner's Plan.Root.names then carries the agg-output (1 col, "sum_col"), but the
+        // *wrapper* we attach above has its own output rowType.
+        LogicalAggregate innerFinalAgg = buildSumAggregate(innerStageScan, 0);
+        byte[] innerBytes = convertor.convertFinalAggFragment(innerFinalAgg);
+
+        // Wrapper: a Project that maps the single inner column to two new aliases — this is
+        // the multisearch-style schema reshape that triggered the bug. We model it as another
+        // aggregate over the same input row type to keep the standalone conversion simple.
+        // The wrapper's output rowType has 1 column ("sum_col") which must end up in
+        // Plan.Root.names regardless of what the wide-row stage-input scan above looked like.
+        RelNode placeholderInput = buildTableScan("__placeholder__", "sum_col");
+        LogicalSort sortWrapper = LogicalSort.create(placeholderInput, RelCollations.of(0), null, null);
+
+        byte[] combined = convertor.attachFragmentOnTop(sortWrapper, innerBytes);
+
+        Plan plan = decodeSubstrait(combined);
+        List<String> rootNames = plan.getRelations(0).getRoot().getNamesList();
+        assertEquals(
+            "Plan.Root.names must reflect the Sort wrapper's output (1 column from the inner agg), "
+                + "not be miswritten with a wider list",
+            List.of("sum_col"),
+            rootNames
+        );
+    }
+
+    /**
+     * Mirror of multisearch's coordinator-stage shape:
+     * {@code Sort(Aggregate(Union(StageInputScan, StageInputScan, StageInputScan)))}.
+     * After the convertor chain runs (convertFinalAggFragment(Union) →
+     * attachFragmentOnTop(Aggregate) → attachFragmentOnTop(Sort)), the outermost
+     * {@code Plan.Root.names} must reflect the Sort's output schema (= the
+     * aggregate's 1-column output), not the inner Union's wider row type.
+     * This was the residual failure signature ("2 uses for 6 names") that the
+     * end-to-end IT surfaced even after the initial rewire fix.
+     */
+    public void testMultisearchShape_SortOverAggregateOverThreeWayUnion_PlanRootNamesMatchTopOutput() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner: Union(Sin, Sin, Sin) — three branches, each 6 columns wide.
+        RelDataType branchRowType = rowType("a", "b", "c", "d", "e", "f");
+        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"));
+        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"));
+        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"));
+        LogicalUnion union = LogicalUnion.create(List.of(sin1, sin2, sin3), true);
+        byte[] unionBytes = convertor.convertFinalAggFragment(union);
+
+        // Aggregate over the union: SUM(a) → 1 column output ("sum_col").
+        // attachFragmentOnTop expects the wrapper to carry its real input so the
+        // standalone visitor can derive types; the input is discarded by rewire.
+        LogicalAggregate aggregate = buildSumAggregate(union, 0);
+        byte[] aggBytes = convertor.attachFragmentOnTop(aggregate, unionBytes);
+
+        // Sort over the aggregate: schema-preserving wrapper.
+        LogicalSort sort = LogicalSort.create(aggregate, RelCollations.of(0), null, null);
+        byte[] combinedBytes = convertor.attachFragmentOnTop(sort, aggBytes);
+
+        Plan plan = decodeSubstrait(combinedBytes);
+        List<String> rootNames = plan.getRelations(0).getRoot().getNamesList();
+        assertEquals(
+            "Plan.Root.names must reflect the Sort wrapper's output (= aggregate's 1-column output), "
+                + "not the inner Union's 6-column row type — multisearch ThreeSubsearches regression",
+            List.of("sum_col"),
+            rootNames
+        );
+    }
+
+    /**
+     * Mirror of multisearch's full coordinator-stage shape including the implicit
+     * query-size LIMIT injected by {@code QueryService.convertToCalcitePlan}. The
+     * actual chain is:
+     *   Sort(fetch=N, collation=∅)          // system limit, lowered to a Substrait Fetch
+     *     Sort(collation=byKey, fetch=∅)    // user-level sort, lowered to a Substrait Sort
+     *       Aggregate(...)
+     *         Union(Sin, Sin, Sin)
+     */
+    public void testMultisearchShape_SystemLimitOverSortOverAggregateOverUnion_NamesMatchTopOutput() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner: Union(Sin, Sin, Sin) — 6-column rows.
+        RelDataType branchRowType = rowType("a", "b", "c", "d", "e", "f");
+        RelNode sin1 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, branchRowType, List.of("datafusion"));
+        RelNode sin2 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 2, branchRowType, List.of("datafusion"));
+        RelNode sin3 = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 3, branchRowType, List.of("datafusion"));
+        LogicalUnion union = LogicalUnion.create(List.of(sin1, sin2, sin3), true);
+        byte[] unionBytes = convertor.convertFinalAggFragment(union);
+
+        // Aggregate over the union: SUM(a) → 1 column.
+        LogicalAggregate aggregate = buildSumAggregate(union, 0);
+        byte[] aggBytes = convertor.attachFragmentOnTop(aggregate, unionBytes);
+
+        // User-level Sort by the single agg-output column — schema preserved.
+        LogicalSort userSort = LogicalSort.create(aggregate, RelCollations.of(0), null, null);
+        byte[] userSortBytes = convertor.attachFragmentOnTop(userSort, aggBytes);
+
+        // System limit = LogicalSort with no collation + fetch literal. Lowers to a
+        // Substrait Fetch rel (the convertor handles this in replaceInput).
+        org.apache.calcite.rex.RexNode fetchN = rexBuilder.makeLiteral(100, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        LogicalSort systemLimit = LogicalSort.create(userSort, RelCollations.EMPTY, null, fetchN);
+        byte[] combinedBytes = convertor.attachFragmentOnTop(systemLimit, userSortBytes);
+
+        Plan plan = decodeSubstrait(combinedBytes);
+        List<String> rootNames = plan.getRelations(0).getRoot().getNamesList();
+        assertEquals(
+            "Plan.Root.names must reflect the system-limit Sort wrapper's output (= 1-column aggregate output), "
+                + "not the inner Union's 6-column row type — the implicit limit at the top of every "
+                + "analytics-engine plan must not surface stale inner-plan names.",
+            List.of("sum_col"),
+            rootNames
+        );
     }
 
     /**

@@ -15,13 +15,12 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.cluster.metadata.WorkloadGroup;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WorkloadGroupSearchSettings;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
-
-import java.util.Map;
 
 /**
  * This listener is used to listen for request lifecycle events for a workloadGroup
@@ -73,30 +72,15 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
             return;
         }
 
-        // Loop through WLM group search settings and apply them as needed
-        for (Map.Entry<String, String> entry : workloadGroup.getSearchSettings().entrySet()) {
+        Settings wlmSettings = workloadGroup.getSettings();
+        if (wlmSettings != null && wlmSettings.hasValue(WorkloadGroupSearchSettings.WLM_SEARCH_TIMEOUT.getKey())) {
             try {
-                WorkloadGroupSearchSettings.WlmSearchSetting settingKey = WorkloadGroupSearchSettings.WlmSearchSetting.fromKey(
-                    entry.getKey()
-                );
-                if (settingKey == null) continue;
-
-                switch (settingKey) {
-                    case TIMEOUT:
-                        // Only apply WLM timeout when the request has no explicit timeout
-                        if (searchRequest.source() != null && searchRequest.source().timeout() == null) {
-                            searchRequest.source()
-                                .timeout(
-                                    TimeValue.parseTimeValue(
-                                        entry.getValue(),
-                                        WorkloadGroupSearchSettings.WlmSearchSetting.TIMEOUT.getSettingName()
-                                    )
-                                );
-                        }
-                        break;
+                TimeValue timeout = WorkloadGroupSearchSettings.WLM_SEARCH_TIMEOUT.get(wlmSettings);
+                if (searchRequest.source() != null && searchRequest.source().timeout() == null) {
+                    searchRequest.source().timeout(timeout);
                 }
             } catch (Exception e) {
-                logger.error("Failed to apply workload group setting [{}={}]: {}", entry.getKey(), entry.getValue(), e);
+                logger.error("Failed to apply workload group settings", e);
             }
         }
     }

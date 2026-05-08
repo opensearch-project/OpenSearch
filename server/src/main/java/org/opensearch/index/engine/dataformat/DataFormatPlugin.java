@@ -19,6 +19,17 @@ import java.util.function.Supplier;
  * Plugins implement this to register their data format (e.g., Parquet, Lucene)
  * with the DataFormatRegistry during node bootstrap.
  *
+ * <p>There are two orthogonal pieces a plugin can contribute:
+ * <ul>
+ *   <li>{@link DataFormatDescriptor} via {@link #getFormatDescriptors} —
+ *       <b>describes</b> the format (name, checksum strategy, static
+ *       capabilities). Per-index value data.</li>
+ *   <li>{@link StoreStrategy} via {@link #getStoreStrategies} —
+ *       <b>behavior</b> for how the format participates in the tiered store
+ *       (file ownership, remote layout, optional native registry).</li>
+ * </ul>
+ * A plugin may provide one, both, or neither.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
@@ -32,26 +43,43 @@ public interface DataFormatPlugin {
     DataFormat getDataFormat();
 
     /**
-     * Creates the indexing engine for the data format. This should be instantiated per shard.
-     *
-     * @param settings          the engine initialization settings
-     * @return the indexing execution engine instance
+     * Creates the indexing engine for the data format. This should be
+     * instantiated per shard.
      */
     IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings);
 
     /**
-     * Returns format descriptor suppliers for this plugin, filtered by the given index settings.
-     * Each entry maps a format name to a {@link Supplier} of its {@link DataFormatDescriptor},
-     * deferring descriptor object creation until the descriptor is actually needed.
-     * Callers that only need format names can use {@code keySet()} without triggering creation.
-     *
-     * @param indexSettings the index settings used to determine active formats
-     * @return map of format name to descriptor supplier
+     * Returns format descriptor suppliers for this plugin, filtered by the
+     * given index settings. Each entry maps a format name to a
+     * {@link Supplier} of its {@link DataFormatDescriptor}, deferring
+     * descriptor object creation until the descriptor is actually needed.
+     * Callers that only need format names can use {@code keySet()} without
+     * triggering creation.
      */
     default Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(
         IndexSettings indexSettings,
         DataFormatRegistry dataFormatRegistry
     ) {
+        return Map.of();
+    }
+
+    /**
+     * Returns the strategies describing how this format participates in the tiered store,
+     * keyed by the format name the strategy applies to.
+     *
+     * <p>Most plugins contribute a single entry (their own format). Composite plugins,
+     * which expose multiple formats per index, return one entry per participating format.
+     * A plugin that does not participate in the tiered store returns an empty map (default).
+     *
+     * <p>All cross-cutting work (per-shard lifecycle, seeding, routing, close) is handled
+     * by the store layer. Plugins only declare strategies here.
+     *
+     * @param indexSettings      the index settings
+     * @param dataFormatRegistry the registry, used by composite plugins to resolve
+     *                           sub-format plugins
+     * @return the strategies that apply, keyed by data format; never {@code null}
+     */
+    default Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         return Map.of();
     }
 }

@@ -8,10 +8,13 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Files;
@@ -60,18 +63,17 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
             runtimeHandle.get()
         );
 
-        // Build the plugin-level objects
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait, 0L));
 
         try (
-            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
-                context,
-                () -> new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE)
-            )
+            RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
-            try (EngineResultStream stream = engine.execute(null)) {
+            ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
+            execCtx.setAllocator(alloc);
+            engine.prepare(execCtx);
+            try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(2, rows.size());
                 assertEquals(2L, rows.get(0)[0]); // message
@@ -92,15 +94,15 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait, 0L));
 
         try (
-            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
-                context,
-                () -> new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE)
-            )
+            RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
-            try (EngineResultStream stream = engine.execute(null)) {
+            ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
+            execCtx.setAllocator(alloc);
+            engine.prepare(execCtx);
+            try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(1, rows.size());
                 assertEquals(5L, rows.get(0)[0]); // 2 + 3
@@ -118,15 +120,15 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
         DatafusionReader reader = createReader();
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
-        context.setDatafusionQuery(new DatafusionQuery("test_table", substrait, 0L));
 
         try (
-            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
-                context,
-                () -> new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE)
-            )
+            RootAllocator alloc = new RootAllocator(Long.MAX_VALUE);
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)
         ) {
-            try (EngineResultStream stream = engine.execute(null)) {
+            ShardScanExecutionContext execCtx = createExecutionContext("test_table", substrait, context);
+            execCtx.setAllocator(alloc);
+            engine.prepare(execCtx);
+            try (EngineResultStream stream = engine.execute(execCtx)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(1, rows.size());
                 assertEquals(3L, rows.get(0)[0]);
@@ -135,8 +137,20 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     }
 
     private DatafusionReader createReader() {
-        // Wrap the raw pointer in a ReaderHandle via the existing native pointer
         return new DatafusionReader(readerHandle.getPointer());
+    }
+
+    private ShardScanExecutionContext createExecutionContext(String tableName, byte[] substrait, DatafusionContext dfContext) {
+        ShardScanExecutionContext execCtx = new ShardScanExecutionContext(tableName, null, null);
+        execCtx.setFragmentBytes(substrait);
+        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
+            readerHandle.getPointer(),
+            runtimeHandle.get(),
+            tableName,
+            0L
+        );
+        dfContext.setSessionContextHandle(sessionCtxHandle);
+        return execCtx;
     }
 
     private List<Object[]> collectRows(EngineResultStream stream) {
@@ -144,13 +158,17 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         Iterator<EngineResultBatch> it = stream.iterator();
         while (it.hasNext()) {
             EngineResultBatch batch = it.next();
-            int cols = batch.getFieldNames().size();
-            for (int r = 0; r < batch.getRowCount(); r++) {
-                Object[] row = new Object[cols];
-                for (int c = 0; c < cols; c++) {
-                    row[c] = batch.getFieldValue(batch.getFieldNames().get(c), r);
+            try {
+                int cols = batch.getFieldNames().size();
+                for (int r = 0; r < batch.getRowCount(); r++) {
+                    Object[] row = new Object[cols];
+                    for (int c = 0; c < cols; c++) {
+                        row[c] = batch.getFieldValue(batch.getFieldNames().get(c), r);
+                    }
+                    rows.add(row);
                 }
-                rows.add(row);
+            } finally {
+                batch.getArrowRoot().close();
             }
         }
         return rows;

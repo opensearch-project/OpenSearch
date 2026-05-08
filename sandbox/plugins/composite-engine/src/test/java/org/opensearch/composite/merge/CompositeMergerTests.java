@@ -138,7 +138,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(engineNoSecondary, primaryOnlyFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -221,7 +222,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(multiEngine, multiFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
 
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
@@ -371,7 +373,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(dupEngine, dupFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -565,7 +568,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             new CompositeMerger(compositeEngine, compositeDataFormat),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
-            mock(MergeHandler.MergeListener.class)
+            mock(MergeHandler.MergeListener.class),
+            () -> 1L
         );
     }
 
@@ -578,7 +582,14 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(indexSettings.getMergePolicy(true), SHARD_ID);
-        return new MergeHandler(snapshotSupplier, new CompositeMerger(compositeEngine, compositeDataFormat), SHARD_ID, policy, policy);
+        return new MergeHandler(
+            snapshotSupplier,
+            new CompositeMerger(compositeEngine, compositeDataFormat),
+            SHARD_ID,
+            policy,
+            policy,
+            () -> 1L
+        );
     }
 
     private static DataFormat stubFormat(String name) {

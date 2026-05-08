@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.queue.Lockable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -22,7 +21,7 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface Writer<P extends DocumentInput<?>> extends Closeable, Lockable {
+public interface Writer<P extends DocumentInput<?>> extends Closeable {
 
     /**
      * Adds a document to the writer.

@@ -248,24 +248,20 @@ fn to_engine_tree_large(tree: &LT) -> BoolNode {
     match tree {
         LT::Leaf(l) => match l {
             LLeaf::LBrand(b) => BoolNode::Collector {
-                query_bytes: Arc::from(
-                    &[match *b {
-                        "amazon" => 0u8,
-                        "apple" => 1,
-                        "google" => 2,
-                        "samsung" => 3,
-                        _ => panic!("unknown brand {}", b),
-                    }][..],
-                ),
+                annotation_id: match *b {
+                    "amazon" => 0,
+                    "apple" => 1,
+                    "google" => 2,
+                    "samsung" => 3,
+                    _ => panic!("unknown brand {}", b),
+                },
             },
             LLeaf::LStatus(s) => BoolNode::Collector {
-                query_bytes: Arc::from(
-                    &[match *s {
-                        "active" => 4u8,
-                        "archived" => 5,
-                        _ => panic!("unknown status {}", s),
-                    }][..],
-                ),
+                annotation_id: match *s {
+                    "active" => 4,
+                    "archived" => 5,
+                    _ => panic!("unknown status {}", s),
+                },
             },
             LLeaf::LPriceGe(v) => pred_large_int("price", Operator::GtEq, *v),
             LLeaf::LPriceLt(v) => pred_large_int("price", Operator::Lt, *v),
@@ -292,8 +288,8 @@ fn wire_large_rec(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>
     match node {
         BoolNode::And(cs) | BoolNode::Or(cs) => cs.iter().for_each(|c| wire_large_rec(c, out)),
         BoolNode::Not(inner) => wire_large_rec(inner, out),
-        BoolNode::Collector { query_bytes } => {
-            let tag = query_bytes.first().copied().expect("empty tag bytes");
+        BoolNode::Collector { annotation_id } => {
+            let tag = Some(*annotation_id as u8).expect("empty tag bytes");
             out.push(large_collector_for(tag));
         }
         BoolNode::Predicate(_) => {}
