@@ -190,7 +190,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.CURRENT_TIME,
         ScalarFunction.CURTIME,
         ScalarFunction.CONVERT_TZ,
-        ScalarFunction.UNIX_TIMESTAMP
+        ScalarFunction.UNIX_TIMESTAMP,
         // DATE(expr) / TIME(expr) / MAKETIME(h,m,s) are intentionally not advertised:
         // PPL's Calcite binding for these returns VARCHAR rather than DATE/TIME, so
         // downstream `year(date(ts))` / `hour(maketime(...))` lowers to
@@ -201,6 +201,25 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // and we'd need a dedicated adapter + yaml entry to route it to DataFusion's
         // date_part. Left on legacy engine until that adapter lands; PPL date-part
         // functions cover the same semantics.
+        ScalarFunction.ASCII,
+        ScalarFunction.CONCAT_WS,
+        ScalarFunction.LEFT,
+        ScalarFunction.LENGTH,
+        ScalarFunction.CHAR_LENGTH,
+        ScalarFunction.LOCATE,
+        ScalarFunction.POSITION,
+        ScalarFunction.LOWER,
+        ScalarFunction.LTRIM,
+        ScalarFunction.REVERSE,
+        ScalarFunction.RIGHT,
+        ScalarFunction.RTRIM,
+        ScalarFunction.TRIM,
+        ScalarFunction.SUBSTR,
+        ScalarFunction.UPPER,
+        ScalarFunction.STRCMP,
+        ScalarFunction.TOSTRING,
+        ScalarFunction.NUMBER_TO_STRING,
+        ScalarFunction.TONUMBER
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -309,13 +328,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.HOUR, hour),
                     Map.entry(ScalarFunction.HOUR_OF_DAY, hour),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
+                    Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),
                     Map.entry(ScalarFunction.MICROSECOND, DatePartAdapters.microsecond()),
                     Map.entry(ScalarFunction.MINUTE, minute),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
                     Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
                     Map.entry(ScalarFunction.MONTH, month),
                     Map.entry(ScalarFunction.MONTH_OF_YEAR, month),
+                    Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NOW, now),
+                    Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
@@ -323,7 +345,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
                     Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
+                    Map.entry(ScalarFunction.STRCMP, new StrcmpFunctionAdapter()),
+                    Map.entry(ScalarFunction.SUBSTR, nameMapping(SqlStdOperatorTable.SUBSTRING)),
+                    Map.entry(ScalarFunction.SUBSTRING, nameMapping(SqlStdOperatorTable.SUBSTRING)),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
+                    Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
+                    Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
                     Map.entry(ScalarFunction.WEEK, week),
                     Map.entry(ScalarFunction.WEEK_OF_YEAR, week),

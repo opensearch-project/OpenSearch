@@ -99,6 +99,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
+        FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
+        FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),
+        FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
@@ -110,6 +114,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlLibraryOperators.REVERSE, "reverse"),
+        FunctionMappings.s(PositionAdapter.STRPOS, "strpos"),
+        FunctionMappings.s(ToNumberFunctionAdapter.TONUMBER, "tonumber"),
+        FunctionMappings.s(ToStringFunctionAdapter.TOSTRING, "tostring"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
         FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
         FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),

@@ -113,10 +113,14 @@ pub(crate) fn coerce_args(
 }
 
 pub mod convert_tz;
+pub mod tonumber;
+pub mod tostring;
 
 pub fn register_all(ctx: &SessionContext) {
     convert_tz::register_all(ctx);
-    log::info!("OpenSearch UDF register_all: convert_tz registered");
+    tonumber::register_all(ctx);
+    tostring::register_all(ctx);
+    log::info!("OpenSearch UDF register_all: convert_tz, tonumber, tostring registered");
 }
 
 #[cfg(test)]
