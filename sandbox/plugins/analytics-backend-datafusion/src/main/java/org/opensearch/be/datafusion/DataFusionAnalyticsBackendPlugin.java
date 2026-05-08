@@ -275,7 +275,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.MIN,
         AggregateFunction.MAX,
         AggregateFunction.COUNT,
-        AggregateFunction.AVG
+        AggregateFunction.AVG,
+        AggregateFunction.APPROX_COUNT_DISTINCT
     );
 
     private final DataFusionPlugin plugin;
@@ -339,7 +340,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 Set<AggregateCapability> caps = new HashSet<>();
                 for (AggregateFunction func : AGG_FUNCTIONS) {
                     for (FieldType type : SUPPORTED_FIELD_TYPES) {
-                        caps.add(AggregateCapability.simple(func, Set.of(type), formats));
+                        // 3-arg constructor leaves decomposition=null so the
+                        // AggregateDecompositionResolver falls back to the enum's
+                        // intermediateFields + finalExpression — the single source of truth
+                        // for per-function distributed-execution behavior. Accepts any
+                        // AggregateFunction.Type (SIMPLE, APPROXIMATE, ...), unlike the
+                        // per-type factory methods which assert on Type.
+                        caps.add(new AggregateCapability(func, Set.of(type), formats));
                     }
                 }
                 return Set.copyOf(caps);
