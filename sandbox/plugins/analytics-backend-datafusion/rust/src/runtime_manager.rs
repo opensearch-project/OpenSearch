@@ -11,6 +11,35 @@ use log::info;
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
 
+/// Snapshot of CPU executor contention. All fields are instantaneous — they
+/// represent the state at the moment of the call, not averages.
+#[derive(Debug, Clone, Default)]
+pub struct CpuContention {
+    /// Number of worker threads in the CPU executor.
+    pub num_workers: usize,
+    /// Number of tasks currently alive (spawned but not yet completed).
+    pub alive_tasks: usize,
+    /// Number of tasks waiting in queues (global + all local worker queues).
+    pub queued_tasks: usize,
+}
+
+impl CpuContention {
+    /// Ratio of alive tasks to workers. > 1.0 means tasks are competing for
+    /// CPU time. > 2.0 means significant queuing.
+    pub fn task_per_worker_ratio(&self) -> f64 {
+        if self.num_workers == 0 {
+            return 0.0;
+        }
+        self.alive_tasks as f64 / self.num_workers as f64
+    }
+
+    /// True if the executor is under significant contention (more queued tasks
+    /// than workers available to run them).
+    pub fn is_contended(&self) -> bool {
+        self.queued_tasks > self.num_workers
+    }
+}
+
 // RuntimeManager — owns IO runtime + CPU DedicatedExecutor.
 pub struct RuntimeManager {
     pub io_runtime: Arc<Runtime>,
@@ -52,6 +81,34 @@ impl RuntimeManager {
 
     pub fn cpu_executor(&self) -> DedicatedExecutor {
         self.cpu_executor.clone()
+    }
+
+    /// Returns the number of CPU worker threads configured for this runtime.
+    pub fn cpu_thread_count(&self) -> usize {
+        self.cpu_executor
+            .runtime_metrics()
+            .map(|m| m.num_workers())
+            .unwrap_or(0)
+    }
+
+    /// Snapshot of CPU executor contention state.
+    /// Used by the budget module to decide whether to reduce partitions.
+    pub fn cpu_contention(&self) -> CpuContention {
+        let Some(metrics) = self.cpu_executor.runtime_metrics() else {
+            return CpuContention::default();
+        };
+        let num_workers = metrics.num_workers();
+        let alive_tasks = metrics.num_alive_tasks();
+        let global_queue = metrics.global_queue_depth();
+        let local_queue_total: usize = (0..num_workers)
+            .map(|w| metrics.worker_local_queue_depth(w))
+            .sum();
+
+        CpuContention {
+            num_workers,
+            alive_tasks,
+            queued_tasks: global_queue + local_queue_total,
+        }
     }
 
     pub fn shutdown(&self) {

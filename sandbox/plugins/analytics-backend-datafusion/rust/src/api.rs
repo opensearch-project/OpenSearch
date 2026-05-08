@@ -288,25 +288,29 @@ pub async unsafe fn execute_query(
         .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
 
-    // Acquire a memory budget: reserves phantom capacity from the pool for
-    // untracked memory (in-flight batches, decode buffers, channel buffers).
-    // If the pool is under pressure, this adaptively reduces target_partitions
-    // and/or batch_size. Operators sharing the same pool will see reduced
-    // headroom and spill to disk earlier — keeping total RSS bounded.
+    // ─── Step 1: Cap partitions based on CPU executor contention ───
+    // If the CPU executor already has more queued tasks than workers, adding
+    // more partition tasks just increases queueing latency without improving
+    // throughput. Scale down to spare capacity.
+    let cpu_capped_partitions = crate::query_memory_budget::cap_partitions_for_cpu(
+        query_config.target_partitions,
+        &manager.cpu_contention(),
+    );
+
+    // ─── Step 2: Acquire memory budget (may further reduce partitions) ───
+    // Reserves phantom capacity from the pool for untracked memory. If the pool
+    // is under pressure, adaptively reduces target_partitions and/or batch_size.
     //
     // Best-effort: only enforces budget if the schema is already cached (zero
-    // I/O). If not cached, runs at full configured parallelism — the schema
-    // will be cached after the first query, so subsequent queries benefit.
+    // I/O). If not cached, runs at CPU-capped parallelism.
     let (effective_target_partitions, effective_batch_size) =
         match try_schema_from_cache(shard_view, &runtime.runtime_env) {
             Some(cached) => {
-                // Use measured row bytes from parquet metadata (tight estimate)
-                // instead of static type-based guesses (2-3× over-estimate).
                 let budget_result = crate::query_memory_budget::acquire_budget_from_metadata(
                     &global_pool,
                     &cached.schema,
                     &cached.metadata,
-                    query_config.target_partitions,
+                    cpu_capped_partitions,
                     query_config.batch_size,
                 );
                 match budget_result {
@@ -317,14 +321,12 @@ pub async unsafe fn execute_query(
                         (tp, bs)
                     }
                     Err(_) => {
-                        // Pool fully exhausted — run at minimum parallelism as best effort
                         (1, query_config.batch_size)
                     }
                 }
             }
             None => {
-                // Schema not cached — skip budget enforcement, run at full config
-                (query_config.target_partitions, query_config.batch_size)
+                (cpu_capped_partitions, query_config.batch_size)
             }
         };
 

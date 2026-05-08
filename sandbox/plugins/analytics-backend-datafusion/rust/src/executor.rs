@@ -143,6 +143,12 @@ impl DedicatedExecutor {
         .boxed()
     }
 
+    /// Returns the tokio RuntimeMetrics for the CPU executor, or None if shut down.
+    pub fn runtime_metrics(&self) -> Option<tokio::runtime::RuntimeMetrics> {
+        let state = self.state.read();
+        state.handle.as_ref().map(|h| h.metrics())
+    }
+
     pub fn join_blocking(&self) {
         self.shutdown();
         let thread_handle = {

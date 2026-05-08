@@ -62,6 +62,8 @@ use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation};
 use parquet::file::metadata::ParquetMetaData;
 
+use crate::runtime_manager::CpuContention;
+
 /// How many batch-sized buffers exist per partition in the pipeline.
 ///
 /// Derived from the execution pipeline:
@@ -83,6 +85,29 @@ const MIN_BATCH_SIZE: usize = 1024;
 
 /// Minimum target_partitions floor.
 const MIN_TARGET_PARTITIONS: usize = 1;
+
+/// Cap `target_partitions` based on current CPU executor contention.
+///
+/// When the executor is idle or lightly loaded, returns the configured value
+/// unchanged. When contended (queued tasks > workers), scales down so this
+/// query doesn't add more tasks than the executor can service without queuing.
+///
+/// Formula: `min(configured, max(1, workers - alive_tasks))`
+///
+/// This doesn't reduce below 1 and only activates when there's actual queuing.
+/// Zero-cost when the executor is idle (most common case).
+pub fn cap_partitions_for_cpu(
+    configured_target_partitions: usize,
+    contention: &CpuContention,
+) -> usize {
+    if !contention.is_contended() {
+        return configured_target_partitions;
+    }
+    // How many more tasks can the executor absorb without increasing queue depth?
+    let spare_capacity = contention.num_workers.saturating_sub(contention.alive_tasks);
+    let capped = spare_capacity.max(MIN_TARGET_PARTITIONS);
+    capped.min(configured_target_partitions)
+}
 
 /// Computed budget for a query. Carries the phantom reservation that must be
 /// held for the query's lifetime.
