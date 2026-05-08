@@ -142,6 +142,15 @@ public final class RowResponseCodec implements ResponseCodec<FragmentExecutionRe
         if (value instanceof Byte) return new ArrowType.Int(8, true);
         if (value instanceof Double) return new ArrowType.FloatingPoint(org.apache.arrow.vector.types.FloatingPointPrecision.DOUBLE);
         if (value instanceof Float) return new ArrowType.FloatingPoint(org.apache.arrow.vector.types.FloatingPointPrecision.SINGLE);
+        // BigDecimal must be checked before the Number fallback below — a BigDecimal that
+        // would round to a long but actually carries fractional precision (e.g. PPL
+        // {@code array(1, -1.5)} where the common element type is DECIMAL and
+        // {@code ArrayImplementor.internalCast} produces BigDecimal cells) would otherwise
+        // get encoded as an integer Arrow vector and lose its fractional digits. Promote to
+        // DOUBLE — the same path the v2 engine takes for decimal-typed PPL results.
+        if (value instanceof java.math.BigDecimal) return new ArrowType.FloatingPoint(
+            org.apache.arrow.vector.types.FloatingPointPrecision.DOUBLE
+        );
         if (value instanceof Boolean) return ArrowType.Bool.INSTANCE;
         if (value instanceof CharSequence) return ArrowType.Utf8.INSTANCE;
         if (value instanceof byte[]) return ArrowType.Binary.INSTANCE;
