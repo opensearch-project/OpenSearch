@@ -104,7 +104,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             weightsByProviderKey.put(providerKey, weight);
             return providerKey;
         } catch (IOException exception) {
-            LOGGER.error("createProvider failed for annotationId={}", annotationId, exception);
+            LOGGER.error("createProvider failed for annotationId=" + annotationId, exception);
             return -1;
         }
     }
@@ -123,7 +123,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             scorersByCollectorKey.put(collectorKey, new ScorerHandle(scorer, minDoc, maxDoc));
             return collectorKey;
         } catch (IOException exception) {
-            LOGGER.error("createCollector failed for providerKey={}, seg={}", providerKey, segmentOrd, exception);
+            LOGGER.error("createCollector failed for providerKey=" + providerKey + ", seg=" + segmentOrd, exception);
             return -1;
         }
     }

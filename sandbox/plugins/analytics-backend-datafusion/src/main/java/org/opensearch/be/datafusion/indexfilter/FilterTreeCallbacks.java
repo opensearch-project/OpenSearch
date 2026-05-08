@@ -60,7 +60,7 @@ public final class FilterTreeCallbacks {
             }
             return handle.createProvider(annotationId);
         } catch (Throwable throwable) {
-            LOGGER.error("createProvider failed for annotationId={}", annotationId, throwable);
+            LOGGER.error("createProvider failed for annotationId=" + annotationId, throwable);
             return -1;
         }
     }
