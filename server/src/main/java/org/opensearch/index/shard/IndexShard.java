@@ -5984,7 +5984,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (indexSettings.isPluggableDataFormatEnabled()) {
                 DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(localDirectory);
                 if (dfasd != null) {
-                    localChecksum = Long.parseLong(dfasd.calculateUploadChecksum(file));
+                    try {
+                        localChecksum = Long.parseLong(dfasd.calculateUploadChecksum(file));
+                    } catch (NumberFormatException e) {
+                        logger.warn("Invalid checksum format for file [{}]: {}", file, e.getMessage());
+                        return false;
+                    }
                 } else {
                     localChecksum = CodecUtil.retrieveChecksum(indexInput);
                 }

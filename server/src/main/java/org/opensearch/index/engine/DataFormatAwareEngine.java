@@ -499,7 +499,7 @@ public class DataFormatAwareEngine implements Indexer {
         assert (index.origin() == Engine.Operation.Origin.PRIMARY
             || index.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY
             || index.origin() == Engine.Operation.Origin.LOCAL_RESET)
-            : "DataFormatAwareEngine only supports PRIMARY or recovery origins but got: " + index.origin();
+            : "DataFormatAwareEngine only supports PRIMARY, LOCAL_TRANSLOG_RECOVERY, or LOCAL_RESET origins but got: " + index.origin();
         final boolean doThrottle = index.origin().isRecovery() == false;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();

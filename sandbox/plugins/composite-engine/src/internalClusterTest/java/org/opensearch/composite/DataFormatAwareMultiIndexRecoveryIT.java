@@ -13,6 +13,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.InternalTestCluster;
@@ -56,7 +57,7 @@ public class DataFormatAwareMultiIndexRecoveryIT extends DataFormatAwareReplicat
 
         // Restart one data node — forces recovery of all shards on that node
         internalCluster().restartNode(dataNode1);
-        ensureGreen(INDEX_NAME, index2, index3);
+        ensureGreen(TimeValue.timeValueSeconds(90), INDEX_NAME, index2, index3);
 
         // Flush to ensure any new generation files are uploaded to remote store
         client().admin().indices().prepareFlush(INDEX_NAME, index2, index3).get();

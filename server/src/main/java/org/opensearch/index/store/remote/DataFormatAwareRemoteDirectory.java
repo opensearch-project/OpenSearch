@@ -318,12 +318,22 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
 
     @Override
     public void delete() throws IOException {
-        // Delete all format-specific containers
+        // Delete all format-specific containers. Each container may be at a separate path
+        // (e.g., sibling of base), and may already have been removed by a concurrent cleanup,
+        // so tolerate NoSuchFileException.
         for (String format : formatBlobRouter.registeredFormats()) {
-            formatBlobRouter.containerFor(format).delete();
+            try {
+                formatBlobRouter.containerFor(format).delete();
+            } catch (java.nio.file.NoSuchFileException ignored) {
+                // already deleted — nothing to do
+            }
         }
         // Also delete the base container (inherited from RemoteDirectory)
-        super.delete();
+        try {
+            super.delete();
+        } catch (java.nio.file.NoSuchFileException ignored) {
+            // already deleted
+        }
         logger.debug("Deleted all containers from DataFormatAwareRemoteDirectory");
     }
 
