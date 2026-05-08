@@ -76,6 +76,7 @@ public class Agent {
     private static AgentBuilder createAgentBuilder() throws Exception {
         final Junction<TypeDescription> socketType = ElementMatchers.nameStartsWith(Socket.class.getPackageName() + ".")
             .or(ElementMatchers.nameStartsWith("sun.nio.ch."))
+            .or(ElementMatchers.nameStartsWith("sun.security.ssl."))
             .and(ElementMatchers.isSubTypeOf(SocketChannel.class).or(ElementMatchers.isSubTypeOf(Socket.class)));
         final Junction<TypeDescription> pathType = ElementMatchers.named(Files.class.getName());
         final Junction<TypeDescription> fileChannelType = ElementMatchers.nameStartsWith(FileChannel.class.getPackageName() + ".")
