@@ -7,6 +7,7 @@
  */
 
 import org.gradle.api.publish.plugins.PublishingPlugin
+import org.opensearch.gradle.VersionProperties
 
 /**
  * This module provides a space in OpenSearch for the community to easily experiment with new ideas and innovate.
@@ -32,8 +33,32 @@ import org.gradle.api.publish.plugins.PublishingPlugin
  */
 def sandboxEnabled = System.getProperty("sandbox.enabled", "false") == "true"
 
+// Patched Calcite coordinate, composed from libs.versions.toml keys.
+// Pinned here once so every sandbox subproject can resolve it without
+// duplicating the repo + force declaration.
+def libVersions = VersionProperties.getVersions()
+def patchedCalciteVersion = "${libVersions['calcite']}-opensearch-${libVersions['calcite_os_rev']}"
+
 subprojects {
   group = 'org.opensearch.sandbox'
+
+  // The patched calcite-core / calcite-linq4j live in the OpenSearch
+  // snapshots Maven repo; analytics-framework advertises them as `api`,
+  // so every consumer of analytics-framework needs both the repo and a
+  // `force` to win over transitive vanilla calcite
+  repositories {
+    maven {
+      name = 'OpenSearch Snapshots'
+      url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+    }
+  }
+
+  configurations.all {
+    resolutionStrategy {
+      force "org.apache.calcite:calcite-core:${patchedCalciteVersion}"
+      force "org.apache.calcite:calcite-linq4j:${patchedCalciteVersion}"
+    }
+  }
 
   if (sandboxEnabled == false) {
     afterEvaluate {
