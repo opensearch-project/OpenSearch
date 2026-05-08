@@ -13,10 +13,13 @@ import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.ProjectCapability;
@@ -25,6 +28,7 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
+import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
 import java.util.HashSet;
@@ -155,6 +159,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             }
 
             @Override
+            public Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
             public Set<ScanCapability> scanCapabilities() {
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
                 return Set.of(new ScanCapability.DocValues(formats, Set.copyOf(SUPPORTED_FIELD_TYPES)));
@@ -281,5 +290,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             }
             return new DatafusionReduceSink(ctx, svc.getNativeRuntime());
         };
+    }
+
+    @Override
+    public void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
+        // Install the handle as the FFM upcall target. All Rust callbacks
+        // (createProvider, createCollector, collectDocs, release*) route to it.
+        FilterTreeCallbacks.setHandle(handle);
     }
 }

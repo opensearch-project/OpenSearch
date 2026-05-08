@@ -12,34 +12,29 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
- * Instruction node for filter delegation to an index backend.
- * Carries the tree shape, predicate count, and serialized delegated queries.
+ * Instruction node for shard scan with filter delegation — extends base shard scan
+ * with {@link FilterTreeShape} and delegated predicate count so the driving backend
+ * can configure its indexed execution path (UDF registration, IndexedTableProvider)
+ * in a single FFM call.
  *
  * @opensearch.internal
  */
-public class FilterDelegationInstructionNode implements InstructionNode {
+public class ShardScanWithDelegationInstructionNode extends ShardScanInstructionNode {
 
     private final FilterTreeShape treeShape;
     private final int delegatedPredicateCount;
-    private final List<DelegatedExpression> delegatedQueries;
 
-    public FilterDelegationInstructionNode(
-        FilterTreeShape treeShape,
-        int delegatedPredicateCount,
-        List<DelegatedExpression> delegatedQueries
-    ) {
+    public ShardScanWithDelegationInstructionNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
         this.treeShape = treeShape;
         this.delegatedPredicateCount = delegatedPredicateCount;
-        this.delegatedQueries = delegatedQueries;
     }
 
-    public FilterDelegationInstructionNode(StreamInput in) throws IOException {
+    public ShardScanWithDelegationInstructionNode(StreamInput in) throws IOException {
+        super(in);
         this.treeShape = in.readEnum(FilterTreeShape.class);
-        this.delegatedPredicateCount = in.readInt();
-        this.delegatedQueries = in.readList(DelegatedExpression::new);
+        this.delegatedPredicateCount = in.readVInt();
     }
 
     @Override
@@ -49,9 +44,9 @@ public class FilterDelegationInstructionNode implements InstructionNode {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeEnum(treeShape);
-        out.writeInt(delegatedPredicateCount);
-        out.writeCollection(delegatedQueries);
+        out.writeVInt(delegatedPredicateCount);
     }
 
     public FilterTreeShape getTreeShape() {
@@ -60,9 +55,5 @@ public class FilterDelegationInstructionNode implements InstructionNode {
 
     public int getDelegatedPredicateCount() {
         return delegatedPredicateCount;
-    }
-
-    public List<DelegatedExpression> getDelegatedQueries() {
-        return delegatedQueries;
     }
 }
