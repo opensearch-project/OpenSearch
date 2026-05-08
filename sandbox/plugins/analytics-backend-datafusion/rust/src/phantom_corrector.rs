@@ -76,6 +76,30 @@ impl PhantomCorrector {
         }
     }
 
+    /// Create a corrector pre-seeded with measured batch bytes from cached
+    /// parquet metadata. Skips the warmup phase since the EMA starts at
+    /// the measured value — corrections begin from the first batch if
+    /// actual sizes deviate from the cached measurement.
+    ///
+    /// Use this when `estimate_row_bytes_from_metadata` produced the initial
+    /// phantom estimate. The corrector's EMA is seeded with the same value,
+    /// so it only corrects if runtime batches differ from what metadata predicted.
+    pub fn new_from_metadata(
+        initial_phantom_bytes: usize,
+        measured_batch_bytes: usize,
+        batches_in_pipeline: usize,
+    ) -> Self {
+        Self {
+            batches_in_pipeline,
+            estimated_batch_bytes: measured_batch_bytes,
+            ema_batch_bytes_x1000: AtomicU64::new((measured_batch_bytes as u64) * 1000),
+            // Pre-warmed: skip warmup since we trust metadata-derived estimate
+            batches_observed: AtomicUsize::new(WARMUP_BATCHES),
+            pending_delta: AtomicI64::new(0),
+            current_phantom_bytes: AtomicI64::new(initial_phantom_bytes as i64),
+        }
+    }
+
     /// Called per-batch from `CrossRtStream::poll_next`. Observes the actual
     /// batch memory size and periodically computes a correction delta.
     ///
