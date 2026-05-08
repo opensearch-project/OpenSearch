@@ -67,6 +67,33 @@ public class KafkaPartitionOffset extends KafkaOffset implements SourcePartition
         this.partition = partition;
     }
 
+    /**
+     * Parses a {@code "partition:offset"} string (e.g., {@code "3:42"}) into a
+     * {@link KafkaPartitionOffset}. Inverse of {@link #asString()}.
+     *
+     * @param s the {@code "partition:offset"} string
+     * @return the parsed {@link KafkaPartitionOffset}
+     * @throws IllegalArgumentException if {@code s} is not exactly two non-empty parts separated
+     *                                  by {@code ":"}, or if either part is not a valid number
+     */
+    public static KafkaPartitionOffset parse(String s) {
+        // split(":", -1) preserves trailing empty fields so "3:" yields ["3", ""] (length 2)
+        String[] parts = s.split(":", -1);
+        if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty()) {
+            throw new IllegalArgumentException(
+                "Invalid multi-partition pointer format. Expected 'partition:offset' (e.g., '3:42'), got: " + s
+            );
+        }
+        try {
+            return new KafkaPartitionOffset(Integer.parseInt(parts[0]), Long.parseLong(parts[1]));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "Invalid multi-partition pointer format. Expected numeric 'partition:offset' (e.g., '3:42'), got: " + s,
+                e
+            );
+        }
+    }
+
     @Override
     public int getSourcePartition() {
         return partition;

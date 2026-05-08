@@ -174,16 +174,10 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
         // and "3:" used to throw a cryptic ArrayIndexOutOfBoundsException.
         KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
 
-        IllegalArgumentException tooManyParts = expectThrows(
-            IllegalArgumentException.class,
-            () -> consumer.pointerFromOffset("3:42:99")
-        );
+        IllegalArgumentException tooManyParts = expectThrows(IllegalArgumentException.class, () -> consumer.pointerFromOffset("3:42:99"));
         assertTrue(tooManyParts.getMessage().contains("partition:offset"));
 
-        IllegalArgumentException emptyPartition = expectThrows(
-            IllegalArgumentException.class,
-            () -> consumer.pointerFromOffset(":42")
-        );
+        IllegalArgumentException emptyPartition = expectThrows(IllegalArgumentException.class, () -> consumer.pointerFromOffset(":42"));
         assertTrue(emptyPartition.getMessage().contains("partition:offset"));
 
         IllegalArgumentException emptyOffset = expectThrows(IllegalArgumentException.class, () -> consumer.pointerFromOffset("3:"));
@@ -290,6 +284,79 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
         // Lag: (100 - 90 - 1) + (100 - 80 - 1) = 9 + 19 = 28
         long lag = consumer.getPointerBasedLag(new KafkaPartitionOffset(0, 0));
         assertEquals(28, lag);
+    }
+
+    public void testGetPointerBasedLagBeforeAnyFetchUsesMatchingExpectedStartPointer() {
+        // No prior poll → lastFetchedOffsets is empty for both assigned partitions. The
+        // expectedStartPointer (KafkaPartitionOffset for partition 4) should be used as the
+        // start for partition 4 only; partition 0 has no matching expected start so falls
+        // through to "full lag = endOffset".
+        KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
+        TopicPartition tp0 = new TopicPartition(TOPIC, 0);
+        TopicPartition tp4 = new TopicPartition(TOPIC, 4);
+        Map<TopicPartition, Long> endOffsets = Map.of(tp0, 50L, tp4, 200L);
+        when(mockConsumer.endOffsets(anyCollection())).thenReturn(endOffsets);
+
+        // Expected start for partition 4 only at offset 100. Partition 0 has no expected start.
+        long lag = consumer.getPointerBasedLag(new KafkaPartitionOffset(4, 100));
+
+        // p0: no lastFetched + expectedStartPointer doesn't match (it's for p4) → use endOffset = 50
+        // p4: no lastFetched + expectedStartPointer matches → endOffset - startOffset = 200 - 100 = 100
+        // Total: 150
+        assertEquals(150, lag);
+    }
+
+    public void testGetPointerBasedLagWithLegacyKafkaOffsetExpectedStartFallsThroughToEndOffset() {
+        // expectedStartPointer is a plain KafkaOffset (not partition-aware). The instanceof
+        // KafkaPartitionOffset check fails for every partition, so each unfetched partition
+        // falls through to "full lag = endOffset". The legacy pointer is effectively ignored
+        // — documented best-effort behavior for mismatched pointer types.
+        KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
+        TopicPartition tp0 = new TopicPartition(TOPIC, 0);
+        TopicPartition tp4 = new TopicPartition(TOPIC, 4);
+        Map<TopicPartition, Long> endOffsets = Map.of(tp0, 50L, tp4, 200L);
+        when(mockConsumer.endOffsets(anyCollection())).thenReturn(endOffsets);
+
+        long lag = consumer.getPointerBasedLag(new KafkaOffset(100));
+
+        // Both partitions: no lastFetched + non-partition-aware expected → endOffset for each
+        // p0: 50, p4: 200, total: 250 (the start offset 100 is ignored — it can't be applied
+        // to any specific partition)
+        assertEquals(250, lag);
+    }
+
+    public void testGetPointerBasedLagMixedFetchedAndUnfetched() throws Exception {
+        // Realistic scenario: one partition has been polled (lastFetched populated), another
+        // hasn't (lastFetched null/missing). The expectedStartPointer covers the unfetched one.
+        KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
+        TopicPartition tp0 = new TopicPartition(TOPIC, 0);
+        TopicPartition tp4 = new TopicPartition(TOPIC, 4);
+
+        // Polling populates lastFetched for partition 0 only (partition 4 has no records).
+        Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> recordMap = new HashMap<>();
+        recordMap.put(tp0, List.of(new ConsumerRecord<>(TOPIC, 0, 30L, null, null)));
+        when(mockConsumer.poll(any())).thenReturn(new ConsumerRecords<>(recordMap));
+        consumer.readNext(100, 1000);
+
+        Map<TopicPartition, Long> endOffsets = Map.of(tp0, 50L, tp4, 200L);
+        when(mockConsumer.endOffsets(anyCollection())).thenReturn(endOffsets);
+
+        // Expected start for partition 4 at offset 150.
+        long lag = consumer.getPointerBasedLag(new KafkaPartitionOffset(4, 150));
+
+        // p0: lastFetched=30 → endOffset - lastFetched - 1 = 50 - 30 - 1 = 19
+        // p4: no lastFetched + expectedStartPointer matches → 200 - 150 = 50
+        // Total: 69
+        assertEquals(69, lag);
+    }
+
+    public void testGetPointerBasedLagReturnsMinusOneOnException() {
+        // endOffsets() throwing should surface as -1, not propagate, per the catch in the method.
+        KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
+        when(mockConsumer.endOffsets(anyCollection())).thenThrow(new RuntimeException("kafka unavailable"));
+
+        long lag = consumer.getPointerBasedLag(new KafkaPartitionOffset(0, 0));
+        assertEquals(-1, lag);
     }
 
     // --- close ---
