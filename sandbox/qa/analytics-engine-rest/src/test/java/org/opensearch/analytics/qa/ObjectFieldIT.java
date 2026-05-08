@@ -65,21 +65,24 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         );
     }
 
-public void testMinOnObjectField() throws IOException {
+    @AwaitsFix(bugUrl = "Requires sql repo fix to CalciteRelNodeVisitor.containsNestedAggregator (try/catch around relBuilder.field)")
+    public void testMinOnObjectField() throws IOException {
         assertRowsEqual(
             "source=" + DATASET.indexName + " | stats min(account.balance)",
             row(300.25)
         );
     }
 
-public void testMaxOnDeeplyNestedObjectField() throws IOException {
+    @AwaitsFix(bugUrl = "Requires sql repo fix to CalciteRelNodeVisitor.containsNestedAggregator (try/catch around relBuilder.field)")
+    public void testMaxOnDeeplyNestedObjectField() throws IOException {
         assertRowsEqual(
             "source=" + DATASET.indexName + " | stats max(city.location.latitude)",
             row(47.6062)
         );
     }
 
-public void testSumOnObjectField() throws IOException {
+    @AwaitsFix(bugUrl = "Requires sql repo fix to CalciteRelNodeVisitor.containsNestedAggregator (try/catch around relBuilder.field)")
+    public void testSumOnObjectField() throws IOException {
         assertRowsEqual(
             "source=" + DATASET.indexName + " | stats sum(city.population)",
             row(2380000)

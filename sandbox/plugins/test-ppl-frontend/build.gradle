@@ -18,7 +18,7 @@ apply plugin: 'opensearch.opensearchplugin'
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 // SQL Unified Query API version (aligned with OpenSearch build version)
-def sqlUnifiedQueryVersion = '3.7.0.0-SNAPSHOT'
+def sqlUnifiedQueryVersion = '3.6.0.0-SNAPSHOT'
 
 opensearchplugin {
   description = 'Test PPL front-end: REST endpoint backed by the unified PPL pipeline.'
