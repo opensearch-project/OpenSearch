@@ -8,7 +8,15 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.arrow.vector.types.FloatingPointPrecision;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+
+import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * Aggregate functions that a backend may support, categorized by {@link Type}.
@@ -24,8 +32,13 @@ public enum AggregateFunction {
     SUM0(Type.SIMPLE, SqlKind.SUM0),
     MIN(Type.SIMPLE, SqlKind.MIN),
     MAX(Type.SIMPLE, SqlKind.MAX),
-    COUNT(Type.SIMPLE, SqlKind.COUNT),
-    AVG(Type.SIMPLE, SqlKind.AVG),
+    COUNT(Type.SIMPLE, SqlKind.COUNT,
+        fields(IF("count", new ArrowType.Int(64, true), SUM)),
+        null),
+    AVG(Type.SIMPLE, SqlKind.AVG,
+        fields(IF("count", new ArrowType.Int(64, true), SUM),
+               IF("sum", new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE), SUM)),
+        (rb, refs) -> rb.makeCall(SqlStdOperatorTable.DIVIDE, refs.get(1), refs.get(0))),
 
     // Statistical — fixed-size state, multi-pass or running stats
     STDDEV_POP(Type.STATISTICAL, SqlKind.STDDEV_POP),
@@ -40,7 +53,9 @@ public enum AggregateFunction {
     LISTAGG(Type.STATE_EXPANDING, SqlKind.LISTAGG),
 
     // Approximate — probabilistic, fixed-size state
-    APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER);
+    APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER,
+        fields(IF("sketch", new ArrowType.Binary(), null)),  // null reducer = self
+        null);
 
     /** Category of aggregate function. Affects execution strategy (shuffle vs map-reduce). */
     public enum Type {
@@ -50,12 +65,25 @@ public enum AggregateFunction {
         APPROXIMATE
     }
 
+    /** Describes one intermediate field emitted by a partial aggregate. A null reducer means "self" (the owning enum constant). */
+    public record IntermediateField(String name, ArrowType arrowType, AggregateFunction reducer) {}
+
     private final Type type;
     private final SqlKind sqlKind;
+    private final List<IntermediateField> intermediateFields;
+    private final BiFunction<RexBuilder, List<RexNode>, RexNode> finalExpression;
 
     AggregateFunction(Type type, SqlKind sqlKind) {
+        this(type, sqlKind, null, null);
+    }
+
+    AggregateFunction(Type type, SqlKind sqlKind,
+                      List<IntermediateField> intermediateFields,
+                      BiFunction<RexBuilder, List<RexNode>, RexNode> finalExpression) {
         this.type = type;
         this.sqlKind = sqlKind;
+        this.intermediateFields = intermediateFields;
+        this.finalExpression = finalExpression;
     }
 
     public Type getType() {
@@ -64,6 +92,31 @@ public enum AggregateFunction {
 
     public SqlKind getSqlKind() {
         return sqlKind;
+    }
+
+    /** Returns intermediate fields with null reducers resolved to {@code this}. */
+    public List<IntermediateField> intermediateFields() {
+        if (intermediateFields == null) return null;
+        return intermediateFields.stream()
+            .map(f -> f.reducer() == null ? new IntermediateField(f.name(), f.arrowType(), this) : f)
+            .toList();
+    }
+
+    public BiFunction<RexBuilder, List<RexNode>, RexNode> finalExpression() {
+        return finalExpression;
+    }
+
+    public boolean hasDecomposition() {
+        return intermediateFields != null;
+    }
+
+    public boolean hasScalarFinal() {
+        return finalExpression != null;
+    }
+
+    public boolean hasBinaryIntermediate() {
+        return intermediateFields != null
+            && intermediateFields.stream().anyMatch(f -> f.arrowType() instanceof ArrowType.Binary);
     }
 
     /** Maps a Calcite SqlKind to an AggregateFunction, or null if not recognized. Skips OTHER. */
@@ -83,5 +136,15 @@ public enum AggregateFunction {
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Unrecognized aggregate function [" + name + "]", e);
         }
+    }
+
+    // ── Helpers for readable enum-entry literals ──
+
+    private static List<IntermediateField> fields(IntermediateField... fs) {
+        return List.of(fs);
+    }
+
+    private static IntermediateField IF(String name, ArrowType arrowType, AggregateFunction reducer) {
+        return new IntermediateField(name, arrowType, reducer);
     }
 }
