@@ -11,8 +11,6 @@ package org.opensearch.plugin.kafka;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.logging.log4j.LogManager;
@@ -33,9 +31,9 @@ import java.util.stream.Collectors;
 
 /**
  * Kafka consumer that reads from multiple partitions for a single OpenSearch shard.
- * Used when {@code partition_strategy=auto} assigns multiple source partitions to one shard.
+ * Used when {@code source_partition_strategy} assigns multiple source partitions to one shard.
  * <p>
- * Uses composition (not inheritance) — holds its own {@link Consumer} instance and implements
+ * Uses composition - holds its own {@link Consumer} instance and implements
  * {@link IngestionShardConsumer} directly. Consumer creation is delegated to
  * {@link KafkaPartitionConsumer#createConsumer(String, KafkaSourceConfig)}.
  */
@@ -45,13 +43,10 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
     private static final Logger logger = LogManager.getLogger(KafkaMultiPartitionConsumer.class);
 
     private final int shardId;
-    private final String clientId;
     private final Consumer<byte[], byte[]> consumer;
     private final KafkaSourceConfig config;
     private final List<TopicPartition> assignedPartitions;
     private final Map<Integer, Long> lastFetchedOffsets;
-    // TODO: make this configurable
-    private final int defaultTimeoutMillis = 1000;
 
     /**
      * Constructor
@@ -61,20 +56,18 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
      * @param partitionIds the list of Kafka partition IDs to consume from
      */
     public KafkaMultiPartitionConsumer(String clientId, KafkaSourceConfig config, int shardId, List<Integer> partitionIds) {
-        this(clientId, config, shardId, partitionIds, KafkaPartitionConsumer.createConsumer(clientId, config));
+        this(config, shardId, partitionIds, KafkaPartitionConsumer.createConsumer(clientId, config));
     }
 
     /**
      * Constructor visible for testing
      */
     protected KafkaMultiPartitionConsumer(
-        String clientId,
         KafkaSourceConfig config,
         int shardId,
         List<Integer> partitionIds,
         Consumer<byte[], byte[]> consumer
     ) {
-        this.clientId = clientId;
         this.config = config;
         this.shardId = shardId;
         this.consumer = consumer;
@@ -82,7 +75,10 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
 
         String topic = config.getTopic();
         List<PartitionInfo> partitionInfos = AccessController.doPrivileged(
-            (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(topic, Duration.ofMillis(defaultTimeoutMillis))
+            (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(
+                topic,
+                Duration.ofMillis(config.getTopicMetadataFetchTimeoutMs())
+            )
         );
         if (partitionInfos == null) {
             throw new IllegalArgumentException("Topic " + topic + " does not exist");
@@ -96,14 +92,22 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
             }
         }
 
-        this.assignedPartitions = partitionIds.stream()
-            .map(p -> new TopicPartition(topic, p))
-            .collect(Collectors.toUnmodifiableList());
+        this.assignedPartitions = partitionIds.stream().map(p -> new TopicPartition(topic, p)).collect(Collectors.toUnmodifiableList());
 
         consumer.assign(assignedPartitions);
         logger.info("Kafka multi-partition consumer created for topic {} partitions {} (shard {})", topic, partitionIds, shardId);
     }
 
+    /**
+     * Single-partition seek-then-poll semantics don't fit a multi-partition consumer — a single
+     * pointer can only reposition one of N partitions, leaving the others in an undefined
+     * intermediate state that no caller actually wants. Multi-partition recovery should use
+     * {@link #seekToPartitionOffsets(Map)} (covers all assigned partitions atomically) followed
+     * by {@link #readNext(long, int)} for continuation polls. To seek a single partition,
+     * use {@code seekToPartitionOffsets(Map.of(partition, pointer))}.
+     *
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(
         KafkaOffset offset,
@@ -111,35 +115,44 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
         long maxMessages,
         int timeoutMillis
     ) throws TimeoutException {
-        if (offset instanceof KafkaPartitionOffset) {
-            KafkaPartitionOffset partitionOffset = (KafkaPartitionOffset) offset;
-            TopicPartition tp = new TopicPartition(config.getTopic(), partitionOffset.getPartition());
-            long seekOffset = includeStart ? partitionOffset.getOffset() : partitionOffset.getOffset() + 1;
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                consumer.seek(tp, seekOffset);
-                return null;
-            });
-            lastFetchedOffsets.put(partitionOffset.getPartition(), seekOffset - 1);
-        } else {
-            // Legacy pointer without partition — seek first assigned partition
-            TopicPartition tp = assignedPartitions.get(0);
-            long seekOffset = includeStart ? offset.getOffset() : offset.getOffset() + 1;
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                consumer.seek(tp, seekOffset);
-                return null;
-            });
-            lastFetchedOffsets.put(tp.partition(), seekOffset - 1);
-        }
-        return pollAllPartitions(timeoutMillis);
+        throw new UnsupportedOperationException(
+            "readNext(offset, ...) has single-partition seek semantics that don't fit a multi-partition "
+                + "consumer. Use seekToPartitionOffsets(Map) to seek per-partition checkpoints, then "
+                + "readNext(maxMessages, timeoutMillis) for continuation polls. To seek a single partition, "
+                + "call seekToPartitionOffsets(Map.of(partition, pointer))."
+        );
     }
 
+    /**
+     * Continue reading from the current consumer position across all assigned partitions.
+     *
+     * @param maxMessages  NOT honored — the per-poll batch size is governed by Kafka's
+     *                     {@code max.poll.records} consumer config, set at consumer initialization.
+     *                     Same limitation as {@link KafkaPartitionConsumer#readNext}.
+     * @param timeoutMillis maximum time to wait for messages
+     */
     @Override
     public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(long maxMessages, int timeoutMillis) throws TimeoutException {
         return pollAllPartitions(timeoutMillis);
     }
 
-    // Not thread-safe — must be called from the poller thread only, consistent with KafkaPartitionConsumer contract.
-    private List<ReadResult<KafkaOffset, KafkaMessage>> pollAllPartitions(int timeoutMillis) {
+    /**
+     * Single {@code consumer.poll()} that returns records across ALL assigned partitions, then
+     * iterates by partition to wrap each record with a {@link KafkaPartitionOffset}.
+     * <p>
+     * <b>{@code max.poll.records} is shared across all assigned partitions.</b>
+     * A {@code consumer.poll()} call returns up to {@code max.poll.records} records <em>total</em>,
+     * not per partition. With N assigned partitions, each effectively gets ~1/N of the records per
+     * poll compared to the equivalent single-partition consumer with the same setting. Users
+     * migrating from single-partition to multi-partition mode (e.g., 1 shard now consuming N
+     * partitions instead of 1) may need to bump {@code max.poll.records} proportionally to
+     * maintain per-partition throughput.
+     * <p>
+     * {@code synchronized} for parity with {@link KafkaPartitionConsumer}'s internal fetch — Kafka
+     * itself does not allow concurrent {@code poll()} calls, but the lock is defense-in-depth for
+     * the documented single-poller-thread contract.
+     */
+    private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> pollAllPartitions(int timeoutMillis) {
         ConsumerRecords<byte[], byte[]> consumerRecords = AccessController.doPrivileged(
             (PrivilegedAction<ConsumerRecords<byte[], byte[]>>) () -> consumer.poll(Duration.ofMillis(timeoutMillis))
         );
@@ -161,11 +174,12 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
     /**
      * Seeks all assigned partitions to the beginning. Used for RESET_TO_EARLIEST.
      * <p>
-     * TODO: Add seekToBeginning()/seekToEnd() as default methods on IngestionShardConsumer interface
-     * so the poller can call them without instanceof checks. The poller's reset flow
-     * (DefaultStreamPoller.getResetShardPointer()) currently calls earliestPointer() + readNext()
-     * which only seeks one partition. The poller PR needs to use these methods for proper
-     * multi-partition reset.
+     * TODO: Promote {@code seekToBeginning()} / {@code seekToEnd()} to default methods on
+     * {@link IngestionShardConsumer} when the management API for resets lands. That
+     * eliminates the {@code instanceof KafkaMultiPartitionConsumer} cast the poller's reset
+     * flow would otherwise need. Today {@code DefaultStreamPoller.getResetShardPointer()}
+     * uses {@link #earliestPointer()} + {@link #readNext} which only seeks one partition —
+     * the multi-partition reset path must call {@code seekToBeginning()} directly instead.
      */
     public void seekToBeginning() {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -186,70 +200,68 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
         lastFetchedOffsets.clear();
     }
 
+    /**
+     * Single-pointer earliest is unsupported in multi-partition mode — a single pointer can only
+     * represent one of N assigned partitions. For RESET_TO_EARLIEST across all partitions, use
+     * {@link #seekToBeginning()} directly. The {@link IngestionShardConsumer} interface predates
+     * multi-partition consumption; TODO: Subsequent change should add a {@code Map<Integer, IngestionShardPointer>
+     * earliestPointers()} default method.
+     *
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public IngestionShardPointer earliestPointer() {
-        Map<TopicPartition, Long> beginnings = AccessController.doPrivileged(
-            (PrivilegedAction<Map<TopicPartition, Long>>) () -> consumer.beginningOffsets(assignedPartitions)
+        throw new UnsupportedOperationException(
+            "earliestPointer() returns a single pointer, which can't represent N assigned partitions in "
+                + "multi-partition mode. Use seekToBeginning() directly for RESET_TO_EARLIEST."
         );
-        // TODO: This returns a single pointer for only the first partition. Callers using this for
-        // RESET_TO_EARLIEST will only seek one partition. The poller PR must use seekToBeginning()
-        // for proper multi-partition reset instead of earliestPointer() + readNext().
-        TopicPartition first = assignedPartitions.get(0);
-        return new KafkaPartitionOffset(first.partition(), beginnings.getOrDefault(first, 0L));
     }
 
+    /**
+     * Single-pointer latest is unsupported in multi-partition mode — same limitation as
+     * {@link #earliestPointer()}. For RESET_TO_LATEST across all partitions, use {@link #seekToEnd()}
+     * directly.
+     *
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public IngestionShardPointer latestPointer() {
-        Map<TopicPartition, Long> endings = AccessController.doPrivileged(
-            (PrivilegedAction<Map<TopicPartition, Long>>) () -> consumer.endOffsets(assignedPartitions)
+        throw new UnsupportedOperationException(
+            "latestPointer() returns a single pointer, which can't represent N assigned partitions in "
+                + "multi-partition mode. Use seekToEnd() directly for RESET_TO_LATEST."
         );
-        // TODO: Same limitation as earliestPointer() — returns single pointer for last partition only.
-        // For multi-partition reset, use seekToEnd() instead.
-        TopicPartition last = assignedPartitions.get(assignedPartitions.size() - 1);
-        return new KafkaPartitionOffset(last.partition(), endings.getOrDefault(last, 0L));
     }
 
+    /**
+     * Single-pointer timestamp resolution is unsupported in multi-partition mode — Kafka's
+     * {@code offsetsForTimes} returns per-partition offsets and there's no meaningful single-pointer
+     * answer across N partitions (the first non-null partition is non-deterministic and useless for
+     * resetting all partitions). Subsequent PR should add a per-partition variant on the interface, e.g.
+     * {@code Map<Integer, IngestionShardPointer> pointersFromTimestampMillis(long ts)}.
+     *
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
-        Map<TopicPartition, Long> timestamps = new HashMap<>();
-        for (TopicPartition tp : assignedPartitions) {
-            timestamps.put(tp, timestampMillis);
-        }
-
-        Map<TopicPartition, OffsetAndTimestamp> offsets = AccessController.doPrivileged(
-            (PrivilegedAction<Map<TopicPartition, OffsetAndTimestamp>>) () -> consumer.offsetsForTimes(timestamps)
+        throw new UnsupportedOperationException(
+            "pointerFromTimestampMillis() returns a single pointer, which can't represent N assigned "
+                + "partitions in multi-partition mode."
         );
-
-        // Return the first partition offset found for the timestamp
-        for (TopicPartition tp : assignedPartitions) {
-            OffsetAndTimestamp oat = offsets.get(tp);
-            if (oat != null) {
-                return new KafkaPartitionOffset(tp.partition(), oat.offset());
-            }
-        }
-
-        // Fallback to auto.offset.reset policy
-        String autoOffsetResetConfig = config.getAutoOffsetResetConfig();
-        if (OffsetResetStrategy.EARLIEST.toString().equals(autoOffsetResetConfig)) {
-            seekToBeginning();
-            return earliestPointer();
-        } else if (OffsetResetStrategy.LATEST.toString().equals(autoOffsetResetConfig)) {
-            seekToEnd();
-            return latestPointer();
-        }
-        throw new IllegalArgumentException("No message found for timestamp " + timestampMillis + " across any assigned partition");
     }
 
     @Override
     public IngestionShardPointer pointerFromOffset(String offset) {
-        if (offset.contains(":")) {
-            String[] parts = offset.split(":");
-            return new KafkaPartitionOffset(Integer.parseInt(parts[0]), Long.parseLong(parts[1]));
+        if (!offset.contains(":")) {
+            // Multi-partition mode requires explicit partition info to avoid silent
+            // wrong-partition reads. A bare numeric offset is ambiguous (which of the
+            // assigned partitions does it belong to?) — fail loudly so callers fix
+            // their input rather than getting data from an arbitrary partition.
+            throw new IllegalArgumentException(
+                "Multi-partition mode requires offset in 'partition:offset' format (e.g., '3:42'), got: " + offset
+            );
         }
-        // Fallback: treat as plain offset for first assigned partition
-        long offsetValue = Long.parseLong(offset);
-        int firstPartition = assignedPartitions.get(0).partition();
-        return new KafkaPartitionOffset(firstPartition, offsetValue);
+        String[] parts = offset.split(":");
+        return new KafkaPartitionOffset(Integer.parseInt(parts[0]), Long.parseLong(parts[1]));
     }
 
     /**
@@ -278,6 +290,14 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
 
     /**
      * Computes the total lag across all assigned partitions as the sum of per-partition lags.
+     * <p>
+     * <b>TODO: takes a single {@code expectedStartPointer} but multi-partition mode needs per-partition
+     * starts.</b> Today this method best-effort-handles a {@link KafkaPartitionOffset} for the one
+     * partition it references, and falls back to "use endOffset (full lag)" for other partitions
+     * with no {@code lastFetched} record. Subsequent PR should add a {@code long getPointerBasedLag(Map<Integer,
+     * IngestionShardPointer>)} default method on {@link IngestionShardConsumer} so callers can supply
+     * per-partition expected starts. Once that exists, this single-pointer overload can either delegate
+     * to the per-partition variant or throw, mirroring the {@link #earliestPointer()} pattern.
      */
     @Override
     public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
@@ -293,7 +313,7 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
                 if (lastFetched == null || lastFetched < 0) {
                     if (expectedStartPointer instanceof KafkaPartitionOffset) {
                         KafkaPartitionOffset startPtr = (KafkaPartitionOffset) expectedStartPointer;
-                        if (startPtr.getPartition() == tp.partition()) {
+                        if (startPtr.getSourcePartition() == tp.partition()) {
                             totalLag += Math.max(0, endOffset - startPtr.getOffset());
                             continue;
                         }
@@ -315,10 +335,6 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
      */
     public List<Integer> getAssignedPartitionIds() {
         return assignedPartitions.stream().map(TopicPartition::partition).collect(Collectors.toUnmodifiableList());
-    }
-
-    public String getClientId() {
-        return clientId;
     }
 
     @Override

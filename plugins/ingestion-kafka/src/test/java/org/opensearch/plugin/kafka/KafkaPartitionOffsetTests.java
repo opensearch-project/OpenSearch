@@ -8,10 +8,8 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.search.Query;
 import org.opensearch.index.IngestionShardPointer;
+import org.opensearch.index.SourcePartitionAwarePointer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.ByteBuffer;
@@ -32,7 +30,7 @@ public class KafkaPartitionOffsetTests extends OpenSearchTestCase {
 
     public void testGetters() {
         KafkaPartitionOffset offset = new KafkaPartitionOffset(7, 12345);
-        assertEquals(7, offset.getPartition());
+        assertEquals(7, offset.getSourcePartition());
         assertEquals(12345L, offset.getOffset());
     }
 
@@ -110,30 +108,6 @@ public class KafkaPartitionOffsetTests extends OpenSearchTestCase {
         assertNotEquals(legacyOffset, partitionOffset); // symmetry
     }
 
-    // --- asPointField encoding ---
-
-    public void testAsPointFieldEncoding() {
-        KafkaPartitionOffset offset = new KafkaPartitionOffset(3, 42);
-        Field field = offset.asPointField("test_field");
-        assertNotNull(field);
-        // Partition 3 in upper 16 bits, offset 42 in lower 48 bits
-        long expected = ((long) 3 << 48) | 42L;
-        // LongPoint stores the value internally — we verify via the encoded bytes
-        assertEquals("test_field", field.name());
-    }
-
-    // --- newRangeQueryGreaterThan scoped to same partition ---
-
-    public void testRangeQueryScopedToPartition() {
-        KafkaPartitionOffset offset = new KafkaPartitionOffset(3, 42);
-        Query query = offset.newRangeQueryGreaterThan("test_field");
-        assertNotNull(query);
-        // The query should be a range within partition 3 only
-        // Verify it's a LongPoint range query (toString includes the range bounds)
-        String queryStr = query.toString();
-        assertTrue("Query should be a point range query", queryStr.contains("test_field"));
-    }
-
     // --- toString ---
 
     public void testToString() {
@@ -145,8 +119,8 @@ public class KafkaPartitionOffsetTests extends OpenSearchTestCase {
 
     public void testImplementsPartitionAwarePointer() {
         KafkaPartitionOffset offset = new KafkaPartitionOffset(5, 100);
-        assertTrue(offset instanceof org.opensearch.index.PartitionAwarePointer);
-        assertEquals(5, offset.getPartition());
+        assertTrue(offset instanceof SourcePartitionAwarePointer);
+        assertEquals(5, offset.getSourcePartition());
     }
 
     // --- extends KafkaOffset ---

@@ -57,7 +57,7 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
     }
 
     private KafkaMultiPartitionConsumer createConsumer(List<Integer> partitionIds) {
-        return new KafkaMultiPartitionConsumer("test-client", config, 0, partitionIds, mockConsumer);
+        return new KafkaMultiPartitionConsumer(config, 0, partitionIds, mockConsumer);
     }
 
     // --- Construction ---
@@ -96,12 +96,8 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
         TopicPartition tp0 = new TopicPartition(TOPIC, 0);
         TopicPartition tp4 = new TopicPartition(TOPIC, 4);
         Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> recordMap = new HashMap<>();
-        recordMap.put(tp0, List.of(
-            new ConsumerRecord<>(TOPIC, 0, 10L, "key0".getBytes(), "val0".getBytes())
-        ));
-        recordMap.put(tp4, List.of(
-            new ConsumerRecord<>(TOPIC, 4, 20L, "key4".getBytes(), "val4".getBytes())
-        ));
+        recordMap.put(tp0, List.of(new ConsumerRecord<>(TOPIC, 0, 10L, "key0".getBytes(), "val0".getBytes())));
+        recordMap.put(tp4, List.of(new ConsumerRecord<>(TOPIC, 4, 20L, "key4".getBytes(), "val4".getBytes())));
         ConsumerRecords<byte[], byte[]> consumerRecords = new ConsumerRecords<>(recordMap);
         when(mockConsumer.poll(any())).thenReturn(consumerRecords);
 
@@ -111,12 +107,12 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
 
         // First result from partition 0
         KafkaPartitionOffset ptr0 = (KafkaPartitionOffset) results.get(0).getPointer();
-        assertEquals(0, ptr0.getPartition());
+        assertEquals(0, ptr0.getSourcePartition());
         assertEquals(10L, ptr0.getOffset());
 
         // Second result from partition 4
         KafkaPartitionOffset ptr4 = (KafkaPartitionOffset) results.get(1).getPointer();
-        assertEquals(4, ptr4.getPartition());
+        assertEquals(4, ptr4.getSourcePartition());
         assertEquals(20L, ptr4.getOffset());
     }
 
@@ -129,28 +125,64 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
         assertTrue(results.isEmpty());
     }
 
-    // --- readNext with seek ---
+    // --- readNext(offset, ...) is unsupported in multi-partition mode ---
 
-    public void testReadNextWithPartitionOffsetSeeks() throws Exception {
+    public void testReadNextWithOffsetThrowsUnsupported() throws Exception {
+        // The seeking variant of readNext() has single-partition semantics that don't fit a
+        // multi-partition consumer (a single pointer can only reposition one of N partitions).
+        // Multi-partition seek must go through seekToPartitionOffsets(Map) instead. Verify the
+        // method throws for both KafkaPartitionOffset and plain KafkaOffset inputs.
         KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
-        when(mockConsumer.poll(any())).thenReturn(new ConsumerRecords<>(Collections.emptyMap()));
 
-        KafkaPartitionOffset offset = new KafkaPartitionOffset(4, 50);
-        consumer.readNext(offset, true, 100, 1000);
+        UnsupportedOperationException withPartitionOffset = expectThrows(
+            UnsupportedOperationException.class,
+            () -> consumer.readNext(new KafkaPartitionOffset(4, 50), true, 100, 1000)
+        );
+        assertTrue(withPartitionOffset.getMessage().contains("seekToPartitionOffsets"));
 
-        // Should seek partition 4 to offset 50
-        verify(mockConsumer).seek(new TopicPartition(TOPIC, 4), 50L);
+        UnsupportedOperationException withLegacyOffset = expectThrows(
+            UnsupportedOperationException.class,
+            () -> consumer.readNext(new KafkaOffset(50), true, 100, 1000)
+        );
+        assertTrue(withLegacyOffset.getMessage().contains("seekToPartitionOffsets"));
     }
 
-    public void testReadNextWithPartitionOffsetExcludeStart() throws Exception {
+    public void testPointerFromOffsetRejectsBareOffset() {
+        // Multi-partition mode requires explicit "partition:offset" — a bare numeric offset is
+        // ambiguous (which assigned partition?) so it must throw rather than silently fall back.
         KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
-        when(mockConsumer.poll(any())).thenReturn(new ConsumerRecords<>(Collections.emptyMap()));
 
-        KafkaPartitionOffset offset = new KafkaPartitionOffset(4, 50);
-        consumer.readNext(offset, false, 100, 1000);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> consumer.pointerFromOffset("42"));
+        assertTrue(e.getMessage().contains("partition:offset"));
+    }
 
-        // Should seek partition 4 to offset 51 (exclude start)
-        verify(mockConsumer).seek(new TopicPartition(TOPIC, 4), 51L);
+    // --- Single-pointer methods are unsupported in multi-partition mode ---
+
+    public void testEarliestPointerThrowsUnsupported() {
+        // earliestPointer() returns a single pointer — meaningless across N assigned partitions.
+        // Callers must use seekToBeginning() directly for RESET_TO_EARLIEST.
+        KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, consumer::earliestPointer);
+        assertTrue(e.getMessage().contains("seekToBeginning"));
+    }
+
+    public void testLatestPointerThrowsUnsupported() {
+        // latestPointer() — same single-partition limitation as earliestPointer().
+        // Callers must use seekToEnd() directly for RESET_TO_LATEST.
+        KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, consumer::latestPointer);
+        assertTrue(e.getMessage().contains("seekToEnd"));
+    }
+
+    public void testPointerFromTimestampMillisThrowsUnsupported() {
+        // pointerFromTimestampMillis() returns single pointer for the first partition with data —
+        // non-deterministic and useless for multi-partition reset. PR 7.5 needs a per-partition variant.
+        KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
+        UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> consumer.pointerFromTimestampMillis(System.currentTimeMillis())
+        );
+        assertTrue(e.getMessage().contains("per-partition"));
     }
 
     // --- seekToPartitionOffsets ---
@@ -158,10 +190,7 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
     public void testSeekToPartitionOffsets() {
         KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
 
-        Map<Integer, KafkaPartitionOffset> offsets = Map.of(
-            0, new KafkaPartitionOffset(0, 100),
-            4, new KafkaPartitionOffset(4, 200)
-        );
+        Map<Integer, KafkaPartitionOffset> offsets = Map.of(0, new KafkaPartitionOffset(0, 100), 4, new KafkaPartitionOffset(4, 200));
         consumer.seekToPartitionOffsets(offsets);
 
         verify(mockConsumer).seek(new TopicPartition(TOPIC, 0), 100L);
@@ -173,8 +202,10 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
 
         // Partition 7 is not assigned to this consumer — should be ignored
         Map<Integer, KafkaPartitionOffset> offsets = Map.of(
-            0, new KafkaPartitionOffset(0, 100),
-            7, new KafkaPartitionOffset(7, 300) // not assigned
+            0,
+            new KafkaPartitionOffset(0, 100),
+            7,
+            new KafkaPartitionOffset(7, 300) // not assigned
         );
         consumer.seekToPartitionOffsets(offsets);
 
@@ -188,10 +219,7 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
         KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
         consumer.seekToBeginning();
 
-        List<TopicPartition> expected = List.of(
-            new TopicPartition(TOPIC, 0),
-            new TopicPartition(TOPIC, 4)
-        );
+        List<TopicPartition> expected = List.of(new TopicPartition(TOPIC, 0), new TopicPartition(TOPIC, 4));
         verify(mockConsumer).seekToBeginning(expected);
     }
 
@@ -199,10 +227,7 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
         KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
         consumer.seekToEnd();
 
-        List<TopicPartition> expected = List.of(
-            new TopicPartition(TOPIC, 0),
-            new TopicPartition(TOPIC, 4)
-        );
+        List<TopicPartition> expected = List.of(new TopicPartition(TOPIC, 0), new TopicPartition(TOPIC, 4));
         verify(mockConsumer).seekToEnd(expected);
     }
 

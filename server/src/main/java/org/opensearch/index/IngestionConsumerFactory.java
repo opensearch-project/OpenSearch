@@ -50,7 +50,7 @@ public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P ex
 
     /**
      * Returns the total number of partitions available in the source stream. This is used to compute
-     * partition-to-shard assignments when {@code partition_strategy} is set to {@code auto}.
+     * partition-to-shard assignments. See {@link org.opensearch.indices.pollingingest.SourcePartitionAssignment}
      * <p>
      * The default implementation returns -1, indicating that the source does not support partition
      * count discovery. Implementations should override this method to enable multi-partition consumption.
@@ -62,11 +62,10 @@ public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P ex
     }
 
     /**
-     * Create a consumer for a shard that reads from multiple source partitions. This is used when
-     * {@code partition_strategy} is set to {@code auto} and a shard is assigned more than one partition.
+     * Create a consumer for a shard that reads from multiple source partitions. This is used when a shard is assigned more than one partition.
      * <p>
      * The default implementation falls back to {@link #createShardConsumer(String, int)}, which creates
-     * a single-partition consumer using the shard ID as the partition ID (legacy 1:1 behavior).
+     * a single-partition consumer using the shard ID as the partition ID (simple 1:1 behavior).
      * Implementations should override this method to support multi-partition consumption.
      *
      * @param clientId the client id assigned to the consumer

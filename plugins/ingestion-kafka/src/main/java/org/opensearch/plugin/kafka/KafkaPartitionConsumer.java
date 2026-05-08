@@ -294,27 +294,4 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     public void close() throws IOException {
         consumer.close();
     }
-
-    /**
-     * Get the client id
-     * @return the client id
-     */
-    public String getClientId() {
-        return clientId;
-    }
-
-    /**
-     * Returns the total number of partitions for the configured topic.
-     * @return the partition count
-     */
-    public int getPartitionCount() {
-        String topic = config.getTopic();
-        List<PartitionInfo> partitionInfos = AccessController.doPrivileged(
-            (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(topic, Duration.ofMillis(timeoutMillis))
-        );
-        if (partitionInfos == null) {
-            throw new IllegalArgumentException("Topic " + topic + " does not exist");
-        }
-        return partitionInfos.size();
-    }
 }

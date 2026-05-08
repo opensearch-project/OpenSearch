@@ -46,8 +46,26 @@ public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
         Assert.assertNotNull("Offset should be parsed", offset);
         Assert.assertTrue("Should be KafkaPartitionOffset", offset instanceof KafkaPartitionOffset);
         KafkaPartitionOffset partitionOffset = (KafkaPartitionOffset) offset;
-        Assert.assertEquals("Partition should be correctly parsed", 3, partitionOffset.getPartition());
+        Assert.assertEquals("Partition should be correctly parsed", 3, partitionOffset.getSourcePartition());
         Assert.assertEquals("Offset should be correctly parsed", 42L, partitionOffset.getOffset());
+    }
+
+    public void testParsePartitionOffsetRejectsMalformed() {
+        KafkaConsumerFactory factory = new KafkaConsumerFactory();
+        // Three parts — should reject, not silently take first two
+        IllegalArgumentException tooManyParts = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.parsePointerFromString("3:42:99")
+        );
+        Assert.assertTrue(tooManyParts.getMessage().contains("partition:offset"));
+
+        // Empty partition
+        IllegalArgumentException emptyPartition = expectThrows(IllegalArgumentException.class, () -> factory.parsePointerFromString(":42"));
+        Assert.assertTrue(emptyPartition.getMessage().contains("partition:offset"));
+
+        // Empty offset
+        IllegalArgumentException emptyOffset = expectThrows(IllegalArgumentException.class, () -> factory.parsePointerFromString("3:"));
+        Assert.assertTrue(emptyOffset.getMessage().contains("partition:offset"));
     }
 
     public void testGetSourcePartitionCountBeforeInitialize() {
@@ -63,8 +81,11 @@ public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
         params.put("bootstrap_servers", "localhost:9092");
         factory.initialize(new IngestionSource.Builder("KAFKA").setParams(params).build());
 
-        // Single partition delegates to createShardConsumer — will fail connecting to Kafka
-        // but we verify it doesn't throw UnsupportedOperationException
+        // Single-partition assignment now creates KafkaMultiPartitionConsumer (not
+        // KafkaPartitionConsumer) so produced pointers are KafkaPartitionOffset, preserving
+        // partition info needed by the per-partition checkpoint tracking. Will fail connecting
+        // to Kafka in a unit-test environment — we just verify it doesn't throw
+        // UnsupportedOperationException.
         try {
             factory.createMultiPartitionShardConsumer("test-client", 0, List.of(0));
             fail("Expected exception connecting to Kafka");
