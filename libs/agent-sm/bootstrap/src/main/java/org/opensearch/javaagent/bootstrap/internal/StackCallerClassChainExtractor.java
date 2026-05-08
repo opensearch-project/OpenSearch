@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.javaagent;
+package org.opensearch.javaagent.bootstrap.internal;
 
 import java.lang.StackWalker.StackFrame;
 import java.util.Collection;
