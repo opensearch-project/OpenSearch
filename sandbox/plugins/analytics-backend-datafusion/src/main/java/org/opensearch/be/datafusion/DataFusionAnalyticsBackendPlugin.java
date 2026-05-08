@@ -378,7 +378,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      * auto-extract mode; routes to the {@code json_extract_all} Rust UDF via
      * {@link JsonFunctionAdapters.JsonExtractAllAdapter}.
      */
-    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL);
+    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(
+        ScalarFunction.JSON_EXTRACT_ALL,
+        // PPL parse — Rust UDF returns map<utf8, utf8> of named regex groups. ParseAdapter
+        // validates the regex + method literals at plan time; the UDF compiles the pattern
+        // once per call.
+        ScalarFunction.PARSE
+    );
 
     // PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) route through
     // DataFusionFragmentConvertor's LOCAL_*_OP stubs and the substrait extensions in
@@ -615,6 +621,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MONTH_OF_YEAR, month),
                     Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NOW, now),
+                    Map.entry(ScalarFunction.PARSE, new ParseAdapter()),
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
                     Map.entry(ScalarFunction.POWER, new NumericToDoubleAdapter(SqlStdOperatorTable.POWER)),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),

@@ -165,6 +165,17 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
         FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
+        // PPL parse: ParseAdapter rewrites the call to LOCAL_PARSE_OP after validating
+        // that the pattern + method operands are non-null string literals and that
+        // method == "regex". The Rust UDF compiles the pattern once per call and
+        // emits a Map<utf8, utf8> per row.
+        FunctionMappings.s(ParseAdapter.LOCAL_PARSE_OP, "parse"),
+        // ITEM(map, key) — Calcite's standard ITEM operator is mapped directly,
+        // no adapter needed. Only the map<utf8, utf8> overload is registered in
+        // the YAML; an array-indexing call would fall off the substrait
+        // signature match and surface as "no implementation" before reaching
+        // DataFusion. The "item" Rust UDF backs the map case.
+        FunctionMappings.s(SqlStdOperatorTable.ITEM, "item"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
         FunctionMappings.s(DateTimeAdapters.LOCAL_NOW_OP, "now"),
