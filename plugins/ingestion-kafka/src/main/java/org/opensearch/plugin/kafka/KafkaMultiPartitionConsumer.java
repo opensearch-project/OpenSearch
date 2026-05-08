@@ -175,11 +175,14 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
      * Seeks all assigned partitions to the beginning. Used for RESET_TO_EARLIEST.
      * <p>
      * TODO: Promote {@code seekToBeginning()} / {@code seekToEnd()} to default methods on
-     * {@link IngestionShardConsumer} when the management API for resets lands. That
-     * eliminates the {@code instanceof KafkaMultiPartitionConsumer} cast the poller's reset
-     * flow would otherwise need. Today {@code DefaultStreamPoller.getResetShardPointer()}
-     * uses {@link #earliestPointer()} + {@link #readNext} which only seeks one partition —
-     * the multi-partition reset path must call {@code seekToBeginning()} directly instead.
+     * {@link IngestionShardConsumer} when the management API for resets lands. Today, the
+     * multi-partition consumer's {@link #earliestPointer()} and {@link #readNext(KafkaOffset, boolean, long, int)}
+     * throw {@code UnsupportedOperationException}, so callers cannot use the fixed
+     * {@code earliestPointer() + readNext(offset, ...)} pattern that
+     * {@code DefaultStreamPoller.getResetShardPointer()} relies on for single-partition mode.
+     * The multi-partition reset path must call {@code seekToBeginning()} directly via an
+     * {@code instanceof KafkaMultiPartitionConsumer} cast in the poller — promoting these methods
+     * to interface defaults would eliminate the cast.
      */
     public void seekToBeginning() {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -245,7 +248,8 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
     public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
         throw new UnsupportedOperationException(
             "pointerFromTimestampMillis() returns a single pointer, which can't represent N assigned "
-                + "partitions in multi-partition mode."
+                + "partitions in multi-partition mode. RESET_BY_TIMESTAMP needs a per-partition variant — "
+                + "tracked in subsequent management API work."
         );
     }
 
@@ -260,26 +264,44 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
                 "Multi-partition mode requires offset in 'partition:offset' format (e.g., '3:42'), got: " + offset
             );
         }
-        String[] parts = offset.split(":");
+        String[] parts = offset.split(":", -1);
+        if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty()) {
+            throw new IllegalArgumentException(
+                "Invalid multi-partition pointer format. Expected 'partition:offset' (e.g., '3:42'), got: " + offset
+            );
+        }
         return new KafkaPartitionOffset(Integer.parseInt(parts[0]), Long.parseLong(parts[1]));
     }
 
     /**
      * Seek all assigned partitions to their respective offsets. Used for recovery with per-partition checkpoints.
-     * @param partitionOffsets map of partition ID to pointer to seek to
+     * <p>
+     * Entries for partitions not in {@link #assignedPartitions} are logged and skipped — they
+     * shouldn't normally appear (assignment is fixed at consumer construction), but a stale
+     * checkpoint map from recovery could include them if assignment changes between commits.
+     * Logging makes the silent-skip visible for debugging.
+     *
+     * @param partitionOffsets map of partition ID to a pointer to seek to
      */
     @Override
     public void seekToPartitionOffsets(Map<Integer, ? extends IngestionShardPointer> partitionOffsets) {
         for (Map.Entry<Integer, ? extends IngestionShardPointer> entry : partitionOffsets.entrySet()) {
             TopicPartition tp = new TopicPartition(config.getTopic(), entry.getKey());
-            if (assignedPartitions.contains(tp)) {
-                long seekOffset = ((KafkaOffset) entry.getValue()).getOffset();
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    consumer.seek(tp, seekOffset);
-                    return null;
-                });
-                lastFetchedOffsets.put(entry.getKey(), seekOffset - 1);
+            if (assignedPartitions.contains(tp) == false) {
+                logger.warn(
+                    "seekToPartitionOffsets: skipping partition {} (not assigned to shard {}); assigned partitions are {}",
+                    entry.getKey(),
+                    shardId,
+                    assignedPartitions.stream().map(TopicPartition::partition).toList()
+                );
+                continue;
             }
+            long seekOffset = ((KafkaOffset) entry.getValue()).getOffset();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                consumer.seek(tp, seekOffset);
+                return null;
+            });
+            lastFetchedOffsets.put(entry.getKey(), seekOffset - 1);
         }
     }
 
@@ -334,7 +356,7 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
      * Returns the list of assigned partition IDs.
      */
     public List<Integer> getAssignedPartitionIds() {
-        return assignedPartitions.stream().map(TopicPartition::partition).collect(Collectors.toUnmodifiableList());
+        return assignedPartitions.stream().map(TopicPartition::partition).toList();
     }
 
     @Override

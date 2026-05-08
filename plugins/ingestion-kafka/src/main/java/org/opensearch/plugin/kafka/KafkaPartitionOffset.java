@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.SourcePartitionAwarePointer;
 
@@ -20,9 +21,17 @@ import java.util.Objects;
  * while adding partition information via {@link SourcePartitionAwarePointer}.
  *
  * <p><b>TODO: partition-aware Lucene point field / range query.</b>
- * This class intentionally inherits {@link KafkaOffset#asPointField(String)} and
- * {@link KafkaOffset#newRangeQueryGreaterThan(String)}, so the indexed Lucene
- * {@code _offset} field carries only the raw offset (no partition).
+ * The write side ({@link #asPointField(String)}) intentionally inherits {@link KafkaOffset}'s
+ * implementation, so the indexed Lucene {@code _offset} field carries only the raw offset (no
+ * partition). Every multi-partition document writes this field on indexing — but it cannot be
+ * queried correctly per-partition until a proper per-partition field design lands.
+ *
+ * <p>The companion read method {@link #newRangeQueryGreaterThan(String)} is overridden to
+ * <b>throw</b> {@code UnsupportedOperationException} rather than silently returning the inherited
+ * cross-partition query (which would match documents from ANY partition with offset greater than
+ * this pointer's offset). The asymmetry is intentional: writing a placeholder field is harmless
+ * and required by the indexing path, but reading it via the standard pointer query API would
+ * silently produce wrong results.
  *
  * <p>This is not needed per se right now because:
  * <ul>
@@ -38,7 +47,10 @@ import java.util.Objects;
  *
  * <p>When this becomes needed (e.g., per-partition offset-range dedup as a fallback to
  * {@code _id} overwrite, partition-scoped diagnostic queries, or post-recovery cleanup),
- * the right design is two separate point fields.
+ * the right design is two separate point fields — an {@code IntPoint} for partition + the
+ * existing {@code LongPoint} for offset, combined via a {@code BooleanQuery}. That requires
+ * extending the {@link IngestionShardPointer} contract to return multiple fields, which should
+ * be done deliberately at the point a real caller is wired in.
  */
 public class KafkaPartitionOffset extends KafkaOffset implements SourcePartitionAwarePointer {
 
@@ -76,6 +88,28 @@ public class KafkaPartitionOffset extends KafkaOffset implements SourcePartition
     @Override
     public String asString() {
         return partition + ":" + getOffset();
+    }
+
+    /**
+     * Throws {@code UnsupportedOperationException} — see class-level Javadoc. Inheriting
+     * {@link KafkaOffset#newRangeQueryGreaterThan(String)} would silently match documents from
+     * ANY partition with an offset greater than this pointer's offset, since the indexed
+     * {@code _offset} field carries no partition info. Per-partition queries need a different
+     * field design (two separate indexed fields combined via {@code BooleanQuery}); throwing
+     * here forces future callers to recognize the multi-partition case rather than getting
+     * cross-partition matches by accident. No production caller today.
+     *
+     * @throws UnsupportedOperationException always
+     */
+    @Override
+    public Query newRangeQueryGreaterThan(String fieldName) {
+        throw new UnsupportedOperationException(
+            "newRangeQueryGreaterThan() inherited from KafkaOffset would match documents from ANY "
+                + "partition with offset greater than this pointer's offset, because the indexed "
+                + "_offset field carries no partition info. For per-partition dedup queries, the right "
+                + "design is two separate indexed fields (IntPoint for partition + LongPoint for offset) "
+                + "combined via BooleanQuery — requires extending the IngestionShardPointer interface."
+        );
     }
 
     /**

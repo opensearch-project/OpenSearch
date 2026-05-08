@@ -14,6 +14,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.opensearch.index.IngestionShardConsumer;
+import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -154,6 +155,39 @@ public class KafkaMultiPartitionConsumerTests extends OpenSearchTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> consumer.pointerFromOffset("42"));
         assertTrue(e.getMessage().contains("partition:offset"));
+    }
+
+    public void testPointerFromOffsetParsesPartitionOffset() {
+        // Happy path — "partition:offset" parses to a KafkaPartitionOffset with the right values.
+        KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
+
+        IngestionShardPointer pointer = consumer.pointerFromOffset("4:42");
+        assertTrue("Should be KafkaPartitionOffset", pointer instanceof KafkaPartitionOffset);
+        KafkaPartitionOffset partitionOffset = (KafkaPartitionOffset) pointer;
+        assertEquals(4, partitionOffset.getSourcePartition());
+        assertEquals(42L, partitionOffset.getOffset());
+    }
+
+    public void testPointerFromOffsetRejectsMalformed() {
+        // Mirrors KafkaConsumerFactoryTests.testParsePartitionOffsetRejectsMalformed — both parsers
+        // must validate identically. Without this, "3:42:99" used to silently truncate to (3, 42)
+        // and "3:" used to throw a cryptic ArrayIndexOutOfBoundsException.
+        KafkaMultiPartitionConsumer consumer = createConsumer(List.of(0, 4));
+
+        IllegalArgumentException tooManyParts = expectThrows(
+            IllegalArgumentException.class,
+            () -> consumer.pointerFromOffset("3:42:99")
+        );
+        assertTrue(tooManyParts.getMessage().contains("partition:offset"));
+
+        IllegalArgumentException emptyPartition = expectThrows(
+            IllegalArgumentException.class,
+            () -> consumer.pointerFromOffset(":42")
+        );
+        assertTrue(emptyPartition.getMessage().contains("partition:offset"));
+
+        IllegalArgumentException emptyOffset = expectThrows(IllegalArgumentException.class, () -> consumer.pointerFromOffset("3:"));
+        assertTrue(emptyOffset.getMessage().contains("partition:offset"));
     }
 
     // --- Single-pointer methods are unsupported in multi-partition mode ---
