@@ -205,7 +205,15 @@ public enum ScalarFunction {
      * is {@code array_element}, also 1-based; the DataFusion backend renames via a
      * name-mapping adapter.
      */
-    ITEM(Category.SCALAR, SqlKind.ITEM);
+    ITEM(Category.SCALAR, SqlKind.ITEM),
+    /**
+     * PPL {@code mvzip(left, right [, sep])} — element-wise zip of two arrays into an
+     * array of strings, joined per pair by a separator (default {@code ","}). Resolves
+     * through the SQL plugin's {@code MVZipFunctionImpl} UDF named {@code "mvzip"}.
+     * No DataFusion stdlib equivalent — the analytics-backend-datafusion plugin ships
+     * a custom Rust UDF (`udf::mvzip`) registered on its session context.
+     */
+    MVZIP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.

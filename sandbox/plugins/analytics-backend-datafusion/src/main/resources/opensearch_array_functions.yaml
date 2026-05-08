@@ -83,6 +83,30 @@ scalar_functions:
             name: index
         return: "any1?"
 
+  - name: mvzip
+    description: >-
+      Element-wise zip of two arrays into a list of strings, joined per pair
+      by a separator (default ","). Result length is min(len(left), len(right))
+      (Python-zip truncation). Element NULLs render as empty strings; either
+      array NULL → NULL result. PPL surface is {@code mvzip(left, right [, sep])};
+      registered as a custom Rust UDF on the analytics-backend-datafusion plugin
+      (no DataFusion stdlib equivalent).
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: left
+          - value: "list<any2>"
+            name: right
+        return: "list<string?>"
+      - args:
+          - value: "list<any1>"
+            name: left
+          - value: "list<any2>"
+            name: right
+          - value: "string"
+            name: separator
+        return: "list<string?>"
+
   - name: array_to_string
     description: >-
       Join array elements into a single string using a separator. Calcite's
