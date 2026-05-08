@@ -36,11 +36,12 @@ use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
-    Array, ArrayRef, AsArray, BooleanArray, BooleanBuilder, Float32Array, Float32Builder,
-    Float64Array, Float64Builder, GenericListArray, Int16Array, Int16Builder, Int32Array,
-    Int32Builder, Int64Array, Int64Builder, Int8Array, Int8Builder, ListArray, ListBuilder,
-    StringArray, StringBuilder, StringViewArray, StringViewBuilder, UInt16Array, UInt16Builder,
-    UInt32Array, UInt32Builder, UInt64Array, UInt64Builder, UInt8Array, UInt8Builder,
+    Array, ArrayRef, AsArray, BooleanArray, BooleanBuilder, Decimal128Array, Decimal128Builder,
+    Float32Array, Float32Builder, Float64Array, Float64Builder, GenericListArray, Int16Array,
+    Int16Builder, Int32Array, Int32Builder, Int64Array, Int64Builder, Int8Array, Int8Builder,
+    ListArray, ListBuilder, StringArray, StringBuilder, StringViewArray, StringViewBuilder,
+    UInt16Array, UInt16Builder, UInt32Array, UInt32Builder, UInt64Array, UInt64Builder,
+    UInt8Array, UInt8Builder,
 };
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::plan_err;
@@ -182,6 +183,54 @@ impl ScalarUDFImpl for MvappendUdf {
             DataType::Float32 => build!(Float32Builder, Float32Array, ListArray),
             DataType::Float64 => build!(Float64Builder, Float64Array, ListArray),
             DataType::Boolean => build!(BooleanBuilder, BooleanArray, ListArray),
+            // Decimal128 element type — needs a builder configured with the same precision
+            // and scale as the input. Calcite's leastRestrictive widening for INT + DECIMAL
+            // produces DECIMAL(p, s) which substrait converts to Decimal128(p, s); the Java
+            // adapter's CAST aligns every operand's element type to that.
+            DataType::Decimal128(precision, scale) => {
+                let inner = Decimal128Builder::new()
+                    .with_precision_and_scale(*precision, *scale)
+                    .map_err(|e| DataFusionError::Plan(format!("mvappend: decimal builder: {e}")))?;
+                let mut builder = ListBuilder::new(inner);
+                for row in 0..n {
+                    let mut any_value = false;
+                    for arr in &operand_arrays {
+                        if arr.is_null(row) {
+                            continue;
+                        }
+                        if let Some(list_arr) = arr.as_any().downcast_ref::<GenericListArray<i32>>() {
+                            let row_list = list_arr.value(row);
+                            let typed = row_list
+                                .as_any()
+                                .downcast_ref::<Decimal128Array>()
+                                .ok_or_else(|| DataFusionError::Internal(format!(
+                                    "mvappend: list element vector type mismatch ({:?})",
+                                    row_list.data_type()
+                                )))?;
+                            for i in 0..typed.len() {
+                                if !typed.is_null(i) {
+                                    builder.values().append_value(typed.value(i));
+                                    any_value = true;
+                                }
+                            }
+                        } else if let Some(typed) = arr.as_any().downcast_ref::<Decimal128Array>() {
+                            builder.values().append_value(typed.value(row));
+                            any_value = true;
+                        } else {
+                            return plan_err!(
+                                "mvappend: unexpected operand vector type {:?}",
+                                arr.data_type()
+                            );
+                        }
+                    }
+                    if any_value {
+                        builder.append(true);
+                    } else {
+                        builder.append_null();
+                    }
+                }
+                Arc::new(builder.finish()) as ArrayRef
+            }
             // String element types — handled specially because list children may be any of
             // {Utf8, LargeUtf8, Utf8View} depending on whether the operand is a string literal,
             // a field read (DataFusion's substrait consumer uses Utf8View for column reads in

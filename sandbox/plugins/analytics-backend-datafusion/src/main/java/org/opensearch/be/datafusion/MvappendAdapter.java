@@ -65,29 +65,31 @@ class MvappendAdapter implements ScalarFunctionAdapter {
         RelDataType arrayType = original.getType();
         RelDataType componentType = arrayType.getComponentType();
         if (componentType == null) {
-            // Defensive — Calcite always assigns ARRAY<X> as mvappend's return type. Pass
-            // operands through untouched and let substrait surface the error if anything's
-            // off.
             return rexBuilder.makeCall(arrayType, LOCAL_MVAPPEND_OP, original.getOperands());
         }
+        // Substrait's variadic {@code any1} parameter requires every operand at the same
+        // variadic position to share a type. PPL's {@code mvappend(arg, …)} accepts a mix
+        // of bare scalars and arrays, which substrait's signature matcher rejects with
+        // {@code Unable to convert call mvappend(list<…>, scalar, …)}. Normalize every
+        // operand to {@code ARRAY<componentType>} — array operands cast their element
+        // type if it differs; scalar operands wrap in a {@code make_array(…)} singleton
+        // call. The Rust UDF then sees a uniform {@code list<any1>} variadic.
+        RelDataType targetArrayType = cluster.getTypeFactory().createArrayType(componentType, -1);
         List<RexNode> coerced = new ArrayList<>(original.getOperands().size());
         for (RexNode operand : original.getOperands()) {
             RelDataType operandType = operand.getType();
             if (operandType.getComponentType() != null) {
                 // Array operand — cast to ARRAY<componentType> if its element type differs.
-                RelDataType targetArray = cluster.getTypeFactory().createArrayType(componentType, -1);
-                if (operandType.equals(targetArray)) {
+                if (operandType.equals(targetArrayType)) {
                     coerced.add(operand);
                 } else {
-                    coerced.add(rexBuilder.makeCast(targetArray, operand, true, false));
+                    coerced.add(rexBuilder.makeCast(targetArrayType, operand, true, false));
                 }
             } else {
-                // Scalar operand — cast to componentType if its type differs.
-                if (operandType.equals(componentType)) {
-                    coerced.add(operand);
-                } else {
-                    coerced.add(rexBuilder.makeCast(componentType, operand, true, false));
-                }
+                // Scalar operand — first cast to componentType (so the singleton array's
+                // element type matches), then wrap in make_array so substrait sees a list.
+                RexNode casted = operandType.equals(componentType) ? operand : rexBuilder.makeCast(componentType, operand, true, false);
+                coerced.add(rexBuilder.makeCall(targetArrayType, MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, List.of(casted)));
             }
         }
         return rexBuilder.makeCall(arrayType, LOCAL_MVAPPEND_OP, coerced);
