@@ -56,6 +56,8 @@ public enum FieldType {
     OBJECT("object"),
     FLAT_OBJECT("flat_object"),
     COMPLETION("completion"),
+
+    // ── Composite ────────────────────────────────────────────────────
     /**
      * Array-typed expression result. Used for the return-type slot of array-producing scalar
      * functions (PPL {@code array(…)}, {@code array_slice}, {@code array_distinct}). Has no
@@ -64,7 +66,14 @@ public enum FieldType {
      * placeholder; {@link #fromMappingType} keeps working unchanged because no source
      * advertises that mapping string.
      */
-    ARRAY("array");
+    ARRAY("array"),
+    /**
+     * Models Calcite MAP return types for scalar functions such as PPL {@code parse}
+     * (parse → {@code map<varchar, varchar>} of named groups). No corresponding OpenSearch
+     * mapping type; {@link #fromMappingType} won't match {@code "map"} because no real OS
+     * mapping uses that name.
+     */
+    MAP("map");
 
     private final String mappingType;
 
@@ -127,6 +136,7 @@ public enum FieldType {
             case BOOLEAN -> FieldType.BOOLEAN;
             case BINARY, VARBINARY -> FieldType.BINARY;
             case ARRAY -> FieldType.ARRAY;
+            case MAP -> FieldType.MAP;
             default -> null;
         };
     }

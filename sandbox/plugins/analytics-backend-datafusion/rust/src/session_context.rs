@@ -124,10 +124,11 @@ pub async unsafe fn create_session_context(
         .build();
 
     let ctx = SessionContext::new_with_state(state);
-    // Register OpenSearch UDFs (mvappend, mvfind, mvzip, convert_tz, …) on this session
-    // so the substrait converter at execute_with_context can resolve their function names.
-    // Without this, fragment execution fails with "Unsupported function name" because
-    // df_execute_with_context reuses this handle's ctx instead of building a fresh one.
+    // Register OpenSearch UDFs (parse, item, mvappend, mvfind, mvzip, convert_tz, …)
+    // on this session so the substrait converter at execute_with_context can resolve
+    // their function names. Without this, fragment execution fails with "Unsupported
+    // function name" because df_execute_with_context reuses this handle's ctx instead
+    // of building a fresh one.
     crate::udf::register_all(&ctx);
 
     // Register default ListingTable for parquet scans
