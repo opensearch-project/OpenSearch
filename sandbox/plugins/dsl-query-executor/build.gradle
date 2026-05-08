@@ -39,6 +39,8 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 
   internalClusterTestImplementation project(':server')
   internalClusterTestImplementation project(':test:framework')
