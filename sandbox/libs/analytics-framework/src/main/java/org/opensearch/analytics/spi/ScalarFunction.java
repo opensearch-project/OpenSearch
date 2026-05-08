@@ -47,6 +47,11 @@ public enum ScalarFunction {
     // ── Full-text search ─────────────────────────────────────────────
     MATCH(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     MATCH_PHRASE(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCH_BOOL_PREFIX(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCH_PHRASE_PREFIX(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MULTI_MATCH(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    QUERY_STRING(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    SIMPLE_QUERY_STRING(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     FUZZY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     WILDCARD(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
