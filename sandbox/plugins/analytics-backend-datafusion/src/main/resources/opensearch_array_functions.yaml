@@ -83,6 +83,20 @@ scalar_functions:
             name: index
         return: "any1?"
 
+  - name: mvfind
+    description: >-
+      Find the 0-based index of the first array element matching a regex pattern,
+      or NULL if no match. NULL elements are skipped (not matched). PPL surface is
+      {@code mvfind(arr, regex)}; registered as a custom Rust UDF on the
+      analytics-backend-datafusion plugin (no DataFusion stdlib equivalent).
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: array
+          - value: "string"
+            name: pattern
+        return: "i32?"
+
   - name: mvzip
     description: >-
       Element-wise zip of two arrays into a list of strings, joined per pair

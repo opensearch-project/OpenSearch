@@ -213,7 +213,15 @@ public enum ScalarFunction {
      * No DataFusion stdlib equivalent — the analytics-backend-datafusion plugin ships
      * a custom Rust UDF (`udf::mvzip`) registered on its session context.
      */
-    MVZIP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    MVZIP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code mvfind(arr, regex)} — find the 0-based index of the first array
+     * element matching a regex, or NULL if no match. Resolves through the SQL
+     * plugin's {@code MVFindFunctionImpl} UDF named {@code "mvfind"}. No
+     * DataFusion stdlib equivalent — the analytics-backend-datafusion plugin
+     * ships a custom Rust UDF (`udf::mvfind`) registered on its session context.
+     */
+    MVFIND(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.

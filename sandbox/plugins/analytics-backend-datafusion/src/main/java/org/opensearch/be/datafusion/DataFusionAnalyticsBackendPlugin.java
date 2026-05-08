@@ -238,7 +238,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // PPL `mvindex(arr, N)` single-element form.
         ScalarFunction.ARRAY_LENGTH,
         ScalarFunction.ARRAY_JOIN,
-        ScalarFunction.ITEM
+        ScalarFunction.ITEM,
+        // PPL `mvfind` returns INTEGER (the 0-based index of the first match, or NULL); backed
+        // by a custom Rust UDF on the DataFusion session context (`udf::mvfind`), routed via
+        // {@link MvfindAdapter}.
+        ScalarFunction.MVFIND
     );
 
     /**
@@ -357,6 +361,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
                     Map.entry(ScalarFunction.ARRAY_SLICE, new ArraySliceAdapter()),
                     Map.entry(ScalarFunction.ITEM, new ArrayElementAdapter()),
+                    Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
