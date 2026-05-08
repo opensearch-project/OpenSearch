@@ -38,11 +38,11 @@ import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldStorageInfo;
-import org.opensearch.analytics.spi.FilterDelegationInstructionNode;
 import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.InstructionType;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -399,19 +399,19 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         // Instruction assertions: delegation plans must have SHARD_SCAN + FILTER_DELEGATION_FOR_INDEX
         if (expectedDelegatedCount > 0) {
             assertTrue(
-                "delegation plan must have FILTER_DELEGATION_FOR_INDEX instruction",
-                plan.instructions().stream().anyMatch(node -> node.type() == InstructionType.SETUP_FILTER_DELEGATION_FOR_INDEX)
+                "delegation plan must have SHARD_SCAN_WITH_DELEGATION instruction",
+                plan.instructions().stream().anyMatch(node -> node.type() == InstructionType.SETUP_SHARD_SCAN_WITH_DELEGATION)
             );
-            FilterDelegationInstructionNode filterInstruction = (FilterDelegationInstructionNode) plan.instructions()
+            ShardScanWithDelegationInstructionNode filterInstruction = (ShardScanWithDelegationInstructionNode) plan.instructions()
                 .stream()
-                .filter(node -> node.type() == InstructionType.SETUP_FILTER_DELEGATION_FOR_INDEX)
+                .filter(node -> node.type() == InstructionType.SETUP_SHARD_SCAN_WITH_DELEGATION)
                 .findFirst()
                 .orElseThrow();
             assertEquals("delegatedPredicateCount in instruction", expectedDelegatedCount, filterInstruction.getDelegatedPredicateCount());
             assertEquals(
-                "delegatedExpressions in instruction must match plan",
+                "delegatedPredicateCount matches delegatedExpressions size",
                 plan.delegatedExpressions().size(),
-                filterInstruction.getDelegatedQueries().size()
+                filterInstruction.getDelegatedPredicateCount()
             );
             assertEquals("treeShape in instruction", expectedTreeShape, filterInstruction.getTreeShape());
         }

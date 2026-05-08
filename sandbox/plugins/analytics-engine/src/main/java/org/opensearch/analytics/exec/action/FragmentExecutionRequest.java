@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec.action;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
+import org.opensearch.analytics.spi.DelegationDescriptor;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.InstructionType;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -108,11 +109,22 @@ public class FragmentExecutionRequest extends ActionRequest {
         private final String backendId;
         private final byte[] fragmentBytes;
         private final List<InstructionNode> instructions;
+        private final DelegationDescriptor delegationDescriptor;
 
         public PlanAlternative(String backendId, byte[] fragmentBytes, List<InstructionNode> instructions) {
+            this(backendId, fragmentBytes, instructions, null);
+        }
+
+        public PlanAlternative(
+            String backendId,
+            byte[] fragmentBytes,
+            List<InstructionNode> instructions,
+            DelegationDescriptor delegationDescriptor
+        ) {
             this.backendId = backendId;
             this.fragmentBytes = fragmentBytes;
             this.instructions = instructions;
+            this.delegationDescriptor = delegationDescriptor;
         }
 
         public PlanAlternative(StreamInput in) throws IOException {
@@ -126,6 +138,7 @@ public class FragmentExecutionRequest extends ActionRequest {
                 nodes.add(type.readNode(in));
             }
             this.instructions = nodes;
+            this.delegationDescriptor = in.readBoolean() ? new DelegationDescriptor(in) : null;
         }
 
         public void writeTo(StreamOutput out) throws IOException {
@@ -135,6 +148,12 @@ public class FragmentExecutionRequest extends ActionRequest {
             for (InstructionNode node : instructions) {
                 out.writeEnum(node.type());
                 node.writeTo(out);
+            }
+            if (delegationDescriptor != null) {
+                out.writeBoolean(true);
+                delegationDescriptor.writeTo(out);
+            } else {
+                out.writeBoolean(false);
             }
         }
 
@@ -148,6 +167,10 @@ public class FragmentExecutionRequest extends ActionRequest {
 
         public List<InstructionNode> getInstructions() {
             return instructions;
+        }
+
+        public DelegationDescriptor getDelegationDescriptor() {
+            return delegationDescriptor;
         }
     }
 }

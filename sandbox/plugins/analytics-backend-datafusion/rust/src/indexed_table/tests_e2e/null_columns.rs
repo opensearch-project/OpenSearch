@@ -233,7 +233,7 @@ fn to_engine_tree_null(tree: &NT, coll_seq: &mut u8) -> BoolNode {
             let tag = *coll_seq;
             *coll_seq += 1;
             BoolNode::Collector {
-                query_bytes: Arc::from(&[tag][..]),
+                annotation_id: tag as i32,
             }
         }
         NT::Leaf(NullLeaf::AllNullGe(v)) => pred_int_local("all_null_col", Operator::GtEq, *v),
@@ -274,8 +274,8 @@ fn wire_null_rec(
             cs.iter().for_each(|c| wire_null_rec(c, matching_sets, out))
         }
         BoolNode::Not(inner) => wire_null_rec(inner, matching_sets, out),
-        BoolNode::Collector { query_bytes } => {
-            let tag = query_bytes.first().copied().expect("empty tag bytes") as usize;
+        BoolNode::Collector { annotation_id } => {
+            let tag = *annotation_id as usize;
             let set = &matching_sets[tag];
             out.push(Arc::new(RgScopedCollector {
                 matching_rows: set.clone(),

@@ -499,11 +499,11 @@ fn extract_single_collector(tree: &BoolNode) -> Option<(u8, BoolNode)> {
     let mut residuals: Vec<BoolNode> = Vec::new();
     for child in children {
         match child {
-            BoolNode::Collector { query_bytes } => {
+            BoolNode::Collector { annotation_id } => {
                 if tag.is_some() {
                     return None;
                 }
-                tag = Some(query_bytes[0]);
+                tag = Some(*annotation_id as u8);
             }
             other => residuals.push(other.clone()),
         }
@@ -929,7 +929,7 @@ mod tests {
         let lit: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(1000))));
         let predicate = BoolNode::Predicate(Arc::new(BinaryExpr::new(col, Operator::Lt, lit)));
         let collector = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let tree_node = BoolNode::And(vec![collector, predicate]);
         let matching: Vec<i32> = (0..100i32).collect();
@@ -947,7 +947,7 @@ mod tests {
         let corpus = build_corpus(FixtureConfig::small(0x2222));
         let loaded = load_segment(&corpus);
         let collector = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let matching: Vec<i32> = (0..100i32).collect();
         let gt = GeneratedTree {
@@ -1038,7 +1038,7 @@ mod tests {
         let lit: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(1000))));
         let predicate = BoolNode::Predicate(Arc::new(BinaryExpr::new(col, Operator::Lt, lit)));
         let collector_leaf = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let tree_node = BoolNode::And(vec![collector_leaf, predicate]);
 
@@ -1113,10 +1113,10 @@ mod tests {
 
         // Multi-collector → classifies as Tree path.
         let c1 = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let c2 = BoolNode::Collector {
-            query_bytes: Arc::from(&[1u8][..]),
+            annotation_id: 1,
         };
         let tree_node = BoolNode::And(vec![BoolNode::Or(vec![c1, c2]), predicate]);
 
@@ -1147,12 +1147,12 @@ mod tests {
         let c1_expr =
             Expr::ScalarFunction(datafusion::logical_expr::expr::ScalarFunction::new_udf(
                 Arc::new(idx_filter_udf.clone()),
-                vec![lit(ScalarValue::Binary(Some(vec![0u8])))],
+                vec![lit(ScalarValue::Int32(Some(0)))],
             ));
         let c2_expr =
             Expr::ScalarFunction(datafusion::logical_expr::expr::ScalarFunction::new_udf(
                 Arc::new(idx_filter_udf),
-                vec![lit(ScalarValue::Binary(Some(vec![1u8])))],
+                vec![lit(ScalarValue::Int32(Some(1)))],
             ));
         let or_expr = datafusion::logical_expr::or(c1_expr, c2_expr);
         let price_lt = col("price").lt(lit(ScalarValue::Int32(Some(1000))));
@@ -1196,7 +1196,7 @@ mod tests {
         let lit: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(1000))));
         let predicate = BoolNode::Predicate(Arc::new(BinaryExpr::new(col, Operator::Lt, lit)));
         let collector_leaf = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let tree_node = BoolNode::And(vec![collector_leaf, predicate]);
 

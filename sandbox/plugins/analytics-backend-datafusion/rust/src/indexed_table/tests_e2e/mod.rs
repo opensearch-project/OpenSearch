@@ -327,7 +327,7 @@ async fn run_tree_and_plan(
 
 fn index_leaf(tag: u8) -> BoolNode {
     BoolNode::Collector {
-        query_bytes: Arc::from(&[tag][..]),
+        annotation_id: tag as i32,
     }
 }
 
@@ -375,8 +375,8 @@ fn wire(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>) {
     match node {
         BoolNode::And(c) | BoolNode::Or(c) => c.iter().for_each(|x| wire(x, out)),
         BoolNode::Not(inner) => wire(inner, out),
-        BoolNode::Collector { query_bytes } => {
-            let c: Arc<dyn RowGroupDocsCollector> = match query_bytes.first().copied() {
+        BoolNode::Collector { annotation_id } => {
+            let c: Arc<dyn RowGroupDocsCollector> = match Some(*annotation_id as u8) {
                 Some(0) => brand_eq("amazon"),
                 Some(1) => brand_eq("apple"),
                 Some(2) => status_eq("archived"),

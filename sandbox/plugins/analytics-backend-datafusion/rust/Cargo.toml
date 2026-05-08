@@ -1,4 +1,5 @@
 [package]
+# DataFusion analytics backend native library
 name = "opensearch-datafusion"
 version = "0.1.0"
 edition = "2021"
@@ -45,6 +46,8 @@ thiserror = { workspace = true }
 
 # convert_tz UDF
 chrono-tz = "0.10"
+
+tokio-metrics = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

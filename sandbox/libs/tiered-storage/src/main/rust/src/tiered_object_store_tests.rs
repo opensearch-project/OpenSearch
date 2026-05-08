@@ -15,6 +15,7 @@ fn setup() -> (
     let local = Arc::new(InMemory::new());
     let remote = Arc::new(InMemory::new());
     let tiered = TieredObjectStore::new(Arc::clone(&registry), Arc::clone(&local) as _);
+    tiered.set_remote(Arc::clone(&remote) as _);
     (registry, local, remote, tiered)
 }
 
@@ -35,8 +36,6 @@ async fn test_get_opts_routes_to_remote_for_remote_file() {
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
 
@@ -69,47 +68,6 @@ async fn test_get_opts_routes_to_local_when_not_in_registry() {
 }
 
 #[tokio::test]
-async fn test_get_opts_routes_to_local_for_both_file() {
-    let (_registry, local, remote, tiered) = setup();
-
-    local
-        .put(
-            &Path::from("a.parquet"),
-            PutPayload::from_static(b"local-data"),
-        )
-        .await
-        .unwrap();
-    remote
-        .put(
-            &Path::from("remote/a.parquet"),
-            PutPayload::from_static(b"remote-data"),
-        )
-        .await
-        .unwrap();
-
-    tiered
-        .register_file(
-            "a.parquet",
-            FileLocation::Both,
-            Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
-        )
-        .unwrap();
-
-    let result = tiered
-        .get_opts(&Path::from("a.parquet"), GetOptions::default())
-        .await
-        .unwrap();
-    let bytes = result.bytes().await.unwrap();
-    assert_eq!(
-        bytes.as_ref(),
-        b"local-data",
-        "Both files should route to local"
-    );
-}
-
-#[tokio::test]
 async fn test_get_opts_routes_to_local_for_local_file() {
     let (_registry, local, _remote, tiered) = setup();
 
@@ -122,7 +80,7 @@ async fn test_get_opts_routes_to_local_for_local_file() {
         .unwrap();
 
     tiered
-        .register_file("a.parquet", FileLocation::Local, None, None, None)
+        .register_file("a.parquet", FileLocation::Local, None)
         .unwrap();
 
     let result = tiered
@@ -152,8 +110,6 @@ async fn test_successful_remote_read_releases_ref_count() {
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
 
@@ -200,8 +156,6 @@ async fn test_head_falls_back_to_remote() {
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
 
@@ -237,24 +191,6 @@ async fn test_put_writes_local_and_registers() {
     assert_eq!(registry.len(), 1);
 }
 
-#[tokio::test]
-async fn test_put_opts_caches_file_size() {
-    let (registry, _local, _remote, tiered) = setup();
-
-    tiered
-        .put_opts(
-            &Path::from("sized.parquet"),
-            PutPayload::from_static(b"hello world"),
-            PutOptions::default(),
-        )
-        .await
-        .unwrap();
-
-    let entries = registry.entries_matching("sized.parquet");
-    assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].2, Some(11));
-}
-
 // -- Delete -------------------------------------------------------------
 
 #[tokio::test]
@@ -266,7 +202,7 @@ async fn test_delete_removes_registry_entry_only() {
         .await
         .unwrap();
     tiered
-        .register_file("a.parquet", FileLocation::Local, None, None, None)
+        .register_file("a.parquet", FileLocation::Local, None)
         .unwrap();
 
     tiered.delete(&Path::from("a.parquet")).await.unwrap();
@@ -310,8 +246,6 @@ async fn test_get_range_from_remote() {
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
 
@@ -355,8 +289,6 @@ async fn test_get_ranges_multiple_from_remote() {
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
 
@@ -397,7 +329,7 @@ async fn test_rename_returns_not_supported() {
 
 #[tokio::test]
 async fn test_list_includes_remote_only_files() {
-    let (registry, local, remote, tiered) = setup();
+    let (_registry, local, remote, tiered) = setup();
 
     local
         .put(
@@ -419,11 +351,8 @@ async fn test_list_includes_remote_only_files() {
             "data/evicted.parquet",
             FileLocation::Remote,
             Some("remote/evicted.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
-    registry.update("data/evicted.parquet", |e| e.size = Some(11));
 
     let results: Vec<ObjectMeta> = tiered
         .list(Some(&Path::from("data")))
@@ -436,12 +365,6 @@ async fn test_list_includes_remote_only_files() {
     let paths: Vec<String> = results.iter().map(|m| m.location.to_string()).collect();
     assert!(paths.contains(&"data/local.parquet".to_string()));
     assert!(paths.contains(&"data/evicted.parquet".to_string()));
-
-    let evicted_meta = results
-        .iter()
-        .find(|m| m.location.as_ref() == "data/evicted.parquet")
-        .unwrap();
-    assert_eq!(evicted_meta.size, 11);
 }
 
 #[tokio::test]
@@ -456,7 +379,7 @@ async fn test_list_no_duplicates_for_local_files() {
         .await
         .unwrap();
     tiered
-        .register_file("data/a.parquet", FileLocation::Local, None, None, None)
+        .register_file("data/a.parquet", FileLocation::Local, None)
         .unwrap();
 
     let results: Vec<ObjectMeta> = tiered
@@ -498,8 +421,6 @@ async fn test_list_with_delimiter_includes_remote() {
             "data/evicted.parquet",
             FileLocation::Remote,
             Some("remote/evicted.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
 
@@ -537,8 +458,6 @@ async fn test_concurrent_get_opts_on_same_remote_file() {
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
 
@@ -657,13 +576,12 @@ async fn test_mock_store_exactly_one_call_per_get_opts() {
         .unwrap();
 
     let tiered = TieredObjectStore::new(Arc::clone(&registry), local as _);
+    tiered.set_remote(Arc::clone(&mock_remote) as _);
     tiered
         .register_file(
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&mock_remote) as _),
         )
         .unwrap();
 
@@ -773,13 +691,12 @@ async fn test_error_store_guard_still_releases() {
     let error_remote: Arc<dyn ObjectStore> = Arc::new(ErrorStore);
 
     let tiered = TieredObjectStore::new(Arc::clone(&registry), local as _);
+    tiered.set_remote(Arc::clone(&error_remote));
     tiered
         .register_file(
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&error_remote)),
         )
         .unwrap();
 
@@ -804,38 +721,6 @@ fn test_register_file_remote_without_remote_path_returns_err() {
         "/a.parquet",
         FileLocation::Remote,
         None,
-        Some("repo1".into()),
-        Some(Arc::new(InMemory::new()) as _),
-    );
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_register_file_remote_without_repo_key_returns_err() {
-    let registry = Arc::new(TieredStorageRegistry::new());
-    let local = Arc::new(InMemory::new());
-    let tiered = TieredObjectStore::new(registry, local as _);
-    let result = tiered.register_file(
-        "/a.parquet",
-        FileLocation::Remote,
-        Some("remote/a".into()),
-        None,
-        Some(Arc::new(InMemory::new()) as _),
-    );
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_register_file_remote_without_store_returns_err() {
-    let registry = Arc::new(TieredStorageRegistry::new());
-    let local = Arc::new(InMemory::new());
-    let tiered = TieredObjectStore::new(registry, local as _);
-    let result = tiered.register_file(
-        "/a.parquet",
-        FileLocation::Remote,
-        Some("remote/a".into()),
-        Some("repo1".into()),
-        None,
     );
     assert!(result.is_err());
 }
@@ -844,7 +729,7 @@ fn test_register_file_remote_without_store_returns_err() {
 
 #[tokio::test]
 async fn test_failed_remote_read_not_found_still_completes() {
-    let (registry, _local, remote, tiered) = setup();
+    let (registry, _local, _remote, tiered) = setup();
 
     // Register a Remote file pointing to a path that doesn't exist on the remote store.
     tiered
@@ -852,8 +737,6 @@ async fn test_failed_remote_read_not_found_still_completes() {
             "missing.parquet",
             FileLocation::Remote,
             Some("remote/nonexistent.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
 
@@ -874,13 +757,12 @@ async fn test_get_range_error_from_remote_still_completes() {
     let error_remote: Arc<dyn ObjectStore> = Arc::new(ErrorStore);
 
     let tiered = TieredObjectStore::new(Arc::clone(&registry), local as _);
+    tiered.set_remote(Arc::clone(&error_remote));
     tiered
         .register_file(
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&error_remote)),
         )
         .unwrap();
 
@@ -899,13 +781,12 @@ async fn test_get_ranges_error_from_remote_still_completes() {
     let error_remote: Arc<dyn ObjectStore> = Arc::new(ErrorStore);
 
     let tiered = TieredObjectStore::new(Arc::clone(&registry), local as _);
+    tiered.set_remote(Arc::clone(&error_remote));
     tiered
         .register_file(
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&error_remote)),
         )
         .unwrap();
 
@@ -927,13 +808,12 @@ async fn test_head_remote_fallback_error_still_completes() {
 
     // File not found locally. Register as Remote with ErrorStore.
     let tiered = TieredObjectStore::new(Arc::clone(&registry), local as _);
+    tiered.set_remote(Arc::clone(&error_remote));
     tiered
         .register_file(
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&error_remote)),
         )
         .unwrap();
 
@@ -963,8 +843,6 @@ async fn test_concurrent_read_and_delete() {
             "a.parquet",
             FileLocation::Remote,
             Some("remote/a.parquet".into()),
-            Some("repo1".into()),
-            Some(Arc::clone(&remote) as _),
         )
         .unwrap();
 
@@ -1037,5 +915,5 @@ fn test_delete_during_active_guard() {
 
 // Helper: create a local entry (reused by guard tests above).
 fn local_entry() -> TieredFileEntry {
-    TieredFileEntry::new(FileLocation::Local, None, None, None, None)
+    TieredFileEntry::new(FileLocation::Local, None)
 }

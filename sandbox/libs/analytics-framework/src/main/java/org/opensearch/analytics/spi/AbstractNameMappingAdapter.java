@@ -81,6 +81,16 @@ public abstract class AbstractNameMappingAdapter implements ScalarFunctionAdapte
         // LogicalProject.create together with the cached rowType, and
         // Project.isValid's compatibleTypes check throws an AssertionError that
         // breaks fragment conversion.
+        //
+        // Exception: polymorphic PPL UDFs (e.g. SCALAR_MAX, SCALAR_MIN) declare
+        // their return type as SqlTypeName.ANY because they accept heterogeneous
+        // operand shapes. Substrait cannot serialise ANY, so fall back to the
+        // target operator's own return-type inference — the result will be a
+        // concrete type derived from operands (DOUBLE for GREATEST(DOUBLE, DOUBLE),
+        // etc.) which Substrait can serialise.
+        if (original.getType().getSqlTypeName() == SqlTypeName.ANY) {
+            return rexBuilder.makeCall(targetOperator, operands);
+        }
         return rexBuilder.makeCall(original.getType(), targetOperator, operands);
     }
 

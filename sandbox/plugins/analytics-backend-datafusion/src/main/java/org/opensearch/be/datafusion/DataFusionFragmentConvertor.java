@@ -26,6 +26,7 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,7 +70,7 @@ import io.substrait.relation.Sort;
  *   <li>{@link #attachPartialAggOnTop(RelNode, byte[])} and
  *       {@link #attachFragmentOnTop(RelNode, byte[])} — convert the wrapping
  *       operator standalone, then rewire its input to the decoded inner plan's
- *       root via {@link #rewire(Plan, Rel)}.</li>
+ *       root via {@link #rewire(Plan, Rel, List)}.</li>
  * </ul>
  *
  * @opensearch.internal
@@ -89,16 +90,31 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *       resolved by DataFusion's substrait consumer to {@code Operator::RegexMatch}, the same
      *       binary operator that backs PostgreSQL's {@code ~} regex match). Lowering target for PPL
      *       {@code regex} command and {@code regexp_match()} function.</li>
+     *   <li>{@link SqlStdOperatorTable#REPLACE} → {@code replace} (literal string replacement;
+     *       lowering target for PPL `replace` command on non-wildcard patterns).</li>
+     *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_3} → {@code regexp_replace} (regex string
+     *       replacement; lowering target for PPL `replace` command on wildcard patterns and for
+     *       PPL `replace()` / `regexp_replace()` functions in `eval`).</li>
      * </ul>
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
-        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
-        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match")
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
+        FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
+        FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
+        FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
+        FunctionMappings.s(SqlStdOperatorTable.PI, "pi"),
+        FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
+        FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
+        FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME)
     );
 
     private final SimpleExtension.ExtensionCollection extensions;
@@ -118,7 +134,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         LOGGER.debug("Attaching partial aggregate on top of {} inner bytes", innerBytes.length);
         Plan inner = decodePlan(innerBytes);
         Rel wrapper = convertStandalone(partialAggFragment);
-        Plan rewired = rewire(inner, withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE));
+        Plan rewired = rewire(
+            inner,
+            withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE),
+            fieldNames(partialAggFragment)
+        );
         return serializePlan(rewired);
     }
 
@@ -142,14 +162,19 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // the visitor still walks them top-down to build the wrapper rel.
         RelNode rewritten = rewriteStageInputScans(fragment);
         Rel wrapper = convertStandalone(rewritten);
-        return serializePlan(rewire(inner, wrapper));
+        return serializePlan(rewire(inner, wrapper, fieldNames(fragment)));
     }
 
     // ── Core conversion helpers ─────────────────────────────────────────────────
 
     private byte[] convertToSubstrait(RelNode fragment) {
-        RelRoot root = RelRoot.of(fragment, SqlKind.SELECT);
-        SubstraitRelVisitor visitor = createVisitor(fragment);
+        // Rewrite SqlTypeName.NULL literals (Calcite's untyped null, emitted for the
+        // implicit ELSE arm of CASE) to typed nulls — isthmus' TypeConverter rejects NULL
+        // with "Unable to convert the type NULL". The widening only changes literal type
+        // tags; semantics and field names (used by Plan.Root.names) are unchanged.
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+        RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
+        SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel = visitor.apply(root.rel);
 
         List<String> fieldNames = root.fields.stream().map(field -> field.getValue()).toList();
@@ -170,11 +195,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * children (e.g. the {@code attachPartialAggOnTop} caller passes a
      * {@code LogicalAggregate} whose input is the already-stripped inner tree); we
      * deliberately discard those children by taking only the outermost rel of the
-     * conversion and rewiring its input during {@link #rewire(Plan, Rel)}.
+     * conversion and rewiring its input during {@link #rewire(Plan, Rel, List)}.
      */
     private Rel convertStandalone(RelNode operator) {
-        SubstraitRelVisitor visitor = createVisitor(operator);
-        return visitor.apply(operator);
+        // Same untyped-NULL preprocessing rationale as convertToSubstrait — the standalone
+        // wrapper conversion is just as susceptible to a SqlTypeName.NULL literal lurking in
+        // a CASE call attached on top of an inner plan.
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
+        SubstraitRelVisitor visitor = createVisitor(preprocessed);
+        return visitor.apply(preprocessed);
     }
 
     /**
@@ -183,15 +212,28 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * {@code wrapper(inner.root)}. Supports the known single-input wrappers emitted
      * by our four SPI methods ({@link Aggregate}, {@link Sort}, {@link Filter},
      * {@link Project}).
+     *
+     * <p>{@code wrapperNames} must be the wrapper's output column names — typically
+     * derived from the wrapper {@link RelNode}'s row type. For schema-preserving
+     * wrappers (Sort, Filter, Fetch) these match the inner plan's names; for
+     * schema-reshaping wrappers (Aggregate, Project) they don't, and using the
+     * inner's names there causes DataFusion's substrait consumer to reject the
+     * Plan with a "Names list must match exactly to nested schema" error in
+     * {@code make_renamed_schema}.
      */
-    static Plan rewire(Plan inner, Rel wrapper) {
+    static Plan rewire(Plan inner, Rel wrapper, List<String> wrapperNames) {
         if (inner.getRoots().isEmpty()) {
             throw new IllegalArgumentException("Inner Substrait plan has no root relation to rewire under wrapper");
         }
         Plan.Root innerRoot = inner.getRoots().get(0);
         Rel innerRel = innerRoot.getInput();
         Rel rewired = replaceInput(wrapper, innerRel);
-        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(innerRoot.getNames()).build()).build();
+        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(wrapperNames).build()).build();
+    }
+
+    /** Extracts a wrapper's output column names from its Calcite row type. */
+    private static List<String> fieldNames(RelNode fragment) {
+        return fragment.getRowType().getFieldList().stream().map(RelDataTypeField::getName).toList();
     }
 
     private static Rel replaceInput(Rel wrapper, Rel newInput) {
