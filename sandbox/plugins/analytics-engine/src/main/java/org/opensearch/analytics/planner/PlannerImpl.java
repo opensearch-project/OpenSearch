@@ -72,6 +72,13 @@ public class PlannerImpl {
     public static RelNode markAndOptimize(RelNode rawRelNode, PlannerContext context) {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
 
+        // Phase 0: PPL frontend folds. Scalar `where earliest("-7d", @ts)` /
+        // `where latest(...)` is rewritten to a plain timestamp comparison
+        // before the marking rules run. The EARLIEST/LATEST UDFs aren't in any
+        // backend's ScalarFunction registry, so reaching OpenSearchFilterRule
+        // unrewritten throws "Unrecognized filter operator".
+        rawRelNode = EarliestLatestAdapter.foldRelativeTimePredicates(rawRelNode);
+
         // Phase 1: RBO — pre-marking logical optimizations then marking rules, single HepPlanner
         HepProgramBuilder hepBuilder = new HepProgramBuilder();
 
