@@ -31,10 +31,7 @@ import java.util.Map;
 public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGroup> {
 
     private static final List<ResiliencyMode> allowedModes = List.of(ResiliencyMode.SOFT, ResiliencyMode.ENFORCED, ResiliencyMode.MONITOR);
-    public static final Settings TEST_WLM_SEARCH_SETTINGS = Settings.builder()
-        .put("search.default_search_timeout", "30s")
-        .put("override_request_values", "false")
-        .build();
+    public static final Settings TEST_WLM_SEARCH_SETTINGS = Settings.builder().put("search.default_search_timeout", "30s").build();
 
     static WorkloadGroup createRandomWorkloadGroup(String _id) {
         String name = randomAlphaOfLength(10);
@@ -245,7 +242,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
             Locale.ROOT,
             "{\"_id\":\"%s\",\"name\":\"TestWorkloadGroup\",\"resiliency_mode\":\"enforced\","
                 + "\"resource_limits\":{\"cpu\":0.3,\"memory\":0.4},"
-                + "\"settings\":{\"override_request_values\":\"false\",\"search.default_search_timeout\":\"30s\"},"
+                + "\"settings\":{\"search.default_search_timeout\":\"30s\"},"
                 + "\"updated_at\":%d}",
             workloadGroupId,
             currentTimeInMillis
@@ -279,9 +276,8 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
         MutableWorkloadGroupFragment updateFragment = new MutableWorkloadGroupFragment(null, Map.of(), Settings.EMPTY);
 
         WorkloadGroup updated = WorkloadGroup.updateExistingWorkloadGroup(existing, updateFragment);
-        // Only override_request_values should remain (injected by constructor)
-        assertEquals("false", updated.getSettings().get("override_request_values"));
-        assertNull(updated.getSettings().get("search.default_search_timeout"));
+        // All settings should be cleared
+        assertTrue(updated.getSettings().isEmpty());
     }
 
     public void testUpdateMergesSettings() {

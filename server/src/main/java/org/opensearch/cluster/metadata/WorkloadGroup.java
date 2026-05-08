@@ -22,7 +22,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.WorkloadGroupSearchSettings;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -76,21 +75,11 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         }
 
         // Normalize null settings to empty Settings for storage
-        // Ensure override_request_values is always present
-        Settings existingSettings = mutableWorkloadGroupFragment.getSettings();
-        if (existingSettings == null
-            || existingSettings.hasValue(WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.getKey()) == false) {
-            Settings normalized = Settings.builder()
-                .put(existingSettings != null ? existingSettings : Settings.EMPTY)
-                .put(
-                    WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.getKey(),
-                    WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.getDefault(Settings.EMPTY).toString()
-                )
-                .build();
+        if (mutableWorkloadGroupFragment.getSettings() == null) {
             mutableWorkloadGroupFragment = new MutableWorkloadGroupFragment(
                 mutableWorkloadGroupFragment.getResiliencyMode(),
                 mutableWorkloadGroupFragment.getResourceLimits(),
-                normalized
+                Settings.EMPTY
             );
         }
 
