@@ -82,7 +82,7 @@ public class DataFusionStatsPropertyTests {
     /** DataFusionStats with CPU runtime present (workersCount > 0). */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsCpuPresent() {
-        return Combinators.combine(runtimeMetrics(), runtimeMetrics().map(rt -> {
+        Arbitrary<RuntimeMetrics> cpuWithNonZeroWorkers = runtimeMetrics().map(rt -> {
             if (rt.workersCount == 0) {
                 return new RuntimeMetrics(
                     1,
@@ -97,33 +97,39 @@ public class DataFusionStatsPropertyTests {
                 );
             }
             return rt;
-        }), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats()).as((io, cpu, qe, sn, fp, ss) -> {
+        });
+        return Combinators.combine(runtimeMetrics(), cpuWithNonZeroWorkers, taskMonitorStats().list().ofSize(7)).as((io, cpu, tms) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-            monitors.put("query_execution", qe);
-            monitors.put("stream_next", sn);
-            monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
-            return new DataFusionStats(new NativeExecutorsStats(io, cpu, monitors));
+            monitors.put("query_execution", tms.get(0));
+            monitors.put("stream_next", tms.get(1));
+            monitors.put("fetch_phase", tms.get(2));
+            monitors.put("create_context", tms.get(3));
+            monitors.put("prepare_partial_plan", tms.get(4));
+            monitors.put("prepare_final_plan", tms.get(5));
+            monitors.put("sql_to_substrait", tms.get(6));
+            return new DataFusionStats(new NativeExecutorsStats(io, cpu, monitors), null);
         });
     }
 
     /** DataFusionStats with CPU runtime absent (null). */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsCpuAbsent() {
-        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
-            .as((io, qe, sn, fp, ss) -> {
-                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-                monitors.put("query_execution", qe);
-                monitors.put("stream_next", sn);
-                monitors.put("fetch_phase", fp);
-                monitors.put("segment_stats", ss);
-                return new DataFusionStats(new NativeExecutorsStats(io, null, monitors));
-            });
+        return Combinators.combine(runtimeMetrics(), taskMonitorStats().list().ofSize(7)).as((io, tms) -> {
+            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+            monitors.put("query_execution", tms.get(0));
+            monitors.put("stream_next", tms.get(1));
+            monitors.put("fetch_phase", tms.get(2));
+            monitors.put("create_context", tms.get(3));
+            monitors.put("prepare_partial_plan", tms.get(4));
+            monitors.put("prepare_final_plan", tms.get(5));
+            monitors.put("sql_to_substrait", tms.get(6));
+            return new DataFusionStats(new NativeExecutorsStats(io, null, monitors), null);
+        });
     }
 
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsNullExecutors() {
-        return Arbitraries.just(new DataFusionStats((NativeExecutorsStats) null));
+        return Arbitraries.just(new DataFusionStats(null, null));
     }
 
     // ---- Property 1: Writeable round-trip preserves all field values ----

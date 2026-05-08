@@ -138,7 +138,7 @@ mod tests {
     fn test_exec() -> DedicatedExecutor {
         let mut builder = tokio::runtime::Builder::new_multi_thread();
         builder.worker_threads(2).enable_all();
-        DedicatedExecutor::new("test-cpu", builder)
+        DedicatedExecutor::new("test-cpu", builder, 16)
     }
 
     fn test_schema() -> SchemaRef {

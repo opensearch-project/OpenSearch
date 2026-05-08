@@ -80,14 +80,12 @@ public class NativeExecutorsStatsTests {
             }),
             taskMonitorValues(),             // query_execution
             taskMonitorValues(),             // stream_next
-            taskMonitorValues(),             // fetch_phase
-            taskMonitorValues()              // segment_stats
-        ).as((io, cpu, qe, sn, fp, ss) -> {
+            taskMonitorValues()              // fetch_phase
+        ).as((io, cpu, qe, sn, fp) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
             monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
             return new NativeExecutorsStats(io, cpu, monitors);
         });
     }
@@ -98,14 +96,12 @@ public class NativeExecutorsStatsTests {
             runtimeMetrics(),                // IO runtime
             taskMonitorValues(),             // query_execution
             taskMonitorValues(),             // stream_next
-            taskMonitorValues(),             // fetch_phase
-            taskMonitorValues()              // segment_stats
-        ).as((io, qe, sn, fp, ss) -> {
+            taskMonitorValues()              // fetch_phase
+        ).as((io, qe, sn, fp) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
             monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
             return new NativeExecutorsStats(io, null, monitors);
         });
     }
