@@ -68,10 +68,12 @@
 //! extreme saturation.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use datafusion::arrow::datatypes::{DataType, SchemaRef};
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation};
+use once_cell::sync::Lazy;
 use parquet::file::metadata::ParquetMetaData;
 
 use crate::runtime_manager::CpuContention;
@@ -308,21 +310,41 @@ fn acquire_budget_impl(
     }
 }
 
-/// Consult jemalloc: is the actual process allocated memory below the safety
-/// threshold of the pool limit?
+/// EMA of jemalloc allocated bytes (smoothed, alpha=0.3).
+/// Stored as raw bytes in AtomicU64. Prevents a single low-memory sample
+/// (e.g., right after a GC-triggered deallocation burst) from overriding
+/// the pool's rejection when sustained memory usage is high.
+static EMA_JEMALLOC_ALLOCATED: Lazy<AtomicU64> = Lazy::new(|| {
+    let initial = native_bridge_common::allocator::allocated_bytes();
+    AtomicU64::new(if initial > 0 { initial as u64 } else { 0 })
+});
+
+/// EMA alpha for jemalloc signal (0.3 = responds in ~3-5 samples).
+const JEMALLOC_EMA_ALPHA_X1000: u64 = 300;
+
+/// Consult jemalloc (smoothed): is the EMA of process allocated memory below
+/// the safety threshold of the pool limit?
 ///
-/// Returns `true` if jemalloc says there's headroom (pool rejection was false
-/// positive). Returns `false` if jemalloc confirms pressure or if stats are
-/// unavailable.
+/// Returns `true` if sustained memory usage is low (pool rejection was false
+/// positive). Returns `false` if sustained memory confirms pressure.
+///
+/// The EMA smooths out transient dips from:
+/// - Operator spill releasing memory briefly before re-accumulating
+/// - JVM GC causing native frees that are quickly re-allocated
+/// - Concurrent query completing (phantom released) just before this check
 fn should_override_pool_rejection(pool_limit: usize) -> bool {
     let allocated = native_bridge_common::allocator::allocated_bytes();
     if allocated <= 0 {
-        // Stats unavailable or error — don't override, be conservative
         return false;
     }
-    let allocated = allocated as usize;
-    let threshold = (pool_limit as f64 * JEMALLOC_SAFETY_THRESHOLD) as usize;
-    allocated < threshold
+    // Update EMA with current sample
+    let sample = allocated as u64;
+    let prev = EMA_JEMALLOC_ALLOCATED.load(Ordering::Relaxed);
+    let smoothed = (JEMALLOC_EMA_ALPHA_X1000 * sample + (1000 - JEMALLOC_EMA_ALPHA_X1000) * prev) / 1000;
+    EMA_JEMALLOC_ALLOCATED.store(smoothed, Ordering::Relaxed);
+
+    let threshold = (pool_limit as f64 * JEMALLOC_SAFETY_THRESHOLD) as u64;
+    smoothed < threshold
 }
 
 

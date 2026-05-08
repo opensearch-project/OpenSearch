@@ -9,8 +9,43 @@ use crate::executor::DedicatedExecutor;
 use crate::io::register_io_runtime;
 use log::info;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::runtime::{Builder, Runtime};
 use tokio_metrics::RuntimeMonitor;
+
+/// Exponential moving average stored as fixed-point (×1000) in an AtomicU64.
+/// Smooths instantaneous signals to avoid reacting to transient spikes.
+///
+/// EMA formula: `ema = alpha × sample + (1 - alpha) × prev_ema`
+/// where alpha = 0.3 (responds within ~3-5 samples, dampens single-sample spikes).
+pub struct EmaSignal {
+    value_x1000: AtomicU64,
+}
+
+/// Alpha = 0.3 as fixed-point ×1000
+const EMA_ALPHA_X1000: u64 = 300;
+
+impl EmaSignal {
+    pub fn new(initial: f64) -> Self {
+        Self {
+            value_x1000: AtomicU64::new((initial * 1000.0) as u64),
+        }
+    }
+
+    /// Update with a new sample and return the smoothed value.
+    pub fn update(&self, sample: f64) -> f64 {
+        let sample_x1000 = (sample * 1000.0) as u64;
+        let prev = self.value_x1000.load(Ordering::Relaxed);
+        let new_val = (EMA_ALPHA_X1000 * sample_x1000 + (1000 - EMA_ALPHA_X1000) * prev) / 1000;
+        self.value_x1000.store(new_val, Ordering::Relaxed);
+        new_val as f64 / 1000.0
+    }
+
+    /// Read the current smoothed value without updating.
+    pub fn get(&self) -> f64 {
+        self.value_x1000.load(Ordering::Relaxed) as f64 / 1000.0
+    }
+}
 
 /// Snapshot of CPU executor contention. All fields are instantaneous — they
 /// represent the state at the moment of the call, not averages.
@@ -47,6 +82,9 @@ pub struct RuntimeManager {
     pub cpu_executor: DedicatedExecutor,
     pub io_monitor: RuntimeMonitor,
     pub cpu_monitor: Option<RuntimeMonitor>,
+    /// Smoothed CPU contention signals (EMA, alpha=0.3).
+    ema_alive_tasks: EmaSignal,
+    ema_queued_tasks: EmaSignal,
 }
 
 impl RuntimeManager {
@@ -87,6 +125,8 @@ impl RuntimeManager {
             cpu_executor,
             io_monitor,
             cpu_monitor,
+            ema_alive_tasks: EmaSignal::new(0.0),
+            ema_queued_tasks: EmaSignal::new(0.0),
         }
     }
 
@@ -102,8 +142,16 @@ impl RuntimeManager {
             .unwrap_or(0)
     }
 
-    /// Snapshot of CPU executor contention state.
-    /// Used by the budget module to decide whether to reduce partitions.
+    /// Smoothed CPU executor contention state (EMA, alpha=0.3).
+    ///
+    /// Each call samples the instantaneous metrics, feeds them into the EMA,
+    /// and returns the smoothed values. This prevents a single transient spike
+    /// (query burst completing, GC pause releasing memory) from causing
+    /// unnecessary partition reduction for the next query.
+    ///
+    /// Convergence: ~3-5 calls to reflect a sustained change. A single spike
+    /// contributes 30% to the EMA — not enough to cross the contention
+    /// threshold alone.
     pub fn cpu_contention(&self) -> CpuContention {
         let Some(metrics) = self.cpu_executor.runtime_metrics() else {
             return CpuContention::default();
@@ -114,11 +162,16 @@ impl RuntimeManager {
         let local_queue_total: usize = (0..num_workers)
             .map(|w| metrics.worker_local_queue_depth(w))
             .sum();
+        let queued_tasks = global_queue + local_queue_total;
+
+        // Feed instantaneous samples into EMA
+        let smoothed_alive = self.ema_alive_tasks.update(alive_tasks as f64);
+        let smoothed_queued = self.ema_queued_tasks.update(queued_tasks as f64);
 
         CpuContention {
             num_workers,
-            alive_tasks,
-            queued_tasks: global_queue + local_queue_total,
+            alive_tasks: smoothed_alive as usize,
+            queued_tasks: smoothed_queued as usize,
         }
     }
 
