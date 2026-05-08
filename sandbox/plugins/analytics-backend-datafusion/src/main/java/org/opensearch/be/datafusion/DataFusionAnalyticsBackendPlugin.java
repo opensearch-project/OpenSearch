@@ -101,6 +101,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.CAST,
         ScalarFunction.CONCAT,
         ScalarFunction.SAFE_CAST,
+        // CASE — Calcite emits CASE WHEN ... THEN ... END for conditional expressions, including
+        // PPL `count(eval(predicate))` (lowered to COUNT(CASE WHEN predicate THEN ... ELSE NULL END))
+        // and explicit `eval x = case(cond, val, ...)`. Isthmus translates SqlKind.CASE structurally
+        // to a Substrait IfThen rel — no extension lookup needed, no adapter required. DataFusion's
+        // substrait consumer handles IfThen natively. Without this entry, the analytics planner
+        // rejects the operator with "No backend supports scalar function [CASE] among [datafusion]"
+        // before substrait emission.
+        ScalarFunction.CASE,
         // ABS / SUBSTRING — `eval x = abs(...)` and `eval s = substring(...)` projections that PPL
         // sort-pushdown moves into the project tree (see CalciteSortCommandIT
         // testPushdownSortExpressionContainsNull and CalcitePPLSortIT
