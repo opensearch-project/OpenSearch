@@ -272,6 +272,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     long lastRefreshedCheckpoint = indexShard.getIndexer().lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = catalogSnapshot.getFiles(true);
 
+                    evictUploadedChecksums(localSegmentsPostRefresh);
                     // Create a map of file name to size and update the refresh segment tracker
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
                         .stream()
@@ -286,7 +287,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                                 uploadMetadata(localSegmentsPostRefresh, catalogSnapshot, checkpoint);
                                 logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
-                                evictUploadedChecksums(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
                                     refreshClockTimeMs,
@@ -399,13 +399,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     }
 
     /**
-     * Evicts pre-computed checksums for files that have been successfully uploaded.
+     * Evicts pre-computed checksums for files no longer in the current catalog snapshot.
      * Once uploaded, the checksum is stored in remote metadata and no longer needed in the local cache.
      */
-    private void evictUploadedChecksums(Collection<String> uploadedFiles) {
+    private void evictUploadedChecksums(Collection<String> currentSnapshotFiles) {
         DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
         if (dfasd != null) {
-            dfasd.evictChecksums(uploadedFiles);
+            dfasd.evictStaleChecksums(currentSnapshotFiles);
         }
     }
 
