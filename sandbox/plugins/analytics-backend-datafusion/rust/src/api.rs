@@ -486,6 +486,11 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
 
     match result {
         Some(batch) => {
+            // Apply any pending phantom correction from the self-correcting budget.
+            // The CrossRtStream's poll_next observes actual batch sizes and accumulates
+            // a delta. We apply it here (sequential caller — no concurrency concern).
+            handle._query_tracking_context.apply_pending_phantom_correction();
+
             let struct_array: StructArray = batch.into();
             let array_data = struct_array.into_data();
             let ffi_array = FFI_ArrowArray::new(&array_data);

@@ -192,6 +192,8 @@ pub struct QueryTrackingContext {
     /// ensures operators see realistic available capacity and spill earlier.
     /// Released on drop (query completion).
     phantom_reservation: Option<MemoryReservation>,
+    /// Shared with CrossRtStream for self-correcting phantom budget.
+    phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
 }
 
 impl QueryTrackingContext {
@@ -202,6 +204,7 @@ impl QueryTrackingContext {
             return Self {
                 tracker: None,
                 phantom_reservation: None,
+                phantom_corrector: None,
             };
         }
         let query_pool = Arc::new(QueryMemoryPool::new(global_pool));
@@ -217,6 +220,7 @@ impl QueryTrackingContext {
         Self {
             tracker: Some(tracker),
             phantom_reservation: None,
+            phantom_corrector: None,
         }
     }
 
@@ -237,6 +241,44 @@ impl QueryTrackingContext {
         self.phantom_reservation
             .as_ref()
             .map_or(0, |r| r.size())
+    }
+
+    /// Attach a phantom corrector for self-correcting budget.
+    /// Returns the `Arc` clone for passing to `CrossRtStream`.
+    pub fn set_phantom_corrector(
+        &mut self,
+        corrector: Arc<crate::phantom_corrector::PhantomCorrector>,
+    ) -> Arc<crate::phantom_corrector::PhantomCorrector> {
+        let clone = Arc::clone(&corrector);
+        self.phantom_corrector = Some(corrector);
+        clone
+    }
+
+    /// Apply any pending phantom correction accumulated by the CrossRtStream.
+    /// Called from `stream_next` after delivering each batch to Java.
+    /// Grows or shrinks the phantom reservation to match actual observed batch sizes.
+    pub fn apply_pending_phantom_correction(&mut self) {
+        let (corrector, reservation) = match (&self.phantom_corrector, &mut self.phantom_reservation) {
+            (Some(c), Some(r)) => (c, r),
+            _ => return,
+        };
+        let delta = corrector.take_pending_delta();
+        if delta == 0 {
+            return;
+        }
+        if delta > 0 {
+            // Need more phantom — try_grow (may fail if pool full, that's OK)
+            let _ = reservation.try_grow(delta as usize);
+        } else {
+            // Excess phantom — shrink (but keep a 10% floor)
+            let shrink = (-delta) as usize;
+            let current = reservation.size();
+            let floor = current / 10;
+            let actual_shrink = shrink.min(current.saturating_sub(floor));
+            if actual_shrink > 0 {
+                reservation.shrink(actual_shrink);
+            }
+        }
     }
 
     /// The per-query memory pool to install in a `RuntimeEnv`, or `None`

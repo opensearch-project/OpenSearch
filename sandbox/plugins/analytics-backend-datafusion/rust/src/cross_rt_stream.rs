@@ -13,6 +13,7 @@ use std::{
 };
 
 use crate::executor::{DedicatedExecutor, JobError};
+use crate::phantom_corrector::PhantomCorrector;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::DataFusionError;
@@ -31,6 +32,8 @@ pub struct CrossRtStream {
     inner: ReceiverStream<Result<RecordBatch, DataFusionError>>,
     inner_done: bool,
     schema: SchemaRef,
+    /// Optional phantom corrector for self-correcting budget.
+    phantom_corrector: Option<Arc<PhantomCorrector>>,
 }
 
 impl CrossRtStream {
@@ -43,6 +46,7 @@ impl CrossRtStream {
         let driver = f(tx).boxed();
         Self {
             driver,
+            phantom_corrector: None,
             driver_ready: false,
             inner: ReceiverStream::new(rx),
             inner_done: false,
@@ -87,6 +91,13 @@ impl CrossRtStream {
     pub fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }
+
+    /// Attach a phantom corrector for self-correcting budget.
+    /// Must be called before the stream is polled.
+    pub fn with_phantom_corrector(mut self, corrector: Arc<PhantomCorrector>) -> Self {
+        self.phantom_corrector = Some(corrector);
+        self
+    }
 }
 
 impl Stream for CrossRtStream {
@@ -110,7 +121,13 @@ impl Stream for CrossRtStream {
         }
 
         match this.inner.poll_next_unpin(cx) {
-            Poll::Ready(Some(item)) => Poll::Ready(Some(item)),
+            Poll::Ready(Some(item)) => {
+                // Observe batch size for self-correcting phantom
+                if let (Some(corrector), Ok(batch)) = (&this.phantom_corrector, &item) {
+                    corrector.observe_batch(batch.get_array_memory_size());
+                }
+                Poll::Ready(Some(item))
+            }
             Poll::Ready(None) => {
                 this.inner_done = true;
                 if this.driver_ready {
