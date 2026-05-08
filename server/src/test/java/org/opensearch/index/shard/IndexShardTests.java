@@ -143,7 +143,6 @@ import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogStats;
-import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -4490,9 +4489,10 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch proceedWithRecoveryLatch = new CountDownLatch(1);
         AtomicBoolean armed = new AtomicBoolean(false);
         Settings segRepSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
-        EngineFactory customFactory = config -> new InternalEngine(config, new TranslogEventListener() {
+        EngineFactory customFactory = config -> new InternalEngine(config) {
             @Override
-            public void onBeginTranslogRecovery() {
+            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
+                throws IOException {
                 if (armed.compareAndSet(true, false)) {
                     recoveryStartedLatch.countDown();
                     try {
@@ -4501,8 +4501,9 @@ public class IndexShardTests extends IndexShardTestCase {
                         throw new AssertionError(e);
                     }
                 }
+                return super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
             }
-        });
+        };
         IndexShard shard = newShard(false, segRepSettings, customFactory);
         IndexShard primary = newStartedShard(true, segRepSettings);
         recoverReplica(shard, primary, true, (a) -> null);
