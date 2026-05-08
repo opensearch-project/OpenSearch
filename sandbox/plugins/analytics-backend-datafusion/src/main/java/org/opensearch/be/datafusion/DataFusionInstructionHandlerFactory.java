@@ -15,6 +15,7 @@ import org.opensearch.analytics.spi.FinalAggregateInstructionNode;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 
@@ -58,8 +59,7 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
 
     @Override
     public Optional<InstructionNode> createPartialAggregateNode() {
-        // TODO: return Optional.of(...) once PartialAggregateInstructionHandler is implemented
-        return Optional.empty();
+        return Optional.of(new PartialAggregateInstructionNode());
     }
 
     @Override
@@ -78,10 +78,13 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
         if (node instanceof ShardScanInstructionNode) {
             return new ShardScanInstructionHandler(plugin);
         }
-        if (node instanceof FinalAggregateInstructionNode) {
-            return new FinalAggregateInstructionHandler();
+        if (node instanceof PartialAggregateInstructionNode) {
+            return new PartialAggregateInstructionHandler();
         }
-        // TODO: FilterDelegationInstructionHandler, PartialAggregateInstructionHandler
+        if (node instanceof FinalAggregateInstructionNode) {
+            DataFusionService svc = plugin.getDataFusionService();
+            return new FinalAggregateInstructionHandler(svc.getNativeRuntime());
+        }
         throw new UnsupportedOperationException("No handler for instruction type: " + node.type());
     }
 }

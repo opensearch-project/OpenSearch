@@ -85,31 +85,52 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     private final AtomicReference<Throwable> drainFailure = new AtomicReference<>();
 
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
-        super(ctx, runtimeHandle);
+        this(ctx, runtimeHandle, null);
+    }
+
+    public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle, DataFusionReduceState preparedState) {
+        super(ctx, runtimeHandle, preparedState);
         Map<Integer, DatafusionPartitionSender> senders = new LinkedHashMap<>(childInputs.size());
         long streamPtr = 0;
         try {
-            // Register one native partition per child stage. The Substrait plan in
-            // ctx.fragmentBytes() references each partition by its "input-<stageId>" name
-            // (DataFusionFragmentConvertor names them this way during plan conversion).
-            for (Map.Entry<Integer, byte[]> child : childInputs.entrySet()) {
-                int childStageId = child.getKey();
-                byte[] schemaIpc = child.getValue();
-                long senderPtr = NativeBridge.registerPartitionStream(session.getPointer(), inputIdFor(childStageId), schemaIpc);
-                senders.put(childStageId, new DatafusionPartitionSender(senderPtr));
+            if (preparedState != null) {
+                // Plan was already prepared by FinalAggregateInstructionHandler. The handler
+                // registered senders in ctx.childInputs() iteration order; we re-index them
+                // here by childStageId for lookup during feed().
+                int i = 0;
+                for (Map.Entry<Integer, byte[]> child : childInputs.entrySet()) {
+                    senders.put(child.getKey(), preparedState.senders().get(i++));
+                }
+                streamPtr = NativeBridge.executeLocalPreparedPlan(session.getPointer());
+            } else {
+                // Legacy path (non-aggregate reduce): register partitions and execute the
+                // fragment bytes directly. Used when no prior instruction prepared a plan.
+                //
+                // ctx.fragmentBytes() references each partition by its "input-<stageId>" name
+                // (DataFusionFragmentConvertor names them this way during plan conversion).
+                for (Map.Entry<Integer, byte[]> child : childInputs.entrySet()) {
+                    int childStageId = child.getKey();
+                    byte[] schemaIpc = child.getValue();
+                    long senderPtr = NativeBridge.registerPartitionStream(session.getPointer(), inputIdFor(childStageId), schemaIpc);
+                    senders.put(childStageId, new DatafusionPartitionSender(senderPtr));
+                }
+                streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
             }
-            streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
             this.outStream = new StreamHandle(streamPtr, runtimeHandle);
         } catch (RuntimeException e) {
             if (streamPtr != 0) {
                 NativeBridge.streamClose(streamPtr);
             }
-            for (DatafusionPartitionSender sender : senders.values()) {
-                try {
-                    sender.close();
-                } catch (Throwable ignore) {}
+            // Only close senders we allocated locally (legacy path). When preparedState
+            // owns them, the state's close() will.
+            if (preparedState == null) {
+                for (DatafusionPartitionSender sender : senders.values()) {
+                    try {
+                        sender.close();
+                    } catch (Throwable ignore) {}
+                }
+                session.close();
             }
-            session.close();
             throw e;
         }
         this.sendersByChildStageId = senders;
