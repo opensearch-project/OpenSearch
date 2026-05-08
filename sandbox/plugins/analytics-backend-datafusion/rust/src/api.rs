@@ -74,17 +74,22 @@ pub struct QueryStreamHandle {
     /// The physical plan may reference state (e.g. RuntimeEnv, caches) owned
     /// by the session; dropping it prematurely causes use-after-free.
     _session_ctx: Option<datafusion::prelude::SessionContext>,
+    /// Concurrency gate permit — held for the query's entire lifetime.
+    /// Released on drop, which frees partition budget for other queries.
+    _concurrency_permit: Option<tokio::sync::OwnedSemaphorePermit>,
 }
 
 impl QueryStreamHandle {
     pub fn new(
         stream: RecordBatchStreamAdapter<CrossRtStream>,
         query_context: QueryTrackingContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
     ) -> Self {
         Self {
             stream,
             _query_tracking_context: query_context,
             _session_ctx: None,
+            _concurrency_permit: permit,
         }
     }
 
@@ -92,11 +97,13 @@ impl QueryStreamHandle {
         stream: RecordBatchStreamAdapter<CrossRtStream>,
         query_context: QueryTrackingContext,
         ctx: datafusion::prelude::SessionContext,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
     ) -> Self {
         Self {
             stream,
             _query_tracking_context: query_context,
             _session_ctx: Some(ctx),
+            _concurrency_permit: permit,
         }
     }
 }
@@ -340,7 +347,13 @@ pub async unsafe fn execute_query(
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
 
-    let query_future = async move {
+    // Acquire concurrency gate permit BEFORE executing the query.
+    // This blocks until partition budget is available, preventing
+    // unbounded partition task accumulation on the CPU runtime.
+    let partition_weight = query_config.target_partitions.max(1) as u32;
+    let permit = cpu_executor.concurrency_gate().acquire_many(partition_weight).await;
+
+    let query_future = async {
         if is_indexed {
             let qc = Arc::new(query_config);
             crate::indexed_executor::execute_indexed_query(
@@ -373,7 +386,7 @@ pub async unsafe fn execute_query(
 
     // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
-    let handle = QueryStreamHandle::new(stream, query_context);
+    let handle = QueryStreamHandle::new(stream, query_context, Some(permit));
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -413,15 +426,21 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// Returns a heap-allocated FFI_ArrowArray pointer (as i64), or 0 if end-of-stream
 /// or cancelled.
 ///
+/// Acquires a partition gate permit before polling the stream. The permit is
+/// released after the batch is produced (or on cancellation/end-of-stream).
+///
 /// This is an async function — the bridge layer decides how to run it.
 ///
 /// # Safety
 /// `stream_ptr` must be a valid, non-zero pointer. Must not be called concurrently
 /// on the same stream.
-pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
+pub async unsafe fn stream_next(
+    stream_ptr: i64,
+) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
     let token = query_tracker::get_cancellation_token(handle._query_tracking_context.context_id());
 
+    // Fetch the next batch (cancellation-aware)
     let result = cancellation::cancellable_or(
         token.as_ref(),
         None,
@@ -482,7 +501,7 @@ pub unsafe fn sql_to_substrait(
     let object_metas = shard_view.object_metas.clone();
     let table_name = table_name.to_string();
 
-    manager.io_runtime.block_on(async {
+    manager.io_runtime.block_on(crate::task_monitors::sql_to_substrait_monitor().instrument(async {
         let list_file_cache = Arc::new(DefaultListFilesCache::default());
         list_file_cache.put(
             &datafusion::execution::cache::TableScopedPath {
@@ -530,7 +549,7 @@ pub unsafe fn sql_to_substrait(
             .encode(&mut buf)
             .map_err(|e| DataFusionError::Execution(format!("Substrait encode failed: {}", e)))?;
         Ok(buf)
-    })
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -630,6 +649,14 @@ pub async unsafe fn execute_local_plan(
     // `context_id` of 0 disables tracking (pool is not consulted).
     let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
 
+    // Acquire concurrency gate permit BEFORE executing the plan.
+    // LocalSession uses DataFusion's default target_partitions (= num_cpus on the host).
+    // We use num_cpus as the weight since that's what DataFusion will spawn.
+    let partition_weight = (num_cpus::get() as u32).max(1);
+    let cpu_exec = manager.cpu_executor();
+    let gate = cpu_exec.concurrency_gate();
+    let permit = gate.acquire_many(partition_weight.min(gate.max_permits())).await;
+
     let df_stream = session.execute_substrait(substrait_bytes).await?;
 
     // Wrap the output in the same CrossRtStream + RecordBatchStreamAdapter
@@ -639,7 +666,7 @@ pub async unsafe fn execute_local_plan(
         CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context);
+    let handle = QueryStreamHandle::new(wrapped, query_context, Some(permit));
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 

@@ -24,8 +24,8 @@ import java.util.Objects;
  * (Tokio runtime metrics + per-operation task monitors).
  *
  * <p>Contains an IO {@link RuntimeMetrics} (always present), an optional CPU
- * {@link RuntimeMetrics}, and 4 {@link TaskMonitorStats} for the operation types:
- * query_execution, stream_next, fetch_phase, segment_stats.
+ * {@link RuntimeMetrics}, and 3 {@link TaskMonitorStats} for the operation types:
+ * query_execution, stream_next, fetch_phase.
  */
 public class NativeExecutorsStats implements Writeable, ToXContentFragment {
 
@@ -37,8 +37,14 @@ public class NativeExecutorsStats implements Writeable, ToXContentFragment {
         STREAM_NEXT("stream_next"),
         /** Fetch phase operation. */
         FETCH_PHASE("fetch_phase"),
-        /** Segment-level statistics collection operation. */
-        SEGMENT_STATS("segment_stats");
+        /** Session context creation (schema inference). */
+        CREATE_CONTEXT("create_context"),
+        /** Partial aggregate plan preparation. */
+        PREPARE_PARTIAL_PLAN("prepare_partial_plan"),
+        /** Final aggregate plan preparation. */
+        PREPARE_FINAL_PLAN("prepare_final_plan"),
+        /** SQL to Substrait conversion (test utility). */
+        SQL_TO_SUBSTRAIT("sql_to_substrait");
 
         private final String key;
 

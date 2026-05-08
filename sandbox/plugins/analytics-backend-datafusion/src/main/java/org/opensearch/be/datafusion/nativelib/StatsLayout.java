@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
+import org.opensearch.be.datafusion.stats.PartitionGateStats;
 import org.opensearch.be.datafusion.stats.RuntimeMetrics;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 
@@ -22,7 +23,7 @@ import java.lang.invoke.VarHandle;
  * Defines the {@code MemoryLayout.structLayout} mirroring the Rust {@code DfStatsBuffer}
  * and provides {@link VarHandle} accessors for each field via layout path navigation.
  *
- * <p>The layout contains 6 named groups (2 runtime × 9 fields + 4 task monitor × 3 fields = 30 longs = 240 bytes).
+ * <p>The layout contains 10 named groups (2 runtime × 9 fields + 7 task monitor × 3 fields + 1 partition gate × 4 fields = 43 longs = 344 bytes).
  */
 public final class StatsLayout {
 
@@ -42,6 +43,12 @@ public final class StatsLayout {
         "total_scheduled_duration_ms",
         "total_idle_duration_ms" };
 
+    private static final String[] PARTITION_GATE_FIELDS = {
+        "max_permits",
+        "active_permits",
+        "total_wait_duration_ms",
+        "total_batches_started" };
+
     /** The struct layout mirroring Rust's {@code DfStatsBuffer}. */
     public static final StructLayout LAYOUT = MemoryLayout.structLayout(
         runtimeGroup("io_runtime"),
@@ -49,12 +56,16 @@ public final class StatsLayout {
         taskMonitorGroup("query_execution"),
         taskMonitorGroup("stream_next"),
         taskMonitorGroup("fetch_phase"),
-        taskMonitorGroup("segment_stats")
+        taskMonitorGroup("create_context"),
+        taskMonitorGroup("prepare_partial_plan"),
+        taskMonitorGroup("prepare_final_plan"),
+        taskMonitorGroup("sql_to_substrait"),
+        partitionGateGroup("partition_gate")
     );
 
     static {
-        if (LAYOUT.byteSize() != 30 * Long.BYTES) {
-            throw new AssertionError("StatsLayout size mismatch: expected " + (30 * Long.BYTES) + " but got " + LAYOUT.byteSize());
+        if (LAYOUT.byteSize() != 43 * Long.BYTES) {
+            throw new AssertionError("StatsLayout size mismatch: expected " + (43 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -95,10 +106,31 @@ public final class StatsLayout {
     private static final VarHandle FP_TOTAL_SCHEDULED_DURATION_MS = handle("fetch_phase", "total_scheduled_duration_ms");
     private static final VarHandle FP_TOTAL_IDLE_DURATION_MS = handle("fetch_phase", "total_idle_duration_ms");
 
-    // ---- VarHandles for segment_stats fields ----
-    private static final VarHandle SS_TOTAL_POLL_DURATION_MS = handle("segment_stats", "total_poll_duration_ms");
-    private static final VarHandle SS_TOTAL_SCHEDULED_DURATION_MS = handle("segment_stats", "total_scheduled_duration_ms");
-    private static final VarHandle SS_TOTAL_IDLE_DURATION_MS = handle("segment_stats", "total_idle_duration_ms");
+    // ---- VarHandles for create_context fields ----
+    private static final VarHandle CC_TOTAL_POLL_DURATION_MS = handle("create_context", "total_poll_duration_ms");
+    private static final VarHandle CC_TOTAL_SCHEDULED_DURATION_MS = handle("create_context", "total_scheduled_duration_ms");
+    private static final VarHandle CC_TOTAL_IDLE_DURATION_MS = handle("create_context", "total_idle_duration_ms");
+
+    // ---- VarHandles for prepare_partial_plan fields ----
+    private static final VarHandle PPP_TOTAL_POLL_DURATION_MS = handle("prepare_partial_plan", "total_poll_duration_ms");
+    private static final VarHandle PPP_TOTAL_SCHEDULED_DURATION_MS = handle("prepare_partial_plan", "total_scheduled_duration_ms");
+    private static final VarHandle PPP_TOTAL_IDLE_DURATION_MS = handle("prepare_partial_plan", "total_idle_duration_ms");
+
+    // ---- VarHandles for prepare_final_plan fields ----
+    private static final VarHandle PFP_TOTAL_POLL_DURATION_MS = handle("prepare_final_plan", "total_poll_duration_ms");
+    private static final VarHandle PFP_TOTAL_SCHEDULED_DURATION_MS = handle("prepare_final_plan", "total_scheduled_duration_ms");
+    private static final VarHandle PFP_TOTAL_IDLE_DURATION_MS = handle("prepare_final_plan", "total_idle_duration_ms");
+
+    // ---- VarHandles for sql_to_substrait fields ----
+    private static final VarHandle STS_TOTAL_POLL_DURATION_MS = handle("sql_to_substrait", "total_poll_duration_ms");
+    private static final VarHandle STS_TOTAL_SCHEDULED_DURATION_MS = handle("sql_to_substrait", "total_scheduled_duration_ms");
+    private static final VarHandle STS_TOTAL_IDLE_DURATION_MS = handle("sql_to_substrait", "total_idle_duration_ms");
+
+    // ---- VarHandles for partition_gate fields ----
+    private static final VarHandle PG_MAX_PERMITS = handle("partition_gate", "max_permits");
+    private static final VarHandle PG_ACTIVE_PERMITS = handle("partition_gate", "active_permits");
+    private static final VarHandle PG_TOTAL_WAIT_DURATION_MS = handle("partition_gate", "total_wait_duration_ms");
+    private static final VarHandle PG_TOTAL_BATCHES_STARTED = handle("partition_gate", "total_batches_started");
 
     private StatsLayout() {}
 
@@ -140,12 +172,27 @@ public final class StatsLayout {
      * Read a task monitor group (3 fields) from the segment.
      *
      * @param seg   the memory segment containing the DfStatsBuffer
-     * @param group "query_execution", "stream_next", "fetch_phase", or "segment_stats"
+     * @param group one of the OperationType keys
      * @return a populated TaskMonitorStats instance
      */
     public static TaskMonitorStats readTaskMonitor(MemorySegment seg, String group) {
         VarHandle[] handles = taskMonitorHandles(group);
         return new TaskMonitorStats((long) handles[0].get(seg, 0L), (long) handles[1].get(seg, 0L), (long) handles[2].get(seg, 0L));
+    }
+
+    /**
+     * Read the partition gate group (4 fields) from the segment.
+     *
+     * @param seg the memory segment containing the DfStatsBuffer
+     * @return a populated PartitionGateStats instance
+     */
+    public static PartitionGateStats readPartitionGate(MemorySegment seg) {
+        return new PartitionGateStats(
+            (long) PG_MAX_PERMITS.get(seg, 0L),
+            (long) PG_ACTIVE_PERMITS.get(seg, 0L),
+            (long) PG_TOTAL_WAIT_DURATION_MS.get(seg, 0L),
+            (long) PG_TOTAL_BATCHES_STARTED.get(seg, 0L)
+        );
     }
 
     // ---- Private helpers ----
@@ -169,6 +216,15 @@ public final class StatsLayout {
             ValueLayout.JAVA_LONG.withName("total_poll_duration_ms"),
             ValueLayout.JAVA_LONG.withName("total_scheduled_duration_ms"),
             ValueLayout.JAVA_LONG.withName("total_idle_duration_ms")
+        ).withName(name);
+    }
+
+    private static StructLayout partitionGateGroup(String name) {
+        return MemoryLayout.structLayout(
+            ValueLayout.JAVA_LONG.withName("max_permits"),
+            ValueLayout.JAVA_LONG.withName("active_permits"),
+            ValueLayout.JAVA_LONG.withName("total_wait_duration_ms"),
+            ValueLayout.JAVA_LONG.withName("total_batches_started")
         ).withName(name);
     }
 
@@ -210,10 +266,22 @@ public final class StatsLayout {
                 QE_TOTAL_IDLE_DURATION_MS };
             case "stream_next" -> new VarHandle[] { SN_TOTAL_POLL_DURATION_MS, SN_TOTAL_SCHEDULED_DURATION_MS, SN_TOTAL_IDLE_DURATION_MS };
             case "fetch_phase" -> new VarHandle[] { FP_TOTAL_POLL_DURATION_MS, FP_TOTAL_SCHEDULED_DURATION_MS, FP_TOTAL_IDLE_DURATION_MS };
-            case "segment_stats" -> new VarHandle[] {
-                SS_TOTAL_POLL_DURATION_MS,
-                SS_TOTAL_SCHEDULED_DURATION_MS,
-                SS_TOTAL_IDLE_DURATION_MS };
+            case "create_context" -> new VarHandle[] {
+                CC_TOTAL_POLL_DURATION_MS,
+                CC_TOTAL_SCHEDULED_DURATION_MS,
+                CC_TOTAL_IDLE_DURATION_MS };
+            case "prepare_partial_plan" -> new VarHandle[] {
+                PPP_TOTAL_POLL_DURATION_MS,
+                PPP_TOTAL_SCHEDULED_DURATION_MS,
+                PPP_TOTAL_IDLE_DURATION_MS };
+            case "prepare_final_plan" -> new VarHandle[] {
+                PFP_TOTAL_POLL_DURATION_MS,
+                PFP_TOTAL_SCHEDULED_DURATION_MS,
+                PFP_TOTAL_IDLE_DURATION_MS };
+            case "sql_to_substrait" -> new VarHandle[] {
+                STS_TOTAL_POLL_DURATION_MS,
+                STS_TOTAL_SCHEDULED_DURATION_MS,
+                STS_TOTAL_IDLE_DURATION_MS };
             default -> throw new IllegalArgumentException("Unknown task monitor group: " + group);
         };
     }
