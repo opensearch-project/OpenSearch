@@ -39,6 +39,9 @@ dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
+  // Canonical stats SPI classes (PluginStats, BackendStatsProvider)
+  implementation project(':sandbox:libs:plugin-stats-spi')
+
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
   // analytics-engine's RelNode types (OpenSearchStageInputScan) are referenced by the
@@ -192,6 +195,47 @@ testingConventions.enabled = false
 
 tasks.named('forbiddenPatterns').configure {
     exclude '**/*.parquet'
+    exclude '**/*.dylib'
+    exclude '**/*.so'
+    exclude '**/*.dll'
+}
+
+// ---- Property-based tests (jqwik / JUnit 5 Platform) ----
+
+sourceSets {
+  propertyTest {
+    java {
+      srcDir 'src/propertyTest/java'
+    }
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
+}
+
+configurations {
+  propertyTestImplementation.extendsFrom implementation, compileOnly
+  propertyTestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+dependencies {
+  propertyTestImplementation "net.jqwik:jqwik:${versions.jqwik}"
+  propertyTestImplementation "org.junit.jupiter:junit-jupiter-api:${versions.junit_jupiter}"
+  propertyTestRuntimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit_platform}"
+  // Jackson for JSON parsing in property tests
+  propertyTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+}
+
+tasks.register('propertyTest', Test) {
+  description = 'Run jqwik property-based tests'
+  group = 'verification'
+  useJUnitPlatform {
+    includeEngines 'jqwik'
+  }
+  testClassesDirs = sourceSets.propertyTest.output.classesDirs
+  classpath = sourceSets.propertyTest.runtimeClasspath
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  // Disable the security manager for property tests (jqwik is not compatible)
+  systemProperty 'tests.security.manager', 'false'
 }
 
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
@@ -206,3 +250,7 @@ tasks.named('thirdPartyAudit').configure {
         'org.apache.calcite.server.ServerDdlExecutor'
     )
 }
+
+// jqwik property tests don't ship with the randomized-testing framework that
+// forbiddenApis signatures reference — skip the check for this source set.
+tasks.matching { it.name == 'forbiddenApisPropertyTest' }.configureEach { enabled = false }
