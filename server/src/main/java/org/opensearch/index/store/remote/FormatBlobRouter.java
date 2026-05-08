@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -240,7 +241,7 @@ public class FormatBlobRouter {
     }
 
     private BlobContainer createFormatContainer(String format) {
-        BlobPath formatPath = basePath.add(format.toLowerCase(Locale.ROOT));
+        BlobPath formatPath = Objects.requireNonNull(basePath.parent()).add(format.toLowerCase(Locale.ROOT));
         return blobStore.blobContainer(formatPath);
     }
 }

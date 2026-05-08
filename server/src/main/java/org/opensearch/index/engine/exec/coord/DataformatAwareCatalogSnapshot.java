@@ -44,6 +44,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     private final long id;
     private final List<Segment> segments;
     private final long lastWriterGeneration;
+    private final long numDocs;
     private Map<String, String> userData;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private String lastCommitFileName;
@@ -99,6 +100,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         this.id = id;
         this.segments = Collections.unmodifiableList(new ArrayList<>(segments));
         this.lastWriterGeneration = lastWriterGeneration;
+        this.numDocs = computeNumDocs(this.segments);
         this.userData = Map.copyOf(userData);
         this.lastCommitFileName = lastCommittedFileName;
         this.lastCommitGeneration = lastCommitGeneration;
@@ -125,6 +127,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
             segmentList.add(new Segment(in, directoryResolver));
         }
         this.segments = Collections.unmodifiableList(segmentList);
+        this.numDocs = computeNumDocs(this.segments);
     }
 
     @Override
@@ -252,19 +255,19 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     }
 
     /**
-     * Returns 0 pending a proper doc-count model for DFA shards. Summing
-     * {@code WriterFileSet.numRows()} would double-count in mixed-format shards (parquet +
-     * lucene secondary) since both formats index the same logical documents.
-     *
-     * <p>No current consumer uses this value on DFA shards: {@code RecoverySourceHandler
-     * .canSkipPhase1} short-circuits when {@code sync_id} is absent from commit userData, which
-     * is always the case for DFA.
-     *
-     * <p>TODO: revisit when DFA formats track per-snapshot doc counts (e.g., after deletes land).
+     * Returns the total document count, precomputed during construction by summing
+     * {@code numRows} from each segment's first available format.
      */
     @Override
     public long getNumDocs() {
-        return 0L;
+        return numDocs;
+    }
+
+    private static long computeNumDocs(List<Segment> segments) {
+        return segments.stream()
+            .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
+            .mapToLong(WriterFileSet::numRows)
+            .sum();
     }
 
     /**

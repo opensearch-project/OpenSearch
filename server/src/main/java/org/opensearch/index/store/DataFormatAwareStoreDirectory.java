@@ -326,24 +326,6 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
         return strategy.createVerifyingOutput(metadata, output);
     }
 
-    /**
-     * Registers a {@link FormatChecksumStrategy} for a data format.
-     * Overrides any existing strategy
-     *
-     * <p>Use this to register strategies that support pre-computed checksums (e.g.,
-     * {@link PrecomputedChecksumStrategy} for Parquet files whose CRC32 is computed
-     * during write by the Rust writer).
-     *
-     * @param format the data format name (e.g., "parquet")
-     * @param strategy the checksum strategy to use for this format
-     */
-    public void registerChecksumStrategy(String format, FormatChecksumStrategy strategy) {
-        if (format != null && strategy != null) {
-            checksumStrategies.put(format, strategy);
-            logger.debug("Registered FormatChecksumStrategy for format [{}]", format);
-        }
-    }
-
     public IndexOutput createOutput(FileMetadata fm, IOContext context) throws IOException {
         return createOutput(toFileIdentifier(fm), context);
     }
