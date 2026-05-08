@@ -69,6 +69,12 @@ unsafe fn bool_array_from_raw(
 // Writer lifecycle
 // ---------------------------------------------------------------------------
 
+/// Creates a new Parquet writer for the given file.
+///
+/// # Safety
+///
+/// Caller must ensure all pointer/length pairs are valid UTF-8 slices or null,
+/// and that `schema_address` points to a valid `FFI_ArrowSchema`.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_create_writer(
@@ -100,6 +106,12 @@ pub unsafe extern "C" fn parquet_create_writer(
         .map_err(|e| e.to_string())
 }
 
+/// Writes a record batch to the open Parquet writer for the given file.
+///
+/// # Safety
+///
+/// Caller must ensure `file_ptr`/`file_len` is a valid UTF-8 slice, and that
+/// `array_address` and `schema_address` point to valid FFI Arrow structures.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_write(
@@ -114,7 +126,14 @@ pub unsafe extern "C" fn parquet_write(
         .map_err(|e| e.to_string())
 }
 
+/// Finalizes and closes the Parquet writer, writing metadata to out-pointers.
 /// Returns 0 with metadata in out-pointers, 1 if no writer found.
+///
+/// # Safety
+///
+/// Caller must ensure `file_ptr`/`file_len` is a valid UTF-8 slice and all
+/// out-pointers are either null or point to valid aligned memory of the correct type.
+/// `created_by_buf` must have at least `created_by_buf_len` bytes available.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_finalize_writer(
@@ -151,6 +170,11 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     }
 }
 
+/// Calls fsync on the finalized Parquet file to ensure durability.
+///
+/// # Safety
+///
+/// Caller must ensure `file_ptr`/`file_len` is a valid UTF-8 slice.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_sync_to_disk(
@@ -163,6 +187,13 @@ pub unsafe extern "C" fn parquet_sync_to_disk(
         .map_err(|e| e.to_string())
 }
 
+/// Reads Parquet file metadata and writes it to the provided out-pointers.
+///
+/// # Safety
+///
+/// Caller must ensure `file_ptr`/`file_len` is a valid UTF-8 slice and all
+/// out-pointers are either null or point to valid aligned memory of the correct type.
+/// `created_by_buf` must have at least `created_by_buf_len` bytes available.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_get_file_metadata(
@@ -191,6 +222,11 @@ pub unsafe extern "C" fn parquet_get_file_metadata(
     Ok(0)
 }
 
+/// Returns the total memory usage of writers whose filenames start with the given prefix.
+///
+/// # Safety
+///
+/// Caller must ensure `prefix_ptr`/`prefix_len` is a valid UTF-8 slice or null.
 #[no_mangle]
 pub unsafe extern "C" fn parquet_get_filtered_native_bytes_used(
     prefix_ptr: *const u8,
@@ -205,6 +241,10 @@ pub unsafe extern "C" fn parquet_get_filtered_native_bytes_used(
 // ---------------------------------------------------------------------------
 
 /// Update native settings for an index. Nullable fields use sentinel -1 for "not set".
+///
+/// # Safety
+///
+/// Caller must ensure all pointer/length pairs are valid UTF-8 slices or null.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_on_settings_update(
@@ -265,6 +305,11 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     Ok(0)
 }
 
+/// Removes the native settings for the given index.
+///
+/// # Safety
+///
+/// Caller must ensure `index_name_ptr`/`index_name_len` is a valid UTF-8 slice.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_remove_settings(
@@ -281,6 +326,16 @@ pub unsafe extern "C" fn parquet_remove_settings(
 // Merge
 // ---------------------------------------------------------------------------
 
+/// Merges multiple Parquet files into a single output file, optionally sorted.
+///
+/// # Safety
+///
+/// Caller must ensure all pointer/length pairs are valid UTF-8 slices or null,
+/// and all out-pointers point to valid aligned memory of the correct type.
+/// `created_by_buf` must have at least `created_by_buf_len` bytes available.
+/// The caller must later call `parquet_free_merge_result` to free the heap-allocated
+/// arrays written to `out_mapping_ptr`, `out_gen_keys_ptr`, `out_gen_offsets_ptr`,
+/// and `out_gen_sizes_ptr`.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_merge_files(
@@ -379,6 +434,11 @@ pub unsafe extern "C" fn parquet_merge_files(
 }
 
 /// Frees the heap-allocated arrays returned by `parquet_merge_files`.
+///
+/// # Safety
+///
+/// Each pointer/length pair must either be (0, 0) or must have been previously
+/// returned by `parquet_merge_files`. Each pair must be freed exactly once.
 #[no_mangle]
 pub unsafe extern "C" fn parquet_free_merge_result(
     mapping_ptr: i64,
@@ -411,6 +471,12 @@ pub unsafe extern "C" fn parquet_free_merge_result(
 /// Each row is a JSON object. The result is a JSON array of objects.
 /// The JSON bytes are written into `out_buf`, actual length into `out_len`.
 /// Returns 0 on success.
+///
+/// # Safety
+///
+/// Caller must ensure `file_ptr`/`file_len` is a valid UTF-8 slice, `out_buf`
+/// points to a buffer of at least `buf_capacity` bytes, and `out_len` points
+/// to a valid `i64`.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_read_as_json(

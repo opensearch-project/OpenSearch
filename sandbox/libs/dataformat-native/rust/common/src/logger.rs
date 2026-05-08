@@ -27,6 +27,9 @@ pub enum LogLevel {
 }
 
 /// Called by Java at startup to register the log callback.
+///
+/// # Safety
+/// `callback` must be a valid function pointer that remains valid for the lifetime of the process.
 #[no_mangle]
 pub unsafe extern "C" fn native_logger_init(callback: LogCallback) {
     LOG_CALLBACK.store(callback as *mut (), Ordering::Release);

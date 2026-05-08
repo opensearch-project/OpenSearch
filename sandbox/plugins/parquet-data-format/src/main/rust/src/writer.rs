@@ -212,6 +212,7 @@ impl NativeParquetWriter {
     }
 
 
+    #[allow(clippy::too_many_arguments)]
     fn sort_and_rewrite_parquet(
         temp_filename: &str,
         output_filename: &str,
@@ -337,7 +338,7 @@ impl NativeParquetWriter {
             sort_columns,
             reverse_sorts,
             nulls_first,
-        ).map_err(|e| -> Box<dyn std::error::Error> { format!("Streaming merge failed: {}", e).into() })?;
+        ).map_err(|e| -> Box<dyn std::error::Error> { format!("Streaming merge failed: {e}").into() })?;
 
         // Clean up temp chunk files
         for path in &chunk_paths {
@@ -364,7 +365,7 @@ impl NativeParquetWriter {
                     nulls_first: nf,
                 };
                 let col_index = batch.schema().index_of(col_name)
-                    .map_err(|_| format!("Sort column '{}' not found in schema", col_name))?;
+                    .map_err(|_| format!("Sort column '{col_name}' not found in schema"))?;
                 Ok(SortColumn {
                     values: batch.column(col_index).clone(),
                     options: Some(options),

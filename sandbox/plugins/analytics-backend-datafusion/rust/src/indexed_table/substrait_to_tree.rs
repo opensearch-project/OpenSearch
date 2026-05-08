@@ -29,8 +29,6 @@
 //! and that survives the substrait round-trip. Rust just reads it back out
 //! of the decoded `LogicalPlan`.
 
-use std::sync::Arc;
-
 use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef};
 use datafusion::common::tree_node::TreeNode;
 use datafusion::common::{DFSchema, ScalarValue};

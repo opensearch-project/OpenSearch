@@ -45,7 +45,7 @@ use datafusion_common::DataFusionError;
 use super::eval::RowGroupBitsetSource;
 use super::metrics::PartitionMetrics;
 use super::partitioning::{compute_assignments, PartitionAssignment, SegmentChunk, SegmentLayout};
-use super::stream::{FilterStrategy, IndexedExec, RowGroupInfo};
+use super::stream::{IndexedExec, RowGroupInfo};
 use crate::datafusion_query_config::DatafusionQueryConfig;
 use crate::indexed_table::metrics::StreamMetrics;
 use std::collections::HashSet;

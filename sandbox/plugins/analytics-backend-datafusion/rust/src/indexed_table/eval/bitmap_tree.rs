@@ -552,7 +552,6 @@ fn intersect_range_lists(a: &[(i32, i32)], b: &[(i32, i32)]) -> Vec<(i32, i32)> 
 ///   workload-dependent (Lucene posting iteration is fast for narrow
 ///   queries, slower for wide ones) so "10" is a conservative default.
 ///   Tune (or make config-driven) if profiling shows it matters.
-
 /// Internal scale factor for cost computation. All costs are multiplied
 /// by this so integer division preserves meaningful selectivity differences.
 /// A predicate keeping 1/8 pages costs `1000 * 1/8 = 125` vs one keeping

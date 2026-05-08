@@ -31,7 +31,7 @@ use super::{PrefetchedRg, RowGroupBitsetSource};
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::{PagePruneMetrics, PagePruner};
 use crate::indexed_table::row_selection::{
-    bitmap_to_packed_bits, packed_bits_to_boolean_array, row_selection_to_bitmap, PositionMap,
+    bitmap_to_packed_bits, packed_bits_to_boolean_array, PositionMap,
 };
 use datafusion::physical_optimizer::pruning::PruningPredicate;
 use std::time::Instant;
