@@ -32,6 +32,7 @@ opensearchplugin {
 }
 
 repositories {
+  mavenLocal()
   maven {
     name = 'OpenSearch Snapshots'
     url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'

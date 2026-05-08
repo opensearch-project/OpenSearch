@@ -1,0 +1,43 @@
+{
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0
+    },
+    "mappings": {
+        "properties": {
+            "id": {
+                "type": "keyword"
+            },
+            "city": {
+                "properties": {
+                    "name": {
+                        "type": "keyword"
+                    },
+                    "population": {
+                        "type": "integer"
+                    },
+                    "location": {
+                        "properties": {
+                            "latitude": {
+                                "type": "double"
+                            },
+                            "longitude": {
+                                "type": "double"
+                            }
+                        }
+                    }
+                }
+            },
+            "account": {
+                "properties": {
+                    "owner": {
+                        "type": "keyword"
+                    },
+                    "balance": {
+                        "type": "double"
+                    }
+                }
+            }
+        }
+    }
+}
