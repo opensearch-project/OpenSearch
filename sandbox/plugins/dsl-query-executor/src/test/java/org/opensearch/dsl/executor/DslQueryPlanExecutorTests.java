@@ -42,7 +42,10 @@ public class DslQueryPlanExecutorTests extends OpenSearchTestCase {
         assertEquals(QueryPlans.Type.HITS, result.getType());
         assertNotNull(result.getPlan());
         assertSame(scan, result.getPlan().relNode());
-        assertEquals(List.of("name", "price", "brand", "rating"), result.getFieldNames());
+        assertEquals(
+            List.of("name", "price", "brand", "rating", "created_date", "is_active", "timestamp", "location", "status", "binary_data"),
+            result.getFieldNames()
+        );
     }
 
     // TODO: add test with multiple plans (HITS + AGGREGATION) to verify iteration order

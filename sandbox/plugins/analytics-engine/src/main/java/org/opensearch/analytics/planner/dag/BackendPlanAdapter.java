@@ -13,7 +13,6 @@ import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -196,13 +195,6 @@ public class BackendPlanAdapter {
     }
 
     private static ScalarFunction resolveFunction(RexCall call) {
-        if (call.getOperator() instanceof SqlFunction sqlFunction) {
-            try {
-                return ScalarFunction.fromSqlFunction(sqlFunction);
-            } catch (IllegalArgumentException ignored) {
-                // Not in our enum — fall through to SqlKind resolution
-            }
-        }
-        return ScalarFunction.fromSqlKind(call.getKind());
+        return ScalarFunction.fromSqlOperatorWithFallback(call.getOperator());
     }
 }

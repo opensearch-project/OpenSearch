@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 
 import java.util.List;
@@ -33,4 +34,13 @@ public interface OperatorAnnotation {
 
     /** Returns a copy of this annotation wrapping a different (adapted) inner expression. */
     RexNode withAdaptedOriginal(RexNode adaptedOriginal);
+
+    /**
+     * Returns a placeholder RexNode for this annotation when delegated.
+     * Each annotation type produces the appropriate placeholder shape:
+     * predicates return BOOLEAN, project expressions return their original type, etc.
+     */
+    default RexNode makePlaceholder(RexBuilder rexBuilder) {
+        throw new UnsupportedOperationException("makePlaceholder not implemented for " + getClass().getSimpleName());
+    }
 }

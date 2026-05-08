@@ -6,12 +6,6 @@
  * compatible open source license.
  */
 
-apply plugin: 'opensearch.internal-cluster-test'
-
-// SQL Unified Query API version (aligned with OpenSearch build version) — required by
-// the PPL transport plugin used in CoordinatorReduceIT.
-def sqlUnifiedQueryVersion = '3.6.0.0-SNAPSHOT'
-
 opensearchplugin {
   description = 'DataFusion native execution engine plugin for the query engine.'
   classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
@@ -45,6 +39,9 @@ dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
+  // Canonical stats SPI classes (PluginStats, BackendStatsProvider)
+  implementation project(':sandbox:libs:plugin-stats-spi')
+
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
   // analytics-engine's RelNode types (OpenSearchStageInputScan) are referenced by the
@@ -73,34 +70,18 @@ dependencies {
   compileOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 
   // Substrait — Calcite RelNode to Substrait plan conversion for DataFusion native runtime
-  implementation "io.substrait:isthmus:0.67.0"
-  implementation "io.substrait:core:0.67.0"
-  // Jackson datatype module required by Substrait's DefaultExtensionCatalog (not transitively
-  // bundled by the analytics-engine parent plugin).
+  implementation "io.substrait:isthmus:0.89.1"
+  implementation "io.substrait:core:0.89.1"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
 
   calciteCompile "com.google.guava:guava:${versions.guava}"
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
 
-  // ── internalClusterTest: end-to-end coordinator-reduce IT ───────────────────
-  // Pulls in every sibling plugin needed to construct a parquet-backed composite
-  // index, dispatch a multi-shard PPL aggregate, and exercise DatafusionReduceSink.
-  internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
-  internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
-  internalClusterTestImplementation project(':sandbox:plugins:composite-engine')
-  internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
-  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
-  internalClusterTestImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-  internalClusterTestImplementation("org.opensearch.query:unified-query-core:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-  internalClusterTestImplementation("org.opensearch.query:unified-query-ppl:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-  // PPL front-end plugin — provides UnifiedPPLExecuteAction transport action used by the IT.
-  internalClusterTestImplementation project(':sandbox:plugins:test-ppl-frontend')
+  // Planner + Lucene backend for end-to-end delegation unit tests
+  testImplementation project(':sandbox:plugins:analytics-engine')
+  testImplementation project(':sandbox:plugins:analytics-backend-lucene')
+  testCompileOnly 'org.immutables:value-annotations:2.8.8'
+
 }
 
 test {
@@ -110,30 +91,66 @@ test {
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
 
-internalClusterTest {
-  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
-  jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
-  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
-  jvmArgs '--enable-native-access=ALL-UNNAMED'
-  jvmArgs '-Darrow.memory.debug.allocator=false'
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
-  systemProperty 'io.netty.allocator.numDirectArenas', '1'
-  systemProperty 'io.netty.noUnsafe', 'false'
-  systemProperty 'io.netty.tryUnsafe', 'true'
-  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
-  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
-  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+// ═══════════════════════════════════════════════════════════════════
+// Rust unit + fuzz tests for the opensearch-datafusion crate.
+// Run as part of `check` so `./gradlew check` (and CI) exercises the
+// randomized E2E suite alongside the Java tests.
+// ═══════════════════════════════════════════════════════════════════
+def rustWorkspaceDir = file("${project(':sandbox:libs:dataformat-native').projectDir}/rust")
+
+task cargoTest(type: Exec) {
+  description = 'Run Rust unit + fuzz tests for opensearch-datafusion crate'
+  group = 'verification'
+  workingDir rustWorkspaceDir
+
+  def cargoExecutable = 'cargo'
+  def possibleCargoPaths = [
+    System.getenv('HOME') + '/.cargo/bin/cargo',
+    '/usr/local/bin/cargo',
+    'cargo'
+  ]
+  for (String path : possibleCargoPaths) {
+    if (new File(path).exists()) { cargoExecutable = path; break }
+  }
+
+  commandLine cargoExecutable, 'test', '-p', 'opensearch-datafusion', '--lib'
+
+  // Seed forwarding for the randomized fuzz suite:
+  //
+  // 1. `-PindexedE2eSeed=<hex>` overrides everything (explicit).
+  // 2. Otherwise, tie the Rust fuzz seed to OpenSearch's build-wide
+  //    `tests.seed` (the same seed Lucene-style tests use; already
+  //    printed by `GlobalBuildInfoPlugin` as "Random Testing Seed").
+  //    When a CI run's Java tests fail with `-Dtests.seed=ABC123`, the
+  //    Rust fuzz seed is the same — one reproducer fits all.
+  // 3. If neither is set (rare; usually only on fresh local runs where
+  //    `tests.seed` isn't configured yet), let `master_seed()` on the
+  //    Rust side generate a fresh system-time seed and print the
+  //    reproducer.
+  def explicitSeed = project.hasProperty('indexedE2eSeed')
+    ? project.property('indexedE2eSeed').toString()
+    : System.getProperty('tests.seed')
+  if (explicitSeed != null && !explicitSeed.isEmpty()) {
+    environment 'INDEXED_E2E_SEED', explicitSeed
+  }
+
+  // Rebuild trigger: any Rust source in this crate.
+  inputs.files fileTree("${projectDir}/rust/src")
+  inputs.file "${projectDir}/rust/Cargo.toml"
+  // Marker file so gradle treats this task as cached when inputs don't change.
+  outputs.file "${projectDir}/rust/target/gradle-cargoTest.stamp"
+  doLast {
+    file("${projectDir}/rust/target").mkdirs()
+    file("${projectDir}/rust/target/gradle-cargoTest.stamp").text = new Date().toString()
+  }
 }
 
+check.dependsOn cargoTest
+
 configurations.all {
-  // okhttp-aws-signer is a transitive dep of unified-query-common (via unified-query-core),
-  // only published on JitPack, not needed for PPL parsing/planning
   exclude group: 'com.github.babbel', module: 'okhttp-aws-signer'
 
   resolutionStrategy {
-    // Align transitive versions with OpenSearch's managed versions — required because the
-    // unified-query-* artifacts pull in older versions of common libs that conflict with
-    // OpenSearch's enforced versions on internalClusterTest classpath.
     force 'com.google.guava:guava:33.4.0-jre'
     force 'com.google.guava:failureaccess:1.0.2'
     force 'com.google.errorprone:error_prone_annotations:2.36.0'
@@ -178,6 +195,47 @@ testingConventions.enabled = false
 
 tasks.named('forbiddenPatterns').configure {
     exclude '**/*.parquet'
+    exclude '**/*.dylib'
+    exclude '**/*.so'
+    exclude '**/*.dll'
+}
+
+// ---- Property-based tests (jqwik / JUnit 5 Platform) ----
+
+sourceSets {
+  propertyTest {
+    java {
+      srcDir 'src/propertyTest/java'
+    }
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
+}
+
+configurations {
+  propertyTestImplementation.extendsFrom implementation, compileOnly
+  propertyTestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+dependencies {
+  propertyTestImplementation "net.jqwik:jqwik:${versions.jqwik}"
+  propertyTestImplementation "org.junit.jupiter:junit-jupiter-api:${versions.junit_jupiter}"
+  propertyTestRuntimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit_platform}"
+  // Jackson for JSON parsing in property tests
+  propertyTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+}
+
+tasks.register('propertyTest', Test) {
+  description = 'Run jqwik property-based tests'
+  group = 'verification'
+  useJUnitPlatform {
+    includeEngines 'jqwik'
+  }
+  testClassesDirs = sourceSets.propertyTest.output.classesDirs
+  classpath = sourceSets.propertyTest.runtimeClasspath
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  // Disable the security manager for property tests (jqwik is not compatible)
+  systemProperty 'tests.security.manager', 'false'
 }
 
 tasks.matching { it.name == 'missingJavadoc' }.configureEach {
@@ -188,6 +246,11 @@ tasks.named('thirdPartyAudit').configure {
     ignoreMissingClasses(
         // SqlDdlParserImpl is generated by Calcite at build time and not bundled in the
         // calcite-core jar; substrait-isthmus references it through reflection in optional code paths.
-        'org.apache.calcite.sql.parser.ddl.SqlDdlParserImpl'
+        'org.apache.calcite.sql.parser.ddl.SqlDdlParserImpl',
+        'org.apache.calcite.server.ServerDdlExecutor'
     )
 }
+
+// jqwik property tests don't ship with the randomized-testing framework that
+// forbiddenApis signatures reference — skip the check for this source set.
+tasks.matching { it.name == 'forbiddenApisPropertyTest' }.configureEach { enabled = false }

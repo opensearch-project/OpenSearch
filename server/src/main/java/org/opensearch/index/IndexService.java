@@ -78,7 +78,9 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -101,6 +103,7 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -119,7 +122,9 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.threadpool.ThreadPool;
@@ -778,23 +783,44 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (this.indexSettings.isPluggableDataFormatEnabled() && dataFormatRegistry != null) {
                 checksumStrategies = dataFormatRegistry.createChecksumStrategies(this.indexSettings);
             }
-            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
-            // TODO : Need to remove this check after support for hot indices is added in Composite Directory
-                this.indexSettings.isWarmIndex()) {
-                directory = compositeDirectoryFactory.newDirectory(
+            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING)
+                && this.indexSettings.isWarmIndex()
+                && this.indexSettings.isPluggableDataFormatEnabled()
+                && this.dataFormatAwareStoreDirectoryFactory != null) {
+                // Warm + format-aware: resolve per-shard store strategies and native store,
+                // then let the factory build the StoreStrategyRegistry and directory stack.
+                Map<DataFormat, StoreStrategy> storeStrategies = dataFormatRegistry.getStoreStrategies(this.indexSettings);
+                NativeStoreRepository nativeStore = resolveNativeStore(repositoriesService);
+                directory = dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
                     this.indexSettings,
+                    shardId,
                     path,
                     directoryFactory,
-                    remoteDirectory,
+                    checksumStrategies,
+                    storeStrategies,
+                    nativeStore,
+                    true,
+                    (RemoteSegmentStoreDirectory) remoteDirectory,
                     fileCache,
                     threadPool
                 );
-            } else if (!this.indexSettings.isPluggableDataFormatEnabled()) {
-                directory = directoryFactory.newDirectory(this.indexSettings, path);
-            } else {
-                // Will be enabled in case of formatAware indices.
-                directory = createDataFormatAwareStoreDirectory(shardId, path, checksumStrategies);
-            }
+            } else if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
+            // TODO : Need to remove this check after support for hot indices is added in Composite Directory
+                this.indexSettings.isWarmIndex()) {
+                    directory = compositeDirectoryFactory.newDirectory(
+                        this.indexSettings,
+                        path,
+                        directoryFactory,
+                        remoteDirectory,
+                        fileCache,
+                        threadPool
+                    );
+                } else if (this.indexSettings.isPluggableDataFormatEnabled() == false) {
+                    directory = directoryFactory.newDirectory(this.indexSettings, path);
+                } else {
+                    // Will be enabled in case of formatAware indices.
+                    directory = createDataFormatAwareStoreDirectory(shardId, path, checksumStrategies);
+                }
             store = storeFactory.newStore(
                 shardId,
                 this.indexSettings,
@@ -1368,6 +1394,27 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         logger.debug("No DataFormatAwareStoreDirectoryFactory available, Store will handle internal creation for: {}", shardPath);
         return null;
+    }
+
+    /**
+     * Resolves the native object store for the index's remote store repository.
+     * Returns {@link NativeStoreRepository#EMPTY} when no repository is configured
+     * or the repository is missing.
+     *
+     * @param repositoriesService the repositories service, may be {@code null}
+     * @return a live native store or {@link NativeStoreRepository#EMPTY}
+     */
+    private NativeStoreRepository resolveNativeStore(RepositoriesService repositoriesService) {
+        String repoName = this.indexSettings.getRemoteStoreRepository();
+        if (repoName == null || repositoriesService == null) {
+            return NativeStoreRepository.EMPTY;
+        }
+        try {
+            return repositoriesService.repository(repoName).getNativeStore();
+        } catch (RepositoryMissingException e) {
+            logger.warn("Native store not available for repository [{}]", repoName);
+            return NativeStoreRepository.EMPTY;
+        }
     }
 
     private void updateFsyncTaskIfNecessary() {

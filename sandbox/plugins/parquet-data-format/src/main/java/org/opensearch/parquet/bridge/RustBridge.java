@@ -22,6 +22,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 
+/**
+ * FFM bridge to the native Rust parquet writer library.
+ */
 public class RustBridge {
 
     private static final MethodHandle CREATE_WRITER;
@@ -134,11 +137,17 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG, // input files (ptrs, lens, count)
+                ValueLayout.JAVA_LONG,  // input files (ptrs, lens, count)
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,                      // output file
+                ValueLayout.JAVA_LONG,  // output file
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG                       // index_name
+                ValueLayout.JAVA_LONG,  // index_name
+                ValueLayout.ADDRESS,    // version_out
+                ValueLayout.ADDRESS,    // num_rows_out
+                ValueLayout.ADDRESS,    // created_by_buf
+                ValueLayout.JAVA_LONG,  // created_by_buf_len
+                ValueLayout.ADDRESS,    // created_by_len_out
+                ValueLayout.ADDRESS     // crc32_out
             )
         );
         READ_AS_JSON = linker.downcallHandle(
@@ -286,13 +295,41 @@ public class RustBridge {
         }
     }
 
-    public static void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile, String indexName) {
+    public static ParquetFileMetadata mergeParquetFilesInRust(List<Path> inputFiles, String outputFile, String indexName) {
         String[] paths = inputFiles.stream().map(Path::toString).toArray(String[]::new);
         try (var call = new NativeCall()) {
             var inputs = call.strArray(paths);
             var out = call.str(outputFile);
             var idx = call.str(indexName);
-            call.invokeIO(MERGE_FILES, inputs.ptrs(), inputs.lens(), inputs.count(), out.segment(), out.len(), idx.segment(), idx.len());
+            var versionOut = call.intOut();
+            var numRowsOut = call.longOut();
+            var crc32Out = call.longOut();
+            var createdByOut = call.outBuffer(1024);
+            call.invokeIO(
+                MERGE_FILES,
+                inputs.ptrs(),
+                inputs.lens(),
+                inputs.count(),
+                out.segment(),
+                out.len(),
+                idx.segment(),
+                idx.len(),
+                versionOut,
+                numRowsOut,
+                createdByOut.data(),
+                (long) createdByOut.capacity(),
+                createdByOut.lenOut(),
+                crc32Out
+            );
+            int createdByLen = (int) createdByOut.lenOut().get(ValueLayout.JAVA_LONG, 0);
+            return new ParquetFileMetadata(
+                versionOut.get(ValueLayout.JAVA_INT, 0),
+                numRowsOut.get(ValueLayout.JAVA_LONG, 0),
+                createdByLen >= 0
+                    ? new String(createdByOut.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
+                    : null,
+                crc32Out.get(ValueLayout.JAVA_LONG, 0)
+            );
         } catch (IOException e) {
             throw new UncheckedIOException("Native merge failed", e);
         }

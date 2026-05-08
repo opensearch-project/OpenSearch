@@ -14,14 +14,16 @@ import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.PendingExecutions;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
+import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
-import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -30,24 +32,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
- * Per-stage execution for row-producing DATA_NODE stages (scans, filters,
- * partial aggregates). Dispatches shard requests via
- * {@link AnalyticsSearchTransportService#dispatchFragment}, decodes streaming
- * responses through a {@link ResponseCodec}, and feeds the resulting Arrow
- * batches into the stage's output {@link ExchangeSink}.
+ * Leaf stage execution that dispatches fragment work to data-node shards.
  *
- * <p>The codec abstracts the wire format: the current {@link RowResponseCodec}
- * converts {@code Object[]} rows to Arrow; a future Arrow IPC codec would
- * import IPC buffers directly with zero conversion. The stage execution logic
- * is format-agnostic.
+ * <p>Handles both Arrow streaming and row (codec-decoded) responses, feeding
+ * resulting batches into the parent stage's {@link ExchangeSink}.
  *
- * <p>Implements {@link DataProducer} because it writes batches into a sink
- * owned by its parent stage. Does not implement {@link DataConsumer} because
- * it is a leaf stage with no children.
- *
- * <p>Lifecycle: {@code CREATED → RUNNING → SUCCEEDED | FAILED | CANCELLED}.
- * Instances are one-shot: constructed, {@link #start()} called once,
- * listener signaled once, discarded.
+ * <p>One-shot: constructed, {@link #start()} called once, listener
+ * signaled on completion, then discarded.
  *
  * @opensearch.internal
  */
@@ -55,7 +46,6 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
 
     private final AtomicInteger inFlight = new AtomicInteger(0);
 
-    // Immutable config
     private final QueryContext config;
     private final ExchangeSink outputSink;
     private final ClusterService clusterService;
@@ -82,13 +72,14 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         this.responseCodec = responseCodec;
     }
 
+    private boolean useArrowStreaming() {
+        return dispatcher.isStreamingEnabled();
+    }
+
     @Override
     public void start() {
-        // Resolve targets lazily at dispatch time. For shuffle/broadcast reads this is
-        // where the child stage's manifest would be passed instead of null.
         List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
         if (resolved.isEmpty()) {
-            // CREATED → SUCCEEDED directly. transitionTo stamps both start and end.
             transitionTo(StageExecution.State.SUCCEEDED);
             return;
         }
@@ -102,13 +93,36 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     private void dispatchShardTask(ShardExecutionTarget target) {
         FragmentExecutionRequest request = requestBuilder.apply(target);
         PendingExecutions pending = pendingFor(target);
-        dispatcher.dispatchFragment(request, target.node(), new StreamingResponseListener<>() {
-            @Override
-            public void onStreamResponse(FragmentExecutionResponse response, boolean isLast) {
-                config.searchExecutor().execute(() -> {
-                    if (isDone()) return;
+        if (useArrowStreaming()) {
+            dispatcher.dispatchFragmentStreaming(
+                request,
+                target.node(),
+                responseListener(FragmentExecutionArrowResponse::getRoot),
+                config.parentTask(),
+                pending
+            );
+        } else {
+            dispatcher.dispatchFragment(
+                request,
+                target.node(),
+                responseListener(r -> responseCodec.decode(r, config.bufferAllocator())),
+                config.parentTask(),
+                pending
+            );
+        }
+    }
 
-                    VectorSchemaRoot vsr = responseCodec.decode(response, config.bufferAllocator());
+    private <T extends ActionResponse> StreamingResponseListener<T> responseListener(Function<T, VectorSchemaRoot> toVsr) {
+        return new StreamingResponseListener<>() {
+            @Override
+            public void onStreamResponse(T response, boolean isLast) {
+                config.searchExecutor().execute(() -> {
+                    if (isDone()) {
+                        releaseResponseResources(response);
+                        return;
+                    }
+
+                    VectorSchemaRoot vsr = toVsr.apply(response);
                     outputSink.feed(vsr);
                     metrics.addRowsProcessed(vsr.getRowCount());
 
@@ -125,7 +139,13 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                 metrics.incrementTasksFailed();
                 onShardTerminated();
             }
-        }, config.parentTask(), pending);
+        };
+    }
+
+    private static <T> void releaseResponseResources(T response) {
+        if (response instanceof ArrowBatchResponse arrowResp && arrowResp.getRoot() != null) {
+            arrowResp.getRoot().close();
+        }
     }
 
     private void onShardTerminated() {
@@ -138,10 +158,7 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     @Override
     public void cancel(String reason) {
         if (transitionTo(StageExecution.State.CANCELLED) == false) return;
-        // Bridge to task framework: cancel the parent task so data nodes
-        // see the cancellation via TaskCancellationService ban propagation.
-        // AnalyticsQueryTask.shouldCancelChildrenOnCancellation() == true
-        // ensures child shard tasks on data nodes are cancelled.
+        // Cancelling the parent task propagates to data-node shard tasks via TaskCancellationService.
         org.opensearch.tasks.Task parentTask = config.parentTask();
         if (parentTask instanceof org.opensearch.tasks.CancellableTask ct && ct.isCancelled() == false) {
             ct.cancel(reason);

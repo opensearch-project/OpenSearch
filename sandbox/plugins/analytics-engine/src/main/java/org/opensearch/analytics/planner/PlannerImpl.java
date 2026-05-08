@@ -33,6 +33,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
+import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 
 import java.util.List;
 
@@ -68,7 +69,7 @@ public class PlannerImpl {
      * Phase 1 (RBO marking) + Phase 2 (CBO exchange insertion).
      * Package-private so planner rule tests can inspect the marked+optimized tree.
      */
-    static RelNode markAndOptimize(RelNode rawRelNode, PlannerContext context) {
+    public static RelNode markAndOptimize(RelNode rawRelNode, PlannerContext context) {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
 
         // Phase 1: RBO — pre-marking logical optimizations then marking rules, single HepPlanner
@@ -100,7 +101,8 @@ public class PlannerImpl {
                 new OpenSearchFilterRule(context),
                 new OpenSearchProjectRule(context),
                 new OpenSearchAggregateRule(context),
-                new OpenSearchSortRule(context)
+                new OpenSearchSortRule(context),
+                new OpenSearchUnionRule(context)
             )
         );
 

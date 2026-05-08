@@ -37,6 +37,17 @@ import java.util.function.Function;
  * <p>Single-format lookups return the stored list directly — no allocation at query time.
  * Multi-format aggregations build a new list by collecting across entries.
  *
+ * <p>TODO(refactor): This class has 10+ HashMaps with near-identical shapes, 4 redundant
+ * key record types, and per-call list allocations in {@code *ForField} methods:
+ * <ul>
+ *   <li>Unify key types (ScanKey, AggregateKey, ScalarKey) into a single record</li>
+ *   <li>Derive {@code *CapableBackends} sets directly from backend capabilities, not as
+ *       side effects of index population</li>
+ *   <li>Pre-flatten format maps to eliminate per-call allocation in {@code allBackends}
+ *       and {@code *ForField} methods</li>
+ *   <li>Extract repeated constructor indexing pattern into a shared helper</li>
+ * </ul>
+ *
  * @opensearch.internal
  */
 public class CapabilityRegistry {
@@ -87,9 +98,28 @@ public class CapabilityRegistry {
             for (DelegationType type : caps.supportedDelegations()) {
                 delegationSupporters.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
+            // Validate: if a backend supports FILTER delegation (i.e., it drives the tree walk),
+            // it must provide a FragmentInstructionHandlerFactory for instruction-based execution.
+            if (caps.supportedDelegations().contains(DelegationType.FILTER)) {
+                try {
+                    backend.getInstructionHandlerFactory();
+                } catch (UnsupportedOperationException exception) {
+                    throw new IllegalStateException(
+                        "Backend ["
+                            + name
+                            + "] declares supportedDelegations(FILTER) but does not implement"
+                            + " getInstructionHandlerFactory(). A driving backend must provide an instruction"
+                            + " handler factory to configure delegation at the data node."
+                    );
+                }
+            }
             for (DelegationType type : caps.acceptedDelegations()) {
                 delegationAcceptors.computeIfAbsent(type, k -> new ArrayList<>()).add(name);
             }
+            // Runtime validation in FragmentConversionDriver ensures a DelegatedPredicateSerializer
+            // exists for each function actually delegated to this backend. Startup validation is
+            // intentionally omitted — a backend may accept delegation for a subset of its filter
+            // capabilities, and which functions are delegated depends on the query.
             for (ScanCapability cap : caps.scanCapabilities()) {
                 for (FieldType fieldType : cap.supportedFieldTypes()) {
                     addToFormatMap(scanIndex, new ScanKey(cap.getClass(), fieldType), cap.formats(), name);
@@ -233,6 +263,16 @@ public class CapabilityRegistry {
 
     public List<String> aggregateBackendsAnyFormat(AggregateFunction function, FieldType fieldType) {
         return allBackends(aggregateIndex.getOrDefault(new AggregateKey(function, fieldType), Map.of()));
+    }
+
+    /**
+     * All backends declaring filter support for a (function, fieldType) ignoring storage formats.
+     * Used by the filter rule when the field is derived (e.g. produced by Union or Project) and
+     * therefore has no doc-value or index format to match against — the filter must run at whichever
+     * backend executes the producing operator, so format-level pushdown isn't applicable.
+     */
+    public List<String> filterBackendsAnyFormat(ScalarFunction function, FieldType fieldType) {
+        return allBackends(filterIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of()));
     }
 
     public List<String> scalarBackendsAnyFormat(ScalarFunction function, FieldType fieldType) {

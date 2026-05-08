@@ -68,11 +68,23 @@ public class FieldStorageResolver {
         }
 
         this.fieldStorage = new HashMap<>();
+        populateFromProperties(properties, "", primaryFormat);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void populateFromProperties(Map<String, Object> properties, String pathPrefix, String primaryFormat) {
         for (Map.Entry<String, Object> entry : properties.entrySet()) {
-            String fieldName = entry.getKey();
+            String fieldName = pathPrefix.isEmpty() ? entry.getKey() : pathPrefix + "." + entry.getKey();
             Map<String, Object> fieldProps = (Map<String, Object>) entry.getValue();
             String fieldType = (String) fieldProps.get("type");
             if (fieldType == null) {
+                // Implicit "object" type — OpenSearch infers it from presence of "properties".
+                // Recurse into the sub-mapping; object fields themselves have no storage.
+                Map<String, Object> nested = (Map<String, Object>) fieldProps.get("properties");
+                if (nested != null) {
+                    populateFromProperties(nested, fieldName, primaryFormat);
+                    continue;
+                }
                 throw new IllegalStateException("Field [" + fieldName + "] has no type in mapping");
             }
             this.fieldStorage.put(fieldName, resolveField(fieldName, fieldType, fieldProps, primaryFormat));

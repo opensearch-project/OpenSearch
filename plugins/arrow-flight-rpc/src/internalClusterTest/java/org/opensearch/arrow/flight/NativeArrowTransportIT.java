@@ -23,8 +23,9 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
+import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
 import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
-import org.opensearch.arrow.flight.transport.ArrowFlightChannel;
+import org.opensearch.arrow.flight.transport.ArrowBatchResponseHandler;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.inject.Inject;
@@ -37,7 +38,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
@@ -144,7 +144,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
             TestArrowAction.NAME,
             new TestArrowRequest(batchCount, rowsPerBatch, 1),
             TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
-            new StreamTransportResponseHandler<TestArrowResponse>() {
+            new ArrowBatchResponseHandler<TestArrowResponse>() {
                 @Override
                 public void handleStreamResponse(StreamTransportResponse<TestArrowResponse> streamResponse) {
                     try {
@@ -264,7 +264,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
     }
 
-    /** Deep-copies data from a VectorSchemaRoot. */
+    /** Deep-copies data out of the Arrow batch so the root can be closed immediately. */
     static class ReceivedBatch {
         final int rowCount;
         final int batchId;
@@ -272,11 +272,11 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         final List<String> names;
         final List<Integer> values;
 
-        ReceivedBatch(VectorSchemaRoot root) {
-            this.rowCount = root.getRowCount();
-            IntVector batchIdVector = (IntVector) root.getVector("batch_id");
-            VarCharVector nameVector = (VarCharVector) root.getVector("name");
-            IntVector valueVector = (IntVector) root.getVector("value");
+        ReceivedBatch(VectorSchemaRoot batch) {
+            this.rowCount = batch.getRowCount();
+            IntVector batchIdVector = (IntVector) batch.getVector("batch_id");
+            VarCharVector nameVector = (VarCharVector) batch.getVector("name");
+            IntVector valueVector = (IntVector) batch.getVector("value");
             this.batchIds = new ArrayList<>();
             this.names = new ArrayList<>();
             this.values = new ArrayList<>();
@@ -349,11 +349,29 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
      * batches via sendResponseBatch(). The framework does zero-copy transfer
      * on the executor thread.
      */
+    public static class TestAllocatorHolder {
+        private final BufferAllocator allocator;
+
+        TestAllocatorHolder(BufferAllocator allocator) {
+            this.allocator = allocator;
+        }
+
+        BufferAllocator get() {
+            return allocator;
+        }
+    }
+
     public static class TransportTestArrowAction extends TransportAction<TestArrowRequest, TestArrowResponse> {
+        private final BufferAllocator allocator;
 
         @Inject
-        public TransportTestArrowAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
+        public TransportTestArrowAction(
+            StreamTransportService streamTransportService,
+            ActionFilters actionFilters,
+            TestAllocatorHolder allocatorHolder
+        ) {
             super(TestArrowAction.NAME, actionFilters, streamTransportService.getTaskManager());
+            this.allocator = allocatorHolder.get();
             streamTransportService.registerRequestHandler(
                 TestArrowAction.NAME,
                 ThreadPool.Names.GENERIC,
@@ -368,7 +386,6 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
 
         private void handleStreamRequest(TestArrowRequest request, TransportChannel channel, Task task) throws IOException {
-            BufferAllocator allocator = ArrowFlightChannel.from(channel).getAllocator();
 
             try {
                 if (request.parallelism <= 1) {
@@ -437,7 +454,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
     }
 
-    static class TestArrowResponseHandler implements StreamTransportResponseHandler<TestArrowResponse> {
+    static class TestArrowResponseHandler extends ArrowBatchResponseHandler<TestArrowResponse> {
         private final List<ReceivedBatch> batches;
         private final CountDownLatch latch;
         private final AtomicReference<Exception> failure;
@@ -453,13 +470,15 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
             try {
                 TestArrowResponse response;
                 while ((response = streamResponse.nextResponse()) != null) {
-                    batches.add(new ReceivedBatch(response.getRoot()));
+                    try (VectorSchemaRoot batch = response.getRoot()) {
+                        batches.add(new ReceivedBatch(batch));
+                    }
                 }
                 streamResponse.close();
-                latch.countDown();
             } catch (Exception e) {
                 failure.set(e);
                 streamResponse.cancel("Test error", e);
+            } finally {
                 latch.countDown();
             }
         }
@@ -482,11 +501,35 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
     }
 
     public static class NativeArrowTestPlugin extends Plugin implements ActionPlugin {
+        private final BufferAllocator allocator = ArrowAllocatorProvider.newChildAllocator("native-arrow-test", Long.MAX_VALUE);
+
         public NativeArrowTestPlugin() {}
+
+        @Override
+        public Collection<Object> createComponents(
+            org.opensearch.transport.client.Client client,
+            org.opensearch.cluster.service.ClusterService clusterService,
+            ThreadPool threadPool,
+            org.opensearch.watcher.ResourceWatcherService resourceWatcherService,
+            org.opensearch.script.ScriptService scriptService,
+            org.opensearch.core.xcontent.NamedXContentRegistry xContentRegistry,
+            org.opensearch.env.Environment environment,
+            org.opensearch.env.NodeEnvironment nodeEnvironment,
+            org.opensearch.core.common.io.stream.NamedWriteableRegistry namedWriteableRegistry,
+            org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver,
+            java.util.function.Supplier<org.opensearch.repositories.RepositoriesService> repositoriesServiceSupplier
+        ) {
+            return List.of(new TestAllocatorHolder(allocator));
+        }
 
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             return List.of(new ActionHandler<>(TestArrowAction.INSTANCE, TransportTestArrowAction.class));
+        }
+
+        @Override
+        public void close() {
+            allocator.close();
         }
     }
 }

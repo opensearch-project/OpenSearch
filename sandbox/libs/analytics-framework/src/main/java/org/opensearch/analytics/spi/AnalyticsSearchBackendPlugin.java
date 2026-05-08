@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.spi;
 
+import java.util.List;
+
 /**
  * SPI extension point for backend query engine plugins.
  *
@@ -68,5 +70,47 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default ExchangeSinkProvider getExchangeSinkProvider() {
         return null;
+    }
+
+    /**
+     * Returns the instruction handler factory for this backend. Used at the coordinator
+     * to create instruction nodes (backend attaches custom config) and at the data node
+     * to create handlers that apply instructions to the execution context.
+     *
+     * <p>Backends that declare {@code supportedDelegations} or participate in multi-stage
+     * execution MUST implement this. Validation at startup ensures consistency.
+     */
+    default FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
+        throw new UnsupportedOperationException("getInstructionHandlerFactory not implemented for [" + name() + "]");
+    }
+
+    /**
+     * Prepare a filter delegation handle for the given delegated expressions.
+     * Called by Core after all instruction handlers have run, when the plan has delegation.
+     *
+     * <p>The accepting backend initializes its internal state (e.g., DirectoryReader,
+     * QueryShardContext, compiled Queries) and returns a handle that the driving backend
+     * will call into during execution.
+     *
+     * @param expressions the delegated expressions (annotationId + serialized query bytes)
+     * @param ctx the shared execution context (Reader, MapperService, IndexSettings)
+     * @return a handle the driving backend calls into via FFM upcalls
+     */
+    default FilterDelegationHandle getFilterDelegationHandle(List<DelegatedExpression> expressions, CommonExecutionContext ctx) {
+        throw new UnsupportedOperationException("getFilterDelegationHandle not implemented for [" + name() + "]");
+    }
+
+    /**
+     * Configure the driving backend to use the given delegation handle during execution.
+     * Called by Core after obtaining the handle from the accepting backend.
+     *
+     * <p>The driving backend registers the handle so that FFM upcalls from Rust
+     * (createProvider, createCollector, collectDocs) route to it.
+     *
+     * @param handle the delegation handle from the accepting backend
+     * @param backendContext the driving backend's execution context (from instruction handlers)
+     */
+    default void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
+        throw new UnsupportedOperationException("configureFilterDelegation not implemented for [" + name() + "]");
     }
 }

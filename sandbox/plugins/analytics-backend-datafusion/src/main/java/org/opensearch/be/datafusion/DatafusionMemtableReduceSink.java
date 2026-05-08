@@ -39,14 +39,50 @@ import java.util.List;
  * <p>Lifecycle invariants and {@code feed}/{@code close} skeleton are implemented in
  * {@link AbstractDatafusionReduceSink}. This subclass owns the buffered FFI structs and the
  * close-time {@code registerMemtable + executeLocalPlan + drain} sequence.
+ *
+ * <p><b>Single-input only.</b> The memtable path registers exactly one {@code MemTable}
+ * at close time, so multi-input shapes (Union, future Join) are not supported here —
+ * the constructor rejects them with a clear message. Streaming mode
+ * ({@link DatafusionReduceSink}) supports multi-input via per-child
+ * {@link org.opensearch.analytics.spi.MultiInputExchangeSink#sinkForChild(int) sinkForChild}
+ * partitions; the {@link DataFusionAnalyticsBackendPlugin} provider is the user-facing
+ * gate that auto-falls-back to streaming when {@code childInputs.size() > 1}, so callers
+ * shouldn't see this error in practice. The constructor's check remains as a
+ * direct-instantiation safety net.
+ *
+ * <p>TODO: support multi-input memtable by registering one {@code MemTable} per child
+ * stage (each with its own {@code "input-<childStageId>"} table id) and accumulating
+ * separate buffers per child via a per-child {@link org.opensearch.analytics.spi.ExchangeSink}
+ * wrapper, mirroring the streaming sink's {@code ChildSink} approach.
  */
 public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduceSink {
 
     private final List<ArrowArray> arrays = new ArrayList<>();
     private final List<ArrowSchema> schemas = new ArrayList<>();
+    private final byte[] schemaIpc;
 
     public DatafusionMemtableReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         super(ctx, runtimeHandle);
+        // Fail fast and close the parent-allocated native session before propagating —
+        // super() opened a DatafusionLocalSession that would otherwise leak on construction failure.
+        if (childInputs.size() != 1) {
+            try {
+                session.close();
+            } catch (Throwable ignore) {
+                // Original IllegalStateException carries the actionable message; suppress cleanup errors.
+            }
+            throw new IllegalStateException(
+                "DatafusionMemtableReduceSink supports a single input only; got "
+                    + childInputs.size()
+                    + " child inputs. Use streaming mode (DatafusionReduceSink) for multi-input shapes,"
+                    + " or set "
+                    + DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE.getKey()
+                    + "=streaming. The DataFusionAnalyticsBackendPlugin sink provider auto-falls-back"
+                    + " when this limit is hit at request time, so reaching here means the sink was"
+                    + " constructed directly."
+            );
+        }
+        this.schemaIpc = childInputs.values().iterator().next();
     }
 
     @Override
@@ -81,7 +117,11 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
                 arrayPtrs[i] = arrays.get(i).memoryAddress();
                 schemaPtrs[i] = schemas.get(i).memoryAddress();
             }
-            NativeBridge.registerMemtable(session.getPointer(), INPUT_ID, schemaIpc, arrayPtrs, schemaPtrs);
+            // Multi-input would need one registerMemtable call per child stage with a
+            // distinct "input-<childStageId>" table id and separate buffer accumulation
+            // per child (the constructor enforces single-input today; see class javadoc).
+            int singleChildStageId = childInputs.keySet().iterator().next();
+            NativeBridge.registerMemtable(session.getPointer(), inputIdFor(singleChildStageId), schemaIpc, arrayPtrs, schemaPtrs);
 
             streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
             try (StreamHandle outStream = new StreamHandle(streamPtr, runtimeHandle)) {

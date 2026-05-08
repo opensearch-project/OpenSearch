@@ -78,6 +78,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -181,6 +182,9 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.storage.prefetch.StoredFieldsPrefetch;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
+import org.opensearch.storage.slowlogs.TieredStorageSearchSlowLog;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -385,6 +389,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
     private final Client client;
     private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
@@ -508,6 +513,12 @@ public class IndicesService extends AbstractLifecycleComponent
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+            final TieredStoragePrefetchSettings prefetchSettings = new TieredStoragePrefetchSettings(clusterService.getClusterSettings());
+            this.tieredStoragePrefetchSettingsSupplier = () -> prefetchSettings;
+        } else {
+            this.tieredStoragePrefetchSettingsSupplier = () -> null;
+        }
         this.client = client;
         this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ID_FIELD_DATA_ENABLED_SETTING, this::setIdFieldDataEnabled);
@@ -1124,6 +1135,11 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexOperationListener(operationListener);
         }
         pluginsService.onIndexModule(indexModule);
+        // Add tiered storage search listeners
+        if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+            indexModule.addSearchOperationListener(new TieredStorageSearchSlowLog(idxSettings));
+            indexModule.addSearchOperationListener(new StoredFieldsPrefetch(tieredStoragePrefetchSettingsSupplier));
+        }
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
