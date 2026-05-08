@@ -47,7 +47,12 @@ import java.util.List;
  */
 // TEST-scope cluster per method — slower but eliminates cluster-reuse degradation that
 // surfaces as cascading NodeDisconnectedException when many test methods share a SUITE cluster.
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
+// supportsDedicatedMasters=false + numClientNodes=0 collapses the cluster to a single node
+// combining cluster-manager and data roles: scalar-function tests exercise query rewrite +
+// single-shard execution, which doesn't need dedicated cluster-managers or a separate
+// coord-only node. The 5-node default (3 cluster-managers + 1 data + 1 coord) is a memory
+// pressure source that destabilises node discovery on resource-constrained runners.
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1, supportsDedicatedMasters = false, numClientNodes = 0)
 public abstract class BaseScalarFunctionIT extends OpenSearchIntegTestCase {
 
     protected static final String BANK_INDEX = "bank";
