@@ -8,11 +8,8 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.search.Query;
 import org.opensearch.index.IngestionShardPointer;
-import org.opensearch.index.PartitionAwarePointer;
+import org.opensearch.index.SourcePartitionAwarePointer;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
@@ -20,9 +17,30 @@ import java.util.Objects;
 /**
  * A partition-aware Kafka offset that encodes both the partition ID and offset.
  * Extends {@link KafkaOffset} so it can be used wherever KafkaOffset is expected,
- * while adding partition information via {@link PartitionAwarePointer}.
+ * while adding partition information via {@link SourcePartitionAwarePointer}.
+ *
+ * <p><b>TODO: partition-aware Lucene point field / range query.</b>
+ * This class intentionally inherits {@link KafkaOffset#asPointField(String)} and
+ * {@link KafkaOffset#newRangeQueryGreaterThan(String)}, so the indexed Lucene
+ * {@code _offset} field carries only the raw offset (no partition).
+ *
+ * <p>This is not needed per se right now because:
+ * <ul>
+ *   <li>{@code newRangeQueryGreaterThan} has no production callers in the recovery path.
+ *       {@code IngestionEngine} recovers from per-partition checkpoints in Lucene commit
+ *       user data ({@code batch_start_p{N}}) and re-consumes from the source. Document-level
+ *       dedup relies on {@code _id}-based overwrite via Lucene's term-level update semantics,
+ *       not offset range queries.</li>
+ *   <li>Partition info is preserved where it is necessary: {@link #asString()} (stored field
+ *       and persisted commit data), {@link #serialize()}, {@link #compareTo}, equals/hashCode,
+ *       and {@link #getSourcePartition()} for in-memory per-partition checkpoint tracking.</li>
+ * </ul>
+ *
+ * <p>When this becomes needed (e.g., per-partition offset-range dedup as a fallback to
+ * {@code _id} overwrite, partition-scoped diagnostic queries, or post-recovery cleanup),
+ * the right design is two separate point fields.
  */
-public class KafkaPartitionOffset extends KafkaOffset implements PartitionAwarePointer {
+public class KafkaPartitionOffset extends KafkaOffset implements SourcePartitionAwarePointer {
 
     private final int partition;
 
@@ -38,7 +56,7 @@ public class KafkaPartitionOffset extends KafkaOffset implements PartitionAwareP
     }
 
     @Override
-    public int getPartition() {
+    public int getSourcePartition() {
         return partition;
     }
 
@@ -53,35 +71,16 @@ public class KafkaPartitionOffset extends KafkaOffset implements PartitionAwareP
     /**
      * Returns string representation in "partition:offset" format (e.g., "3:42").
      * The parser in {@link KafkaConsumerFactory#parsePointerFromString(String)} detects the ":"
-     * to distinguish this format from the legacy plain offset format.
+     * to distinguish this format from the simple plain offset format.
      */
     @Override
     public String asString() {
         return partition + ":" + getOffset();
     }
 
-    @Override
-    public Field asPointField(String fieldName) {
-        // Encode as a single long for Lucene point indexing.
-        // Partition is stored in upper 16 bits (max 65,535 partitions),
-        // offset in lower 48 bits (max ~281 trillion).
-        // This preserves sort order within a partition.
-        // Note: Kafka topics exceeding 65,535 partitions will produce incorrect encoding.
-        long encoded = ((long) partition << 48) | (getOffset() & 0x0000FFFFFFFFFFFFL);
-        return new LongPoint(fieldName, encoded);
-    }
-
-    @Override
-    public Query newRangeQueryGreaterThan(String fieldName) {
-        // Scope the range query to the SAME partition — don't match offsets from other partitions.
-        long lower = ((long) partition << 48) | (getOffset() & 0x0000FFFFFFFFFFFFL);
-        long upper = ((long) partition << 48) | 0x0000FFFFFFFFFFFFL;
-        return LongPoint.newRangeQuery(fieldName, lower, upper);
-    }
-
     /**
      * Compares by partition first, then by offset within the same partition.
-     * Cross-partition comparison is ordered by partition ID — this is meaningful for checkpoint
+     * Cross-partition comparison is ordered by partition ID, which is meaningful for checkpoint
      * aggregation (min across partitions) but does NOT imply temporal ordering across partitions.
      */
     @Override
@@ -93,9 +92,10 @@ public class KafkaPartitionOffset extends KafkaOffset implements PartitionAwareP
             int cmp = Integer.compare(partition, other.partition);
             return cmp != 0 ? cmp : Long.compare(getOffset(), other.getOffset());
         }
-        if (o instanceof KafkaOffset other) {
-            // Cross-type comparison: treat KafkaOffset as partition -1 so it sorts before all partition offsets
-            return 1; // KafkaPartitionOffset always > KafkaOffset
+        if (o instanceof KafkaOffset) {
+            // Cross-type comparison: KafkaPartitionOffset always sorts after legacy KafkaOffset.
+            // Matches the inverse in KafkaOffset.compareTo(KafkaPartitionOffset) which returns -1.
+            return 1;
         }
         throw new IllegalArgumentException("Cannot compare KafkaPartitionOffset with " + o.getClass().getSimpleName());
     }
