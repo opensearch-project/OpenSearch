@@ -130,4 +130,19 @@ public class KafkaPartitionOffsetTests extends OpenSearchTestCase {
         assertTrue(offset instanceof KafkaOffset);
         assertTrue(offset instanceof IngestionShardPointer);
     }
+
+    // --- newRangeQueryGreaterThan throws (overridden, see class-level Javadoc) ---
+
+    public void testNewRangeQueryGreaterThanThrowsUnsupported() {
+        // Inheriting KafkaOffset.newRangeQueryGreaterThan would silently match documents from ANY
+        // partition with offset > this pointer's offset (the indexed _offset field carries no
+        // partition info). Override throws to prevent that cross-partition false-match. Per-partition
+        // queries need a different field design — guarded by this throw until that lands.
+        KafkaPartitionOffset offset = new KafkaPartitionOffset(3, 42);
+        UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> offset.newRangeQueryGreaterThan("test_field")
+        );
+        assertTrue(e.getMessage().contains("partition"));
+    }
 }
