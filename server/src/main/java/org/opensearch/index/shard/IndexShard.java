@@ -4960,27 +4960,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ) {
                 @Override
                 public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) {
-                    if (newEngineReference.get() == null) {
+                    Engine engine = newEngineReference.get();
+                    if (engine == null) {
                         throw new AlreadyClosedException("engine was closed");
                     }
                     // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
-                    return newEngineReference.get().acquireLastIndexCommit(false);
+                    return engine.acquireLastIndexCommit(false);
                 }
 
                 @Override
                 public GatedCloseable<IndexCommit> acquireSafeIndexCommit() {
-                    if (newEngineReference.get() == null) {
+                    Engine engine = newEngineReference.get();
+                    if (engine == null) {
                         throw new AlreadyClosedException("engine was closed");
                     }
-                    return newEngineReference.get().acquireSafeIndexCommit();
+                    return engine.acquireSafeIndexCommit();
                 }
 
                 @Override
                 public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-                    if (newEngineReference.get() == null) {
+                    Engine engine = newEngineReference.get();
+                    if (engine == null) {
                         throw new AlreadyClosedException("engine was closed");
                     }
-                    return newEngineReference.get().getSegmentInfosSnapshot();
+                    return engine.getSegmentInfosSnapshot();
                 }
 
                 @Override
