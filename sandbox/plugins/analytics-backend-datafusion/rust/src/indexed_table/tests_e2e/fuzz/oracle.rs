@@ -103,8 +103,8 @@ fn eval_row(node: &BoolNode, corpus: &Corpus, row: i32, collector_sets: &[HashSe
             acc
         }
         BoolNode::Not(child) => eval_row(child, corpus, row, collector_sets).not(),
-        BoolNode::Collector { query_bytes } => {
-            let tag = query_bytes[0] as usize;
+        BoolNode::Collector { annotation_id } => {
+            let tag = *annotation_id as u8 as usize;
             let set = collector_sets
                 .get(tag)
                 .unwrap_or_else(|| panic!("oracle: Collector tag {} has no matching set", tag));

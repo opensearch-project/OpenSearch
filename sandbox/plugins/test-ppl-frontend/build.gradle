@@ -17,8 +17,13 @@ apply plugin: 'opensearch.opensearchplugin'
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
-// SQL Unified Query API version (aligned with OpenSearch build version)
-def sqlUnifiedQueryVersion = '3.6.0.0-SNAPSHOT'
+// SQL Unified Query API version (aligned with OpenSearch build version).
+// Bumped to 3.7 so the bundled PPL grammar exposes commands added since 3.6
+// (multisearch, table, regex, rex, convert, …). The OpenSearch Snapshots repo
+// declared below carries the published 3.7.x.x-SNAPSHOT artifacts; for local
+// development against an unpublished sql-repo HEAD, run
+// `./gradlew :ppl:publishUnifiedQueryPublicationToMavenLocal` from the sql repo first.
+def sqlUnifiedQueryVersion = '3.7.0.0-SNAPSHOT'
 
 opensearchplugin {
   description = 'Test PPL front-end: REST endpoint backed by the unified PPL pipeline.'
@@ -27,6 +32,7 @@ opensearchplugin {
 }
 
 repositories {
+  mavenLocal()
   maven {
     name = 'OpenSearch Snapshots'
     url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'

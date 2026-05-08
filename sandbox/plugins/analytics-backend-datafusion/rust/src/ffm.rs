@@ -478,6 +478,27 @@ pub unsafe extern "C" fn df_create_session_context(
 
 #[ffm_safe]
 #[no_mangle]
+pub unsafe extern "C" fn df_create_session_context_indexed(
+    shard_view_ptr: i64,
+    runtime_ptr: i64,
+    table_name_ptr: *const u8,
+    table_name_len: i64,
+    context_id: i64,
+    tree_shape: i32,
+    delegated_predicate_count: i32,
+) -> i64 {
+    let table_name = str_from_raw(table_name_ptr, table_name_len)
+        .map_err(|e| format!("df_create_session_context_indexed: {}", e))?;
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::session_context::create_session_context_indexed(
+            runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count,
+        ))
+        .map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
 pub unsafe extern "C" fn df_cache_manager_remove_files(
     runtime_ptr: i64,
     files_ptr: *const *const u8,
@@ -603,26 +624,86 @@ pub unsafe extern "C" fn df_execute_with_context(
     plan_ptr: *const u8,
     plan_len: i64,
 ) -> i64 {
-    // Consume the session context handle on entry. Ownership transfers here
-    // regardless of whether the remainder of this function succeeds, returns an
-    // error via `?`, or panics — RAII (or `catch_unwind` drop-during-unwind)
-    // drops `session_handle` and frees the underlying SessionContext resources.
-    //
-    // This matches the Java-side contract: SessionContextHandle.markConsumed() is
-    // invoked in a `finally` after the FFM downcall, so every observable path from
-    // Java's perspective ("call.invoke ran") maps to "Rust consumed the handle".
-    // If we were to run fallible or panic-prone code (e.g. `get_rt_manager()?`)
-    // before Box::from_raw, the handle would leak on those paths.
     let session_handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
 
     let mgr = get_rt_manager()?;
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let cpu_executor = mgr.cpu_executor();
-    mgr.io_runtime
-        .block_on(crate::query_executor::execute_with_context(
-            session_handle,
-            plan_bytes,
-            cpu_executor,
-        ))
-        .map_err(|e| e.to_string())
+    // Route based on whether the session was configured for indexed execution
+    if session_handle.indexed_config.is_some() {
+        // TODO: refactor execute_indexed_with_context to take SessionContextHandle directly
+        // (like execute_with_context) instead of i64 raw pointer — avoids this re-boxing.
+        let ptr = Box::into_raw(Box::new(session_handle)) as i64;
+        mgr.io_runtime
+            .block_on(crate::indexed_executor::execute_indexed_with_context(
+                ptr,
+                plan_bytes.to_vec(),
+                cpu_executor,
+            ))
+            .map_err(|e| e.to_string())
+    } else {
+        mgr.io_runtime
+            .block_on(crate::query_executor::execute_with_context(
+                session_handle,
+                plan_bytes,
+                cpu_executor,
+            ))
+            .map_err(|e| e.to_string())
+    }
+}
+
+// ---- Stats collection ----
+
+/// Collects all native executor metrics into a caller-provided byte buffer.
+///
+/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (224).
+/// Returns 0 on success.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
+    use crate::stats::{layout, pack_runtime_metrics, pack_task_monitor, DfStatsBuffer, RuntimeMetricsRepr};
+    use crate::task_monitors::{
+        query_execution_monitor, stream_next_monitor,
+        fetch_phase_monitor, segment_stats_monitor,
+    };
+
+    if out_cap < 0 || (out_cap as usize) < layout::BUFFER_BYTE_SIZE {
+        return Err(format!(
+            "stats buffer too small: need {} but got {}",
+            layout::BUFFER_BYTE_SIZE, out_cap
+        ));
+    }
+
+    let mgr = get_rt_manager()?;
+
+    // IO runtime (always present)
+    let io_runtime = pack_runtime_metrics(&mgr.io_monitor, mgr.io_runtime.handle());
+
+    // CPU runtime (optional — zeroed when absent)
+    let cpu_runtime = if let Some(ref cpu_mon) = mgr.cpu_monitor {
+        if let Some(cpu_handle) = mgr.cpu_executor.handle() {
+            pack_runtime_metrics(cpu_mon, &cpu_handle)
+        } else {
+            RuntimeMetricsRepr::zeroed()
+        }
+    } else {
+        RuntimeMetricsRepr::zeroed()
+    };
+
+    let buf = DfStatsBuffer {
+        io_runtime,
+        cpu_runtime,
+        query_execution: pack_task_monitor(query_execution_monitor()),
+        stream_next: pack_task_monitor(stream_next_monitor()),
+        fetch_phase: pack_task_monitor(fetch_phase_monitor()),
+        segment_stats: pack_task_monitor(segment_stats_monitor()),
+    };
+
+    // Copy struct bytes to caller buffer
+    std::ptr::copy_nonoverlapping(
+        &buf as *const DfStatsBuffer as *const u8,
+        out_ptr,
+        std::mem::size_of::<DfStatsBuffer>(),
+    );
+    Ok(0)
 }

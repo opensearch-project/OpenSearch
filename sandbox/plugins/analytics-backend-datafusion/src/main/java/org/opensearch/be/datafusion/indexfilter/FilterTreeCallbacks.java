@@ -11,62 +11,56 @@ package org.opensearch.be.datafusion.indexfilter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.be.datafusion.indexfilter.CollectorRegistry.CollectorHandle;
+import org.opensearch.analytics.spi.FilterDelegationHandle;
 
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Static callback targets invoked by the native engine via FFM upcalls.
  *
- * <p>Delegates to two instance-based registries installed at plugin startup:
- * <ul>
- *   <li>{@link FilterProviderRegistry} — query-level provider create/release (cold path)</li>
- *   <li>{@link CollectorRegistry} — per-segment collector create/collect/release (hot path)</li>
- * </ul>
+ * <p>All calls delegate to the currently installed {@link FilterDelegationHandle}.
+ * The handle is set per-query-per-shard before execution and cleared after.
  *
  * <h2>Error-handling contract</h2>
  * <p>Every method catches all {@link Throwable}s and returns {@code -1}
  * (or silently returns for void methods). A Java exception escaping through
  * an FFM upcall stub crashes the JVM.
+ *
+ * // TODO: remove old Registries-based code path and CollectorRegistry/FilterProviderRegistry
+ * // once all tests are migrated to the FilterDelegationHandle path.
  */
 public final class FilterTreeCallbacks {
 
     private static final Logger LOGGER = LogManager.getLogger(FilterTreeCallbacks.class);
 
-    /** Both registries in one snapshot — one AtomicReference read per upcall. */
-    record Registries(FilterProviderRegistry providers, CollectorRegistry collectors) {
-    }
-
-    private static final AtomicReference<Registries> REGISTRIES = new AtomicReference<>();
+    private static final AtomicReference<FilterDelegationHandle> HANDLE = new AtomicReference<>();
 
     private FilterTreeCallbacks() {}
 
     /**
-     * Install the registries. Called once at plugin startup.
+     * Install the delegation handle for the current execution.
+     * Called by {@code configureFilterDelegation} before query execution.
      * Tests may call with {@code null} to reset.
      */
-    public static void setRegistries(FilterProviderRegistry providers, CollectorRegistry collectors) {
-        REGISTRIES.set(providers == null ? null : new Registries(providers, collectors));
+    public static void setHandle(FilterDelegationHandle handle) {
+        HANDLE.set(handle);
     }
 
     // ── Provider lifecycle (cold path, once per query) ────────────────
 
     /**
-     * {@code createProvider(queryBytes, queryBytesLen) -> providerKey|-1}.
+     * {@code createProvider(annotationId) -> providerKey|-1}.
      */
-    public static int createProvider(MemorySegment queryBytesPtr, long queryBytesLen) {
+    public static int createProvider(int annotationId) {
         try {
-            Registries reg = REGISTRIES.get();
-            if (reg == null) {
+            FilterDelegationHandle handle = HANDLE.get();
+            if (handle == null) {
                 return -1;
             }
-            MemorySegment view = queryBytesPtr.reinterpret(queryBytesLen);
-            byte[] bytes = view.toArray(ValueLayout.JAVA_BYTE);
-            return reg.providers().createProvider(bytes);
-        } catch (Throwable t) {
-            LOGGER.error("createProvider failed", t);
+            return handle.createProvider(annotationId);
+        } catch (Throwable throwable) {
+            LOGGER.error("createProvider failed for annotationId=" + annotationId, throwable);
             return -1;
         }
     }
@@ -76,12 +70,12 @@ public final class FilterTreeCallbacks {
      */
     public static void releaseProvider(int providerKey) {
         try {
-            Registries reg = REGISTRIES.get();
-            if (reg != null) {
-                reg.providers().releaseProvider(providerKey);
+            FilterDelegationHandle handle = HANDLE.get();
+            if (handle != null) {
+                handle.releaseProvider(providerKey);
             }
-        } catch (Throwable t) {
-            LOGGER.error(new ParameterizedMessage("releaseProvider({}) failed", providerKey), t);
+        } catch (Throwable throwable) {
+            LOGGER.error(new ParameterizedMessage("releaseProvider({}) failed", providerKey), throwable);
         }
     }
 
@@ -92,12 +86,12 @@ public final class FilterTreeCallbacks {
      */
     public static int createCollector(int providerKey, int segmentOrd, int minDoc, int maxDoc) {
         try {
-            Registries reg = REGISTRIES.get();
-            if (reg == null) {
+            FilterDelegationHandle handle = HANDLE.get();
+            if (handle == null) {
                 return -1;
             }
-            return reg.providers().createCollector(providerKey, segmentOrd, minDoc, maxDoc);
-        } catch (Throwable t) {
+            return handle.createCollector(providerKey, segmentOrd, minDoc, maxDoc);
+        } catch (Throwable throwable) {
             LOGGER.error(
                 new ParameterizedMessage(
                     "createCollector(providerKey={}, seg={}, [{}, {})) failed",
@@ -106,7 +100,7 @@ public final class FilterTreeCallbacks {
                     minDoc,
                     maxDoc
                 ),
-                t
+                throwable
             );
             return -1;
         }
@@ -114,26 +108,22 @@ public final class FilterTreeCallbacks {
 
     /**
      * {@code collectDocs(collectorKey, minDoc, maxDoc, outPtr, outWordCap) -> wordsWritten|-1}.
-     *
-     * <p>Single map lookup into {@link CollectorRegistry}. The provider
-     * reference is already captured in the {@link CollectorHandle}.
      */
     public static long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment outPtr, long outWordCap) {
         try {
-            Registries reg = REGISTRIES.get();
-            if (reg == null) {
-                return -1L;
-            }
-            CollectorHandle handle = reg.collectors().collector(collectorKey);
+            FilterDelegationHandle handle = HANDLE.get();
             if (handle == null) {
                 return -1L;
             }
             int maxWords = (int) Math.min(outWordCap, (long) Integer.MAX_VALUE);
             MemorySegment view = outPtr.reinterpret((long) maxWords * Long.BYTES);
-            int n = handle.provider().collectDocs(handle.innerCollectorKey(), minDoc, maxDoc, view);
-            return (n < 0) ? -1L : n;
-        } catch (Throwable t) {
-            LOGGER.error(new ParameterizedMessage("collectDocs(collectorKey={}, [{}, {})) failed", collectorKey, minDoc, maxDoc), t);
+            int wordsWritten = handle.collectDocs(collectorKey, minDoc, maxDoc, view);
+            return (wordsWritten < 0) ? -1L : wordsWritten;
+        } catch (Throwable throwable) {
+            LOGGER.error(
+                new ParameterizedMessage("collectDocs(collectorKey={}, [{}, {})) failed", collectorKey, minDoc, maxDoc),
+                throwable
+            );
             return -1L;
         }
     }
@@ -143,18 +133,12 @@ public final class FilterTreeCallbacks {
      */
     public static void releaseCollector(int collectorKey) {
         try {
-            Registries reg = REGISTRIES.get();
-            if (reg == null) {
-                return;
+            FilterDelegationHandle handle = HANDLE.get();
+            if (handle != null) {
+                handle.releaseCollector(collectorKey);
             }
-            CollectorHandle handle = reg.collectors().collector(collectorKey);
-            if (handle == null) {
-                return;
-            }
-            handle.provider().releaseCollector(handle.innerCollectorKey());
-            reg.collectors().unregisterCollector(collectorKey);
-        } catch (Throwable t) {
-            LOGGER.error(new ParameterizedMessage("releaseCollector({}) failed", collectorKey), t);
+        } catch (Throwable throwable) {
+            LOGGER.error(new ParameterizedMessage("releaseCollector({}) failed", collectorKey), throwable);
         }
     }
 }

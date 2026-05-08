@@ -28,6 +28,7 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
+import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 
 import java.util.List;
 import java.util.Map;
@@ -146,6 +147,11 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
                 List<DelegatedExpression> delegatedExpressions
             ) {
                 return Optional.of(new FilterDelegationInstructionNode(treeShape, delegatedPredicateCount, delegatedExpressions));
+            }
+
+            @Override
+            public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
+                return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
             }
 
             @Override

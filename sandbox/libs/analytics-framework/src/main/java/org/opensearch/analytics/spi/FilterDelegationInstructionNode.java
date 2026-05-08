@@ -44,7 +44,7 @@ public class FilterDelegationInstructionNode implements InstructionNode {
 
     @Override
     public InstructionType type() {
-        return InstructionType.SETUP_FILTER_DELEGATION_FOR_INDEX;
+        return InstructionType.SETUP_SHARD_SCAN_WITH_DELEGATION;
     }
 
     @Override

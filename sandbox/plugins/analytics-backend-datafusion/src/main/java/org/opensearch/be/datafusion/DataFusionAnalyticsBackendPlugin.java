@@ -8,15 +8,21 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.ProjectCapability;
@@ -25,6 +31,7 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
+import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
 import java.util.HashSet;
@@ -97,6 +104,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.CAST,
         ScalarFunction.CONCAT,
         ScalarFunction.SAFE_CAST,
+        // CASE — Calcite emits CASE WHEN ... THEN ... END for conditional expressions, including
+        // PPL `count(eval(predicate))` (lowered to COUNT(CASE WHEN predicate THEN ... ELSE NULL END))
+        // and explicit `eval x = case(cond, val, ...)`. Isthmus translates SqlKind.CASE structurally
+        // to a Substrait IfThen rel — no extension lookup needed, no adapter required. DataFusion's
+        // substrait consumer handles IfThen natively. Without this entry, the analytics planner
+        // rejects the operator with "No backend supports scalar function [CASE] among [datafusion]"
+        // before substrait emission.
+        ScalarFunction.CASE,
         // ABS / SUBSTRING — `eval x = abs(...)` and `eval s = substring(...)` projections that PPL
         // sort-pushdown moves into the project tree (see CalciteSortCommandIT
         // testPushdownSortExpressionContainsNull and CalcitePPLSortIT
@@ -105,6 +120,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.ABS,
         ScalarFunction.SUBSTRING,
         ScalarFunction.SARG_PREDICATE,
+        ScalarFunction.MINUS,
+        ScalarFunction.ACOS,
+        ScalarFunction.ASIN,
+        ScalarFunction.ATAN,
+        ScalarFunction.ATAN2,
+        ScalarFunction.CBRT,
         ScalarFunction.EQUALS,
         ScalarFunction.NOT_EQUALS,
         ScalarFunction.GREATER_THAN,
@@ -114,11 +135,36 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IN,
         ScalarFunction.LIKE,
         ScalarFunction.REGEXP_CONTAINS,
+        ScalarFunction.REPLACE,
+        ScalarFunction.REGEXP_REPLACE,
         ScalarFunction.PLUS,
-        ScalarFunction.MINUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
         ScalarFunction.MOD,
+        ScalarFunction.COS,
+        ScalarFunction.COT,
+        ScalarFunction.DEGREES,
+        ScalarFunction.EXP,
+        ScalarFunction.FLOOR,
+        ScalarFunction.LN,
+        ScalarFunction.LOG,
+        ScalarFunction.LOG10,
+        ScalarFunction.LOG2,
+        ScalarFunction.PI,
+        ScalarFunction.POWER,
+        ScalarFunction.RADIANS,
+        ScalarFunction.RAND,
+        ScalarFunction.ROUND,
+        ScalarFunction.SIGN,
+        ScalarFunction.SIN,
+        ScalarFunction.TAN,
+        ScalarFunction.TRUNCATE,
+        ScalarFunction.COSH,
+        ScalarFunction.SINH,
+        ScalarFunction.E,
+        ScalarFunction.EXPM1,
+        ScalarFunction.SCALAR_MAX,
+        ScalarFunction.SCALAR_MIN,
         ScalarFunction.YEAR,
         ScalarFunction.CONVERT_TZ,
         ScalarFunction.UNIX_TIMESTAMP
@@ -150,6 +196,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             @Override
             public Set<EngineCapability> supportedEngineCapabilities() {
                 return ENGINE_CAPS;
+            }
+
+            @Override
+            public Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
             }
 
             @Override
@@ -200,15 +251,33 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
+                    Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
                     Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
+                    Map.entry(ScalarFunction.E, new EConstantAdapter()),
+                    Map.entry(ScalarFunction.EXPM1, new Expm1Adapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
                     Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
+                    Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
+                    Map.entry(ScalarFunction.SCALAR_MAX, nameMapping(SqlLibraryOperators.GREATEST)),
+                    Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
+                    Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
+                    Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
                     Map.entry(ScalarFunction.YEAR, new YearAdapter())
                 );
             }
+        };
+    }
+
+    /**
+     * Pure rename from a PPL scalar to {@code target} — no prepend / append operands.
+     * Concrete subclass of {@link AbstractNameMappingAdapter} because the abstract
+     * base cannot be instantiated directly.
+     */
+    private static AbstractNameMappingAdapter nameMapping(SqlOperator target) {
+        return new AbstractNameMappingAdapter(target, java.util.List.of(), java.util.List.of()) {
         };
     }
 
@@ -278,5 +347,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             }
             return new DatafusionReduceSink(ctx, svc.getNativeRuntime());
         };
+    }
+
+    @Override
+    public void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
+        // Install the handle as the FFM upcall target. All Rust callbacks
+        // (createProvider, createCollector, collectDocs, release*) route to it.
+        FilterTreeCallbacks.setHandle(handle);
     }
 }

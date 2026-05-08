@@ -9,6 +9,8 @@
 package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.be.datafusion.stats.DataFusionStats;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
@@ -18,6 +20,7 @@ import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.LinkedHashMap;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -73,9 +76,11 @@ public final class NativeBridge {
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
+    private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
+    private static final MethodHandle STATS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -288,6 +293,20 @@ public final class NativeBridge {
             )
         );
 
+        CREATE_SESSION_CONTEXT_INDEXED = linker.downcallHandle(
+            lib.find("df_create_session_context_indexed").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT
+            )
+        );
+
         // i64 df_cache_manager_add_files(runtime_ptr, files_ptr, files_len_ptr, files_count)
         CACHE_MANAGER_ADD_FILES = linker.downcallHandle(
             lib.find("df_cache_manager_add_files").orElseThrow(),
@@ -361,6 +380,12 @@ public final class NativeBridge {
             lib.find("df_execute_with_context").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
+
+        // i64 df_stats(out_ptr, out_cap)
+        STATS = linker.downcallHandle(
+            lib.find("df_stats").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
     }
 
     private NativeBridge() {}
@@ -374,7 +399,7 @@ public final class NativeBridge {
             MethodHandle createProvider = lookup.findStatic(
                 cb,
                 "createProvider",
-                java.lang.invoke.MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, long.class)
+                java.lang.invoke.MethodType.methodType(int.class, int.class)
             );
             MethodHandle releaseProvider = lookup.findStatic(
                 cb,
@@ -406,7 +431,7 @@ public final class NativeBridge {
 
             java.lang.foreign.MemorySegment createProviderStub = linker.upcallStub(
                 createProvider,
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT),
                 arena
             );
             java.lang.foreign.MemorySegment releaseProviderStub = linker.upcallStub(
@@ -595,6 +620,36 @@ public final class NativeBridge {
         NativeCall.invokeVoid(CANCEL_QUERY, contextId);
     }
 
+    // ---- Stats collection ----
+
+    /**
+     * Collects all native executor metrics in a single FFM call.
+     * Decodes directly from the MemorySegment — no intermediate long[].
+     *
+     * @return a fully constructed {@link DataFusionStats}
+     * @throws IllegalStateException if the runtime manager is not initialized
+     */
+    public static DataFusionStats stats() {
+        try (var call = new NativeCall()) {
+            var seg = call.buf((int) StatsLayout.LAYOUT.byteSize());
+            call.invoke(STATS, seg, StatsLayout.LAYOUT.byteSize());
+
+            // IO runtime (always present — zeroed if not yet initialized)
+            var ioRuntime = StatsLayout.readRuntimeMetrics(seg, "io_runtime");
+
+            // CPU runtime (always present — zeroed when absent)
+            var cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
+
+            // Task monitors
+            var taskMonitors = new LinkedHashMap<String, NativeExecutorsStats.TaskMonitorStats>();
+            for (NativeExecutorsStats.OperationType op : NativeExecutorsStats.OperationType.values()) {
+                taskMonitors.put(op.key(), StatsLayout.readTaskMonitor(seg, op.key()));
+            }
+
+            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors));
+        }
+    }
+
     // ---- Stubs ----
 
     public static byte[] sqlToSubstrait(long readerPtr, String tableName, String sql, long runtimePtr) {
@@ -739,6 +794,37 @@ public final class NativeBridge {
         try (var call = new NativeCall()) {
             var table = call.str(tableName);
             long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId);
+            return new SessionContextHandle(ptr);
+        }
+    }
+
+    /**
+     * Creates a SessionContext configured for indexed execution with filter delegation.
+     * Registers the delegated_predicate UDF and stores treeShape + delegatedPredicateCount
+     * on the Rust handle for use during execution.
+     */
+    public static SessionContextHandle createSessionContextForIndexedExecution(
+        long readerPtr,
+        long runtimePtr,
+        String tableName,
+        long contextId,
+        int treeShapeOrdinal,
+        int delegatedPredicateCount
+    ) {
+        NativeHandle.validatePointer(readerPtr, "reader");
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        try (NativeCall call = new NativeCall()) {
+            NativeCall.Str table = call.str(tableName);
+            long ptr = call.invoke(
+                CREATE_SESSION_CONTEXT_INDEXED,
+                readerPtr,
+                runtimePtr,
+                table.segment(),
+                table.len(),
+                contextId,
+                treeShapeOrdinal,
+                delegatedPredicateCount
+            );
             return new SessionContextHandle(ptr);
         }
     }
