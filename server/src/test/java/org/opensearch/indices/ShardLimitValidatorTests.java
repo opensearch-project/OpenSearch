@@ -158,6 +158,55 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertFalse(errorMessage.isPresent());
     }
 
+    public void testLocalOnlyShardLimitCountsOnlyNonWarmDataNodes() {
+        final int totalDataNodes = randomIntBetween(3, 10);
+        final int warmNodes = randomIntBetween(1, totalDataNodes - 1);
+        final int localOnlyNodes = totalDataNodes - warmNodes;
+        final int maxShardsPerNode = randomIntBetween(1, 10);
+
+        final ClusterState state = createClusterStateWithDataAndWarmNodes(totalDataNodes, warmNodes);
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(maxShardsPerNode, false);
+
+        final int shardsToAdd = (localOnlyNodes * maxShardsPerNode) + 1;
+        final Optional<String> errorMessage = shardLimitValidator.checkShardLimit(shardsToAdd, state, RoutingPool.LOCAL_ONLY);
+
+        assertTrue(errorMessage.isPresent());
+        assertEquals(
+            "this action would add ["
+                + shardsToAdd
+                + "] total LOCAL_ONLY shards, but this cluster currently has [0]/["
+                + (localOnlyNodes * maxShardsPerNode)
+                + "] maximum LOCAL_ONLY shards open",
+            errorMessage.get()
+        );
+    }
+
+    public void testRemoteCapableShardLimitStillCountsWarmNodes() {
+        final int totalDataNodes = randomIntBetween(3, 10);
+        final int warmNodes = randomIntBetween(1, totalDataNodes - 1);
+        final int maxRemoteCapableShardsPerNode = randomIntBetween(1, 10);
+
+        final Settings shardLimitSettings = Settings.builder()
+            .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), randomIntBetween(100, 1000))
+            .put(ShardLimitValidator.SETTING_CLUSTER_MAX_REMOTE_CAPABLE_SHARDS_PER_NODE.getKey(), maxRemoteCapableShardsPerNode)
+            .build();
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(shardLimitSettings);
+        final ClusterState state = createClusterStateWithDataAndWarmNodes(totalDataNodes, warmNodes);
+
+        final int shardsToAdd = (warmNodes * maxRemoteCapableShardsPerNode) + 1;
+        final Optional<String> errorMessage = shardLimitValidator.checkShardLimit(shardsToAdd, state, RoutingPool.REMOTE_CAPABLE);
+
+        assertTrue(errorMessage.isPresent());
+        assertEquals(
+            "this action would add ["
+                + shardsToAdd
+                + "] total REMOTE_CAPABLE shards, but this cluster currently has [0]/["
+                + (warmNodes * maxRemoteCapableShardsPerNode)
+                + "] maximum REMOTE_CAPABLE shards open",
+            errorMessage.get()
+        );
+    }
+
     /**
      * This test validates that system index creation succeeds
      * even though it exceeds the cluster max shard limit
@@ -616,6 +665,32 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             closedIndexShards,
             closedIndexReplicas
         );
+    }
+
+    private static ClusterState createClusterStateWithDataAndWarmNodes(int totalDataNodes, int warmNodes) {
+        assertTrue("warm node count must be <= total data node count", warmNodes <= totalDataNodes);
+
+        final Map<String, DiscoveryNode> dataNodes = new HashMap<>();
+        final Map<String, DiscoveryNode> warmNodeMap = new HashMap<>();
+        for (int i = 0; i < totalDataNodes; i++) {
+            final String nodeId = randomAlphaOfLengthBetween(5, 15);
+            final DiscoveryNode node = mock(DiscoveryNode.class);
+            dataNodes.put(nodeId, node);
+            if (i < warmNodes) {
+                warmNodeMap.put(nodeId, node);
+            }
+        }
+        final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.getDataNodes()).thenReturn(dataNodes);
+        when(nodes.getWarmNodes()).thenReturn(warmNodeMap);
+
+        final Metadata.Builder metadata = Metadata.builder();
+        if (randomBoolean()) {
+            metadata.persistentSettings(Settings.EMPTY);
+        } else {
+            metadata.transientSettings(Settings.EMPTY);
+        }
+        return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).nodes(nodes).build();
     }
 
     /**
