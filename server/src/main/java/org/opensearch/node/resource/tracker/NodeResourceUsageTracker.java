@@ -23,6 +23,7 @@ import org.opensearch.threadpool.ThreadPool;
 public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     private ThreadPool threadPool;
     private final ClusterSettings clusterSettings;
+    private final Settings settings;
     private AverageCpuUsageTracker cpuUsageTracker;
     private AverageMemoryUsageTracker memoryUsageTracker;
     private AverageIoUsageTracker ioUsageTracker;
@@ -35,6 +36,7 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     public NodeResourceUsageTracker(FsService fsService, ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         this.fsService = fsService;
         this.threadPool = threadPool;
+        this.settings = settings;
         this.clusterSettings = clusterSettings;
         this.resourceTrackerSettings = new ResourceTrackerSettings(settings);
         initialize();
@@ -125,7 +127,8 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
         nativeMemoryUsageTracker = new AverageNativeMemoryUsageTracker(
             threadPool,
             resourceTrackerSettings.getNativeMemoryPollingInterval(),
-            resourceTrackerSettings.getNativeMemoryWindowDuration()
+            resourceTrackerSettings.getNativeMemoryWindowDuration(),
+            settings
         );
         if (Constants.LINUX) {
             clusterSettings.addSettingsUpdateConsumer(

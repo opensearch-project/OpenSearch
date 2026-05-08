@@ -237,6 +237,64 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/proc/loadavg"));
     }
 
+    /**
+     * Reads the {@code RssAnon} field (anonymous resident memory) of the current process from
+     * {@code /proc/self/status} and returns it in bytes. Returns {@code -1L} when the host is
+     * not Linux, when {@code /proc/self/status} cannot be read, or when the {@code RssAnon:}
+     * line is missing or malformed. Failure paths are logged at debug level; callers that want
+     * user-visible warnings must wrap this method themselves.
+     *
+     * @return the {@code RssAnon} value in bytes, or {@code -1L} if unavailable
+     */
+    public long getProcessRssAnon() {
+        if (Constants.LINUX == false) {
+            return -1L;
+        }
+        try {
+            return readRssAnonFromProcSelfStatus();
+        } catch (IOException e) {
+            logger.debug("failed to read /proc/self/status", e);
+            return -1L;
+        }
+    }
+
+    /**
+     * Reads the {@code RssAnon} field from {@code /proc/self/status}. Package-private so tests
+     * can override it with canned file contents.
+     *
+     * @return the {@code RssAnon} value in bytes, or {@code -1L} when the line is missing or
+     *         the value is unparseable/negative
+     * @throws IOException if the file cannot be opened or read
+     */
+    @SuppressForbidden(reason = "access /proc/self/status")
+    long readRssAnonFromProcSelfStatus() throws IOException {
+        try (BufferedReader reader = Files.newBufferedReader(PathUtils.get("/proc/self/status"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("RssAnon:")) {
+                    // Format: "RssAnon:\t 12345 kB"
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 2) {
+                        try {
+                            long kb = Long.parseLong(parts[1]);
+                            if (kb < 0L) {
+                                return -1L;
+                            }
+                            return kb * 1024L;
+                        } catch (NumberFormatException nfe) {
+                            logger.debug("malformed RssAnon value in /proc/self/status", nfe);
+                            return -1L;
+                        }
+                    }
+                    logger.debug("RssAnon line has unexpected shape: [{}]", line);
+                    return -1L;
+                }
+            }
+            logger.debug("RssAnon line not found in /proc/self/status");
+            return -1L;
+        }
+    }
+
     public short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }
@@ -252,48 +310,6 @@ public class OsProbe {
         final List<String> lines = Files.readAllLines(path);
         assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
-    }
-
-    /**
-     * Returns the available memory in bytes on Linux by reading {@code MemAvailable} from {@code /proc/meminfo}.
-     * Available memory is a better estimate than free memory as it accounts for reclaimable page cache and slab memory.
-     * Returns -1 if not on Linux or if the value cannot be read.
-     */
-    public long getAvailableMemorySize() {
-        if (!Constants.LINUX) {
-            return -1;
-        }
-        try {
-            return readAvailableMemoryFromProcMeminfo();
-        } catch (Exception e) {
-            logger.warn("error reading available memory from /proc/meminfo", e);
-            return -1;
-        }
-    }
-
-    /**
-     * Reads {@code MemAvailable} from {@code /proc/meminfo}.
-     *
-     * @return the available memory in bytes, or -1 if not found
-     * @throws IOException if an I/O exception occurs reading {@code /proc/meminfo}
-     */
-    @SuppressForbidden(reason = "access /proc/meminfo")
-    long readAvailableMemoryFromProcMeminfo() throws IOException {
-        try (BufferedReader reader = Files.newBufferedReader(PathUtils.get("/proc/meminfo"))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith("MemAvailable:")) {
-                    final String[] parts = line.split("\\s+");
-                    if (parts.length >= 2) {
-                        // Value in /proc/meminfo is in kB
-                        return Long.parseLong(parts[1]) * 1024;
-                    } else {
-                        return -1;
-                    }
-                }
-            }
-        }
-        return -1;
     }
 
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
