@@ -328,8 +328,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      */
     private static long resolveBytes(String configured, ByteSizeValue floor, ByteSizeValue ceiling, String settingKey) {
         if (configured.endsWith("%")) {
-            long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize()
-                - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+            long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize() - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
             if (totalAvailableMemory <= 0) {
                 logger.warn("Non-heap memory not measurable while resolving [{}]; falling back to {}", settingKey, floor);
                 return floor.getBytes();

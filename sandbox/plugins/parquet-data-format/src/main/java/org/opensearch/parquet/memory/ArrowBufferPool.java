@@ -59,11 +59,7 @@ public class ArrowBufferPool implements Closeable {
             );
             childAllocation = maxAllocationInBytes;
         }
-        logger.debug(
-            "ArrowBufferPool sized: root={} bytes, perChild={} bytes",
-            maxAllocationInBytes,
-            childAllocation
-        );
+        logger.debug("ArrowBufferPool sized: root={} bytes, perChild={} bytes", maxAllocationInBytes, childAllocation);
         this.rootAllocator = new RootAllocator(maxAllocationInBytes);
         this.maxChildAllocation = childAllocation;
     }
@@ -97,8 +93,7 @@ public class ArrowBufferPool implements Closeable {
         String configured = ParquetSettings.MAX_NATIVE_ALLOCATION.get(settings);
 
         if (configured.endsWith("%")) {
-            long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize()
-                - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+            long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize() - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
             ByteSizeValue floor = ParquetSettings.MIN_NATIVE_ALLOCATION.get(settings);
             if (totalAvailableMemory <= 0) {
                 logger.warn(

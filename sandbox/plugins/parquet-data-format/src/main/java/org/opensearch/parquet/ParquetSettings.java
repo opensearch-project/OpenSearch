@@ -10,6 +10,7 @@ package org.opensearch.parquet;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.RatioValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
@@ -117,6 +118,7 @@ public final class ParquetSettings {
     public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
         "parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
+        ParquetSettings::validateMemorySizeOrPercentage,
         Setting.Property.NodeScope
     );
 
@@ -207,6 +209,27 @@ public final class ParquetSettings {
         1,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Validates that {@code value} is either a percentage ({@code "10%"}) or an absolute byte
+     * size accepted by {@link ByteSizeValue#parseBytesSizeValue(String, String)}. Used as the
+     * setting-time validator for {@link #MAX_NATIVE_ALLOCATION} so that malformed values fail at
+     * update time rather than at the next read inside {@code ArrowBufferPool}.
+     */
+    private static void validateMemorySizeOrPercentage(String value) {
+        try {
+            if (value.endsWith("%")) {
+                RatioValue.parseRatioValue(value);
+            } else {
+                ByteSizeValue.parseBytesSizeValue(value, "memory size");
+            }
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException(
+                "value [" + value + "] must be a percentage (e.g. \"10%\") or a byte size (e.g. \"2gb\"): " + e.getMessage(),
+                e
+            );
+        }
+    }
 
     /** Returns all settings defined by the Parquet plugin. */
     public static List<Setting<?>> getSettings() {
