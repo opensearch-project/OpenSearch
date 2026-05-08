@@ -112,11 +112,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // rejects the operator with "No backend supports scalar function [CASE] among [datafusion]"
         // before substrait emission.
         ScalarFunction.CASE,
-        // ABS / SUBSTRING — `eval x = abs(...)` and `eval s = substring(...)` projections that PPL
-        // sort-pushdown moves into the project tree (see CalciteSortCommandIT
-        // testPushdownSortExpressionContainsNull and CalcitePPLSortIT
-        // testPushdownSortStringExpression). DataFusion has both natively; isthmus default catalog
-        // already binds them.
+        // ABS / SUBSTRING — PPL sort-pushdown moves these into the project tree; DataFusion has
+        // both natively and isthmus's default catalog binds them, so no adapter needed.
         ScalarFunction.ABS,
         ScalarFunction.SUBSTRING,
         ScalarFunction.SARG_PREDICATE,
