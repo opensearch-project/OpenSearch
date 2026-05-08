@@ -11,6 +11,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
     description = 'OpenSearch plugin providing Lucene-based search execution engine'
     classname = 'org.opensearch.be.lucene.LucenePlugin'
+    extendedPlugins = ['analytics-engine']
 }
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
@@ -24,9 +25,9 @@ configurations {
 sourceSets.test.compileClasspath += configurations.calciteTestCompile
 
 dependencies {
-    // Shared types and SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.)
-    // Also provides calcite-core transitively via api.
-    api project(':sandbox:libs:analytics-framework')
+    // Shared types and SPI interfaces — provided at runtime by the parent analytics-engine plugin (extendedPlugins above).
+    compileOnly project(':sandbox:libs:analytics-framework')
+    compileOnly project(':sandbox:plugins:analytics-engine')
 
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
