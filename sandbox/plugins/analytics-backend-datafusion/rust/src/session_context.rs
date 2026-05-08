@@ -210,3 +210,111 @@ pub async unsafe fn create_session_context_indexed(
 
     Ok(ptr)
 }
+
+/// Prepares a partial-aggregate physical plan on the session handle.
+///
+/// Decodes Substrait → LogicalPlan → PhysicalPlan, applies partial-mode
+/// stripping via `agg_mode::apply_aggregate_mode`, and stores the result
+/// on the handle for later execution.
+pub async fn prepare_partial_plan(
+    handle: &mut SessionContextHandle,
+    substrait_bytes: &[u8],
+) -> Result<(), datafusion::common::DataFusionError> {
+    use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
+    use prost::Message;
+    use substrait::proto::Plan;
+
+    handle.aggregate_mode = crate::agg_mode::Mode::Partial;
+
+    let plan = Plan::decode(substrait_bytes).map_err(|e| {
+        datafusion::common::DataFusionError::Execution(format!(
+            "prepare_partial_plan: failed to decode Substrait: {}",
+            e
+        ))
+    })?;
+    let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+    let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
+    let physical_plan = dataframe.create_physical_plan().await?;
+    let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
+    handle.prepared_plan = Some(stripped);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    use arrow_array::{Int64Array, RecordBatch};
+    use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::datasource::MemTable;
+    use datafusion::execution::runtime_env::RuntimeEnvBuilder;
+    use datafusion::execution::SessionStateBuilder;
+    use datafusion::prelude::{SessionConfig, SessionContext};
+    use datafusion_substrait::logical_plan::producer::to_substrait_plan;
+    use prost::Message;
+
+    use crate::agg_mode::Mode;
+    use crate::query_tracker::QueryTrackingContext;
+
+    async fn make_test_handle() -> (SessionContextHandle, Vec<u8>) {
+        let runtime_env = RuntimeEnvBuilder::new().build().expect("runtime env");
+        let state = SessionStateBuilder::new()
+            .with_config(SessionConfig::new())
+            .with_runtime_env(Arc::new(runtime_env))
+            .with_default_features()
+            .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
+            .build();
+        let ctx = SessionContext::new_with_state(state);
+
+        // Register an in-memory table with column "x"
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, false)]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Int64Array::from(vec![1i64, 2, 3]))],
+        )
+        .expect("batch");
+        let table = MemTable::try_new(Arc::clone(&schema), vec![vec![batch]]).expect("memtable");
+        ctx.register_table("t", Arc::new(table)).expect("register");
+
+        // Build Substrait bytes for SELECT SUM(x) FROM t
+        let df = ctx.sql("SELECT SUM(x) FROM t").await.expect("sql");
+        let plan = df.logical_plan().clone();
+        let substrait = to_substrait_plan(&plan, &ctx.state()).expect("to_substrait");
+        let mut buf = Vec::new();
+        substrait.encode(&mut buf).expect("encode");
+
+        let table_path = datafusion::datasource::listing::ListingTableUrl::parse("file:///tmp")
+            .expect("table_path");
+        let global_pool = ctx.runtime_env().memory_pool.clone();
+        let query_context = QueryTrackingContext::new(0, global_pool);
+
+        let handle = SessionContextHandle {
+            ctx,
+            table_path,
+            object_metas: Arc::new(vec![]),
+            query_context,
+            table_name: "t".to_string(),
+            indexed_config: None,
+            query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
+            aggregate_mode: Mode::Default,
+            prepared_plan: None,
+        };
+        (handle, buf)
+    }
+
+    #[tokio::test]
+    async fn prepare_partial_plan_sets_mode_and_stores_plan() {
+        let (mut handle, substrait_bytes) = make_test_handle().await;
+
+        assert_eq!(handle.aggregate_mode, Mode::Default);
+        assert!(handle.prepared_plan.is_none());
+
+        prepare_partial_plan(&mut handle, &substrait_bytes)
+            .await
+            .expect("prepare_partial_plan succeeds");
+
+        assert_eq!(handle.aggregate_mode, Mode::Partial);
+        assert!(handle.prepared_plan.is_some());
+    }
+}

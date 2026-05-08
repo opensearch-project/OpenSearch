@@ -52,6 +52,8 @@ use crate::partition_stream::{channel, PartitionStreamSender, SingleReceiverPart
 /// [`Self::execute_substrait`].
 pub struct LocalSession {
     ctx: SessionContext,
+    /// Pre-prepared physical plan (set by `prepare_final_plan`).
+    pub(crate) prepared_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
 }
 
 impl LocalSession {
@@ -70,7 +72,7 @@ impl LocalSession {
             .build();
         let ctx = SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
-        Self { ctx }
+        Self { ctx, prepared_plan: None }
     }
 
     /// Registers a streaming input on the session under `name` and returns the
@@ -153,6 +155,44 @@ impl LocalSession {
     /// path.
     pub fn memory_pool(&self) -> Arc<dyn MemoryPool> {
         Arc::clone(&self.ctx.runtime_env().memory_pool)
+    }
+
+    /// Prepares a final-aggregate physical plan on this session.
+    ///
+    /// Decodes Substrait → LogicalPlan → PhysicalPlan, applies final-mode
+    /// stripping, and stores the result for later execution via
+    /// [`Self::execute_prepared`].
+    pub async fn prepare_final_plan(
+        &mut self,
+        substrait_bytes: &[u8],
+    ) -> Result<(), DataFusionError> {
+        let plan = Plan::decode(substrait_bytes).map_err(|e| {
+            DataFusionError::Execution(format!(
+                "prepare_final_plan: failed to decode Substrait: {}",
+                e
+            ))
+        })?;
+        let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
+        let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
+        let physical_plan = dataframe.create_physical_plan().await?;
+        let stripped = crate::agg_mode::apply_aggregate_mode(
+            physical_plan,
+            crate::agg_mode::Mode::Final,
+        )?;
+        self.prepared_plan = Some(stripped);
+        Ok(())
+    }
+
+    /// Executes the previously prepared plan and returns the output stream.
+    ///
+    /// # Panics
+    /// Panics if no plan has been prepared via [`Self::prepare_final_plan`].
+    pub fn execute_prepared(&self) -> Result<SendableRecordBatchStream, DataFusionError> {
+        let plan = self
+            .prepared_plan
+            .as_ref()
+            .expect("execute_prepared called without a prepared plan");
+        datafusion::physical_plan::execute_stream(Arc::clone(plan), self.ctx.task_ctx())
     }
 }
 
@@ -324,5 +364,43 @@ mod tests {
             }
         }
         assert_eq!(total, 45);
+    }
+
+    #[tokio::test]
+    async fn prepare_final_plan_stores_plan() {
+        let env = test_runtime_env();
+        let mut session = LocalSession::new(&env);
+        let schema = i64_schema("s");
+
+        // Register a streaming table so the plan can resolve table refs.
+        let _sender = session
+            .register_partition("input-0", Arc::clone(&schema))
+            .expect("register");
+
+        // Build Substrait bytes for SELECT SUM(s) FROM "input-0"
+        let substrait_bytes = {
+            let env2 = test_runtime_env();
+            let mut producer = LocalSession::new(&env2);
+            let _unused = producer
+                .register_partition("input-0", Arc::clone(&schema))
+                .expect("producer register");
+            let df = producer
+                .ctx
+                .sql("SELECT SUM(s) FROM \"input-0\"")
+                .await
+                .expect("sum parses");
+            let plan = df.logical_plan().clone();
+            let substrait = to_substrait_plan(&plan, &producer.ctx.state()).expect("to_substrait");
+            let mut buf = Vec::new();
+            substrait.encode(&mut buf).expect("encode");
+            buf
+        };
+
+        assert!(session.prepared_plan.is_none());
+        session
+            .prepare_final_plan(&substrait_bytes)
+            .await
+            .expect("prepare_final_plan succeeds");
+        assert!(session.prepared_plan.is_some());
     }
 }
