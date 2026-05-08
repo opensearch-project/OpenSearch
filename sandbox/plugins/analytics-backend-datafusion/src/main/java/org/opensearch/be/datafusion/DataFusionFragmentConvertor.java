@@ -25,6 +25,12 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.util.Optionality;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -172,6 +178,46 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
     );
 
+    /**
+     * Custom aggregate operator that isthmus serializes as {@code approx_distinct} — the
+     * name declared in {@code opensearch_aggregate_functions.yaml} under URN
+     * {@code extension:org.opensearch:aggregate_functions}, and the name DataFusion's
+     * Substrait consumer binds to its native HyperLogLog APPROX_DISTINCT aggregate.
+     *
+     * <p>Why a custom function and not a rename of {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT}?
+     * Because Substrait's default catalog already declares an {@code approx_count_distinct}
+     * aggregate under the standard {@code functions_aggregate_approx.yaml} URN, so a
+     * {@code FunctionMappings.Sig} entry on the stock Calcite operator gets shadowed by
+     * the default mapping. A fresh {@link SqlAggFunction} with no prior mapping avoids
+     * the collision — plan-level rewrites from {@code SqlStdOperatorTable.APPROX_COUNT_DISTINCT}
+     * to this custom operator happen in the aggregate-call adapters so downstream stages
+     * carry the right function instance into Substrait emission.
+     */
+    public static final SqlAggFunction APPROX_DISTINCT = new SqlAggFunction(
+        "approx_distinct",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.NUMERIC,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /**
+     * Maps aggregate operators to their Substrait extension names so Isthmus serializes
+     * them through our {@code SimpleExtension} catalog instead of the default Substrait
+     * names.
+     * <ul>
+     *   <li>{@link #APPROX_DISTINCT} → {@code approx_distinct} (declared in
+     *       {@code opensearch_aggregate_functions.yaml}).</li>
+     * </ul>
+     */
+    private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(FunctionMappings.s(APPROX_DISTINCT, "approx_distinct"));
+
     private final SimpleExtension.ExtensionCollection extensions;
 
     public DataFusionFragmentConvertor(SimpleExtension.ExtensionCollection extensions) {
@@ -228,6 +274,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // with "Unable to convert the type NULL". The widening only changes literal type
         // tags; semantics and field names (used by Plan.Root.names) are unchanged.
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+        // Backend-specific aggregate-operator rewrite: isthmus's default Substrait catalog
+        // shadows any FunctionMappings.Sig entry on SqlStdOperatorTable.APPROX_COUNT_DISTINCT,
+        // so the rewrite swaps to our custom APPROX_DISTINCT operator whose mapping is the
+        // only one isthmus sees. See ADDITIONAL_AGGREGATE_SIGS for the Sig entry and
+        // /opensearch_aggregate_functions.yaml for the extension declaration.
+        preprocessed = rewriteApproxCountDistinct(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -391,7 +443,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             typeFactory,
             typeConverter
         );
-        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
+        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(
+            extensions.aggregateFunctions(),
+            ADDITIONAL_AGGREGATE_SIGS,
+            typeFactory,
+            typeConverter
+        );
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
@@ -419,6 +476,67 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     /** Serializes a model-level {@link Plan} to proto bytes. */
     private static byte[] serializePlan(Plan plan) {
         return new PlanProtoConverter().toProto(plan).toByteArray();
+    }
+
+    /**
+     * Rewrites every {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} aggregate call in the
+     * fragment to use our custom {@link #APPROX_DISTINCT} operator. Called before Substrait
+     * emission so the isthmus {@link AggregateFunctionConverter} resolves it through
+     * {@link #ADDITIONAL_AGGREGATE_SIGS} → {@code approx_distinct} (declared in
+     * {@code opensearch_aggregate_functions.yaml}) instead of Substrait's default
+     * {@code approx_count_distinct} under the standard URN.
+     *
+     * <p>A plain-swap preserves the call's return type (already {@code BIGINT NOT NULL}
+     * from stock inference); our custom operator uses the same {@code ReturnTypes.BIGINT}
+     * strategy so {@code Aggregate.typeMatchesInferred} continues to pass.
+     */
+    private static RelNode rewriteApproxCountDistinct(RelNode node) {
+        return node.accept(new org.apache.calcite.rel.RelShuttleImpl() {
+            @Override
+            public RelNode visit(org.apache.calcite.rel.logical.LogicalAggregate aggregate) {
+                RelNode rewritten = rewriteAgg(aggregate);
+                return super.visit((org.apache.calcite.rel.logical.LogicalAggregate) rewritten);
+            }
+
+            @Override
+            public RelNode visit(RelNode other) {
+                if (other instanceof org.apache.calcite.rel.core.Aggregate agg) {
+                    RelNode rewritten = rewriteAgg(agg);
+                    return super.visit(rewritten);
+                }
+                return super.visit(other);
+            }
+
+            private RelNode rewriteAgg(org.apache.calcite.rel.core.Aggregate agg) {
+                boolean changed = false;
+                List<AggregateCall> rewritten = new java.util.ArrayList<>(agg.getAggCallList().size());
+                for (AggregateCall call : agg.getAggCallList()) {
+                    if (call.getAggregation() == SqlStdOperatorTable.APPROX_COUNT_DISTINCT) {
+                        rewritten.add(
+                            AggregateCall.create(
+                                APPROX_DISTINCT,
+                                call.isDistinct(),
+                                call.isApproximate(),
+                                call.ignoreNulls(),
+                                call.rexList,
+                                call.getArgList(),
+                                call.filterArg,
+                                call.distinctKeys,
+                                call.collation,
+                                call.type,
+                                call.name
+                            )
+                        );
+                        changed = true;
+                    } else {
+                        rewritten.add(call);
+                    }
+                }
+                return changed
+                    ? agg.copy(agg.getTraitSet(), agg.getInput(), agg.getGroupSet(), agg.getGroupSets(), rewritten)
+                    : agg;
+            }
+        });
     }
 
     // ── Calcite TableScan wrappers for OpenSearchStageInputScan rewrite ─────────

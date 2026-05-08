@@ -43,6 +43,7 @@ import io.substrait.proto.Plan;
 import io.substrait.proto.PlanRel;
 import io.substrait.proto.ReadRel;
 import io.substrait.proto.Rel;
+import io.substrait.proto.SimpleExtensionDeclaration;
 import io.substrait.proto.SortRel;
 
 /**
@@ -73,7 +74,8 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         try {
             t.setContextClassLoader(DataFusionFragmentConvertorTests.class.getClassLoader());
             SimpleExtension.ExtensionCollection delegationExtensions = SimpleExtension.load(List.of("/delegation_functions.yaml"));
-            extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions);
+            SimpleExtension.ExtensionCollection aggregateExtensions = SimpleExtension.load(List.of("/opensearch_aggregate_functions.yaml"));
+            extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions).merge(aggregateExtensions);
         } finally {
             t.setContextClassLoader(prev);
         }
@@ -532,6 +534,67 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         Expression dp2 = notExpr.getScalarFunction().getArguments(0).getValue();
         assertTrue("NOT arg must be scalar function", dp2.hasScalarFunction());
         assertEquals(2, dp2.getScalarFunction().getArguments(0).getValue().getLiteral().getI32());
+    }
+
+    // ── Extension function rename tests ────────────────────────────────────────
+
+    /**
+     * APPROX_COUNT_DISTINCT aggregate emits as {@code approx_distinct} in the
+     * Substrait extension declarations — not the Calcite-native
+     * {@code approx_count_distinct} name.
+     */
+    public void testApproxCountDistinctRenamed() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A");
+        AggregateCall approxCall = AggregateCall.create(
+            SqlStdOperatorTable.APPROX_COUNT_DISTINCT,
+            false,
+            List.of(0),
+            -1,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "approx_col"
+        );
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(approxCall));
+
+        byte[] bytes = newConvertor().convertShardScanFragment("test_index", agg);
+        Plan plan = decodeSubstrait(bytes);
+
+        boolean foundApproxDistinct = false;
+        for (SimpleExtensionDeclaration decl : plan.getExtensionsList()) {
+            if (decl.hasExtensionFunction()) {
+                String name = decl.getExtensionFunction().getName();
+                String baseName = name.contains(":") ? name.substring(0, name.indexOf(':')) : name;
+                assertNotEquals("approx_count_distinct must be renamed", "approx_count_distinct", baseName);
+                if (baseName.equals("approx_distinct")) {
+                    foundApproxDistinct = true;
+                }
+            }
+        }
+        assertTrue("must find approx_distinct in extension declarations", foundApproxDistinct);
+    }
+
+    /**
+     * SUM aggregate is not affected by the rename map — its extension function
+     * name remains unchanged.
+     */
+    public void testOtherFunctionsNotRenamed() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A");
+        LogicalAggregate agg = buildSumAggregate(scan, 0);
+
+        byte[] bytes = newConvertor().convertShardScanFragment("test_index", agg);
+        Plan plan = decodeSubstrait(bytes);
+
+        boolean foundSum = false;
+        for (SimpleExtensionDeclaration decl : plan.getExtensionsList()) {
+            if (decl.hasExtensionFunction()) {
+                String name = decl.getExtensionFunction().getName();
+                String baseName = name.contains(":") ? name.substring(0, name.indexOf(':')) : name;
+                assertNotEquals("approx_distinct should not appear for SUM-only plan", "approx_distinct", baseName);
+                if (baseName.equals("sum")) {
+                    foundSum = true;
+                }
+            }
+        }
+        assertTrue("must find sum in extension declarations", foundSum);
     }
 
 }
