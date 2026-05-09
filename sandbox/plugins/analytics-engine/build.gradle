@@ -45,8 +45,9 @@ tasks.named('missingJavadoc').configure {
 }
 
 dependencies {
-  // Shared types and SPI interfaces (QueryPlanExecutor, EngineBridge, AnalyticsBackEndPlugin, etc.)
-  // Also provides calcite-core transitively via api.
+  implementation project(':sandbox:libs:analytics-api')
+
+  // Shared SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.) + calcite-core transitively.
   api project(':sandbox:libs:analytics-framework')
 
   // Arrow — provided at runtime by the extended arrow-flight-rpc plugin (same classloader).
