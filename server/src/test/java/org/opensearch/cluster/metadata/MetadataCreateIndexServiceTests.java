@@ -4030,7 +4030,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         List<?> dynamicTemplates = (List<?>) doc.get("dynamic_templates");
 
         assertNotNull("dynamic_templates should not be null after merge", dynamicTemplates);
-        assertEquals("dynamic_templates from Multiple legacy templats should be merged", 2, dynamicTemplates.size());
+        assertEquals("dynamic_templates from multiple legacy templates should be merged", 2, dynamicTemplates.size());
 
         // Verify both template rules are present regardless of order
         boolean hasStrings = false;
