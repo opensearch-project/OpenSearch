@@ -11,11 +11,8 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.rex.RexBuilder;
-import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.logging.log4j.LogManager;
@@ -145,9 +142,6 @@ public final class AggregateDecompositionResolver {
         );
 
         RelNode top = newFinal;
-        if (result.projectOnTop != null) {
-            top = result.projectOnTop.apply(newFinal);
-        }
 
         // If the original fragment had something above the FINAL, replace it
         if (fragment == finalAgg) {
@@ -167,14 +161,12 @@ public final class AggregateDecompositionResolver {
     static RewriteResult rewriteDecomposed(OpenSearchAggregate agg) {
         RelOptCluster cluster = agg.getCluster();
         RelDataTypeFactory tf = cluster.getTypeFactory();
-        RexBuilder rb = cluster.getRexBuilder();
         int groupCount = agg.getGroupSet().cardinality();
 
         List<AggregateCall> newPartialCalls = new ArrayList<>();
         List<AggregateCall> newFinalCalls = new ArrayList<>();
         List<RelDataType> exchangeFieldTypes = new ArrayList<>();
         List<String> exchangeFieldNames = new ArrayList<>();
-        List<PendingProject> projects = new ArrayList<>();
 
         // Group keys pass through to exchange unchanged
         RelDataType inputRowType = agg.getInput().getRowType();
@@ -199,51 +191,50 @@ public final class AggregateDecompositionResolver {
 
             List<IntermediateField> iFields = fn.intermediateFields();
 
-            if (iFields.size() == 1 && !fn.hasScalarFinal()) {
-                IntermediateField f = iFields.get(0);
-                RelDataType colType = ArrowCalciteTypes.toCalcite(f.arrowType(), tf);
-
-                // PARTIAL: keep original call (Calcite validates types internally)
-                newPartialCalls.add(call);
-                // Exchange type comes from intermediateFields
-                exchangeFieldTypes.add(colType);
-                exchangeFieldNames.add(call.name != null ? call.name : f.name());
-
-                if (fn.equals(f.reducer())) {
-                    // ENGINE-NATIVE (DC): keep FINAL call, rebind arg
-                    newFinalCalls.add(rebindCall(call, List.of(finalColIdx)));
-                } else {
-                    // FUNCTION-SWAP (COUNT→SUM): replace function with reducer
-                    newFinalCalls.add(makeCall(f.reducer(), List.of(finalColIdx), colType, call.name, tf));
-                }
-                finalColIdx += 1;
-                continue;
-            }
-
-            // PRIMITIVE DECOMP (AVG, STDDEV): N partial calls + N final reducers + Project
-            int startFinalIdx = finalColIdx;
-            for (IntermediateField f : iFields) {
-                RelDataType colType = ArrowCalciteTypes.toCalcite(f.arrowType(), tf);
-                // PARTIAL: emit the reducer function with original args (Calcite infers type)
-                newPartialCalls.add(primitivePartial(call, f, agg.getInput(), tf));
-                // Exchange type from intermediateFields
-                exchangeFieldTypes.add(colType);
-                exchangeFieldNames.add((call.name != null ? call.name : "expr") + "_" + f.name());
-                newFinalCalls.add(
-                    makeCall(f.reducer(), List.of(finalColIdx), colType, (call.name != null ? call.name : "expr") + "_" + f.name(), tf)
+            // Single-field intermediate: function-swap (COUNT → SUM at FINAL) or engine-native
+            // merge (DC keeps the same call). Multi-field / scalar-final (AVG, STDDEV, VAR) is
+            // handled entirely by Calcite's AggregateReduceFunctionsRule during HEP marking
+            // (wired in PlannerImpl via OpenSearchAggregateReduceRule), before our resolver
+            // ever sees the plan — those cases have already been decomposed into primitive
+            // SUM/COUNT calls wrapped by a Project, and reach this code through the
+            // pass-through branch above. If a future decomposition needs a multi-field shape
+            // that Calcite's rule cannot produce (e.g. custom sketch-merge requiring its own
+            // Project wrapper), reintroduce a primitive-decomp branch at this point.
+            if (iFields.size() != 1 || fn.hasScalarFinal()) {
+                throw new IllegalStateException(
+                    "AggregateFunction."
+                        + fn
+                        + " declares a multi-field or scalar-final decomposition, but the"
+                        + " resolver's single-pass handler only supports single-field"
+                        + " engine-native / function-swap shapes. Calcite's"
+                        + " AggregateReduceFunctionsRule should reduce multi-field cases"
+                        + " during HEP marking. Check that OpenSearchAggregateReduceRule's"
+                        + " FUNCTIONS_TO_REDUCE set covers "
+                        + call.getAggregation().getName()
+                        + "."
                 );
-                finalColIdx += 1;
             }
-            projects.add(new PendingProject(fn, startFinalIdx, iFields.size(), call.name, call.getType()));
+
+            IntermediateField f = iFields.get(0);
+            RelDataType colType = ArrowCalciteTypes.toCalcite(f.arrowType(), tf);
+
+            // PARTIAL: keep original call (Calcite validates types internally)
+            newPartialCalls.add(call);
+            exchangeFieldTypes.add(colType);
+            exchangeFieldNames.add(call.name != null ? call.name : f.name());
+
+            if (fn.equals(f.reducer())) {
+                // ENGINE-NATIVE (DC): keep FINAL call, rebind arg
+                newFinalCalls.add(rebindCall(call, List.of(finalColIdx)));
+            } else {
+                // FUNCTION-SWAP (COUNT→SUM): replace function with reducer
+                newFinalCalls.add(makeCall(f.reducer(), List.of(finalColIdx), colType, call.name, tf));
+            }
+            finalColIdx += 1;
         }
 
         RelDataType exchangeRowType = tf.createStructType(exchangeFieldTypes, exchangeFieldNames);
-
-        java.util.function.Function<RelNode, RelNode> projectBuilder = projects.isEmpty()
-            ? null
-            : buildProjectWrapper(projects, groupCount, newFinalCalls.size(), rb, tf);
-
-        return new RewriteResult(newPartialCalls, newFinalCalls, exchangeRowType, projectBuilder);
+        return new RewriteResult(newPartialCalls, newFinalCalls, exchangeRowType);
     }
 
     // ── Helpers ──
@@ -287,34 +278,6 @@ public final class AggregateDecompositionResolver {
         );
     }
 
-    private static AggregateCall primitivePartial(
-        AggregateCall originalCall,
-        IntermediateField field,
-        RelNode input,
-        RelDataTypeFactory tf
-    ) {
-        SqlAggFunction sqlAgg = toSqlAggFunction(field.reducer());
-        // Use the original call's type for the PARTIAL call — Calcite validates
-        // that the call type matches inferReturnType. The exchange row type
-        // (StageInputScan) will carry the correct intermediateFields type.
-        // For SUM on INTEGER input, Calcite infers INTEGER; for COUNT, BIGINT NOT NULL.
-        // We use the original call's type which Calcite already validated.
-        RelDataType callType = originalCall.getType();
-        return AggregateCall.create(
-            sqlAgg,
-            originalCall.isDistinct(),
-            originalCall.isApproximate(),
-            originalCall.ignoreNulls(),
-            originalCall.rexList,
-            originalCall.getArgList(),
-            originalCall.filterArg,
-            originalCall.distinctKeys,
-            originalCall.collation,
-            callType,
-            originalCall.name + "_" + field.name()
-        );
-    }
-
     private static SqlAggFunction toSqlAggFunction(AggregateFunction fn) {
         return switch (fn) {
             case SUM -> SqlStdOperatorTable.SUM;
@@ -337,84 +300,6 @@ public final class AggregateDecompositionResolver {
             // Fall through to SqlKind-based resolution
         }
         return AggregateFunction.fromSqlKind(call.getAggregation().getKind());
-    }
-
-    private static java.util.function.Function<RelNode, RelNode> buildProjectWrapper(
-        List<PendingProject> projects,
-        int groupCount,
-        int totalFinalCalls,
-        RexBuilder rb,
-        RelDataTypeFactory tf
-    ) {
-        return (RelNode finalAgg) -> {
-            int totalFinalCols = groupCount + totalFinalCalls;
-            // Build project expressions:
-            // 1. Group keys pass through
-            // 2. Non-decomposed agg results pass through
-            // 3. Primitive-decomp results get finalExpression applied
-
-            List<RexNode> projectExprs = new ArrayList<>();
-            List<String> fieldNames = new ArrayList<>();
-
-            // Group keys
-            for (int i = 0; i < groupCount; i++) {
-                projectExprs.add(rb.makeInputRef(finalAgg.getRowType().getFieldList().get(i).getType(), i));
-                fieldNames.add(finalAgg.getRowType().getFieldList().get(i).getName());
-            }
-
-            // Walk through FINAL calls, emitting either pass-through refs or finalExpression
-            int finalCallIdx = 0;
-            int projectIdx = 0;
-            int finalFieldOffset = groupCount;
-
-            // We need to reconstruct the original call order.
-            // Non-project calls get a direct ref; project calls get the finalExpression.
-            // Track which final columns belong to which project.
-            java.util.Set<Integer> projectStartCols = new java.util.HashSet<>();
-            for (PendingProject p : projects) {
-                projectStartCols.add(p.startFinalCol - groupCount);
-            }
-
-            int col = 0;
-            int pIdx = 0;
-            while (col < totalFinalCalls) {
-                // Check if this col starts a project
-                PendingProject matchedProject = null;
-                for (PendingProject p : projects) {
-                    if (p.startFinalCol - groupCount == col) {
-                        matchedProject = p;
-                        break;
-                    }
-                }
-
-                if (matchedProject != null) {
-                    // Build finalExpression from the N columns
-                    List<RexNode> partialRefs = new ArrayList<>();
-                    for (int i = 0; i < matchedProject.fieldCount; i++) {
-                        int refIdx = groupCount + col + i;
-                        partialRefs.add(rb.makeInputRef(finalAgg.getRowType().getFieldList().get(refIdx).getType(), refIdx));
-                    }
-                    RexNode expr = matchedProject.fn.finalExpression().apply(rb, partialRefs);
-                    // Cast to original return type if needed
-                    if (!expr.getType().equals(matchedProject.originalReturnType)) {
-                        expr = rb.makeCast(matchedProject.originalReturnType, expr);
-                    }
-                    projectExprs.add(expr);
-                    fieldNames.add(matchedProject.originalName);
-                    col += matchedProject.fieldCount;
-                } else {
-                    // Pass-through
-                    int refIdx = groupCount + col;
-                    projectExprs.add(rb.makeInputRef(finalAgg.getRowType().getFieldList().get(refIdx).getType(), refIdx));
-                    fieldNames.add(finalAgg.getRowType().getFieldList().get(refIdx).getName());
-                    col += 1;
-                }
-            }
-
-            RelDataType projectRowType = tf.createStructType(projectExprs.stream().map(RexNode::getType).toList(), fieldNames);
-
-            return LogicalProject.create(finalAgg, List.of(), projectExprs, projectRowType);
-        };
     }
 
     private static OpenSearchAggregate findTopAggregate(RelNode node, AggregateMode mode) {
@@ -466,15 +351,10 @@ public final class AggregateDecompositionResolver {
 
     // ── Inner types ──
 
-    record RewriteResult(List<AggregateCall> newPartialCalls, List<AggregateCall> newFinalCalls, RelDataType exchangeRowType,
-        java.util.function.Function<RelNode, RelNode> projectOnTop) {
+    record RewriteResult(List<AggregateCall> newPartialCalls, List<AggregateCall> newFinalCalls, RelDataType exchangeRowType) {
         OpenSearchAggregate newPartial(OpenSearchAggregate original) {
             return copyAgg(original, newPartialCalls);
         }
-    }
-
-    private record PendingProject(AggregateFunction fn, int startFinalCol, int fieldCount, String originalName,
-        RelDataType originalReturnType) {
     }
 
     private static OpenSearchAggregate copyAgg(OpenSearchAggregate original, List<AggregateCall> newCalls) {
