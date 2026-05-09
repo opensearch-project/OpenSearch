@@ -20,6 +20,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.exec.ArrowValues;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -200,7 +201,7 @@ public class DatafusionResultStream implements EngineResultStream {
             if (vector == null) {
                 throw new IllegalArgumentException("Unknown field: " + fieldName);
             }
-            return vector.getObject(rowIndex);
+            return ArrowValues.toJavaValue(vector, rowIndex);
         }
     }
 }

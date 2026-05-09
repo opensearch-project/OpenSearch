@@ -7,9 +7,27 @@
  */
 
 use parquet::basic::{Compression, ZstdLevel, GzipLevel, BrotliLevel};
+use parquet::file::metadata::{FileMetaData, KeyValue};
 use parquet::file::properties::WriterProperties;
 
 use crate::native_settings::NativeSettings;
+
+/// Parquet file-level metadata key for the writer generation.
+pub const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
+
+/// Reads the writer generation from a Parquet file's key-value metadata.
+/// Returns the generation value, or falls back to `file_index` if not present.
+pub fn read_writer_generation(metadata: &FileMetaData, file_index: usize) -> i64 {
+    metadata
+        .key_value_metadata()
+        .and_then(|kvs| {
+            kvs.iter()
+                .find(|kv| kv.key == WRITER_GENERATION_KEY)
+                .and_then(|kv| kv.value.as_ref())
+                .and_then(|v| v.parse::<i64>().ok())
+        })
+        .unwrap_or(file_index as i64)
+}
 
 /// Builder for converting NativeSettings into Parquet WriterProperties.
 ///
@@ -37,6 +55,11 @@ impl WriterPropertiesBuilder {
     ///
     /// A fully configured WriterProperties instance
     pub fn build(config: &NativeSettings) -> WriterProperties {
+        Self::build_with_generation(config, None)
+    }
+
+    /// Builds WriterProperties with an optional writer generation stored as key-value metadata.
+    pub fn build_with_generation(config: &NativeSettings, writer_generation: Option<i64>) -> WriterProperties {
         let mut builder = WriterProperties::builder();
 
         // Apply compression settings
@@ -56,6 +79,13 @@ impl WriterPropertiesBuilder {
 
         // Apply field-level configurations
         builder = Self::apply_field_configs(builder, config);
+
+        // Store writer generation in file-level key-value metadata
+        if let Some(gen) = writer_generation {
+            builder = builder.set_key_value_metadata(Some(vec![
+                KeyValue::new(WRITER_GENERATION_KEY.to_string(), Some(gen.to_string())),
+            ]));
+        }
 
         builder.build()
     }

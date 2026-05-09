@@ -289,6 +289,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -303,7 +304,8 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_INT
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_LONG
             )
         );
 
@@ -787,13 +789,21 @@ public final class NativeBridge {
     /**
      * Creates a SessionContext with the default ListingTable registered.
      * Returns a tracked handle consumed by {@link #executeWithContextAsync}.
+     *
+     * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      */
-    public static SessionContextHandle createSessionContext(long readerPtr, long runtimePtr, String tableName, long contextId) {
+    public static SessionContextHandle createSessionContext(
+        long readerPtr,
+        long runtimePtr,
+        String tableName,
+        long contextId,
+        long queryConfigPtr
+    ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
         try (var call = new NativeCall()) {
             var table = call.str(tableName);
-            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId);
+            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId, queryConfigPtr);
             return new SessionContextHandle(ptr);
         }
     }
@@ -802,6 +812,8 @@ public final class NativeBridge {
      * Creates a SessionContext configured for indexed execution with filter delegation.
      * Registers the delegated_predicate UDF and stores treeShape + delegatedPredicateCount
      * on the Rust handle for use during execution.
+     *
+     * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      */
     public static SessionContextHandle createSessionContextForIndexedExecution(
         long readerPtr,
@@ -809,7 +821,8 @@ public final class NativeBridge {
         String tableName,
         long contextId,
         int treeShapeOrdinal,
-        int delegatedPredicateCount
+        int delegatedPredicateCount,
+        long queryConfigPtr
     ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
@@ -823,7 +836,8 @@ public final class NativeBridge {
                 table.len(),
                 contextId,
                 treeShapeOrdinal,
-                delegatedPredicateCount
+                delegatedPredicateCount,
+                queryConfigPtr
             );
             return new SessionContextHandle(ptr);
         }

@@ -81,11 +81,29 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /**
      * Maps backend-specific Calcite operators to their Substrait extension names so Isthmus
-     * serializes them through our {@code SimpleExtension} catalog:
+     * serializes them through our {@code SimpleExtension} catalog. One entry per line so
+     * parallel per-UDF PRs append without hotspot conflicts.
      * <ul>
      *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
      *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
      *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
+     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of YearAdapter's rewrite).</li>
+     *   <li>{@link ConvertTzAdapter#LOCAL_CONVERT_TZ_OP} → {@code convert_tz} (Rust UDF).</li>
+     *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonAppendAdapter#LOCAL_JSON_APPEND_OP} →
+     *       {@code json_append} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonArrayLengthAdapter#LOCAL_JSON_ARRAY_LENGTH_OP} →
+     *       {@code json_array_length} (Rust UDF).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonDeleteAdapter#LOCAL_JSON_DELETE_OP} →
+     *       {@code json_delete} (Rust UDF, homogeneous-string variadic).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonExtendAdapter#LOCAL_JSON_EXTEND_OP} →
+     *       {@code json_extend} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonExtractAdapter#LOCAL_JSON_EXTRACT_OP} →
+     *       {@code json_extract} (Rust UDF, homogeneous-string variadic).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonKeysAdapter#LOCAL_JSON_KEYS_OP} →
+     *       {@code json_keys} (Rust UDF).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonSetAdapter#LOCAL_JSON_SET_OP} →
+     *       {@code json_set} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
      *   <li>{@link SqlLibraryOperators#REGEXP_CONTAINS} → {@code regex_match} (boolean regex match;
      *       resolved by DataFusion's substrait consumer to {@code Operator::RegexMatch}, the same
      *       binary operator that backs PostgreSQL's {@code ~} regex match). Lowering target for PPL
@@ -99,22 +117,43 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
+        FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
+        FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),
+        FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
+        // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
+        FunctionMappings.s(DateTimeAdapters.LOCAL_NOW_OP, "now"),
+        FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_DATE_OP, "current_date"),
+        FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_TIME_OP, "current_time"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
-        FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
+        FunctionMappings.s(SqlLibraryOperators.REVERSE, "reverse"),
+        FunctionMappings.s(PositionAdapter.STRPOS, "strpos"),
+        FunctionMappings.s(ToNumberFunctionAdapter.TONUMBER, "tonumber"),
+        FunctionMappings.s(ToStringFunctionAdapter.TOSTRING, "tostring"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
         FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
         FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
         FunctionMappings.s(SqlStdOperatorTable.PI, "pi"),
         FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
         FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
-        FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME)
+        FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME),
+        FunctionMappings.s(JsonFunctionAdapters.JsonAppendAdapter.LOCAL_JSON_APPEND_OP, "json_append"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonArrayLengthAdapter.LOCAL_JSON_ARRAY_LENGTH_OP, "json_array_length"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtendAdapter.LOCAL_JSON_EXTEND_OP, "json_extend"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;

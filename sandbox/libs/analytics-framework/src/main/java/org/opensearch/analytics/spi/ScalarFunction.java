@@ -56,6 +56,7 @@ public enum ScalarFunction {
     UPPER(Category.STRING, SqlKind.OTHER_FUNCTION),
     LOWER(Category.STRING, SqlKind.OTHER_FUNCTION),
     TRIM(Category.STRING, SqlKind.TRIM),
+    SUBSTR(Category.STRING, SqlKind.OTHER_FUNCTION),
     SUBSTRING(Category.STRING, SqlKind.OTHER_FUNCTION),
     /**
      * String concatenation. Calcite's {@code SqlStdOperatorTable.CONCAT} is a
@@ -66,9 +67,23 @@ public enum ScalarFunction {
      * rename surfaces as a compile error rather than as a silent string mismatch at runtime.
      */
     CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.CONCAT),
+    CONCAT_WS(Category.STRING, SqlKind.OTHER_FUNCTION),
     CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
     REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
     REGEXP_REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    ASCII(Category.STRING, SqlKind.OTHER_FUNCTION),
+    LEFT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
+    LOCATE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    POSITION(Category.STRING, SqlKind.POSITION),
+    LTRIM(Category.STRING, SqlKind.OTHER_FUNCTION),
+    RTRIM(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REVERSE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    RIGHT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    TOSTRING(Category.STRING, SqlKind.OTHER_FUNCTION),
+    NUMBER_TO_STRING(Category.STRING, SqlKind.OTHER_FUNCTION), // Alias for TOSTRING
+    TONUMBER(Category.STRING, SqlKind.OTHER_FUNCTION),
+    STRCMP(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Math ─────────────────────────────────────────────────────────
     PLUS(Category.MATH, SqlKind.PLUS),
@@ -127,10 +142,42 @@ public enum ScalarFunction {
     EXTRACT(Category.SCALAR, SqlKind.EXTRACT),
 
     // ── Datetime ────────────────────────────────────────────────────
+    // fromSqlFunction resolves via valueOf(name.toUpperCase()), so the enum name IS
+    // the wire contract. Aliases each need their own entry; the adapter map points
+    // them at one shared instance.
     TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    QUARTER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTH_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYOFMONTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYOFYEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAY_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    HOUR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    HOUR_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE_OF_HOUR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MICROSECOND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    WEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    WEEK_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    NOW(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURRENT_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURRENT_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURRENT_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CONVERT_TZ(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── JSON ────────────────────────────────────────────────────────
+    JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_DELETE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_EXTEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_EXTRACT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.

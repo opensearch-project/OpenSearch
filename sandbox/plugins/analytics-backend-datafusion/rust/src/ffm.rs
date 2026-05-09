@@ -155,7 +155,7 @@ pub unsafe extern "C" fn df_execute_query(
     plan_len: i64,
     runtime_ptr: i64,
     context_id: i64,
-    // Pointer to a `WireDatafusionQueryConfig`. `0` = use defaults.
+    // Pointer to a `WireDatafusionQueryConfig`
     query_config_ptr: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
@@ -397,7 +397,12 @@ pub unsafe extern "C" fn df_create_cache(
     let policy_type = match eviction_type.to_uppercase().as_str() {
         "LRU" => PolicyType::Lru,
         "LFU" => PolicyType::Lfu,
-        _ => return Err(format!("df_create_cache: unsupported eviction type: {}", eviction_type)),
+        _ => {
+            return Err(format!(
+                "df_create_cache: unsupported eviction type: {}",
+                eviction_type
+            ))
+        }
     };
 
     // Safety: cache_manager_ptr must be a valid pointer from df_create_custom_cache_manager
@@ -418,7 +423,10 @@ pub unsafe extern "C" fn df_create_cache(
             manager.set_statistics_cache(stats_cache);
         }
         _ => {
-            return Err(format!("df_create_cache: invalid cache type: {}", cache_type));
+            return Err(format!(
+                "df_create_cache: invalid cache type: {}",
+                cache_type
+            ));
         }
     }
     Ok(0)
@@ -437,18 +445,24 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
     }
     // Safety: runtime_ptr must be a valid pointer from df_create_global_runtime
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
         .ok_or_else(|| "df_cache_manager_add_files: no cache manager configured".to_string())?;
 
     let mut file_paths = Vec::with_capacity(files_count as usize);
     for i in 0..files_count as usize {
         let ptr = *files_ptr.add(i);
         let len = *files_len_ptr.add(i);
-        file_paths.push(str_from_raw(ptr, len)
-            .map_err(|e| format!("df_cache_manager_add_files: {}", e))?.to_string());
+        file_paths.push(
+            str_from_raw(ptr, len)
+                .map_err(|e| format!("df_cache_manager_add_files: {}", e))?
+                .to_string(),
+        );
     }
 
-    manager.add_files(&file_paths)
+    manager
+        .add_files(&file_paths)
         .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
     Ok(0)
 }
@@ -465,13 +479,20 @@ pub unsafe extern "C" fn df_create_session_context(
     table_name_ptr: *const u8,
     table_name_len: i64,
     context_id: i64,
+    query_config_ptr: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context: {}", e))?;
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::session_context::create_session_context(
-            runtime_ptr, shard_view_ptr, table_name, context_id,
+            runtime_ptr,
+            shard_view_ptr,
+            table_name,
+            context_id,
+            query_config,
         ))
         .map_err(|e| e.to_string())
 }
@@ -486,13 +507,16 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     context_id: i64,
     tree_shape: i32,
     delegated_predicate_count: i32,
+    query_config_ptr: i64,
 ) -> i64 {
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_create_session_context_indexed: {}", e))?;
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::session_context::create_session_context_indexed(
-            runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count,
+            runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count, query_config,
         ))
         .map_err(|e| e.to_string())
 }
@@ -509,18 +533,24 @@ pub unsafe extern "C" fn df_cache_manager_remove_files(
         return Err("df_cache_manager_remove_files: null runtime pointer".to_string());
     }
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
         .ok_or_else(|| "df_cache_manager_remove_files: no cache manager configured".to_string())?;
 
     let mut file_paths = Vec::with_capacity(files_count as usize);
     for i in 0..files_count as usize {
         let ptr = *files_ptr.add(i);
         let len = *files_len_ptr.add(i);
-        file_paths.push(str_from_raw(ptr, len)
-            .map_err(|e| format!("df_cache_manager_remove_files: {}", e))?.to_string());
+        file_paths.push(
+            str_from_raw(ptr, len)
+                .map_err(|e| format!("df_cache_manager_remove_files: {}", e))?
+                .to_string(),
+        );
     }
 
-    manager.remove_files(&file_paths)
+    manager
+        .remove_files(&file_paths)
         .map_err(|e| format!("df_cache_manager_remove_files: {}", e))?;
     Ok(0)
 }
@@ -532,7 +562,9 @@ pub unsafe extern "C" fn df_cache_manager_clear(runtime_ptr: i64) -> i64 {
         return Err("df_cache_manager_clear: null runtime pointer".to_string());
     }
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
         .ok_or_else(|| "df_cache_manager_clear: no cache manager configured".to_string())?;
     manager.clear_all();
     Ok(0)
@@ -551,9 +583,12 @@ pub unsafe extern "C" fn df_cache_manager_clear_by_type(
     let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
         .map_err(|e| format!("df_cache_manager_clear_by_type: {}", e))?;
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
+    let manager = runtime
+        .custom_cache_manager
+        .as_ref()
         .ok_or_else(|| "df_cache_manager_clear_by_type: no cache manager configured".to_string())?;
-    manager.clear_cache_type(cache_type)
+    manager
+        .clear_cache_type(cache_type)
         .map_err(|e| format!("df_cache_manager_clear_by_type: {}", e))?;
     Ok(0)
 }
@@ -571,9 +606,11 @@ pub unsafe extern "C" fn df_cache_manager_get_memory_by_type(
     let cache_type = str_from_raw(cache_type_ptr, cache_type_len)
         .map_err(|e| format!("df_cache_manager_get_memory_by_type: {}", e))?;
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
-        .ok_or_else(|| "df_cache_manager_get_memory_by_type: no cache manager configured".to_string())?;
-    let size = manager.get_memory_consumed_by_type(cache_type)
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_get_memory_by_type: no cache manager configured".to_string()
+    })?;
+    let size = manager
+        .get_memory_consumed_by_type(cache_type)
         .map_err(|e| format!("df_cache_manager_get_memory_by_type: {}", e))?;
     Ok(size as i64)
 }
@@ -585,8 +622,9 @@ pub unsafe extern "C" fn df_cache_manager_get_total_memory(runtime_ptr: i64) -> 
         return Err("df_cache_manager_get_total_memory: null runtime pointer".to_string());
     }
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
-        .ok_or_else(|| "df_cache_manager_get_total_memory: no cache manager configured".to_string())?;
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_get_total_memory: no cache manager configured".to_string()
+    })?;
     Ok(manager.get_total_memory_consumed() as i64)
 }
 
@@ -607,9 +645,14 @@ pub unsafe extern "C" fn df_cache_manager_contains_by_type(
     let file_path = str_from_raw(file_path_ptr, file_path_len)
         .map_err(|e| format!("df_cache_manager_contains_by_type: file_path: {}", e))?;
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let manager = runtime.custom_cache_manager.as_ref()
-        .ok_or_else(|| "df_cache_manager_contains_by_type: no cache manager configured".to_string())?;
-    Ok(if manager.contains_file_by_type(file_path, cache_type) { 1 } else { 0 })
+    let manager = runtime.custom_cache_manager.as_ref().ok_or_else(|| {
+        "df_cache_manager_contains_by_type: no cache manager configured".to_string()
+    })?;
+    Ok(if manager.contains_file_by_type(file_path, cache_type) {
+        1
+    } else {
+        0
+    })
 }
 
 #[no_mangle]
