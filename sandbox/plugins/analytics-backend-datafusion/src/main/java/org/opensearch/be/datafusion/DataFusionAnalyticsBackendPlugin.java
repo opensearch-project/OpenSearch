@@ -93,9 +93,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     // path). COALESCE is the lowering target of PPL `fillnull`. CAST is required because
     // ReduceExpressionsRule.ProjectReduceExpressionsRule (in PlannerImpl) constant-folds field
     // references through equality filters into typed literals — e.g. after `where str0 = 'FURNITURE'`,
-    // the projection `fields str0` is rewritten to `CAST('FURNITURE' AS VARCHAR)`. CONCAT is the
-    // lowering target of PPL `eval`'s `+` for strings (Calcite emits `||`, resolved to CONCAT in
-    // ScalarFunction); SAFE_CAST covers PPL `eval`'s explicit nullable `CAST(... AS ...)`
+    // the projection `fields str0` is rewritten to `CAST('FURNITURE' AS VARCHAR)`. CAST is also the
+    // implicit result-type narrowing PPL inserts after a UDF call whose declared return type differs
+    // from the eval column's inferred type (e.g. JSON_ARRAY_LENGTH returns INTEGER_FORCE_NULLABLE).
+    // CONCAT is the lowering target of PPL `eval`'s `+` for strings (Calcite emits `||`, resolved to
+    // CONCAT in ScalarFunction); SAFE_CAST covers PPL `eval`'s explicit nullable `CAST(... AS ...)`
     // expressions. The remaining comparison / arithmetic / logical operators are project-capable
     // for eval-style projections.
     private static final Set<ScalarFunction> STANDARD_PROJECT_OPS = Set.of(
@@ -219,7 +221,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.STRCMP,
         ScalarFunction.TOSTRING,
         ScalarFunction.NUMBER_TO_STRING,
-        ScalarFunction.TONUMBER
+        ScalarFunction.TONUMBER,
+        ScalarFunction.JSON_APPEND,
+        ScalarFunction.JSON_ARRAY_LENGTH,
+        ScalarFunction.JSON_DELETE,
+        ScalarFunction.JSON_EXTEND,
+        ScalarFunction.JSON_EXTRACT,
+        ScalarFunction.JSON_KEYS,
+        ScalarFunction.JSON_SET
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
@@ -327,6 +336,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.EXPM1, new Expm1Adapter()),
                     Map.entry(ScalarFunction.HOUR, hour),
                     Map.entry(ScalarFunction.HOUR_OF_DAY, hour),
+                    Map.entry(ScalarFunction.JSON_APPEND, new JsonFunctionAdapters.JsonAppendAdapter()),
+                    Map.entry(ScalarFunction.JSON_ARRAY_LENGTH, new JsonFunctionAdapters.JsonArrayLengthAdapter()),
+                    Map.entry(ScalarFunction.JSON_DELETE, new JsonFunctionAdapters.JsonDeleteAdapter()),
+                    Map.entry(ScalarFunction.JSON_EXTEND, new JsonFunctionAdapters.JsonExtendAdapter()),
+                    Map.entry(ScalarFunction.JSON_EXTRACT, new JsonFunctionAdapters.JsonExtractAdapter()),
+                    Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
+                    Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
                     Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),
                     Map.entry(ScalarFunction.MICROSECOND, DatePartAdapters.microsecond()),

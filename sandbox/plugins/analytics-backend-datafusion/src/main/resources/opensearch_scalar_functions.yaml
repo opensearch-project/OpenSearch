@@ -317,3 +317,53 @@ scalar_functions:
           - { name: base, value: i32 }
         nullability: DECLARED_OUTPUT
         return: fp64
+
+  # PPL json_* UDFs — Rust implementations under rust/src/udf/<name>.rs,
+  # surfaced to Calcite via JsonFunctionAdapters. All return NULL on malformed
+  # input; per-function semantics are documented in the Rust module headers.
+  - name: "json_array_length"
+    description: "Length of a JSON array; NULL on malformed or non-array input."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: any1
+
+  - name: "json_keys"
+    description: "Top-level keys of a JSON object, encoded as a JSON array string; NULL on non-object input."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: any1
+
+  - name: "json_extract"
+    description: "Extract JSON value(s) at PPL path(s); single → stringified match, multi → JSON-array string."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "json_delete"
+    description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "json_set"
+    description: "Replace values at PPL-path matches (replace-only; missing paths are no-ops)."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "json_append"
+    description: "Push values onto PPL-path-matched arrays; non-array / missing targets are no-ops."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "json_extend"
+    description: "Spread JSON-array values onto PPL-path-matched arrays; scalar values fall back to append."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
