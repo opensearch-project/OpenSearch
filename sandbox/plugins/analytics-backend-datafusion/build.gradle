@@ -16,9 +16,6 @@ repositories {
   maven {
     name = 'OpenSearch Snapshots'
     url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
-    // unified-query-* artifacts are pinned to mavenLocal — see comment in
-    // sandbox/build.gradle's subprojects { repositories } block.
-    mavenContent { excludeGroup 'org.opensearch.query' }
   }
 }
 
