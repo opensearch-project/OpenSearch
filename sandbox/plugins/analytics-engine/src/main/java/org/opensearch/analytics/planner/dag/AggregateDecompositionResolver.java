@@ -130,6 +130,32 @@ public final class AggregateDecompositionResolver {
         // Rebuild the chain: StageInputScan → ExchangeReducer → FINAL Agg
         RelNode newFinalInput = replaceFirst(finalInput, stageInput, newStageInput);
 
+        // Re-infer each FINAL aggCall's type against the rewritten input (StageInputScan).
+        // Our hand-built colType (from ArrowCalciteTypes.toCalcite, which returns NOT NULL
+        // types) doesn't match Calcite's inference for aggregates over a typed exchange
+        // column, so construct each call via the RelNode-aware create variant with
+        // type=null so Calcite runs full inference.
+        boolean hasEmptyGroup = finalAgg.getGroupSet().isEmpty();
+        List<AggregateCall> rebuiltFinalCalls = result.newFinalCalls.stream()
+            .map(
+                c -> AggregateCall.create(
+                    c.getAggregation(),
+                    c.isDistinct(),
+                    c.isApproximate(),
+                    c.ignoreNulls(),
+                    c.rexList,
+                    c.getArgList(),
+                    c.filterArg,
+                    c.distinctKeys,
+                    c.collation,
+                    hasEmptyGroup,
+                    newFinalInput,
+                    null,
+                    c.name
+                )
+            )
+            .toList();
+
         // Build the new FINAL with the rewrite result's final calls and updated input
         OpenSearchAggregate newFinal = new OpenSearchAggregate(
             finalAgg.getCluster(),
@@ -137,18 +163,68 @@ public final class AggregateDecompositionResolver {
             newFinalInput,
             finalAgg.getGroupSet(),
             finalAgg.getGroupSets(),
-            result.newFinalCalls,
+            rebuiltFinalCalls,
             AggregateMode.FINAL,
             finalAgg.getViableBackends()
         );
 
         RelNode top = newFinal;
 
-        // If the original fragment had something above the FINAL, replace it
+        // If the original fragment had something above the FINAL, replace it.
+        // replaceFirst copies any parent Project unchanged — but those Projects contain
+        // RexInputRefs built against the ORIGINAL FINAL's output types. After we re-infer
+        // FINAL's aggCall types above, those refs may not match. Walk the parent and
+        // rewire RexInputRefs to match newFinal's output, CASTing to the Project's
+        // declared column type to preserve the outer-world-visible schema.
         if (fragment == finalAgg) {
             return top;
         }
-        return replaceFirst(fragment, finalAgg, top);
+        return replaceFirstWithRefRebinding(fragment, finalAgg, top);
+    }
+
+    // Like replaceFirst but when rewriting a Project directly above the target, rebinds
+    // its RexInputRefs to the new input's row type and CASTs each projection back to the
+    // Project's declared column type. Preserves outer schema while fixing inner ref types.
+    private static RelNode replaceFirstWithRefRebinding(RelNode node, RelNode target, RelNode replacement) {
+        if (node == target) return replacement;
+        java.util.List<RelNode> newInputs = new java.util.ArrayList<>();
+        boolean changed = false;
+        for (RelNode input : node.getInputs()) {
+            RelNode newInput;
+            if (input == target) {
+                newInput = replacement;
+                if (node instanceof org.apache.calcite.rel.core.Project proj) {
+                    org.apache.calcite.rex.RexBuilder rexBuilder = node.getCluster().getRexBuilder();
+                    java.util.List<RelDataType> inputTypes = new java.util.ArrayList<>();
+                    for (var f : replacement.getRowType().getFieldList()) {
+                        inputTypes.add(f.getType());
+                    }
+                    org.apache.calcite.rex.RexShuttle rebind = new org.apache.calcite.rex.RexShuttle() {
+                        @Override
+                        public org.apache.calcite.rex.RexNode visitInputRef(org.apache.calcite.rex.RexInputRef ref) {
+                            RelDataType actual = inputTypes.get(ref.getIndex());
+                            if (ref.getType().equals(actual)) return ref;
+                            return new org.apache.calcite.rex.RexInputRef(ref.getIndex(), actual);
+                        }
+                    };
+                    java.util.List<org.apache.calcite.rex.RexNode> rebound = new java.util.ArrayList<>(proj.getProjects().size());
+                    for (int i = 0; i < proj.getProjects().size(); i++) {
+                        org.apache.calcite.rex.RexNode expr = proj.getProjects().get(i).accept(rebind);
+                        RelDataType targetType = proj.getRowType().getFieldList().get(i).getType();
+                        if (!expr.getType().equals(targetType)) {
+                            expr = rexBuilder.makeCast(targetType, expr);
+                        }
+                        rebound.add(expr);
+                    }
+                    return proj.copy(proj.getTraitSet(), replacement, rebound, proj.getRowType());
+                }
+            } else {
+                newInput = replaceFirstWithRefRebinding(input, target, replacement);
+            }
+            newInputs.add(newInput);
+            if (newInput != input) changed = true;
+        }
+        return changed ? node.copy(node.getTraitSet(), newInputs) : node;
     }
 
     /**
@@ -179,8 +255,17 @@ public final class AggregateDecompositionResolver {
         }
 
         int finalColIdx = groupCount;
-        for (AggregateCall call : agg.getAggCallList()) {
-            CallRewrite rw = rewriteAggCall(call, finalColIdx, tf);
+        // The PARTIAL aggregate's output row type is the source of truth for exchange
+        // column names: Calcite assigns explicit names where aggCall.name is set and
+        // auto-generates "$f<N>" otherwise — matching DataFusion's convention for
+        // unnamed aggregate outputs. Using these names aligns the Java-side exchange
+        // schema with what DataFusion emits at execution, preventing Substrait-consumer
+        // schema lookups from failing on name mismatches (e.g. "$f2" vs "expr$2").
+        RelDataType aggRowType = agg.getRowType();
+        for (int i = 0; i < agg.getAggCallList().size(); i++) {
+            AggregateCall call = agg.getAggCallList().get(i);
+            String canonicalName = aggRowType.getFieldList().get(groupCount + i).getName();
+            CallRewrite rw = rewriteAggCall(call, finalColIdx, tf, canonicalName);
             newPartialCalls.add(rw.partialCall());
             newFinalCalls.add(rw.finalCall());
             exchangeFieldTypes.add(rw.exchangeType());
@@ -193,11 +278,11 @@ public final class AggregateDecompositionResolver {
     }
 
     // Classify an AggregateCall and dispatch to the matching rewrite (pass-through or single-field).
-    private static CallRewrite rewriteAggCall(AggregateCall call, int finalColIdx, RelDataTypeFactory tf) {
+    private static CallRewrite rewriteAggCall(AggregateCall call, int finalColIdx, RelDataTypeFactory tf, String canonicalName) {
         AggregateFunction fn = AggregateFunction.fromSqlAggFunction(call.getAggregation());
 
         if (fn == null || !fn.hasDecomposition()) {
-            return passThroughRewrite(call, finalColIdx);
+            return passThroughRewrite(call, finalColIdx, canonicalName);
         }
 
         List<IntermediateField> iFields = fn.intermediateFields();
@@ -219,36 +304,33 @@ public final class AggregateDecompositionResolver {
             );
         }
 
-        return singleFieldRewrite(call, fn, iFields.get(0), finalColIdx, tf);
+        return singleFieldRewrite(call, fn, iFields.get(0), finalColIdx, tf, canonicalName);
     }
 
     // Pass-through: aggregate has no intermediate-field decomposition; keep the call at PARTIAL
-    // and rebind its single arg index at FINAL. Exchange column takes the call's Calcite type.
-    private static CallRewrite passThroughRewrite(AggregateCall call, int finalColIdx) {
-        return new CallRewrite(
-            call,
-            rebindCall(call, List.of(finalColIdx)),
-            call.getType(),
-            call.name != null ? call.name : "expr$" + finalColIdx
-        );
+    // and rebind its single arg index at FINAL. Exchange column takes the call's Calcite type
+    // and the aggregate's canonical output name.
+    private static CallRewrite passThroughRewrite(AggregateCall call, int finalColIdx, String canonicalName) {
+        return new CallRewrite(call, rebindCall(call, List.of(finalColIdx)), call.getType(), canonicalName);
     }
 
     // Single-field decomposition: exchange type comes from IntermediateField; FINAL is either
     // engine-native merge (reducer == self, e.g. APPROX_COUNT_DISTINCT sketch) or function-swap
-    // (e.g. COUNT → SUM).
+    // (e.g. COUNT → SUM). Exchange column name is the aggregate's canonical output name.
     private static CallRewrite singleFieldRewrite(
         AggregateCall call,
         AggregateFunction fn,
         IntermediateField field,
         int finalColIdx,
-        RelDataTypeFactory tf
+        RelDataTypeFactory tf,
+        String canonicalName
     ) {
         RelDataType colType = ArrowCalciteTypes.toCalcite(field.arrowType(), tf);
         AggregateCall finalCall = fn.equals(field.reducer())
             ? rebindCall(call, List.of(finalColIdx))                                // engine-native merge (reducer == self)
             : makeCall(field.reducer(), List.of(finalColIdx), colType, call.name, tf); // function-swap
 
-        return new CallRewrite(call, finalCall, colType, call.name != null ? call.name : field.name());
+        return new CallRewrite(call, finalCall, colType, canonicalName);
     }
 
     // ── Helpers ──
