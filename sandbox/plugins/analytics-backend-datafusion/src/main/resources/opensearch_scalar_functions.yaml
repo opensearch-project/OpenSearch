@@ -441,13 +441,14 @@ scalar_functions:
       (`eval count = array_length(g)` after `rex field=f "(?<g>...)"`).
       datafusion-substrait resolves the extension name "array_length" to
       DataFusion's native `array_length` UDF.
+      Single polymorphic impl over `list<any1>`: substrait's compound function
+      key drops the inner parametric element type, so declaring separate
+      `list<varchar<L1>>` and `list<string>` impls collapses to the same key
+      `array_length:list` and trips the SimpleExtension loader's duplicate-key
+      check at plugin start. The single `any1` impl matches both call sites.
     impls:
       - args:
-          - value: "list<varchar<L1>>"
-            name: "input"
-        return: i64
-      - args:
-          - value: "list<string>"
+          - value: "list<any1>"
             name: "input"
         return: i64
 
