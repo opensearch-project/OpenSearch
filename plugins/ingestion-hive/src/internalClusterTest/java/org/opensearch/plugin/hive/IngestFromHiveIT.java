@@ -58,22 +58,21 @@ import org.testcontainers.containers.wait.strategy.Wait;
  * Integration test for Hive ingestion using Testcontainers with Hive Metastore.
  */
 @SuppressForbidden(reason = "Parquet and Hadoop APIs require java.io.File")
-@ThreadLeakFilters(filters = HiveSingleNodeTests.TestContainerThreadLeakFilter.class)
-public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
+@ThreadLeakFilters(filters = IngestFromHiveIT.TestContainerThreadLeakFilter.class)
+public class IngestFromHiveIT extends OpenSearchSingleNodeTestCase {
 
     private static final String DATABASE = "test_db";
     private static final String TABLE_NAME = "events";
     private static final String WAREHOUSE_CONTAINER_PATH = "/opt/hive/data/warehouse";
 
-    private static final MessageType PARQUET_SCHEMA = MessageTypeParser.parseMessageType(
-        "message events {\n"
-            + "  optional binary event_id (UTF8);\n"
-            + "  optional binary user_id (UTF8);\n"
-            + "  optional binary event_type (UTF8);\n"
-            + "  optional int64 timestamp;\n"
-            + "  optional double amount;\n"
-            + "}"
-    );
+    private static final MessageType PARQUET_SCHEMA = MessageTypeParser.parseMessageType("""
+        message events {
+          optional binary event_id (UTF8);
+          optional binary user_id (UTF8);
+          optional binary event_type (UTF8);
+          optional int64 timestamp;
+          optional double amount;
+        }""");
 
     private GenericContainer<?> hiveMetastore;
     private File warehouseDir;
@@ -88,7 +87,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
     @Before
     public void setup() throws Exception {
         warehouseDir = new File(createTempDir().toFile(), java.util.UUID.randomUUID().toString());
-        warehouseDir.mkdirs();
+        assertTrue("Failed to create warehouse dir", warehouseDir.mkdirs());
         generateTestData();
         setupHiveMetastore();
         registerTableAndPartitions();
@@ -183,10 +182,9 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
         params.put("metastore_uri", metastoreUri);
         params.put("database", DATABASE);
         params.put("table", TABLE_NAME);
-        params.put("_number_of_shards", 1);
         params.put("monitor_interval", "1s");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
         HiveShardConsumer consumer = new HiveShardConsumer("test-client", 0, config);
 
         // Read first batch from earliest
@@ -194,7 +192,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
         assertFalse("Should have read some records", firstBatch.isEmpty());
 
         // Remember the last pointer from first batch
-        HivePointer lastPointer = firstBatch.get(firstBatch.size() - 1).getPointer();
+        HivePointer lastPointer = firstBatch.getLast().getPointer();
         consumer.close();
 
         // Create a new consumer and seek to the last pointer (exclusive)
@@ -241,15 +239,14 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
         params.put("metastore_uri", metastoreUri);
         params.put("database", DATABASE);
         params.put("table", TABLE_NAME);
-        params.put("_number_of_shards", 1);
         params.put("monitor_interval", "1s");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
         HiveShardConsumer consumer = new HiveShardConsumer("test-client", 0, config);
 
         // Read first batch
         List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> firstBatch = consumer.readNext(10, 5000);
-        HivePointer lastPointer = firstBatch.get(firstBatch.size() - 1).getPointer();
+        HivePointer lastPointer = firstBatch.getLast().getPointer();
         consumer.close();
 
         // Resume with includeStart=true
@@ -281,18 +278,17 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
         params.put("metastore_uri", metastoreUri);
         params.put("database", DATABASE);
         params.put("table", TABLE_NAME);
-        params.put("_number_of_shards", 1);
         params.put("monitor_interval", "1s");
         params.put("partition_order", "partition-time");
         params.put("partition_time_pattern", "2026-04-$dt");
 
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
         HiveShardConsumer consumer = new HiveShardConsumer("test-client", 0, config);
 
         // Read first batch
         List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> firstBatch = consumer.readNext(10, 5000);
         assertFalse(firstBatch.isEmpty());
-        HivePointer lastPointer = firstBatch.get(firstBatch.size() - 1).getPointer();
+        HivePointer lastPointer = firstBatch.getLast().getPointer();
         consumer.close();
 
         // Resume with PARTITION_TIME mode
@@ -322,12 +318,133 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
     }
 
     /**
+     * Test that reset=latest skips all existing partitions and only ingests new ones.
+     */
+    public void testLatestPointerSkipsExisting() throws Exception {
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "HIVE")
+                .put("ingestion_source.pointer.init.reset", "latest")
+                .put("ingestion_source.param.metastore_uri", metastoreUri)
+                .put("ingestion_source.param.database", DATABASE)
+                .put("ingestion_source.param.table", TABLE_NAME)
+                .put("ingestion_source.param.monitor_interval", "2s")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("index.replication.type", "SEGMENT")
+                .build()
+        );
+        ensureGreen(indexName);
+
+        // Wait a few seconds to confirm no documents are ingested (existing partitions skipped)
+        Thread.sleep(5000);
+        SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertEquals(0, response.getHits().getTotalHits().value());
+
+        // Add a new partition
+        addPartition("2026-04-16", 100);
+
+        // New partition should be ingested
+        waitForState(() -> {
+            SearchResponse r = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+            return r.getHits().getTotalHits().value() == 100;
+        });
+    }
+
+    /**
+     * Test that consistent hashing distributes partitions across shards.
+     */
+    public void testMultiShardDistribution() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", metastoreUri);
+        params.put("database", DATABASE);
+        params.put("table", TABLE_NAME);
+        params.put("monitor_interval", "1s");
+
+        HiveSourceConfig config = new HiveSourceConfig(params, 2);
+
+        // Read all from shard 0
+        HiveShardConsumer shard0 = new HiveShardConsumer("client-0", 0, config);
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> results0 = new ArrayList<>();
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> batch;
+        do {
+            batch = shard0.readNext(100, 5000);
+            results0.addAll(batch);
+        } while (!batch.isEmpty());
+        shard0.close();
+
+        // Read all from shard 1
+        HiveShardConsumer shard1 = new HiveShardConsumer("client-1", 1, config);
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> results1 = new ArrayList<>();
+        do {
+            batch = shard1.readNext(100, 5000);
+            results1.addAll(batch);
+        } while (!batch.isEmpty());
+        shard1.close();
+
+        // Together they should cover all 450 rows with no overlap
+        assertEquals(450, results0.size() + results1.size());
+        // Each shard should have at least some rows (3 partitions distributed across 2 shards)
+        assertTrue("Shard 0 should have rows", results0.size() > 0);
+        assertTrue("Shard 1 should have rows", results1.size() > 0);
+    }
+
+    /**
+     * Test that pointerFromTimestampMillis throws UnsupportedOperationException.
+     */
+    public void testPointerFromTimestampMillisUnsupported() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", metastoreUri);
+        params.put("database", DATABASE);
+        params.put("table", TABLE_NAME);
+
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
+        HiveShardConsumer consumer = new HiveShardConsumer("test", 0, config);
+
+        expectThrows(UnsupportedOperationException.class, () -> consumer.pointerFromTimestampMillis(System.currentTimeMillis()));
+        consumer.close();
+    }
+
+    /**
+     * Test that consume_start_offset skips partitions before the offset.
+     */
+    public void testConsumeStartOffset() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", metastoreUri);
+        params.put("database", DATABASE);
+        params.put("table", TABLE_NAME);
+        params.put("monitor_interval", "1s");
+        params.put("consume_start_offset", "dt=2026-04-14");
+
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
+        HiveShardConsumer consumer = new HiveShardConsumer("test", 0, config);
+
+        // Should only read dt=2026-04-15 (after offset dt=2026-04-14)
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> allResults = new ArrayList<>();
+        List<IngestionShardConsumer.ReadResult<HivePointer, HiveMessage>> b;
+        do {
+            b = consumer.readNext(100, 5000);
+            allResults.addAll(b);
+        } while (!b.isEmpty());
+
+        // dt=2026-04-15 has 150 rows
+        assertEquals(150, allResults.size());
+        // All results should be from dt=2026-04-15
+        for (IngestionShardConsumer.ReadResult<HivePointer, HiveMessage> result : allResults) {
+            assertEquals("dt=2026-04-15", result.getPointer().getPartitionName());
+        }
+        consumer.close();
+    }
+
+    /**
      * Add a new partition with test data to the Hive table.
      */
     private void addPartition(String dtValue, int numRows) throws Exception {
         // Write Parquet file
         File partDir = new File(warehouseDir, DATABASE + "/" + TABLE_NAME + "/dt=" + dtValue);
-        partDir.mkdirs();
+        assertTrue("Failed to create partition dir", partDir.mkdirs());
         writeParquetFile(new File(partDir, "part-00000.parquet"), numRows, 1000);
 
         // Register partition in Metastore
@@ -371,7 +488,7 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
         String[] partitions = { "dt=2026-04-13", "dt=2026-04-14", "dt=2026-04-15" };
         for (String partition : partitions) {
             File partDir = new File(warehouseDir, DATABASE + "/" + TABLE_NAME + "/" + partition);
-            partDir.mkdirs();
+            assertTrue("Failed to create partition dir", partDir.mkdirs());
             writeParquetFile(new File(partDir, "part-00000.parquet"), 100, 0);
             writeParquetFile(new File(partDir, "part-00001.parquet"), 50, 100);
         }
@@ -488,14 +605,11 @@ public class HiveSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     private static void deleteDirectory(File dir) {
         if (dir == null || !dir.exists()) return;
-        File[] files = dir.listFiles();
-        if (files != null) {
-            for (File f : files) {
-                if (f.isDirectory()) deleteDirectory(f);
-                else f.delete();
-            }
+        try {
+            org.opensearch.common.util.io.IOUtils.rm(dir.toPath());
+        } catch (IOException e) {
+            // best effort cleanup in tests
         }
-        dir.delete();
     }
 
     public static final class TestContainerThreadLeakFilter implements ThreadFilter {

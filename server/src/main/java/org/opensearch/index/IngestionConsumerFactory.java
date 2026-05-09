@@ -28,6 +28,18 @@ public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P ex
     void initialize(IngestionSource ingestionSource);
 
     /**
+     * Initialize the factory with configuration parameters and the total number of shards.
+     * Plugins that need the shard count for partition assignment (e.g., consistent hashing)
+     * should override this method. The default implementation delegates to {@link #initialize(IngestionSource)}.
+     *
+     * @param ingestionSource the ingestion source with configuration parameters
+     * @param numberOfShards the total number of primary shards for the index
+     */
+    default void initialize(IngestionSource ingestionSource, int numberOfShards) {
+        initialize(ingestionSource);
+    }
+
+    /**
      *  Create a consumer to ingest messages from a shard of the streams. When the ingestion engine created per shard,
      *  this method is called to create the consumer in the poller. Before the invocation of this method, the configuration
      *  is passed to the factory through the {@link #initialize(IngestionSource)} method.

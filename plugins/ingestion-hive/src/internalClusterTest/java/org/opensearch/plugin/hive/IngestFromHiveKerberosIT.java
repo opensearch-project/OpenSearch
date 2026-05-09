@@ -57,8 +57,8 @@ import org.testcontainers.containers.wait.strategy.Wait;
  * Uses MiniKdc (in-JVM KDC) and a Hive Metastore container configured for SASL/Kerberos.
  */
 @SuppressForbidden(reason = "Parquet and Hadoop APIs require java.io.File")
-@ThreadLeakFilters(filters = HiveKerberosSingleNodeTests.TestContainerThreadLeakFilter.class)
-public class HiveKerberosSingleNodeTests extends OpenSearchSingleNodeTestCase {
+@ThreadLeakFilters(filters = IngestFromHiveKerberosIT.TestContainerThreadLeakFilter.class)
+public class IngestFromHiveKerberosIT extends OpenSearchSingleNodeTestCase {
 
     private static final String DATABASE = "test_db";
     private static final String TABLE_NAME = "events";
@@ -298,15 +298,14 @@ public class HiveKerberosSingleNodeTests extends OpenSearchSingleNodeTestCase {
     }
 
     private void writeParquetFile(File file, int startIdx) throws IOException {
-        MessageType schema = MessageTypeParser.parseMessageType(
-            "message event {\n"
-                + "  required binary event_id (UTF8);\n"
-                + "  required binary user_id (UTF8);\n"
-                + "  required binary event_type (UTF8);\n"
-                + "  required int64 timestamp;\n"
-                + "  required double amount;\n"
-                + "}"
-        );
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message event {
+              required binary event_id (UTF8);
+              required binary user_id (UTF8);
+              required binary event_type (UTF8);
+              required int64 timestamp;
+              required double amount;
+            }""");
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
         org.apache.parquet.io.OutputFile outputFile = new org.apache.parquet.io.LocalOutputFile(file.toPath());
         try (ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile).withType(schema).build()) {

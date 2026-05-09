@@ -1,5 +1,11 @@
 #!/bin/bash
 #
+# SPDX-License-Identifier: Apache-2.0
+#
+# The OpenSearch Contributors require contributions made to
+# this file be licensed under the Apache-2.0 license or a
+# compatible open source license.
+#
 # Regenerates Thrift client code from hive_metastore.thrift IDL.
 # Uses Debian unstable's thrift-compiler (0.22.0) via Docker,
 # matching the libthrift runtime version. Same approach as Trino's hive-thrift.

@@ -24,7 +24,12 @@ public class HiveConsumerFactory implements IngestionConsumerFactory<HiveShardCo
 
     @Override
     public void initialize(IngestionSource ingestionSource) {
-        config = new HiveSourceConfig(ingestionSource.params());
+        throw new UnsupportedOperationException("Use initialize(IngestionSource, int numberOfShards) instead");
+    }
+
+    @Override
+    public void initialize(IngestionSource ingestionSource, int numberOfShards) {
+        config = new HiveSourceConfig(ingestionSource.params(), numberOfShards);
     }
 
     @Override

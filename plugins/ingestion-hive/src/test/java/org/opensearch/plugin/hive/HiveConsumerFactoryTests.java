@@ -23,7 +23,7 @@ public class HiveConsumerFactoryTests extends OpenSearchTestCase {
         params.put("database", "test_db");
         params.put("table", "events");
 
-        factory.initialize(new IngestionSource.Builder("HIVE").setParams(params).build());
+        factory.initialize(new IngestionSource.Builder("HIVE").setParams(params).build(), 3);
 
         HiveShardConsumer consumer = factory.createShardConsumer("client-1", 0);
         assertNotNull(consumer);

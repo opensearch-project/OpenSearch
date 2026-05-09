@@ -26,8 +26,7 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         params.put("metastore_uri", "thrift://localhost:9083");
         params.put("database", "db");
         params.put("table", "tbl");
-        params.put("_number_of_shards", 1);
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
         return new HiveShardConsumer("test", 0, config);
     }
 
@@ -165,10 +164,9 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         params.put("metastore_uri", "thrift://localhost:9083");
         params.put("database", "db");
         params.put("table", "tbl");
-        params.put("_number_of_shards", 1);
         params.put("partition_order", "partition-time");
         params.put("partition_time_pattern", "$year-$month-$day $hour:00:00");
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
         HiveShardConsumer consumer = new HiveShardConsumer("test", 0, config);
         consumer.partitionKeys = List.of("year", "month", "day", "hour");
 
@@ -191,10 +189,9 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         params.put("metastore_uri", "thrift://localhost:9083");
         params.put("database", "db");
         params.put("table", "tbl");
-        params.put("_number_of_shards", 1);
         params.put("partition_order", "partition-time");
         params.put("partition_time_pattern", "2024-01-01 $hour:00:00");
-        HiveSourceConfig config = new HiveSourceConfig(params);
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
         HiveShardConsumer consumer = new HiveShardConsumer("test", 0, config);
         consumer.partitionKeys = List.of("hour");
 

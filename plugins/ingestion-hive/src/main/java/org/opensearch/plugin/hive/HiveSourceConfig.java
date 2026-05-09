@@ -59,7 +59,7 @@ public class HiveSourceConfig {
      *
      * @param params the parameter map from ingestion source settings
      */
-    public HiveSourceConfig(Map<String, Object> params) {
+    public HiveSourceConfig(Map<String, Object> params, int numberOfShards) {
         this.metastoreUri = ConfigurationUtils.readStringProperty(params, "metastore_uri");
         this.database = ConfigurationUtils.readStringProperty(params, "database");
         this.table = ConfigurationUtils.readStringProperty(params, "table");
@@ -79,9 +79,7 @@ public class HiveSourceConfig {
         this.partitionTimePattern = ConfigurationUtils.readOptionalStringProperty(params, "partition_time_pattern");
 
         this.consumeStartOffset = ConfigurationUtils.readOptionalStringProperty(params, "consume_start_offset");
-        this.numShards = params.containsKey("_number_of_shards")
-            ? ((Number) params.get("_number_of_shards")).intValue()
-            : ConfigurationUtils.readIntProperty(params, "num_shards", 1);
+        this.numShards = numberOfShards;
 
         String transport = ConfigurationUtils.readStringProperty(params, "transport_mode", "unframed");
         this.transportMode = "framed".equals(transport) ? TransportMode.FRAMED : TransportMode.UNFRAMED;
