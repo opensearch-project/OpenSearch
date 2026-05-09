@@ -19,7 +19,7 @@ import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import java.util.List;
 
 /**
- * Cat-3a rename adapter for PPL's {@code UNIX_TIMESTAMP(ts)}. Rewrites to a
+ * Rename adapter for PPL's {@code UNIX_TIMESTAMP(ts)}. Rewrites to a
  * locally-declared {@link SqlFunction} named {@code to_unixtime} — the name
  * DataFusion's substrait consumer recognizes for its native
  * {@code ToUnixtimeFunc} (no UDF registration required on the Rust side).
