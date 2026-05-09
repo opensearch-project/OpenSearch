@@ -27,7 +27,7 @@ import java.util.Objects;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeField implements ToXContent {
     private final String name;
     private final List<Dimension> dimensionsOrder;

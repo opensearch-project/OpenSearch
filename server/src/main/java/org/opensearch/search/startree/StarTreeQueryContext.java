@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 /**
  * Stores the star tree related context of a search request.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeQueryContext {
 
     private final CompositeDataCubeFieldType compositeMappedFieldType;

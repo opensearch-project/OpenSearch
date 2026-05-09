@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "star_tree";
     public static final String CONFIG = "config";
@@ -585,7 +585,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.experimental
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static final class StarTreeFieldType extends CompositeDataCubeFieldType {
 
         private final StarTreeFieldConfiguration starTreeConfig;

@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
 
     private final List<StarTreeDocument> starTreeDocuments = new ArrayList<>();

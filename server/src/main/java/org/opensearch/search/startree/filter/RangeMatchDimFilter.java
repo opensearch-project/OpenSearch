@@ -22,7 +22,7 @@ import java.util.Optional;
  * Performs range match based on the params of @{@link org.opensearch.index.query.RangeQueryBuilder}
  * Also, contains logic to skip performing range search if it's sure that it won't be found in Star Tree.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class RangeMatchDimFilter implements DimensionFilter {
 
     private final String dimensionName;
