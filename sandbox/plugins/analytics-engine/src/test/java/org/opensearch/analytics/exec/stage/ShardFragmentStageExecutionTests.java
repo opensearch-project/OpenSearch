@@ -35,6 +35,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -131,6 +132,39 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     }
 
     /**
+     * Reproduces the lookahead-reordering bug: if the listener offloads
+     * {@code onStreamResponse} bodies onto a multi-threaded executor, the
+     * {@code isLast=true} task can complete before earlier batches' tasks
+     * have started — flipping the stage to SUCCEEDED so the still-queued
+     * earlier tasks short-circuit via {@code isDone()} and drop their data.
+     *
+     * <p>Forces the worst-case schedule deterministically with a manual
+     * executor that runs tasks in reverse submission order.
+     */
+    public void testListenerPreservesBatchesAcrossReorderedExecution() {
+        AtomicReference<StreamingResponseListener<FragmentExecutionArrowResponse>> capturedListener = new AtomicReference<>();
+        CapturingSink sink = new CapturingSink();
+        ManualExecutor manualExecutor = new ManualExecutor();
+
+        ShardFragmentStageExecution exec = buildExecution(sink, true, capturedListener, manualExecutor);
+        exec.start();
+
+        FragmentExecutionArrowResponse first = new FragmentExecutionArrowResponse(createTestBatch(2));
+        FragmentExecutionArrowResponse last = new FragmentExecutionArrowResponse(createTestBatch(3));
+
+        capturedListener.get().onStreamResponse(first, false);
+        capturedListener.get().onStreamResponse(last, true);
+
+        // Force the bug's worst case: isLast=true task runs first, transitions
+        // to SUCCEEDED; the earlier task then sees isDone()=true if the
+        // implementation is still offloading to the executor.
+        manualExecutor.runInReverseOrder();
+
+        assertEquals("both batches must be fed despite reverse-order execution", 2, sink.fed.size());
+        sink.close();
+    }
+
+    /**
      * Verifies that RowResponseCodec rejects null allocator.
      */
     public void testRowResponseCodecRejectsNullAllocator() {
@@ -148,8 +182,18 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         boolean streaming,
         AtomicReference<StreamingResponseListener<T>> listenerCapture
     ) {
+        return buildExecution(sink, streaming, listenerCapture, Runnable::run);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends org.opensearch.core.action.ActionResponse> ShardFragmentStageExecution buildExecution(
+        CapturingSink sink,
+        boolean streaming,
+        AtomicReference<StreamingResponseListener<T>> listenerCapture,
+        Executor searchExecutor
+    ) {
         Stage stage = mockStage();
-        QueryContext config = mockQueryContext();
+        QueryContext config = mockQueryContext(searchExecutor);
         ClusterService clusterService = mockClusterService();
         AnalyticsSearchTransportService dispatcher = mock(AnalyticsSearchTransportService.class);
         when(dispatcher.isStreamingEnabled()).thenReturn(streaming);
@@ -209,12 +253,37 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     }
 
     private QueryContext mockQueryContext() {
+        return mockQueryContext(Runnable::run);
+    }
+
+    private QueryContext mockQueryContext(Executor searchExecutor) {
         QueryContext config = mock(QueryContext.class);
-        when(config.searchExecutor()).thenReturn(Runnable::run);
+        when(config.searchExecutor()).thenReturn(searchExecutor);
         when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
         when(config.maxConcurrentShardRequests()).thenReturn(5);
         when(config.bufferAllocator()).thenReturn(allocator);
         return config;
+    }
+
+    /**
+     * Test executor that records submitted tasks instead of running them.
+     * Run them explicitly in any order to deterministically simulate the
+     * worst-case multi-thread completion order on a real pool.
+     */
+    private static final class ManualExecutor implements Executor {
+        private final List<Runnable> queue = new ArrayList<>();
+
+        @Override
+        public synchronized void execute(Runnable command) {
+            queue.add(command);
+        }
+
+        synchronized void runInReverseOrder() {
+            for (int i = queue.size() - 1; i >= 0; i--) {
+                queue.get(i).run();
+            }
+            queue.clear();
+        }
     }
 
     private ClusterService mockClusterService() {

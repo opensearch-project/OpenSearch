@@ -217,6 +217,25 @@ public class MockNode extends Node {
     }
 
     @Override
+    protected Transport wrapStreamTransport(@Nullable Transport streamTransport) {
+        if (streamTransport == null) return null;
+        // Only wrap when MockTransportService is actually in use; otherwise
+        // the regular transport stays unwrapped and we shouldn't wrap stream
+        // either (no one will look up the wrapped registry).
+        if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {
+            return streamTransport;
+        }
+        // Same StubbableTransport used for the regular transport — both end
+        // up sharing the same stub-discovery semantics. Wrapping here means
+        // both this wrapped instance and the StreamTransportService Node
+        // builds will see the same wrapper, so handlers registered on
+        // StreamTransportService land in StubbableTransport's delegate
+        // request-handler registry — which addRequestHandlingBehavior can
+        // then see.
+        return new org.opensearch.test.transport.StubbableTransport(streamTransport);
+    }
+
+    @Override
     protected TransportService newTransportService(
         Settings settings,
         Transport transport,
