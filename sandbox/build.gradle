@@ -46,34 +46,11 @@ subprojects {
   // The patched calcite-core / calcite-linq4j live in the OpenSearch
   // snapshots Maven repo; analytics-framework advertises them as `api`,
   // so every consumer of analytics-framework needs both the repo and a
-  // `force` to win over transitive vanilla calcite.
-  //
-  // org.opensearch.query (unified-query-*) is excluded from this remote and
-  // pinned to mavenLocal in the consuming subprojects (see analytics-engine
-  // and test-ppl-frontend build.gradle). The remote OpenSearch Snapshots repo
-  // only republishes from sql/main, not from sql/feature/mustang-ppl-integration,
-  // so its 3.7.0.0-SNAPSHOT jars trail the feature branch by however many merges.
-  // Gradle's default SNAPSHOT resolution weighs the remote's explicit
-  // <buildNumber>/timestamp metadata higher than mavenLocal's <localCopy>true>,
-  // so the stale remote wins even when mavenLocal has a newer <lastUpdated>.
-  // Excluding the group here forces gradle to fall through to mavenLocal,
-  // populated by the sandbox-check workflow's pre-step
-  // (publishUnifiedQueryPublicationToMavenLocal from the feature branch).
-  // Drop this exclusion once the SQL feature branch merges to sql/main and
-  // remote snapshots catch up.
+  // `force` to win over transitive vanilla calcite
   repositories {
-    // mavenLocal serves org.opensearch.query:* (unified-query-*) only — the
-    // sandbox-check workflow's pre-step populates it from the SQL feature branch
-    // (publishUnifiedQueryPublicationToMavenLocal). Restricting via includeGroup
-    // keeps mavenLocal off the resolution path for everything else, where it
-    // would otherwise mask intentionally-pinned remote artifacts.
-    mavenLocal {
-      mavenContent { includeGroup 'org.opensearch.query' }
-    }
     maven {
       name = 'OpenSearch Snapshots'
       url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
-      mavenContent { excludeGroup 'org.opensearch.query' }
     }
   }
 
