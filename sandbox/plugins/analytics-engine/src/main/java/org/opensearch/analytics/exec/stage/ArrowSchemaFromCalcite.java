@@ -75,9 +75,14 @@ final class ArrowSchemaFromCalcite {
                 return new ArrowType.Int(64, true);
             case INTEGER:
                 return new ArrowType.Int(32, true);
+            case SMALLINT:
+                return new ArrowType.Int(16, true);
+            case TINYINT:
+                return new ArrowType.Int(8, true);
             case DOUBLE:
                 return new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
             case FLOAT:
+            case REAL:
                 return new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
             case BOOLEAN:
                 return ArrowType.Bool.INSTANCE;
@@ -87,6 +92,13 @@ final class ArrowSchemaFromCalcite {
             case VARBINARY:
             case BINARY:
                 return ArrowType.Binary.INSTANCE;
+            case DATE:
+                return new ArrowType.Date(org.apache.arrow.vector.types.DateUnit.DAY);
+            case TIME:
+                return new ArrowType.Time(org.apache.arrow.vector.types.TimeUnit.MILLISECOND, 32);
+            case TIMESTAMP:
+            case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
+                return new ArrowType.Timestamp(org.apache.arrow.vector.types.TimeUnit.MILLISECOND, null);
             default:
                 throw new IllegalArgumentException("Unsupported Calcite SQL type: " + sqlTypeName);
         }
