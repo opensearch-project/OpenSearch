@@ -34,8 +34,9 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
     // Queries skipped:
     //  - Missing feature: Q19 (extract(minute from …)), Q40 (case() else + head N from M),
     //    Q43 (date_format() + head N from M).
-    //  - Malformed query in the dataset: Q29 has `| Referer != ''` with no `where` keyword
-    //    → PPL parser rejects it. Fix belongs in the query file.
+    //  - Substrait emit can't find a MIN binding for VARCHAR inputs (isthmus library):
+    //    Q29 (min(Referer) where Referer is text). Needs a min(string) binding in
+    //    the aggregate function catalog or an equivalent adapter.
     //  - Multi-shard exchange can't serialize TIMESTAMP (LocalDateTime): Q7, Q24-Q27,
     //    Q37-Q42.
     //  - WHERE + GROUP-BY + aggregate on multi-shard triggers Arrow "project index 0
