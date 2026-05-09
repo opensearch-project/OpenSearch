@@ -29,6 +29,7 @@ sourceSets.test.compileClasspath += configurations.calciteCompile
 
 dependencies {
   compileOnly project(':server')
+  compileOnly project(':sandbox:libs:analytics-api')
   compileOnly project(':sandbox:libs:analytics-framework')
   compileOnly project(':sandbox:plugins:analytics-engine')
   // TODO: Consume Calcite dependency from Analytics Framework instead of declaring it separately.

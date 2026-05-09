@@ -41,6 +41,7 @@ def patchedCalciteVersion = "${libVersions['calcite']}-opensearch-${libVersions[
 
 subprojects {
   group = 'org.opensearch.sandbox'
+  ext.patchedCalciteVersion = patchedCalciteVersion
 
   // The patched calcite-core / calcite-linq4j live in the OpenSearch
   // snapshots Maven repo; analytics-framework advertises them as `api`,

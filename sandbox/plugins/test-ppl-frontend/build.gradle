@@ -52,6 +52,7 @@ sourceSets.test.compileClasspath += configurations.calciteCompile
 
 dependencies {
   // Analytics framework + Calcite provided at runtime by analytics-engine (parent classloader via extendedPlugins)
+  compileOnly project(':sandbox:libs:analytics-api')
   compileOnly project(':sandbox:libs:analytics-framework')
 
   // Guava for compilation — Calcite API exposes guava types
