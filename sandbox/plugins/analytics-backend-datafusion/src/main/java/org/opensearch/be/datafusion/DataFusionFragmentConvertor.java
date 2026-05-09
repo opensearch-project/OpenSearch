@@ -129,12 +129,27 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(DateTimeAdapters.LOCAL_NOW_OP, "now"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_DATE_OP, "current_date"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_TIME_OP, "current_time"),
+        // PPL time(expr) → DF builtin to_time (TimeAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_TIME_OP, "to_time"),
+        // PPL date(expr) → DF builtin to_date (DateAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_OP, "to_date"),
+        // PPL datetime(expr) → DF builtin to_timestamp (DatetimeAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, "to_timestamp"),
+        // PPL datetime + format functions → Rust UDFs registered in rust/src/udf/mod.rs.
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "extract"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, "from_unixtime"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKEDATE_OP, "makedate"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKETIME_OP, "maketime"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_DATE_FORMAT_OP, "date_format"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_TIME_FORMAT_OP, "time_format"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_STR_TO_DATE_OP, "str_to_date"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlLibraryOperators.REVERSE, "reverse"),
         FunctionMappings.s(PositionAdapter.STRPOS, "strpos"),
+        FunctionMappings.s(StrftimeFunctionAdapter.STRFTIME, "strftime"),
         FunctionMappings.s(ToNumberFunctionAdapter.TONUMBER, "tonumber"),
         FunctionMappings.s(ToStringFunctionAdapter.TOSTRING, "tostring"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
