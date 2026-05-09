@@ -230,7 +230,19 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
-        Rel substraitRel = visitor.apply(root.rel);
+        Rel substraitRel;
+        try {
+            substraitRel = visitor.apply(root.rel);
+        } catch (AssertionError e) {
+            // Substrait validators (e.g. VariadicParameterConsistencyValidator,
+            // RelOptUtil.eq via Litmus.THROW) throw AssertionError directly via Java
+            // code rather than via the `assert` keyword, so JVM -da doesn't gate them.
+            // If one fires inside a search thread, OpenSearchUncaughtExceptionHandler
+            // exits the cluster JVM. Convert to IllegalStateException so the analytics-
+            // engine error path treats it as a normal per-query failure (HTTP 500 with
+            // a bucketable message) instead of taking down the cluster.
+            throw new IllegalStateException("Substrait conversion rejected the plan: " + e.getMessage(), e);
+        }
 
         List<String> fieldNames = root.fields.stream().map(field -> field.getValue()).toList();
 
