@@ -573,7 +573,10 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         // CEIL over SUM result (field 1) — capability-declared scalar that flows through
         // annotation. CAST was used previously but is baseline (see
         // OpenSearchProjectRule.BASELINE_SCALAR_OPS).
-        RexNode ceilExpr = rexBuilder.makeCall(SqlStdOperatorTable.CEIL, rexBuilder.makeInputRef(agg.getRowType().getFieldList().get(1).getType(), 1));
+        RexNode ceilExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.CEIL,
+            rexBuilder.makeInputRef(agg.getRowType().getFieldList().get(1).getType(), 1)
+        );
         LogicalProject project = LogicalProject.create(agg, List.of(), List.of(ceilExpr), List.of("col_0"));
         PlannerContext context = buildContext("parquet", shardCount, nameValueFields(), List.of(dfWithScalarFunctions(), LUCENE));
         RelNode result = unwrapExchange(runPlanner(project, context));

@@ -12,7 +12,6 @@ import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Project;
-import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -241,10 +240,7 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
         SqlTypeName sumType = exchangeRowType.getFieldList().get(1).getType().getSqlTypeName();
         SqlTypeName countType = exchangeRowType.getFieldList().get(2).getType().getSqlTypeName();
         assertTrue("Sum type is integer-family: got " + sumType, sumType == SqlTypeName.BIGINT || sumType == SqlTypeName.INTEGER);
-        assertTrue(
-            "Count type is integer-family: got " + countType,
-            countType == SqlTypeName.BIGINT || countType == SqlTypeName.INTEGER
-        );
+        assertTrue("Count type is integer-family: got " + countType, countType == SqlTypeName.BIGINT || countType == SqlTypeName.INTEGER);
 
         // Parent fragment is a Project carrying the final-expression computation
         // (CAST(sum/count)). Marked as OpenSearchProject (not LogicalProject) because
@@ -397,16 +393,9 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
         // the original AVG return type the test fixture declared.
         SqlTypeName sumType = exchangeRowType.getFieldList().get(1).getType().getSqlTypeName();
         SqlTypeName countType = exchangeRowType.getFieldList().get(2).getType().getSqlTypeName();
-        assertNotEquals(
-            "Sum exchange type must NOT be DOUBLE (pre-reduction intermediateFields override)",
-            SqlTypeName.DOUBLE,
-            sumType
-        );
+        assertNotEquals("Sum exchange type must NOT be DOUBLE (pre-reduction intermediateFields override)", SqlTypeName.DOUBLE, sumType);
         // Both must be integer-family types (Calcite's primitives).
         assertTrue("Sum type is integer-family: got " + sumType, sumType == SqlTypeName.BIGINT || sumType == SqlTypeName.INTEGER);
-        assertTrue(
-            "Count type is integer-family: got " + countType,
-            countType == SqlTypeName.BIGINT || countType == SqlTypeName.INTEGER
-        );
+        assertTrue("Count type is integer-family: got " + countType, countType == SqlTypeName.BIGINT || countType == SqlTypeName.INTEGER);
     }
 }

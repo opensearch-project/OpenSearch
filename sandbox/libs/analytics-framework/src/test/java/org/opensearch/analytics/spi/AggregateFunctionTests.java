@@ -9,13 +9,7 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
-import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.rex.RexBuilder;
-import org.apache.calcite.rex.RexInputRef;
-import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -27,23 +21,31 @@ import static org.opensearch.analytics.spi.AggregateFunction.MAX;
 import static org.opensearch.analytics.spi.AggregateFunction.MIN;
 import static org.opensearch.analytics.spi.AggregateFunction.SUM;
 
+/**
+ * Asserts the enum carries the right shape per function for the resolver's three
+ * single-field decomposition cases: pass-through (no intermediate), function-swap
+ * (reducer ≠ self), engine-native merge (reducer == self, binary intermediate).
+ *
+ * <p>Multi-field / scalar-final shapes (AVG, STDDEV, VAR) are <em>not</em> encoded on
+ * the enum — they're handled by {@code OpenSearchAggregateReduceRule} during HEP
+ * marking using Calcite's {@code AggregateReduceFunctionsRule}. The enum entries for
+ * those functions intentionally declare {@code intermediateFields == null} so that
+ * the resolver's pass-through branch catches any post-reduction primitive calls.
+ */
 public class AggregateFunctionTests extends OpenSearchTestCase {
 
-    // ── SUM: pass-through, no decomposition ──
+    // ── Pass-through: SUM / MIN / MAX ──
 
     public void testSumHasNoDecomposition() {
         assertFalse(SUM.hasDecomposition());
-        assertFalse(SUM.hasScalarFinal());
         assertFalse(SUM.hasBinaryIntermediate());
         assertNull(SUM.intermediateFields());
-        assertNull(SUM.finalExpression());
     }
 
     // ── COUNT: function-swap (single field, reducer != self) ──
 
     public void testCountHasDecomposition() {
         assertTrue(COUNT.hasDecomposition());
-        assertFalse(COUNT.hasScalarFinal());
         assertFalse(COUNT.hasBinaryIntermediate());
     }
 
@@ -56,39 +58,20 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
         assertEquals(64, ((ArrowType.Int) fields.get(0).arrowType()).getBitWidth());
     }
 
-    // ── AVG: primitive decomposition (multi-field + scalar final) ──
+    // ── AVG / STDDEV / VAR: handled by Calcite's reduce rule — no enum metadata ──
 
-    public void testAvgHasDecomposition() {
-        assertTrue(AVG.hasDecomposition());
-        assertTrue(AVG.hasScalarFinal());
-        assertFalse(AVG.hasBinaryIntermediate());
-    }
-
-    public void testAvgIntermediateFields() {
-        List<AggregateFunction.IntermediateField> fields = AVG.intermediateFields();
-        assertEquals(2, fields.size());
-        assertEquals("count", fields.get(0).name());
-        assertSame(SUM, fields.get(0).reducer());
-        assertEquals("sum", fields.get(1).name());
-        assertSame(SUM, fields.get(1).reducer());
-        assertTrue(fields.get(1).arrowType() instanceof ArrowType.FloatingPoint);
-    }
-
-    public void testAvgFinalExpressionProducesDivide() {
-        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
-        RexBuilder rb = new RexBuilder(typeFactory);
-        RexNode ref0 = new RexInputRef(0, typeFactory.createSqlType(SqlTypeName.BIGINT));
-        RexNode ref1 = new RexInputRef(1, typeFactory.createSqlType(SqlTypeName.DOUBLE));
-
-        RexNode result = AVG.finalExpression().apply(rb, List.of(ref0, ref1));
-        assertTrue(result.isA(SqlKind.DIVIDE));
+    public void testAvgHasNoDecomposition() {
+        // AVG decomposition is driven by OpenSearchAggregateReduceRule in HEP, not by the
+        // enum. Enum declares no intermediate — post-reduction plan carries primitive SUM/
+        // COUNT calls whose enum entries ARE decompositions (function-swap / pass-through).
+        assertFalse(AVG.hasDecomposition());
+        assertNull(AVG.intermediateFields());
     }
 
     // ── APPROX_COUNT_DISTINCT: engine-native (single binary field, reducer == self) ──
 
     public void testApproxCountDistinctHasDecomposition() {
         assertTrue(APPROX_COUNT_DISTINCT.hasDecomposition());
-        assertFalse(APPROX_COUNT_DISTINCT.hasScalarFinal());
         assertTrue(APPROX_COUNT_DISTINCT.hasBinaryIntermediate());
     }
 

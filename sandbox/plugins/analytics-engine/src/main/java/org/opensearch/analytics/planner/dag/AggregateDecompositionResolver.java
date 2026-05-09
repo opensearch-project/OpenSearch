@@ -192,24 +192,23 @@ public final class AggregateDecompositionResolver {
             List<IntermediateField> iFields = fn.intermediateFields();
 
             // Single-field intermediate: function-swap (COUNT → SUM at FINAL) or engine-native
-            // merge (DC keeps the same call). Multi-field / scalar-final (AVG, STDDEV, VAR) is
-            // handled entirely by Calcite's AggregateReduceFunctionsRule during HEP marking
-            // (wired in PlannerImpl via OpenSearchAggregateReduceRule), before our resolver
-            // ever sees the plan — those cases have already been decomposed into primitive
-            // SUM/COUNT calls wrapped by a Project, and reach this code through the
-            // pass-through branch above. If a future decomposition needs a multi-field shape
-            // that Calcite's rule cannot produce (e.g. custom sketch-merge requiring its own
-            // Project wrapper), reintroduce a primitive-decomp branch at this point.
-            if (iFields.size() != 1 || fn.hasScalarFinal()) {
+            // merge (DC keeps the same call). Multi-field shapes (AVG / STDDEV / VAR) are
+            // reduced by Calcite's AggregateReduceFunctionsRule during HEP marking (wired in
+            // PlannerImpl via OpenSearchAggregateReduceRule), before our resolver ever sees
+            // the plan — those cases have already been decomposed into primitive SUM/COUNT
+            // calls wrapped by a Project, and reach this code through the pass-through branch
+            // above. If a future decomposition needs a multi-field shape that Calcite's rule
+            // cannot produce (e.g. custom sketch-merge requiring its own Project wrapper),
+            // reintroduce a primitive-decomp branch at this point.
+            if (iFields.size() != 1) {
                 throw new IllegalStateException(
                     "AggregateFunction."
                         + fn
-                        + " declares a multi-field or scalar-final decomposition, but the"
-                        + " resolver's single-pass handler only supports single-field"
-                        + " engine-native / function-swap shapes. Calcite's"
-                        + " AggregateReduceFunctionsRule should reduce multi-field cases"
-                        + " during HEP marking. Check that OpenSearchAggregateReduceRule's"
-                        + " FUNCTIONS_TO_REDUCE set covers "
+                        + " declares a multi-field decomposition, but the resolver only"
+                        + " supports single-field engine-native / function-swap shapes."
+                        + " Calcite's AggregateReduceFunctionsRule should reduce multi-field"
+                        + " cases during HEP marking. Check that"
+                        + " OpenSearchAggregateReduceRule's FUNCTIONS_TO_REDUCE set covers "
                         + call.getAggregation().getName()
                         + "."
                 );
