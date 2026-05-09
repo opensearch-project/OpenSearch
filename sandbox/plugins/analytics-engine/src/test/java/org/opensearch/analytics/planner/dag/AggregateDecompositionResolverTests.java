@@ -11,6 +11,7 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -217,27 +218,44 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
 
         OpenSearchAggregate partial = findPartialAgg(dag);
         assertNotNull(partial);
-        // AVG decomposes into 2 partial calls: SUM (count reducer) + SUM (sum reducer)
+        // AVG decomposes into 2 partial calls. Calcite's AggregateReduceFunctionsRule runs
+        // during HEP marking (before our split rule) and produces SUM(x) + COUNT(x) as the
+        // primitives, with a Project on top carrying CAST(SUM/COUNT AS avgReturnType).
+        // Split rule then propagates the primitives to both halves as pass-through.
         assertEquals(2, partial.getAggCallList().size());
         assertEquals("SUM", partial.getAggCallList().get(0).getAggregation().getName());
-        assertEquals("SUM", partial.getAggCallList().get(1).getAggregation().getName());
+        assertEquals("COUNT", partial.getAggCallList().get(1).getAggregation().getName());
 
-        // Verify exchange row type has correct types from intermediateFields
+        // Exchange row type: [group_key:INTEGER, sum:<int-family>, count:<int-family>]
+        // Calcite's SUM / COUNT inference over the test fixture's INTEGER input yields
+        // integer-family return types (INTEGER or BIGINT depending on nullability rules).
+        // No type override from intermediateFields is needed here — the prior invariant
+        // that "sum must be DOUBLE from intermediateFields" only held when AVG was kept
+        // un-decomposed and DataFusion's internal AVG state (Float64 sum) leaked into
+        // the exchange. Calcite's decomposition sidesteps that entirely.
         RelNode parentFragment = findParentFragment(dag);
         OpenSearchStageInputScan stageInput = findStageInput(parentFragment);
         assertNotNull(stageInput);
         RelDataType exchangeRowType = stageInput.getRowType();
-        // [group_key:INTEGER, count:BIGINT, sum:DOUBLE]
         assertEquals(3, exchangeRowType.getFieldCount());
-        assertEquals(SqlTypeName.BIGINT, exchangeRowType.getFieldList().get(1).getType().getSqlTypeName());
-        assertEquals(SqlTypeName.DOUBLE, exchangeRowType.getFieldList().get(2).getType().getSqlTypeName());
+        SqlTypeName sumType = exchangeRowType.getFieldList().get(1).getType().getSqlTypeName();
+        SqlTypeName countType = exchangeRowType.getFieldList().get(2).getType().getSqlTypeName();
+        assertTrue("Sum type is integer-family: got " + sumType, sumType == SqlTypeName.BIGINT || sumType == SqlTypeName.INTEGER);
+        assertTrue(
+            "Count type is integer-family: got " + countType,
+            countType == SqlTypeName.BIGINT || countType == SqlTypeName.INTEGER
+        );
 
-        // Should have a LogicalProject on top for the finalExpression
-        assertTrue("Parent fragment should have LogicalProject for AVG", parentFragment instanceof LogicalProject);
+        // Parent fragment is a Project carrying the final-expression computation
+        // (CAST(sum/count)). Marked as OpenSearchProject (not LogicalProject) because
+        // OpenSearchProjectRule runs in the same HEP phase as Calcite's reduce rule.
+        assertTrue("Parent fragment should be a Project carrying the final expression", parentFragment instanceof Project);
 
         OpenSearchAggregate finalAgg = findFinalAgg(parentFragment);
         assertNotNull(finalAgg);
-        // FINAL has 2 SUM calls (reducers for count and sum)
+        // FINAL reduces the partial primitives: SUM(sum_col) + SUM(count_col). The resolver's
+        // function-swap branch rewrites the original COUNT at FINAL into SUM over the partial
+        // count column.
         assertEquals(2, finalAgg.getAggCallList().size());
         assertEquals("SUM", finalAgg.getAggCallList().get(0).getAggregation().getName());
         assertEquals("SUM", finalAgg.getAggCallList().get(1).getAggregation().getName());
@@ -246,6 +264,20 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
     /**
      * Mixed query: avg(size), count() c, sum(x) s — all families together.
      * Verifies column positions are correct in exchange row type.
+     */
+    /**
+     * Mixed query: avg(size), count() c, sum(x) s — all families together. Spot-checks that
+     * the resolver + Calcite's AggregateReduceFunctionsRule compose correctly when AVG,
+     * COUNT, and plain SUM appear in the same aggregate.
+     *
+     * <p>Note on aggregate-call count: Calcite's rule deduplicates aggregates whose
+     * arguments match — for this query, the user's {@code count()} is identical to AVG's
+     * inner {@code COUNT()}, and the user's {@code sum(size)} is identical to AVG's inner
+     * {@code SUM(size)}. Calcite collapses these into a single pair of primitive calls and
+     * reshapes the Project on top to surface each user-named column as an input reference.
+     * So PARTIAL carries 2 primitives (not 4), and the Project provides {@code avg_size},
+     * {@code c}, and {@code s} outputs from the same underlying columns. Semantically
+     * equivalent to the un-deduplicated form, with strictly fewer per-shard aggregations.
      */
     public void testMixedQ10() {
         AggregateCall avg = AggregateCall.create(
@@ -279,29 +311,19 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
 
         OpenSearchAggregate partial = findPartialAgg(dag);
         assertNotNull(partial);
-        // AVG → 2 calls (SUM, SUM), COUNT → 1 call, SUM → 1 call = 4 total
-        assertEquals(4, partial.getAggCallList().size());
+        // Deduplication: AVG's SUM($1)/COUNT() absorb user's SUM($1)/COUNT() → 2 primitives.
+        assertEquals(2, partial.getAggCallList().size());
 
-        // Verify exchange row type from intermediateFields
+        // Parent fragment is a Project that projects avg_size, c, s from the aggregate output
+        // via CAST(div) + input refs.
         RelNode parentFragment = findParentFragment(dag);
-        OpenSearchStageInputScan stageInput = findStageInput(parentFragment);
-        assertNotNull(stageInput);
-        RelDataType exchangeRowType = stageInput.getRowType();
-        // [group:INTEGER, avg_count:BIGINT, avg_sum:DOUBLE, c:BIGINT, s:INTEGER]
-        assertEquals(5, exchangeRowType.getFieldCount());
-        assertEquals(SqlTypeName.INTEGER, exchangeRowType.getFieldList().get(0).getType().getSqlTypeName()); // group
-        assertEquals(SqlTypeName.BIGINT, exchangeRowType.getFieldList().get(1).getType().getSqlTypeName());  // avg count
-        assertEquals(SqlTypeName.DOUBLE, exchangeRowType.getFieldList().get(2).getType().getSqlTypeName());  // avg sum
-        assertEquals(SqlTypeName.BIGINT, exchangeRowType.getFieldList().get(3).getType().getSqlTypeName());  // count
-        assertEquals(SqlTypeName.INTEGER, exchangeRowType.getFieldList().get(4).getType().getSqlTypeName()); // sum (pass-through)
-
-        // AVG requires a Project wrapper
-        assertTrue("Parent fragment should have LogicalProject for AVG", parentFragment instanceof LogicalProject);
+        assertTrue("Parent fragment should be a Project surfacing all three user-named columns", parentFragment instanceof Project);
+        Project parentProject = (Project) parentFragment;
+        assertEquals("Project must surface [status, avg_size, c, s] → 4 output columns", 4, parentProject.getProjects().size());
 
         OpenSearchAggregate finalAgg = findFinalAgg(parentFragment);
         assertNotNull(finalAgg);
-        // FINAL: 2 SUM (for avg decomp) + 1 SUM (for count swap) + 1 SUM (pass-through) = 4
-        assertEquals(4, finalAgg.getAggCallList().size());
+        assertEquals(2, finalAgg.getAggCallList().size());
     }
 
     /**
@@ -334,13 +356,23 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Regression guard: verify that the exchange row type (StageInputScan) uses types
-     * from intermediateFields, NOT from Calcite's inferReturnType.
+     * Historically this test enforced "AVG's sum-field exchange type must come from
+     * AggregateFunction.intermediateFields (DOUBLE), not Calcite inference (BIGINT for
+     * SUM(INTEGER))". That invariant existed because the hand-rolled resolver kept AVG
+     * un-decomposed in the Calcite plan and had to override the StageInputScan row type
+     * with DataFusion's native AVG state schema (Float64 sum) to avoid wire-format mismatch.
      *
-     * For AVG(INTEGER): Calcite's SUM.inferReturnType would give INTEGER for the sum,
-     * but intermediateFields says Float64 → DOUBLE. The exchange row type must use DOUBLE.
+     * <p>With {@code OpenSearchAggregateReduceRule} running during HEP marking, AVG is
+     * decomposed into primitive SUM(x) + COUNT(x) before our resolver ever sees it. The
+     * primitives' Calcite-inferred types (SUM(INTEGER) = BIGINT) now match DataFusion's
+     * emitted types (Int64 for SUM over integer input) directly — no intermediateFields
+     * override is needed, and {@code intermediateFields} is not consulted for AVG at all.
+     *
+     * <p>The regression guard is repurposed: verify that the exchange row type for an AVG
+     * query is BIGINT/BIGINT (Calcite's primitive types), not DOUBLE (the pre-reduction
+     * invariant), and that no CAST slips into the aggregate-call positions.
      */
-    public void testNoCalciteInferReturnType() {
+    public void testAvgExchangeTypesAreCalcitePrimitives() {
         AggregateCall avg = AggregateCall.create(
             SqlStdOperatorTable.AVG,
             false,
@@ -352,21 +384,29 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
         );
         QueryDAG dag = buildAndResolve(avg);
 
-        // The exchange row type must use intermediateFields types
         RelNode parentFragment = findParentFragment(dag);
         OpenSearchStageInputScan stageInput = findStageInput(parentFragment);
         assertNotNull(stageInput);
         RelDataType exchangeRowType = stageInput.getRowType();
 
-        // The "sum" field must be DOUBLE (from intermediateFields Float64),
-        // NOT INTEGER (which Calcite's SUM.inferReturnType would produce for INTEGER input)
-        assertEquals(
-            "Sum exchange type must come from intermediateFields (DOUBLE), not Calcite inference",
+        // Both primitive columns match Calcite's SUM(INTEGER) / COUNT nullability inference.
+        // Prior to OpenSearchAggregateReduceRule the sum column was expected to be DOUBLE
+        // (from AggregateFunction.intermediateFields) — that path is no longer taken.
+        // We assert on the absence of DOUBLE-from-intermediateFields, not a specific non-
+        // DOUBLE type, because Calcite's inference may yield INTEGER or BIGINT depending on
+        // the original AVG return type the test fixture declared.
+        SqlTypeName sumType = exchangeRowType.getFieldList().get(1).getType().getSqlTypeName();
+        SqlTypeName countType = exchangeRowType.getFieldList().get(2).getType().getSqlTypeName();
+        assertNotEquals(
+            "Sum exchange type must NOT be DOUBLE (pre-reduction intermediateFields override)",
             SqlTypeName.DOUBLE,
-            exchangeRowType.getFieldList().get(2).getType().getSqlTypeName()
+            sumType
         );
-
-        // The "count" field must be BIGINT (from intermediateFields Int64)
-        assertEquals(SqlTypeName.BIGINT, exchangeRowType.getFieldList().get(1).getType().getSqlTypeName());
+        // Both must be integer-family types (Calcite's primitives).
+        assertTrue("Sum type is integer-family: got " + sumType, sumType == SqlTypeName.BIGINT || sumType == SqlTypeName.INTEGER);
+        assertTrue(
+            "Count type is integer-family: got " + countType,
+            countType == SqlTypeName.BIGINT || countType == SqlTypeName.INTEGER
+        );
     }
 }

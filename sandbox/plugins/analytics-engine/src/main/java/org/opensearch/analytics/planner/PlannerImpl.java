@@ -27,6 +27,7 @@ import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
@@ -101,6 +102,19 @@ public class PlannerImpl {
                 new OpenSearchFilterRule(context),
                 new OpenSearchProjectRule(context),
                 new OpenSearchAggregateRule(context),
+                // Decomposes AVG / STDDEV_POP / STDDEV_SAMP / VAR_POP / VAR_SAMP into primitive
+                // SUM / COUNT (+ SUM_SQ for variance) calls wrapped by a scalar LogicalProject.
+                // Fires after OpenSearchAggregateRule so it matches OpenSearchAggregate with
+                // AggregateMode.SINGLE. The subsequent Volcano OpenSearchAggregateSplitRule
+                // operates on the already-reduced inner aggregate so PARTIAL and FINAL both
+                // carry primitive calls — downstream AggregateDecompositionResolver sees
+                // pass-through SUMs and does no further decomposition for these functions.
+                //
+                // The Project wrapper that this rule emits contains CAST and DIVIDE around
+                // the sum/count quotient; both are baseline scalar ops
+                // (OpenSearchProjectRule.BASELINE_SCALAR_OPS) so they bypass capability
+                // enforcement and flow through OpenSearchProject without annotation.
+                new OpenSearchAggregateReduceRule(),
                 new OpenSearchSortRule(context),
                 new OpenSearchUnionRule(context)
             )

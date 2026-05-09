@@ -56,14 +56,17 @@ import java.util.List;
  */
 public class OpenSearchAggregateReduceRule extends AggregateReduceFunctionsRule {
 
-    /** SqlKinds this rule reduces. Extend when pf4 onboards new statistical aggregates. */
-    private static final EnumSet<SqlKind> FUNCTIONS_TO_REDUCE = EnumSet.of(
-        SqlKind.AVG,
-        SqlKind.STDDEV_POP,
-        SqlKind.STDDEV_SAMP,
-        SqlKind.VAR_POP,
-        SqlKind.VAR_SAMP
-    );
+    /**
+     * SqlKinds this rule reduces. Narrowed to AVG for pf4 scope — AVG's reduction uses only
+     * SUM, COUNT, DIVIDE, and CAST, all of which are either capability-declared aggregates
+     * or baseline scalars ({@link OpenSearchProjectRule#BASELINE_SCALAR_OPS}).
+     *
+     * <p>STDDEV_POP / STDDEV_SAMP / VAR_POP / VAR_SAMP reductions emit {@code POWER(x, 2)}
+     * for x² which is not in the baseline set — backends would need to declare POWER
+     * capability before these can be safely reduced here. Extending the set is a one-line
+     * change once STDDEV / VAR land on a backend that declares POWER.
+     */
+    private static final EnumSet<SqlKind> FUNCTIONS_TO_REDUCE = EnumSet.of(SqlKind.AVG);
 
     public OpenSearchAggregateReduceRule() {
         super(OpenSearchAggregate.class, RelBuilder.proto(Contexts.empty()), FUNCTIONS_TO_REDUCE);
