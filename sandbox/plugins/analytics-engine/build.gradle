@@ -14,8 +14,16 @@
 
 apply plugin: 'opensearch.internal-cluster-test'
 
-// SQL Unified Query API version (aligned with OpenSearch build version)
-def sqlUnifiedQueryVersion = '3.6.0.0-SNAPSHOT'
+// SQL Unified Query API version (aligned with OpenSearch build version).
+// Bumped to 3.7 to match the rest of the sandbox (test-ppl-frontend declares
+// the same '3.7.0.0-SNAPSHOT'). org.opensearch.query:* is also pinned to
+// mavenLocal in sandbox/build.gradle's subprojects { repositories } block,
+// so the remote OpenSearch Snapshots repo no longer serves this group;
+// 3.6 jars don't exist in mavenLocal (only 3.7 from the feature branch's
+// publishUnifiedQueryPublicationToMavenLocal pre-step), so the older pin
+// caused `Could not find org.opensearch.query:unified-query-api:3.6.0.0-SNAPSHOT`
+// at internal-cluster-test resolution.
+def sqlUnifiedQueryVersion = '3.7.0.0-SNAPSHOT'
 
 opensearchplugin {
   description = 'Analytics engine hub: discovers and wires query extensions via ExtensiblePlugin SPI.'

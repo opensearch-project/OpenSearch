@@ -62,6 +62,14 @@ subprojects {
   // Drop this exclusion once the SQL feature branch merges to sql/main and
   // remote snapshots catch up.
   repositories {
+    // mavenLocal serves org.opensearch.query:* (unified-query-*) only — the
+    // sandbox-check workflow's pre-step populates it from the SQL feature branch
+    // (publishUnifiedQueryPublicationToMavenLocal). Restricting via includeGroup
+    // keeps mavenLocal off the resolution path for everything else, where it
+    // would otherwise mask intentionally-pinned remote artifacts.
+    mavenLocal {
+      mavenContent { includeGroup 'org.opensearch.query' }
+    }
     maven {
       name = 'OpenSearch Snapshots'
       url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
