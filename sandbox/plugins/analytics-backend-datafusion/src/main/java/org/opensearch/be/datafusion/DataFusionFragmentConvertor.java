@@ -19,21 +19,21 @@ import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelReferentialConstraint;
 import org.apache.calcite.rel.RelRoot;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
-import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
-import org.apache.calcite.sql.type.OperandTypes;
-import org.apache.calcite.sql.type.ReturnTypes;
-import org.apache.calcite.util.Optionality;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Optionality;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
@@ -216,7 +216,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *       {@code opensearch_aggregate_functions.yaml}).</li>
      * </ul>
      */
-    private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(FunctionMappings.s(APPROX_DISTINCT, "approx_distinct"));
+    private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
+        FunctionMappings.s(APPROX_DISTINCT, "approx_distinct")
+    );
 
     private final SimpleExtension.ExtensionCollection extensions;
 
@@ -532,9 +534,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                         rewritten.add(call);
                     }
                 }
-                return changed
-                    ? agg.copy(agg.getTraitSet(), agg.getInput(), agg.getGroupSet(), agg.getGroupSets(), rewritten)
-                    : agg;
+                return changed ? agg.copy(agg.getTraitSet(), agg.getInput(), agg.getGroupSet(), agg.getGroupSets(), rewritten) : agg;
             }
         });
     }

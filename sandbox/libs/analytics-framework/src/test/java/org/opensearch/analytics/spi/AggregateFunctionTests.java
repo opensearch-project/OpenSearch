@@ -20,7 +20,12 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 
-import static org.opensearch.analytics.spi.AggregateFunction.*;
+import static org.opensearch.analytics.spi.AggregateFunction.APPROX_COUNT_DISTINCT;
+import static org.opensearch.analytics.spi.AggregateFunction.AVG;
+import static org.opensearch.analytics.spi.AggregateFunction.COUNT;
+import static org.opensearch.analytics.spi.AggregateFunction.MAX;
+import static org.opensearch.analytics.spi.AggregateFunction.MIN;
+import static org.opensearch.analytics.spi.AggregateFunction.SUM;
 
 public class AggregateFunctionTests extends OpenSearchTestCase {
 

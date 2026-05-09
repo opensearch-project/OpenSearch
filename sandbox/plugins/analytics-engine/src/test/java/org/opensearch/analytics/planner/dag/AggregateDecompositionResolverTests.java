@@ -101,9 +101,13 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
      */
     public void testPassThroughSum() {
         AggregateCall sum = AggregateCall.create(
-            SqlStdOperatorTable.SUM, false, List.of(1), -1,
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.INTEGER), "s"
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "s"
         );
         QueryDAG dag = buildAndResolve(sum);
 
@@ -130,9 +134,13 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
      */
     public void testFunctionSwapCount() {
         AggregateCall count = AggregateCall.create(
-            SqlStdOperatorTable.COUNT, false, List.of(), -1,
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.BIGINT), "c"
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "c"
         );
         QueryDAG dag = buildAndResolve(count);
 
@@ -161,9 +169,13 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
      */
     public void testEngineNativeDC() {
         AggregateCall dc = AggregateCall.create(
-            SqlStdOperatorTable.APPROX_COUNT_DISTINCT, false, List.of(1), -1,
+            SqlStdOperatorTable.APPROX_COUNT_DISTINCT,
+            false,
+            List.of(1),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.BIGINT), "d"
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "d"
         );
         QueryDAG dag = buildAndResolve(dc);
 
@@ -193,9 +205,13 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
      */
     public void testPrimitiveDecompAvg() {
         AggregateCall avg = AggregateCall.create(
-            SqlStdOperatorTable.AVG, false, List.of(1), -1,
+            SqlStdOperatorTable.AVG,
+            false,
+            List.of(1),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.INTEGER), "a"
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "a"
         );
         QueryDAG dag = buildAndResolve(avg);
 
@@ -217,8 +233,7 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
         assertEquals(SqlTypeName.DOUBLE, exchangeRowType.getFieldList().get(2).getType().getSqlTypeName());
 
         // Should have a LogicalProject on top for the finalExpression
-        assertTrue("Parent fragment should have LogicalProject for AVG",
-            parentFragment instanceof LogicalProject);
+        assertTrue("Parent fragment should have LogicalProject for AVG", parentFragment instanceof LogicalProject);
 
         OpenSearchAggregate finalAgg = findFinalAgg(parentFragment);
         assertNotNull(finalAgg);
@@ -234,19 +249,31 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
      */
     public void testMixedQ10() {
         AggregateCall avg = AggregateCall.create(
-            SqlStdOperatorTable.AVG, false, List.of(1), -1,
+            SqlStdOperatorTable.AVG,
+            false,
+            List.of(1),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.INTEGER), "avg_size"
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "avg_size"
         );
         AggregateCall count = AggregateCall.create(
-            SqlStdOperatorTable.COUNT, false, List.of(), -1,
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.BIGINT), "c"
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "c"
         );
         AggregateCall sum = AggregateCall.create(
-            SqlStdOperatorTable.SUM, false, List.of(1), -1,
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.INTEGER), "s"
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "s"
         );
         QueryDAG dag = buildAndResolve(avg, count, sum);
 
@@ -269,8 +296,7 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
         assertEquals(SqlTypeName.INTEGER, exchangeRowType.getFieldList().get(4).getType().getSqlTypeName()); // sum (pass-through)
 
         // AVG requires a Project wrapper
-        assertTrue("Parent fragment should have LogicalProject for AVG",
-            parentFragment instanceof LogicalProject);
+        assertTrue("Parent fragment should have LogicalProject for AVG", parentFragment instanceof LogicalProject);
 
         OpenSearchAggregate finalAgg = findFinalAgg(parentFragment);
         assertNotNull(finalAgg);
@@ -283,9 +309,13 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
      */
     public void testGroupKeysFlowThrough() {
         AggregateCall sum = AggregateCall.create(
-            SqlStdOperatorTable.SUM, false, List.of(1), -1,
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.INTEGER), "s"
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "s"
         );
         QueryDAG dag = buildAndResolve(sum);
 
@@ -312,9 +342,13 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
      */
     public void testNoCalciteInferReturnType() {
         AggregateCall avg = AggregateCall.create(
-            SqlStdOperatorTable.AVG, false, List.of(1), -1,
+            SqlStdOperatorTable.AVG,
+            false,
+            List.of(1),
+            -1,
             stubScan(mockTable("test_index", "status", "size")),
-            typeFactory.createSqlType(SqlTypeName.INTEGER), "a"
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "a"
         );
         QueryDAG dag = buildAndResolve(avg);
 
@@ -326,8 +360,11 @@ public class AggregateDecompositionResolverTests extends BasePlannerRulesTests {
 
         // The "sum" field must be DOUBLE (from intermediateFields Float64),
         // NOT INTEGER (which Calcite's SUM.inferReturnType would produce for INTEGER input)
-        assertEquals("Sum exchange type must come from intermediateFields (DOUBLE), not Calcite inference",
-            SqlTypeName.DOUBLE, exchangeRowType.getFieldList().get(2).getType().getSqlTypeName());
+        assertEquals(
+            "Sum exchange type must come from intermediateFields (DOUBLE), not Calcite inference",
+            SqlTypeName.DOUBLE,
+            exchangeRowType.getFieldList().get(2).getType().getSqlTypeName()
+        );
 
         // The "count" field must be BIGINT (from intermediateFields Int64)
         assertEquals(SqlTypeName.BIGINT, exchangeRowType.getFieldList().get(1).getType().getSqlTypeName());

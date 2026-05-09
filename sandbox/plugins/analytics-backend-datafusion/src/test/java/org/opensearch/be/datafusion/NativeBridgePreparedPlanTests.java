@@ -42,9 +42,7 @@ public class NativeBridgePreparedPlanTests extends OpenSearchTestCase {
     public void testPrepareFinalPlanWithInvalidBytesThrowsDecodeError() {
         NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("datafusion-spill");
-        long runtimePtr = NativeBridge.createGlobalRuntime(
-            64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024
-        );
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
         DatafusionLocalSession session = new DatafusionLocalSession(runtimeHandle.get());
         try {

@@ -54,7 +54,9 @@ public class FinalAggregateInstructionHandler implements FragmentInstructionHand
             NativeBridge.prepareFinalPlan(session.getPointer(), ctx.fragmentBytes());
         } catch (RuntimeException e) {
             for (DatafusionPartitionSender sender : senders) {
-                try { sender.close(); } catch (Exception ignored) {}
+                try {
+                    sender.close();
+                } catch (Exception ignored) {}
             }
             session.close();
             throw e;

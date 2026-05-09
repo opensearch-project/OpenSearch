@@ -100,7 +100,11 @@ public final class AggregateDecompositionResolver {
             }
 
             RelNode rewrittenParent = rewriteParentFragment(
-                parentPlan.resolvedFragment(), result.exchangeRowType, childStage.getStageId(), result);
+                parentPlan.resolvedFragment(),
+                result.exchangeRowType,
+                childStage.getStageId(),
+                result
+            );
             resolvedParentPlans.add(new StagePlan(rewrittenParent, parentPlan.backendId()));
         }
         parentStage.setPlanAlternatives(resolvedParentPlans);
@@ -225,8 +229,9 @@ public final class AggregateDecompositionResolver {
                 // Exchange type from intermediateFields
                 exchangeFieldTypes.add(colType);
                 exchangeFieldNames.add((call.name != null ? call.name : "expr") + "_" + f.name());
-                newFinalCalls.add(makeCall(f.reducer(), List.of(finalColIdx), colType,
-                    (call.name != null ? call.name : "expr") + "_" + f.name(), tf));
+                newFinalCalls.add(
+                    makeCall(f.reducer(), List.of(finalColIdx), colType, (call.name != null ? call.name : "expr") + "_" + f.name(), tf)
+                );
                 finalColIdx += 1;
             }
             projects.add(new PendingProject(fn, startFinalIdx, iFields.size(), call.name, call.getType()));
@@ -234,8 +239,9 @@ public final class AggregateDecompositionResolver {
 
         RelDataType exchangeRowType = tf.createStructType(exchangeFieldTypes, exchangeFieldNames);
 
-        java.util.function.Function<RelNode, RelNode> projectBuilder =
-            projects.isEmpty() ? null : buildProjectWrapper(projects, groupCount, newFinalCalls.size(), rb, tf);
+        java.util.function.Function<RelNode, RelNode> projectBuilder = projects.isEmpty()
+            ? null
+            : buildProjectWrapper(projects, groupCount, newFinalCalls.size(), rb, tf);
 
         return new RewriteResult(newPartialCalls, newFinalCalls, exchangeRowType, projectBuilder);
     }
@@ -405,10 +411,7 @@ public final class AggregateDecompositionResolver {
                 }
             }
 
-            RelDataType projectRowType = tf.createStructType(
-                projectExprs.stream().map(RexNode::getType).toList(),
-                fieldNames
-            );
+            RelDataType projectRowType = tf.createStructType(projectExprs.stream().map(RexNode::getType).toList(), fieldNames);
 
             return LogicalProject.create(finalAgg, List.of(), projectExprs, projectRowType);
         };
@@ -463,24 +466,16 @@ public final class AggregateDecompositionResolver {
 
     // ── Inner types ──
 
-    record RewriteResult(
-        List<AggregateCall> newPartialCalls,
-        List<AggregateCall> newFinalCalls,
-        RelDataType exchangeRowType,
-        java.util.function.Function<RelNode, RelNode> projectOnTop
-    ) {
+    record RewriteResult(List<AggregateCall> newPartialCalls, List<AggregateCall> newFinalCalls, RelDataType exchangeRowType,
+        java.util.function.Function<RelNode, RelNode> projectOnTop) {
         OpenSearchAggregate newPartial(OpenSearchAggregate original) {
             return copyAgg(original, newPartialCalls);
         }
     }
 
-    private record PendingProject(
-        AggregateFunction fn,
-        int startFinalCol,
-        int fieldCount,
-        String originalName,
-        RelDataType originalReturnType
-    ) {}
+    private record PendingProject(AggregateFunction fn, int startFinalCol, int fieldCount, String originalName,
+        RelDataType originalReturnType) {
+    }
 
     private static OpenSearchAggregate copyAgg(OpenSearchAggregate original, List<AggregateCall> newCalls) {
         return (OpenSearchAggregate) original.copy(

@@ -25,11 +25,8 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public record DataFusionReduceState(
-    DatafusionLocalSession session,
-    NativeRuntimeHandle runtimeHandle,
-    List<DatafusionPartitionSender> senders
-) implements BackendExecutionContext {
+public record DataFusionReduceState(DatafusionLocalSession session, NativeRuntimeHandle runtimeHandle, List<
+    DatafusionPartitionSender> senders) implements BackendExecutionContext {
 
     @Override
     public void close() throws IOException {
