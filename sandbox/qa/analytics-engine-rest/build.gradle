@@ -69,12 +69,12 @@ def configureAnalyticsCluster = { cluster ->
 testClusters.integTest {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
+    systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }
 
 integTest {
     systemProperty 'tests.security.manager', 'false'
     exclude '**/CoordinatorReduceMemtableIT.class'
-    exclude '**/StreamingCoordinatorReduceIT.class'
 }
 
 // ── Memtable variant: 2 nodes, datafusion.reduce.input_mode=memtable ─────────
@@ -93,24 +93,6 @@ testClusters.integTestMemtable {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
     setting 'datafusion.reduce.input_mode', 'memtable'
-}
-
-// ── Streaming variant: 2 nodes, Arrow Flight stream transport enabled ────────
-task integTestStreaming(type: RestIntegTestTask) {
-    description = 'Runs coordinator-reduce tests with Arrow Flight streaming'
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    filter {
-        includeTestsMatching 'org.opensearch.analytics.qa.StreamingCoordinatorReduceIT'
-    }
-    systemProperty 'tests.security.manager', 'false'
-}
-check.dependsOn(integTestStreaming)
-
-testClusters.integTestStreaming {
-    numberOfNodes = 2
-    configureAnalyticsCluster(delegate)
-    systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }
 
 // Run against an external cluster (no testClusters lifecycle):
