@@ -153,7 +153,23 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
-        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace")
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        // Array S0 ladder — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS /
+        // ARRAY_RETURNING_PROJECT_OPS for the capability registration. ARRAY_LENGTH /
+        // ARRAY_SLICE / ARRAY_DISTINCT pass through under their Calcite-stdlib names
+        // (DataFusion's substrait consumer resolves them natively). MakeArrayAdapter /
+        // ArrayToStringAdapter / ArrayElementAdapter rewrite PPL `array(...)` /
+        // `mvjoin(...)` / `mvindex(...)` single-element to locally-declared SqlFunctions
+        // so isthmus emits Substrait calls with DataFusion's native function names.
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_SLICE, "array_slice"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_DISTINCT, "array_distinct"),
+        FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),
+        FunctionMappings.s(ArrayToStringAdapter.LOCAL_ARRAY_TO_STRING_OP, "array_to_string"),
+        FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
+        FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
+        FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
+        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;
@@ -214,7 +230,19 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
-        Rel substraitRel = visitor.apply(root.rel);
+        Rel substraitRel;
+        try {
+            substraitRel = visitor.apply(root.rel);
+        } catch (AssertionError e) {
+            // Substrait validators (e.g. VariadicParameterConsistencyValidator,
+            // RelOptUtil.eq via Litmus.THROW) throw AssertionError directly via Java
+            // code rather than via the `assert` keyword, so JVM -da doesn't gate them.
+            // If one fires inside a search thread, OpenSearchUncaughtExceptionHandler
+            // exits the cluster JVM. Convert to IllegalStateException so the analytics-
+            // engine error path treats it as a normal per-query failure (HTTP 500 with
+            // a bucketable message) instead of taking down the cluster.
+            throw new IllegalStateException("Substrait conversion rejected the plan: " + e.getMessage(), e);
+        }
 
         List<String> fieldNames = root.fields.stream().map(field -> field.getValue()).toList();
 

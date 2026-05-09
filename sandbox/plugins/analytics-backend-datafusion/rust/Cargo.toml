@@ -68,6 +68,8 @@ serde_json = { workspace = true, features = ["preserve_order"] }
 # multi-path JSON-array output. Moving to 1.x is a follow-up once we can
 # reproduce that distinction against the new API surface.
 jsonpath-rust = "0.7"
+# mvfind UDF — regex matching against stringified array elements
+regex = "1.10"
 
 [dev-dependencies]
 criterion = { workspace = true }

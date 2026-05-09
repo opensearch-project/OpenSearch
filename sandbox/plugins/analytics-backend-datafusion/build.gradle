@@ -73,6 +73,11 @@ dependencies {
   implementation "io.substrait:isthmus:0.89.1"
   implementation "io.substrait:core:0.89.1"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
+  // jackson-datatype-jsr310 — added to arrow-flight-rpc (the parent plugin that bundles
+  // arrow-vector). arrow-vector's JsonStringArrayList eagerly registers JavaTimeModule on
+  // its ObjectMapper, so jsr310 must be visible to arrow-vector's defining classloader,
+  // not this plugin's. compileOnly here would also work; runtime is provided by parent.
+  compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
 
   calciteCompile "com.google.guava:guava:${versions.guava}"
   calciteTestCompile "com.google.guava:guava:${versions.guava}"

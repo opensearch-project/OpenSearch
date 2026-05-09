@@ -55,7 +55,16 @@ public enum FieldType {
     NESTED("nested"),
     OBJECT("object"),
     FLAT_OBJECT("flat_object"),
-    COMPLETION("completion");
+    COMPLETION("completion"),
+    /**
+     * Array-typed expression result. Used for the return-type slot of array-producing scalar
+     * functions (PPL {@code array(…)}, {@code array_slice}, {@code array_distinct}). Has no
+     * OpenSearch mapping equivalent — arrays in OpenSearch are multi-value fields with the
+     * underlying element type, not a separate type. The mapping string is {@code "array"} as a
+     * placeholder; {@link #fromMappingType} keeps working unchanged because no source
+     * advertises that mapping string.
+     */
+    ARRAY("array");
 
     private final String mappingType;
 
@@ -117,6 +126,7 @@ public enum FieldType {
             case TIME, TIMESTAMP, TIMESTAMP_WITH_LOCAL_TIME_ZONE -> FieldType.DATE;
             case BOOLEAN -> FieldType.BOOLEAN;
             case BINARY, VARBINARY -> FieldType.BINARY;
+            case ARRAY -> FieldType.ARRAY;
             default -> null;
         };
     }

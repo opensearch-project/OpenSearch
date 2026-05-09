@@ -10,9 +10,12 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.util.Text;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Helpers for reading Arrow vector cells as plain Java values at the
@@ -35,10 +38,22 @@ public final class ArrowValues {
         if (vector instanceof VarCharVector v) {
             return new String(v.get(index), StandardCharsets.UTF_8);
         }
-        Object obj = vector.getObject(index);
-        if (obj instanceof Text t) {
+        Object value = vector.getObject(index);
+        if (vector instanceof ListVector && value instanceof List<?> raw) {
+            // ListVector.getObject returns a JsonStringArrayList whose elements are the
+            // child vector's typed values. For VarCharVector children that's Arrow's
+            // Text, which downstream consumers (e.g. {@code ExprValueUtils.fromObjectValue})
+            // don't recognize and reject as "unsupported object class". Mirror the
+            // top-level VarCharVector branch above and substitute Java strings.
+            List<Object> normalized = new ArrayList<>(raw.size());
+            for (Object element : raw) {
+                normalized.add(element instanceof Text t ? t.toString() : element);
+            }
+            return normalized;
+        }
+        if (value instanceof Text t) {
             return t.toString();
         }
-        return obj;
+        return value;
     }
 }
