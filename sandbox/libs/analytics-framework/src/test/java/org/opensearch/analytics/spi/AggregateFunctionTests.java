@@ -38,7 +38,6 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
 
     public void testSumHasNoDecomposition() {
         assertFalse(SUM.hasDecomposition());
-        assertFalse(SUM.hasBinaryIntermediate());
         assertNull(SUM.intermediateFields());
     }
 
@@ -46,7 +45,6 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
 
     public void testCountHasDecomposition() {
         assertTrue(COUNT.hasDecomposition());
-        assertFalse(COUNT.hasBinaryIntermediate());
     }
 
     public void testCountIntermediateFields() {
@@ -72,7 +70,6 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
 
     public void testApproxCountDistinctHasDecomposition() {
         assertTrue(APPROX_COUNT_DISTINCT.hasDecomposition());
-        assertTrue(APPROX_COUNT_DISTINCT.hasBinaryIntermediate());
     }
 
     public void testApproxCountDistinctReducerIsSelf() {

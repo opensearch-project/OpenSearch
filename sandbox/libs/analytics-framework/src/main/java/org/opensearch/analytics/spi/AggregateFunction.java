@@ -9,7 +9,9 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 
 import java.util.List;
 
@@ -99,10 +101,6 @@ public enum AggregateFunction {
         return intermediateFields != null;
     }
 
-    public boolean hasBinaryIntermediate() {
-        return intermediateFields != null && intermediateFields.stream().anyMatch(f -> f.arrowType() instanceof ArrowType.Binary);
-    }
-
     /** Maps a Calcite SqlKind to an AggregateFunction, or null if not recognized. Skips OTHER. */
     public static AggregateFunction fromSqlKind(SqlKind kind) {
         for (AggregateFunction func : values()) {
@@ -120,6 +118,42 @@ public enum AggregateFunction {
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Unrecognized aggregate function [" + name + "]", e);
         }
+    }
+
+    /**
+     * Returns the Calcite {@link SqlAggFunction} equivalent of this enum constant.
+     * Used when emitting rewritten aggregate calls (e.g. the resolver building a
+     * FINAL-phase call for a function-swap or engine-native merge).
+     */
+    public SqlAggFunction toSqlAggFunction() {
+        return switch (this) {
+            case SUM -> SqlStdOperatorTable.SUM;
+            case SUM0 -> SqlStdOperatorTable.SUM0;
+            case MIN -> SqlStdOperatorTable.MIN;
+            case MAX -> SqlStdOperatorTable.MAX;
+            case COUNT -> SqlStdOperatorTable.COUNT;
+            case AVG -> SqlStdOperatorTable.AVG;
+            case APPROX_COUNT_DISTINCT -> SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
+            default -> throw new IllegalStateException("No SqlAggFunction mapping for: " + this);
+        };
+    }
+
+    /**
+     * Resolves a Calcite {@link SqlAggFunction} back to an {@link AggregateFunction}.
+     * Tries name-based lookup first (handles SqlKind.OTHER cases like APPROX_COUNT_DISTINCT)
+     * and falls back to SqlKind matching. Throws if neither path succeeds.
+     */
+    public static AggregateFunction fromSqlAggFunction(SqlAggFunction op) {
+        try {
+            return fromNameOrError(op.getName());
+        } catch (IllegalStateException e) {
+            // Fall through to SqlKind-based resolution
+        }
+        AggregateFunction byKind = fromSqlKind(op.getKind());
+        if (byKind != null) {
+            return byKind;
+        }
+        throw new IllegalStateException("No AggregateFunction mapping for SqlAggFunction [" + op.getName() + "]");
     }
 
     // ── Helpers for readable enum-entry literals ──

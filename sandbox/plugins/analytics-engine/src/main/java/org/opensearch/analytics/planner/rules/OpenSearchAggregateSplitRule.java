@@ -33,12 +33,9 @@ import org.opensearch.analytics.planner.rel.OpenSearchConvention;
  *       and a Project on top.</li>
  *   <li><b>Single-field cases</b> (pass-through SUM/MIN/MAX, function-swap COUNT→SUM at
  *       FINAL, engine-native APPROX_COUNT_DISTINCT sketch merge) are handled by
- *       {@code AggregateDecompositionResolver} after this split rule runs.</li>
- *   <li><b>Backend-specific alternatives</b> — if a future backend wants to override the
- *       enum's default decomposition (e.g. a custom sketch algorithm for APPROX_COUNT_DISTINCT),
- *       it populates {@link org.opensearch.analytics.spi.AggregateCapability#decomposition()}
- *       with an {@link org.opensearch.analytics.spi.AggregateDecomposition}. No backend
- *       currently uses this escape hatch.</li>
+ *       {@code AggregateDecompositionResolver} after this split rule runs, reading
+ *       {@link org.opensearch.analytics.spi.AggregateFunction#intermediateFields()}
+ *       as the sole source of truth.</li>
  * </ul>
  *
  * <p>This rule's own contract is purely structural: SINGLE → FINAL(Exchange(PARTIAL(child))).
