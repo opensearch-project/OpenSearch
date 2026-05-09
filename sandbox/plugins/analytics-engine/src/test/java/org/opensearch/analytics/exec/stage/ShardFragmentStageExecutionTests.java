@@ -30,6 +30,7 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -177,7 +178,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     // ── helpers ──────────────────────────────────────────────────────────
 
     @SuppressWarnings("unchecked")
-    private <T extends org.opensearch.core.action.ActionResponse> ShardFragmentStageExecution buildExecution(
+    private <T extends ActionResponse> ShardFragmentStageExecution buildExecution(
         CapturingSink sink,
         boolean streaming,
         AtomicReference<StreamingResponseListener<T>> listenerCapture
@@ -186,7 +187,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends org.opensearch.core.action.ActionResponse> ShardFragmentStageExecution buildExecution(
+    private <T extends ActionResponse> ShardFragmentStageExecution buildExecution(
         CapturingSink sink,
         boolean streaming,
         AtomicReference<StreamingResponseListener<T>> listenerCapture,

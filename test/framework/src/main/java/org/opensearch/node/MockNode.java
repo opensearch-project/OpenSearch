@@ -67,6 +67,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.test.transport.StubbableTransport;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -232,7 +233,7 @@ public class MockNode extends Node {
         // StreamTransportService land in StubbableTransport's delegate
         // request-handler registry — which addRequestHandlingBehavior can
         // then see.
-        return new org.opensearch.test.transport.StubbableTransport(streamTransport);
+        return new StubbableTransport(streamTransport);
     }
 
     @Override
