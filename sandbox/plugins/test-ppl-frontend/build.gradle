@@ -32,24 +32,10 @@ opensearchplugin {
 }
 
 repositories {
-  // Pin org.opensearch.query:* (unified-query-*) artifacts to mavenLocal only.
-  // The remote OpenSearch Snapshots repo only republishes from sql/main, not from
-  // sql/feature/mustang-ppl-integration, so its 3.7.0.0-SNAPSHOT jars trail the
-  // feature branch by however many merges. Gradle's default SNAPSHOT resolution
-  // weighs the remote's explicit <buildNumber>/timestamp metadata higher than
-  // mavenLocal's bare <localCopy>true>, so the stale remote wins even when
-  // mavenLocal has a newer <lastUpdated>. Restrict the unified-query group to
-  // mavenLocal and exclude it from the remote so the sandbox-check workflow's
-  // pre-step (publishUnifiedQueryPublicationToMavenLocal from the feature branch)
-  // is the authoritative source. Drop this filter once SQL feature branch merges
-  // to sql/main and remote snapshots catch up.
-  mavenLocal {
-    mavenContent { includeGroup 'org.opensearch.query' }
-  }
+  mavenLocal()
   maven {
     name = 'OpenSearch Snapshots'
     url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
-    mavenContent { excludeGroup 'org.opensearch.query' }
   }
 }
 
