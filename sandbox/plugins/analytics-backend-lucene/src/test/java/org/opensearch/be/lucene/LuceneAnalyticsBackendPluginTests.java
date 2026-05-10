@@ -264,7 +264,7 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
 
         @Override
         public ExchangeSinkProvider getExchangeSinkProvider() {
-            return context -> null;
+            return (context, backendContext) -> null;
         }
 
         @Override
