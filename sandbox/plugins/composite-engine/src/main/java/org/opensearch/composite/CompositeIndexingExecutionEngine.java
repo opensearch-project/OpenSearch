@@ -36,7 +36,6 @@ import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -46,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A composite {@link IndexingExecutionEngine} that orchestrates indexing across
@@ -220,6 +218,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             merged.add(builder.build());
         }
 
+        // Multi-format atomicity: each segment must have files from all configured formats
+        assert merged.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
+            : "refresh result segments must contain all configured formats";
         return new RefreshResult(merged);
     }
 
@@ -350,17 +351,22 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             {
                 Map<DataFormat, IndexStoreProvider> tempProviders = new HashMap<>();
                 tempProviders.put(primaryEngine.getDataFormat(), primaryEngine.getProvider());
-                tempProviders.putAll(
-                    secondaryEngines.stream()
-                        .map(eng -> new AbstractMap.SimpleEntry<>(eng.getDataFormat(), eng.getProvider()))
-                        .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue))
-                );
+                if (primaryEngine.getProvider() == null) {
+                    logger.debug("IndexStoreProvider is null for primary engine [{}]", primaryEngine.getDataFormat().name());
+                }
+                for (IndexingExecutionEngine<?, ?> eng : secondaryEngines) {
+                    tempProviders.put(eng.getDataFormat(), eng.getProvider());
+                    if (eng.getProvider() == null) {
+                        logger.debug("IndexStoreProvider is null for secondary engine [{}]", eng.getDataFormat().name());
+                    }
+                }
                 providers = tempProviders;
             }
 
             @Override
             public FormatStore getStore(DataFormat dataFormat) {
-                return providers.get(dataFormat).getStore(dataFormat);
+                IndexStoreProvider provider = providers.get(dataFormat);
+                return provider != null ? provider.getStore(dataFormat) : null;
             }
         };
     }

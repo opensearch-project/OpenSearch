@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.commit;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -78,4 +79,14 @@ public interface Committer extends CommitFileManager, Closeable {
      * @throws IOException if reading commits fails
      */
     List<CatalogSnapshot> listCommittedSnapshots() throws IOException;
+
+    /**
+     * Returns the tragic exception that has occurred in the backing store, if any.
+     *
+     * @return the tragic exception, or null if none
+     */
+    @Nullable
+    default Exception getTragicException() {
+        return null;
+    }
 }

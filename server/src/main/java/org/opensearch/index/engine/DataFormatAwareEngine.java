@@ -18,6 +18,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
@@ -35,6 +36,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushAndCloseWriterException;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
@@ -62,6 +64,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -95,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -175,6 +179,9 @@ public class DataFormatAwareEngine implements Indexer {
 
     // Refresh tracker
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
+
+    // Segments from retired writers awaiting incorporation into the next refresh
+    private final ConcurrentLinkedQueue<Segment> pendingRetiredSegments = new ConcurrentLinkedQueue<>();
 
     // Merge
     private final MergeScheduler mergeScheduler;
@@ -273,18 +280,23 @@ public class DataFormatAwareEngine implements Indexer {
             );
             long maxGenFromCommit = 0L;
             try {
-                List<CatalogSnapshot> initSnapshots = committer.listCommittedSnapshots();
-                if (initSnapshots.isEmpty() == false) {
-                    for (Segment seg : initSnapshots.getLast().getSegments()) {
+                Map<String, String> commitUserData = store.readLastCommittedSegmentsInfo().getUserData();
+                String snapshotData = commitUserData.get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+                if (snapshotData != null) {
+                    DataformatAwareCatalogSnapshot committed = DataformatAwareCatalogSnapshot.deserializeFromString(
+                        snapshotData,
+                        java.util.function.Function.identity()
+                    );
+                    for (Segment seg : committed.getSegments()) {
                         maxGenFromCommit = Math.max(maxGenFromCommit, seg.generation());
                     }
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 // Fall back to 0 on error
             }
-            this.writerGenerationCounter = new AtomicLong(maxGenFromCommit);
+            this.writerGenerationCounter = new AtomicLong(maxGenFromCommit + 1);
             this.writerPool = new LockablePool<>(() -> {
-                long gen = writerGenerationCounter.incrementAndGet();
+                long gen = writerGenerationCounter.getAndIncrement();
                 assert gen > 0 : "writer generation must be positive but was: " + gen;
                 return DefaultLockableHolder.of(new RowIdAwareWriter<>(indexingExecutionEngine.createWriter(gen)));
             }, LinkedList::new, Runtime.getRuntime().availableProcessors());
@@ -482,8 +494,9 @@ public class DataFormatAwareEngine implements Indexer {
     @Override
     public Engine.IndexResult index(Engine.Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
-        assert (index.origin() == Engine.Operation.Origin.PRIMARY || index.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY)
-            : "DataFormatAwareEngine only supports PRIMARY origin but got: " + index.origin();
+        assert (index.origin() == Engine.Operation.Origin.PRIMARY || index.origin() == Engine.Operation.Origin.REPLICA
+            || index.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY)
+            : "DataFormatAwareEngine only supports PRIMARY/REPLICA origin but got: " + index.origin();
         final boolean doThrottle = index.origin().isRecovery() == false;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -558,10 +571,11 @@ public class DataFormatAwareEngine implements Indexer {
         assert index.primaryTerm() > 0 : "primary term must be positive but was: " + index.primaryTerm();
 
         // Convert ParsedDocument to DocumentInput and write via the execution engine's writer
-        Writer currentWriter = null;
-        DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock();
+        DefaultLockableHolder<Writer<?>> lockedWriter = null;
+        boolean writerCheckedOut = false;
         try {
-            currentWriter = lockedWriter.get();
+            lockedWriter = writerPool.getAndLock();
+            Writer currentWriter = lockedWriter.get();
             // Writer pool must never return null — it creates on demand via the supplier
             assert currentWriter != null : "writer pool returned null writer";
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
@@ -578,12 +592,48 @@ public class DataFormatAwareEngine implements Indexer {
                     + "]";
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;
+                // Three cases for write failure:
+                // 1. Aborted: writer state inconsistent (rollback failed) — retire without flush
+                // 2. FlushAndCloseWriterException: rollback succeeded — flush N-1 consistent docs, then retire
+                // 3. Other: primary engine failed, writer still usable — leave in pool
+                boolean retireWriter = currentWriter.isAborted() || f.cause() instanceof FlushAndCloseWriterException;
+                if (retireWriter) {
+                    writerPool.checkout(lockedWriter);
+                    writerCheckedOut = true;
+                    try {
+                        if (currentWriter.isAborted() == false) {
+                            FileInfos retiredFileInfos = currentWriter.flush();
+                            Segment.Builder segBuilder = Segment.builder(currentWriter.generation());
+                            boolean hasFiles = false;
+                            for (Map.Entry<DataFormat, WriterFileSet> entry : retiredFileInfos.writerFilesMap().entrySet()) {
+                                segBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
+                                hasFiles = true;
+                            }
+                            if (hasFiles) {
+                                Segment retiredSegment = segBuilder.build();
+                                assert retiredSegment.generation() == currentWriter.generation()
+                                    : "retired segment generation must match writer generation";
+                                pendingRetiredSegments.add(retiredSegment);
+                            }
+                        }
+                    } finally {
+                        lockedWriter.unlock();
+                        IOUtils.closeWhileHandlingException(currentWriter);
+                    }
+                    assert writerPool.isRegistered(lockedWriter) == false : "retired writer must not be in pool";
+                }
+                if (treatDocumentFailureAsTragicError(index)) {
+                    failEngine("document failure on replica (id: " + index.id() + ")", f.cause());
+                }
                 indexResult = new Engine.IndexResult(f.cause(), plan.version, index.primaryTerm(), index.seqNo());
             }
         } catch (Exception e) {
+            if (treatDocumentFailureAsTragicError(index)) {
+                failEngine("document failure on replica (id: " + index.id() + ")", e);
+            }
             indexResult = new Engine.IndexResult(e, plan.version, index.primaryTerm(), index.seqNo());
         } finally {
-            if (currentWriter != null) {
+            if (lockedWriter != null && writerCheckedOut == false && failedEngine.get() == null) {
                 writerPool.releaseAndUnlock(lockedWriter);
             }
         }
@@ -595,8 +645,8 @@ public class DataFormatAwareEngine implements Indexer {
             } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
                 && indexResult.getFailure() != null
                 && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
-                    throw new UnsupportedOperationException(
-                        "recording document failure as a no-op in translog is not " + "supported for Data format engine"
+                    location = translogManager.add(
+                        new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().toString())
                     );
                 } else {
                     location = null;
@@ -612,6 +662,7 @@ public class DataFormatAwareEngine implements Indexer {
             : "translog-origin op should not have a translog location";
 
         // Track the sequence number
+        assert indexResult.getSeqNo() >= 0 : "indexResult must have assigned seqNo but was: " + indexResult.getSeqNo();
         localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
         if (indexResult.getTranslogLocation() == null) {
             localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
@@ -741,6 +792,13 @@ public class DataFormatAwareEngine implements Indexer {
                         List<Segment> existingSegments = catalogSnapshot.get().getSegments();
                         List<Segment> newSegments = new ArrayList<>();
 
+                        // Drain segments from retired writers (flushed during failure handling)
+                        Segment retiredSeg;
+                        while ((retiredSeg = pendingRetiredSegments.poll()) != null) {
+                            newSegments.add(retiredSeg);
+                            refreshed = true;
+                        }
+
                         for (var lockable : writers) {
                             Writer<?> writer = lockable.get();
                             FileInfos fileInfos = writer.flush();
@@ -766,15 +824,13 @@ public class DataFormatAwareEngine implements Indexer {
                         // Every new segment must contain files from at least one data format
                         assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().isEmpty() == false)
                             : "new segments must have at least one format's files";
+                        // Multi-format invariant: no segment generation may appear more than once in the combined list
+                        assert newSegments.stream().map(Segment::generation).distinct().count() == newSegments.size()
+                            : "duplicate segment generations in new segments";
 
                         // No two new segments may share the same generation
                         assert newSegments.stream().map(Segment::generation).distinct().count() == newSegments.size()
                             : "new segments must have unique generations";
-
-                        // New segment generations must not collide with existing segment generations
-                        assert newSegments.stream()
-                            .noneMatch(ns -> existingSegments.stream().anyMatch(es -> es.generation() == ns.generation()))
-                            : "new segment generation collides with an existing segment generation";
 
                         // refresh only if new segments have been created or force param is true
                         notifyRefreshListenersBefore();
@@ -907,6 +963,7 @@ public class DataFormatAwareEngine implements Indexer {
                 failOnTragicEvent(e);
                 throw e;
             } catch (Exception e) {
+                maybeFailEngine("flush", e);
                 throw new FlushFailedEngineException(shardId, e);
             } finally {
                 flushLock.unlock();
@@ -1307,6 +1364,23 @@ public class DataFormatAwareEngine implements Indexer {
                     assert isClosed.get() : "engine must be closed after failEngine";
                 } finally {
                     logger.warn(() -> new ParameterizedMessage("failed engine [{}]", reason), failure);
+                    // Mark store as corrupted before notifying listeners (same as Engine.java)
+                    if (failure != null && Lucene.isCorruptionException(failure)) {
+                        if (store.tryIncRef()) {
+                            try {
+                                store.markStoreCorrupted(
+                                    new IOException(
+                                        "failed engine (reason: [" + reason + "])",
+                                        org.opensearch.ExceptionsHelper.unwrapCorruption(failure)
+                                    )
+                                );
+                            } catch (IOException e) {
+                                logger.warn("Couldn't mark store corrupted", e);
+                            } finally {
+                                store.decRef();
+                            }
+                        }
+                    }
                     engineConfig.getEventListener().onFailedEngine(reason, failure);
                 }
             } catch (Exception inner) {
@@ -1318,6 +1392,14 @@ public class DataFormatAwareEngine implements Indexer {
         } else {
             logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock [{}]", reason), failure);
         }
+    }
+
+    /**
+     * Returns true if a document-level failure should be treated as a tragic error.
+     * On replicas, document failures are fatal because the primary already accepted the doc.
+     */
+    private boolean treatDocumentFailureAsTragicError(Engine.Index index) {
+        return index.origin() != Engine.Operation.Origin.PRIMARY;
     }
 
     /**
@@ -1431,6 +1513,8 @@ public class DataFormatAwareEngine implements Indexer {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently failing";
             try {
+                // Discard any pending retired segments not yet picked up by refresh
+                pendingRetiredSegments.clear();
                 // Close all writers still in the pool (unflushed writers from the current cycle)
                 for (var holder : writerPool.checkoutAll()) {
                     IOUtils.closeWhileHandlingException(holder.get());
@@ -1477,6 +1561,11 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
+        final Exception committerTragic = committer.getTragicException();
+        if (committerTragic != null) {
+            failEngine("already closed by tragic event on committer", committerTragic);
+            return true;
+        }
         if (translogManager.getTragicExceptionIfClosed() != null) {
             failEngine("already closed by tragic event on the translog", translogManager.getTragicExceptionIfClosed());
             return true;
@@ -1487,7 +1576,10 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private boolean maybeFailEngine(String source, Exception e) {
-        if (e instanceof AlreadyClosedException) {
+        if (Lucene.isCorruptionException(e)) {
+            failEngine("corrupt file (source: [" + source + "])", e);
+            return true;
+        } else if (e instanceof AlreadyClosedException) {
             return failOnTragicEvent((AlreadyClosedException) e);
         } else if (e != null && translogManager.getTragicExceptionIfClosed() == e) {
             failEngine(source, e);
@@ -1578,4 +1670,39 @@ public class DataFormatAwareEngine implements Indexer {
         }
     }
 
+    // -- Visible for testing --
+
+    /** Returns the writers in the pool. Visible for testing only. */
+    Iterable<Writer<?>> getWriterPool() {
+        List<Writer<?>> writers = new ArrayList<>();
+        for (DefaultLockableHolder<Writer<?>> holder : writerPool) {
+            writers.add(holder.get());
+        }
+        return writers;
+    }
+
+    /** Returns whether the writer is registered in the pool. Visible for testing only. */
+    boolean isWriterRegistered(Writer<?> writer) {
+        for (DefaultLockableHolder<Writer<?>> holder : writerPool) {
+            if (holder.get() == writer) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Returns the indexing execution engine. Visible for testing only. */
+    IndexingExecutionEngine<?, ?> getIndexingExecutionEngine() {
+        return indexingExecutionEngine;
+    }
+
+    /** Returns the failed engine exception, or null. Visible for testing only. */
+    Exception getFailedEngine() {
+        return failedEngine.get();
+    }
+
+    /** Returns the store. Visible for testing only. */
+    Store getStore() {
+        return store;
+    }
 }

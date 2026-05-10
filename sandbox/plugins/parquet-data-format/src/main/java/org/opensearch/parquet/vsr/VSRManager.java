@@ -271,6 +271,20 @@ public class VSRManager implements AutoCloseable {
         }
     }
 
+    /**
+     * Rolls back the last document added to the active VSR by decrementing the row count.
+     * The Arrow vector slot still contains data but will be overwritten or excluded on flush.
+     *
+     * @throws IllegalStateException if no active VSR exists or no documents have been added
+     */
+    public void rollbackLastDoc() {
+        ManagedVSR activeVSR = managedVSR.get();
+        if (activeVSR == null || activeVSR.getRowCount() == 0) {
+            throw new IllegalStateException("Cannot rollback: no documents have been added");
+        }
+        activeVSR.setRowCount(activeVSR.getRowCount() - 1);
+    }
+
     // Visible for testing only
     ManagedVSR getActiveManagedVSR() {
         return managedVSR.get();

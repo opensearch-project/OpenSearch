@@ -17,7 +17,9 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * A mock {@link Writer} for testing purposes.
@@ -28,6 +30,26 @@ public class MockWriter implements Writer<MockDocumentInput> {
     private final Path directory;
     private final List<MockDocumentInput> docs = new ArrayList<>();
     private final AtomicLong seqNo;
+    private Supplier<WriteResult> writeResultSupplier;
+    private boolean aborted;
+    private final AtomicInteger addDocCallCount = new AtomicInteger();
+
+    public void setWriteResultSupplier(Supplier<WriteResult> supplier) {
+        this.writeResultSupplier = supplier;
+    }
+
+    public void setAborted(boolean aborted) {
+        this.aborted = aborted;
+    }
+
+    @Override
+    public boolean isAborted() {
+        return aborted;
+    }
+
+    public int getAddDocCallCount() {
+        return addDocCallCount.get();
+    }
 
     public MockWriter(long writerGeneration, DataFormat dataFormat, Path directory, AtomicLong seqNo) {
         this.writerGeneration = writerGeneration;
@@ -38,6 +60,10 @@ public class MockWriter implements Writer<MockDocumentInput> {
 
     @Override
     public WriteResult addDoc(MockDocumentInput d) {
+        addDocCallCount.incrementAndGet();
+        if (writeResultSupplier != null) {
+            return writeResultSupplier.get();
+        }
         docs.add(d);
         long seq = seqNo.getAndIncrement();
         return new WriteResult.Success(1L, 1L, seq);
