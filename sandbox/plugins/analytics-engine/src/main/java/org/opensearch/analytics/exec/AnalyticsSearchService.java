@@ -9,6 +9,13 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.VectorUnloader;
+import org.apache.arrow.vector.ipc.WriteChannel;
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
+import org.apache.arrow.vector.ipc.message.IpcOption;
+import org.apache.arrow.vector.ipc.message.MessageSerializer;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
@@ -34,7 +41,9 @@ import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.tasks.Task;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.channels.Channels;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -98,7 +107,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         try (FragmentResources ctx = startFragment(request, resolved, shard, task)) {
             FragmentExecutionResponse response = collectResponse(ctx.stream(), task);
             long tookNanos = System.nanoTime() - startNanos;
-            listener.onFragmentSuccess(resolved.queryId, resolved.stageId, resolved.shardIdStr, tookNanos, response.getRows().size());
+            listener.onFragmentSuccess(resolved.queryId, resolved.stageId, resolved.shardIdStr, tookNanos, response.getRowCount());
             return response;
         } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
@@ -230,29 +239,42 @@ public class AnalyticsSearchService implements AutoCloseable {
     }
 
     FragmentExecutionResponse collectResponse(EngineResultStream stream, @Nullable AnalyticsShardTask task) {
-        List<Object[]> rows = new ArrayList<>();
-        List<String> fieldNames = null;
+        // Serialize incoming Arrow batches as an Arrow IPC stream: one schema header
+        // followed by one record-batch message per incoming batch. Arrow's own
+        // serializer handles every Arrow type — no per-type Java code path.
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        WriteChannel channel = new WriteChannel(Channels.newChannel(baos));
+        Schema schema = null;
+        int totalRows = 0;
         Iterator<EngineResultBatch> it = stream.iterator();
-        while (it.hasNext()) {
-            if (task != null && task.isCancelled()) {
-                throw new TaskCancelledException("task cancelled: " + task.getReasonCancelled());
-            }
-            EngineResultBatch batch = it.next();
-            try {
-                if (fieldNames == null) {
-                    fieldNames = batch.getFieldNames();
+        try {
+            while (it.hasNext()) {
+                if (task != null && task.isCancelled()) {
+                    throw new TaskCancelledException("task cancelled: " + task.getReasonCancelled());
                 }
-                for (int row = 0; row < batch.getRowCount(); row++) {
-                    Object[] vals = new Object[fieldNames.size()];
-                    for (int col = 0; col < fieldNames.size(); col++) {
-                        vals[col] = batch.getFieldValue(fieldNames.get(col), row);
+                EngineResultBatch batch = it.next();
+                VectorSchemaRoot root = batch.getArrowRoot();
+                try {
+                    if (schema == null) {
+                        schema = root.getSchema();
+                        MessageSerializer.serialize(channel, schema);
                     }
-                    rows.add(vals);
+                    try (ArrowRecordBatch recordBatch = new VectorUnloader(root).getRecordBatch()) {
+                        MessageSerializer.serialize(channel, recordBatch);
+                    }
+                    totalRows += root.getRowCount();
+                } finally {
+                    root.close();
                 }
-            } finally {
-                batch.getArrowRoot().close();
             }
+            if (schema != null) {
+                // Write the end-of-stream marker so the reader sees a clean EOS
+                // instead of hitting end-of-input mid-message.
+                org.apache.arrow.vector.ipc.ArrowStreamWriter.writeEndOfStream(channel, IpcOption.DEFAULT);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to serialize fragment output as Arrow IPC stream", e);
         }
-        return new FragmentExecutionResponse(fieldNames != null ? fieldNames : List.of(), rows);
+        return new FragmentExecutionResponse(baos.toByteArray(), totalRows);
     }
 }

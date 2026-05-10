@@ -13,63 +13,61 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Transport response carrying field names and result rows from a shard
- * fragment execution.
+ * Transport response carrying the output of a shard fragment execution as an
+ * Arrow IPC stream payload (schema header + zero or more record-batch messages,
+ * produced by {@link org.apache.arrow.vector.ipc.ArrowStreamWriter}).
  *
- * <p>Each cell value is serialized via {@link StreamOutput#writeGenericValue(Object)} /
- * {@link StreamInput#readGenericValue()}, which handle common Java types
- * (String, Long, Double, Integer, null, byte[], etc.).
+ * <p>Arrow IPC handles every Arrow type natively (temporal, string-view,
+ * dictionary, nested) without hand-rolled per-type serialization. Previously,
+ * this response carried {@code List<Object[]>} rows and relied on
+ * {@code StreamOutput.writeGenericValue} — which does not support Java 8+
+ * temporal types like {@link java.time.LocalDateTime} and so failed the moment
+ * a shard emitted a batch with a Timestamp column.
  *
- * <p>Wire format: {@code fieldNames (string list) + rowCount (vint) + per-row (colCount (vint) + cells)}.
+ * <p>Wire format: {@code ipcPayload (byte[]) + rowCount (vint)}. The row count
+ * is the total across all batches in the payload, cached for metrics / logging
+ * so consumers don't have to decode the payload just to report "N rows handled".
  *
  * @opensearch.internal
  */
 public class FragmentExecutionResponse extends ActionResponse {
 
-    private final List<String> fieldNames;
-    private final List<Object[]> rows;
+    private final byte[] ipcPayload;
+    private final int rowCount;
 
-    public FragmentExecutionResponse(List<String> fieldNames, List<Object[]> rows) {
-        this.fieldNames = fieldNames;
-        this.rows = rows;
+    public FragmentExecutionResponse(byte[] ipcPayload, int rowCount) {
+        this.ipcPayload = ipcPayload;
+        this.rowCount = rowCount;
     }
 
     public FragmentExecutionResponse(StreamInput in) throws IOException {
         super(in);
-        this.fieldNames = in.readStringList();
-        int rowCount = in.readVInt();
-        this.rows = new ArrayList<>(rowCount);
-        for (int r = 0; r < rowCount; r++) {
-            int colCount = in.readVInt();
-            Object[] row = new Object[colCount];
-            for (int c = 0; c < colCount; c++) {
-                row[c] = in.readGenericValue();
-            }
-            rows.add(row);
-        }
+        this.ipcPayload = in.readByteArray();
+        this.rowCount = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringCollection(fieldNames);
-        out.writeVInt(rows.size());
-        for (Object[] row : rows) {
-            out.writeVInt(row.length);
-            for (Object cell : row) {
-                out.writeGenericValue(cell);
-            }
-        }
+        out.writeByteArray(ipcPayload);
+        out.writeVInt(rowCount);
     }
 
-    public List<String> getFieldNames() {
-        return fieldNames;
+    /**
+     * Arrow IPC stream bytes — a schema message followed by zero or more record
+     * batch messages, as written by {@link org.apache.arrow.vector.ipc.ArrowStreamWriter}.
+     * An empty array means the fragment produced no output at all (no schema,
+     * no rows).
+     */
+    public byte[] getIpcPayload() {
+        return ipcPayload;
     }
 
-    public List<Object[]> getRows() {
-        return rows;
+    /**
+     * Total number of rows across all batches in {@link #getIpcPayload()}.
+     */
+    public int getRowCount() {
+        return rowCount;
     }
 }
