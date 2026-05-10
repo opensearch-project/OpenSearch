@@ -34,6 +34,10 @@ public class SearchShardTaskSettings {
         private static final double HEAP_PERCENT_THRESHOLD = 0.005;
         private static final double HEAP_VARIANCE_THRESHOLD = 2.0;
         private static final int HEAP_MOVING_AVERAGE_WINDOW_SIZE = 100;
+        // See SearchTaskSettings.Defaults for rationale: 0 keeps the native-memory tracker
+        // inert until an operator or backend plugin opts in by setting a non-zero threshold.
+        private static final long TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD = 0L;
+        private static final long NATIVE_MEMORY_BYTES_THRESHOLD = 0L;
     }
 
     /**
@@ -161,6 +165,33 @@ public class SearchShardTaskSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Defines the native-memory threshold (in bytes) for the sum of native-memory usages across
+     * all search shard tasks before in-flight cancellation is applied. {@code 0} disables the
+     * check.
+     */
+    private volatile long totalNativeMemoryBytesThreshold;
+    public static final Setting<Long> SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD = Setting.longSetting(
+        "search_backpressure.search_shard_task.total_native_memory_bytes_threshold",
+        Defaults.TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD,
+        0L,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the native-memory threshold (in bytes) for an individual search shard task before
+     * it is considered for cancellation. {@code 0} disables the check.
+     */
+    private volatile long nativeMemoryBytesThreshold;
+    public static final Setting<Long> SETTING_NATIVE_MEMORY_BYTES_THRESHOLD = Setting.longSetting(
+        "search_backpressure.search_shard_task.native_memory_bytes_threshold",
+        Defaults.NATIVE_MEMORY_BYTES_THRESHOLD,
+        0L,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public SearchShardTaskSettings(Settings settings, ClusterSettings clusterSettings) {
         totalHeapPercentThreshold = SETTING_TOTAL_HEAP_PERCENT_THRESHOLD.get(settings);
         this.cpuTimeMillisThreshold = SETTING_CPU_TIME_MILLIS_THRESHOLD.get(settings);
@@ -171,6 +202,8 @@ public class SearchShardTaskSettings {
         this.cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
         this.cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
         this.cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
+        this.totalNativeMemoryBytesThreshold = SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD.get(settings);
+        this.nativeMemoryBytesThreshold = SETTING_NATIVE_MEMORY_BYTES_THRESHOLD.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_HEAP_PERCENT_THRESHOLD, this::setTotalHeapPercentThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CPU_TIME_MILLIS_THRESHOLD, this::setCpuTimeMillisThreshold);
@@ -181,6 +214,8 @@ public class SearchShardTaskSettings {
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, this::setCancellationRatio);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE, this::setCancellationRate);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, this::setCancellationBurst);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD, this::setTotalNativeMemoryBytesThreshold);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_NATIVE_MEMORY_BYTES_THRESHOLD, this::setNativeMemoryBytesThreshold);
     }
 
     public double getTotalHeapPercentThreshold() {
@@ -229,6 +264,22 @@ public class SearchShardTaskSettings {
 
     public void setHeapMovingAverageWindowSize(int heapMovingAverageWindowSize) {
         this.heapMovingAverageWindowSize = heapMovingAverageWindowSize;
+    }
+
+    public long getTotalNativeMemoryBytesThreshold() {
+        return totalNativeMemoryBytesThreshold;
+    }
+
+    private void setTotalNativeMemoryBytesThreshold(long totalNativeMemoryBytesThreshold) {
+        this.totalNativeMemoryBytesThreshold = totalNativeMemoryBytesThreshold;
+    }
+
+    public long getNativeMemoryBytesThreshold() {
+        return nativeMemoryBytesThreshold;
+    }
+
+    private void setNativeMemoryBytesThreshold(long nativeMemoryBytesThreshold) {
+        this.nativeMemoryBytesThreshold = nativeMemoryBytesThreshold;
     }
 
     public double getCancellationRatio() {

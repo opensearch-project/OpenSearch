@@ -725,6 +725,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,
                 NodeDuressSettings.SETTING_HEAP_THRESHOLD,
+                NodeDuressSettings.SETTING_NATIVE_MEMORY_THRESHOLD,
                 SearchTaskSettings.SETTING_CANCELLATION_RATIO,
                 SearchTaskSettings.SETTING_CANCELLATION_RATE,
                 SearchTaskSettings.SETTING_CANCELLATION_BURST,
@@ -734,6 +735,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
                 SearchTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
                 SearchTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchTaskSettings.SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD,
+                SearchTaskSettings.SETTING_NATIVE_MEMORY_BYTES_THRESHOLD,
                 SearchShardTaskSettings.SETTING_CANCELLATION_RATIO,
                 SearchShardTaskSettings.SETTING_CANCELLATION_RATE,
                 SearchShardTaskSettings.SETTING_CANCELLATION_BURST,
@@ -743,6 +746,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
                 SearchShardTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
                 SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD,
+                SearchShardTaskSettings.SETTING_NATIVE_MEMORY_BYTES_THRESHOLD,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,  // deprecated
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATE,   // deprecated
                 SearchBackpressureSettings.SETTING_CANCELLATION_BURST,   // deprecated

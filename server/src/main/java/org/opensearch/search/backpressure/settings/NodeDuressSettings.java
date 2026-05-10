@@ -22,6 +22,10 @@ public class NodeDuressSettings {
         private static final int NUM_SUCCESSIVE_BREACHES = 3;
         private static final double CPU_THRESHOLD = 0.9;
         private static final double HEAP_THRESHOLD = 0.7;
+        // Trip native-memory duress when (totalPhysical - memAvailable) / totalPhysical
+        // exceeds this fraction. Default 0.85 — tighter than HEAP_THRESHOLD because
+        // native allocations bypass GC and hit the OS scheduler directly.
+        private static final double NATIVE_MEMORY_THRESHOLD = 0.85;
     }
 
     /**
@@ -62,6 +66,27 @@ public class NodeDuressSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Defines the physical-memory usage threshold (as a fraction of total physical memory) above
+     * which a node is considered "in duress" for native memory. The probe computes used bytes as
+     * {@code totalPhysicalMemory - memAvailableFromProcMeminfo} and compares
+     * {@code used / totalPhysicalMemory} against this threshold; when the comparison holds for
+     * {@link #numSuccessiveBreaches} consecutive observations the node is marked in duress.
+     *
+     * <p>This gate is independent of heap duress: backends that manage memory outside the JVM
+     * heap (e.g. DataFusion's memory pool) can cancel search tasks when physical RAM is tight
+     * even if the heap itself is nowhere near its threshold.
+     */
+    private volatile double nativeMemoryThreshold;
+    public static final Setting<Double> SETTING_NATIVE_MEMORY_THRESHOLD = Setting.doubleSetting(
+        "search_backpressure.node_duress.native_memory_threshold",
+        Defaults.NATIVE_MEMORY_THRESHOLD,
+        0.0,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public NodeDuressSettings(Settings settings, ClusterSettings clusterSettings) {
         numSuccessiveBreaches = SETTING_NUM_SUCCESSIVE_BREACHES.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SETTING_NUM_SUCCESSIVE_BREACHES, this::setNumSuccessiveBreaches);
@@ -71,6 +96,9 @@ public class NodeDuressSettings {
 
         heapThreshold = SETTING_HEAP_THRESHOLD.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SETTING_HEAP_THRESHOLD, this::setHeapThreshold);
+
+        nativeMemoryThreshold = SETTING_NATIVE_MEMORY_THRESHOLD.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_NATIVE_MEMORY_THRESHOLD, this::setNativeMemoryThreshold);
     }
 
     public int getNumSuccessiveBreaches() {
@@ -95,5 +123,13 @@ public class NodeDuressSettings {
 
     private void setHeapThreshold(double heapThreshold) {
         this.heapThreshold = heapThreshold;
+    }
+
+    public double getNativeMemoryThreshold() {
+        return nativeMemoryThreshold;
+    }
+
+    private void setNativeMemoryThreshold(double nativeMemoryThreshold) {
+        this.nativeMemoryThreshold = nativeMemoryThreshold;
     }
 }
