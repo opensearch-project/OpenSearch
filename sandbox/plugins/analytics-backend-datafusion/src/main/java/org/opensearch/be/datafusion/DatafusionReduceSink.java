@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
+import org.apache.arrow.c.CDataDictionaryProvider;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
@@ -17,6 +18,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ViewVarCharVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,8 +28,12 @@ import org.opensearch.analytics.spi.MultiInputExchangeSink;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -88,6 +94,13 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     private final Thread drainThread;
     /** Captures any throwable from the drain thread for surfacing during close(). */
     private final AtomicReference<Throwable> drainFailure = new AtomicReference<>();
+    /**
+     * Signalled by the drain thread each time it (re-)enters the blocking
+     * {@code streamNext} call. Used by {@link #closeUnderLock()} to detect that all
+     * previously-available output has been consumed before closing the next sender.
+     * Starts with 0 permits; the drain loop releases one permit before each poll.
+     */
+    private final Semaphore drainEnteredPoll = new Semaphore(0);
 
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         this(ctx, runtimeHandle, null);
@@ -149,13 +162,41 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     /**
      * Drain loop body. Runs on {@link #drainThread} from sink construction until the
      * FINAL plan reaches EOF (which only happens after every sender is closed).
+     *
+     * <p>Signals {@link #drainEnteredPoll} before each blocking {@code streamNext} call
+     * so that {@link #closeUnderLock()} can detect that all previously-available output
+     * has been fully consumed.
      */
     private void drainLoop() {
         try {
-            drainOutputIntoDownstream(outStream);
+            drainOutputIntoDownstreamWithSignal(outStream);
         } catch (Throwable t) {
             drainFailure.set(t);
             logger.warn("[ReduceSink] drain thread terminated with error", t);
+        }
+    }
+
+    private void drainOutputIntoDownstreamWithSignal(StreamHandle stream) {
+        BufferAllocator alloc = ctx.allocator();
+        try (CDataDictionaryProvider dictProvider = new CDataDictionaryProvider()) {
+            long schemaAddr = asyncCall(listener -> NativeBridge.streamGetSchema(stream.getPointer(), listener));
+            Schema outSchema;
+            try (ArrowSchema arrowSchema = ArrowSchema.wrap(schemaAddr)) {
+                Field structField = Data.importField(alloc, arrowSchema, dictProvider);
+                outSchema = new Schema(structField.getChildren(), structField.getMetadata());
+            }
+            while (true) {
+                drainEnteredPoll.release();
+                long arrayAddr = asyncCall(listener -> NativeBridge.streamNext(runtimeHandle.get(), stream.getPointer(), listener));
+                if (arrayAddr == 0) {
+                    break;
+                }
+                VectorSchemaRoot vsr = VectorSchemaRoot.create(outSchema, alloc);
+                try (ArrowArray arrowArray = ArrowArray.wrap(arrayAddr)) {
+                    Data.importIntoVectorSchemaRoot(alloc, arrowArray, vsr, dictProvider);
+                }
+                ctx.downstream().feed(vsr);
+            }
         }
     }
 
@@ -343,15 +384,37 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     @Override
     protected Throwable closeUnderLock() {
         Throwable failure = null;
-        // 1. Signal EOF on every still-open sender. The drain thread, which is already
-        // polling the output stream, will receive the final batches and then EOF, then
-        // exit cleanly. Senders that were already closed by their ChildSink wrapper are
-        // no-ops (the underlying senderClose is idempotent on the Rust side).
-        for (DatafusionPartitionSender sender : sendersByChildStageId.values()) {
+        // 1. Close senders sequentially. For appendpipe (UnionExec), the native plan is
+        //    CoalescePartitions → UnionExec(SortExec(input-0), SortExec(input-1)).
+        //    CoalescePartitionsExec polls all partitions concurrently and emits whichever
+        //    completes first — no ordering guarantee. To ensure branch 0 (original data)
+        //    appears before branch 1 (appended results), we close sender-0, wait for the
+        //    drain thread to consume all of branch 0's output (it will block on the next
+        //    streamNext since branch 1's Sort is still waiting for EOF), THEN close
+        //    sender-1. This serialises output regardless of tokio scheduling.
+        //
+        //    For single-sender cases this degenerates to a single close (no wait needed).
+        List<DatafusionPartitionSender> senders = new ArrayList<>(sendersByChildStageId.values());
+        for (int i = 0; i < senders.size(); i++) {
             try {
-                sender.close();
+                // Drain any stale permits accumulated before this close sequence.
+                drainEnteredPoll.drainPermits();
+                senders.get(i).close();
             } catch (Throwable t) {
                 failure = accumulate(failure, t);
+            }
+            // After closing sender i (except the last), wait for the drain thread to
+            // re-enter streamNext — meaning all output from branch i has been consumed
+            // and the plan is now blocked waiting for branch i+1's data.
+            if (i < senders.size() - 1) {
+                try {
+                    if (!drainEnteredPoll.tryAcquire(30, TimeUnit.SECONDS)) {
+                        logger.warn("[ReduceSink] timed out waiting for branch {} drain; proceeding", i);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    failure = accumulate(failure, e);
+                }
             }
         }
         // 2. Wait for the drain thread to finish processing remaining output.
