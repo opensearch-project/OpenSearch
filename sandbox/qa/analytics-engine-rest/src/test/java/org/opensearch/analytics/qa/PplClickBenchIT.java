@@ -42,8 +42,22 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
     //  - WHERE + GROUP-BY + aggregate on multi-shard triggers Arrow "project index 0
     //    out of bounds, max field 0": Q11, Q12, Q13, Q14, Q15, Q22, Q23, Q31, Q32;
     //    plus Q20 (WHERE + fields, no aggregate, still routed through multi-shard path).
+    // DEBUG: temporarily un-skip the multi-shard-only failures to see if they
+    // pass on single-shard (where the split rule doesn't fire and no exchange
+    // traffic / no native-side aggregate reduce is exercised).
+    // Queries skipped:
+    //  - Missing feature: Q19 (extract(minute from …)), Q40 (case() else + head N from M),
+    //    Q43 (date_format() + head N from M).
+    //  - Substrait emit can't find a MIN binding for VARCHAR inputs (isthmus library):
+    //    Q29 (min(Referer) where Referer is text). Needs a min(string) binding in
+    //    the aggregate function catalog or an equivalent adapter.
+    //  - Multi-shard: aggregates / projections on TIMESTAMP/DATE fields hit a DataFusion
+    //    'Panic: primitive array' in streamNext — shard-side partial emits a timestamp
+    //    encoding that the coordinator's Arrow kernel doesn't accept. Covered by the
+    //    upcoming force_output_schema / per-aggregate state-coercion wrapper on the Rust
+    //    side (§14.5 of the design doc). Queries: Q7, Q24-Q27, Q37-Q42.
     private static final Set<Integer> SKIP_QUERIES = Set.of(
-        7, 11, 12, 13, 14, 15, 19, 20, 22, 23, 24, 25, 26, 27, 29, 31, 32, 37, 38, 39, 40, 41, 42, 43
+        7, 19, 24, 25, 26, 27, 29, 37, 38, 39, 40, 41, 42, 43
     );
 
     private static boolean dataProvisioned = false;

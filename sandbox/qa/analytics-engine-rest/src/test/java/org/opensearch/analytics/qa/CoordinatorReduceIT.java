@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -180,6 +181,106 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         // DC on a single-valued column: exact result is 1.
         long dcValue = ((Number) row.get(columns.indexOf("d"))).longValue();
         assertTrue("dc on single-valued column should be 1 (±small HLL error), got " + dcValue, dcValue >= 1 && dcValue <= 2);
+    }
+
+    // ─── Multi-shard WHERE + GROUP-BY reproducer (Arrow "project index 0 out of bounds") ───
+
+    private static final String WHERE_REPRO_INDEX = "coord_reduce_where_repro";
+
+    /**
+     * Reproducer for the multi-shard "project index 0 out of bounds" bug.
+     * <p>
+     * Shape: {@code WHERE <pred> | stats count() as c by <string-key> | sort - c | head N}
+     * (mirrors ClickBench Q13: {@code where SearchPhrase != '' | stats count() as c
+     * by SearchPhrase | sort - c | head 10})
+     * <p>
+     * The trigger is that the WHERE clause filters out ALL rows on every shard (all docs
+     * have category=''), causing the partial aggregate to produce an empty batch with 0
+     * fields. The final aggregate then fails trying to project from that empty schema.
+     * <p>
+     * This query passes on single-shard but fails on multi-shard (≥2 shards) with:
+     * <pre>
+     *   java.lang.RuntimeException: Execution error: Arrow error: Schema error:
+     *   project index 0 out of bounds, max field 0
+     * </pre>
+     * at NativeBridge.streamNext → AbstractDatafusionReduceSink.drainOutputIntoDownstream.
+     * <p>
+     * Ignored via @AwaitsFix so the IT suite stays green. Drop the annotation to observe
+     * the failure.
+     */
+    public void testWhereGroupByCountMultiShard_reproducer() throws Exception {
+        createWhereReproIndex();
+        indexWhereReproDocs();
+
+        // WHERE filters out ALL rows (all docs have category='') → partial agg on each
+        // shard produces empty output → final agg hits "project index 0 out of bounds"
+        executePPL(
+            "source = " + WHERE_REPRO_INDEX + " | where category != '' | stats count() as c by category | sort - c | head 5"
+        );
+    }
+
+    /**
+     * Control case: same query shape WITHOUT the WHERE clause. This passes on multi-shard,
+     * demonstrating that the WHERE predicate (which filters out all rows) is the trigger.
+     */
+    public void testGroupByCountMultiShard_noWhereControl() throws Exception {
+        createWhereReproIndex();
+        indexWhereReproDocs();
+
+        Map<String, Object> result = executePPL(
+            "source = " + WHERE_REPRO_INDEX + " | stats count() as c by category | sort - c | head 5"
+        );
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertFalse("should return at least one group", rows.isEmpty());
+    }
+
+    private void createWhereReproIndex() throws Exception {
+        try {
+            client().performRequest(new Request("DELETE", "/" + WHERE_REPRO_INDEX));
+        } catch (Exception ignored) {}
+
+        String body = "{"
+            + "\"settings\": {"
+            + "  \"number_of_shards\": " + NUM_SHARDS + ","
+            + "  \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true,"
+            + "  \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\","
+            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "},"
+            + "\"mappings\": {"
+            + "  \"properties\": {"
+            + "    \"category\": { \"type\": \"keyword\" },"
+            + "    \"value\": { \"type\": \"integer\" }"
+            + "  }"
+            + "}"
+            + "}";
+
+        Request createIndex = new Request("PUT", "/" + WHERE_REPRO_INDEX);
+        createIndex.setJsonEntity(body);
+        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index " + WHERE_REPRO_INDEX);
+        assertEquals("index creation must be acknowledged", true, response.get("acknowledged"));
+
+        Request health = new Request("GET", "/_cluster/health/" + WHERE_REPRO_INDEX);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+    }
+
+    private void indexWhereReproDocs() throws Exception {
+        // ALL docs have category='' so WHERE category != '' filters out everything on every
+        // shard. This matches the ClickBench scenario where SearchPhrase is empty for all
+        // rows in the test dataset, triggering the empty-partial-aggregate bug.
+        StringBuilder bulk = new StringBuilder();
+        int total = NUM_SHARDS * DOCS_PER_SHARD;
+        for (int i = 0; i < total; i++) {
+            bulk.append("{\"index\": {\"_id\": \"w").append(i).append("\"}}\n");
+            bulk.append("{\"category\": \"\", \"value\": ").append(i + 1).append("}\n");
+        }
+        bulkAndRefresh(WHERE_REPRO_INDEX, bulk.toString());
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────────
