@@ -29,12 +29,12 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushAndCloseWriterException;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
@@ -559,7 +559,6 @@ public class DataFormatAwareEngine implements Indexer {
 
         // Convert ParsedDocument to DocumentInput and write via the execution engine's writer
         Writer currentWriter = null;
-        DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock();
         try {
             currentWriter = lockedWriter.get();
             // Writer pool must never return null — it creates on demand via the supplier
@@ -578,12 +577,35 @@ public class DataFormatAwareEngine implements Indexer {
                     + "]";
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;
+                // Three cases for write failure:
+                // 1. Aborted: writer state inconsistent (rollback failed) — retire without flush
+                // 2. FlushAndCloseWriterException: rollback succeeded — flush N-1 consistent docs, then retire
+                // 3. Other: writer still usable — leave in pool
+                boolean retireWriter = currentWriter.isAborted() || f.cause() instanceof FlushAndCloseWriterException;
+                if (retireWriter) {
+                    writerPool.checkout(currentWriter);
+                    writerCheckedOut = true;
+                    try {
+                        if (currentWriter.isAborted() == false) {
+                            currentWriter.flush();
+                        }
+                    } finally {
+                        currentWriter.unlock();
+                        IOUtils.closeWhileHandlingException(currentWriter);
+                    }
+                }
+                if (treatDocumentFailureAsTragicError(index)) {
+                    failEngine("document failure on replica (id: " + index.id() + ")", f.cause());
+                }
                 indexResult = new Engine.IndexResult(f.cause(), plan.version, index.primaryTerm(), index.seqNo());
             }
         } catch (Exception e) {
+            if (treatDocumentFailureAsTragicError(index)) {
+                failEngine("document failure on replica (id: " + index.id() + ")", e);
+            }
             indexResult = new Engine.IndexResult(e, plan.version, index.primaryTerm(), index.seqNo());
         } finally {
-            if (currentWriter != null) {
+            if (currentWriter != null && writerCheckedOut == false) {
                 writerPool.releaseAndUnlock(lockedWriter);
             }
         }
@@ -592,15 +614,9 @@ public class DataFormatAwareEngine implements Indexer {
             final Translog.Location location;
             if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
                 location = translogManager.add(new Translog.Index(index, indexResult));
-            } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
-                && indexResult.getFailure() != null
-                && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
-                    throw new UnsupportedOperationException(
-                        "recording document failure as a no-op in translog is not " + "supported for Data format engine"
-                    );
-                } else {
-                    location = null;
-                }
+            } else {
+                location = null;
+            }
             indexResult.setTranslogLocation(location);
         }
         // Non-translog-origin successful operations must be recorded in the translog for durability
@@ -907,6 +923,9 @@ public class DataFormatAwareEngine implements Indexer {
                 failOnTragicEvent(e);
                 throw e;
             } catch (Exception e) {
+                if (maybeFailEngine("flush", e)) {
+                    throw new FlushFailedEngineException(shardId, e);
+                }
                 throw new FlushFailedEngineException(shardId, e);
             } finally {
                 flushLock.unlock();
@@ -1307,6 +1326,23 @@ public class DataFormatAwareEngine implements Indexer {
                     assert isClosed.get() : "engine must be closed after failEngine";
                 } finally {
                     logger.warn(() -> new ParameterizedMessage("failed engine [{}]", reason), failure);
+                    // Mark store as corrupted before notifying listeners (same as Engine.java)
+                    if (failure != null && Lucene.isCorruptionException(failure)) {
+                        if (store.tryIncRef()) {
+                            try {
+                                store.markStoreCorrupted(
+                                    new IOException(
+                                        "failed engine (reason: [" + reason + "])",
+                                        org.opensearch.ExceptionsHelper.unwrapCorruption(failure)
+                                    )
+                                );
+                            } catch (IOException e) {
+                                logger.warn("Couldn't mark store corrupted", e);
+                            } finally {
+                                store.decRef();
+                            }
+                        }
+                    }
                     engineConfig.getEventListener().onFailedEngine(reason, failure);
                 }
             } catch (Exception inner) {
@@ -1318,6 +1354,14 @@ public class DataFormatAwareEngine implements Indexer {
         } else {
             logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock [{}]", reason), failure);
         }
+    }
+
+    /**
+     * Returns true if a document-level failure should be treated as a tragic error.
+     * On replicas, document failures are fatal because the primary already accepted the doc.
+     */
+    private boolean treatDocumentFailureAsTragicError(Engine.Index index) {
+        return index.origin() != Engine.Operation.Origin.PRIMARY;
     }
 
     /**
@@ -1477,6 +1521,11 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
+        final Exception committerTragic = committer.getTragicException();
+        if (committerTragic != null) {
+            failEngine("already closed by tragic event on committer", committerTragic);
+            return true;
+        }
         if (translogManager.getTragicExceptionIfClosed() != null) {
             failEngine("already closed by tragic event on the translog", translogManager.getTragicExceptionIfClosed());
             return true;
@@ -1487,7 +1536,10 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private boolean maybeFailEngine(String source, Exception e) {
-        if (e instanceof AlreadyClosedException) {
+        if (Lucene.isCorruptionException(e)) {
+            failEngine("corrupt file (source: [" + source + "])", e);
+            return true;
+        } else if (e instanceof AlreadyClosedException) {
             return failOnTragicEvent((AlreadyClosedException) e);
         } else if (e != null && translogManager.getTragicExceptionIfClosed() == e) {
             failEngine(source, e);

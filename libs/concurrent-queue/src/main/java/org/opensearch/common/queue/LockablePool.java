@@ -118,6 +118,20 @@ public final class LockablePool<T extends Lockable> implements Iterable<T>, Clos
         return items.contains(item);
     }
 
+    /**
+     * Removes a single already-locked item from the pool without unlocking it.
+     * The caller takes ownership and is responsible for closing the item.
+     *
+     * @param item the locked item to remove
+     * @throws IllegalArgumentException if the item is not registered in this pool
+     */
+    public synchronized void checkout(T item) {
+        if (items.remove(item) == false) {
+            throw new IllegalArgumentException("Item is not registered in this pool");
+        }
+        availableItems.remove(item);
+    }
+
     private void ensureOpen() {
         if (closed) {
             throw new IllegalStateException("LockablePool is already closed");

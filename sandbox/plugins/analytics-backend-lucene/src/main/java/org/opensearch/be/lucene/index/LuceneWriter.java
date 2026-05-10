@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -23,6 +24,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -137,6 +139,23 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         long currentDocId = docCount;
         docCount++;
         return new WriteResult.Success(1L, 1L, currentDocId);
+    }
+
+    /**
+     * Rolls back the last document by soft-deleting it via a point query on the row ID field.
+     * The deleted doc is physically removed on {@link #flush()} when {@code forceMerge(1)} runs.
+     *
+     * @throws IOException if the delete operation fails
+     * @throws IllegalStateException if no documents have been added
+     */
+    @Override
+    public void rollbackLastDoc() throws IOException {
+        if (docCount == 0) {
+            throw new IllegalStateException("Cannot rollback: no documents have been added");
+        }
+        long lastRowId = docCount - 1;
+        indexWriter.deleteDocuments(NumericDocValuesField.newSlowExactQuery(DocumentInput.ROW_ID_FIELD, lastRowId));
+        docCount--;
     }
 
     /**

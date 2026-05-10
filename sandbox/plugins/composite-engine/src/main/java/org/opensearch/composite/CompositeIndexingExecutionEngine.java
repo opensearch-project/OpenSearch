@@ -349,10 +349,10 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             private final Map<DataFormat, IndexStoreProvider> providers;
             {
                 Map<DataFormat, IndexStoreProvider> tempProviders = new HashMap<>();
-                tempProviders.put(primaryEngine.getDataFormat(), primaryEngine.getProvider());
+                tempProviders.put(primaryEngine.getDataFormat(), Objects.requireNonNull(primaryEngine.getProvider()));
                 tempProviders.putAll(
                     secondaryEngines.stream()
-                        .map(eng -> new AbstractMap.SimpleEntry<>(eng.getDataFormat(), eng.getProvider()))
+                        .map(eng -> new AbstractMap.SimpleEntry<>(eng.getDataFormat(), Objects.requireNonNull(eng.getProvider())))
                         .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue))
                 );
                 providers = tempProviders;

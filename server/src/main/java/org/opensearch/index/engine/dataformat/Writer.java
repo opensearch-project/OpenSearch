@@ -52,4 +52,23 @@ public interface Writer<P extends DocumentInput<?>> extends Closeable {
      * @return the generation number
      */
     long generation();
+
+    /**
+     * Rolls back the last document added to this writer.
+     * Only valid immediately after {@link #addDoc} — cannot skip or rollback earlier docs.
+     * Called by composite writers when a sibling format fails after this writer already accepted the doc.
+     *
+     * @throws IOException if the rollback fails
+     * @throws IllegalStateException if no document has been added or last doc was already rolled back
+     */
+    default void rollbackLastDoc() throws IOException {}
+
+    /**
+     * Returns whether this writer has been aborted.
+     *
+     * @return {@code true} if aborted, {@code false} otherwise
+     */
+    default boolean isAborted() {
+        return false;
+    }
 }

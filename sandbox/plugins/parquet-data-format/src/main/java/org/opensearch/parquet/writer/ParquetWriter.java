@@ -89,6 +89,17 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         return new WriteResult.Success(1L, 1L, 1L);
     }
 
+    /**
+     * Rolls back the last document by delegating to the VSR manager.
+     *
+     * @throws IOException if accessing the VSR fails
+     * @throws IllegalStateException if no documents have been added
+     */
+    @Override
+    public void rollbackLastDoc() throws IOException {
+        vsrManager.rollbackLastDoc();
+    }
+
     @Override
     public FileInfos flush() throws IOException {
         ParquetFileMetadata metadata = vsrManager.flush();

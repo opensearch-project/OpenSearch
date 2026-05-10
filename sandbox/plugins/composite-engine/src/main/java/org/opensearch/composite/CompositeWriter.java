@@ -10,18 +10,22 @@ package org.opensearch.composite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushAndCloseWriterException;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -105,11 +109,14 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             case WriteResult.Success s -> logger.trace("Successfully added document in primary format [{}]", primaryFormat.name());
             case WriteResult.Failure f -> {
                 logger.debug("Failed to add document in primary format [{}]", primaryFormat.name());
+                rowIdGenerator.rollback();
                 return primaryResult;
             }
         }
 
         // Then write to each secondary — keyed lookup by DataFormat (equals/hashCode based on name)
+        // Track which secondaries succeeded so we can rollback on failure
+        List<Writer<DocumentInput<?>>> succeededSecondaries = new ArrayList<>();
         Map<DataFormat, DocumentInput<?>> secondaryInputs = doc.getSecondaryInputs();
         for (Map.Entry<DataFormat, DocumentInput<?>> inputEntry : secondaryInputs.entrySet()) {
             DataFormat format = inputEntry.getKey();
@@ -120,15 +127,58 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             }
             WriteResult result = writer.addDoc(inputEntry.getValue());
             switch (result) {
-                case WriteResult.Success s -> logger.trace("Successfully added document in secondary format [{}]", format.name());
+                case WriteResult.Success s -> {
+                    logger.trace("Successfully added document in secondary format [{}]", format.name());
+                    succeededSecondaries.add(writer);
+                }
                 case WriteResult.Failure f -> {
-                    logger.debug("Failed to add document in secondary format [{}]", format.name());
-                    return result;
+                    logger.warn("Failed to add document in secondary format [{}], rolling back", format.name());
+                    return rollbackOnSecondaryFailure(format, f.cause(), succeededSecondaries);
                 }
             }
         }
 
         return primaryResult;
+    }
+
+    /**
+     * Rolls back the last document from the primary writer and any secondaries that already succeeded,
+     * after a secondary format failed. If rollback itself fails, the writer is aborted.
+     *
+     * @param failedFormat the secondary format that failed
+     * @param cause the exception from the failed secondary write
+     * @param succeededSecondaries secondaries that accepted the doc before the failure
+     * @return a {@link WriteResult.Failure} wrapping a {@link FlushAndCloseWriterException} if rollback succeeds,
+     *         or a {@link WriteResult.Failure} with the rollback exception if rollback fails
+     */
+    private WriteResult rollbackOnSecondaryFailure(
+        DataFormat failedFormat,
+        Exception cause,
+        List<Writer<DocumentInput<?>>> succeededSecondaries
+    ) {
+        try {
+            primaryWriter.rollbackLastDoc();
+            for (Writer<DocumentInput<?>> writer : succeededSecondaries) {
+                writer.rollbackLastDoc();
+            }
+            return new WriteResult.Failure(
+                new FlushAndCloseWriterException(
+                    "Secondary format [" + failedFormat.name() + "] failed, writer should be flushed and closed",
+                    cause
+                ),
+                -1,
+                -1,
+                -1
+            );
+        } catch (IOException rollbackEx) {
+            logger.error(
+                () -> new ParameterizedMessage("Rollback failed after secondary format [{}] failure, aborting writer", failedFormat.name()),
+                rollbackEx
+            );
+            rollbackEx.addSuppressed(cause);
+            abort();
+            return new WriteResult.Failure(rollbackEx, -1, -1, -1);
+        }
     }
 
     @Override
@@ -200,7 +250,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
      *
      * @throws IllegalStateException if the writer is not in {@code ACTIVE} state
      */
-    void abort() {
+    public void abort() {
         if (this.state.compareAndSet(WriterState.ACTIVE, WriterState.ABORTED) == false) {
             throw new IllegalStateException("Cannot abort writer in state " + state.get());
         }
@@ -211,7 +261,8 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
      *
      * @return {@code true} if aborted
      */
-    boolean isAborted() {
+    @Override
+    public boolean isAborted() {
         return getState() == WriterState.ABORTED;
     }
 

@@ -211,6 +211,21 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     }
 
     /**
+     * Returns the tragic exception from the underlying IndexWriter, if any.
+     * Lucene records tragic exceptions as {@link Throwable} (may be an {@link Error}
+     * like OOM from a background merge), but {@link org.opensearch.index.engine.exec.commit.Committer}
+     * returns {@link Exception}. Wraps non-Exception throwables in RuntimeException
+     * to preserve the root cause for {@code DataFormatAwareEngine.failOnTragicEvent}.
+     */
+    @Override
+    public Exception getTragicException() {
+        Throwable tragic = indexWriter.getTragicException();
+        if (tragic instanceof Exception) return (Exception) tragic;
+        if (tragic != null) return new RuntimeException(tragic);
+        return null;
+    }
+
+    /**
      * Returns the underlying IndexWriter.
      * Visible to other classes in this package (e.g., LuceneIndexingExecutionEngine).
      *

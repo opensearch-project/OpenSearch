@@ -15,6 +15,8 @@ import org.opensearch.index.store.Store;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * In-memory Committer for testing. Reads initial commit data from the store's
@@ -22,13 +24,45 @@ import java.util.Map;
  */
 public class InMemoryCommitter implements Committer {
     private volatile Map<String, String> committedData;
+    private final AtomicReference<Exception> tragicException = new AtomicReference<>();
+    private volatile Supplier<Exception> commitFailure;
+    private volatile boolean markCorruptedCalled;
 
     public InMemoryCommitter(Store store) throws IOException {
         this.committedData = Map.copyOf(store.readLastCommittedSegmentsInfo().getUserData());
     }
 
+    public void setTragicException(Exception e) {
+        this.tragicException.set(e);
+    }
+
+    public void setCommitFailure(Supplier<Exception> supplier) {
+        this.commitFailure = supplier;
+    }
+
+    public boolean isMarkCorruptedCalled() {
+        return markCorruptedCalled;
+    }
+
+    public void setMarkCorruptedCalled(boolean v) {
+        this.markCorruptedCalled = v;
+    }
+
     @Override
-    public void commit(Map<String, String> commitData) {
+    public Exception getTragicException() {
+        return tragicException.get();
+    }
+
+    @Override
+    public void commit(Map<String, String> commitData) throws IOException {
+        Supplier<Exception> supplier = commitFailure;
+        if (supplier != null) {
+            Exception failure = supplier.get();
+            if (failure != null) {
+                if (failure instanceof IOException) throw (IOException) failure;
+                throw new IOException(failure);
+            }
+        }
         this.committedData = Map.copyOf(commitData);
     }
 
