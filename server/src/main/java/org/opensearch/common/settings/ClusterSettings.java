@@ -868,7 +868,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING,
                 IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING,
                 IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING,
-                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST,
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST,
 
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
 

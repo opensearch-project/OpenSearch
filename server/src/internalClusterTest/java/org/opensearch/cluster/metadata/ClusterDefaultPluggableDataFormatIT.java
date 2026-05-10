@@ -35,6 +35,14 @@ public class ClusterDefaultPluggableDataFormatIT extends OpenSearchIntegTestCase
     }
 
     @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST.getKey(), ".kibana")
+            .build();
+    }
+
+    @Override
     protected Settings featureFlagSettings() {
         Settings.Builder builder = Settings.builder();
         for (Setting<?> builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
@@ -99,20 +107,11 @@ public class ClusterDefaultPluggableDataFormatIT extends OpenSearchIntegTestCase
         assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(beforeReread));
     }
 
-    public void testSkiplistBypassesClusterDefaultStamping() {
+    public void testAllowlistBypassesClusterDefaultStamping() {
         String skippedIndex = ".kibana-01";
         String normalIndex = "test-pluggable-normal";
 
         setClusterDefaults(true, "parquet");
-
-        // Add .kibana prefix to skiplist
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".kibana")
-            )
-            .get();
 
         createIndex(skippedIndex);
         ensureGreen(skippedIndex);

@@ -206,8 +206,8 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
                 }
                 ClusterSettings clusterSettings = clusterService.getClusterSettings();
 
-                List<String> skiplist = clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST);
-                if (skiplist.stream().anyMatch(indexName::startsWith)) {
+                List<String> allowlist = clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST);
+                if (allowlist.stream().anyMatch(indexName::startsWith)) {
                     return Settings.EMPTY;
                 }
 

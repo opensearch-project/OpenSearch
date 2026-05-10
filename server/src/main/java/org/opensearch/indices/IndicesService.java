@@ -411,12 +411,11 @@ public class IndicesService extends AbstractLifecycleComponent
      * cluster-default stamping. Indices whose name starts with any of these prefixes will not have
      * cluster defaults applied and will not be rejected by the restrict setting.
      */
-    public static final Setting<List<String>> CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST = Setting.listSetting(
-        "cluster.pluggable.dataformat.restrict.skiplist",
+    public static final Setting<List<String>> CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST = Setting.listSetting(
+        "cluster.pluggable.dataformat.restrict.allowlist",
         Collections.emptyList(),
         s -> s,
-        Property.NodeScope,
-        Property.Dynamic
+        Property.NodeScope
     );
 
     /**

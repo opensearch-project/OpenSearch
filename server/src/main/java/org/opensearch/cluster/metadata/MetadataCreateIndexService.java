@@ -1426,7 +1426,7 @@ public class MetadataCreateIndexService {
     /**
      * Stamps the cluster-scope defaults for the pluggable data-format index settings into the
      * index metadata at creation time when no explicit override is supplied. No-op when the
-     * pluggable data-format feature flag is disabled or the index matches the skiplist.
+     * pluggable data-format feature flag is disabled or the index matches the allowlist.
      */
     public static void updatePluggableDataFormatSettings(
         Settings.Builder settingsBuilder,
@@ -1437,7 +1437,7 @@ public class MetadataCreateIndexService {
             return;
         }
 
-        if (isSkippedForPluggableDataFormat(indexName, clusterSettings)) {
+        if (isAllowedForPluggableDataFormat(indexName, clusterSettings)) {
             return;
         }
 
@@ -1860,7 +1860,7 @@ public class MetadataCreateIndexService {
         if (clusterSettings.get(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING) == false) {
             return Optional.empty();
         }
-        if (isSkippedForPluggableDataFormat(indexName, clusterSettings)) {
+        if (isAllowedForPluggableDataFormat(indexName, clusterSettings)) {
             return Optional.empty();
         }
 
@@ -1896,12 +1896,12 @@ public class MetadataCreateIndexService {
 
     /**
      * Returns {@code true} if the given index name matches any prefix in the
-     * {@code cluster.pluggable.dataformat.restrict.skiplist} setting, meaning it should bypass
+     * {@code cluster.pluggable.dataformat.restrict.allowlist} setting, meaning it should bypass
      * pluggable data-format default-stamping and restrict validation.
      */
-    private static boolean isSkippedForPluggableDataFormat(String indexName, ClusterSettings clusterSettings) {
-        List<String> skiplist = clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST);
-        return skiplist.stream().anyMatch(indexName::startsWith);
+    private static boolean isAllowedForPluggableDataFormat(String indexName, ClusterSettings clusterSettings) {
+        List<String> allowlist = clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST);
+        return allowlist.stream().anyMatch(indexName::startsWith);
     }
 
     /**

@@ -2356,14 +2356,14 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
     }
 
-    // ---- skiplist tests ----
+    // ---- allowlist tests ----
 
     @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testUpdatePluggableDataFormatSettingsSkipsWhenIndexMatchesSkiplist() {
+    public void testUpdatePluggableDataFormatSettingsSkipsWhenIndexMatchesAllowlist() {
         Settings clusterBag = Settings.builder()
             .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
             .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
-            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".system", ".kibana")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST.getKey(), ".system", ".kibana")
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -2376,11 +2376,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testUpdatePluggableDataFormatSettingsStampsWhenIndexDoesNotMatchSkiplist() {
+    public void testUpdatePluggableDataFormatSettingsStampsWhenIndexDoesNotMatchAllowlist() {
         Settings clusterBag = Settings.builder()
             .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
             .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
-            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".system", ".kibana")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST.getKey(), ".system", ".kibana")
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -2393,16 +2393,16 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testValidatePluggableDataFormatSettingsSkipsWhenIndexMatchesSkiplist() {
+    public void testValidatePluggableDataFormatSettingsSkipsWhenIndexMatchesAllowlist() {
         Settings clusterBag = Settings.builder()
             .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
             .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
-            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".system")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST.getKey(), ".system")
             .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        // Index explicitly sets a different value — normally rejected, but skiplist bypasses it.
+        // Index explicitly sets a different value — normally rejected, but allowlist bypasses it.
         Settings indexSettings = Settings.builder()
             .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene")
@@ -2580,12 +2580,12 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testValidatePluggableDataFormatSkiplistBypassesRestrict() {
+    public void testValidatePluggableDataFormatAllowlistBypassesRestrict() {
         Settings clusterBag = Settings.builder()
             .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
             .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
             .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
-            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_SKIPLIST.getKey(), ".system")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST.getKey(), ".system")
             .build();
         ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -2597,7 +2597,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         request = new CreateIndexClusterStateUpdateRequest("create index", ".system-index", ".system-index");
         request.settings(mismatch);
 
-        // Should NOT throw — index matches skiplist
+        // Should NOT throw — index matches allowlist
         Settings aggregated = aggregateIndexSettings(
             ClusterState.EMPTY_STATE,
             request,
