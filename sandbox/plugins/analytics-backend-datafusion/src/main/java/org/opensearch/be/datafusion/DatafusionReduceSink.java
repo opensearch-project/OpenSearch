@@ -242,6 +242,25 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
      *
      * <p>Zero-copy fast path when schemas already match (numeric-only aggregates).
      * Closes {@code batch} — caller drops its reference.
+     *
+     * <p><b>TODO (revisit):</b> this runtime coercer is a pragmatic fix. We attempted a
+     * plan-level alternative — declare {@code Utf8View} up-front in {@code childSchemas}
+     * via {@code LocalStageScheduler#physicalSchemaFor} when the child fragment root is a
+     * PARTIAL HashAggregate. That approach hit SIGSEGV in Java's C Data Interface import
+     * because DataFusion's optimizer promotes {@code Utf8} → {@code Utf8View} across more
+     * operators than just HashAggregate (filter + sort queries like Q26 hit it too),
+     * making static prediction of "when does DataFusion emit Utf8View" fragile. Arrow
+     * Java 18.3's {@code BufferImportTypeVisitor.visit(Utf8View)} IS functional — the
+     * structural issue is predicting the emission, not importing it. Revisit if any of:
+     * <ul>
+     *   <li>DataFusion exposes a stable way to query "what types will this plan emit?"
+     *       that Java can consult instead of guessing.</li>
+     *   <li>Substrait grows a type extension carrying view-vs-plain distinction, allowing
+     *       the FINAL plan's substrait decoder to natively operate on Utf8View.</li>
+     *   <li>We add a Rust normalize pass that casts {@code Utf8View} → {@code Utf8} at
+     *       the PARTIAL plan's root using DataFusion's own CastExpr (vectorized, one
+     *       pass per column), avoiding the per-cell Java copy here.</li>
+     * </ul>
      */
     private static VectorSchemaRoot coerceToDeclaredSchema(VectorSchemaRoot batch, Schema declaredSchema, BufferAllocator alloc) {
         if (batch.getSchema().equals(declaredSchema)) {
