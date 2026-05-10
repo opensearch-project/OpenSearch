@@ -45,20 +45,14 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
     // DEBUG: temporarily un-skip the multi-shard-only failures to see if they
     // pass on single-shard (where the split rule doesn't fire and no exchange
     // traffic / no native-side aggregate reduce is exercised).
-    // Queries skipped:
-    //  - Missing feature: Q19 (extract(minute from …)), Q40 (case() else + head N from M),
-    //    Q43 (date_format() + head N from M).
-    //  - Substrait emit can't find a MIN binding for VARCHAR inputs (isthmus library):
-    //    Q29 (min(Referer) where Referer is text). Needs a min(string) binding in
-    //    the aggregate function catalog or an equivalent adapter.
-    //  - Multi-shard: aggregates / projections on TIMESTAMP/DATE fields hit a DataFusion
-    //    'Panic: primitive array' in streamNext — shard-side partial emits a timestamp
-    //    encoding that the coordinator's Arrow kernel doesn't accept. Covered by the
-    //    upcoming force_output_schema / per-aggregate state-coercion wrapper on the Rust
-    //    side (§14.5 of the design doc). Queries: Q7, Q24-Q27, Q37-Q42.
-    private static final Set<Integer> SKIP_QUERIES = Set.of(
-        7, 19, 24, 25, 26, 27, 29, 37, 38, 39, 40, 41, 42, 43
-    );
+    // Queries skipped — all known PPL frontend / Substrait gaps, unrelated to the
+    // distributed aggregate execution path:
+    //  - Q19: extract(minute from …) not supported by the PPL frontend.
+    //  - Q29: Substrait can't bind MIN on VARCHAR inputs (isthmus library limitation).
+    //    Requires a min(string) binding in the aggregate function catalog.
+    //  - Q40: case() else + head N from M — PPL frontend gap.
+    //  - Q43: date_format() + head N from M — PPL frontend gap.
+    private static final Set<Integer> SKIP_QUERIES = Set.of(19, 29, 40, 43);
 
     private static boolean dataProvisioned = false;
 
