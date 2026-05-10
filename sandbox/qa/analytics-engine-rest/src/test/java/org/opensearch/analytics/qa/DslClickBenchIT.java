@@ -26,12 +26,6 @@ import java.util.List;
  */
 public class DslClickBenchIT extends AnalyticsRestTestCase {
 
-    /**
-     * ClickBench DSL query numbers to run. Currently empty — Q1 (and any subsequent DSL
-     * queries) are temporarily muted pending investigation of a DSL-path execution hang
-     * seen on this branch. Restore the list once the regression is diagnosed and fixed;
-     * the original intent is for this test to validate DSL → DataFusion end-to-end.
-     */
     private static final List<Integer> QUERY_NUMBERS = List.of();
 
     private static boolean dataProvisioned = false;
@@ -46,10 +40,6 @@ public class DslClickBenchIT extends AnalyticsRestTestCase {
     public void testClickBenchDslQueries() throws Exception {
         ensureDataProvisioned();
 
-        // Auto-discovery disabled until all ClickBench queries pass. See class javadoc.
-        // List<Integer> queryNumbers = DatasetQueryRunner.discoverQueryNumbers(ClickBenchTestHelper.DATASET, "dsl");
-        // assertFalse("No DSL queries discovered", queryNumbers.isEmpty());
-        // logger.info("Discovered {} DSL queries: {}", queryNumbers.size(), queryNumbers);
         List<Integer> queryNumbers = QUERY_NUMBERS;
         logger.info("Running {} DSL queries: {}", queryNumbers.size(), queryNumbers);
 
