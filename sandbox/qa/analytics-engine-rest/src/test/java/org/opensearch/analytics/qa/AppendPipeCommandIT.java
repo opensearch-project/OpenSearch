@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -54,7 +53,6 @@ public class AppendPipeCommandIT extends AnalyticsRestTestCase {
 
     // ── duplicate + inline sort, then head ──────────────────────────────────────
 
-    @AwaitsFix(bugUrl = "Utf8View boundary bug — DataFusion stream.schema() lies for multi-input UNION with VARCHAR; tracked separately from streaming-refactor")
     public void testAppendPipeSort() throws IOException {
         // Branch: stats sum(int0) by str0 → 3 rows (FURNITURE=1, OFFICE SUPPLIES=18, TECHNOLOGY=49).
         // Outer `sort str0` pins the original to alphabetical order. `appendpipe [sort -sum_int0_by_str0]`
@@ -76,7 +74,6 @@ public class AppendPipeCommandIT extends AnalyticsRestTestCase {
 
     // ── duplicate + inline stats producing a smaller schema (merged column) ─────
 
-    @AwaitsFix(bugUrl = "Utf8View boundary bug — DataFusion stream.schema() lies for multi-input UNION with VARCHAR; tracked separately from streaming-refactor")
     public void testAppendPipeWithMergedColumn() throws IOException {
         // Outer stats: sum(int0) by str0 → 3 rows. `appendpipe [stats sum(sum) as sum]` runs an inner
         // stats over the duplicate, collapsing it to a single row carrying only the `sum` column.

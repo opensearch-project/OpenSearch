@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -73,7 +72,6 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
 
     // ── two stats branches → sort → head ────────────────────────────────────────
 
-    @AwaitsFix(bugUrl = "Utf8View boundary bug — DataFusion stream.schema() lies for multi-input UNION with VARCHAR; tracked separately from streaming-refactor")
     public void testAppend() throws IOException {
         // Branch 1: sum(int0) grouped by str0 (3 rows). Branch 2: sum(int1) grouped
         // by str3 (2 rows). Union all + head 5 keeps every row, but the order
@@ -97,7 +95,6 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
 
     // ── cross-index union ───────────────────────────────────────────────────────
 
-    @AwaitsFix(bugUrl = "Utf8View boundary bug — DataFusion stream.schema() lies for multi-input UNION with VARCHAR; tracked separately from streaming-refactor")
     public void testAppendDifferentIndex() throws IOException {
         // Branch 1: calcs grouped by str0 (3 rows). Branch 2: calcs_alt total sum(int1)
         // (1 row). Each branch is its own data-node stage on its own shard set; the two
@@ -118,7 +115,6 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
 
     // ── shared output column name across branches (no auto-rename) ──────────────
 
-    @AwaitsFix(bugUrl = "Utf8View boundary bug — DataFusion stream.schema() lies for multi-input UNION with VARCHAR; tracked separately from streaming-refactor")
     public void testAppendWithMergedColumn() throws IOException {
         // Both branches produce a column named "sum"; SchemaUnifier merges the column
         // by name. Group columns differ (str0 vs str3) so each row populates one and
@@ -235,7 +231,6 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
 
     // ── empty subsearch with right/full join — adds rows from the right side ───
 
-    @AwaitsFix(bugUrl = "Utf8View boundary bug — DataFusion stream.schema() lies for multi-input UNION with VARCHAR; tracked separately from streaming-refactor")
     public void testAppendEmptySearchWithRightJoin() throws IOException {
         // RIGHT JOIN of (empty filtered subset, real subquery) → still emits every
         // right-side row with NULL on the left columns. The append therefore yields
@@ -257,7 +252,6 @@ public class AppendCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "Utf8View boundary bug — DataFusion stream.schema() lies for multi-input UNION with VARCHAR; tracked separately from streaming-refactor")
     public void testAppendEmptySearchWithFullJoin() throws IOException {
         // Same shape as right join — the empty left side has no rows to match, so
         // FULL JOIN reduces to RIGHT JOIN here. Inter-branch order is non-deterministic.
