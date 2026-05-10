@@ -488,6 +488,14 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         catalogSnapshotCloned.setUserData(userData, false);
 
+        // For DFA primaries with a Lucene-backed committer, capture IndexWriter's in-memory
+        // SegmentInfos so uploaded bytes reference real Lucene segments. Non-DFA paths return
+        // null and fall back to the existing synthetic-empty behavior.
+        org.apache.lucene.index.SegmentInfos luceneInMemoryInfos = null;
+        if (indexShard.getIndexer() instanceof DataFormatAwareEngine dfaEngine) {
+            luceneInMemoryInfos = dfaEngine.captureInMemoryLuceneSegmentInfos();
+        }
+
         Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
@@ -499,7 +507,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 storeDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,
-                indexShard.getNodeId()
+                indexShard.getNodeId(),
+                luceneInMemoryInfos
             );
         }
     }

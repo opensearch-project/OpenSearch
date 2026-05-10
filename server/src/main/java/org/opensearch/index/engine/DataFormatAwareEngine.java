@@ -1392,6 +1392,16 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     /**
+     * Captures the committer's Lucene in-memory {@link org.apache.lucene.index.SegmentInfos}
+     * for the remote-store upload path. Returns {@code null} if the committer has no Lucene
+     * in-memory state.
+     */
+    public org.apache.lucene.index.SegmentInfos captureInMemoryLuceneSegmentInfos() throws IOException {
+        ensureOpen();
+        return committer.captureInMemorySegmentInfos();
+    }
+
+    /**
      * Acquires a {@link DataFormatAwareReader} on the latest catalog snapshot.
      * The caller must close the returned reader when done, which releases the
      * snapshot reference.

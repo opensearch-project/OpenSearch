@@ -18,30 +18,36 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Builds the synthetic Lucene {@code SegmentInfos} payload the DFA primary uploads to the remote
- * store. The synthetic {@code SegmentInfos} has zero segment entries — it is a transport envelope
- * whose {@code userData} carries the serialized {@link DataformatAwareCatalogSnapshot} plus any
- * engine-side keys the snapshot already holds (history/translog UUIDs, checkpoints, etc. — set
- * by flush / by the upload listener's pre-upload userData overlay).
+ * Builds the Lucene {@code SegmentInfos} payload uploaded to the remote store by the DFA primary.
  *
- * <p>All Lucene-codec dependencies are confined to this class so
- * {@link DataformatAwareCatalogSnapshot} can stay a pure data carrier. The generation used for
- * {@code setNextWriteGeneration} is the Lucene {@code segments_N} generation from the snapshot's
- * {@link CatalogSnapshot#getLastCommitGeneration()}, ensuring the replica writes the correct
- * {@code segments_N} file on commit.</p>
+ * <p>Uses the provided in-memory {@link SegmentInfos} as the base when non-null so uploaded bytes
+ * carry real Lucene segment references; otherwise falls back to an empty base. In both cases the
+ * snapshot userData plus the serialized DFA catalog are layered into the result's {@code userData}.
  */
 final class SyntheticSegmentInfos {
 
     private SyntheticSegmentInfos() {}
 
+    /** Equivalent to {@code serialize(snapshot, null)}. */
     static byte[] serialize(DataformatAwareCatalogSnapshot snapshot) throws IOException {
-        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
-        Map<String, String> userData = new HashMap<>(snapshot.getUserData());
+        return serialize(snapshot, null);
+    }
+
+    /**
+     * Serializes {@code snapshot} using {@code base} (if non-null) as the base {@link SegmentInfos}.
+     * A non-null base preserves real Lucene segment references across the remote-store round-trip.
+     */
+    static byte[] serialize(DataformatAwareCatalogSnapshot snapshot, SegmentInfos base) throws IOException {
+        SegmentInfos segmentInfos = (base != null) ? base.clone() : new SegmentInfos(Version.LATEST.major);
+
+        Map<String, String> userData = new HashMap<>(segmentInfos.getUserData());
+        userData.putAll(snapshot.getUserData());
         userData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
         segmentInfos.setUserData(userData, false);
         segmentInfos.setNextWriteGeneration(snapshot.getLastCommitGeneration());
+
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        segmentInfos.write(new ByteBuffersIndexOutput(out, "synthetic SegmentInfos", "synthetic SegmentInfos"));
+        segmentInfos.write(new ByteBuffersIndexOutput(out, "DFA upload SegmentInfos", "DFA upload SegmentInfos"));
         return out.toArrayCopy();
     }
 }
