@@ -18,6 +18,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
@@ -559,9 +560,11 @@ public class DataFormatAwareEngine implements Indexer {
         assert index.primaryTerm() > 0 : "primary term must be positive but was: " + index.primaryTerm();
 
         // Convert ParsedDocument to DocumentInput and write via the execution engine's writer
-        Writer currentWriter = null;
+        DefaultLockableHolder<Writer<?>> lockedWriter = null;
+        boolean writerCheckedOut = false;
         try {
-            currentWriter = lockedWriter.get();
+            lockedWriter = writerPool.getAndLock();
+            Writer currentWriter = lockedWriter.get();
             // Writer pool must never return null — it creates on demand via the supplier
             assert currentWriter != null : "writer pool returned null writer";
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
@@ -584,17 +587,17 @@ public class DataFormatAwareEngine implements Indexer {
                 // 3. Other: primary engine failed, writer still usable — leave in pool
                 boolean retireWriter = currentWriter.isAborted() || f.cause() instanceof FlushAndCloseWriterException;
                 if (retireWriter) {
-                    writerPool.checkout(currentWriter);
+                    writerPool.checkout(lockedWriter);
                     writerCheckedOut = true;
                     try {
                         if (currentWriter.isAborted() == false) {
                             currentWriter.flush();
                         }
                     } finally {
-                        currentWriter.unlock();
+                        lockedWriter.unlock();
                         IOUtils.closeWhileHandlingException(currentWriter);
                     }
-                    assert writerPool.isRegistered(currentWriter) == false : "retired writer must not be in pool";
+                    assert writerPool.isRegistered(lockedWriter) == false : "retired writer must not be in pool";
                 }
                 if (treatDocumentFailureAsTragicError(index)) {
                     failEngine("document failure on replica (id: " + index.id() + ")", f.cause());
@@ -607,7 +610,7 @@ public class DataFormatAwareEngine implements Indexer {
             }
             indexResult = new Engine.IndexResult(e, plan.version, index.primaryTerm(), index.seqNo());
         } finally {
-            if (currentWriter != null && writerCheckedOut == false) {
+            if (lockedWriter != null && writerCheckedOut == false) {
                 writerPool.releaseAndUnlock(lockedWriter);
             }
         }
@@ -1638,14 +1641,23 @@ public class DataFormatAwareEngine implements Indexer {
 
     // -- Visible for testing --
 
-    /** Returns the writer pool. Visible for testing only. */
+    /** Returns the writers in the pool. Visible for testing only. */
     Iterable<Writer<?>> getWriterPool() {
-        return writerPool;
+        List<Writer<?>> writers = new ArrayList<>();
+        for (DefaultLockableHolder<Writer<?>> holder : writerPool) {
+            writers.add(holder.get());
+        }
+        return writers;
     }
 
     /** Returns whether the writer is registered in the pool. Visible for testing only. */
     boolean isWriterRegistered(Writer<?> writer) {
-        return writerPool.isRegistered(writer);
+        for (DefaultLockableHolder<Writer<?>> holder : writerPool) {
+            if (holder.get() == writer) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Returns the indexing execution engine. Visible for testing only. */
