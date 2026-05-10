@@ -150,12 +150,8 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     /**
      * Q10 shape: SUM + COUNT + AVG + DC together, grouped. Exercises all four resolver
      * branches in a single query and validates column positions in the final Project
-     * wrapper produced for AVG.
-     *
-     * <p>pf2 had this test ignored because its {@code decomposeFinalFragment} mishandled
-     * parent Project expressions after decomposition. pf4's single-pass
-     * {@code AggregateDecompositionResolver} builds the Project wrapper correctly from
-     * intermediateFields + finalExpression, so the test runs here.
+     * wrapper produced for AVG. Covers the case where the aggregate decomposition has to
+     * rewrite the parent Project's expressions to reference the rebuilt exchange columns.
      */
     public void testQ10ShapeAcrossShards() throws Exception {
         createParquetBackedIndex(INDEX);

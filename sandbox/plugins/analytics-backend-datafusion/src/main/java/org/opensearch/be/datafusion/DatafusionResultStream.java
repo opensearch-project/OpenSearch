@@ -96,8 +96,7 @@ public class DatafusionResultStream implements EngineResultStream {
         // batchEmitted, it lets us synthesize exactly one schema-carrying empty batch when
         // the native side produced nothing — so downstream Arrow Flight (or any other
         // transport that relies on the first data frame to deliver the schema) still sees
-        // the column layout. Enforces §18 invariant #12: shards emit the schema even when
-        // zero rows match.
+        // the column layout.
         private boolean nativeStreamExhausted;
 
         BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
