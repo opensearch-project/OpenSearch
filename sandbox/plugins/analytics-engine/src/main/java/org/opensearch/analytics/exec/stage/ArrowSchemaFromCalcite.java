@@ -8,7 +8,9 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.apache.arrow.vector.types.DateUnit;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -22,8 +24,8 @@ import java.util.List;
 
 /**
  * Translates a Calcite {@link RelDataType} (row type) to an Arrow {@link Schema}.
- * Used to derive the target schema for {@code RowBatchToArrowConverter} from the
- * child stage's resolved fragment row type.
+ * Used by distributed stages to declare their exchange-point schema when registering
+ * {@code StreamingTable} partitions with the native execution engine.
  *
  * <p>All fields are nullable for MVP.
  */
@@ -75,9 +77,14 @@ final class ArrowSchemaFromCalcite {
                 return new ArrowType.Int(64, true);
             case INTEGER:
                 return new ArrowType.Int(32, true);
+            case SMALLINT:
+                return new ArrowType.Int(16, true);
+            case TINYINT:
+                return new ArrowType.Int(8, true);
             case DOUBLE:
                 return new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
             case FLOAT:
+            case REAL:
                 return new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
             case BOOLEAN:
                 return ArrowType.Bool.INSTANCE;
@@ -87,6 +94,13 @@ final class ArrowSchemaFromCalcite {
             case VARBINARY:
             case BINARY:
                 return ArrowType.Binary.INSTANCE;
+            case DATE:
+                return new ArrowType.Date(DateUnit.DAY);
+            case TIME:
+                return new ArrowType.Time(TimeUnit.MILLISECOND, 32);
+            case TIMESTAMP:
+            case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
+                return new ArrowType.Timestamp(TimeUnit.MILLISECOND, null);
             default:
                 throw new IllegalArgumentException("Unsupported Calcite SQL type: " + sqlTypeName);
         }

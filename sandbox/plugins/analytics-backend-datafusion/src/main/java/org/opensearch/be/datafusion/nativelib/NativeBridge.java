@@ -81,6 +81,9 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle STATS;
+    private static final MethodHandle PREPARE_PARTIAL_PLAN;
+    private static final MethodHandle PREPARE_FINAL_PLAN;
+    private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -387,6 +390,25 @@ public final class NativeBridge {
         STATS = linker.downcallHandle(
             lib.find("df_stats").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // ── Distributed aggregate: prepare partial/final plans ──
+        // i64 df_prepare_partial_plan(handle_ptr, bytes_ptr, bytes_len)
+        PREPARE_PARTIAL_PLAN = linker.downcallHandle(
+            lib.find("df_prepare_partial_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_prepare_final_plan(session_ptr, bytes_ptr, bytes_len)
+        PREPARE_FINAL_PLAN = linker.downcallHandle(
+            lib.find("df_prepare_final_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_execute_local_prepared_plan(session_ptr)
+        EXECUTE_LOCAL_PREPARED_PLAN = linker.downcallHandle(
+            lib.find("df_execute_local_prepared_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
     }
 
@@ -890,6 +912,53 @@ public final class NativeBridge {
 
     public static void destroyCustomCacheManager(long ptr) {
         NativeCall.invokeVoid(DESTROY_CUSTOM_CACHE_MANAGER, ptr);
+    }
+
+    // ---- Distributed aggregate: prepare partial/final plans ----
+
+    /**
+     * Prepares a partial-aggregate physical plan on the session context handle.
+     * The plan is stored on the Rust handle for later execution.
+     *
+     * @param handlePtr pointer returned by {@link #createSessionContext}
+     * @param substraitBytes Substrait plan bytes
+     */
+    public static void preparePartialPlan(long handlePtr, byte[] substraitBytes) {
+        NativeHandle.validatePointer(handlePtr, "sessionContext");
+        try (var call = new NativeCall()) {
+            call.invoke(PREPARE_PARTIAL_PLAN, handlePtr, call.bytes(substraitBytes), (long) substraitBytes.length);
+        }
+    }
+
+    /**
+     * Prepares a final-aggregate physical plan on a local session.
+     * The plan is stored on the Rust session for later execution via
+     * {@link #executeLocalPreparedPlan}.
+     *
+     * @param sessionPtr pointer returned by {@link #createLocalSession}
+     * @param substraitBytes Substrait plan bytes
+     */
+    public static void prepareFinalPlan(long sessionPtr, byte[] substraitBytes) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        try (var call = new NativeCall()) {
+            call.invoke(PREPARE_FINAL_PLAN, sessionPtr, call.bytes(substraitBytes), (long) substraitBytes.length);
+        }
+    }
+
+    /**
+     * Executes the previously prepared final-aggregate plan on a local session.
+     * Returns a stream pointer that can be drained via {@link #streamNext} and
+     * freed by {@link #streamClose}.
+     *
+     * @param sessionPtr pointer returned by {@link #createLocalSession} with a plan
+     *                   already prepared via {@link #prepareFinalPlan}
+     * @return opaque stream pointer
+     */
+    public static long executeLocalPreparedPlan(long sessionPtr) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        try (var call = new NativeCall()) {
+            return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr);
+        }
     }
 
     public static void createCache(long cacheManagerPtr, String cacheType, long sizeLimit, String evictionType) {

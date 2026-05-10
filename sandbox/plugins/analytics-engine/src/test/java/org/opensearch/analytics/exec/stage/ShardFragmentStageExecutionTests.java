@@ -30,6 +30,7 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -122,9 +123,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
 
         exec.cancel("test");
 
-        List<Object[]> rows = new ArrayList<>();
-        rows.add(new Object[] { 42 });
-        FragmentExecutionResponse response = new FragmentExecutionResponse(List.of("col"), rows);
+        FragmentExecutionResponse response = new FragmentExecutionResponse(new byte[0], 0);
         capturedListener.get().onStreamResponse(response, true);
 
         assertTrue("sink should not have received anything post-cancel", sink.fed.isEmpty());
@@ -134,16 +133,14 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
      * Verifies that RowResponseCodec rejects null allocator.
      */
     public void testRowResponseCodecRejectsNullAllocator() {
-        List<Object[]> rows = new ArrayList<>();
-        rows.add(new Object[] { 1 });
-        FragmentExecutionResponse response = new FragmentExecutionResponse(List.of("x"), rows);
+        FragmentExecutionResponse response = new FragmentExecutionResponse(new byte[0], 0);
         expectThrows(IllegalArgumentException.class, () -> RowResponseCodec.INSTANCE.decode(response, null));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
 
     @SuppressWarnings("unchecked")
-    private <T extends org.opensearch.core.action.ActionResponse> ShardFragmentStageExecution buildExecution(
+    private <T extends ActionResponse> ShardFragmentStageExecution buildExecution(
         CapturingSink sink,
         boolean streaming,
         AtomicReference<StreamingResponseListener<T>> listenerCapture
@@ -169,7 +166,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         }
 
         ResponseCodec<FragmentExecutionResponse> codec = (resp, alloc) -> {
-            VectorSchemaRoot vsr = createTestBatch(resp.getRows().size());
+            VectorSchemaRoot vsr = createTestBatch(resp.getRowCount());
             return vsr;
         };
 

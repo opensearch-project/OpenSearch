@@ -27,6 +27,10 @@ public interface ExchangeSinkProvider {
      * uses {@link ExchangeSinkContext#fragmentBytes()} as the serialized plan
      * (produced by {@link FragmentConvertor#convertFinalAggFragment}) and
      * writes its reduced output into {@link ExchangeSinkContext#downstream()}.
+     *
+     * @param context core-provided context carrying plan bytes, allocator, child inputs, and downstream sink
+     * @param backendContext backend-opaque state produced by instruction handlers (e.g.
+     *        {@code FinalAggregateInstructionHandler}), or {@code null} when no handler ran
      */
-    ExchangeSink createSink(ExchangeSinkContext context);
+    ExchangeSink createSink(ExchangeSinkContext context, BackendExecutionContext backendContext);
 }

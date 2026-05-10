@@ -58,9 +58,9 @@ final class LocalStageScheduler implements StageScheduler {
         // is stored on the Stage during FragmentConversionDriver.convertAll (root stage only,
         // no serialization needed since reduce executes locally at the coordinator).
         // TODO: find a cleaner way to provide the factory without storing it on Stage.
+        BackendExecutionContext backendContext = null;
         FragmentInstructionHandlerFactory factory = stage.getInstructionHandlerFactory();
         if (factory != null) {
-            BackendExecutionContext backendContext = null;
             Throwable primaryFailure = null;
             try {
                 for (InstructionNode node : stage.getPlanAlternatives().getFirst().instructions()) {
@@ -75,19 +75,12 @@ final class LocalStageScheduler implements StageScheduler {
                 }
             } catch (Throwable t) {
                 primaryFailure = t;
-            } finally {
-                // The reduce path does not currently hand backendContext off to the sink
-                // provider — any resources attached by instruction handlers must be released
-                // here. Close is idempotent so a future handoff can coexist with this call.
+                // On failure, close the backendContext since it won't be handed to the sink.
                 if (backendContext != null) {
                     try {
                         backendContext.close();
                     } catch (Exception closeFailure) {
-                        if (primaryFailure != null) {
-                            primaryFailure.addSuppressed(closeFailure);
-                        } else {
-                            primaryFailure = closeFailure;
-                        }
+                        primaryFailure.addSuppressed(closeFailure);
                     }
                 }
             }
@@ -100,8 +93,16 @@ final class LocalStageScheduler implements StageScheduler {
 
         ExchangeSink backendSink;
         try {
-            backendSink = provider.createSink(context);
+            backendSink = provider.createSink(context, backendContext);
         } catch (Exception e) {
+            // Sink creation failed — close backendContext to avoid resource leak.
+            if (backendContext != null) {
+                try {
+                    backendContext.close();
+                } catch (Exception closeFailure) {
+                    e.addSuppressed(closeFailure);
+                }
+            }
             throw new RuntimeException("Failed to create exchange sink for stageId=" + stage.getStageId(), e);
         }
         return new LocalStageExecution(stage, backendSink, sink);

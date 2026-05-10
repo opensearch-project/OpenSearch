@@ -67,6 +67,7 @@ def configureAnalyticsCluster = { cluster ->
 // ── Default integTest cluster ────────────────────────────────────────────────
 // TODO: enable numberOfNodes = 2 once partial aggs is handled
 testClusters.integTest {
+    numberOfNodes = 2
     configureAnalyticsCluster(delegate)
 }
 

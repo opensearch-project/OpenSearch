@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -53,6 +54,7 @@ public class AppendPipeCommandIT extends AnalyticsRestTestCase {
 
     // ── duplicate + inline sort, then head ──────────────────────────────────────
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21457")
     public void testAppendPipeSort() throws IOException {
         // Branch: stats sum(int0) by str0 → 3 rows (FURNITURE=1, OFFICE SUPPLIES=18, TECHNOLOGY=49).
         // Outer `sort str0` pins the original to alphabetical order. `appendpipe [sort -sum_int0_by_str0]`

@@ -134,6 +134,7 @@ pub async fn execute_indexed_query(
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
         .build();
     let ctx = SessionContext::new_with_state(state);
     ctx.register_udf(create_index_filter_udf());
@@ -162,6 +163,8 @@ pub async fn execute_indexed_query(
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
         query_config: Arc::unwrap_or_clone(query_config),
+        aggregate_mode: crate::agg_mode::Mode::Default,
+        prepared_plan: None,
     };
     let ptr = Box::into_raw(Box::new(handle)) as i64;
     unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor).await }
