@@ -87,11 +87,16 @@ pub async fn execute_query(
             e
         })?;
 
-    // Build a fresh session state per query. TODO : Tune this during planning per query
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
+    config.options_mut().execution.parquet.enable_page_index = query_config.parquet_enable_page_index;
+    config.options_mut().execution.parquet.bloom_filter_on_read = query_config.parquet_bloom_filter_on_read;
+    config.options_mut().execution.parquet.reorder_filters = query_config.parquet_reorder_filters;
     config.options_mut().execution.target_partitions = query_config.target_partitions;
     config.options_mut().execution.batch_size = query_config.batch_size;
+    config.options_mut().execution.sort_spill_reservation_bytes = query_config.sort_spill_reservation_bytes;
+    config.options_mut().optimizer.repartition_file_min_size = query_config.repartition_file_min_size;
+    config.options_mut().optimizer.repartition_file_scans = query_config.repartition_file_scans;
 
     let state = SessionStateBuilder::new()
         .with_config(config)

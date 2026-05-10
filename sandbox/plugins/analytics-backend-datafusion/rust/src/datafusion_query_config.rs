@@ -11,14 +11,35 @@ use crate::indexed_table::eval::single_collector::CollectorCallStrategy;
 /// Query-scoped configuration. Owned by value after FFM decode.
 #[derive(Debug, Clone)]
 pub struct DatafusionQueryConfig {
-    // Common
+    // ─── Common (affects both vanilla and indexed paths) ───
     pub batch_size: usize,
-    // Single query concurrency
     pub target_partitions: usize,
     /// DataFusion's own decode-time predicate pushdown on the vanilla path.
     pub parquet_pushdown_filters: bool,
 
-    // Indexed-only
+    // ─── DataFusion execution settings (memory & spill) ───
+    /// Minimum file size (bytes) for repartitioning file scans across
+    /// `target_partitions`. Files smaller than this are read by a single
+    /// partition. Larger values reduce partition count for small files.
+    /// Maps to: `config.optimizer.repartition_file_min_size`
+    pub repartition_file_min_size: usize,
+    /// Whether to repartition file scans (split large files across partitions).
+    /// Maps to: `config.optimizer.repartition_file_scans`
+    pub repartition_file_scans: bool,
+    /// Reserved memory per sort operator for in-memory merge during spill.
+    /// Maps to: `config.execution.sort_spill_reservation_bytes`
+    pub sort_spill_reservation_bytes: usize,
+    /// Use parquet page index for predicate pushdown (skip pages).
+    /// Maps to: `config.execution.parquet.enable_page_index`
+    pub parquet_enable_page_index: bool,
+    /// Use bloom filters during parquet reads to skip row groups.
+    /// Maps to: `config.execution.parquet.bloom_filter_on_read`
+    pub parquet_bloom_filter_on_read: bool,
+    /// Reorder filter predicates to minimize evaluation cost.
+    /// Maps to: `config.execution.parquet.reorder_filters`
+    pub parquet_reorder_filters: bool,
+
+    // ─── Indexed-only settings ───
     pub min_skip_run_default: usize,
     pub min_skip_run_selectivity_threshold: f64,
     /// Whether IndexedStream asks parquet to apply the residual predicate
@@ -33,18 +54,10 @@ pub struct DatafusionQueryConfig {
     /// RG prefetch. 1 = today's fully-sequential behaviour (lowest CPU,
     /// fastest short-circuit). `target_partitions × max_collector_parallelism`
     /// bounds total concurrent Lucene threads; default is 1
-    ///
-    /// At higher values, short-circuit savings in AND/OR groups are
-    /// sacrificed (see `BitmapTreeEvaluator::prefetch`): collectors
-    /// beyond the first may run even if their result is not needed.
     pub max_collector_parallelism: usize,
-    /// How the SingleCollectorEvaluator narrows collector doc ranges
-    /// relative to page-pruning results. `PageRangeSplit` is the default
-    /// — only one collector, so multiple FFM calls per RG is acceptable.
+    /// How the SingleCollectorEvaluator narrows collector doc ranges.
     pub single_collector_strategy: CollectorCallStrategy,
     /// How the bitmap tree evaluator narrows collector doc ranges.
-    /// `TightenOuterBounds` is the default — multiple collectors in the
-    /// tree means `PageRangeSplit` would multiply FFM calls.
     pub tree_collector_strategy: CollectorCallStrategy,
 }
 
@@ -52,16 +65,23 @@ impl Default for DatafusionQueryConfig {
     fn default() -> Self {
         Self {
             batch_size: 8192,
-            // TODO: change this default value ?
             target_partitions: 4,
             parquet_pushdown_filters: false,
-            min_skip_run_default: 1024, // Todo: tune based on benchmarks
-            min_skip_run_selectivity_threshold: 0.03, // Todo : tune based on benchmarks
+            // DataFusion execution defaults
+            repartition_file_min_size: 10 * 1024 * 1024, // 10MB
+            repartition_file_scans: true,
+            sort_spill_reservation_bytes: 10 * 1024 * 1024, // 10MB
+            parquet_enable_page_index: true,
+            parquet_bloom_filter_on_read: true,
+            parquet_reorder_filters: false,
+            // Indexed-only
+            min_skip_run_default: 1024,
+            min_skip_run_selectivity_threshold: 0.03,
             indexed_pushdown_filters: true,
             force_strategy: None,
             force_pushdown: None,
             cost_predicate: 1,
-            cost_collector: 10, // TODO : should this be collector leaf specific
+            cost_collector: 10,
             max_collector_parallelism: 1,
             single_collector_strategy: CollectorCallStrategy::PageRangeSplit,
             tree_collector_strategy: CollectorCallStrategy::TightenOuterBounds,
@@ -145,6 +165,14 @@ impl DatafusionQueryConfig {
                 2 => CollectorCallStrategy::PageRangeSplit,
                 _ => CollectorCallStrategy::TightenOuterBounds,
             },
+            // DataFusion execution configs — use defaults until Java wire struct
+            // is extended to pass these. They can be overridden via cluster settings.
+            repartition_file_min_size: 10 * 1024 * 1024,
+            repartition_file_scans: true,
+            sort_spill_reservation_bytes: 10 * 1024 * 1024,
+            parquet_enable_page_index: true,
+            parquet_bloom_filter_on_read: true,
+            parquet_reorder_filters: false,
         }
     }
 }

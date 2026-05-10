@@ -125,11 +125,15 @@ pub async fn execute_indexed_query(
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
+    config.options_mut().execution.parquet.enable_page_index = query_config.parquet_enable_page_index;
+    config.options_mut().execution.parquet.bloom_filter_on_read = query_config.parquet_bloom_filter_on_read;
+    config.options_mut().execution.parquet.reorder_filters = query_config.parquet_reorder_filters;
     // Indexed path fans out via IndexedExec partitions (derived from
     // num_partitions), not DataFusion's. But DF wants a sane value here
     // for any post-scan operators it may add.
     config.options_mut().execution.target_partitions = num_partitions.max(1);
     config.options_mut().execution.batch_size = query_config.batch_size;
+    config.options_mut().execution.sort_spill_reservation_bytes = query_config.sort_spill_reservation_bytes;
     let state = SessionStateBuilder::new()
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
