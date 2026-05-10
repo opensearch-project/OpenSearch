@@ -123,6 +123,12 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                     }
 
                     VectorSchemaRoot vsr = toVsr.apply(response);
+                    // DataFusion promotes string columns to Utf8View inside aggregations. The
+                    // reducer's partition streams are declared Utf8 (from Calcite), so a
+                    // Utf8View batch reinterprets as broken Utf8 — the 16-byte-per-entry view
+                    // layout read as 32-bit offsets yields multi-GB lengths or negative sizes.
+                    // Normalize to Utf8 so the reducer sees the declared layout.
+                    vsr = VsrNormalizer.toUtf8Strings(vsr, config.bufferAllocator());
                     outputSink.feed(vsr);
                     metrics.addRowsProcessed(vsr.getRowCount());
 
