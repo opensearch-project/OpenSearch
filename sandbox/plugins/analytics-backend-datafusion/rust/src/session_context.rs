@@ -17,7 +17,7 @@ use datafusion::{
     common::DataFusionError,
     datasource::file_format::parquet::ParquetFormat,
     datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl},
-    execution::cache::cache_manager::CacheManagerConfig,
+    execution::cache::cache_manager::{CacheManagerConfig, CachedFileList},
     execution::cache::{CacheAccessor, DefaultListFilesCache},
     execution::context::SessionContext,
     execution::memory_pool::MemoryPool,
@@ -79,7 +79,7 @@ pub async unsafe fn create_session_context(
             table: None,
             path: shard_view.table_path.prefix().clone(),
         },
-        shard_view.object_metas.clone(),
+        CachedFileList::new(shard_view.object_metas.as_ref().clone()),
     );
 
     let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)

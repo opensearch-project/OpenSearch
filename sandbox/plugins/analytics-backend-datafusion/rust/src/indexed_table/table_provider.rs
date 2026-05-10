@@ -222,12 +222,12 @@ impl TableProvider for IndexedTableProvider {
         let assignments =
             compute_assignments(&layouts, self.config.query_config.target_partitions.max(1));
 
-        let properties = PlanProperties::new(
+        let properties = Arc::new(PlanProperties::new(
             EquivalenceProperties::new(projected_schema.clone()),
             Partitioning::UnknownPartitioning(assignments.len().max(1)),
             EmissionType::Incremental,
             Boundedness::Bounded,
-        );
+        ));
 
         Ok(Arc::new(QueryShardExec {
             config: Arc::clone(&self.config),
@@ -257,7 +257,7 @@ pub struct QueryShardExec {
     projected_schema: SchemaRef,
     projection: Option<Vec<usize>>,
     assignments: Vec<PartitionAssignment>,
-    properties: PlanProperties,
+    properties: Arc<PlanProperties>,
     /// Residual physical predicate pushed down from the planner. Threaded
     /// into each `IndexedExec` so `ParquetSource.with_predicate(...)` can
     /// apply it during decode.
@@ -296,7 +296,7 @@ impl ExecutionPlan for QueryShardExec {
     fn schema(&self) -> SchemaRef {
         self.projected_schema.clone()
     }
-    fn properties(&self) -> &PlanProperties {
+    fn properties(&self) -> &Arc<PlanProperties> {
         &self.properties
     }
     fn children(&self) -> Vec<&Arc<dyn ExecutionPlan>> {
@@ -361,12 +361,12 @@ impl ExecutionPlan for QueryShardExec {
             let evaluator = (self.config.evaluator_factory)(segment, chunk, &stream_metrics)
                 .map_err(|e| DataFusionError::External(e.into()))?;
 
-            let props = PlanProperties::new(
+            let props = Arc::new(PlanProperties::new(
                 EquivalenceProperties::new(self.projected_schema.clone()),
                 Partitioning::UnknownPartitioning(1),
                 EmissionType::Incremental,
                 Boundedness::Bounded,
-            );
+            ));
 
             let exec = IndexedExec {
                 schema: self.projected_schema.clone(),
