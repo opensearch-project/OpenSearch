@@ -312,6 +312,16 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         return SyntheticSegmentInfos.serialize(this);
     }
 
+    /**
+     * Serializes using {@code luceneInMemoryInfos} as the base {@link SegmentInfos} when
+     * non-null, otherwise falls back to an empty base. The catalog is layered into
+     * {@code userData} either way. Pass a non-null value when the primary engine has a
+     * Lucene {@code IndexWriter} so uploaded bytes carry real segment references.
+     */
+    public byte[] serialize(org.apache.lucene.index.SegmentInfos luceneInMemoryInfos) throws IOException {
+        return SyntheticSegmentInfos.serialize(this, luceneInMemoryInfos);
+    }
+
     @Override
     public SegmentInfos getSegmentInfos() {
         throw new UnsupportedOperationException(
