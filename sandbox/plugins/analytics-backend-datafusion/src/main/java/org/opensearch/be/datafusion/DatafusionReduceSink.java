@@ -12,7 +12,12 @@ import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.ViewVarCharVector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -168,7 +173,7 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
                 "DatafusionReduceSink has " + sendersByChildStageId.size() + " input partitions; use sinkForChild(int) instead of feed()"
             );
         }
-        feedToSender(sendersByChildStageId.values().iterator().next(), batch);
+        feedToSender(sendersByChildStageId.values().iterator().next(), batch, childSchemas.values().iterator().next());
     }
 
     @Override
@@ -179,7 +184,7 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
                 "No registered partition for childStageId=" + childStageId + "; known ids=" + sendersByChildStageId.keySet()
             );
         }
-        return new ChildSink(sender);
+        return new ChildSink(sender, childSchemas.get(childStageId));
     }
 
     /**
@@ -190,13 +195,17 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
      * already ran senderClose, the native side returns an error ("receiver dropped")
      * which we catch and discard.
      */
-    private void feedToSender(DatafusionPartitionSender sender, VectorSchemaRoot batch) {
+    private void feedToSender(DatafusionPartitionSender sender, VectorSchemaRoot batch, Schema declaredSchema) {
         // Best-effort fast path — skip export work if already closed.
         if (closed) {
             batch.close();
             return;
         }
         BufferAllocator alloc = ctx.allocator();
+        // Bridge DataFusion's physical types (e.g. Utf8View for string group keys) to the
+        // coordinator's declared schema (Utf8) before handing the batch to Rust. Zero-copy
+        // fast path when schemas already match. See coerceToDeclaredSchema().
+        batch = coerceToDeclaredSchema(batch, declaredSchema, alloc);
         ArrowArray array = ArrowArray.allocateNew(alloc);
         ArrowSchema arrowSchema = ArrowSchema.allocateNew(alloc);
         try {
@@ -225,21 +234,77 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     }
 
     /**
+     * Coerces {@code batch} to {@code declaredSchema} at the Java→Rust boundary.
+     * Bridges the impedance between DataFusion's physical types (e.g. {@code Utf8View}
+     * for string group keys, a non-configurable HashAggregate optimization) and
+     * substrait's logical "string" which the coordinator's FINAL plan consumes as
+     * {@code Utf8}. One place, explicit, grows per-case on observed mismatch.
+     *
+     * <p>Zero-copy fast path when schemas already match (numeric-only aggregates).
+     * Closes {@code batch} — caller drops its reference.
+     */
+    private static VectorSchemaRoot coerceToDeclaredSchema(VectorSchemaRoot batch, Schema declaredSchema, BufferAllocator alloc) {
+        if (batch.getSchema().equals(declaredSchema)) {
+            return batch;
+        }
+        VectorSchemaRoot out = VectorSchemaRoot.create(declaredSchema, alloc);
+        try {
+            out.allocateNew();
+            int rows = batch.getRowCount();
+            for (int col = 0; col < declaredSchema.getFields().size(); col++) {
+                FieldVector src = batch.getVector(col);
+                FieldVector dst = out.getVector(col);
+                if (src.getField().getType().equals(dst.getField().getType())) {
+                    src.makeTransferPair(dst).transfer();
+                    continue;
+                }
+                ArrowType.ArrowTypeID srcId = src.getField().getType().getTypeID();
+                ArrowType.ArrowTypeID dstId = dst.getField().getType().getTypeID();
+                if (srcId == ArrowType.ArrowTypeID.Utf8View && dstId == ArrowType.ArrowTypeID.Utf8) {
+                    ViewVarCharVector s = (ViewVarCharVector) src;
+                    VarCharVector d = (VarCharVector) dst;
+                    for (int r = 0; r < rows; r++) {
+                        if (s.isNull(r)) {
+                            d.setNull(r);
+                        } else {
+                            d.setSafe(r, s.get(r));
+                        }
+                    }
+                    d.setValueCount(rows);
+                    continue;
+                }
+                throw new IllegalStateException(
+                    "coerceToDeclaredSchema: unsupported " + srcId + " → " + dstId + " for column '" + dst.getField().getName() + "'"
+                );
+            }
+            out.setRowCount(rows);
+        } catch (RuntimeException e) {
+            out.close();
+            throw e;
+        } finally {
+            batch.close();
+        }
+        return out;
+    }
+
+    /**
      * Per-child wrapper returned from {@link #sinkForChild(int)}. The orchestrator
      * routes one of these per child stage, and the wrapper's close() signals EOF for
      * its specific input partition. Idempotent — duplicate close() calls are no-ops.
      */
     private final class ChildSink implements ExchangeSink {
         private final DatafusionPartitionSender sender;
+        private final Schema declaredSchema;
         private volatile boolean childClosed;
 
-        ChildSink(DatafusionPartitionSender sender) {
+        ChildSink(DatafusionPartitionSender sender, Schema declaredSchema) {
             this.sender = sender;
+            this.declaredSchema = declaredSchema;
         }
 
         @Override
         public void feed(VectorSchemaRoot batch) {
-            feedToSender(sender, batch);
+            feedToSender(sender, batch, declaredSchema);
         }
 
         @Override

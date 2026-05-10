@@ -86,6 +86,14 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
      */
     protected final Map<Integer, byte[]> childInputs;
 
+    /**
+     * Declared Arrow {@link org.apache.arrow.vector.types.pojo.Schema} per childStageId,
+     * parallel to {@link #childInputs}. Used by sinks to coerce incoming batches when
+     * the shard's actual emit type diverges from the declaration (e.g. DataFusion's
+     * {@code Utf8View} for string group keys vs. declared {@code Utf8}).
+     */
+    protected final Map<Integer, org.apache.arrow.vector.types.pojo.Schema> childSchemas;
+
     /** Guards {@link #closed} and serialises {@link #feed}/{@link #close} against producers. */
     protected final Object feedLock = new Object();
 
@@ -106,10 +114,13 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
         this.preparedState = preparedState;
         this.session = preparedState != null ? preparedState.session() : new DatafusionLocalSession(runtimeHandle.get());
         Map<Integer, byte[]> inputs = new LinkedHashMap<>(ctx.childInputs().size());
+        Map<Integer, org.apache.arrow.vector.types.pojo.Schema> schemas = new LinkedHashMap<>(ctx.childInputs().size());
         for (ExchangeSinkContext.ChildInput child : ctx.childInputs()) {
             inputs.put(child.childStageId(), ArrowSchemaIpc.toBytes(child.schema()));
+            schemas.put(child.childStageId(), child.schema());
         }
         this.childInputs = inputs;
+        this.childSchemas = schemas;
     }
 
     /** DataFusion table name for an input partition associated with the given child stage id. */
