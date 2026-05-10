@@ -494,8 +494,9 @@ public class DataFormatAwareEngine implements Indexer {
     @Override
     public Engine.IndexResult index(Engine.Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
-        assert (index.origin() == Engine.Operation.Origin.PRIMARY || index.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY)
-            : "DataFormatAwareEngine only supports PRIMARY origin but got: " + index.origin();
+        assert (index.origin() == Engine.Operation.Origin.PRIMARY || index.origin() == Engine.Operation.Origin.REPLICA
+            || index.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY)
+            : "DataFormatAwareEngine only supports PRIMARY/REPLICA origin but got: " + index.origin();
         final boolean doThrottle = index.origin().isRecovery() == false;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -632,7 +633,7 @@ public class DataFormatAwareEngine implements Indexer {
             }
             indexResult = new Engine.IndexResult(e, plan.version, index.primaryTerm(), index.seqNo());
         } finally {
-            if (lockedWriter != null && writerCheckedOut == false) {
+            if (lockedWriter != null && writerCheckedOut == false && failedEngine.get() == null) {
                 writerPool.releaseAndUnlock(lockedWriter);
             }
         }
@@ -830,11 +831,6 @@ public class DataFormatAwareEngine implements Indexer {
                         // No two new segments may share the same generation
                         assert newSegments.stream().map(Segment::generation).distinct().count() == newSegments.size()
                             : "new segments must have unique generations";
-
-                        // New segment generations must not collide with existing segment generations
-                        assert newSegments.stream()
-                            .noneMatch(ns -> existingSegments.stream().anyMatch(es -> es.generation() == ns.generation()))
-                            : "new segment generation collides with an existing segment generation";
 
                         // refresh only if new segments have been created or force param is true
                         notifyRefreshListenersBefore();

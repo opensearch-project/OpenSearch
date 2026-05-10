@@ -63,7 +63,9 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
      */
     @Override
     public WriteResult addDoc(P d) throws IOException {
-        d.setRowId(DocumentInput.ROW_ID_FIELD, rowIdCounter.getAndIncrement());
+        if (d != null) {
+            d.setRowId(DocumentInput.ROW_ID_FIELD, rowIdCounter.getAndIncrement());
+        }
         return delegate.addDoc(d);
     }
 
@@ -83,6 +85,18 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
     @Override
     public long generation() {
         return delegate.generation();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public boolean isAborted() {
+        return delegate.isAborted();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public void rollbackLastDoc() throws IOException {
+        delegate.rollbackLastDoc();
     }
 
     /** {@inheritDoc} Closes the underlying writer. */

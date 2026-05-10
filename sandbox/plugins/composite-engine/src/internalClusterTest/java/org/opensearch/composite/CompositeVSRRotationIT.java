@@ -13,19 +13,13 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.DataFormatAwareEngine;
-import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -384,76 +378,30 @@ public class CompositeVSRRotationIT extends OpenSearchIntegTestCase {
     // ── Helpers ──
 
     private void createParquetLuceneIndex() {
-        client().admin()
-            .indices()
-            .prepareCreate(INDEX_NAME)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.pluggable.dataformat.enabled", true)
-                    .put("index.pluggable.dataformat", "composite")
-                    .put("index.composite.primary_data_format", "parquet")
-                    .putList("index.composite.secondary_data_formats", "lucene")
-            )
-            .setMapping("field_keyword", "type=keyword", "field_number", "type=integer")
-            .get();
-        ensureGreen(INDEX_NAME);
+        CompositeEngineHelper.createCompositeIndexWithMapping(this, INDEX_NAME, "parquet", Settings.EMPTY, "lucene");
     }
 
     private void indexDocs(int count) {
-        for (int i = 0; i < count; i++) {
-            assertEquals(
-                RestStatus.CREATED,
-                client().prepareIndex(INDEX_NAME)
-                    .setSource("field_keyword", randomAlphaOfLength(10), "field_number", randomIntBetween(0, 1000))
-                    .get()
-                    .status()
-            );
-        }
+        CompositeEngineHelper.indexDocs(this, INDEX_NAME, count);
     }
 
     private void flush() {
-        client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).setWaitIfOngoing(true).get();
+        CompositeEngineHelper.flush(this, INDEX_NAME);
     }
 
     private DataFormatAwareEngine getEngine() {
-        String nodeId = clusterService().state().routingTable().index(INDEX_NAME).shard(0).primaryShard().currentNodeId();
-        String nodeName = clusterService().state().nodes().get(nodeId).getName();
-        IndexService svc = internalCluster().getInstance(IndicesService.class, nodeName).indexServiceSafe(resolveIndex(INDEX_NAME));
-        IndexShard shard = svc.getShard(0);
-        return (DataFormatAwareEngine) IndexShardTestCase.getIndexer(shard);
+        return CompositeEngineHelper.getEngine(clusterService(), internalCluster(), INDEX_NAME);
     }
 
     private long getRowCount(String formatName) throws IOException {
-        DataFormatAwareEngine engine = getEngine();
-        try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
-            return ref.get().getSearchableFiles(formatName).stream().mapToLong(WriterFileSet::numRows).sum();
-        }
+        return CompositeEngineHelper.getRowCount(getEngine(), formatName);
     }
 
     private void assertCrossFormatConsistency(long expected) throws IOException {
         DataFormatAwareEngine engine = getEngine();
         engine.refresh("verify");
-
-        long parquetRows = getRowCount("parquet");
-        long luceneRows = getRowCount("lucene");
-        assertEquals("parquet row count", expected, parquetRows);
-        assertEquals("lucene row count", expected, luceneRows);
-
-        // Per-segment: both formats must have matching rows
-        try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
-            for (Segment seg : ref.get().getSegments()) {
-                WriterFileSet pq = seg.dfGroupedSearchableFiles().get("parquet");
-                WriterFileSet lc = seg.dfGroupedSearchableFiles().get("lucene");
-                assertNotNull("segment gen=" + seg.generation() + " missing parquet", pq);
-                assertNotNull("segment gen=" + seg.generation() + " missing lucene", lc);
-                assertEquals(
-                    "segment gen=" + seg.generation() + " row counts must match across formats",
-                    pq.numRows(),
-                    lc.numRows()
-                );
-            }
-        }
+        assertEquals("parquet row count", expected, getRowCount("parquet"));
+        assertEquals("lucene row count", expected, getRowCount("lucene"));
+        CompositeEngineHelper.assertPerSegmentRowCountsMatch(engine, "parquet", "lucene");
     }
 }

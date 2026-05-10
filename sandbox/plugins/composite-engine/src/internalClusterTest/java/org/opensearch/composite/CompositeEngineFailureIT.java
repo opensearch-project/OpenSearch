@@ -13,18 +13,14 @@ import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.be.lucene.LucenePlugin;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.stub.FileBackedDataFormatPlugin;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -327,26 +323,15 @@ public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
     // --- Helpers ---
 
     private void createCompositeIndex(String primary, String... secondaries) {
-        Settings.Builder sb = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.pluggable.dataformat.enabled", true)
-            .put("index.pluggable.dataformat", "composite")
-            .put("index.composite.primary_data_format", primary);
-        sb.putList("index.composite.secondary_data_formats", secondaries);
-        createIndex(INDEX_NAME, sb.build());
-        ensureGreen(INDEX_NAME);
+        CompositeEngineHelper.createCompositeIndex(this, INDEX_NAME, primary, secondaries);
     }
 
     private org.opensearch.index.shard.IndexShard getPrimaryShard() {
-        String nodeId = clusterService().state().routingTable().index(INDEX_NAME).shard(0).primaryShard().currentNodeId();
-        String nodeName = clusterService().state().nodes().get(nodeId).getName();
-        IndexService svc = internalCluster().getInstance(IndicesService.class, nodeName).indexServiceSafe(resolveIndex(INDEX_NAME));
-        return svc.getShard(0);
+        return CompositeEngineHelper.getPrimaryShard(clusterService(), internalCluster(), INDEX_NAME);
     }
 
     private DataFormatAwareEngine getEngine() {
-        return (DataFormatAwareEngine) IndexShardTestCase.getIndexer(getPrimaryShard());
+        return CompositeEngineHelper.getEngine(clusterService(), internalCluster(), INDEX_NAME);
     }
 
     private void indexDocs(int count) {
@@ -358,7 +343,6 @@ public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
         }
     }
 
-    /** Indexes a single doc via bulk API and returns the per-item response for failure inspection. */
     private BulkItemResponse indexSingleDoc(String value) {
         BulkResponse bulk = client().prepareBulk().add(client().prepareIndex(INDEX_NAME).setSource("field", value)).get();
         assertEquals(1, bulk.getItems().length);
@@ -366,14 +350,11 @@ public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
     }
 
     private void flush() {
-        client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).get();
+        CompositeEngineHelper.flush(this, INDEX_NAME);
     }
 
-    /** Returns total row count for a format from the current CatalogSnapshot. */
     private long getRowCount(String formatName) throws IOException {
-        try (GatedCloseable<CatalogSnapshot> ref = getEngine().acquireSnapshot()) {
-            return ref.get().getSearchableFiles(formatName).stream().mapToLong(WriterFileSet::numRows).sum();
-        }
+        return CompositeEngineHelper.getRowCount(getEngine(), formatName);
     }
 
     /** Verifies filebacked data: correct doc count, no duplicate entries, and fields are non-empty. */

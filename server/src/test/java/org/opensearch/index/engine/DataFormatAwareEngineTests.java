@@ -30,6 +30,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FlushAndCloseWriterException;
+import org.opensearch.index.engine.dataformat.RowIdAwareWriter;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
@@ -1979,6 +1980,16 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     private MockWriter getPooledMockWriter(DataFormatAwareEngine engine) {
         for (Writer<?> w : engine.getWriterPool()) {
             if (w instanceof MockWriter mw) return mw;
+            if (w instanceof RowIdAwareWriter<?> riw) {
+                try {
+                    java.lang.reflect.Field delegateField = RowIdAwareWriter.class.getDeclaredField("delegate");
+                    delegateField.setAccessible(true);
+                    Writer<?> delegate = (Writer<?>) delegateField.get(riw);
+                    if (delegate instanceof MockWriter mw) return mw;
+                } catch (ReflectiveOperationException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
         throw new AssertionError("No MockWriter found in writer pool");
     }
@@ -2031,6 +2042,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testIndexSingleDocWriteFailureOnReplicaFailsEngine() throws IOException {
         DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
         try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
             // Index 3 docs successfully via replica path
             for (int i = 0; i < 3; i++) {
                 Engine.IndexResult result = engine.index(replicaIndexOp(createParsedDoc(Integer.toString(i), null), i));
@@ -2219,16 +2232,19 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             engine.flush(false, true);
         }
 
-        // Reopen engine and verify recovery replays translog
+        // Reopen engine and verify it's operational after recovery
+        // (InMemoryCommitter doesn't persist commit data to the store, so translog replay
+        // can't recover seq nos from the committed checkpoint — verify engine is functional instead)
         try (DataFormatAwareEngine engine2 = createDFAEngine(store, translogPath)) {
             engine2.translogManager().recoverFromTranslog(ignore -> 0, engine2.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
-            // After recovery, the engine should have replayed translog ops
-            // The exact checkpoint depends on commit data persistence, but the engine should be functional
-            assertThat(
-                "engine2 should be open and functional after recovery",
-                engine2.getProcessedLocalCheckpoint(),
-                greaterThanOrEqualTo(-1L)
-            );
+
+            // Engine should be fully operational — can index new docs
+            Engine.IndexResult newResult = engine2.index(indexOp(createParsedDoc("new-after-recovery", null)));
+            assertThat("new doc after recovery should succeed", newResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+
+            // Refresh and flush work without error
+            engine2.refresh("post-recovery");
+            engine2.flush(false, true);
         }
     }
 
@@ -2271,6 +2287,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testAbortedWriterOnReplicaFailsEngine() throws IOException {
         DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
         try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
             // Index 3 docs via replica path
             for (int i = 0; i < 3; i++) {
                 Engine.IndexResult result = engine.index(replicaIndexOp(createParsedDoc(Integer.toString(i), null), i));
@@ -2399,7 +2417,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
-    public void testConcurrentIndexAndRefreshUnderFailure() throws Exception {
+    public void testRefreshFailureAfterIndexingFailsEngine() throws Exception {
         DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
         try {
             MockIndexingExecutionEngine mockExecEngine = getMockExecutionEngine(engine);
@@ -2528,10 +2546,10 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     // ========================================================================================
-    // Tests: Concurrent flush + index under commit failure (Task 45)
+    // Tests: Flush with commit corruption (Task 45)
     // ========================================================================================
 
-    public void testConcurrentFlushAndIndexUnderCommitFailure() throws Exception {
+    public void testFlushWithCommitCorruptionFailsEngineAndMarksStore() throws Exception {
         Path translogPath = createTempDir();
         FailingEngineResult fer = createDFAEngineWithFailingCommitter(store, translogPath);
         DataFormatAwareEngine engine = fer.engine();
@@ -2672,9 +2690,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
-    // --- Test: concurrent index + refresh + flush with writer failure ---
+    // --- Test: refresh failure with buffered unflushed segments ---
 
-    public void testConcurrentIndexRefreshFlushWithWriterFailure() throws Exception {
+    public void testRefreshFailureWithBufferedSegmentsFailsEngine() throws Exception {
         DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
         try {
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
