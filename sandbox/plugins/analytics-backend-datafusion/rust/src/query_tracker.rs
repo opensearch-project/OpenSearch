@@ -22,7 +22,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use dashmap::DashMap;
-use log::debug;
+use log::{debug, info};
 use once_cell::sync::Lazy;
 use tokio_util::sync::CancellationToken;
 
@@ -132,6 +132,21 @@ impl QueryTracker {
         }
     }
 
+    /// Wall-clock duration in nanoseconds, as an `i64` for FFM transport.
+    /// Returns the frozen snapshot if completed, otherwise live elapsed time.
+    /// Elapsed nanos is `u128` internally; saturates at `i64::MAX` (~292 years)
+    /// so it can always be represented as an `i64`.
+    pub fn elapsed_nanos(&self) -> i64 {
+        let frozen = self.wall_nanos.load(Ordering::Acquire);
+        if frozen > 0 {
+            // `AtomicU64` → `i64`: `frozen` was produced from `elapsed().as_nanos() as u64`
+            // so its high bit is effectively clear. Still clamp defensively.
+            frozen.min(i64::MAX as u64) as i64
+        } else {
+            self.start_time.elapsed().as_nanos().min(i64::MAX as u128) as i64
+        }
+    }
+
     pub fn is_completed(&self) -> bool {
         self.completed.load(Ordering::Acquire)
     }
@@ -149,6 +164,105 @@ impl QueryTracker {
 // ---------------------------------------------------------------------------
 
 static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap::new);
+
+/// Remove a completed tracker from the registry and return it.
+/// Called from JNI after Java has consumed the metrics.
+pub fn drain_completed_query(context_id: i64) -> Option<Arc<QueryTracker>> {
+    QUERY_REGISTRY
+        .remove_if(&context_id, |_, t| t.is_completed())
+        .map(|(_, t)| t)
+}
+
+// ---------------------------------------------------------------------------
+// Registry snapshot — two-phase FFM export
+// ---------------------------------------------------------------------------
+
+/// Wire representation of a single query's tracker, used by the two-phase
+/// snapshot API. Fields are `i64` so the struct crosses the FFM boundary with
+/// a stable, alignment-safe layout (8-byte aligned on every target we support).
+///
+/// | Field         | Meaning                                                   |
+/// |---------------|-----------------------------------------------------------|
+/// | context_id    | `QueryTracker::context_id`                                |
+/// | current_bytes | `QueryMemoryPool::current_bytes`, clamped to `i64::MAX`   |
+/// | peak_bytes    | `QueryMemoryPool::peak_bytes`, clamped to `i64::MAX`      |
+/// | wall_nanos    | live elapsed or frozen wall time (see `elapsed_nanos()`)  |
+/// | completed     | 1 if the tracker has been marked completed, else 0        |
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct WireQueryMetric {
+    pub context_id: i64,
+    pub current_bytes: i64,
+    pub peak_bytes: i64,
+    pub wall_nanos: i64,
+    pub completed: i64,
+}
+
+const _: () = assert!(std::mem::size_of::<WireQueryMetric>() == 5 * 8);
+
+fn usize_to_i64_saturating(value: usize) -> i64 {
+    if value > i64::MAX as usize {
+        i64::MAX
+    } else {
+        value as i64
+    }
+}
+
+impl WireQueryMetric {
+    fn from_tracker(tracker: &QueryTracker) -> Self {
+        Self {
+            context_id: tracker.context_id,
+            current_bytes: usize_to_i64_saturating(tracker.memory_pool.current_bytes()),
+            peak_bytes: usize_to_i64_saturating(tracker.memory_pool.peak_bytes()),
+            wall_nanos: tracker.elapsed_nanos(),
+            completed: if tracker.is_completed() { 1 } else { 0 },
+        }
+    }
+}
+
+/// Phase 1 of the snapshot API: return the current number of entries in the
+/// registry. Java uses this to allocate a buffer for phase 2.
+///
+/// The value is racy by design — queries may register or be drained between
+/// phase 1 and phase 2. Phase 2 handles both cases: if there are more entries
+/// than the buffer holds, the extra entries are truncated; if there are
+/// fewer, the unused tail of the buffer is left untouched and the actual
+/// count is returned.
+pub fn query_registry_len() -> usize {
+    let n = QUERY_REGISTRY.len();
+    info!("[nativemem-bp] rust.query_registry_len = {}", n);
+    n
+}
+
+/// Phase 2 of the snapshot API: copy up to `cap_entries` entries from the
+/// registry into `out`. Returns the number of entries actually written.
+///
+/// `out` may be a raw slice pointing at a Java-owned buffer; it must be
+/// valid for writes of `cap_entries * size_of::<WireQueryMetric>()` bytes
+/// and properly aligned for `WireQueryMetric` (8-byte aligned). Entries are
+/// collected in the order DashMap's iterator returns them, which is not
+/// otherwise specified.
+pub fn snapshot_query_registry(out: &mut [WireQueryMetric]) -> usize {
+    let mut written = 0usize;
+    for entry in QUERY_REGISTRY.iter() {
+        if written >= out.len() {
+            break;
+        }
+        let metric = WireQueryMetric::from_tracker(entry.value());
+        info!(
+            "[nativemem-bp] rust.snapshot entry[{}]: ctx={}, current={}B, peak={}B, wall_ns={}, completed={}",
+            written, metric.context_id, metric.current_bytes, metric.peak_bytes, metric.wall_nanos, metric.completed
+        );
+        out[written] = metric;
+        written += 1;
+    }
+    info!(
+        "[nativemem-bp] rust.snapshot_query_registry: wrote {} entries (buffer cap {})",
+        written,
+        out.len()
+    );
+    written
+}
 
 /// Fire the cancellation token for the given context_id.
 /// No-op for unknown or already-completed queries.
@@ -199,6 +313,11 @@ impl QueryTrackingContext {
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
         QUERY_REGISTRY.insert(context_id, Arc::clone(&tracker));
+        info!(
+            "[nativemem-bp] rust.QueryTrackingContext::new: registered ctx={} (registry_size={})",
+            context_id,
+            QUERY_REGISTRY.len()
+        );
         Self {
             tracker: Some(tracker),
         }
@@ -220,6 +339,14 @@ impl Drop for QueryTrackingContext {
     fn drop(&mut self) {
         if let Some(tracker) = &self.tracker {
             tracker.mark_completed();
+            info!(
+                "[nativemem-bp] rust.QueryTrackingContext::drop: ctx={} completed (wall={:.3}s, mem_current={}B, mem_peak={}B)",
+                tracker.context_id,
+                tracker.wall_secs(),
+                tracker.memory_pool.current_bytes(),
+                tracker.memory_pool.peak_bytes(),
+            );
+            // Keep the debug line for operators who already tail the Rust debug log.
             debug!(
                 "Query completed ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
                 tracker.context_id,
@@ -466,5 +593,123 @@ mod tests {
         } // ctx dropped here — removes from registry
 
         assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
+    }
+
+    // -----------------------------------------------------------------------
+    // Two-phase snapshot tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_snapshot_captures_live_and_completed() {
+        let global = make_global_pool(1_000_000);
+        let live_id = 60_000;
+        let done_id = 60_001;
+
+        let live_ctx = QueryTrackingContext::new(live_id, Arc::clone(&global));
+        let live_pool = live_ctx.memory_pool().unwrap();
+        let pool: Arc<dyn MemoryPool> = live_pool.clone();
+        let mut reservation = make_reservation(&pool, "live");
+        reservation.try_grow(4096).unwrap();
+
+        let done_ctx = QueryTrackingContext::new(done_id, Arc::clone(&global));
+        let done_pool = done_ctx.memory_pool().unwrap();
+        let done_pool_dyn: Arc<dyn MemoryPool> = done_pool.clone();
+        let mut done_reservation = make_reservation(&done_pool_dyn, "done");
+        done_reservation.try_grow(2048).unwrap();
+        drop(done_reservation);
+        drop(done_ctx);
+
+        // Phase 1
+        let len = query_registry_len();
+        assert!(len >= 2, "expected at least 2 entries, got {len}");
+
+        // Phase 2 with exact capacity
+        let mut buf = vec![
+            WireQueryMetric {
+                context_id: 0,
+                current_bytes: 0,
+                peak_bytes: 0,
+                wall_nanos: 0,
+                completed: 0,
+            };
+            len
+        ];
+        let written = snapshot_query_registry(&mut buf);
+        assert_eq!(written, len);
+
+        let live = buf.iter().find(|m| m.context_id == live_id).expect("live not captured");
+        assert_eq!(live.current_bytes, 4096);
+        assert_eq!(live.peak_bytes, 4096);
+        assert_eq!(live.completed, 0);
+        assert!(live.wall_nanos >= 0);
+
+        let done = buf.iter().find(|m| m.context_id == done_id).expect("done not captured");
+        assert_eq!(done.current_bytes, 0);
+        assert_eq!(done.peak_bytes, 2048);
+        assert_eq!(done.completed, 1);
+        assert!(done.wall_nanos > 0);
+
+        drop(reservation);
+        drop(live_ctx);
+        QUERY_REGISTRY.remove(&live_id);
+        QUERY_REGISTRY.remove(&done_id);
+    }
+
+    #[test]
+    fn test_snapshot_truncates_when_buffer_is_smaller_than_registry() {
+        let global = make_global_pool(1_000_000);
+        let ids: Vec<i64> = (60_100..60_105).collect();
+        let contexts: Vec<QueryTrackingContext> = ids
+            .iter()
+            .map(|id| QueryTrackingContext::new(*id, Arc::clone(&global)))
+            .collect();
+
+        let mut buf = vec![
+            WireQueryMetric {
+                context_id: 0,
+                current_bytes: 0,
+                peak_bytes: 0,
+                wall_nanos: 0,
+                completed: 0,
+            };
+            2
+        ];
+        let written = snapshot_query_registry(&mut buf);
+        assert_eq!(written, 2, "buffer should cap the write count");
+        // QUERY_REGISTRY is process-wide. Other parallel tests may contribute entries to
+        // this 2-slot buffer, so the only invariant we can assert here is "no more than
+        // two entries were written". The more specific "every entry belongs to this
+        // test's id range" check is inherently racy; don't re-introduce it.
+
+        drop(contexts);
+        for id in &ids {
+            QUERY_REGISTRY.remove(id);
+        }
+    }
+
+    #[test]
+    fn test_snapshot_into_oversized_buffer_leaves_tail_untouched() {
+        let global = make_global_pool(1_000_000);
+        let id = 60_200;
+        let ctx = QueryTrackingContext::new(id, global);
+
+        let sentinel = WireQueryMetric {
+            context_id: -1,
+            current_bytes: -1,
+            peak_bytes: -1,
+            wall_nanos: -1,
+            completed: -1,
+        };
+        let mut buf = vec![sentinel; query_registry_len() + 4];
+        let written = snapshot_query_registry(&mut buf);
+        assert!(written >= 1);
+        assert!(written < buf.len(), "should not fill the oversized buffer");
+        // Trailing slots keep the sentinel — verifies snapshot did not touch them.
+        for entry in &buf[written..] {
+            assert_eq!(entry.context_id, -1);
+        }
+
+        drop(ctx);
+        QUERY_REGISTRY.remove(&id);
     }
 }

@@ -115,6 +115,20 @@ public interface AnalyticsSearchBackendPlugin {
     }
 
     /**
+     * Returns a snapshot of this backend's currently-tracked queries, keyed by {@code contextId}.
+     *
+     * <p>The map is a point-in-time view — entries can register or drain concurrently on the
+     * backend side. Implementations MUST return a non-null map (empty when nothing is tracked)
+     * and SHOULD make it unmodifiable so callers cannot mutate backend state.
+     *
+     * <p>Default implementation returns an empty map so backends that do not track per-query
+     * metrics don't have to opt in.
+     */
+    default Map<Long, QueryExecutionMetrics> getActiveQueryMetrics() {
+        return Collections.emptyMap();
+    }
+
+    /**
      * Install a thread tracker for attribution of delegation callbacks executing on foreign threads.
      * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
      */

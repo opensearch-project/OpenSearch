@@ -26,6 +26,7 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.ProjectCapability;
+import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
@@ -577,6 +578,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // Install the handle as the FFM upcall target. All Rust callbacks
         // (createProvider, createCollector, collectDocs, release*) route to it.
         FilterTreeCallbacks.setHandle(handle);
+    }
+
+    @Override
+    public Map<Long, QueryExecutionMetrics> getActiveQueryMetrics() {
+        // Delegate to the plugin that owns the DataFusionService and native runtime.
+        // Keeping the real implementation on DataFusionPlugin lets operators call it
+        // directly (e.g., from a REST action) without going through the SPI.
+        return plugin.getActiveQueryMetrics();
     }
 
     @Override

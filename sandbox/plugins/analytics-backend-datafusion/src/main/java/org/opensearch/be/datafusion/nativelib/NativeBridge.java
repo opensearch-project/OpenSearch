@@ -19,6 +19,7 @@ import org.opensearch.plugins.NativeStoreHandle;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
@@ -86,6 +87,8 @@ public final class NativeBridge {
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
+    private static final MethodHandle QUERY_REGISTRY_LEN;
+    private static final MethodHandle QUERY_REGISTRY_SNAPSHOT;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -413,6 +416,18 @@ public final class NativeBridge {
             lib.find("df_execute_local_prepared_plan").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
+
+        // i64 df_query_registry_len()
+        QUERY_REGISTRY_LEN = linker.downcallHandle(
+            lib.find("df_query_registry_len").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_query_registry_snapshot(out_ptr, cap_entries)
+        QUERY_REGISTRY_SNAPSHOT = linker.downcallHandle(
+            lib.find("df_query_registry_snapshot").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
     }
 
     private NativeBridge() {}
@@ -687,6 +702,46 @@ public final class NativeBridge {
             }
 
             return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors));
+        }
+    }
+
+    // ---- Per-query registry snapshot (two-phase) ----
+
+    /**
+     * Phase 1: return the current size of the per-query registry on the native side.
+     *
+     * <p>The value is a sizing hint only — it can go stale the moment it's returned
+     * because queries may register or drain concurrently. {@link #queryRegistrySnapshot}
+     * handles both over- and under-sized buffers safely.
+     */
+    public static int queryRegistryLen() {
+        try {
+            long result = NativeLibraryLoader.checkResult((long) QUERY_REGISTRY_LEN.invokeExact());
+            if (result > Integer.MAX_VALUE) {
+                throw new IllegalStateException("Native registry length exceeds Integer.MAX_VALUE: " + result);
+            }
+            return (int) result;
+        } catch (Throwable t) {
+            throw t instanceof RuntimeException re ? re : new RuntimeException(t);
+        }
+    }
+
+    /**
+     * Phase 2: copy up to {@code capacity} entries from the native registry into the
+     * given segment and return the number of entries actually written.
+     *
+     * <p>{@code out} must be 8-byte aligned and large enough to hold
+     * {@code capacity * QueryRegistryLayout.ENTRY_BYTES} bytes. If the native
+     * registry is larger than {@code capacity}, the extra entries are silently
+     * truncated; if smaller, the unused tail of the buffer is left untouched.
+     */
+    public static int queryRegistrySnapshot(MemorySegment out, int capacity) {
+        if (capacity < 0) {
+            throw new IllegalArgumentException("capacity must be non-negative: " + capacity);
+        }
+        try (var call = new NativeCall()) {
+            long written = call.invoke(QUERY_REGISTRY_SNAPSHOT, out, (long) capacity);
+            return (int) written;
         }
     }
 

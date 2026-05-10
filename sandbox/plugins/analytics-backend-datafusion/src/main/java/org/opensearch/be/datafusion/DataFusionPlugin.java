@@ -11,7 +11,11 @@ package org.opensearch.be.datafusion;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
+import org.opensearch.be.datafusion.cache.CacheSettings;
+import org.opensearch.be.datafusion.nativelib.QueryMemoryRegistry;
+import org.opensearch.be.datafusion.nativelib.QueryMemoryUsage;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -35,6 +39,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -42,7 +47,10 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import io.substrait.extension.DefaultExtensionCatalog;
@@ -153,9 +161,51 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
+        // Expose per-task native-memory usage to search backpressure. The tracker calls
+        // this supplier once per refresh (invoked by the backpressure service at the top of
+        // doRun() and nodeStats()), snapshotting all live queries in one FFM call. Per-task
+        // evaluation then reads from the tracker's cached map — no FFM call per task.
+        //
+        // The OpenSearch task id is used as the DataFusion context_id at query launch
+        // (see ShardScanInstructionHandler / DatafusionSearchExecEngine), so the map is
+        // already keyed by Task#getId on the consumer side.
+        logger.info("[nativemem-bp] plugin: installing native-memory snapshot supplier for backpressure tracker");
+        NativeMemoryUsageTracker.setSnapshotSupplier(this::snapshotNativeMemoryByTaskId);
+
         this.substraitExtensions = loadSubstraitExtensions();
 
         return Collections.singletonList(dataFusionService);
+    }
+
+    /**
+     * Project the active-query metrics map down to {@code taskId -> currentBytes} for the
+     * backpressure native-memory tracker. One FFM snapshot per call. Returns an empty map
+     * when the service isn't running, so startup/shutdown races don't surface bad data.
+     */
+    private Map<Long, Long> snapshotNativeMemoryByTaskId() {
+        if (dataFusionService == null) {
+            logger.info("[nativemem-bp] plugin.snapshot: service not running, returning empty map");
+            return Collections.emptyMap();
+        }
+        long t0 = System.nanoTime();
+        Map<Long, QueryExecutionMetrics> metrics = getActiveQueryMetrics();
+        if (metrics.isEmpty()) {
+            logger.info(
+                "[nativemem-bp] plugin.snapshot: empty registry (elapsedMicros={})",
+                (System.nanoTime() - t0) / 1000L
+            );
+            return Collections.emptyMap();
+        }
+        Map<Long, Long> out = new HashMap<>(metrics.size());
+        for (Map.Entry<Long, QueryExecutionMetrics> e : metrics.entrySet()) {
+            out.put(e.getKey(), e.getValue().currentBytes());
+        }
+        logger.info(
+            "[nativemem-bp] plugin.snapshot: built taskId->currentBytes map, size={}, elapsedMicros={}",
+            out.size(),
+            (System.nanoTime() - t0) / 1000L
+        );
+        return out;
     }
 
     /**
@@ -274,5 +324,37 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         if (dataFusionService != null) {
             dataFusionService.close();
         }
+    }
+
+    /**
+     * Snapshot the native DataFusion per-query registry and return a {@code contextId -> metrics}
+     * map. Returns an empty map when the service is not yet running (startup) or has been stopped
+     * (shutdown), so callers never see a half-initialized view.
+     *
+     * <p>Each entry mirrors one {@code QueryTracker} on the Rust side — current and peak memory
+     * reservation, wall time, and whether the query has completed but not yet been drained.
+     * Ordering follows {@link QueryMemoryRegistry#snapshot()} (insertion-agnostic); a
+     * {@link LinkedHashMap} preserves that ordering for callers that want deterministic iteration
+     * in tests or logs.
+     */
+    @Override
+    public Map<Long, QueryExecutionMetrics> getActiveQueryMetrics() {
+        if (dataFusionService == null) {
+            return Collections.emptyMap();
+        }
+        List<QueryMemoryUsage> usages = QueryMemoryRegistry.snapshot();
+        if (usages.isEmpty()) {
+            logger.info("[nativemem-bp] plugin.getActiveQueryMetrics: native registry empty");
+            return Collections.emptyMap();
+        }
+        Map<Long, QueryExecutionMetrics> result = new LinkedHashMap<>(usages.size());
+        for (QueryMemoryUsage u : usages) {
+            // DashMap keys are unique, but defensively keep the first snapshot — a duplicate
+            // would only occur if context ids were reused, which QueryTrackingContext::new
+            // already treats as a caller bug.
+            result.putIfAbsent(u.contextId(), new QueryExecutionMetrics(u.currentBytes(), u.peakBytes(), u.wallNanos(), u.completed()));
+        }
+        logger.info("[nativemem-bp] plugin.getActiveQueryMetrics: decoded {} entries from native registry", result.size());
+        return Collections.unmodifiableMap(result);
     }
 }

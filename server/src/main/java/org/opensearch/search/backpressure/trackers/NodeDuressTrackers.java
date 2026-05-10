@@ -49,6 +49,15 @@ public class NodeDuressTrackers {
     }
 
     /**
+     * Convenience accessor for native-memory duress. Equivalent to
+     * {@code isResourceInDuress(ResourceType.NATIVE_MEMORY)} but expressed as a method
+     * reference-friendly form used by the tracker-apply map in the backpressure service.
+     */
+    public boolean isNativeMemoryInDuress() {
+        return isResourceInDuress(ResourceType.NATIVE_MEMORY);
+    }
+
+    /**
      * Method to evaluate whether the node is in duress or not
      * @return true if node is in duress because of either system resource
      */
@@ -63,8 +72,14 @@ public class NodeDuressTrackers {
 
     private void updateCache() {
         if (nodeDuressCacheExpiryChecker.getAsBoolean()) {
-            for (ResourceType resourceType : ResourceType.values())
-                resourceDuressCache.put(resourceType, duressTrackers.get(resourceType).test());
+            // Callers may register duress trackers for only a subset of {@link ResourceType}
+            // values (e.g. WLM's WorkloadGroupService registers CPU + MEMORY only, leaving
+            // NATIVE_MEMORY unregistered). Treat absence as "not in duress" so unrelated
+            // call sites aren't forced to register a no-op tracker for every new enum value.
+            for (ResourceType resourceType : ResourceType.values()) {
+                NodeDuressTracker tracker = duressTrackers.get(resourceType);
+                resourceDuressCache.put(resourceType, tracker != null && tracker.test());
+            }
         }
     }
 

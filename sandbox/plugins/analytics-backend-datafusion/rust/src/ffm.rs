@@ -12,6 +12,7 @@ use std::slice;
 use std::str;
 use std::sync::Arc;
 
+use log::info;
 use native_bridge_common::ffm_safe;
 use parking_lot::RwLock;
 
@@ -201,6 +202,52 @@ pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
 #[no_mangle]
 pub extern "C" fn df_cancel_query(context_id: i64) {
     api::cancel_query(context_id);
+}
+
+// ---------------------------------------------------------------------------
+// Per-query registry snapshot (two-phase)
+//
+// Java calls `df_query_registry_len` to size a buffer, then `df_query_registry_snapshot`
+// to populate it. See `query_tracker::WireQueryMetric` for the wire layout.
+// ---------------------------------------------------------------------------
+
+/// Returns the current number of entries in the query registry.
+/// Value is racy — treat it as a sizing hint only.
+#[no_mangle]
+pub extern "C" fn df_query_registry_len() -> i64 {
+    let len = crate::query_tracker::query_registry_len();
+    info!("[nativemem-bp] ffm.df_query_registry_len -> {}", len);
+    len as i64
+}
+
+/// Copies up to `cap_entries` `WireQueryMetric`s into the caller-provided buffer.
+/// Returns the number of entries actually written.
+///
+/// Safety: `out_ptr` must be non-null, 8-byte aligned, and point to storage for
+/// at least `cap_entries * size_of::<WireQueryMetric>()` bytes.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_query_registry_snapshot(out_ptr: *mut u8, cap_entries: i64) -> i64 {
+    use crate::query_tracker::{snapshot_query_registry, WireQueryMetric};
+
+    if cap_entries < 0 {
+        return Err(format!("negative capacity: {cap_entries}"));
+    }
+    if cap_entries == 0 {
+        info!("[nativemem-bp] ffm.df_query_registry_snapshot: capacity=0, nothing to write");
+        return Ok(0);
+    }
+    if out_ptr.is_null() {
+        return Err("null snapshot buffer".to_string());
+    }
+    let out: &mut [WireQueryMetric] =
+        slice::from_raw_parts_mut(out_ptr as *mut WireQueryMetric, cap_entries as usize);
+    let written = snapshot_query_registry(out);
+    info!(
+        "[nativemem-bp] ffm.df_query_registry_snapshot: wrote {} entries (capacity {})",
+        written, cap_entries
+    );
+    Ok(written as i64)
 }
 
 #[ffm_safe]
