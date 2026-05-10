@@ -146,6 +146,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // Routes Calcite's TO_CHAR call to DataFusion's native `to_char` so PPL's
         // documented space-separator timestamp output is preserved on the AE path.
         FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
+        FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
