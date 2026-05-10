@@ -142,6 +142,24 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         return loadCommittedSnapshots(store).values().stream().filter(Objects::nonNull).collect(Collectors.toList());
     }
 
+    /**
+     * Returns a clone of the {@link IndexWriter}'s in-memory {@link SegmentInfos} via an
+     * NRT reader — includes pending segments from {@code addIndexes} without triggering a
+     * commit. Used by the remote-store upload path to keep real Lucene segment references
+     * in the uploaded metadata.
+     */
+    @Override
+    public SegmentInfos captureInMemorySegmentInfos() throws IOException {
+        ensureOpen();
+        try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+            if (reader instanceof org.apache.lucene.index.StandardDirectoryReader sdr) {
+                SegmentInfos infos = sdr.getSegmentInfos();
+                return infos == null ? null : infos.clone();
+            }
+        }
+        return null;
+    }
+
     @Override
     public void close() throws IOException {
         if (isClosed.compareAndSet(false, true)) {
