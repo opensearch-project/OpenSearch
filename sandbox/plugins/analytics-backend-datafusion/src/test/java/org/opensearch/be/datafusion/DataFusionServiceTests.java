@@ -28,7 +28,7 @@ import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SE
 public class DataFusionServiceTests extends OpenSearchTestCase {
 
     private void ensureTokioInit() {
-        NativeBridge.initTokioRuntimeManager(2);
+        NativeBridge.initTokioRuntimeManager(2, 4);
     }
 
     public void testServiceStartStop() {

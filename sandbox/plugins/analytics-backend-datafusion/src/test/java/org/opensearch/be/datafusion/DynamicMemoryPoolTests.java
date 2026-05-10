@@ -24,7 +24,7 @@ public class DynamicMemoryPoolTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        NativeBridge.initTokioRuntimeManager(2);
+        NativeBridge.initTokioRuntimeManager(2, 4);
         Path spillDir = createTempDir("datafusion-spill");
         service = DataFusionService.builder()
             .memoryPoolLimit(64 * 1024 * 1024) // 64MB

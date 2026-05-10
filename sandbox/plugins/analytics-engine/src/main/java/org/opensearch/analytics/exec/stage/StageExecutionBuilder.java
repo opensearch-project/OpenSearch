@@ -74,7 +74,7 @@ public class StageExecutionBuilder {
      */
     public StageExecution buildRootExecution(Stage rootStage, QueryContext config) {
         // TODO: Update to read directly from back-end provided ExchangeSource when the root stage has a fragment
-        return buildStageExecution(rootStage, new RowProducingSink(), config);
+        return buildStageExecution(rootStage, new RowProducingSink(config.maxResultRows()), config);
     }
 
     /**

@@ -40,6 +40,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final long spillMemoryLimit;
     private final String spillDirectory;
     private final int cpuThreads;
+    private final int ioThreads;
     private final ClusterSettings clusterSettings;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
@@ -59,6 +60,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.spillMemoryLimit = builder.spillMemoryLimit;
         this.spillDirectory = builder.spillDirectory;
         this.cpuThreads = builder.cpuThreads;
+        this.ioThreads = builder.ioThreads;
         this.clusterSettings = builder.clusterSettings;
     }
 
@@ -70,8 +72,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("Starting DataFusion service");
-        NativeBridge.initTokioRuntimeManager(cpuThreads);
-        logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
+        NativeBridge.initTokioRuntimeManager(cpuThreads, ioThreads);
+        logger.debug("Tokio runtime manager initialized with {} CPU threads, {} IO threads", cpuThreads, ioThreads);
 
         long cacheManagerPtr = 0L;
         if (clusterSettings != null) {
@@ -228,7 +230,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private long memoryPoolLimit = Runtime.getRuntime().maxMemory() / 4;
         private long spillMemoryLimit = Runtime.getRuntime().maxMemory() / 8;
         private String spillDirectory = System.getProperty("java.io.tmpdir");
-        private int cpuThreads = Runtime.getRuntime().availableProcessors();
+        private int cpuThreads = Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
+        private int ioThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
         private ClusterSettings clusterSettings;
 
         private Builder() {}
@@ -266,6 +269,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder cpuThreads(int threads) {
             this.cpuThreads = threads;
+            return this;
+        }
+
+        /**
+         * Sets the number of IO threads for the async runtime.
+         * @param threads IO thread count
+         */
+        public Builder ioThreads(int threads) {
+            this.ioThreads = threads;
             return this;
         }
 

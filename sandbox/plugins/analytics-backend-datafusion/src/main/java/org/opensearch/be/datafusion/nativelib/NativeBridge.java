@@ -88,7 +88,7 @@ public final class NativeBridge {
 
         INIT_RUNTIME_MANAGER = linker.downcallHandle(
             lib.find("df_init_runtime_manager").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT)
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
         );
 
         SHUTDOWN_RUNTIME_MANAGER = linker.downcallHandle(
@@ -484,8 +484,8 @@ public final class NativeBridge {
 
     // ---- Tokio runtime management (no Arena needed — no string/buffer args) ----
 
-    public static void initTokioRuntimeManager(int cpuThreads) {
-        NativeCall.invokeVoid(INIT_RUNTIME_MANAGER, cpuThreads);
+    public static void initTokioRuntimeManager(int cpuThreads, int ioThreads) {
+        NativeCall.invokeVoid(INIT_RUNTIME_MANAGER, cpuThreads, ioThreads);
     }
 
     public static void shutdownTokioRuntimeManager() {

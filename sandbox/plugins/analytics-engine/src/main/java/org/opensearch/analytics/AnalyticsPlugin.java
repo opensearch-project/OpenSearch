@@ -15,6 +15,7 @@ import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.analytics.exec.AnalyticsQuerySettings;
 import org.opensearch.analytics.exec.AnalyticsSearchService;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
@@ -27,6 +28,7 @@ import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.core.action.ActionResponse;
@@ -119,6 +121,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class));
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return AnalyticsQuerySettings.ALL_SETTINGS;
     }
 
     @Override

@@ -143,7 +143,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-        final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
+        int maxConcurrentShardRequests = clusterService.getClusterSettings().get(AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS);
+        long perQueryMemoryLimit = clusterService.getClusterSettings().get(AnalyticsQuerySettings.PER_QUERY_MEMORY_LIMIT);
+        long maxResultRows = clusterService.getClusterSettings().get(AnalyticsQuerySettings.MAX_RESULT_ROWS);
+        final QueryContext config = new QueryContext(
+            dag, searchExecutor, queryTask, maxConcurrentShardRequests, perQueryMemoryLimit, maxResultRows
+        );
 
         // Per-query cleanup on terminal. Stage-execution cancellation on external
         // task-cancel/timeout is wired inside the Scheduler — on this path the

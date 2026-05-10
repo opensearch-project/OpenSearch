@@ -32,7 +32,7 @@ public class DatafusionCacheManagerTests extends OpenSearchTestCase {
     private CacheManager cacheManager;
 
     private void setup() {
-        NativeBridge.initTokioRuntimeManager(2);
+        NativeBridge.initTokioRuntimeManager(2, 4);
 
         Set<Setting<?>> clusterSettingsToAdd = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         clusterSettingsToAdd.add(CacheSettings.METADATA_CACHE_ENABLED);

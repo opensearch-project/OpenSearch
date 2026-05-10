@@ -46,7 +46,7 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        NativeBridge.initTokioRuntimeManager(2);
+        NativeBridge.initTokioRuntimeManager(2, 4);
         Path spillDir = createTempDir("datafusion-spill");
         runtimeHandle = new NativeRuntimeHandle(
             NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024)

@@ -40,7 +40,7 @@ fn create_test_parquet(dir: &std::path::Path, rows: usize) {
 }
 
 fn setup() -> (RuntimeManager, DataFusionRuntime, tempfile::TempDir) {
-    let mgr = RuntimeManager::new(4);
+    let mgr = RuntimeManager::new(4, 8);
     let runtime_env = RuntimeEnvBuilder::new()
         .with_memory_pool(Arc::new(GreedyMemoryPool::new(256 * 1024 * 1024)))
         .with_disk_manager_builder(DiskManagerBuilder::default())

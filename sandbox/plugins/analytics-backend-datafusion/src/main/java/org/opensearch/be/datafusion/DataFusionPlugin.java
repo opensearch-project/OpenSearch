@@ -135,12 +135,16 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        int cpuThreads = DatafusionSettings.CPU_THREADS.get(settings);
+        int ioThreads = DatafusionSettings.IO_THREADS.get(settings);
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
 
         dataFusionService = DataFusionService.builder()
             .memoryPoolLimit(memoryPoolLimit)
             .spillMemoryLimit(spillMemoryLimit)
             .spillDirectory(spillDir)
+            .cpuThreads(cpuThreads)
+            .ioThreads(ioThreads)
             .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();

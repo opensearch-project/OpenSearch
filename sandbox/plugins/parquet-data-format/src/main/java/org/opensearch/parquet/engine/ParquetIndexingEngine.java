@@ -144,6 +144,13 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath, checksumStrategy::registerChecksum)
         );
         pushSettingsToRust();
+        registerDynamicSettingsListeners();
+    }
+
+    private void registerDynamicSettingsListeners() {
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(ParquetSettings.SORT_IN_MEMORY_THRESHOLD, v -> pushSettingsToRust());
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(ParquetSettings.SORT_BATCH_SIZE, v -> pushSettingsToRust());
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(ParquetSettings.MERGE_BATCH_SIZE, v -> pushSettingsToRust());
     }
 
     /**
