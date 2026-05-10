@@ -15,6 +15,7 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.sql.SqlFunction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -23,6 +24,7 @@ import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
 
@@ -96,6 +98,15 @@ public class OpenSearchProjectRule extends RelOptRule {
     }
 
     private RexNode annotateExpr(RexNode expr, List<String> childViableBackends) {
+        if (expr instanceof RexOver rexOver) {
+            // Window function: PPL's `top` / `rare` / `streamstats` lower to a Project containing
+            // `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)`. Standard scalar resolution would
+            // reject this with "No backend supports scalar function [ROW_NUMBER]" because window
+            // aggregates aren't scalar functions. Defer to the EngineCapability.WINDOW marker —
+            // any project-capable backend that declares WINDOW handles the inline substrait
+            // WindowFunctionInvocation isthmus#visitOver emits.
+            return annotateWindowCall(rexOver, childViableBackends);
+        }
         if (!(expr instanceof RexCall rexCall)) {
             // TODO: RexInputRef and RexLiteral are left unannotated — they are implicitly handled
             // by whichever backend executes the operator (pass-through for refs, constant for literals).
@@ -137,6 +148,32 @@ public class OpenSearchProjectRule extends RelOptRule {
 
         RexCall target = changed ? rexCall.clone(rexCall.getType(), newOperands) : rexCall;
         return new AnnotatedProjectExpression(target.getType(), target, scalarViable, context.nextAnnotationId());
+    }
+
+    /**
+     * Resolve viable backends for a {@link RexOver} (window-function call). Returns an
+     * {@link AnnotatedProjectExpression} so the project's strip/copy paths handle it like any
+     * other annotated expression. The annotation carries the original RexOver — strip-annotations
+     * unwraps it back to the same RexOver so isthmus's RexExpressionConverter#visitOver can emit
+     * the substrait WindowFunctionInvocation. We do not recurse into RexOver operands because the
+     * agg-call args (e.g. ROW_NUMBER's empty list, or COUNT(field)) are RexInputRef / RexLiteral —
+     * the recursion in this rule already passes those through unannotated.
+     */
+    private RexNode annotateWindowCall(RexOver rexOver, List<String> childViableBackends) {
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+        List<String> windowCapable = registry.operatorBackends(EngineCapability.WINDOW);
+        List<String> viable = new ArrayList<>();
+        for (String candidate : childViableBackends) {
+            if (windowCapable.contains(candidate)) {
+                viable.add(candidate);
+            }
+        }
+        if (viable.isEmpty()) {
+            throw new IllegalStateException(
+                "No backend supports window function [" + rexOver.getAggOperator().getName() + "] among " + childViableBackends
+            );
+        }
+        return new AnnotatedProjectExpression(rexOver.getType(), rexOver, viable, context.nextAnnotationId());
     }
 
     private List<String> resolveOpaqueViableBackends(String funcName, List<String> childViableBackends) {

@@ -8,12 +8,17 @@
 
 package org.opensearch.analytics.planner;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexFieldCollation;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
+import org.apache.calcite.rex.RexWindowBounds;
+import org.apache.calcite.rex.RexWindowExclusion;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
@@ -308,6 +313,122 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
                 assertNoAnnotationInTree(operand);
             }
         }
+    }
+
+    // ---- Window functions ----
+
+    /**
+     * PPL's {@code top}/{@code rare}/{@code streamstats} commands lower to
+     * {@code ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)} inside a {@code LogicalProject}.
+     * The project rule must accept the {@link RexOver} based on the backend's
+     * {@link org.opensearch.analytics.spi.EngineCapability#WINDOW} declaration; without that path
+     * the rule falls into scalar-function resolution and rejects the call with
+     * "No backend supports scalar function [ROW_NUMBER]" because window aggregates aren't in
+     * {@link ScalarFunction}.
+     */
+    public void testRowNumberOverPartitionByOrderByMarksAsWindow() {
+        RexNode rowNumber = makeRowNumberOver(/*partitionField*/ 0, /*orderField*/ 1);
+        OpenSearchProject result = runProject(
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1),
+            rowNumber
+        );
+        assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+        // First two are passthrough field refs, third is the window call — only the latter is annotated.
+        assertFalse("Field ref must not be annotated", result.getProjects().get(0) instanceof AnnotatedProjectExpression);
+        assertFalse("Field ref must not be annotated", result.getProjects().get(1) instanceof AnnotatedProjectExpression);
+        assertAnnotation(result.getProjects().get(2), MockDataFusionBackend.NAME);
+        // The annotation's original must remain a RexOver — strip-annotations / isthmus rely on it
+        // to dispatch through RexExpressionConverter#visitOver.
+        AnnotatedProjectExpression windowAnnotation = (AnnotatedProjectExpression) result.getProjects().get(2);
+        assertTrue(
+            "Window annotation must wrap a RexOver, was " + windowAnnotation.getOriginal().getClass().getSimpleName(),
+            windowAnnotation.getOriginal() instanceof RexOver
+        );
+    }
+
+    /**
+     * Without {@link org.opensearch.analytics.spi.EngineCapability#WINDOW} on any viable backend, a
+     * {@link RexOver} in the project list must surface as a planner-level error with the window
+     * function name — surfacing the precise capability gap at plan time.
+     */
+    public void testRowNumberWithoutWindowCapabilityErrors() {
+        MockDataFusionBackend dfNoWindow = new MockDataFusionBackend() {
+            @Override
+            protected Set<org.opensearch.analytics.spi.EngineCapability> supportedEngineCapabilities() {
+                return Set.of(org.opensearch.analytics.spi.EngineCapability.SORT);
+            }
+        };
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "name", "value" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
+        );
+        RexNode rowNumber = makeRowNumberOver(/*partitionField*/ 0, /*orderField*/ 1);
+        LogicalProject project = LogicalProject.create(
+            stubScan(table),
+            List.of(),
+            List.of(rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0), rowNumber),
+            List.of("name", "rn")
+        );
+        PlannerContext context = buildContext("parquet", nameValueFields(), List.of(dfNoWindow, LUCENE));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
+        assertTrue(
+            "Expected planner to surface window-function capability gap, got: " + exception.getMessage(),
+            exception.getMessage().contains("No backend supports window function [ROW_NUMBER]")
+        );
+    }
+
+    /**
+     * Strip-annotations on a project carrying a window-function annotation must return a clean
+     * {@link LogicalProject} with the original {@link RexOver} preserved — isthmus's
+     * {@code RexExpressionConverter#visitOver} only recognises {@code RexOver} (not the
+     * {@code ANNOTATED_PROJECT_EXPR} wrapper), so any leftover wrapper would surface as
+     * "Unable to convert call ANNOTATED_PROJECT_EXPR" at substrait emission.
+     */
+    public void testStripAnnotationsPreservesRexOver() {
+        RexNode rowNumber = makeRowNumberOver(/*partitionField*/ 0, /*orderField*/ 1);
+        OpenSearchProject annotated = runProject(rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0), rowNumber);
+        RelNode stripped = annotated.stripAnnotations(annotated.getInputs());
+        assertTrue("Stripped plan must be a plain LogicalProject", stripped instanceof LogicalProject);
+        List<RexNode> exprs = ((LogicalProject) stripped).getProjects();
+        for (RexNode expr : exprs) {
+            assertNoAnnotationInTree(expr);
+        }
+        assertTrue(
+            "Stripped window expr must remain a RexOver, was " + exprs.get(1).getClass().getSimpleName(),
+            exprs.get(1) instanceof RexOver
+        );
+    }
+
+    /**
+     * Builds a {@code ROW_NUMBER() OVER (PARTITION BY $partitionField ORDER BY $orderField)}
+     * RexOver against the (VARCHAR, INTEGER) stub-scan schema.
+     */
+    private RexNode makeRowNumberOver(int partitionField, int orderField) {
+        RexNode partition = rexBuilder.makeInputRef(
+            typeFactory.createSqlType(partitionField == 0 ? SqlTypeName.VARCHAR : SqlTypeName.INTEGER),
+            partitionField
+        );
+        RexFieldCollation order = new RexFieldCollation(
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), orderField),
+            Set.of()
+        );
+        return rexBuilder.makeOver(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            SqlStdOperatorTable.ROW_NUMBER,
+            List.of(),
+            List.of(partition),
+            ImmutableList.of(order),
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW,
+            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
     }
 
     // ---- Mixed backends in one projection ----

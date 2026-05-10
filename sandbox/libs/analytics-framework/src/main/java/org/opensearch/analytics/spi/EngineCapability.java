@@ -21,5 +21,16 @@ package org.opensearch.analytics.spi;
  */
 public enum EngineCapability {
     SORT,
-    UNION
+    UNION,
+    /**
+     * Window-function evaluation inside a Project expression. A backend that declares this
+     * capability commits to evaluating any {@link org.apache.calcite.rex.RexOver} encountered in a
+     * project list — i.e. window aggregates such as {@code ROW_NUMBER() OVER (PARTITION BY ...
+     * ORDER BY ...)} that PPL's {@code top}/{@code rare}/{@code streamstats} commands lower to.
+     * The capability is intentionally coarse (no per-window-function granularity): the substrait
+     * standard catalog already constrains which window aggregates a backend's substrait consumer
+     * can decode, and failing the runtime decode is a clearer error than spreading a per-function
+     * registry across SPI plus backend.
+     */
+    WINDOW
 }
