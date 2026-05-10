@@ -75,6 +75,7 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
     private static final AtomicInteger failEveryNthDoc = new AtomicInteger(0);
     private static final AtomicInteger docCounter = new AtomicInteger(0);
     private static volatile boolean failOnNextRollback;
+    private static volatile boolean throwOnNextDoc;
     private static volatile Path dataDirectory;
 
     public static void setDataDirectory(Path dir) {
@@ -94,11 +95,16 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
         failOnNextRollback = fail;
     }
 
+    public static void setThrowOnNextDoc(boolean throwException) {
+        throwOnNextDoc = throwException;
+    }
+
     public static void clearFailure() {
         failOnNextNDocs.set(0);
         failEveryNthDoc.set(0);
         docCounter.set(0);
         failOnNextRollback = false;
+        throwOnNextDoc = false;
     }
 
     public static Path getDataDirectory() {
@@ -252,7 +258,11 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
         }
 
         @Override
-        public WriteResult addDoc(DocumentInput<?> d) {
+        public WriteResult addDoc(DocumentInput<?> d) throws IOException {
+            if (throwOnNextDoc) {
+                throwOnNextDoc = false;
+                throw new IOException("filebacked injected IOException (throw mode)");
+            }
             WriteResult failure = checkFailure();
             if (failure != null) return failure;
             long rowId = (d instanceof FBDocInput) ? ((FBDocInput) d).rowId : -1;
@@ -290,17 +300,6 @@ public class FileBackedDataFormatPlugin extends Plugin implements DataFormatPlug
         public long generation() {
             return generation;
         }
-
-        @Override
-        public void lock() {}
-
-        @Override
-        public boolean tryLock() {
-            return true;
-        }
-
-        @Override
-        public void unlock() {}
 
         @Override
         public void close() {}

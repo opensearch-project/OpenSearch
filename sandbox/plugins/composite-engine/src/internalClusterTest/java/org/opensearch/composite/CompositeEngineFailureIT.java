@@ -65,6 +65,7 @@ import java.util.List;
  * referenced by CatalogSnapshot, verifying: matching row counts, docId == rowId in Lucene,
  * and identical rowId sets across both formats.
  */
+@org.apache.lucene.tests.util.LuceneTestCase.SuppressTempFileChecks(bugUrl = "Flushed LuceneWriter segments persist in temp dir until catalog snapshot cleanup")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
 
@@ -461,5 +462,257 @@ public class CompositeEngineFailureIT extends OpenSearchIntegTestCase {
             }
         }
         assertEquals("rowId sets must match across formats", luceneRowIds, fbRowIds);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Core contract tests: InternalEngine equivalents
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Docs indexed before a secondary write failure must be visible after refresh.
+     * Core contract from InternalEngineTests.testHandleDocumentFailure: a per-document
+     * failure must not lose previously accepted writes in the same writer.
+     */
+    public void testDocsBeforeSecondaryFailureVisibleAfterRefresh() throws Exception {
+        createCompositeIndex("lucene", "filebacked");
+
+        // Index 5 docs — all succeed, accumulate in the current writer
+        indexDocs(5);
+
+        // Inject a single failure on secondary
+        FileBackedDataFormatPlugin.setFailOnNextNDocs(1);
+        BulkItemResponse failedItem = indexSingleDoc("trigger-failure");
+        assertTrue("doc should fail on secondary", failedItem.isFailed());
+        FileBackedDataFormatPlugin.clearFailure();
+
+        // Core contract: the 5 previously successful docs MUST be visible
+        flush();
+        getEngine().refresh("test");
+
+        long luceneRows = getRowCount("lucene");
+        long fbRows = getRowCount(FileBackedDataFormatPlugin.FORMAT_NAME);
+        assertEquals("formats must be consistent", luceneRows, fbRows);
+        assertEquals("5 docs written before failure must survive", 5, luceneRows);
+    }
+
+    /**
+     * Sequence numbers must advance monotonically through failures.
+     * Core contract from InternalEngineTests.testSeqNoAndCheckpoints: failed ops
+     * consume seqNos and the checkpoint advances past them.
+     */
+    public void testSeqNoAdvancesThroughFailures() throws Exception {
+        createCompositeIndex("lucene", "filebacked");
+
+        indexDocs(3);
+        FileBackedDataFormatPlugin.setFailOnNextNDocs(2);
+        indexSingleDoc("fail-1");
+        indexSingleDoc("fail-2");
+        FileBackedDataFormatPlugin.clearFailure();
+        indexDocs(2);
+
+        // 3 + 2 failed + 2 = 7 total ops → maxSeqNo = 6
+        DataFormatAwareEngine engine = getEngine();
+        assertEquals("all ops must consume seqNos", 6, engine.getSeqNoStats(-1).getMaxSeqNo());
+        assertEquals("checkpoint must advance past all ops", 6, engine.getProcessedLocalCheckpoint());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Multi-format atomicity: failure modes and races
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Rapid alternating success/failure pattern must not corrupt cross-format state.
+     * Every successful doc must appear in BOTH formats; no phantom docs from partially
+     * committed failures.
+     * Reference: InternalEngineTests.testConcurrentWritesAndCommits
+     */
+    public void testRapidAlternatingSuccessFailureCrossFormatAtomicity() throws Exception {
+        createCompositeIndex("lucene", "filebacked");
+
+        // Pattern: 2 succeed, 1 fail, repeat 5 times = 10 succeed, 5 fail
+        int successExpected = 0;
+        for (int round = 0; round < 5; round++) {
+            indexDocs(2);
+            successExpected += 2;
+            FileBackedDataFormatPlugin.setFailOnNextNDocs(1);
+            indexSingleDoc("fail-round-" + round);
+            FileBackedDataFormatPlugin.clearFailure();
+        }
+
+        flush();
+        getEngine().refresh("verify");
+
+        long luceneRows = getRowCount("lucene");
+        long fbRows = getRowCount(FileBackedDataFormatPlugin.FORMAT_NAME);
+        assertEquals("formats must be exactly equal", luceneRows, fbRows);
+        assertEquals("exactly 10 successful docs", successExpected, luceneRows);
+    }
+
+    /**
+     * Secondary failure mid-batch (bulk) must not corrupt other docs in the same batch.
+     * InternalEngine guarantees per-doc independence — a single doc failure doesn't
+     * affect other docs in the same bulk request.
+     * Reference: InternalEngineTests.testHandleDocumentFailure
+     */
+    public void testSecondaryFailureMidBulkDoesNotCorruptBatch() throws Exception {
+        createCompositeIndex("lucene", "filebacked");
+
+        indexDocs(5);
+        flush();
+
+        // Fail 1 doc out of a 10-doc bulk — the other 9 must succeed
+        FileBackedDataFormatPlugin.setFailOnNextNDocs(1);
+        int successes = 0;
+        int failures = 0;
+        org.opensearch.action.bulk.BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 10; i++) {
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("field", "bulk_" + i));
+        }
+        org.opensearch.action.bulk.BulkResponse resp = bulk.get();
+        for (BulkItemResponse item : resp.getItems()) {
+            if (item.isFailed()) failures++;
+            else successes++;
+        }
+        FileBackedDataFormatPlugin.clearFailure();
+
+        assertTrue("at least 1 failure", failures >= 1);
+        assertTrue("most should succeed", successes >= 9);
+
+        flush();
+        getEngine().refresh("verify");
+
+        long luceneRows = getRowCount("lucene");
+        long fbRows = getRowCount(FileBackedDataFormatPlugin.FORMAT_NAME);
+        assertEquals("formats must match after partial bulk failure", luceneRows, fbRows);
+        assertEquals("5 baseline + successes from bulk", 5 + successes, luceneRows);
+    }
+
+    /**
+     * Concurrent indexing threads with intermittent failures must maintain
+     * cross-format atomicity — every refresh snapshot must show equal counts.
+     * Tests that the writer pool, retired writer handling, and RowId generation
+     * remain consistent under contention.
+     * Reference: InternalEngineTests.testConcurrentAppendUpdateAndRefresh
+     */
+    public void testConcurrentIndexWithFailuresCrossFormatAtomicity() throws Exception {
+        createCompositeIndex("lucene", "filebacked");
+
+        indexDocs(5);
+        flush();
+
+        // Fail every 7th doc
+        FileBackedDataFormatPlugin.setFailEveryNthDoc(7);
+
+        int numThreads = 4;
+        int docsPerThread = 20;
+        java.util.concurrent.CyclicBarrier barrier = new java.util.concurrent.CyclicBarrier(numThreads);
+        java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger();
+
+        Thread[] threads = new Thread[numThreads];
+        for (int t = 0; t < numThreads; t++) {
+            final int tid = t;
+            threads[t] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int i = 0; i < docsPerThread; i++) {
+                        try {
+                            org.opensearch.action.index.IndexResponse r = client().prepareIndex(INDEX_NAME)
+                                .setSource("field", "t" + tid + "_d" + i)
+                                .get();
+                            if (r.status() == RestStatus.CREATED) successCount.incrementAndGet();
+                        } catch (Exception e) {
+                            // failure expected
+                        }
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            threads[t].start();
+        }
+        for (Thread t : threads) {
+            t.join();
+        }
+        FileBackedDataFormatPlugin.clearFailure();
+
+        // Engine must be healthy
+        assertNotNull("engine must be healthy", getEngine().commitStats());
+
+        flush();
+        getEngine().refresh("verify");
+
+        long luceneRows = getRowCount("lucene");
+        long fbRows = getRowCount(FileBackedDataFormatPlugin.FORMAT_NAME);
+        assertEquals("cross-format counts must match under concurrent failures", luceneRows, fbRows);
+        assertEquals("5 baseline + concurrent successes", 5 + successCount.get(), luceneRows);
+    }
+
+    /**
+     * Flush after a secondary failure must commit consistent state — only the
+     * successfully indexed docs, with matching counts in both formats.
+     * The commit data (CatalogSnapshot) must be self-consistent.
+     * Reference: InternalEngineTests.testCommitAdvancesMinTranslogForRecovery
+     */
+    public void testFlushAfterSecondaryFailureCommitsConsistentSnapshot() throws Exception {
+        createCompositeIndex("lucene", "filebacked");
+
+        indexDocs(5);
+        FileBackedDataFormatPlugin.setFailOnNextNDocs(1);
+        indexSingleDoc("fail");
+        FileBackedDataFormatPlugin.clearFailure();
+        indexDocs(3);
+
+        flush();
+
+        // Verify committed snapshot is self-consistent
+        DataFormatAwareEngine engine = getEngine();
+        engine.refresh("verify");
+
+        try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+            CatalogSnapshot snapshot = ref.get();
+            long luceneRows = snapshot.getSearchableFiles("lucene").stream().mapToLong(WriterFileSet::numRows).sum();
+            long fbRows = snapshot.getSearchableFiles(FileBackedDataFormatPlugin.FORMAT_NAME)
+                .stream()
+                .mapToLong(WriterFileSet::numRows)
+                .sum();
+            assertEquals("committed snapshot must have equal format counts", luceneRows, fbRows);
+            assertEquals("5 + 3 = 8 successful docs in committed snapshot", 8, luceneRows);
+        }
+
+        // SeqNo consistency
+        assertEquals("9 total ops (5+1fail+3)", 8, engine.getSeqNoStats(-1).getMaxSeqNo());
+        assertEquals("checkpoint advances past all", 8, engine.getProcessedLocalCheckpoint());
+    }
+
+    /**
+     * When the secondary writer THROWS IOException (not WriteResult.Failure), the primary
+     * writer has already accepted the doc but no rollback occurs. The writer must not be
+     * left in an inconsistent state where primary has N+1 docs and secondary has N.
+     * After flush, cross-format counts must still match.
+     * This tests the boundary between WriteResult.Failure (handled gracefully) and
+     * IOException (which bypasses the rollback path in CompositeWriter.addDoc).
+     */
+    public void testSecondaryThrowsIOExceptionCrossFormatConsistency() throws Exception {
+        createCompositeIndex("lucene", "filebacked");
+
+        indexDocs(5);
+        flush();
+
+        // Trigger IOException throw (not WriteResult.Failure) on secondary
+        FileBackedDataFormatPlugin.setThrowOnNextDoc(true);
+        BulkItemResponse failedItem = indexSingleDoc("throw-trigger");
+        assertTrue("doc should fail", failedItem.isFailed());
+        FileBackedDataFormatPlugin.clearFailure();
+
+        // Index more docs after the throw
+        indexDocs(3);
+        flush();
+        getEngine().refresh("verify");
+
+        // Cross-format consistency: both formats must have the same count
+        long luceneRows = getRowCount("lucene");
+        long fbRows = getRowCount(FileBackedDataFormatPlugin.FORMAT_NAME);
+        assertEquals("formats must be consistent after IOException throw", luceneRows, fbRows);
+        assertEquals("5 baseline + 3 post-throw = 8 (thrown doc must not be in either format)", 8, luceneRows);
     }
 }

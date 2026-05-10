@@ -257,6 +257,23 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         );
     }
 
+    private Engine.Index replicaIndexOp(ParsedDocument doc, long seqNo) {
+        return new Engine.Index(
+            new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id())),
+            doc,
+            seqNo,
+            primaryTerm.get(),
+            1,
+            null,
+            Engine.Operation.Origin.REPLICA,
+            System.nanoTime(),
+            -1,
+            false,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
     /**
      * Creates a ParsedDocument with a MockDocumentInput attached, which is required
      * by DataFormatAwareEngine.indexIntoEngine for updateField calls.

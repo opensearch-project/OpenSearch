@@ -383,17 +383,6 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public void lock() {}
-
-        @Override
-        public boolean tryLock() {
-            return true;
-        }
-
-        @Override
-        public void unlock() {}
-
-        @Override
         public void close() {}
     }
 

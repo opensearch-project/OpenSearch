@@ -64,6 +64,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -97,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -177,6 +179,9 @@ public class DataFormatAwareEngine implements Indexer {
 
     // Refresh tracker
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
+
+    // Segments from retired writers awaiting incorporation into the next refresh
+    private final ConcurrentLinkedQueue<Segment> pendingRetiredSegments = new ConcurrentLinkedQueue<>();
 
     // Merge
     private final MergeScheduler mergeScheduler;
@@ -275,18 +280,23 @@ public class DataFormatAwareEngine implements Indexer {
             );
             long maxGenFromCommit = 0L;
             try {
-                List<CatalogSnapshot> initSnapshots = committer.listCommittedSnapshots();
-                if (initSnapshots.isEmpty() == false) {
-                    for (Segment seg : initSnapshots.getLast().getSegments()) {
+                Map<String, String> commitUserData = store.readLastCommittedSegmentsInfo().getUserData();
+                String snapshotData = commitUserData.get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+                if (snapshotData != null) {
+                    DataformatAwareCatalogSnapshot committed = DataformatAwareCatalogSnapshot.deserializeFromString(
+                        snapshotData,
+                        java.util.function.Function.identity()
+                    );
+                    for (Segment seg : committed.getSegments()) {
                         maxGenFromCommit = Math.max(maxGenFromCommit, seg.generation());
                     }
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 // Fall back to 0 on error
             }
-            this.writerGenerationCounter = new AtomicLong(maxGenFromCommit);
+            this.writerGenerationCounter = new AtomicLong(maxGenFromCommit + 1);
             this.writerPool = new LockablePool<>(() -> {
-                long gen = writerGenerationCounter.incrementAndGet();
+                long gen = writerGenerationCounter.getAndIncrement();
                 assert gen > 0 : "writer generation must be positive but was: " + gen;
                 return DefaultLockableHolder.of(new RowIdAwareWriter<>(indexingExecutionEngine.createWriter(gen)));
             }, LinkedList::new, Runtime.getRuntime().availableProcessors());
@@ -591,7 +601,19 @@ public class DataFormatAwareEngine implements Indexer {
                     writerCheckedOut = true;
                     try {
                         if (currentWriter.isAborted() == false) {
-                            currentWriter.flush();
+                            FileInfos retiredFileInfos = currentWriter.flush();
+                            Segment.Builder segBuilder = Segment.builder(currentWriter.generation());
+                            boolean hasFiles = false;
+                            for (Map.Entry<DataFormat, WriterFileSet> entry : retiredFileInfos.writerFilesMap().entrySet()) {
+                                segBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
+                                hasFiles = true;
+                            }
+                            if (hasFiles) {
+                                Segment retiredSegment = segBuilder.build();
+                                assert retiredSegment.generation() == currentWriter.generation()
+                                    : "retired segment generation must match writer generation";
+                                pendingRetiredSegments.add(retiredSegment);
+                            }
                         }
                     } finally {
                         lockedWriter.unlock();
@@ -639,6 +661,7 @@ public class DataFormatAwareEngine implements Indexer {
             : "translog-origin op should not have a translog location";
 
         // Track the sequence number
+        assert indexResult.getSeqNo() >= 0 : "indexResult must have assigned seqNo but was: " + indexResult.getSeqNo();
         localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
         if (indexResult.getTranslogLocation() == null) {
             localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
@@ -768,6 +791,13 @@ public class DataFormatAwareEngine implements Indexer {
                         List<Segment> existingSegments = catalogSnapshot.get().getSegments();
                         List<Segment> newSegments = new ArrayList<>();
 
+                        // Drain segments from retired writers (flushed during failure handling)
+                        Segment retiredSeg;
+                        while ((retiredSeg = pendingRetiredSegments.poll()) != null) {
+                            newSegments.add(retiredSeg);
+                            refreshed = true;
+                        }
+
                         for (var lockable : writers) {
                             Writer<?> writer = lockable.get();
                             FileInfos fileInfos = writer.flush();
@@ -793,6 +823,9 @@ public class DataFormatAwareEngine implements Indexer {
                         // Every new segment must contain files from at least one data format
                         assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().isEmpty() == false)
                             : "new segments must have at least one format's files";
+                        // Multi-format invariant: no segment generation may appear more than once in the combined list
+                        assert newSegments.stream().map(Segment::generation).distinct().count() == newSegments.size()
+                            : "duplicate segment generations in new segments";
 
                         // No two new segments may share the same generation
                         assert newSegments.stream().map(Segment::generation).distinct().count() == newSegments.size()
@@ -1484,6 +1517,8 @@ public class DataFormatAwareEngine implements Indexer {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently failing";
             try {
+                // Discard any pending retired segments not yet picked up by refresh
+                pendingRetiredSegments.clear();
                 // Close all writers still in the pool (unflushed writers from the current cycle)
                 for (var holder : writerPool.checkoutAll()) {
                     IOUtils.closeWhileHandlingException(holder.get());

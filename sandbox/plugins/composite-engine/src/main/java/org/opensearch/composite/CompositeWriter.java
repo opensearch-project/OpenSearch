@@ -109,7 +109,6 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             case WriteResult.Success s -> logger.trace("Successfully added document in primary format [{}]", primaryFormat.name());
             case WriteResult.Failure f -> {
                 logger.debug("Failed to add document in primary format [{}]", primaryFormat.name());
-                rowIdGenerator.rollback();
                 return primaryResult;
             }
         }
@@ -138,6 +137,12 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             }
         }
 
+        // Multi-format atomicity: all secondaries must have succeeded if we reach here
+        assert succeededSecondaries.size() == secondaryInputs.size()
+            : "all secondaries must succeed if we reach here; succeeded="
+                + succeededSecondaries.size()
+                + " expected="
+                + secondaryInputs.size();
         return primaryResult;
     }
 
@@ -212,7 +217,15 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
                 builder.putWriterFileSet(fileEntry.getKey(), fileEntry.getValue());
             }
         }
-        return builder.build();
+        FileInfos result = builder.build();
+        // Multi-format atomicity: flush must produce files for primary + all secondaries (or be empty for all)
+        assert result.writerFilesMap().isEmpty()
+            || result.writerFilesMap().size() == 1 + secondaryWritersByFormat.size()
+            : "flush must produce files for all formats or none; got "
+                + result.writerFilesMap().size()
+                + " expected 0 or "
+                + (1 + secondaryWritersByFormat.size());
+        return result;
     }
 
     @Override

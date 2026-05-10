@@ -218,6 +218,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             merged.add(builder.build());
         }
 
+        // Multi-format atomicity: each segment must have files from all configured formats
+        assert merged.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
+            : "refresh result segments must contain all configured formats";
         return new RefreshResult(merged);
     }
 

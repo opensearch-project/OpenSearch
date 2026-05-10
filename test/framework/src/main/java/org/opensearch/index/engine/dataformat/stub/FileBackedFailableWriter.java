@@ -112,16 +112,6 @@ public class FileBackedFailableWriter implements Writer<DocumentInput<?>> {
         return writerGeneration;
     }
 
-    @Override
-    public void lock() {}
-
-    @Override
-    public boolean tryLock() {
-        return true;
-    }
-
-    @Override
-    public void unlock() {}
 
     private volatile boolean closed;
 
