@@ -417,7 +417,7 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         // System limit = LogicalSort with no collation + fetch literal. Lowers to a
         // Substrait Fetch rel (the convertor handles this in replaceInput).
-        org.apache.calcite.rex.RexNode fetchN = rexBuilder.makeLiteral(100, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RexNode fetchN = rexBuilder.makeLiteral(100, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
         LogicalSort systemLimit = LogicalSort.create(userSort, RelCollations.EMPTY, null, fetchN);
         byte[] combinedBytes = convertor.attachFragmentOnTop(systemLimit, userSortBytes);
 

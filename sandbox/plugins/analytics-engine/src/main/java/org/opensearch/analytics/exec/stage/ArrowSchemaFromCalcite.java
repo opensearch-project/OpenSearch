@@ -8,7 +8,9 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.apache.arrow.vector.types.DateUnit;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -93,12 +95,12 @@ final class ArrowSchemaFromCalcite {
             case BINARY:
                 return ArrowType.Binary.INSTANCE;
             case DATE:
-                return new ArrowType.Date(org.apache.arrow.vector.types.DateUnit.DAY);
+                return new ArrowType.Date(DateUnit.DAY);
             case TIME:
-                return new ArrowType.Time(org.apache.arrow.vector.types.TimeUnit.MILLISECOND, 32);
+                return new ArrowType.Time(TimeUnit.MILLISECOND, 32);
             case TIMESTAMP:
             case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
-                return new ArrowType.Timestamp(org.apache.arrow.vector.types.TimeUnit.MILLISECOND, null);
+                return new ArrowType.Timestamp(TimeUnit.MILLISECOND, null);
             default:
                 throw new IllegalArgumentException("Unsupported Calcite SQL type: " + sqlTypeName);
         }

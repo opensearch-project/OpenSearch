@@ -8,10 +8,16 @@
 
 package org.opensearch.analytics.planner.dag;
 
+import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -193,23 +199,23 @@ public final class AggregateDecompositionResolver {
             RelNode newInput;
             if (input == target) {
                 newInput = replacement;
-                if (node instanceof org.apache.calcite.rel.core.Project proj) {
-                    org.apache.calcite.rex.RexBuilder rexBuilder = node.getCluster().getRexBuilder();
+                if (node instanceof Project proj) {
+                    RexBuilder rexBuilder = node.getCluster().getRexBuilder();
                     java.util.List<RelDataType> inputTypes = new java.util.ArrayList<>();
                     for (var f : replacement.getRowType().getFieldList()) {
                         inputTypes.add(f.getType());
                     }
-                    org.apache.calcite.rex.RexShuttle rebind = new org.apache.calcite.rex.RexShuttle() {
+                    RexShuttle rebind = new RexShuttle() {
                         @Override
-                        public org.apache.calcite.rex.RexNode visitInputRef(org.apache.calcite.rex.RexInputRef ref) {
+                        public RexNode visitInputRef(RexInputRef ref) {
                             RelDataType actual = inputTypes.get(ref.getIndex());
                             if (ref.getType().equals(actual)) return ref;
-                            return new org.apache.calcite.rex.RexInputRef(ref.getIndex(), actual);
+                            return new RexInputRef(ref.getIndex(), actual);
                         }
                     };
-                    java.util.List<org.apache.calcite.rex.RexNode> rebound = new java.util.ArrayList<>(proj.getProjects().size());
+                    java.util.List<RexNode> rebound = new java.util.ArrayList<>(proj.getProjects().size());
                     for (int i = 0; i < proj.getProjects().size(); i++) {
-                        org.apache.calcite.rex.RexNode expr = proj.getProjects().get(i).accept(rebind);
+                        RexNode expr = proj.getProjects().get(i).accept(rebind);
                         RelDataType targetType = proj.getRowType().getFieldList().get(i).getType();
                         if (!expr.getType().equals(targetType)) {
                             expr = rexBuilder.makeCast(targetType, expr);
@@ -361,19 +367,7 @@ public final class AggregateDecompositionResolver {
         RelDataTypeFactory tf
     ) {
         SqlAggFunction sqlAgg = reducer.toSqlAggFunction();
-        return AggregateCall.create(
-            sqlAgg,
-            false,
-            false,
-            false,
-            List.of(),
-            args,
-            -1,
-            null,
-            org.apache.calcite.rel.RelCollations.EMPTY,
-            returnType,
-            name
-        );
+        return AggregateCall.create(sqlAgg, false, false, false, List.of(), args, -1, null, RelCollations.EMPTY, returnType, name);
     }
 
     // Find the top-most OpenSearchAggregate matching the given mode, walking into inputs recursively.

@@ -11,6 +11,7 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.VectorUnloader;
+import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.ipc.WriteChannel;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.ipc.message.IpcOption;
@@ -44,7 +45,6 @@ import org.opensearch.tasks.Task;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -270,7 +270,7 @@ public class AnalyticsSearchService implements AutoCloseable {
             if (schema != null) {
                 // Write the end-of-stream marker so the reader sees a clean EOS
                 // instead of hitting end-of-input mid-message.
-                org.apache.arrow.vector.ipc.ArrowStreamWriter.writeEndOfStream(channel, IpcOption.DEFAULT);
+                ArrowStreamWriter.writeEndOfStream(channel, IpcOption.DEFAULT);
             }
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialize fragment output as Arrow IPC stream", e);

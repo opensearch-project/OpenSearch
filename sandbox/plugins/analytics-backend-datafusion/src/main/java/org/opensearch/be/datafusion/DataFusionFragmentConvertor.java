@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import com.google.common.collect.ImmutableList;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptSchema;
@@ -209,10 +210,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         }
 
         @Override
-        protected com.google.common.collect.ImmutableList<FunctionMappings.Sig> getSigs() {
+        protected ImmutableList<FunctionMappings.Sig> getSigs() {
             return super.getSigs().stream()
                 .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
-                .collect(com.google.common.collect.ImmutableList.toImmutableList());
+                .collect(ImmutableList.toImmutableList());
         }
     }
 

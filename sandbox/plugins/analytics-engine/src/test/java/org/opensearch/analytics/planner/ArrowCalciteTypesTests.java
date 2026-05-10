@@ -8,7 +8,9 @@
 
 package org.opensearch.analytics.planner;
 
+import org.apache.arrow.vector.types.DateUnit;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.rel.type.RelDataType;
@@ -76,13 +78,13 @@ public class ArrowCalciteTypesTests extends OpenSearchTestCase {
     }
 
     public void testUnsupportedArrowTypeThrows() {
-        ArrowType date = new ArrowType.Date(org.apache.arrow.vector.types.DateUnit.DAY);
+        ArrowType date = new ArrowType.Date(DateUnit.DAY);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ArrowCalciteTypes.toCalcite(date, factory));
         assertTrue(e.getMessage().contains("Date"));
     }
 
     public void testUnsupportedArrowTypeTimeThrows() {
-        ArrowType time = new ArrowType.Time(org.apache.arrow.vector.types.TimeUnit.MILLISECOND, 32);
+        ArrowType time = new ArrowType.Time(TimeUnit.MILLISECOND, 32);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ArrowCalciteTypes.toCalcite(time, factory));
         assertTrue(e.getMessage().contains("Time"));
     }

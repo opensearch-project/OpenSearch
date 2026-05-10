@@ -71,7 +71,8 @@ public final class RowResponseCodec implements ResponseCodec<FragmentExecutionRe
                 batches.add(batchRoot);
             }
         } catch (IOException e) {
-            for (VectorSchemaRoot b : batches) b.close();
+            for (VectorSchemaRoot b : batches)
+                b.close();
             throw new IllegalStateException("Failed to decode Arrow IPC payload from fragment response", e);
         }
 
@@ -104,7 +105,8 @@ public final class RowResponseCodec implements ResponseCodec<FragmentExecutionRe
             combined.setRowCount(totalRows);
             return combined;
         } finally {
-            for (VectorSchemaRoot b : batches) b.close();
+            for (VectorSchemaRoot b : batches)
+                b.close();
         }
     }
 }
