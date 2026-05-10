@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -20,9 +19,7 @@ import java.util.Map;
  *
  * <pre>
  *   PPL → planner (AggregateDecompositionResolver) → multi-shard SHARD_FRAGMENT dispatch
- *       → DataFusion partial-agg (prepare_partial_plan, force_aggregate_mode(Partial))
- *       → ExchangeSink.feed → DatafusionReduceSink (prepare_final_plan,
- *                             force_aggregate_mode(Final), execute_local_prepared_plan)
+ *       → shard-side partial aggregate → ExchangeSink.feed → coordinator reduce
  *       → drain → downstream → assembled PPLResponse
  * </pre>
  *
@@ -35,7 +32,7 @@ import java.util.Map;
  *   <li>{@link #testAvgAcrossShards()} — primitive decomposition
  *       (multi-field intermediate + {@code finalExpression} wrap)</li>
  *   <li>{@link #testDistinctCountAcrossShards()} — engine-native merge
- *       (Binary intermediate, reducer == self; HLL merge inside DataFusion)</li>
+ *       (Binary intermediate, reducer == self; HLL merge inside the backend)</li>
  *   <li>{@link #testGroupedSumAcrossShards()} — group keys propagate through
  *       partial/final without affecting the aggregate-call decomposition path</li>
  *   <li>{@link #testQ10ShapeAcrossShards()} — all four families in one query, grouped</li>
@@ -179,52 +176,43 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         assertTrue("dc on single-valued column should be 1 (±small HLL error), got " + dcValue, dcValue >= 1 && dcValue <= 2);
     }
 
-    // ─── Multi-shard WHERE + GROUP-BY reproducer (Arrow "project index 0 out of bounds") ───
+    // ─── Multi-shard GROUP BY on string columns ─────────────────────────────────
 
-    private static final String WHERE_REPRO_INDEX = "coord_reduce_where_repro";
+    private static final String STRING_GROUP_INDEX = "coord_reduce_string_group";
 
     /**
-     * Reproducer for the multi-shard "project index 0 out of bounds" bug.
-     * <p>
+     * Multi-shard GROUP BY with a string key where WHERE filters every row on every shard.
      * Shape: {@code WHERE <pred> | stats count() as c by <string-key> | sort - c | head N}
-     * (mirrors ClickBench Q13: {@code where SearchPhrase != '' | stats count() as c
-     * by SearchPhrase | sort - c | head 10})
-     * <p>
-     * The trigger is that the WHERE clause filters out ALL rows on every shard (all docs
-     * have category=''), causing the partial aggregate to produce an empty batch with 0
-     * fields. The final aggregate then fails trying to project from that empty schema.
-     * <p>
-     * This query passes on single-shard but fails on multi-shard (≥2 shards) with:
-     * <pre>
-     *   java.lang.RuntimeException: Execution error: Arrow error: Schema error:
-     *   project index 0 out of bounds, max field 0
-     * </pre>
-     * at NativeBridge.streamNext → AbstractDatafusionReduceSink.drainOutputIntoDownstream.
-     * <p>
-     * Ignored via @AwaitsFix so the IT suite stays green. Drop the annotation to observe
-     * the failure.
+     * (mirrors ClickBench Q13 {@code where SearchPhrase != '' | stats count() by
+     * SearchPhrase}.)
+     *
+     * <p>All docs have {@code category=''} so {@code WHERE category != ''} filters
+     * everything, causing each shard's partial aggregate to produce zero rows. The
+     * coordinator's final aggregate must still report an empty result without erroring —
+     * the wire-format has to carry the schema on an empty batch so downstream operators
+     * have something to project from.
      */
-    public void testWhereGroupByCountMultiShard_reproducer() throws Exception {
-        createWhereReproIndex();
-        indexWhereReproDocs();
+    public void testGroupByCountMultiShard_allRowsFilteredByWhere() throws Exception {
+        createStringGroupIndex();
+        indexStringGroupDocs();
 
-        // WHERE filters out ALL rows (all docs have category='') → partial agg on each
-        // shard produces empty output → final agg hits "project index 0 out of bounds"
         executePPL(
-            "source = " + WHERE_REPRO_INDEX + " | where category != '' | stats count() as c by category | sort - c | head 5"
+            "source = " + STRING_GROUP_INDEX + " | where category != '' | stats count() as c by category | sort - c | head 5"
         );
     }
 
     /**
-     * Control case: same query shape WITHOUT the WHERE clause. This passes on multi-shard,
-     * demonstrating that the WHERE predicate (which filters out all rows) is the trigger.
+     * Control for {@link #testGroupByCountMultiShard_allRowsFilteredByWhere}: same query
+     * shape without the WHERE clause. Every doc lands in the single {@code category=''}
+     * group, so the shard's partial emits one non-empty batch and the final aggregate
+     * returns a single row. Validates the non-empty path with the same data shape.
      */
-    public void testGroupByCountMultiShard_noWhereControl() throws Exception {
-        createWhereReproIndex();
-        indexWhereReproDocs();
+    public void testGroupByCountMultiShard_noWhereClause() throws Exception {
+        createStringGroupIndex();
+        indexStringGroupDocs();
 
         Map<String, Object> result = executePPL(
-            "source = " + WHERE_REPRO_INDEX + " | stats count() as c by category | sort - c | head 5"
+            "source = " + STRING_GROUP_INDEX + " | stats count() as c by category | sort - c | head 5"
         );
 
         @SuppressWarnings("unchecked")
@@ -233,9 +221,9 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         assertFalse("should return at least one group", rows.isEmpty());
     }
 
-    private void createWhereReproIndex() throws Exception {
+    private void createStringGroupIndex() throws Exception {
         try {
-            client().performRequest(new Request("DELETE", "/" + WHERE_REPRO_INDEX));
+            client().performRequest(new Request("DELETE", "/" + STRING_GROUP_INDEX));
         } catch (Exception ignored) {}
 
         String body = "{"
@@ -255,28 +243,27 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "}"
             + "}";
 
-        Request createIndex = new Request("PUT", "/" + WHERE_REPRO_INDEX);
+        Request createIndex = new Request("PUT", "/" + STRING_GROUP_INDEX);
         createIndex.setJsonEntity(body);
-        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index " + WHERE_REPRO_INDEX);
+        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index " + STRING_GROUP_INDEX);
         assertEquals("index creation must be acknowledged", true, response.get("acknowledged"));
 
-        Request health = new Request("GET", "/_cluster/health/" + WHERE_REPRO_INDEX);
+        Request health = new Request("GET", "/_cluster/health/" + STRING_GROUP_INDEX);
         health.addParameter("wait_for_status", "green");
         health.addParameter("timeout", "30s");
         client().performRequest(health);
     }
 
-    private void indexWhereReproDocs() throws Exception {
-        // ALL docs have category='' so WHERE category != '' filters out everything on every
-        // shard. This matches the ClickBench scenario where SearchPhrase is empty for all
-        // rows in the test dataset, triggering the empty-partial-aggregate bug.
+    private void indexStringGroupDocs() throws Exception {
+        // All docs share category='' — makes "WHERE category != ''" filter every row on
+        // every shard, exercising the empty-partial path.
         StringBuilder bulk = new StringBuilder();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
             bulk.append("{\"index\": {\"_id\": \"w").append(i).append("\"}}\n");
             bulk.append("{\"category\": \"\", \"value\": ").append(i + 1).append("}\n");
         }
-        bulkAndRefresh(WHERE_REPRO_INDEX, bulk.toString());
+        bulkAndRefresh(STRING_GROUP_INDEX, bulk.toString());
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────────
