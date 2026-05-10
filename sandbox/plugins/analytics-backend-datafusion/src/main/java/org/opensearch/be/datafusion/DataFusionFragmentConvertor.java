@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import com.google.common.collect.ImmutableList;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptSchema;
@@ -171,6 +172,50 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
         FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
     );
+
+    /**
+     * Maps aggregate operators to their Substrait extension names so isthmus serializes
+     * them through our {@code SimpleExtension} catalog instead of the default Substrait
+     * names.
+     *
+     * <p>{@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} → {@code approx_distinct}
+     * (declared in {@code opensearch_aggregate_functions.yaml}) routes to DataFusion's
+     * native HyperLogLog {@code APPROX_DISTINCT} aggregate. Wiring this through isthmus'
+     * {@code ADDITIONAL_AGGREGATE_SIGS} alone is not enough because isthmus's default
+     * aggregate catalog already binds {@code APPROX_COUNT_DISTINCT} to substrait's
+     * standard {@code approx_count_distinct} URN; when signatures merge, the default
+     * binding overwrites ours in the matcher map. {@link OpenSearchAggregateFunctionConverter}
+     * fixes that by filtering the stock sig out of the default list so our entry is the
+     * only one that resolves to this operator.
+     */
+    private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
+    );
+
+    /**
+     * Subclassed {@link AggregateFunctionConverter} that removes isthmus's default binding
+     * for {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} from the signature merge.
+     * Without this, the default {@code approx_count_distinct} URN binding would shadow
+     * our entry in {@link #ADDITIONAL_AGGREGATE_SIGS} and the YAML-declared
+     * {@code approx_distinct} extension would never be reached.
+     */
+    private static final class OpenSearchAggregateFunctionConverter extends AggregateFunctionConverter {
+        OpenSearchAggregateFunctionConverter(
+            List<SimpleExtension.AggregateFunctionVariant> functions,
+            List<FunctionMappings.Sig> additionalSignatures,
+            RelDataTypeFactory typeFactory,
+            TypeConverter typeConverter
+        ) {
+            super(functions, additionalSignatures, typeFactory, typeConverter);
+        }
+
+        @Override
+        protected ImmutableList<FunctionMappings.Sig> getSigs() {
+            return super.getSigs().stream()
+                .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
+                .collect(ImmutableList.toImmutableList());
+        }
+    }
 
     private final SimpleExtension.ExtensionCollection extensions;
 
@@ -391,7 +436,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             typeFactory,
             typeConverter
         );
-        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
+        AggregateFunctionConverter aggConverter = new OpenSearchAggregateFunctionConverter(
+            extensions.aggregateFunctions(),
+            ADDITIONAL_AGGREGATE_SIGS,
+            typeFactory,
+            typeConverter
+        );
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,

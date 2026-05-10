@@ -126,7 +126,17 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     public void testNextOnExhaustedStreamThrows() throws Exception {
         try (DatafusionResultStream stream = createStream("SELECT message FROM test_table WHERE message > 999")) {
             Iterator<EngineResultBatch> it = stream.iterator();
-            assertFalse(it.hasNext());
+            // Empty results still emit one zero-row batch carrying the declared schema so
+            // downstream transports (Flight, row-path) see the column layout on the first
+            // data frame. Consume it, then the iterator is genuinely exhausted.
+            assertTrue("empty result emits a schema-carrying zero-row batch", it.hasNext());
+            EngineResultBatch schemaOnly = it.next();
+            try {
+                assertEquals("synthesized batch has zero rows", 0, schemaOnly.getRowCount());
+            } finally {
+                schemaOnly.getArrowRoot().close();
+            }
+            assertFalse("no further batches after the schema-only emit", it.hasNext());
             expectThrows(NoSuchElementException.class, it::next);
         }
     }
