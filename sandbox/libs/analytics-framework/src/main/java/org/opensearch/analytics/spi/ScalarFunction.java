@@ -56,6 +56,7 @@ public enum ScalarFunction {
     UPPER(Category.STRING, SqlKind.OTHER_FUNCTION),
     LOWER(Category.STRING, SqlKind.OTHER_FUNCTION),
     TRIM(Category.STRING, SqlKind.TRIM),
+    SUBSTR(Category.STRING, SqlKind.OTHER_FUNCTION),
     SUBSTRING(Category.STRING, SqlKind.OTHER_FUNCTION),
     /**
      * String concatenation. Calcite's {@code SqlStdOperatorTable.CONCAT} is a
@@ -66,7 +67,23 @@ public enum ScalarFunction {
      * rename surfaces as a compile error rather than as a silent string mismatch at runtime.
      */
     CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.CONCAT),
+    CONCAT_WS(Category.STRING, SqlKind.OTHER_FUNCTION),
     CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REGEXP_REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    ASCII(Category.STRING, SqlKind.OTHER_FUNCTION),
+    LEFT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
+    LOCATE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    POSITION(Category.STRING, SqlKind.POSITION),
+    LTRIM(Category.STRING, SqlKind.OTHER_FUNCTION),
+    RTRIM(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REVERSE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    RIGHT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    TOSTRING(Category.STRING, SqlKind.OTHER_FUNCTION),
+    NUMBER_TO_STRING(Category.STRING, SqlKind.OTHER_FUNCTION), // Alias for TOSTRING
+    TONUMBER(Category.STRING, SqlKind.OTHER_FUNCTION),
+    STRCMP(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Math ─────────────────────────────────────────────────────────
     PLUS(Category.MATH, SqlKind.PLUS),
@@ -75,9 +92,36 @@ public enum ScalarFunction {
     DIVIDE(Category.MATH, SqlKind.DIVIDE),
     MOD(Category.MATH, SqlKind.MOD),
     ABS(Category.MATH, SqlKind.OTHER_FUNCTION),
-    SIN(Category.MATH, SqlKind.OTHER_FUNCTION),
+    ACOS(Category.MATH, SqlKind.OTHER_FUNCTION),
+    ASIN(Category.MATH, SqlKind.OTHER_FUNCTION),
+    ATAN(Category.MATH, SqlKind.OTHER_FUNCTION),
+    ATAN2(Category.MATH, SqlKind.OTHER_FUNCTION),
+    CBRT(Category.MATH, SqlKind.OTHER_FUNCTION),
     CEIL(Category.MATH, SqlKind.CEIL),
+    COS(Category.MATH, SqlKind.OTHER_FUNCTION),
+    COSH(Category.MATH, SqlKind.OTHER_FUNCTION),
+    COT(Category.MATH, SqlKind.OTHER_FUNCTION),
+    DEGREES(Category.MATH, SqlKind.OTHER_FUNCTION),
+    E(Category.MATH, SqlKind.OTHER_FUNCTION),
+    EXP(Category.MATH, SqlKind.OTHER_FUNCTION),
+    EXPM1(Category.MATH, SqlKind.OTHER_FUNCTION),
     FLOOR(Category.MATH, SqlKind.FLOOR),
+    LN(Category.MATH, SqlKind.OTHER_FUNCTION),
+    LOG(Category.MATH, SqlKind.OTHER_FUNCTION),
+    LOG10(Category.MATH, SqlKind.OTHER_FUNCTION),
+    LOG2(Category.MATH, SqlKind.OTHER_FUNCTION),
+    PI(Category.MATH, SqlKind.OTHER_FUNCTION),
+    POWER(Category.MATH, SqlKind.OTHER_FUNCTION),
+    RADIANS(Category.MATH, SqlKind.OTHER_FUNCTION),
+    RAND(Category.MATH, SqlKind.OTHER_FUNCTION),
+    ROUND(Category.MATH, SqlKind.OTHER_FUNCTION),
+    SCALAR_MAX(Category.MATH, SqlKind.OTHER_FUNCTION),
+    SCALAR_MIN(Category.MATH, SqlKind.OTHER_FUNCTION),
+    SIGN(Category.MATH, SqlKind.OTHER_FUNCTION),
+    SIN(Category.MATH, SqlKind.OTHER_FUNCTION),
+    SINH(Category.MATH, SqlKind.OTHER_FUNCTION),
+    TAN(Category.MATH, SqlKind.OTHER_FUNCTION),
+    TRUNCATE(Category.MATH, SqlKind.OTHER_FUNCTION),
 
     // ── Cast / type ──────────────────────────────────────────────────
     CAST(Category.SCALAR, SqlKind.CAST),
@@ -98,10 +142,95 @@ public enum ScalarFunction {
     EXTRACT(Category.SCALAR, SqlKind.EXTRACT),
 
     // ── Datetime ────────────────────────────────────────────────────
+    // fromSqlFunction resolves via valueOf(name.toUpperCase()), so the enum name IS
+    // the wire contract. Aliases each need their own entry; the adapter map points
+    // them at one shared instance.
     TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    QUARTER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTH_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYOFMONTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYOFYEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAY_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    HOUR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    HOUR_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE_OF_HOUR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MICROSECOND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    WEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    WEEK_OF_YEAR(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    NOW(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURRENT_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURRENT_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURRENT_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CURTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CONVERT_TZ(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── JSON ────────────────────────────────────────────────────────
+    JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_DELETE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_EXTEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_EXTRACT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── Array ────────────────────────────────────────────────────────
+    /**
+     * PPL {@code array(a, b, …)} constructor — resolves through the SQL plugin's
+     * {@code ArrayFunctionImpl} UDF named {@code "array"}. DataFusion's native
+     * equivalent is {@code make_array}, so a backend that supports this needs a
+     * name-mapping adapter (see {@code MakeArrayAdapter} in the DataFusion backend).
+     */
+    ARRAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    ARRAY_SLICE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    ARRAY_DISTINCT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * Calcite's {@code ARRAY_JOIN} — joins array elements with a separator. PPL
+     * {@code mvjoin} is registered to this operator. DataFusion's native equivalent
+     * is named {@code array_to_string}, so the DataFusion backend rewrites to that
+     * via a name-mapping adapter.
+     */
+    ARRAY_JOIN(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * Calcite's {@code SqlStdOperatorTable.ITEM} — element access ({@code arr[N]}).
+     * PPL's {@code mvindex(arr, N)} single-element form lowers through
+     * {@code MVIndexFunctionImp.resolveSingleElement} to ITEM with a 1-based index
+     * (already converted from PPL's 0-based input). DataFusion's native equivalent
+     * is {@code array_element}, also 1-based; the DataFusion backend renames via a
+     * name-mapping adapter.
+     */
+    ITEM(Category.SCALAR, SqlKind.ITEM),
+    /**
+     * PPL {@code mvzip(left, right [, sep])} — element-wise zip of two arrays into an
+     * array of strings, joined per pair by a separator (default {@code ","}). Resolves
+     * through the SQL plugin's {@code MVZipFunctionImpl} UDF named {@code "mvzip"}.
+     * No DataFusion stdlib equivalent — the analytics-backend-datafusion plugin ships
+     * a custom Rust UDF (`udf::mvzip`) registered on its session context.
+     */
+    MVZIP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code mvfind(arr, regex)} — find the 0-based index of the first array
+     * element matching a regex, or NULL if no match. Resolves through the SQL
+     * plugin's {@code MVFindFunctionImpl} UDF named {@code "mvfind"}. No
+     * DataFusion stdlib equivalent — the analytics-backend-datafusion plugin
+     * ships a custom Rust UDF (`udf::mvfind`) registered on its session context.
+     */
+    MVFIND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code mvappend(arg1, arg2, …)} — flatten a mixed list of array and
+     * scalar arguments into one array, dropping null args and null elements.
+     * Resolves through the SQL plugin's {@code MVAppendFunctionImpl} UDF named
+     * {@code "mvappend"}. DataFusion's {@code array_concat} only accepts arrays
+     * and preserves nulls, so the analytics-backend-datafusion plugin ships a
+     * custom Rust UDF ({@code udf::mvappend}) registered on its session context.
+     */
+    MVAPPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.

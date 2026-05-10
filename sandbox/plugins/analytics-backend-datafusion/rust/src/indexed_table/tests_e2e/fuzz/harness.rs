@@ -244,14 +244,13 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
-                max_collector_parallelism: cfg_max_parallelism
-                    .unwrap_or(if num_tags > 1 {
-                        // Multi-collector tree: randomly pick 1 (sequential) or
-                        // up to 4 (parallel) to exercise PrecomputedLeafCache.
-                        [1, 1, 2, 4][seed as usize % 4]
-                    } else {
-                        1
-                    }),
+                max_collector_parallelism: cfg_max_parallelism.unwrap_or(if num_tags > 1 {
+                    // Multi-collector tree: randomly pick 1 (sequential) or
+                    // up to 4 (parallel) to exercise PrecomputedLeafCache.
+                    [1, 1, 2, 4][seed as usize % 4]
+                } else {
+                    1
+                }),
                 pruning_predicates: Arc::clone(&pruning_predicates),
                 page_prune_metrics: Some(
                     crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(
@@ -271,23 +270,20 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(cfg_target_partitions.max(1))
+        .force_strategy(force_strategy)
+        .force_pushdown(force_pushdown)
+        .batch_size(cfg_batch_size.unwrap_or([128, 1024, 8192][seed as usize % 3]))
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: loaded.schema.clone(),
         segments: loaded.segments.clone(),
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: cfg_target_partitions.max(1),
-        force_strategy,
-        force_pushdown,
         pushdown_predicate: None,
-        query_config: Arc::new({
-            let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::default();
-            // Vary batch_size to exercise the coalescer at different boundaries.
-            qc.batch_size = cfg_batch_size
-                .unwrap_or([128, 1024, 8192][seed as usize % 3]);
-            qc
-        }),
+        query_config: Arc::new(qc),
         predicate_columns: collect_predicate_column_indices(&bool_tree),
     }));
 
@@ -446,21 +442,20 @@ async fn run_single_collector_query(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(force_strategy)
+        .force_pushdown(Some(true))
+        .batch_size([128, 1024, 8192][loaded.segments.len() % 3])
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: loaded.schema.clone(),
         segments: loaded.segments.clone(),
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: 1,
-        force_strategy,
-        force_pushdown: Some(true), // SingleCollector relies on decode-time pushdown
         pushdown_predicate,
-        query_config: Arc::new({
-            let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::default();
-            qc.batch_size = [128, 1024, 8192][loaded.segments.len() % 3];
-            qc
-        }),
+        query_config: Arc::new(qc),
         predicate_columns: pred_cols,
     }));
     let ctx = SessionContext::new();
@@ -504,11 +499,11 @@ fn extract_single_collector(tree: &BoolNode) -> Option<(u8, BoolNode)> {
     let mut residuals: Vec<BoolNode> = Vec::new();
     for child in children {
         match child {
-            BoolNode::Collector { query_bytes } => {
+            BoolNode::Collector { annotation_id } => {
                 if tag.is_some() {
                     return None;
                 }
-                tag = Some(query_bytes[0]);
+                tag = Some(*annotation_id as u8);
             }
             other => residuals.push(other.clone()),
         }
@@ -654,21 +649,20 @@ async fn run_with_factory_plan(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(force_strategy)
+        .force_pushdown(force_pushdown)
+        .batch_size([256, 1024, 8192][loaded.segments.len() % 3])
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: loaded.schema.clone(),
         segments: loaded.segments.clone(),
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: 1,
-        force_strategy,
-        force_pushdown,
         pushdown_predicate,
-        query_config: Arc::new({
-            let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::default();
-            qc.batch_size = [256, 1024, 8192][loaded.segments.len() % 3];
-            qc
-        }),
+        query_config: Arc::new(qc),
         predicate_columns: vec![], // run_with_factory_plan is low-level; caller controls projection
     }));
     let ctx = SessionContext::new();
@@ -836,8 +830,14 @@ async fn run_iteration_impl(
     // doesn't implement, so we don't assert on those.
     let classification = classify_filter(&tree.tree);
     if classification == FilterClass::Tree {
-        let sc_result =
-            execute_tree_single_collector(corpus, loaded, tree, None, CollectorCallStrategy::FullRange).await;
+        let sc_result = execute_tree_single_collector(
+            corpus,
+            loaded,
+            tree,
+            None,
+            CollectorCallStrategy::FullRange,
+        )
+        .await;
         if sc_result.is_some() {
             return Err(format!(
                 "classify_filter returned Tree but execute_tree_single_collector \
@@ -929,7 +929,7 @@ mod tests {
         let lit: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(1000))));
         let predicate = BoolNode::Predicate(Arc::new(BinaryExpr::new(col, Operator::Lt, lit)));
         let collector = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let tree_node = BoolNode::And(vec![collector, predicate]);
         let matching: Vec<i32> = (0..100i32).collect();
@@ -947,7 +947,7 @@ mod tests {
         let corpus = build_corpus(FixtureConfig::small(0x2222));
         let loaded = load_segment(&corpus);
         let collector = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let matching: Vec<i32> = (0..100i32).collect();
         let gt = GeneratedTree {
@@ -1038,7 +1038,7 @@ mod tests {
         let lit: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(1000))));
         let predicate = BoolNode::Predicate(Arc::new(BinaryExpr::new(col, Operator::Lt, lit)));
         let collector_leaf = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let tree_node = BoolNode::And(vec![collector_leaf, predicate]);
 
@@ -1059,10 +1059,15 @@ mod tests {
 
         let expected = oracle_evaluate(&gt, &corpus);
         // Force BooleanMask strategy through the SingleCollector path.
-        let actual =
-            execute_tree_single_collector(&corpus, &loaded, &gt, Some(FilterStrategy::BooleanMask), CollectorCallStrategy::PageRangeSplit)
-                .await
-                .expect("tree classifies as SingleCollector");
+        let actual = execute_tree_single_collector(
+            &corpus,
+            &loaded,
+            &gt,
+            Some(FilterStrategy::BooleanMask),
+            CollectorCallStrategy::PageRangeSplit,
+        )
+        .await
+        .expect("tree classifies as SingleCollector");
         assert_eq!(
             expected,
             actual,
@@ -1108,10 +1113,10 @@ mod tests {
 
         // Multi-collector → classifies as Tree path.
         let c1 = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let c2 = BoolNode::Collector {
-            query_bytes: Arc::from(&[1u8][..]),
+            annotation_id: 1,
         };
         let tree_node = BoolNode::And(vec![BoolNode::Or(vec![c1, c2]), predicate]);
 
@@ -1142,12 +1147,12 @@ mod tests {
         let c1_expr =
             Expr::ScalarFunction(datafusion::logical_expr::expr::ScalarFunction::new_udf(
                 Arc::new(idx_filter_udf.clone()),
-                vec![lit(ScalarValue::Binary(Some(vec![0u8])))],
+                vec![lit(ScalarValue::Int32(Some(0)))],
             ));
         let c2_expr =
             Expr::ScalarFunction(datafusion::logical_expr::expr::ScalarFunction::new_udf(
                 Arc::new(idx_filter_udf),
-                vec![lit(ScalarValue::Binary(Some(vec![1u8])))],
+                vec![lit(ScalarValue::Int32(Some(1)))],
             ));
         let or_expr = datafusion::logical_expr::or(c1_expr, c2_expr);
         let price_lt = col("price").lt(lit(ScalarValue::Int32(Some(1000))));
@@ -1191,7 +1196,7 @@ mod tests {
         let lit: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(1000))));
         let predicate = BoolNode::Predicate(Arc::new(BinaryExpr::new(col, Operator::Lt, lit)));
         let collector_leaf = BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         };
         let tree_node = BoolNode::And(vec![collector_leaf, predicate]);
 
@@ -1216,9 +1221,15 @@ mod tests {
             Some(FilterStrategy::RowSelection),
             Some(FilterStrategy::BooleanMask),
         ] {
-            let actual = execute_tree_single_collector(&corpus, &loaded, &gt, strategy, CollectorCallStrategy::PageRangeSplit)
-                .await
-                .expect("tree classifies as SingleCollector");
+            let actual = execute_tree_single_collector(
+                &corpus,
+                &loaded,
+                &gt,
+                strategy,
+                CollectorCallStrategy::PageRangeSplit,
+            )
+            .await
+            .expect("tree classifies as SingleCollector");
             assert_eq!(
                 expected,
                 actual,

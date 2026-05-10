@@ -15,12 +15,18 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MergeIndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SerialMergeScheduler;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
@@ -59,6 +65,19 @@ import java.util.stream.Collectors;
  * The store reference is incremented on construction and decremented on {@link #close()}.
  * Closing the committer also closes the underlying IndexWriter.
  *
+ * <h2>Refresh-lock coordination</h2>
+ *
+ * <p>The engine passes a {@code preMergeCommitHook} via {@link CommitterConfig}. We wire it
+ * into Lucene as a {@code MergedSegmentWarmer} on the {@link IndexWriterConfig}. The warmer
+ * runs between {@code mergeMiddle} and {@code commitMerge} while the {@link IndexWriter}
+ * monitor is <em>not</em> held, so invoking the hook there establishes the ordering
+ * {@code refreshLock → IW monitor} on the merge thread — matching the refresh path and
+ * avoiding the lock inversion that would occur if coordination happened inside
+ * {@code commitMerge}. Ownership of whatever the hook acquires (currently the engine's
+ * refresh lock) is transferred to the engine's {@code applyMergeChanges} callback, which
+ * releases it after the catalog is updated. This committer never touches the refresh lock
+ * directly.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
@@ -67,7 +86,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private static final Logger logger = LogManager.getLogger(LuceneCommitter.class);
 
     private final Store store;
-    private final IndexWriter indexWriter;
+    private final MergeIndexWriter indexWriter;
     private final LuceneCommitDeletionPolicy deletionPolicy;
     private final AtomicBoolean isClosed = new AtomicBoolean();
 
@@ -84,8 +103,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         this.store.incRef();
         try {
             this.deletionPolicy = new LuceneCommitDeletionPolicy();
-            IndexWriterConfig iwc = createIndexWriterConfig(committerConfig.engineConfig());
-            this.indexWriter = new IndexWriter(store.directory(), iwc);
+            IndexWriterConfig iwc = createIndexWriterConfig(committerConfig);
+            this.indexWriter = new MergeIndexWriter(store.directory(), iwc);
         } catch (Exception e) {
             store.decRef();
             throw e;
@@ -197,18 +216,20 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
      *
      * @return the index writer, or null if closed
      */
-    IndexWriter getIndexWriter() {
+    MergeIndexWriter getIndexWriter() {
         ensureOpen();
         return indexWriter;
     }
 
     // --- Internal ---
 
-    private IndexWriterConfig createIndexWriterConfig(EngineConfig engineConfig) {
+    private IndexWriterConfig createIndexWriterConfig(CommitterConfig committerConfig) {
+        EngineConfig engineConfig = committerConfig.engineConfig();
         if (engineConfig == null) {
             IndexWriterConfig iwc = new IndexWriterConfig();
             iwc.setIndexDeletionPolicy(deletionPolicy);
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            iwc.setMergeScheduler(new SerialMergeScheduler());
             return iwc;
         }
         // TODO:: Merge Config needs to be wired in
@@ -219,13 +240,34 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         }
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setUseCompoundFile(engineConfig.useCompoundFile());
-        if (engineConfig.getIndexSort() != null) {
+        // Refresh-lock hand-off: the MergedSegmentWarmer fires on the merge thread between
+        // mergeMiddle and commitMerge, while the IndexWriter monitor is NOT held. Invoking
+        // the engine-provided preMergeCommitHook here gives the merge path the ordering
+        // refreshLock → IW monitor, which matches the refresh path (DataFormatAwareEngine#refresh
+        // takes refreshLock before calling IndexWriter#addIndexes). Ownership of whatever the
+        // hook acquires is transferred to applyMergeChanges, which releases it after the
+        // catalog is updated. See the class Javadoc.
+        iwc.setMergedSegmentWarmer(_ -> committerConfig.preMergeCommitHook().run());
+
+        // Determine if Lucene is a secondary format in a composite setup.
+        // When secondary, use a SortedNumericSortField on the row ID so MultiSorter can reorder
+        // documents by remapped row ID during merge. When primary (or standalone), use the
+        // engine config's IndexSort (which may be user-configured).
+        // TODO Check what is the right way to get this information as the below one is leaky
+        // https://github.com/opensearch-project/OpenSearch/issues/21506
+        List<String> secondaryFormats = engineConfig.getIndexSettings().getSettings().getAsList("index.composite.secondary_data_formats");
+        boolean isSecondary = secondaryFormats.contains("lucene");
+
+        if (isSecondary) {
+            iwc.setIndexSort(new Sort(new SortedNumericSortField(DocumentInput.ROW_ID_FIELD, SortField.Type.LONG)));
+        } else if (engineConfig.getIndexSort() != null) {
             iwc.setIndexSort(engineConfig.getIndexSort());
         }
         iwc.setCommitOnClose(false);
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
         iwc.setIndexDeletionPolicy(deletionPolicy);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMergeScheduler(new SerialMergeScheduler());
         return iwc;
     }
 

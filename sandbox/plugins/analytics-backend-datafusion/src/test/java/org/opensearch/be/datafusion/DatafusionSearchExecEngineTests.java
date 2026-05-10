@@ -17,6 +17,8 @@ import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -143,12 +145,17 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     private ShardScanExecutionContext createExecutionContext(String tableName, byte[] substrait, DatafusionContext dfContext) {
         ShardScanExecutionContext execCtx = new ShardScanExecutionContext(tableName, null, null);
         execCtx.setFragmentBytes(substrait);
+        Arena arena = Arena.ofConfined();
+        MemorySegment configSegment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
+        WireConfigSnapshot.builder().build().writeTo(configSegment);
         SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContext(
             readerHandle.getPointer(),
             runtimeHandle.get(),
             tableName,
-            0L
+            0L,
+            configSegment.address()
         );
+        arena.close();
         dfContext.setSessionContextHandle(sessionCtxHandle);
         return execCtx;
     }

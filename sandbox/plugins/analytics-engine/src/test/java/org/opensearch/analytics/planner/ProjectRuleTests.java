@@ -142,6 +142,36 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         assertTrue(exception.getMessage().contains("No backend supports scalar function"));
     }
 
+    /**
+     * PPL emits {@code SCALAR_MAX(a, b, c)} as a UDF whose return type is {@link SqlTypeName#ANY}
+     * — a consequence of the underlying {@code ScalarMaxFunction} being polymorphic across numeric
+     * and string types. The project rule must not reject such calls outright; instead it should
+     * fall back to inferring the operand type (DOUBLE here) so downstream backend capability
+     * dispatch proceeds normally. The actual operator rewrite to {@code GREATEST} happens later
+     * via the backend's {@code ScalarFunctionAdapter}.
+     */
+    public void testScalarFunctionWithAnyReturnTypeUsesOperandFallback() {
+        SqlFunction scalarMaxUdf = new SqlFunction(
+            "SCALAR_MAX",
+            SqlKind.OTHER_FUNCTION,
+            opBinding -> typeFactory.createSqlType(SqlTypeName.ANY),
+            null,
+            OperandTypes.VARIADIC,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+        // Reference the INTEGER column (index 1) from the stub scan's (VARCHAR, INTEGER) schema.
+        // The operand-type fallback must resolve INTEGER → FieldType.INTEGER so the backend
+        // capability lookup succeeds.
+        RexNode intRef = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1);
+        RexNode expr = rexBuilder.makeCall(scalarMaxUdf, intRef, intRef);
+        assertSame("precondition: UDF return type must be ANY", SqlTypeName.ANY, expr.getType().getSqlTypeName());
+
+        OpenSearchProject result = runProject(expr);
+
+        assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
+    }
+
     // ---- Delegation ----
 
     public void testPainlessDelegationFromDataFusionToLucene() {

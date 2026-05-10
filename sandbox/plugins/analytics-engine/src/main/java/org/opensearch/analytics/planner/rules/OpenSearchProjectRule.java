@@ -163,6 +163,22 @@ public class OpenSearchProjectRule extends RelOptRule {
             return List.of();
         }
         FieldType fieldType = FieldType.fromSqlTypeName(rexCall.getType().getSqlTypeName());
+        // Polymorphic UDF fallback: Calcite UDFs with indeterminate return types (SqlTypeName.ANY)
+        // — e.g. PPL's ScalarMaxFunction / ScalarMinFunction — do not map to a concrete FieldType
+        // directly. When a viability check for such a call lands here, fall back to the first
+        // operand's type. The scalar function's backend capabilities are defined over operand
+        // types anyway (SCALAR_MAX(double, double, ...) → DOUBLE), so inferring from operands
+        // preserves correct backend dispatch while deferring actual type-tightening until the
+        // backend's ScalarFunctionAdapter rewrites the call to a typed library operator.
+        if (fieldType == null) {
+            for (RexNode operand : rexCall.getOperands()) {
+                FieldType operandType = FieldType.fromSqlTypeName(operand.getType().getSqlTypeName());
+                if (operandType != null) {
+                    fieldType = operandType;
+                    break;
+                }
+            }
+        }
         if (fieldType == null) {
             return List.of();
         }

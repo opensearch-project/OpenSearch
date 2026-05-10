@@ -10,11 +10,16 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.be.datafusion.cache.CacheSettings;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.be.datafusion.action.DataFusionStatsAction;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -22,9 +27,12 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -46,7 +54,7 @@ import io.substrait.extension.SimpleExtension;
  * Analytics query capabilities are declared in {@link DataFusionAnalyticsBackendPlugin},
  * which is SPI-discovered and receives this plugin instance via its constructor.
  */
-public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader> {
+public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader>, AnalyticsSearchBackendPlugin, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -100,6 +108,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private volatile DataFormatRegistry dataFormatRegistry;
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
+    private volatile DatafusionSettings datafusionSettings;
 
     /**
      * Creates the DataFusion plugin.
@@ -141,6 +150,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
 
+        this.datafusionSettings = new DatafusionSettings(clusterService);
+
         this.substraitExtensions = loadSubstraitExtensions();
 
         return Collections.singletonList(dataFusionService);
@@ -160,7 +171,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             t.setContextClassLoader(DataFusionPlugin.class.getClassLoader());
             SimpleExtension.ExtensionCollection delegationExtensions = SimpleExtension.load(List.of("/delegation_functions.yaml"));
             SimpleExtension.ExtensionCollection scalarExtensions = SimpleExtension.load(List.of("/opensearch_scalar_functions.yaml"));
-            return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions).merge(scalarExtensions);
+            SimpleExtension.ExtensionCollection arrayExtensions = SimpleExtension.load(List.of("/opensearch_array_functions.yaml"));
+            return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions).merge(scalarExtensions).merge(arrayExtensions);
         } finally {
             t.setContextClassLoader(previous);
         }
@@ -182,19 +194,13 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         return clusterService;
     }
 
+    DatafusionSettings getDatafusionSettings() {
+        return datafusionSettings;
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(
-            DATAFUSION_MEMORY_POOL_LIMIT,
-            DATAFUSION_SPILL_MEMORY_LIMIT,
-            DATAFUSION_REDUCE_INPUT_MODE,
-            CacheSettings.METADATA_CACHE_SIZE_LIMIT,
-            CacheSettings.STATISTICS_CACHE_SIZE_LIMIT,
-            CacheSettings.METADATA_CACHE_EVICTION_TYPE,
-            CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
-            CacheSettings.METADATA_CACHE_ENABLED,
-            CacheSettings.STATISTICS_CACHE_ENABLED
-        );
+        return DatafusionSettings.ALL_SETTINGS;
     }
 
     /**
@@ -239,6 +245,22 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     @Override
     public List<String> getSupportedFormats() {
         return List.of(SUPPORTED_FORMAT);
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        if (dataFusionService == null) {
+            return Collections.emptyList();
+        }
+        return List.of(new DataFusionStatsAction(dataFusionService));
     }
 
     @Override

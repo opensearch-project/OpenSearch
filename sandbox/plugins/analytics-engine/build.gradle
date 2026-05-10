@@ -28,13 +28,6 @@ opensearchplugin {
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
-repositories {
-  maven {
-    name = 'OpenSearch Snapshots'
-    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
-  }
-}
-
 // Guava comes transitively from calcite-core and unified-query — forbidden on
 // compile classpaths by OpenSearch. Main sources don't need it; test sources do
 // (Calcite API exposes ImmutableList, Predicate). Bypass via custom config.
@@ -52,8 +45,9 @@ tasks.named('missingJavadoc').configure {
 }
 
 dependencies {
-  // Shared types and SPI interfaces (QueryPlanExecutor, EngineBridge, AnalyticsBackEndPlugin, etc.)
-  // Also provides calcite-core transitively via api.
+  implementation project(':sandbox:libs:analytics-api')
+
+  // Shared SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.) + calcite-core transitively.
   api project(':sandbox:libs:analytics-framework')
 
   // Arrow — provided at runtime by the extended arrow-flight-rpc plugin (same classloader).
@@ -109,6 +103,16 @@ dependencies {
   // org.apache.commons.math3.fraction.BigFraction. Not provided by arrow-flight-rpc,
   // so bundle it into analytics-engine's own zip.
   runtimeOnly "org.apache.commons:commons-math3:3.6.1"
+
+  // commons-text — Calcite's SqlFunctions class statically references
+  // org.apache.commons.text.similarity.LevenshteinDistance (used by SQL fuzzy-match
+  // helpers, also pulled in transitively when constant-folding array literals via
+  // ReduceExpressionsRule). Must be loaded via the same classloader as calcite-core
+  // so that SqlFunctions.<clinit> succeeds; otherwise it throws NoClassDefFoundError
+  // on first use and poisons every subsequent Calcite operation in the JVM — symptom
+  // is a single failing analytics query taking the cluster's planner thread offline
+  // for the rest of the run.
+  runtimeOnly "org.apache.commons:commons-text:1.11.0"
 
   // httpcore5/httpclient5 — Avatica's BuiltInConnectionProperty static initializer references
   // org.apache.hc.core5.util.Timeout. Not provided by arrow-flight-rpc, so bundle here.

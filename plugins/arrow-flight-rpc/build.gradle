@@ -36,6 +36,11 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  // arrow-vector's JsonStringArrayList static-initializes a Jackson ObjectMapper that registers
+  // JavaTimeModule. Without jsr310 on arrow-flight-rpc's classpath, any reader of an Arrow
+  // ListVector (e.g. DataFusion's array-returning UDFs flowing through analytics-engine) hits
+  // a fatal NoClassDefFoundError that exits the JVM.
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // arrow flight dependencies.

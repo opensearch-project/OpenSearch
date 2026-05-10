@@ -126,10 +126,13 @@ public class FragmentConversionDriver {
         RelNode leaf = findLeaf(plan.resolvedFragment());
 
         if (leaf instanceof OpenSearchTableScan) {
-            factory.createShardScanNode().ifPresent(instructions::add);
             List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                factory.createFilterDelegationNode(treeShape, delegated.size(), delegated).ifPresent(instructions::add);
+                // Delegation exists — use ShardScanWithDelegationInstructionNode which carries
+                // treeShape + count for the driving backend to configure its custom scan operator
+                factory.createShardScanWithDelegationNode(treeShape, delegated.size()).ifPresent(instructions::add);
+            } else {
+                factory.createShardScanNode().ifPresent(instructions::add);
             }
             if (plan.resolvedFragment() instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
                 factory.createPartialAggregateNode().ifPresent(instructions::add);

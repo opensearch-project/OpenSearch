@@ -14,7 +14,7 @@
 //!
 //! - `AND` / `OR` / `NOT` → `BoolNode::And` / `Or` / `Not`
 //! - `ScalarFunction` named `COLLECTOR_FUNCTION_NAME` with one `Binary`
-//!   literal argument → `BoolNode::Collector { query_bytes }`. Those bytes
+//!   literal argument → `BoolNode::Collector { annotation_id }`. The ID
 //!   are the serialized backend query payload; they're handed to a Java
 //!   factory at query-resolve time to create a provider.
 //! - **Anything else** → lowered to [`Arc<dyn PhysicalExpr>`] via
@@ -25,7 +25,7 @@
 //!
 //! **The substrait plan is the wire format.** Java never serializes an
 //! `IndexFilterTree`; it rewrites `column = 'value'` on indexed columns to
-//! `index_filter(query_bytes)` UDF calls during the Calcite marking phase,
+//! `delegated_predicate(annotationId)` UDF calls during the Calcite marking phase,
 //! and that survives the substrait round-trip. Rust just reads it back out
 //! of the decoded `LogicalPlan`.
 
@@ -46,7 +46,7 @@ use datafusion::physical_expr::PhysicalExpr;
 use super::bool_tree::BoolNode;
 
 /// The UDF name Calcite emits for indexed-column filter markers.
-pub const COLLECTOR_FUNCTION_NAME: &str = "index_filter";
+pub const COLLECTOR_FUNCTION_NAME: &str = "delegated_predicate";
 
 /// Classification of a query's filter expression — drives the evaluator choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -152,17 +152,17 @@ fn convert_expr(
     }
 }
 
-/// `index_filter(query_bytes)` — a single `Binary` literal arg.
+/// `delegated_predicate(annotationId)` — a single `Int32` literal arg.
 fn convert_collector_function(args: &[Expr]) -> Result<BoolNode, String> {
     if args.len() != 1 {
         return Err(format!(
-            "{} expects 1 arg (query_bytes), got {}",
+            "{} expects 1 arg (annotationId), got {}",
             COLLECTOR_FUNCTION_NAME,
             args.len()
         ));
     }
-    let bytes = extract_binary_literal(&args[0])?;
-    Ok(BoolNode::Collector { query_bytes: bytes })
+    let annotation_id = extract_int32_literal(&args[0])?;
+    Ok(BoolNode::Collector { annotation_id })
 }
 
 /// Strip table qualifiers from `Column` references in an `Expr` tree.
@@ -184,13 +184,11 @@ fn strip_column_qualifiers(expr: &Expr) -> Expr {
         .data
 }
 
-fn extract_binary_literal(expr: &Expr) -> Result<Arc<[u8]>, String> {
+fn extract_int32_literal(expr: &Expr) -> Result<i32, String> {
     match expr {
-        Expr::Literal(ScalarValue::Binary(Some(v)), _) => Ok(Arc::from(v.as_slice())),
-        Expr::Literal(ScalarValue::LargeBinary(Some(v)), _) => Ok(Arc::from(v.as_slice())),
-        Expr::Literal(ScalarValue::FixedSizeBinary(_, Some(v)), _) => Ok(Arc::from(v.as_slice())),
+        Expr::Literal(ScalarValue::Int32(Some(v)), _) => Ok(*v),
         _ => Err(format!(
-            "{} arg must be a Binary literal, got {:?}",
+            "{} arg must be an Int32 literal, got {:?}",
             COLLECTOR_FUNCTION_NAME, expr
         )),
     }
@@ -233,7 +231,7 @@ fn is_and_only_collector_tree(tree: &BoolNode) -> bool {
     }
 }
 
-/// Create the `index_filter(query_bytes) → Boolean` UDF.
+/// Create the `delegated_predicate(annotationId) → Boolean` UDF.
 ///
 /// This UDF exists solely as a marker for `classify_filter` / `expr_to_bool_tree`.
 /// Its body is deliberately wired to return a hard `DataFusionError` if it
@@ -252,15 +250,10 @@ struct IndexFilterUdf {
 
 impl IndexFilterUdf {
     fn new() -> Self {
-        // The UDF takes exactly one binary payload; LargeBinary is accepted
-        // for payloads that overflow Binary's 2 GiB limit. FixedSizeBinary is
-        // also accepted at decode time (see `extract_binary_literal`) but we
-        // don't enumerate every fixed size in the signature.
         Self {
             signature: Signature::one_of(
                 vec![
-                    TypeSignature::Exact(vec![DataType::Binary]),
-                    TypeSignature::Exact(vec![DataType::LargeBinary]),
+                    TypeSignature::Exact(vec![DataType::Int32]),
                 ],
                 Volatility::Immutable,
             ),
@@ -418,12 +411,12 @@ mod tests {
         let udf = Arc::new(create_index_filter_udf());
         let expr = Expr::ScalarFunction(datafusion::logical_expr::expr::ScalarFunction::new_udf(
             udf,
-            vec![lit(ScalarValue::Binary(Some(b"hello-query".to_vec())))],
+            vec![lit(ScalarValue::Int32(Some(42)))],
         ));
         let r = expr_to_bool_tree(&expr, &test_schema()).unwrap();
         match r.tree {
-            BoolNode::Collector { query_bytes } => {
-                assert_eq!(&*query_bytes, b"hello-query");
+            BoolNode::Collector { annotation_id } => {
+                assert_eq!(annotation_id, 42);
             }
             _ => panic!("expected Collector"),
         }
@@ -431,12 +424,12 @@ mod tests {
 
     #[test]
     fn mixed_tree() {
-        // AND(collector(bytes), OR(price > 100, qty < 50))
+        // AND(collector(annotationId), OR(price > 100, qty < 50))
         let udf = Arc::new(create_index_filter_udf());
         let collector_expr =
             Expr::ScalarFunction(datafusion::logical_expr::expr::ScalarFunction::new_udf(
                 udf,
-                vec![lit(ScalarValue::Binary(Some(b"mixed".to_vec())))],
+                vec![lit(ScalarValue::Int32(Some(0)))],
             ));
         let or_branch = col("price").gt(lit(100i32)).or(col("qty").lt(lit(50i32)));
         let expr = Expr::BinaryExpr(datafusion::logical_expr::BinaryExpr::new(
@@ -450,9 +443,9 @@ mod tests {
 
     // ── classify_filter ──────────────────────────────────────────────
 
-    fn collector(tag: &[u8]) -> BoolNode {
+    fn collector(id: i32) -> BoolNode {
         BoolNode::Collector {
-            query_bytes: Arc::from(tag),
+            annotation_id: id,
         }
     }
     fn dummy_predicate() -> BoolNode {
@@ -479,40 +472,40 @@ mod tests {
     #[test]
     fn classify_bare_collector_is_single() {
         assert_eq!(
-            classify_filter(&collector(b"x")),
+            classify_filter(&collector(10)),
             FilterClass::SingleCollector
         );
     }
 
     #[test]
     fn classify_and_of_collector_and_predicates_is_single() {
-        let tree = BoolNode::And(vec![collector(b"x"), dummy_predicate(), dummy_predicate()]);
+        let tree = BoolNode::And(vec![collector(10), dummy_predicate(), dummy_predicate()]);
         assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
     }
 
     #[test]
     fn classify_and_with_two_collectors_is_single() {
         // AND(C, C, P) — all collectors under AND-only path → SingleCollector.
-        let tree = BoolNode::And(vec![collector(b"x"), collector(b"y"), dummy_predicate()]);
+        let tree = BoolNode::And(vec![collector(10), collector(11), dummy_predicate()]);
         assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
     }
 
     #[test]
     fn classify_or_containing_collector_is_tree() {
-        let tree = BoolNode::Or(vec![collector(b"x"), dummy_predicate()]);
+        let tree = BoolNode::Or(vec![collector(10), dummy_predicate()]);
         assert_eq!(classify_filter(&tree), FilterClass::Tree);
     }
 
     #[test]
     fn classify_not_of_collector_is_tree() {
-        let tree = BoolNode::Not(Box::new(collector(b"x")));
+        let tree = BoolNode::Not(Box::new(collector(10)));
         assert_eq!(classify_filter(&tree), FilterClass::Tree);
     }
 
     #[test]
     fn classify_and_with_nested_collector_is_tree() {
         let tree = BoolNode::And(vec![
-            BoolNode::Or(vec![collector(b"x"), dummy_predicate()]),
+            BoolNode::Or(vec![collector(10), dummy_predicate()]),
             dummy_predicate(),
         ]);
         assert_eq!(classify_filter(&tree), FilterClass::Tree);
@@ -524,8 +517,8 @@ mod tests {
     fn classify_nested_and_collector_plus_predicate_is_single() {
         // AND(C₁, AND(C₂, P)) — nested AND, all collectors under AND-only path.
         let tree = BoolNode::And(vec![
-            collector(b"x"),
-            BoolNode::And(vec![collector(b"y"), dummy_predicate()]),
+            collector(10),
+            BoolNode::And(vec![collector(11), dummy_predicate()]),
         ]);
         assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
     }
@@ -536,10 +529,10 @@ mod tests {
         let tree = BoolNode::And(vec![
             dummy_predicate(),
             BoolNode::And(vec![
-                collector(b"a"),
+                collector(0),
                 BoolNode::And(vec![
-                    collector(b"b"),
-                    BoolNode::And(vec![collector(b"c"), dummy_predicate()]),
+                    collector(1),
+                    BoolNode::And(vec![collector(2), dummy_predicate()]),
                 ]),
             ]),
         ]);
@@ -550,8 +543,8 @@ mod tests {
     fn classify_nested_and_only_collectors_is_single() {
         // AND(AND(C₁, C₂), AND(C₃, C₄)) — nested AND of only collectors.
         let tree = BoolNode::And(vec![
-            BoolNode::And(vec![collector(b"a"), collector(b"b")]),
-            BoolNode::And(vec![collector(b"c"), collector(b"d")]),
+            BoolNode::And(vec![collector(0), collector(1)]),
+            BoolNode::And(vec![collector(2), collector(3)]),
         ]);
         assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
     }
@@ -560,7 +553,7 @@ mod tests {
     fn classify_nested_and_with_or_predicate_is_single() {
         // AND(C, AND(P, OR(P, P))) — OR contains only predicates, no collectors.
         let tree = BoolNode::And(vec![
-            collector(b"x"),
+            collector(10),
             BoolNode::And(vec![
                 dummy_predicate(),
                 BoolNode::Or(vec![dummy_predicate(), dummy_predicate()]),
@@ -573,7 +566,7 @@ mod tests {
     fn classify_nested_and_with_not_predicate_is_single() {
         // AND(C, NOT(P)) — NOT wraps a predicate, not a collector.
         let tree = BoolNode::And(vec![
-            collector(b"x"),
+            collector(10),
             BoolNode::Not(Box::new(dummy_predicate())),
         ]);
         assert_eq!(classify_filter(&tree), FilterClass::SingleCollector);
@@ -583,9 +576,9 @@ mod tests {
     fn classify_nested_and_or_containing_collector_is_tree() {
         // AND(C₁, AND(OR(C₂, P), P)) — OR above C₂ → Tree.
         let tree = BoolNode::And(vec![
-            collector(b"x"),
+            collector(10),
             BoolNode::And(vec![
-                BoolNode::Or(vec![collector(b"y"), dummy_predicate()]),
+                BoolNode::Or(vec![collector(11), dummy_predicate()]),
                 dummy_predicate(),
             ]),
         ]);
@@ -596,9 +589,9 @@ mod tests {
     fn classify_nested_and_not_containing_collector_is_tree() {
         // AND(C₁, AND(NOT(C₂), P)) — NOT above C₂ → Tree.
         let tree = BoolNode::And(vec![
-            collector(b"x"),
+            collector(10),
             BoolNode::And(vec![
-                BoolNode::Not(Box::new(collector(b"y"))),
+                BoolNode::Not(Box::new(collector(11))),
                 dummy_predicate(),
             ]),
         ]);

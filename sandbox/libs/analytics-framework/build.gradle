@@ -12,8 +12,10 @@
  * Plugins depend on this; the /modules SPI layer does NOT.
  */
 
-def calciteVersion = '1.41.0'
-
+// Patched Calcite coordinate. Carries CALCITE-3745 (TCCL-chained classloader
+// for Janino parent CL); API surface is identical to upstream. The OpenSearch
+// Snapshots repo and the resolutionStrategy.force for this coordinate are
+// declared centrally in sandbox/build.gradle's subprojects block.
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 configurations {
@@ -35,9 +37,9 @@ dependencies {
   // interfaces declares its own runtime arrow dep (see analytics-backend-datafusion).
   compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  api "org.apache.calcite:calcite-core:${calciteVersion}"
+  api "org.apache.calcite:calcite-core:${patchedCalciteVersion}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
-  api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
+  api "org.apache.calcite:calcite-linq4j:${patchedCalciteVersion}"
   // Calcite's JDBC abstraction layer — required by calcite-core internals
   runtimeOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
   // Guava — required by Calcite internally, forbidden on compile classpaths by OpenSearch policy

@@ -71,7 +71,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testConstructionInitializesActiveVSR() throws Exception {
         String filePath = createTempDir().resolve("init.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
         assertNotNull(manager.getActiveManagedVSR());
         assertEquals(VSRState.ACTIVE, manager.getActiveManagedVSR().getState());
         // flush handles freeze + close internally
@@ -80,7 +80,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testFlushWithNoDataReturnsMetadata() throws Exception {
         String filePath = createTempDir().resolve("empty.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
         ParquetFileMetadata metadata = manager.flush();
         assertNotNull(metadata);
         assertEquals(0, metadata.numRows());
@@ -88,7 +88,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testFlushWithData() throws Exception {
         String filePath = createTempDir().resolve("data.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
 
         ManagedVSR active = manager.getActiveManagedVSR();
         IntVector vec = (IntVector) active.getVector("val");
@@ -104,7 +104,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testAddDocument() throws Exception {
         String filePath = createTempDir().resolve("add-doc.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         ParquetDocumentInput doc = new ParquetDocumentInput();
@@ -120,7 +120,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testSyncAfterFlush() throws Exception {
         String filePath = createTempDir().resolve("sync.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
 
         ManagedVSR active = manager.getActiveManagedVSR();
         IntVector vec = (IntVector) active.getVector("val");
@@ -134,7 +134,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testMaybeRotateNoOpBelowThreshold() throws Exception {
         String filePath = createTempDir().resolve("norotate.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
         ManagedVSR original = manager.getActiveManagedVSR();
         original.setRowCount(100);
         manager.maybeRotateActiveVSR();
@@ -144,7 +144,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testMaybeRotateAtThreshold() throws Exception {
         String filePath = createTempDir().resolve("rotate.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
 
         ManagedVSR original = manager.getActiveManagedVSR();
         original.setRowCount(50000);
@@ -158,7 +158,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testFlushAfterRotation() throws Exception {
         String filePath = createTempDir().resolve("rotate-flush.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
 
         // Fill first VSR to trigger rotation
         ManagedVSR first = manager.getActiveManagedVSR();
@@ -182,7 +182,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testRotationAwaitsWhenFrozenSlotOccupied() throws Exception {
         String filePath = createTempDir().resolve("double-rotate.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
 
         // Fill first VSR to trigger rotation (async write submitted)
         ManagedVSR first = manager.getActiveManagedVSR();
@@ -217,7 +217,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testRotationWritesHappenOnBackgroundThread() throws Exception {
         String filePath = createTempDir().resolve("bg-thread.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
 
         // Fill and rotate
         ManagedVSR first = manager.getActiveManagedVSR();
@@ -246,7 +246,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testFlushAwaitsBackgroundWrite() throws Exception {
         String filePath = createTempDir().resolve("flush-await.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
 
         // Fill and rotate to trigger background write
         ManagedVSR first = manager.getActiveManagedVSR();
@@ -271,7 +271,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testCloseAwaitsBackgroundWrite() throws Exception {
         String filePath = createTempDir().resolve("close-await.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool);
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
 
         // Fill and rotate to trigger background write
         ManagedVSR first = manager.getActiveManagedVSR();

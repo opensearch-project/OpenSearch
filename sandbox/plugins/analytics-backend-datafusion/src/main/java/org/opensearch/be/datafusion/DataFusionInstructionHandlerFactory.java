@@ -16,6 +16,7 @@ import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
+import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +52,11 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     }
 
     @Override
+    public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
+        return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
+    }
+
+    @Override
     public Optional<InstructionNode> createPartialAggregateNode() {
         // TODO: return Optional.of(...) once PartialAggregateInstructionHandler is implemented
         return Optional.empty();
@@ -66,6 +72,9 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
     @SuppressWarnings("unchecked")
     @Override
     public FragmentInstructionHandler<?> createHandler(InstructionNode node) {
+        if (node instanceof ShardScanWithDelegationInstructionNode) {
+            return new ShardScanWithDelegationHandler(plugin);
+        }
         if (node instanceof ShardScanInstructionNode) {
             return new ShardScanInstructionHandler(plugin);
         }

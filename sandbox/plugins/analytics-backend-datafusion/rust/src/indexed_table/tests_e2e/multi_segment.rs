@@ -139,43 +139,44 @@ async fn run_two_segment_query(
     // Factory produces a single-collector evaluator per chunk. The collector's
     // matching set is pulled from `per_segment_matches[segment.segment_ord]`,
     // so wrong segment_ord propagation would immediately produce wrong rows.
-    let factory: super::super::table_provider::EvaluatorFactory = {
-        let per_segment_matches = Arc::clone(&per_segment_matches);
-        let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
-            let matching = per_segment_matches
-                .get(segment.segment_ord as usize)
-                .cloned()
-                .unwrap_or_default();
-            let collector: Arc<dyn RowGroupDocsCollector> =
-                Arc::new(PerSegmentCollector { matching });
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
-            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
+    let factory: super::super::table_provider::EvaluatorFactory =
+        {
+            let per_segment_matches = Arc::clone(&per_segment_matches);
+            let schema = schema.clone();
+            Arc::new(move |segment, _chunk, _stream_metrics| {
+                let matching = per_segment_matches
+                    .get(segment.segment_ord as usize)
+                    .cloned()
+                    .unwrap_or_default();
+                let collector: Arc<dyn RowGroupDocsCollector> =
+                    Arc::new(PerSegmentCollector { matching });
+                let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+                let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
                     collector, pruner, None, None, None, None,
                     crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
                 ),
             );
-            Ok(eval)
-        })
-    };
+                Ok(eval)
+            })
+        };
 
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(num_partitions)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .force_pushdown(Some(false))
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments,
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: num_partitions,
-        force_strategy: Some(FilterStrategy::BooleanMask),
-        force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(
-            crate::datafusion_query_config::DatafusionQueryConfig::default(),
-        ),
+        query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
     }));
 
@@ -336,43 +337,44 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
 
     let schema = schema_opt.unwrap();
     let per_segment_matches = Arc::new(per_segment_matches);
-    let factory: super::super::table_provider::EvaluatorFactory = {
-        let per_segment_matches = Arc::clone(&per_segment_matches);
-        let schema = schema.clone();
-        Arc::new(move |segment, _chunk, _stream_metrics| {
-            let matching = per_segment_matches
-                .get(segment.segment_ord as usize)
-                .cloned()
-                .unwrap_or_default();
-            let collector: Arc<dyn RowGroupDocsCollector> =
-                Arc::new(PerSegmentCollector { matching });
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
-            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
+    let factory: super::super::table_provider::EvaluatorFactory =
+        {
+            let per_segment_matches = Arc::clone(&per_segment_matches);
+            let schema = schema.clone();
+            Arc::new(move |segment, _chunk, _stream_metrics| {
+                let matching = per_segment_matches
+                    .get(segment.segment_ord as usize)
+                    .cloned()
+                    .unwrap_or_default();
+                let collector: Arc<dyn RowGroupDocsCollector> =
+                    Arc::new(PerSegmentCollector { matching });
+                let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+                let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
                     collector, pruner, None, None, None, None,
                     crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
                 ),
             );
-            Ok(eval)
-        })
-    };
+                Ok(eval)
+            })
+        };
 
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(num_partitions)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .force_pushdown(Some(false))
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments,
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: num_partitions,
-        force_strategy: Some(FilterStrategy::BooleanMask),
-        force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(
-            crate::datafusion_query_config::DatafusionQueryConfig::default(),
-        ),
+        query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
     }));
 
@@ -861,19 +863,19 @@ async fn run_wide_segments(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(num_partitions)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .force_pushdown(Some(false))
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments,
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: num_partitions,
-        force_strategy: Some(FilterStrategy::BooleanMask),
-        force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(
-            crate::datafusion_query_config::DatafusionQueryConfig::default(),
-        ),
+        query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
     }));
 
@@ -983,7 +985,7 @@ async fn wide_multi_segment_collector_and_two_predicates() {
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
         BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         },
         pred_wide_int("price", Operator::Gt, 50),
         pred_wide_int("qty", Operator::Lt, 3),
@@ -1001,7 +1003,7 @@ async fn wide_multi_segment_or_of_predicates_under_collector() {
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
         BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         },
         BoolNode::Or(vec![
             pred_wide_str("region", Operator::Eq, "us-east"),
@@ -1021,7 +1023,7 @@ async fn wide_multi_segment_not_and_three_column_predicates() {
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
         BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         },
         BoolNode::Not(Box::new(pred_wide_int("price", Operator::Lt, 30))),
         pred_wide_int("qty", Operator::Gt, 2),
@@ -1043,7 +1045,7 @@ async fn wide_multi_segment_deep_tree_four_predicate_columns() {
     let specs = wide_four_seg_specs();
     let tree = BoolNode::And(vec![
         BoolNode::Collector {
-            query_bytes: Arc::from(&[0u8][..]),
+            annotation_id: 0,
         },
         BoolNode::Or(vec![
             BoolNode::And(vec![

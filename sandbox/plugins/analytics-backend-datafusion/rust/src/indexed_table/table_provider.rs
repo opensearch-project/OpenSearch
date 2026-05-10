@@ -102,11 +102,6 @@ pub struct IndexedTableConfig {
     /// URL of the store for DataFusion's `FileScanConfig`.
     pub store_url: datafusion::execution::object_store::ObjectStoreUrl,
     pub evaluator_factory: EvaluatorFactory,
-    pub target_partitions: usize,
-    /// If `Some`, override the per-RG strategy choice. Mainly for tests.
-    pub force_strategy: Option<FilterStrategy>,
-    /// If `Some`, force `with_pushdown_filters` on/off. Mainly for tests.
-    pub force_pushdown: Option<bool>,
     /// Parquet-native residual predicate to push into decode time via
     /// `ParquetSource::with_predicate`. Derived from the BoolNode tree
     /// by `execute_indexed_query`:
@@ -120,7 +115,7 @@ pub struct IndexedTableConfig {
     /// receives from DataFusion, because DataFusion's filters include
     /// the `index_filter(...)` UDF marker whose body panics.
     pub pushdown_predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
-    /// Query-scoped tunables (batch_size, min_skip_run_default, costs, …).
+    /// Query-scoped tunables (batch_size, target_partitions, costs, …).
     /// Shared by reference across fanned-out `QueryShardExec` instances.
     pub query_config: Arc<DatafusionQueryConfig>,
     /// Full-schema column indices referenced by BoolNode Predicate leaves.
@@ -136,7 +131,7 @@ impl fmt::Debug for IndexedTableProvider {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IndexedTableProvider")
             .field("segments", &self.config.segments.len())
-            .field("partitions", &self.config.target_partitions)
+            .field("partitions", &self.config.query_config.target_partitions)
             .finish()
     }
 }
@@ -224,7 +219,8 @@ impl TableProvider for IndexedTableProvider {
                 row_groups: seg.row_groups.clone(),
             })
             .collect();
-        let assignments = compute_assignments(&layouts, self.config.target_partitions);
+        let assignments =
+            compute_assignments(&layouts, self.config.query_config.target_partitions.max(1));
 
         let properties = PlanProperties::new(
             EquivalenceProperties::new(projected_schema.clone()),
@@ -388,8 +384,6 @@ impl ExecutionPlan for QueryShardExec {
                 doc_range: Some((chunk.doc_min, chunk.doc_max)),
                 metrics: ExecutionPlanMetricsSet::new(),
                 stream_metrics: stream_metrics.clone(),
-                force_pushdown: self.config.force_pushdown,
-                force_strategy: self.config.force_strategy,
                 query_config: Arc::clone(&self.config.query_config),
             };
             execs.push(Arc::new(exec));
@@ -447,12 +441,9 @@ mod tests {
             store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
             // Evaluator factory would never be invoked for this test (no segments).
             evaluator_factory: Arc::new(|_, _, _| unreachable!()),
-            target_partitions: 1,
-            force_strategy: None,
-            force_pushdown: None,
             pushdown_predicate: None,
             query_config: std::sync::Arc::new(
-                crate::datafusion_query_config::DatafusionQueryConfig::default(),
+                crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             ),
             predicate_columns: vec![],
         }

@@ -9,6 +9,7 @@
 package org.opensearch.dsl.converter;
 
 import org.apache.calcite.jdbc.CalciteSchema;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.type.RelDataType;
@@ -16,14 +17,31 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.dsl.executor.QueryPlans;
+import org.opensearch.dsl.golden.CalciteTestInfra;
+import org.opensearch.dsl.golden.GoldenFileLoader;
+import org.opensearch.dsl.golden.GoldenTestCase;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class SearchSourceConverterTests extends OpenSearchTestCase {
 
@@ -127,5 +145,79 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         assertTrue(plans.has(QueryPlans.Type.AGGREGATION));
         // Metric-only agg has no bucket orders, so no LogicalSort wrapper
         assertFalse(plans.get(QueryPlans.Type.AGGREGATION).get(0).relNode() instanceof LogicalSort);
+    }
+
+    // ---- Golden file driven RelNode generation tests ----
+
+    /**
+     * Auto-discovers all golden JSON files and validates that each inputDsl
+     * produces the expected RelNode plan via SearchSourceConverter.convert().
+     * Adding a new test case only requires adding a new JSON file — no new
+     * Java method needed.
+     */
+    public void testGoldenFileRelNodeGeneration() throws Exception {
+        URL goldenDir = getClass().getClassLoader().getResource("golden");
+        assertNotNull("Golden file resource directory not found", goldenDir);
+
+        List<Path> goldenFiles;
+        try (var stream = Files.list(Path.of(goldenDir.toURI()))) {
+            goldenFiles = stream.filter(p -> p.toString().endsWith(".json")).collect(Collectors.toList());
+        }
+        assertFalse("No golden files found", goldenFiles.isEmpty());
+
+        List<String> failures = new ArrayList<>();
+        for (Path file : goldenFiles) {
+            String fileName = file.getFileName().toString();
+            try {
+                GoldenTestCase tc = GoldenFileLoader.load(fileName);
+                CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping(tc.getIndexName(), tc.getIndexMapping());
+
+                SearchSourceBuilder searchSource = parseSearchSource(tc.getInputDsl());
+                SearchSourceConverter conv = new SearchSourceConverter(infra.schema());
+                QueryPlans plans = conv.convert(searchSource, tc.getIndexName());
+
+                QueryPlans.Type expectedType = QueryPlans.Type.valueOf(tc.getPlanType());
+                List<QueryPlans.QueryPlan> matchingPlans = plans.get(expectedType);
+                if (matchingPlans.isEmpty()) {
+                    failures.add(fileName + ": No " + expectedType + " plan produced");
+                    continue;
+                }
+
+                RelNode relNode = matchingPlans.get(0).relNode();
+                String actualPlan = relNode.explain().trim();
+                String expectedPlan = String.join("\n", tc.getExpectedRelNodePlan());
+
+                if (!expectedPlan.equals(actualPlan)) {
+                    failures.add(fileName + ": RelNode plan mismatch\n  Expected: " + expectedPlan + "\n  Actual:   " + actualPlan);
+                }
+
+                List<String> actualFields = relNode.getRowType().getFieldNames();
+                if (!tc.getMockResultFieldNames().equals(actualFields)) {
+                    failures.add(
+                        fileName + ": Field names mismatch\n  Expected: " + tc.getMockResultFieldNames() + "\n  Actual:   " + actualFields
+                    );
+                }
+            } catch (Exception e) {
+                failures.add(fileName + ": " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            }
+        }
+
+        if (!failures.isEmpty()) {
+            fail("Golden file RelNode generation failures:\n" + String.join("\n", failures));
+        }
+    }
+
+    private SearchSourceBuilder parseSearchSource(Map<String, Object> inputDsl) throws IOException {
+        String json;
+        try (var builder = JsonXContent.contentBuilder()) {
+            builder.map(inputDsl);
+            json = builder.toString();
+        }
+        NamedXContentRegistry registry = new NamedXContentRegistry(
+            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents()
+        );
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(registry, DeprecationHandler.IGNORE_DEPRECATIONS, json)) {
+            return SearchSourceBuilder.fromXContent(parser);
+        }
     }
 }
