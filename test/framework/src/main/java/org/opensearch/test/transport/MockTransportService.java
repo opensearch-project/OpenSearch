@@ -627,7 +627,6 @@ public final class MockTransportService extends TransportService {
         stub.addRequestHandlingBehavior(actionName, handlingBehavior);
     }
 
-
     /**
      * Adds a new send behavior that is used for communication with the given delegate service.
      *
