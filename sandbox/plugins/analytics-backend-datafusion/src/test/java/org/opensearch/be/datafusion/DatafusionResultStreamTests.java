@@ -123,20 +123,20 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         }
     }
 
-    public void testNextOnExhaustedStreamThrows() throws Exception {
+    public void testEmptyResultYieldsOneZeroRowBatchWithSchema() throws Exception {
+        // Streaming Flight requires ≥1 schema-bearing frame before completeStream; empty
+        // native streams synthesise a zero-row batch carrying the schema.
         try (DatafusionResultStream stream = createStream("SELECT message FROM test_table WHERE message > 999")) {
             Iterator<EngineResultBatch> it = stream.iterator();
-            // Empty results still emit one zero-row batch carrying the declared schema so
-            // downstream transports (Flight, row-path) see the column layout on the first
-            // data frame. Consume it, then the iterator is genuinely exhausted.
-            assertTrue("empty result emits a schema-carrying zero-row batch", it.hasNext());
-            EngineResultBatch schemaOnly = it.next();
+            assertTrue("empty stream must yield exactly one zero-row schema batch", it.hasNext());
+            EngineResultBatch batch = it.next();
             try {
-                assertEquals("synthesized batch has zero rows", 0, schemaOnly.getRowCount());
+                assertEquals(0, batch.getRowCount());
+                assertEquals(java.util.List.of("message"), batch.getFieldNames());
             } finally {
-                schemaOnly.getArrowRoot().close();
+                batch.getArrowRoot().close();
             }
-            assertFalse("no further batches after the schema-only emit", it.hasNext());
+            assertFalse("after consuming the schema batch the stream is empty", it.hasNext());
             expectThrows(NoSuchElementException.class, it::next);
         }
     }
