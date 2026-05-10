@@ -252,6 +252,22 @@ public final class ParquetSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Disk write rate limit for merge operations in MB/s (default 20.0).
+     * Dynamic — controls IO pressure during merges. Lower values reduce
+     * impact on concurrent search/indexing; higher values speed up merges.
+     * <p>
+     * Analogous to the former {@code indices.store.throttle.max_bytes_per_sec}
+     * in classic Lucene merge throttling.
+     */
+    public static final Setting<Double> MERGE_RATE_LIMIT_MB_PER_SEC = Setting.doubleSetting(
+        "index.parquet.merge_rate_limit_mb_per_sec",
+        20.0,
+        0.0,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
     /** Number of Rayon threads for parallel column encoding during merge (default num_cores/8, min 1). */
     public static final Setting<Integer> MERGE_RAYON_THREADS = Setting.intSetting(
         "index.parquet.merge_rayon_threads",
@@ -298,6 +314,7 @@ public final class ParquetSettings {
             SORT_IN_MEMORY_THRESHOLD,
             SORT_BATCH_SIZE,
             MERGE_BATCH_SIZE,
+            MERGE_RATE_LIMIT_MB_PER_SEC,
             MERGE_RAYON_THREADS,
             MERGE_IO_THREADS
         );

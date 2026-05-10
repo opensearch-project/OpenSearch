@@ -151,6 +151,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(ParquetSettings.SORT_IN_MEMORY_THRESHOLD, v -> pushSettingsToRust());
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(ParquetSettings.SORT_BATCH_SIZE, v -> pushSettingsToRust());
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(ParquetSettings.MERGE_BATCH_SIZE, v -> pushSettingsToRust());
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(ParquetSettings.MERGE_RATE_LIMIT_MB_PER_SEC, v -> pushSettingsToRust());
     }
 
     /**
@@ -178,6 +179,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .sortBatchSize(ParquetSettings.SORT_BATCH_SIZE.get(settings))
             .rowGroupMaxRows(ParquetSettings.ROW_GROUP_MAX_ROWS.get(settings))
             .mergeBatchSize(ParquetSettings.MERGE_BATCH_SIZE.get(settings))
+            .mergeRateLimitMbPerSec(ParquetSettings.MERGE_RATE_LIMIT_MB_PER_SEC.get(settings))
             .mergeRayonThreads(ParquetSettings.MERGE_RAYON_THREADS.get(nodeSettings))
             .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
             .build();
