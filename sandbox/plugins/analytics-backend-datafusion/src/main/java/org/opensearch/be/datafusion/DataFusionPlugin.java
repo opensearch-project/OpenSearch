@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
+import org.opensearch.be.datafusion.stats.DataFusionBackendStatsProvider;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -31,6 +32,7 @@ import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
+import org.opensearch.plugin.stats.BackendStatsProvider;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -276,6 +278,11 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             return Collections.emptyList();
         }
         return List.of(new DataFusionStatsAction(dataFusionService));
+    }
+
+    @Override
+    public BackendStatsProvider getBackendStatsProvider() {
+        return new DataFusionBackendStatsProvider();
     }
 
     @Override

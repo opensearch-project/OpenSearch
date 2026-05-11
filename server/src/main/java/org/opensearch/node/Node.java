@@ -211,6 +211,9 @@ import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
 import org.opensearch.persistent.PersistentTasksService;
+import org.opensearch.plugin.stats.BackendStatsProvider;
+import org.opensearch.nativebridge.spi.NativeMemoryService;
+import org.opensearch.nativebridge.spi.NativeMemoryServiceProvider;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.CachePlugin;
@@ -333,6 +336,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -1563,11 +1567,25 @@ public class Node implements Closeable {
                 settings,
                 clusterService.getClusterSettings()
             );
+            final BackendStatsProvider backendStatsProvider = pluginsService.filterPlugins(SearchBackEndPlugin.class)
+                .stream()
+                .map(SearchBackEndPlugin::getBackendStatsProvider)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
             final TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
                 threadPool,
                 transportService.getTaskManager(),
-                taskCancellationMonitoringSettings
+                taskCancellationMonitoringSettings,
+                backendStatsProvider
             );
+
+            final NativeMemoryService nativeMemoryService = pluginsService.filterPlugins(NativeMemoryServiceProvider.class)
+                .stream()
+                .map(NativeMemoryServiceProvider::getNativeMemoryService)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
 
             this.nodeService = new NodeService(
                 settings,
@@ -1595,7 +1613,8 @@ public class Node implements Closeable {
                 segmentReplicationStatsTracker,
                 repositoryService,
                 admissionControlService,
-                cacheService
+                cacheService,
+                nativeMemoryService
             );
 
             final SearchService searchService = newSearchService(
@@ -2522,4 +2541,5 @@ public class Node implements Closeable {
     public FileCache fileCache() {
         return nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null;
     }
+
 }

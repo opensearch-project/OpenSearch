@@ -15,6 +15,7 @@ java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = Ja
 
 dependencies {
   implementation project(':sandbox:libs:dataformat-native')
+  implementation project(':sandbox:libs:plugin-stats-spi')
   compileOnly project(':server')
   testImplementation project(':test:framework')
 }

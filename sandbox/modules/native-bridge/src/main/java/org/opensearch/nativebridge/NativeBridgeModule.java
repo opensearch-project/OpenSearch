@@ -16,7 +16,11 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.nativebridge.spi.FfmNativeMemoryService;
 import org.opensearch.nativebridge.spi.NativeAllocatorConfig;
+import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.nativebridge.spi.NativeMemoryService;
+import org.opensearch.nativebridge.spi.NativeMemoryServiceProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -33,8 +37,14 @@ import java.util.function.Supplier;
  * Always-loaded module that manages runtime tuning for the native (Rust/FFM) layer.
  * <p>
  * Registers dynamic cluster settings and applies changes at runtime via the FFM bridge.
+ * <p>
+ * Implements {@link NativeMemoryServiceProvider} so that {@code Node.java} can discover
+ * the {@link FfmNativeMemoryService} via {@code filterPlugins()} without a direct compile
+ * dependency on the JDK 25+ {@code dataformat-native} library.
  */
-public class NativeBridgeModule extends Plugin {
+public class NativeBridgeModule extends Plugin implements NativeMemoryServiceProvider {
+
+    private volatile NativeMemoryService nativeMemoryService;
 
     /** jemalloc dirty page decay time (ms). Dynamically tunable — applied to all arenas at runtime. */
     public static final Setting<Long> JEMALLOC_DIRTY_DECAY_MS = Setting.longSetting(
@@ -78,7 +88,17 @@ public class NativeBridgeModule extends Plugin {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_DIRTY_DECAY_MS, NativeAllocatorConfig::setDirtyDecayMs);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_MUZZY_DECAY_MS, NativeAllocatorConfig::setMuzzyDecayMs);
 
+        // Instantiate NativeMemoryService if native library is loaded
+        if (NativeLibraryLoader.isLoaded()) {
+            this.nativeMemoryService = new FfmNativeMemoryService(settings);
+        }
+
         return Collections.emptyList();
+    }
+
+    @Override
+    public NativeMemoryService getNativeMemoryService() {
+        return nativeMemoryService;
     }
 
     @Override
