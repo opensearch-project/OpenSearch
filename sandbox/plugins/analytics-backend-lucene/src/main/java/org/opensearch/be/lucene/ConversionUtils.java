@@ -92,6 +92,11 @@ final class ConversionUtils {
      * <p>Also supports the RexInputRef-based structure for single-field fallback:
      * {@code MAP('field', $ref1, 'field', $ref2, ...)}
      *
+     * <p>Note: This method is intentionally not recursive. The MAP nesting depth is bounded
+     * to at most 2 levels by Calcite's MAP_VALUE_CONSTRUCTOR design: an outer MAP holding
+     * the 'fields' key and a nested MAP holding field-name/boost pairs. Deeper nesting does
+     * not occur in the PPL relevance function encoding.
+     *
      * <p>TODO: extract per-field boost values and return them alongside field names.
      */
     static List<String> extractFieldsFromRelevanceMap(RexCall call, int operandIndex, List<FieldStorageInfo> fieldStorage) {

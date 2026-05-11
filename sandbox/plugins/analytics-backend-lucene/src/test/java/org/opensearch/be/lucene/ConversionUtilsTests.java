@@ -25,6 +25,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -62,7 +63,7 @@ public class ConversionUtilsTests extends OpenSearchTestCase {
 
         // Inner nested MAP: field name literal + boost literal (boost ignored, only field name extracted)
         RexNode fieldNameLiteral = rexBuilder.makeLiteral("title");
-        RexNode boostLiteral = rexBuilder.makeExactLiteral(new java.math.BigDecimal("1.0"), doubleType);
+        RexNode boostLiteral = rexBuilder.makeExactLiteral(new BigDecimal("1.0"), doubleType);
         RexNode nestedMap = rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, fieldNameLiteral, boostLiteral);
 
         // Outer MAP: MAP('fields', nestedMap)
@@ -98,11 +99,11 @@ public class ConversionUtilsTests extends OpenSearchTestCase {
         RelDataType doubleType = typeFactory.createSqlType(SqlTypeName.DOUBLE);
 
         RexNode titleLiteral = rexBuilder.makeLiteral("title");
-        RexNode titleBoost = rexBuilder.makeExactLiteral(new java.math.BigDecimal("2.0"), doubleType);
+        RexNode titleBoost = rexBuilder.makeExactLiteral(new BigDecimal("2.0"), doubleType);
         RexNode bodyLiteral = rexBuilder.makeLiteral("body");
-        RexNode bodyBoost = rexBuilder.makeExactLiteral(new java.math.BigDecimal("1.0"), doubleType);
+        RexNode bodyBoost = rexBuilder.makeExactLiteral(new BigDecimal("1.0"), doubleType);
         RexNode tagsLiteral = rexBuilder.makeLiteral("tags");
-        RexNode tagsBoost = rexBuilder.makeExactLiteral(new java.math.BigDecimal("0.5"), doubleType);
+        RexNode tagsBoost = rexBuilder.makeExactLiteral(new BigDecimal("0.5"), doubleType);
 
         // Nested MAP with 3 field/boost pairs
         RexNode nestedMap = rexBuilder.makeCall(

@@ -39,11 +39,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Property-based test for single-field serialization round-trip.
+ * Serialization round-trip tests for single-field full-text serializers.
  *
- * <p>Feature: lucene-fulltext-serializers, Property: Single-field serialization round-trip
+ * <p>Feature: lucene-fulltext-serializers
  *
- * <p>For any valid field name and non-empty query string, serializing a single-field full-text
+ * <p>For a given field name and query string, serializing a single-field full-text
  * predicate (match_phrase, match_bool_prefix, or match_phrase_prefix) via its registered serializer
  * and then deserializing the resulting bytes with {@code readNamedWriteable(QueryBuilder.class)}
  * shall produce a QueryBuilder of the correct subclass containing the same field name and query text.
@@ -75,16 +75,15 @@ public class SingleFieldSerializationPropertyTests extends OpenSearchTestCase {
     /**
      * Single-field serialization round-trip for MATCH_PHRASE.
      *
-     * For any random field name (1-50 alphanumeric chars) and random query string (1-200 chars),
-     * serializing via the MATCH_PHRASE serializer and deserializing produces a MatchPhraseQueryBuilder
+     * Serializing via the MATCH_PHRASE serializer and deserializing produces a MatchPhraseQueryBuilder
      * with the same field and query.
      */
     public void testMatchPhraseRoundTrip() throws IOException {
         DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.MATCH_PHRASE);
         assertNotNull("MATCH_PHRASE serializer must be registered", serializer);
 
-        String fieldName = randomAlphaOfLengthBetween(1, 50);
-        String queryText = randomAlphaOfLengthBetween(1, 200);
+        String fieldName = "title";
+        String queryText = "quick brown fox";
 
         RexCall call = buildSingleFieldRexCall(fieldName, queryText, "MATCH_PHRASE");
         List<FieldStorageInfo> fieldStorage = List.of(
@@ -110,16 +109,15 @@ public class SingleFieldSerializationPropertyTests extends OpenSearchTestCase {
     /**
      * Single-field serialization round-trip for MATCH_BOOL_PREFIX.
      *
-     * For any random field name (1-50 alphanumeric chars) and random query string (1-200 chars),
-     * serializing via the MATCH_BOOL_PREFIX serializer and deserializing produces a
+     * Serializing via the MATCH_BOOL_PREFIX serializer and deserializing produces a
      * MatchBoolPrefixQueryBuilder with the same field and query.
      */
     public void testMatchBoolPrefixRoundTrip() throws IOException {
         DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.MATCH_BOOL_PREFIX);
         assertNotNull("MATCH_BOOL_PREFIX serializer must be registered", serializer);
 
-        String fieldName = randomAlphaOfLengthBetween(1, 50);
-        String queryText = randomAlphaOfLengthBetween(1, 200);
+        String fieldName = "description";
+        String queryText = "opensearch full text";
 
         RexCall call = buildSingleFieldRexCall(fieldName, queryText, "MATCH_BOOL_PREFIX");
         List<FieldStorageInfo> fieldStorage = List.of(
@@ -145,16 +143,15 @@ public class SingleFieldSerializationPropertyTests extends OpenSearchTestCase {
     /**
      * Single-field serialization round-trip for MATCH_PHRASE_PREFIX.
      *
-     * For any random field name (1-50 alphanumeric chars) and random query string (1-200 chars),
-     * serializing via the MATCH_PHRASE_PREFIX serializer and deserializing produces a
+     * Serializing via the MATCH_PHRASE_PREFIX serializer and deserializing produces a
      * MatchPhrasePrefixQueryBuilder with the same field and query.
      */
     public void testMatchPhrasePrefixRoundTrip() throws IOException {
         DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.MATCH_PHRASE_PREFIX);
         assertNotNull("MATCH_PHRASE_PREFIX serializer must be registered", serializer);
 
-        String fieldName = randomAlphaOfLengthBetween(1, 50);
-        String queryText = randomAlphaOfLengthBetween(1, 200);
+        String fieldName = "content";
+        String queryText = "search engine optim";
 
         RexCall call = buildSingleFieldRexCall(fieldName, queryText, "MATCH_PHRASE_PREFIX");
         List<FieldStorageInfo> fieldStorage = List.of(

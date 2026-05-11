@@ -27,12 +27,9 @@ import java.util.Map;
  * Registry of per-function query serializers for delegated predicates.
  * Each serializer converts a Calcite RexCall into serialized QueryBuilder bytes
  * that the Lucene backend can deserialize at the data node.
- *
- * <p>TODO: add serializers for match_phrase, match_bool_prefix, match_phrase_prefix.
- * TODO: add multi-field relevance serializers for multi_match, query_string, simple_query_string.
  */
 final class QuerySerializerRegistry {
-
+ 
     private static final Map<ScalarFunction, DelegatedPredicateSerializer> SERIALIZERS = Map.ofEntries(
         Map.entry(ScalarFunction.MATCH, QuerySerializerRegistry::serializeMatch),
         Map.entry(ScalarFunction.MATCH_PHRASE, QuerySerializerRegistry::serializeMatchPhrase),
@@ -49,48 +46,62 @@ final class QuerySerializerRegistry {
         return SERIALIZERS;
     }
 
+    // TODO: Extract each serialize* method into its own dedicated class once we handle more parameters.
+    // These methods are expected to grow significantly as optional parameters are added.
+
     private static byte[] serializeMatch(RexCall call, List<FieldStorageInfo> fieldStorage) {
         String fieldName = ConversionUtils.extractFieldFromRelevanceMap(call, 0, fieldStorage);
-        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
-        // TODO: extract optional params (operator, analyzer, fuzziness, boost) from operands 2+
-        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(fieldName, queryText);
+        String fieldValue = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        // TODO: Use ConversionUtils.extractOptionalParams(call, 2) to extract optional params
+        // (operator, analyzer, fuzziness, boost) and apply them to the QueryBuilder.
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(fieldName, fieldValue);
         return ConversionUtils.serializeQueryBuilder(queryBuilder);
     }
 
     private static byte[] serializeMatchPhrase(RexCall call, List<FieldStorageInfo> fieldStorage) {
         String fieldName = ConversionUtils.extractFieldFromRelevanceMap(call, 0, fieldStorage);
-        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
-        MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder(fieldName, queryText);
+        String fieldValue = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        // TODO: Use ConversionUtils.extractOptionalParams(call, 2) to extract optional params
+        // (slop, analyzer, zero_terms_query) and apply them to the QueryBuilder.
+        MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder(fieldName, fieldValue);
         return ConversionUtils.serializeQueryBuilder(queryBuilder);
     }
 
     private static byte[] serializeMatchBoolPrefix(RexCall call, List<FieldStorageInfo> fieldStorage) {
         String fieldName = ConversionUtils.extractFieldFromRelevanceMap(call, 0, fieldStorage);
-        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
-        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, queryText);
+        String fieldValue = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        // TODO: Use ConversionUtils.extractOptionalParams(call, 2) to extract optional params
+        // (analyzer, fuzziness, operator, minimum_should_match) and apply them to the QueryBuilder.
+        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, fieldValue);
         return ConversionUtils.serializeQueryBuilder(queryBuilder);
     }
 
     private static byte[] serializeMatchPhrasePrefix(RexCall call, List<FieldStorageInfo> fieldStorage) {
         String fieldName = ConversionUtils.extractFieldFromRelevanceMap(call, 0, fieldStorage);
-        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
-        MatchPhrasePrefixQueryBuilder queryBuilder = new MatchPhrasePrefixQueryBuilder(fieldName, queryText);
+        String fieldValue = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        // TODO: Use ConversionUtils.extractOptionalParams(call, 2) to extract optional params
+        // (slop, analyzer, max_expansions, zero_terms_query) and apply them to the QueryBuilder.
+        MatchPhrasePrefixQueryBuilder queryBuilder = new MatchPhrasePrefixQueryBuilder(fieldName, fieldValue);
         return ConversionUtils.serializeQueryBuilder(queryBuilder);
     }
 
     private static byte[] serializeMultiMatch(RexCall call, List<FieldStorageInfo> fieldStorage) {
         List<String> fields = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
-        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        String fieldValue = ConversionUtils.extractStringFromRelevanceMap(call, 1);
         // TODO: extract per-field boost values from operand 0 and pass to QueryBuilder
-        MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder(queryText, fields.toArray(String[]::new));
+        // TODO: Use ConversionUtils.extractOptionalParams(call, 2) to extract optional params
+        // (type, operator, analyzer, fuzziness, minimum_should_match) and apply them to the QueryBuilder.
+        MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder(fieldValue, fields.toArray(String[]::new));
         return ConversionUtils.serializeQueryBuilder(queryBuilder);
     }
 
     private static byte[] serializeQueryString(RexCall call, List<FieldStorageInfo> fieldStorage) {
         List<String> fields = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
-        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        String fieldValue = ConversionUtils.extractStringFromRelevanceMap(call, 1);
         // TODO: extract per-field boost values from operand 0 and pass to QueryBuilder
-        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(queryText);
+        // TODO: Use ConversionUtils.extractOptionalParams(call, 2) to extract optional params
+        // (default_operator, analyzer, allow_leading_wildcard) and apply them to the QueryBuilder.
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(fieldValue);
         for (String field : fields) {
             queryBuilder.field(field);
         }
@@ -99,9 +110,11 @@ final class QuerySerializerRegistry {
 
     private static byte[] serializeSimpleQueryString(RexCall call, List<FieldStorageInfo> fieldStorage) {
         List<String> fields = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
-        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
+        String fieldValue = ConversionUtils.extractStringFromRelevanceMap(call, 1);
         // TODO: extract per-field boost values from operand 0 and pass to QueryBuilder
-        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(queryText);
+        // TODO: Use ConversionUtils.extractOptionalParams(call, 2) to extract optional params
+        // (default_operator, analyzer, flags, minimum_should_match) and apply them to the QueryBuilder.
+        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(fieldValue);
         for (String field : fields) {
             queryBuilder.field(field);
         }
