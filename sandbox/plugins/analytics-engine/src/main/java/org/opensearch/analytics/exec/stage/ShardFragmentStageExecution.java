@@ -114,23 +114,25 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
 
     private <T extends ActionResponse> StreamingResponseListener<T> responseListener(Function<T, VectorSchemaRoot> toVsr) {
         return new StreamingResponseListener<>() {
+            // Runs inline on the per-stream virtual thread driving handleStreamResponse.
+            // Must NOT offload to a thread pool: reordering across batches would let the
+            // isLast=true task race ahead, flip state to SUCCEEDED, and drop queued
+            // earlier batches via the isDone() short-circuit.
             @Override
             public void onStreamResponse(T response, boolean isLast) {
-                config.searchExecutor().execute(() -> {
-                    if (isDone()) {
-                        releaseResponseResources(response);
-                        return;
-                    }
+                if (isDone()) {
+                    releaseResponseResources(response);
+                    return;
+                }
 
-                    VectorSchemaRoot vsr = toVsr.apply(response);
-                    outputSink.feed(vsr);
-                    metrics.addRowsProcessed(vsr.getRowCount());
+                VectorSchemaRoot vsr = toVsr.apply(response);
+                outputSink.feed(vsr);
+                metrics.addRowsProcessed(vsr.getRowCount());
 
-                    if (isLast) {
-                        metrics.incrementTasksCompleted();
-                        onShardTerminated();
-                    }
-                });
+                if (isLast) {
+                    metrics.incrementTasksCompleted();
+                    onShardTerminated();
+                }
             }
 
             @Override
