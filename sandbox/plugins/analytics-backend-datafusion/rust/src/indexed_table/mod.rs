@@ -56,6 +56,7 @@
 
 pub mod bool_tree;
 pub mod eval;
+pub mod row_id_injection;
 pub mod ffm_callbacks;
 pub mod index;
 pub mod metrics;

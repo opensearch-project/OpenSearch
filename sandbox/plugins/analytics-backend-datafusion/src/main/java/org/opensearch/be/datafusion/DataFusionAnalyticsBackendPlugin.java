@@ -522,4 +522,50 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // (createProvider, createCollector, collectDocs, release*) route to it.
         FilterTreeCallbacks.setHandle(handle);
     }
+
+    @Override
+    public org.opensearch.analytics.backend.EngineResultStream fetchByRowIds(
+        org.opensearch.index.engine.exec.IndexReaderProvider.Reader reader,
+        org.apache.arrow.vector.BigIntVector rowIdVector,
+        String[] columns,
+        org.apache.arrow.memory.BufferAllocator allocator
+    ) {
+        DataFusionService dataFusionService = plugin.getDataFusionService();
+        if (dataFusionService == null) {
+            throw new IllegalStateException("DataFusionService not initialized");
+        }
+
+        DatafusionReader dfReader = null;
+        DataFormatRegistry registry = plugin.getDataFormatRegistry();
+        for (String formatName : plugin.getSupportedFormats()) {
+            dfReader = reader.getReader(registry.format(formatName), DatafusionReader.class);
+            if (dfReader != null) break;
+        }
+        if (dfReader == null) {
+            throw new IllegalStateException("No DatafusionReader available for fetch-by-row-ids");
+        }
+
+        // Pass row IDs to Rust via BigIntVector's direct buffer (zero-copy at FFM).
+        // BigIntVector data buffer is a contiguous off-heap array of i64 values.
+        long bufAddr = rowIdVector.getDataBuffer().memoryAddress();
+        int count = rowIdVector.getValueCount();
+
+        long streamPtr;
+        if (bufAddr != 0 && count > 0) {
+            streamPtr = org.opensearch.be.datafusion.nativelib.NativeBridge.fetchByRowIds(
+                dfReader.getReaderHandle().getPointer(),
+                bufAddr,
+                count,
+                columns,
+                dataFusionService.getNativeRuntime().get()
+            );
+        } else {
+            throw new IllegalStateException("BigIntVector buffer address is 0 or count is 0");
+        }
+        org.opensearch.be.datafusion.nativelib.StreamHandle streamHandle = new org.opensearch.be.datafusion.nativelib.StreamHandle(
+            streamPtr,
+            dataFusionService.getNativeRuntime()
+        );
+        return new DatafusionResultStream(streamHandle, allocator);
+    }
 }

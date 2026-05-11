@@ -84,6 +84,7 @@ public final class NativeBridge {
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
+    private static final MethodHandle FETCH_BY_ROW_IDS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -409,6 +410,22 @@ public final class NativeBridge {
         EXECUTE_LOCAL_PREPARED_PLAN = linker.downcallHandle(
             lib.find("df_execute_local_prepared_plan").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_fetch_by_row_ids(shard_view_ptr, row_ids_buf_ptr, row_ids_count,
+        // col_names_ptr, col_names_len_ptr, col_names_count, runtime_ptr)
+        FETCH_BY_ROW_IDS = linker.downcallHandle(
+            lib.find("df_fetch_by_row_ids").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
         );
     }
 
@@ -958,6 +975,38 @@ public final class NativeBridge {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr);
+        }
+    }
+
+    /**
+     * QTF fetch phase: reads specific rows by global row ID from parquet.
+     * Row IDs are passed as a direct buffer pointer (zero-copy from BigIntVector's ArrowBuf).
+     *
+     * @param readerPtr pointer to the shard view (DatafusionReader)
+     * @param rowIdsBufAddr memory address of the BigIntVector's data buffer (i64 values)
+     * @param rowIdsCount number of row IDs
+     * @param columns column names to read
+     * @param runtimePtr pointer to the DataFusion runtime
+     * @return opaque stream pointer
+     */
+    public static long fetchByRowIds(long readerPtr, long rowIdsBufAddr, int rowIdsCount, String[] columns, long runtimePtr) {
+        NativeHandle.validatePointer(readerPtr, "reader");
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        if (rowIdsBufAddr == 0) {
+            throw new IllegalArgumentException("rowIdsBufAddr must be non-zero");
+        }
+        try (var call = new NativeCall()) {
+            var colNames = call.strArray(columns);
+            return call.invoke(
+                FETCH_BY_ROW_IDS,
+                readerPtr,
+                rowIdsBufAddr,
+                (long) rowIdsCount,
+                colNames.ptrs(),
+                colNames.lens(),
+                colNames.count(),
+                runtimePtr
+            );
         }
     }
 

@@ -149,6 +149,11 @@ public class ProjectConverter extends AbstractDslConverter {
     ) throws ConversionException {
         RelDataTypeField field = rowType.getField(fieldName, false, false);
         if (field == null) {
+            // __row_id__ is a virtual column computed by the analytics backend.
+            // The DSL schema doesn't know about it — skip silently.
+            if ("__row_id__".equals(fieldName)) {
+                return;
+            }
             throw new ConversionException("Field '" + fieldName + "' not found in schema");
         }
         if (seen.add(field.getName())) {

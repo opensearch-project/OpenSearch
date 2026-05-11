@@ -31,6 +31,7 @@
 //! - `stream_get_schema`, `stream_close` must NOT be called
 //!   concurrently on the same stream pointer.
 
+use std::collections::HashMap;
 use std::io::Cursor;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
@@ -43,16 +44,19 @@ use arrow_array::{Array, StructArray};
 use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
+use datafusion::datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroupAccess};
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::execution::memory_pool::TrackConsumersPool;
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
-use datafusion::execution::{SessionState, SessionStateBuilder};
+use datafusion::execution::SessionStateBuilder;
+use datafusion::physical_plan::execute_stream;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-use datafusion::prelude::SessionConfig;
+use datafusion::prelude::{SessionConfig, SessionContext};
 use futures::TryStreamExt;
 use object_store::ObjectStoreExt;
+use roaring::RoaringBitmap;
 
 use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
@@ -62,6 +66,7 @@ use crate::memory::{DynamicLimitHandle, DynamicLimitPool};
 use crate::partition_stream::PartitionStreamSender;
 use crate::query_tracker::{self, QueryTrackingContext};
 use crate::runtime_manager::RuntimeManager;
+use crate::shard_table_provider::{ShardTableConfig, ShardTableProvider};
 
 /// Bundles a stream with its query tracking context so that dropping the
 /// handle automatically marks the query completed in the registry.
@@ -132,7 +137,97 @@ pub async fn create_object_metas(
 pub struct DataFusionRuntime {
     pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
     pub custom_cache_manager: Option<CustomCacheManager>,
-    pub(crate) dynamic_limit_handle: DynamicLimitHandle,
+    pub dynamic_limit_handle: DynamicLimitHandle,
+}
+
+/// Per-file metadata passed from Java at shard view creation time.
+/// Enables `row_base` computation without re-reading parquet footers.
+#[derive(Debug, Clone)]
+pub struct FileRowMetadata {
+    /// Row counts per row group in this file.
+    pub row_group_row_counts: Vec<u64>,
+}
+
+/// Per-file info used by `ShardTableProvider` to inject `row_base` as a
+/// partition column and to resolve global row IDs back to file positions.
+#[derive(Debug, Clone)]
+pub struct ShardFileInfo {
+    pub object_meta: object_store::ObjectMeta,
+    /// Cumulative row count from all preceding files.
+    pub row_base: i64,
+    /// Total rows in this file.
+    pub num_rows: u64,
+    /// Per-row-group row counts.
+    pub row_group_row_counts: Vec<u64>,
+    /// Optional access plan for targeted row retrieval (QTF fetch phase).
+    /// When set, ShardTableProvider attaches it to the PartitionedFile so
+    /// DataSourceExec skips row groups and applies RowSelection.
+    pub access_plan: Option<datafusion::datasource::physical_plan::parquet::ParquetAccessPlan>,
+}
+
+/// FFM wire format for per-file metadata.
+/// Must stay in lockstep with the Java `MemoryLayout`.
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct WireFileMetadata {
+    /// Number of row groups in this file.
+    pub num_row_groups: i32,
+    /// Pointer to array of i64 row counts (one per row group).
+    pub row_group_row_counts_ptr: i64,
+}
+
+/// Decode an array of `WireFileMetadata` from an FFM pointer.
+///
+/// # Safety
+/// `ptr` must be 0 or a valid pointer to `count` consecutive `WireFileMetadata` structs.
+/// Each `row_group_row_counts_ptr` must point to `num_row_groups` consecutive i64 values.
+pub unsafe fn decode_file_metadata(ptr: i64, count: usize) -> Option<Vec<FileRowMetadata>> {
+    if ptr == 0 || count == 0 {
+        return None;
+    }
+    let wire_slice = std::slice::from_raw_parts(ptr as *const WireFileMetadata, count);
+    let mut result = Vec::with_capacity(count);
+    for wire in wire_slice {
+        let num_rgs = wire.num_row_groups as usize;
+        let rg_counts = if wire.row_group_row_counts_ptr == 0 || num_rgs == 0 {
+            Vec::new()
+        } else {
+            let counts_ptr = wire.row_group_row_counts_ptr as *const i64;
+            std::slice::from_raw_parts(counts_ptr, num_rgs)
+                .iter()
+                .map(|&c| c as u64)
+                .collect()
+        };
+        result.push(FileRowMetadata {
+            row_group_row_counts: rg_counts,
+        });
+    }
+    Some(result)
+}
+
+/// Build `ShardFileInfo` from object metas and file metadata.
+/// Computes `row_base` as the cumulative prefix sum of file row counts.
+pub fn build_shard_files(
+    object_metas: &[object_store::ObjectMeta],
+    file_metadata: &[FileRowMetadata],
+) -> Vec<ShardFileInfo> {
+    let mut row_base: i64 = 0;
+    object_metas
+        .iter()
+        .zip(file_metadata.iter())
+        .map(|(meta, fm)| {
+            let num_rows: u64 = fm.row_group_row_counts.iter().sum();
+            let info = ShardFileInfo {
+                object_meta: meta.clone(),
+                row_base,
+                num_rows,
+                row_group_row_counts: fm.row_group_row_counts.clone(),
+                access_plan: None,
+            };
+            row_base += num_rows as i64;
+            info
+        })
+        .collect()
 }
 
 impl DataFusionRuntime {
@@ -150,6 +245,9 @@ impl DataFusionRuntime {
 pub struct ShardView {
     pub table_path: ListingTableUrl,
     pub object_metas: Arc<Vec<object_store::ObjectMeta>>,
+    /// Per-file row group counts, passed from Java at shard view creation.
+    /// When present, enables ShardTableProvider construction with row_base.
+    pub file_metadata: Option<Vec<FileRowMetadata>>,
 }
 
 /// Creates a DataFusion global runtime with the given resource limits.
@@ -273,6 +371,7 @@ pub fn create_reader(
     let shard_view = ShardView {
         table_path: table_url,
         object_metas: Arc::new(object_metas),
+        file_metadata: None,
     };
     Ok(Box::into_raw(Box::new(shard_view)) as i64)
 }
@@ -317,16 +416,24 @@ pub async unsafe fn execute_query(
         .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
 
-    // Peek at the substrait extensions list to see if this is an indexed query.
-    // The `index_filter` UDF name appears there if Calcite planted any
-    // index_filter(bytes) calls. Cheap — just bytes inspection.
-    let is_indexed = plan_bytes_mentions_index_filter(plan_bytes);
+    // Peek at plan bytes for routing signals.
+    let (is_indexed, has_row_id) = inspect_plan_bytes(plan_bytes);
 
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
 
     let query_future = async move {
-        if is_indexed {
+        // Routing logic:
+        // 1. Indexed query (has index_filter) → always indexed path
+        // 2. Has __row_id__ but not indexed (non-indexed + sort) → consult FetchStrategy
+        //    - ListingTable → vanilla path with ShardTableProvider + ProjectRowIdOptimizer
+        //    - IndexedPredicateOnly → indexed path (position-based row IDs)
+        //    - None → vanilla path (no row ID computation)
+        // 3. Neither → vanilla path
+        let use_indexed = is_indexed
+            || (has_row_id && query_config.fetch_strategy != crate::datafusion_query_config::FetchStrategy::ListingTable);
+
+        if use_indexed {
             let qc = Arc::new(query_config);
             crate::indexed_executor::execute_indexed_query(
                 plan_bytes.to_vec(),
@@ -371,13 +478,134 @@ pub async unsafe fn execute_query(
 /// is no automatic retry on the vanilla path — a false positive is a hard
 /// query error. In practice this is unreachable because the needle is not a
 /// valid DataFusion identifier anywhere else a plan would naturally contain
+/// QTF fetch phase: read specific rows by global row ID.
+///
+/// Uses shared helpers from query_executor for runtime setup, file info building,
+/// and stream wrapping. The fetch-specific logic is building ParquetAccessPlans
+/// from row IDs and computing global __row_id__ = __row_id__ + row_base in SQL.
+pub async unsafe fn fetch_by_row_ids(
+    shard_view: &ShardView,
+    runtime: &DataFusionRuntime,
+    manager: &crate::runtime_manager::RuntimeManager,
+    row_ids: Vec<i64>,
+    columns: Vec<String>,
+) -> Result<i64, DataFusionError> {
+    use crate::indexed_table::row_selection::build_row_selection_with_min_skip_run;
+    use crate::indexed_table::segment_info::build_segments;
+    use crate::query_executor::{build_query_runtime_env, store_url_from_table_path, wrap_stream_as_handle};
+
+    // ── 1. Build RuntimeEnv + SessionContext ──
+
+    let runtime_env = build_query_runtime_env(runtime, &shard_view.table_path, shard_view.object_metas.as_ref())?;
+
+    let mut config = SessionConfig::new();
+    config.options_mut().execution.parquet.pushdown_filters = true;
+    config.options_mut().execution.target_partitions = 1;
+
+    let state = SessionStateBuilder::new()
+        .with_config(config)
+        .with_runtime_env(runtime_env)
+        .with_default_features()
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+
+    // ── 2. Build ShardFileInfo with ParquetAccessPlan per file ──
+
+    let store = ctx.state().runtime_env().object_store(&shard_view.table_path)?;
+    let (segments, _schema) = build_segments(Arc::clone(&store), shard_view.object_metas.as_ref())
+        .await
+        .map_err(DataFusionError::Execution)?;
+
+    // Distribute global row_ids to per-file local positions
+    let mut per_segment: HashMap<usize, RoaringBitmap> = HashMap::new();
+    for &gid in &row_ids {
+        let seg_idx = segments
+            .partition_point(|s| s.global_base <= gid as u64)
+            .saturating_sub(1);
+        let local_pos = (gid as u64 - segments[seg_idx].global_base) as u32;
+        per_segment.entry(seg_idx).or_default().insert(local_pos);
+    }
+
+    // Build file infos with access plans for targeted row retrieval
+    let mut files: Vec<ShardFileInfo> = Vec::new();
+    for seg in &segments {
+        let num_rgs = seg.row_groups.len();
+        let access_plan = if let Some(bm) = per_segment.get(&(seg.segment_ord as usize)) {
+            let mut plan = ParquetAccessPlan::new_none(num_rgs);
+            for rg in &seg.row_groups {
+                let rg_start = rg.first_row as u32;
+                let rg_end = rg_start + rg.num_rows as u32;
+                let rg_bitmap: RoaringBitmap = bm
+                    .iter()
+                    .filter(|&pos| pos >= rg_start && pos < rg_end)
+                    .map(|pos| pos - rg_start)
+                    .collect();
+                if !rg_bitmap.is_empty() {
+                    let selection = build_row_selection_with_min_skip_run(
+                        &rg_bitmap, rg.num_rows as usize, 1,
+                    );
+                    plan.set(rg.index, RowGroupAccess::Selection(selection));
+                }
+            }
+            Some(plan)
+        } else {
+            Some(ParquetAccessPlan::new_none(num_rgs))
+        };
+
+        files.push(ShardFileInfo {
+            object_meta: shard_view.object_metas[seg.segment_ord as usize].clone(),
+            row_base: seg.global_base as i64,
+            num_rows: seg.max_doc as u64,
+            row_group_row_counts: seg.row_groups.iter().map(|rg| rg.num_rows as u64).collect(),
+            access_plan,
+        });
+    }
+
+    // ── 3. Register ShardTableProvider ──
+
+    let store_url = store_url_from_table_path(&shard_view.table_path)?;
+    let listing_options = datafusion::datasource::listing::ListingOptions::new(
+        Arc::new(datafusion::datasource::file_format::parquet::ParquetFormat::new())
+    ).with_file_extension(".parquet").with_collect_stat(true);
+    let resolved_schema = listing_options.infer_schema(&ctx.state(), &shard_view.table_path).await?;
+
+    let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
+        file_schema: resolved_schema,
+        files,
+        store_url,
+    }));
+    ctx.register_table("t", provider)?;
+
+    // ── 4. Execute SQL: compute global __row_id__ = __row_id__ + row_base ──
+
+    let col_list = columns.iter()
+        .map(|c| format!("\"{}\"", c))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "SELECT (\"__row_id__\" + \"row_base\") AS \"__row_id__\", {} FROM t",
+        col_list
+    );
+    let df = ctx.sql(&sql).await?;
+    let physical_plan = df.create_physical_plan().await?;
+    let df_stream = execute_stream(physical_plan, ctx.task_ctx())?;
+
+    // ── 5. Wrap and return ──
+
+    Ok(wrap_stream_as_handle(df_stream, manager.cpu_executor(), runtime))
+}
+
 /// it; the failure mode is documented here to keep the dispatch contract
 /// explicit.
-fn plan_bytes_mentions_index_filter(plan_bytes: &[u8]) -> bool {
-    // The substrait plan carries extension-function names as UTF-8 strings.
-    // Substring match is sufficient for dispatch.
-    const NEEDLE: &[u8] = b"index_filter";
-    plan_bytes.windows(NEEDLE.len()).any(|w| w == NEEDLE)
+/// Inspect substrait plan bytes for routing signals.
+/// Returns (has_index_filter, has_row_id).
+fn inspect_plan_bytes(plan_bytes: &[u8]) -> (bool, bool) {
+    const INDEX_FILTER: &[u8] = b"index_filter";
+    const ROW_ID: &[u8] = crate::ROW_ID_COLUMN_NAME.as_bytes();
+    (
+        plan_bytes.windows(INDEX_FILTER.len()).any(|w| w == INDEX_FILTER),
+        plan_bytes.windows(ROW_ID.len()).any(|w| w == ROW_ID),
+    )
 }
 
 /// Returns the Arrow schema for the given stream as a heap-allocated FFI_ArrowSchema pointer.

@@ -72,13 +72,14 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final AnalyticsOperationListener listener;
     private final BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final ReaderContextStore readerContextStore;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
-        this(backends, List.of(), null);
+        this(backends, List.of(), null, null);
     }
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, NamedWriteableRegistry namedWriteableRegistry) {
-        this(backends, List.of(), namedWriteableRegistry);
+        this(backends, List.of(), namedWriteableRegistry, null);
     }
 
     public AnalyticsSearchService(
@@ -86,16 +87,27 @@ public class AnalyticsSearchService implements AutoCloseable {
         List<AnalyticsOperationListener> listeners,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
+        this(backends, listeners, namedWriteableRegistry, null);
+    }
+
+    public AnalyticsSearchService(
+        Map<String, AnalyticsSearchBackendPlugin> backends,
+        List<AnalyticsOperationListener> listeners,
+        NamedWriteableRegistry namedWriteableRegistry,
+        org.opensearch.threadpool.ThreadPool threadPool
+    ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
         this.allocator = ArrowAllocatorProvider.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.readerContextStore = threadPool != null ? new ReaderContextStore(threadPool) : null;
     }
 
     @Override
     public void close() {
         allocator.close();
     }
+
 
     public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard) {
         return executeFragment(request, shard, null);
@@ -131,9 +143,67 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
     }
 
+    /**
+     * QTF fetch phase: retrieves specific rows by global row ID.
+     * Uses the reader from the ReaderContextStore (acquired during query phase).
+     */
+    public org.opensearch.analytics.backend.EngineResultStream executeFetchByRowIds(
+        String queryId,
+        long[] rowIds,
+        String[] columns,
+        IndexShard shard
+    ) {
+        if (readerContextStore == null) {
+            throw new IllegalStateException("ReaderContextStore not initialized");
+        }
+
+        ReaderContext readerCtx = readerContextStore.acquireContext(queryId);
+        if (readerCtx == null) {
+            throw new IllegalStateException("No reader context for queryId=" + queryId + " on shard " + shard.shardId());
+        }
+
+        try {
+            org.apache.arrow.vector.BigIntVector rowIdVector = new org.apache.arrow.vector.BigIntVector("__row_id__", allocator);
+            rowIdVector.allocateNew(rowIds.length);
+            for (int i = 0; i < rowIds.length; i++) {
+                rowIdVector.set(i, rowIds[i]);
+            }
+            rowIdVector.setValueCount(rowIds.length);
+
+            AnalyticsSearchBackendPlugin backend = backends.values().iterator().next();
+            org.opensearch.analytics.backend.EngineResultStream stream = backend.fetchByRowIds(
+                readerCtx.getReader(),
+                rowIdVector,
+                columns,
+                allocator
+            );
+            return stream;
+        } catch (Exception e) {
+            readerCtx.markDone();
+            throw new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e);
+        }
+    }
+
+    /**
+     * Called after fetch completes to free the reader context.
+     */
+    public void completeFetch(String queryId) {
+        if (readerContextStore != null) {
+            readerContextStore.freeContext(queryId);
+        }
+    }
+
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
+
+        // QTF: store reader in context so the fetch phase can reuse it.
+        // The context owns the reader lifecycle — FragmentResources gets a non-closing wrapper.
+        GatedCloseable<Reader> readerForFragment = gatedReader;
+        if (readerContextStore != null) {
+            readerContextStore.createContext(resolved.queryId, gatedReader);
+            readerForFragment = new GatedCloseable<>(gatedReader.get(), () -> { readerContextStore.releaseContext(resolved.queryId); });
+        }
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         BackendExecutionContext backendContext = null;
@@ -164,10 +234,10 @@ public class AnalyticsSearchService implements AutoCloseable {
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(gatedReader, engine, stream);
+            return new FragmentResources(readerForFragment, engine, stream);
         } catch (Exception e) {
             try {
-                new FragmentResources(gatedReader, engine, stream).close();
+                new FragmentResources(readerForFragment, engine, stream).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }

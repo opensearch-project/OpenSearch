@@ -69,6 +69,19 @@ public class FieldStorageResolver {
 
         this.fieldStorage = new HashMap<>();
         populateFromProperties(properties, "", primaryFormat);
+        // Virtual row ID column — always in parquet, computed by analytics backend.
+        this.fieldStorage.put(
+            "__row_id__",
+            new FieldStorageInfo(
+                "__row_id__",
+                "long",
+                FieldType.fromMappingType("long"),
+                List.of(primaryFormat),
+                List.of(),
+                List.of(),
+                false
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")

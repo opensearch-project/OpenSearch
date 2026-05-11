@@ -8,6 +8,26 @@
 use crate::indexed_table::eval::single_collector::CollectorCallStrategy;
 use crate::indexed_table::stream::FilterStrategy;
 
+/// Selects which execution path computes shard-global row IDs.
+///
+/// Selects which execution path computes shard-global row IDs.
+/// `None` = no row ID computation (baseline — reads ___row_id as a regular column).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FetchStrategy {
+    /// No row ID optimizer applied. ___row_id is read as a regular column
+    /// without any row_base addition. Returns local (per-file) row IDs only.
+    None,
+    /// ShardTableProvider + ProjectRowIdOptimizer.
+    /// Reads ___row_id from parquet, adds row_base via physical optimizer rewrite.
+    /// Produces shard-global absolute row IDs.
+    ListingTable,
+    /// Predicate-only mode in the indexed executor.
+    /// Uses indexed pipeline (segment partitioning, prefetch, PositionMap).
+    /// Does NOT read ___row_id from disk — computes from position:
+    /// global_base + rg.first_row + position_in_rg. Zero column I/O for row ID.
+    IndexedPredicateOnly,
+}
+
 /// Query-scoped configuration. Owned by value after FFM decode.
 #[derive(Debug, Clone)]
 pub struct DatafusionQueryConfig {
@@ -46,6 +66,10 @@ pub struct DatafusionQueryConfig {
     /// `TightenOuterBounds` is the default — multiple collectors in the
     /// tree means `PageRangeSplit` would multiply FFM calls.
     pub tree_collector_strategy: CollectorCallStrategy,
+    /// Strategy for row ID emission on the vanilla path.
+    /// Only consulted when the plan requests row IDs (contains _global_row_id() UDF
+    /// or projects ___row_id).
+    pub fetch_strategy: FetchStrategy,
 }
 
 /// FFM wire format. Must stay in lockstep with the Java `MemoryLayout`.
@@ -75,6 +99,8 @@ pub struct WireDatafusionQueryConfig {
     pub single_collector_strategy: i32,
     /// 0 = FullRange, 1 = TightenOuterBounds, 2 = PageRangeSplit
     pub tree_collector_strategy: i32,
+    /// 0 = None (baseline), 1 = ListingTable, 2 = IndexedPredicateOnly
+    pub fetch_strategy: i32,
 }
 
 impl DatafusionQueryConfig {
@@ -97,6 +123,7 @@ impl DatafusionQueryConfig {
             max_collector_parallelism: 1,
             single_collector_strategy: CollectorCallStrategy::PageRangeSplit,
             tree_collector_strategy: CollectorCallStrategy::TightenOuterBounds,
+            fetch_strategy: FetchStrategy::None,
         }
     }
 
@@ -161,6 +188,11 @@ impl DatafusionQueryConfig {
                 0 => CollectorCallStrategy::FullRange,
                 2 => CollectorCallStrategy::PageRangeSplit,
                 _ => CollectorCallStrategy::TightenOuterBounds,
+            },
+            fetch_strategy: match w.fetch_strategy {
+                1 => FetchStrategy::ListingTable,
+                2 => FetchStrategy::IndexedPredicateOnly,
+                _ => FetchStrategy::None,
             },
         }
     }
@@ -272,6 +304,7 @@ mod tests {
             max_collector_parallelism: 4,
             single_collector_strategy: 2,
             tree_collector_strategy: 1,
+            fetch_strategy: 1,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };
@@ -285,6 +318,7 @@ mod tests {
         assert_eq!(c.force_pushdown, Some(false));
         assert_eq!(c.cost_predicate, 3);
         assert_eq!(c.cost_collector, 17);
+        assert_eq!(c.fetch_strategy, FetchStrategy::ListingTable);
     }
 
     #[test]
@@ -303,10 +337,12 @@ mod tests {
             max_collector_parallelism: 2,
             single_collector_strategy: 2,
             tree_collector_strategy: 1,
+            fetch_strategy: 0,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };
         assert_eq!(c.force_strategy, None);
         assert_eq!(c.force_pushdown, None);
+        assert_eq!(c.fetch_strategy, FetchStrategy::None);
     }
 }

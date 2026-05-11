@@ -162,6 +162,47 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    // Fetch strategy constants
+    public static final String FETCH_STRATEGY_NONE = "none";
+    public static final String FETCH_STRATEGY_LISTING_TABLE = "listing_table";
+    public static final String FETCH_STRATEGY_INDEXED = "indexed";
+
+    /**
+     * Fetch strategy for query-then-fetch (QTF) row ID computation.
+     * <p>
+     * Controls how shard-global row IDs are computed when the query projects {@code __row_id__}.
+     * <ul>
+     *   <li>{@code none} — No global row ID computation. Reads {@code __row_id__} as a regular
+     *       column from parquet (per-file 0-based values, NOT shard-global). Useful for debugging.</li>
+     *   <li>{@code listing_table} — Uses ShardTableProvider with a {@code row_base} partition column.
+     *       Reads {@code __row_id__} from parquet and adds the file's cumulative row offset via
+     *       ProjectRowIdOptimizer ({@code __row_id__ + row_base = global_id}). Works with standard
+     *       DataFusion ListingTable scan path.</li>
+     *   <li>{@code indexed} — Uses the indexed pipeline (segment partitioning, PositionMap).
+     *       Computes row IDs from position ({@code global_base + rg.first_row + position_in_rg}).
+     *       Zero I/O for the row ID column. Fastest path when the indexed executor is available.</li>
+     * </ul>
+     * Default: {@code indexed}.
+     */
+    public static final Setting<String> INDEXED_FETCH_STRATEGY = Setting.simpleString(
+        "datafusion.indexed.fetch_strategy",
+        FETCH_STRATEGY_INDEXED,
+        value -> {
+            switch (value) {
+                case FETCH_STRATEGY_NONE:
+                case FETCH_STRATEGY_LISTING_TABLE:
+                case FETCH_STRATEGY_INDEXED:
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                        "datafusion.indexed.fetch_strategy must be one of " + "[none, listing_table, indexed], got: " + value
+                    );
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // ── All settings registered by the plugin ──
 
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
@@ -186,7 +227,8 @@ public final class DatafusionSettings {
         INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD,
         INDEXED_SINGLE_COLLECTOR_STRATEGY,
         INDEXED_TREE_COLLECTOR_STRATEGY,
-        INDEXED_MAX_COLLECTOR_PARALLELISM
+        INDEXED_MAX_COLLECTOR_PARALLELISM,
+        INDEXED_FETCH_STRATEGY
     );
 
     // ── Snapshot management ──
@@ -227,6 +269,7 @@ public final class DatafusionSettings {
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
+            .fetchStrategy(fetchStrategyToWireValue(INDEXED_FETCH_STRATEGY.get(settings)))
             .build();
 
         registerListeners(clusterSettings);
@@ -249,6 +292,7 @@ public final class DatafusionSettings {
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
+            .fetchStrategy(fetchStrategyToWireValue(INDEXED_FETCH_STRATEGY.get(settings)))
             .build();
     }
 
@@ -279,6 +323,10 @@ public final class DatafusionSettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_MAX_COLLECTOR_PARALLELISM, newValue -> {
             snapshot = WireConfigSnapshot.builder(snapshot).maxCollectorParallelism(newValue).build();
+        });
+
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_FETCH_STRATEGY, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).fetchStrategy(fetchStrategyToWireValue(newValue)).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {
@@ -319,6 +367,19 @@ public final class DatafusionSettings {
                 return 2;
             default:
                 throw new IllegalArgumentException("Unknown strategy: " + strategy);
+        }
+    }
+
+    static int fetchStrategyToWireValue(String strategy) {
+        switch (strategy) {
+            case FETCH_STRATEGY_NONE:
+                return 0;
+            case FETCH_STRATEGY_LISTING_TABLE:
+                return 1;
+            case FETCH_STRATEGY_INDEXED:
+                return 2;
+            default:
+                throw new IllegalArgumentException("Unknown fetch strategy: " + strategy);
         }
     }
 
