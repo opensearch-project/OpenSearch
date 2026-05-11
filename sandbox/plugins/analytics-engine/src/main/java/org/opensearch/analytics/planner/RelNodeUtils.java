@@ -20,6 +20,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
+import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
@@ -108,6 +109,15 @@ public class RelNodeUtils {
                 newInputs.getFirst(),
                 reducer.getViableBackends(),
                 reducer.getExchangeInfo()
+            );
+        } else if (node instanceof OpenSearchShuffleExchange shuffle) {
+            return new OpenSearchShuffleExchange(
+                newCluster,
+                newTraits,
+                newInputs.getFirst(),
+                shuffle.getHashKeys(),
+                shuffle.getPartitionCount(),
+                shuffle.getViableBackends()
             );
         }
 

@@ -15,6 +15,7 @@ import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.ProjectCapability;

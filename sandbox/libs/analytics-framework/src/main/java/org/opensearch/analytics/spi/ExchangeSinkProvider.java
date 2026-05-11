@@ -33,4 +33,25 @@ public interface ExchangeSinkProvider {
      *        {@code FinalAggregateInstructionHandler}), or {@code null} when no handler ran
      */
     ExchangeSink createSink(ExchangeSinkContext context, BackendExecutionContext backendContext);
+
+    /**
+     * Creates a partitioned sink for hash-shuffle producers. The sink consumes the data-node's
+     * local scan output and must hash-partition each batch by {@code hashKeyChannels} into
+     * {@code partitionCount} buckets, shipping each bucket to its assigned worker via the
+     * framework's shuffle transport.
+     *
+     * <p>Default impl throws {@link UnsupportedOperationException} — backends without shuffle
+     * support do not need to opt in. Backends that support shuffle must override AND declare
+     * at least one {@link DataTransferCapability} with {@link DataTransferCapability.Kind#PRODUCER}.
+     */
+    default ExchangeSink createPartitionedSink(
+        java.util.List<Integer> hashKeyChannels,
+        int partitionCount,
+        ExchangeSinkContext context
+    ) {
+        throw new UnsupportedOperationException(
+            "Backend does not support hash-partitioned shuffle sinks. "
+                + "Declare a DataTransferCapability(PRODUCER, ...) and override createPartitionedSink."
+        );
+    }
 }

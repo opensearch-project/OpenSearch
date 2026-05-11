@@ -17,6 +17,7 @@ import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
@@ -73,13 +74,14 @@ public class CapabilityRegistry {
     private final Map<DelegationType, List<String>> delegationAcceptors = new HashMap<>();
     private final Map<FullTextParamKey, Set<String>> fullTextParamIndex = new HashMap<>();
 
-    private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
+private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
 
     // Backends that declared any capability for each operator — O(1) membership check
     private final Set<String> scanCapableBackends = new HashSet<>();
     private final Set<String> filterCapableBackends = new HashSet<>();
     private final Set<String> aggregateCapableBackends = new HashSet<>();
     private final Set<String> projectCapableBackends = new HashSet<>();
+    private final Set<String> joinCapableBackends = new HashSet<>();
 
     public CapabilityRegistry(
         List<AnalyticsSearchBackendPlugin> backends,
@@ -169,6 +171,13 @@ public class CapabilityRegistry {
                 }
                 projectCapableBackends.add(name);
             }
+            // PR #21639's JoinCapability is consumed directly by OpenSearchJoinRule via the
+            // backend's capability provider — no per-format indexing here. M0's Equi/Theta
+            // indexing scheme was tied to the old marking-time ER insertion path and is
+            // dead under the split-rule architecture.
+            if (!caps.joinCapabilities().isEmpty()) {
+                joinCapableBackends.add(name);
+            }
         }
     }
 
@@ -202,6 +211,10 @@ public class CapabilityRegistry {
 
     public Set<String> projectCapableBackends() {
         return projectCapableBackends;
+    }
+
+    public Set<String> joinCapableBackends() {
+        return joinCapableBackends;
     }
 
     // ---- Scan lookups ----

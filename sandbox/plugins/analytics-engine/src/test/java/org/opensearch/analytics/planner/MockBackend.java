@@ -11,6 +11,7 @@ package org.opensearch.analytics.planner;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
@@ -86,6 +87,11 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
+            public Set<DataTransferCapability> dataTransferCapabilities() {
+                return self.dataTransferCapabilities();
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return self.supportedDelegations();
             }
@@ -133,6 +139,10 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     }
 
     protected Set<WindowCapability> windowCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<DataTransferCapability> dataTransferCapabilities() {
         return Set.of();
     }
 

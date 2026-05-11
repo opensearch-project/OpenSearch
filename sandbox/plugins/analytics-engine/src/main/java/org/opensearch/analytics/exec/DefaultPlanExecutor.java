@@ -20,6 +20,8 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
+import org.opensearch.analytics.exec.join.JoinStrategy;
+import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -68,6 +70,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         QueryPlanExecutor<RelNode, Iterable<Object[]>> {
 
     private static final Logger logger = LogManager.getLogger(DefaultPlanExecutor.class);
+
+    /**
+     * Default broadcast eligibility threshold — if the smaller side's shard count is at or below
+     * this value, BROADCAST is selected. Picked conservatively so that single-shard indices are
+     * always broadcast-eligible. A future cluster-setting wire-up will make this dynamic.
+     */
+    private static final int DEFAULT_BROADCAST_MAX_SHARDS = 2;
 
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterService clusterService;
@@ -134,6 +143,33 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
+
+        // Join strategy selection: inspect the DAG for a binary join and tag stage roles.
+        //
+        // For COORDINATOR_CENTRIC (no join, or a join that can't be MPP'd) the existing
+        // single-pass dispatch works unchanged.
+        //
+        // For BROADCAST and HASH_SHUFFLE we currently degrade to the same coordinator-centric
+        // dispatch: the build/probe or left/right scan stages reduce to SINGLETON and the join
+        // runs on the coordinator (M0 shape). The phased scheduler, broadcast injection, and
+        // shuffle transport paths are all SPI-complete but not yet wired end-to-end (doc 65 M1
+        // probe-push-down / M2 shuffle-worker dispatch). Falling back — rather than rejecting
+        // the query — preserves correctness: every query that works today keeps working while
+        // the faster MPP paths are landed.
+        //
+        // Codex P1: an earlier version threw on HASH_SHUFFLE to make the boundary explicit.
+        // That regressed ordinary large-index equi-joins to a hard failure where the M0
+        // coordinator-centric path would have succeeded. The strategy is observable in logs;
+        // the scope boundary is explicit there.
+        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(DEFAULT_BROADCAST_MAX_SHARDS);
+        JoinStrategy joinStrategy = advisor.adviseAndTag(dag, clusterService.state());
+        if (joinStrategy != JoinStrategy.COORDINATOR_CENTRIC) {
+            logger.info(
+                "[DefaultPlanExecutor] {} join strategy selected; MPP dispatch not yet wired, "
+                    + "falling back to coordinator-centric for correctness.",
+                joinStrategy
+            );
+        }
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
         // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.

@@ -16,16 +16,20 @@ import java.util.List;
  * Exchange metadata extracted from exchange RelNodes during DAG construction.
  * Describes how a child stage delivers data to its parent stage.
  *
- * <p>TODO: add shuffleImpl and partitionCount when HASH/RANGE shuffle exchanges are implemented.
- *
  * @param distributionType    distribution type from the exchange operator's trait
  * @param partitionKeyIndices field indices for hash/range partitioning (empty for SINGLETON)
+ * @param partitionCount      number of output partitions (0 for SINGLETON/unpartitioned)
  * @opensearch.internal
  */
-public record ExchangeInfo(RelDistribution.Type distributionType, List<Integer> partitionKeyIndices) {
+public record ExchangeInfo(RelDistribution.Type distributionType, List<Integer> partitionKeyIndices, int partitionCount) {
 
     /** Convenience factory for SINGLETON exchanges. */
     public static ExchangeInfo singleton() {
-        return new ExchangeInfo(RelDistribution.Type.SINGLETON, List.of());
+        return new ExchangeInfo(RelDistribution.Type.SINGLETON, List.of(), 0);
+    }
+
+    /** Convenience factory for HASH_DISTRIBUTED exchanges with given keys and partition count. */
+    public static ExchangeInfo hash(List<Integer> keys, int partitionCount) {
+        return new ExchangeInfo(RelDistribution.Type.HASH_DISTRIBUTED, keys, partitionCount);
     }
 }

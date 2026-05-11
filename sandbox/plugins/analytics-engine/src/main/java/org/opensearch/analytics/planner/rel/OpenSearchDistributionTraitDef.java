@@ -168,9 +168,22 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             // (root demand), stamp COORDINATOR so the resulting subset is well-typed.
             OpenSearchDistribution stamp = toTrait.getLocality() == null ? coordSingleton() : toTrait;
             result = new OpenSearchExchangeReducer(rel.getCluster(), rel.getTraitSet().replace(stamp), rel, reduceViable);
+        } else if (toTrait.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
+            // Partition count of 0 is a marker — the real partition count is set by the coordinator
+            // when it rewrites the DAG for HASH_SHUFFLE dispatch (typically # of data nodes, from
+            // plugins.analytics.shuffle_partitions). Trait conversion doesn't know the cluster
+            // topology, only the key set.
+            result = new OpenSearchShuffleExchange(
+                rel.getCluster(),
+                rel.getTraitSet().replace(toTrait),
+                rel,
+                toTrait.getKeys(),
+                /* partitionCount */ 0,
+                viableBackends
+            );
         } else {
-            // TODO: implement HASH/RANGE shuffle exchange when joins and shuffle aggregates are added.
-            throw new UnsupportedOperationException("HASH/RANGE exchange not yet implemented [toTrait=" + toTrait + "]");
+            // RANGE is still not implemented; never produced by analytics-engine rules today.
+            throw new UnsupportedOperationException("RANGE exchange not yet implemented [toTrait=" + toTrait + "]");
         }
 
         return planner.register(result, rel);

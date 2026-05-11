@@ -32,6 +32,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
+import org.opensearch.analytics.planner.rules.OpenSearchHashJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
@@ -89,6 +90,11 @@ public class PlannerImpl {
             List.of(
                 new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
                 new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
+                // Join reordering (JOIN_TO_MULTI_JOIN + MULTI_JOIN_OPTIMIZE_BUSHY) is deferred:
+                // running both in the same HEP ARBITRARY pass loops indefinitely (they invert
+                // each other's output). A follow-up should run them in a separate HEP program
+                // with explicit fixed-point policy, gated on multi-way-join detection. For now
+                // the LogicalJoin tree from the frontend is marked as-is.
             )
         );
         HepPlanner prePlanner = new HepPlanner(preBuilder.build());
@@ -124,7 +130,8 @@ public class PlannerImpl {
                 new OpenSearchAggregateRule(context),
                 new OpenSearchJoinRule(context),
                 new OpenSearchSortRule(context),
-                new OpenSearchUnionRule(context)
+                new OpenSearchUnionRule(context),
+                new OpenSearchJoinRule(context)
             )
         );
         HepPlanner markingPlanner = new HepPlanner(markBuilder.build());
@@ -143,6 +150,10 @@ public class PlannerImpl {
         volcanoPlanner.addRule(new OpenSearchJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchUnionSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchDistributionDeriveRule(context));
+        // M0's HASH-shuffle alternative for equi-joins, sibling to the SHARD-local + COORD-local
+        // alternatives emitted by OpenSearchJoinSplitRule. Registered for M2-style hash-shuffle
+        // dispatch; today it competes by Volcano cost like the other split rules.
+        volcanoPlanner.addRule(new OpenSearchHashJoinRule(context));
         volcanoPlanner.addRule(AbstractConverter.ExpandConversionRule.INSTANCE);
 
         RelOptCluster volcanoCluster = RelOptCluster.create(volcanoPlanner, rawRelNode.getCluster().getRexBuilder());

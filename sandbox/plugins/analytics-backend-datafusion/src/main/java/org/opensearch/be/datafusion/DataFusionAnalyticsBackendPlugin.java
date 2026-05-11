@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -17,6 +18,7 @@ import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
@@ -429,6 +431,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     }
                 }
                 return Set.copyOf(caps);
+            }
+
+            @Override
+            public Set<DataTransferCapability> dataTransferCapabilities() {
+                // Format string is backend-specific. "arrow-ipc-partitioned" means the producer
+                // serializes each hash bucket as Arrow IPC bytes, and the consumer deserializes
+                // back to Arrow record batches before feeding them to the worker plan via
+                // StreamingTableExec + PartitionStream (the ShuffleScanHandler's job).
+                return Set.of(
+                    new DataTransferCapability(DataTransferCapability.Kind.PRODUCER, "arrow-ipc-partitioned"),
+                    new DataTransferCapability(DataTransferCapability.Kind.CONSUMER, "arrow-ipc-partitioned")
+                );
             }
 
             @Override
