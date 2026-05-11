@@ -20,7 +20,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
-import org.opensearch.index.engine.dataformat.PackedSingleGenRowIdMapping;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -406,7 +406,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         }
     }
 
-    private static PackedSingleGenRowIdMapping buildMapping(long[] oldRowIds, long[] newRowIds) {
+    private static PackedRowIdMapping buildMapping(long[] oldRowIds, long[] newRowIds) {
         int numDocs = oldRowIds.length;
         long[] oldToNew = new long[numDocs];
         for (int i = 0; i < numDocs; i++) {
@@ -415,6 +415,6 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         for (int i = 0; i < oldRowIds.length; i++) {
             oldToNew[(int) oldRowIds[i]] = newRowIds[i];
         }
-        return new PackedSingleGenRowIdMapping(oldToNew);
+        return new PackedRowIdMapping(oldToNew, true);
     }
 }

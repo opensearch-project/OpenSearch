@@ -34,6 +34,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.test.OpenSearchTestCase;
@@ -41,7 +42,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -145,17 +145,17 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         // position 1: rowId=1 → doc_3 (gen=2, original rowId=0)
         // position 2: rowId=2 → doc_1 (gen=1, original rowId=1)
         // position 3: rowId=3 → doc_4 (gen=2, original rowId=1)
+        // Build a PackedRowIdMapping for the interleaved merge:
+        // gen=1 has 3 rows (offsets 0,1,2), gen=2 has 2 rows (offsets 3,4)
+        // position 0: rowId=0 → doc_0 (gen=1, original rowId=0)
+        // position 1: rowId=1 → doc_a (gen=2, original rowId=0)
+        // position 2: rowId=2 → doc_1 (gen=1, original rowId=1)
+        // position 3: rowId=3 → doc_b (gen=2, original rowId=1)
         // position 4: rowId=4 → doc_2 (gen=1, original rowId=2)
-        Map<Long, Map<Long, Long>> mapping = new HashMap<>();
-        mapping.put(1L, Map.of(0L, 0L, 1L, 2L, 2L, 4L));
-        mapping.put(2L, Map.of(0L, 1L, 1L, 3L));
-        RowIdMapping rowIdMapping = (oldId, oldGeneration) -> {
-            Map<Long, Long> genMap = mapping.get(oldGeneration);
-            if (genMap != null && genMap.containsKey(oldId)) {
-                return genMap.get(oldId);
-            }
-            return oldId;
-        };
+        long[] mappingArray = new long[] { 0, 2, 4, 1, 3 };
+        Map<Long, Integer> genOffsets = Map.of(1L, 0, 2L, 3);
+        Map<Long, Integer> genSizes = Map.of(1L, 3, 2L, 2);
+        RowIdMapping rowIdMapping = new PackedRowIdMapping(mappingArray, genOffsets, genSizes);
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
         SegmentInfos infos = getSegmentInfos(writer);
@@ -219,7 +219,10 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
         // Identity mapping — writeSegmentWithRichFields already writes globally-unique row IDs
         // (0,1,2 in gen=1 and 3,4 in gen=2), so returning the original row ID is well-formed.
-        RowIdMapping identityMapping = (oldId, oldGeneration) -> oldId;
+        long[] identityArray = new long[] { 0, 1, 2, 3, 4 };
+        Map<Long, Integer> identityOffsets = Map.of(1L, 0, 2L, 3);
+        Map<Long, Integer> identitySizes = Map.of(1L, 3, 2L, 2);
+        RowIdMapping identityMapping = new PackedRowIdMapping(identityArray, identityOffsets, identitySizes);
 
         MergeInput input = MergeInput.builder().segments(segments).rowIdMapping(identityMapping).newWriterGeneration(10L).build();
         merger.merge(input);

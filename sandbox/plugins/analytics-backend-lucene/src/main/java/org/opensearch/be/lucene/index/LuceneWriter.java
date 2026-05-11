@@ -192,7 +192,19 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
         // If sort permutation is provided, configure the reorder merge policy
         if (flushInput.hasRowIdMapping()) {
-            configureSortedMerge(flushInput.rowIdMapping());
+            RowIdMapping mapping = flushInput.rowIdMapping();
+            if (mapping.size() != docCount) {
+                throw new IllegalStateException(
+                    "RowIdMapping size ["
+                        + mapping.size()
+                        + "] does not match document count ["
+                        + docCount
+                        + "] for writer generation ["
+                        + writerGeneration
+                        + "]"
+                );
+            }
+            configureSortedMerge(mapping);
         }
 
         // Common path: forceMerge to 1 segment, commit, build FileInfos
@@ -316,6 +328,11 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         private volatile boolean reorderDone = false;
 
         ReorderingMergePolicy(RowIdMapping mapping) {
+            if (mapping.isNewToOldSupported() == false) {
+                throw new IllegalArgumentException(
+                    "RowIdMapping must support reverse lookup (newToOld) for sorted flush reordering"
+                );
+            }
             this.mapping = mapping;
         }
 
@@ -367,12 +384,12 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             return new Sorter.DocMap() {
                 @Override
                 public int oldToNew(int docID) {
-                    return mapping.oldToNew(docID);
+                    return (int) mapping.getNewRowId(docID, RowIdMapping.SINGLE_GEN);
                 }
 
                 @Override
                 public int newToOld(int docID) {
-                    return mapping.newToOld(docID);
+                    return (int) mapping.getOldRowId(docID);
                 }
 
                 @Override
