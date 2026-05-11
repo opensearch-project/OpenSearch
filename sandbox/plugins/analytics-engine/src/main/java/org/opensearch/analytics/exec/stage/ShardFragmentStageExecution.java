@@ -16,14 +16,11 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
-import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
-import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.action.ActionResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -32,10 +29,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
- * Leaf stage execution that dispatches fragment work to data-node shards.
- *
- * <p>Handles both Arrow streaming and row (codec-decoded) responses, feeding
- * resulting batches into the parent stage's {@link ExchangeSink}.
+ * Leaf stage execution that dispatches fragment work to data-node shards via
+ * Arrow streaming, feeding resulting batches into the parent stage's
+ * {@link ExchangeSink}.
  *
  * <p>One-shot: constructed, {@link #start()} called once, listener
  * signaled on completion, then discarded.
@@ -51,7 +47,6 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     private final ClusterService clusterService;
     private final Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder;
     private final AnalyticsSearchTransportService dispatcher;
-    private final ResponseCodec<FragmentExecutionResponse> responseCodec;
     private final Map<String, PendingExecutions> pendingPerNode = new ConcurrentHashMap<>();
 
     ShardFragmentStageExecution(
@@ -60,8 +55,7 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         ExchangeSink outputSink,
         ClusterService clusterService,
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder,
-        AnalyticsSearchTransportService dispatcher,
-        ResponseCodec<FragmentExecutionResponse> responseCodec
+        AnalyticsSearchTransportService dispatcher
     ) {
         super(stage);
         this.config = config;
@@ -69,11 +63,6 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         this.clusterService = clusterService;
         this.requestBuilder = requestBuilder;
         this.dispatcher = dispatcher;
-        this.responseCodec = responseCodec;
-    }
-
-    private boolean useArrowStreaming() {
-        return dispatcher.isStreamingEnabled();
     }
 
     @Override
@@ -93,40 +82,36 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     private void dispatchShardTask(ShardExecutionTarget target) {
         FragmentExecutionRequest request = requestBuilder.apply(target);
         PendingExecutions pending = pendingFor(target);
-        if (useArrowStreaming()) {
-            dispatcher.dispatchFragmentStreaming(
-                request,
-                target.node(),
-                responseListener(FragmentExecutionArrowResponse::getRoot),
-                config.parentTask(),
-                pending
-            );
-        } else {
-            dispatcher.dispatchFragment(
-                request,
-                target.node(),
-                responseListener(r -> responseCodec.decode(r, config.bufferAllocator())),
-                config.parentTask(),
-                pending
-            );
-        }
+        dispatcher.dispatchFragmentStreaming(request, target.node(), responseListener(), config.parentTask(), pending);
     }
 
-    private <T extends ActionResponse> StreamingResponseListener<T> responseListener(Function<T, VectorSchemaRoot> toVsr) {
+    private StreamingResponseListener<FragmentExecutionArrowResponse> responseListener() {
         return new StreamingResponseListener<>() {
             // Runs inline on the per-stream virtual thread driving handleStreamResponse.
             // Must NOT offload to a thread pool: reordering across batches would let the
             // isLast=true task race ahead, flip state to SUCCEEDED, and drop queued
             // earlier batches via the isDone() short-circuit.
             @Override
-            public void onStreamResponse(T response, boolean isLast) {
+            public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
                 if (isDone()) {
-                    releaseResponseResources(response);
+                    VectorSchemaRoot root = response.getRoot();
+                    if (root != null) {
+                        root.close();
+                    }
                     return;
                 }
 
-                VectorSchemaRoot vsr = toVsr.apply(response);
-                outputSink.feed(vsr);
+                VectorSchemaRoot vsr = response.getRoot();
+                try {
+                    outputSink.feed(vsr);
+                } catch (Exception e) {
+                    // Without this guard the exception only surfaces on the stream's virtual
+                    // thread; inFlight never decrements and the stage hangs to QUERY_TIMEOUT.
+                    captureFailure(new RuntimeException("Stage " + stage.getStageId() + " sink feed failed", e));
+                    metrics.incrementTasksFailed();
+                    onShardTerminated();
+                    return;
+                }
                 metrics.addRowsProcessed(vsr.getRowCount());
 
                 if (isLast) {
@@ -142,12 +127,6 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                 onShardTerminated();
             }
         };
-    }
-
-    private static <T> void releaseResponseResources(T response) {
-        if (response instanceof ArrowBatchResponse arrowResp && arrowResp.getRoot() != null) {
-            arrowResp.getRoot().close();
-        }
     }
 
     private void onShardTerminated() {

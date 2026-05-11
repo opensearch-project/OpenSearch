@@ -219,7 +219,7 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
             batch.close();
         }
         try {
-            NativeBridge.senderSend(sender.getPointer(), array.memoryAddress(), arrowSchema.memoryAddress());
+            sender.send(array.memoryAddress(), arrowSchema.memoryAddress());
             feedCount.incrementAndGet();
         } catch (RuntimeException e) {
             if (closed) {
