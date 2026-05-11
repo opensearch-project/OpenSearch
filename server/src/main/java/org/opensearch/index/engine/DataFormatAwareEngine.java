@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -23,6 +24,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.queue.DefaultLockableHolder;
 import org.opensearch.common.queue.LockablePool;
 import org.opensearch.common.unit.TimeValue;
@@ -176,6 +178,9 @@ public class DataFormatAwareEngine implements Indexer {
     // Refresh tracker
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
+    //LiveVersionMap
+    private final LiveVersionMap versionMap;
+
     // Merge
     private final MergeScheduler mergeScheduler;
 
@@ -203,6 +208,7 @@ public class DataFormatAwareEngine implements Indexer {
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
         this.throttle = new IndexingThrottler();
+        this.versionMap = new LiveVersionMap();
 
         List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
         if (engineConfig.getInternalRefreshListener() != null) {
@@ -333,13 +339,13 @@ public class DataFormatAwareEngine implements Indexer {
             this.indexingStrategyPlanner = new IndexingStrategyPlanner(
                 engineConfig.getIndexSettings(),
                 engineConfig.getShardId(),
-                new LiveVersionMap(),
+                this.versionMap,
                 maxUnsafeAutoIdTimestamp::get,
                 () -> 0L,
                 localCheckpointTracker::getProcessedCheckpoint,
                 this::hasBeenProcessedBefore,
                 op -> OpVsEngineDocStatus.OP_NEWER,
-                (a, b) -> null,
+                this::resolveDocVersion,
                 this::updateAutoIdTimestamp,
                 (a, b) -> null
             );
@@ -485,9 +491,12 @@ public class DataFormatAwareEngine implements Indexer {
         assert (index.origin() == Engine.Operation.Origin.PRIMARY || index.origin() == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY)
             : "DataFormatAwareEngine only supports PRIMARY origin but got: " + index.origin();
         final boolean doThrottle = index.origin().isRecovery() == false;
-        try (ReleasableLock ignored = readLock.acquire()) {
+        try (ReleasableLock releasableLock = readLock.acquire()) {
             ensureOpen();
-            try (Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}) {
+            try (
+                Releasable ignored = versionMap.acquireLock(index.uid().bytes());
+                Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}
+            ) {
                 lastWriteNanos = index.startTime();
                 final IndexingStrategy plan;
                 if (index.origin() == Engine.Operation.Origin.PRIMARY) {
@@ -559,6 +568,7 @@ public class DataFormatAwareEngine implements Indexer {
 
         // Convert ParsedDocument to DocumentInput and write via the execution engine's writer
         Writer currentWriter = null;
+        long writerGeneration = -1;
         DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock();
         try {
             currentWriter = lockedWriter.get();
@@ -570,6 +580,7 @@ public class DataFormatAwareEngine implements Indexer {
 
             if (result instanceof WriteResult.Success) {
                 indexResult = new Engine.IndexResult(plan.version, index.primaryTerm(), index.seqNo(), true);
+                writerGeneration = currentWriter.generation();
                 // The result must carry the same seq no that was assigned to the operation
                 assert indexResult.getSeqNo() == index.seqNo() : "IndexResult seq no ["
                     + indexResult.getSeqNo()
@@ -592,6 +603,10 @@ public class DataFormatAwareEngine implements Indexer {
             final Translog.Location location;
             if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
                 location = translogManager.add(new Translog.Index(index, indexResult));
+                versionMap.maybePutIndexUnderLock(
+                    index.uid().bytes(),
+                    new DataFormatVersionValue(location, indexResult.getVersion(), index.seqNo(), index.primaryTerm(), writerGeneration)
+                );
             } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
                 && indexResult.getFailure() != null
                 && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
@@ -736,6 +751,9 @@ public class DataFormatAwareEngine implements Indexer {
             refreshLock.lock();
             try (GatedCloseable<CatalogSnapshot> catalogSnapshot = catalogSnapshotManager.acquireSnapshot()) {
                 if (store.tryIncRef()) {
+                    // Rotate the version map so new writes go to a fresh map while refresh is in progress.
+                    // afterRefresh will drop the old map once the new snapshot makes those versions resolvable.
+                    versionMap.beforeRefresh();
                     try {
                         List<DefaultLockableHolder<Writer<?>>> writers = writerPool.checkoutAll();
                         List<Segment> existingSegments = catalogSnapshot.get().getSegments();
@@ -793,9 +811,14 @@ public class DataFormatAwareEngine implements Indexer {
                         notifyRefreshListenersAfter(refreshed);
                     } finally {
                         store.decRef();
+                        versionMap.afterRefresh(refreshed);
                     }
                     if (refreshed) {
                         lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
+                        versionMap.pruneTombstones(
+                            engineConfig.getThreadPool().relativeTimeInMillis() - engineConfig.getIndexSettings().getGcDeletesInMillis(),
+                            localCheckpointTracker.getProcessedCheckpoint()
+                        );
                         triggerPossibleMerges(); // trigger merges
                     }
                 }
@@ -1075,7 +1098,11 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
-        throw new UnsupportedOperationException("updates/deletes not supported");
+        if (maxSeqNoOfUpdatesOnPrimary == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            assert false : "max_seq_no_of_updates on primary is unassigned";
+            throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
+        }
+        this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
     }
 
     @Override
@@ -1500,6 +1527,39 @@ public class DataFormatAwareEngine implements Indexer {
         // sequence number should not be set when operation origin is primary
         assert seqNo == UNASSIGNED_SEQ_NO : "primary operations must never have an assigned sequence number but was [" + seqNo + "]";
         return true;
+    }
+
+    private VersionValue getVersionFromMap(BytesRef id) {
+        if (versionMap.isUnsafe()) {
+            synchronized (versionMap) {
+                // we are switching from an unsafe map to a safe map. This might happen concurrently,
+                // but we only need to do this once since the last operation per ID is to add to the version
+                // map so once we pass this point we can safely look up from the version map.
+                if (versionMap.isUnsafe()) {
+                    refresh("unsafe_version_map");
+                }
+                versionMap.enforceSafeAccess();
+            }
+        }
+        return versionMap.getUnderLock(id);
+    }
+
+    /**
+     * Resolves the current version of a document by looking it up in the live version map.
+     * Returns {@code null} if the document is not found or if a delete tombstone has expired
+     * past the {@code index.gc_deletes} threshold.
+     */
+    private VersionValue resolveDocVersion(final Engine.Operation op, boolean loadSeqNo) throws IOException {
+        VersionValue versionValue = getVersionFromMap(op.uid().bytes());
+        if (versionValue != null
+            && engineConfig.isEnableGcDeletes()
+            && versionValue.isDelete()
+            && (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue) versionValue).time) > engineConfig
+            .getIndexSettings()
+            .getGcDeletesInMillis()) {
+            versionValue = null;
+        }
+        return versionValue;
     }
 
     private boolean hasBeenProcessedBefore(Engine.Operation op) {
