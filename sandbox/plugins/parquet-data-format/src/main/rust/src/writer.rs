@@ -383,6 +383,11 @@ impl NativeParquetWriter {
 
         let mut chunk_paths: Vec<String> = Vec::new();
         let mut batch_count: i64 = 0;
+        let output_stem = Path::new(output_filename)
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         let chunk_dir = Path::new(output_filename).parent().unwrap_or_else(|| Path::new("."));
 
         // Capture the ___row_id values from each sorted chunk (in sorted order).
@@ -422,7 +427,7 @@ impl NativeParquetWriter {
                 }
 
                 let chunk_filename = chunk_dir
-                    .join(format!("temp_sort_chunk_{}_{}.parquet", batch_count, std::process::id()))
+                    .join(format!("temp_sort_chunk_{}_{}_{}.parquet", output_stem, batch_count, std::process::id()))
                     .to_string_lossy()
                     .to_string();
                 // Write chunk with batch_count as writer_generation so merge_sorted can track it

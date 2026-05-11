@@ -9,7 +9,6 @@
 package org.opensearch.parquet.bridge;
 
 import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
-import org.opensearch.index.engine.dataformat.PackedSingleGenRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
@@ -281,7 +280,7 @@ public class RustBridge {
                     long[] mappingArray = MemorySegment.ofAddress(permAddr)
                         .reinterpret(permLen * ValueLayout.JAVA_LONG.byteSize())
                         .toArray(ValueLayout.JAVA_LONG);
-                    rowIdMapping = new PackedSingleGenRowIdMapping(mappingArray);
+                    rowIdMapping = new PackedRowIdMapping(mappingArray, true);
                 } finally {
                     NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, permAddr, permLen);
                 }

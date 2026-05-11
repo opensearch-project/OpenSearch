@@ -8,7 +8,7 @@
 
 package org.opensearch.composite;
 
-import org.opensearch.index.engine.dataformat.PackedSingleGenRowIdMapping;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -60,9 +60,9 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
         assertNotNull(receivedMapping);
         assertEquals(3, receivedMapping.size());
         // permutation is {0,1,2} -> {2,0,1}: old pos 0 maps to new pos 2
-        assertEquals(2, receivedMapping.oldToNew(0));
-        assertEquals(0, receivedMapping.oldToNew(1));
-        assertEquals(1, receivedMapping.oldToNew(2));
+        assertEquals(2L, receivedMapping.getNewRowId(0, RowIdMapping.SINGLE_GEN));
+        assertEquals(0L, receivedMapping.getNewRowId(1, RowIdMapping.SINGLE_GEN));
+        assertEquals(1L, receivedMapping.getNewRowId(2, RowIdMapping.SINGLE_GEN));
 
         // The composite FileInfos should also carry the sort permutation
         assertNotNull(result.rowIdMapping());
@@ -144,7 +144,7 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
                 for (int i = 0; i < rawPermutation[0].length; i++) {
                     oldToNew[(int) rawPermutation[0][i]] = rawPermutation[1][i];
                 }
-                this.rowIdMappingToReturn = new PackedSingleGenRowIdMapping(oldToNew);
+                this.rowIdMappingToReturn = new PackedRowIdMapping(oldToNew, true);
             } else {
                 this.rowIdMappingToReturn = null;
             }

@@ -227,7 +227,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertFalse(withoutMapping.rowIdMapping().isPresent());
         assertEquals(fileSet, withoutMapping.getMergedWriterFileSetForDataformat(format));
 
-        RowIdMapping mapping = (oldId, oldGen) -> oldId;
+        RowIdMapping mapping = new PackedRowIdMapping(new long[] { 0 }, false);
         MergeResult withMapping = new MergeResult(Map.of(format, fileSet), mapping);
         assertTrue(withMapping.rowIdMapping().isPresent());
     }

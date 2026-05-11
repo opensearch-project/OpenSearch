@@ -18,6 +18,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 @ExperimentalApi
 public interface RowIdMapping {
 
+    /** Sentinel generation for single-gen flush sort scenarios. */
+    long SINGLE_GEN = -1L;
+
     /**
      * Returns the new row ID corresponding to the given old row ID and generation.
      *
@@ -28,34 +31,24 @@ public interface RowIdMapping {
     long getNewRowId(long oldId, long oldGeneration);
 
     /**
-     * Returns the new doc position for the given old doc position.
-     * Used during single-generation flush sort where generation is implicit.
-     * Default is identity (no reordering).
+     * Reverse lookup: returns the old row ID corresponding to the given new row ID.
      *
-     * @param oldDocId the original document position
-     * @return the new document position
+     * @param newId the new row ID
+     * @return the original row ID, or -1 if not found
      */
-    default int oldToNew(int oldDocId) {
-        return oldDocId;
-    }
+    long getOldRowId(long newId);
 
     /**
-     * Returns the old doc position for the given new doc position.
-     * Required by Lucene's Sorter.DocMap for physical reordering.
+     * Returns whether reverse lookup (getOldRowId / newToOld) is supported by this mapping.
      *
-     * @param newDocId the new document position
-     * @return the original document position, or the input if out of range
+     * @return true if reverse lookup is supported, false otherwise
      */
-    default int newToOld(int newDocId) {
-        return newDocId;
-    }
+    boolean isNewToOldSupported();
 
     /**
      * Returns the total number of documents in this mapping.
      *
      * @return the total document count
      */
-    default int size() {
-        return 0;
-    }
+    int size();
 }
