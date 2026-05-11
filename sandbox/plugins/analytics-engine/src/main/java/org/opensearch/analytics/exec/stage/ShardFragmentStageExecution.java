@@ -94,7 +94,10 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
             @Override
             public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
                 if (isDone()) {
-                    releaseResponseResources(response);
+                    VectorSchemaRoot root = response.getRoot();
+                    if (root != null) {
+                        root.close();
+                    }
                     return;
                 }
 
@@ -124,12 +127,6 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                 onShardTerminated();
             }
         };
-    }
-
-    private static <T> void releaseResponseResources(T response) {
-        if (response instanceof ArrowBatchResponse arrowResp && arrowResp.getRoot() != null) {
-            arrowResp.getRoot().close();
-        }
     }
 
     private void onShardTerminated() {
