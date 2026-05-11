@@ -108,26 +108,28 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      * non-heap memory or an absolute byte size. When a percentage is supplied, the resolved value
      * is floored by {@link #DATAFUSION_SPILL_MEMORY_LIMIT_MIN}.
      * <p>
-     * Dynamic in the cluster-settings sense: PUTs are accepted and persisted, but the spill limit
-     * is fixed in the native runtime at construction time (no setter). The new value takes effect
-     * after the next node restart.
+     * Static (NodeScope only). DataFusion's {@code DiskManager} stores the spill cap as a plain
+     * {@code u64} and only exposes a setter behind {@code Arc::get_mut}, which fails as soon as
+     * any query holds a strong reference to the runtime. Until upstream offers a thread-safe
+     * setter we treat this as a startup setting; change it in {@code opensearch.yml} and restart.
      */
     public static final Setting<String> DATAFUSION_SPILL_MEMORY_LIMIT = Setting.simpleString(
         "datafusion.spill_memory_limit_bytes",
         DEFAULT_SPILL_MEMORY_LIMIT,
         DataFusionPlugin::validateMemorySizeOrPercentage,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
-    /** Floor applied when {@link #DATAFUSION_SPILL_MEMORY_LIMIT} is a percentage. */
+    /**
+     * Floor applied when {@link #DATAFUSION_SPILL_MEMORY_LIMIT} is a percentage. Static (NodeScope
+     * only) — see {@link #DATAFUSION_SPILL_MEMORY_LIMIT} for why.
+     */
     public static final Setting<ByteSizeValue> DATAFUSION_SPILL_MEMORY_LIMIT_MIN = Setting.byteSizeSetting(
         "datafusion.spill_memory_limit.min",
         DEFAULT_SPILL_MEMORY_LIMIT_MIN,
         new ByteSizeValue(0, ByteSizeUnit.BYTES),
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     /**

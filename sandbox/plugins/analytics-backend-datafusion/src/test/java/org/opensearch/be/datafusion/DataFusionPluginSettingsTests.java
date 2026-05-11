@@ -40,16 +40,17 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         );
     }
 
-    public void testSpillMemoryLimitIsDynamic() {
-        assertTrue(
-            "datafusion.spill_memory_limit_bytes must be dynamic for cluster-settings PUTs",
+    public void testSpillMemoryLimitIsStatic() {
+        assertFalse(
+            "datafusion.spill_memory_limit_bytes is intentionally static — DataFusion's DiskManager"
+                + " has no thread-safe runtime setter (Arc::get_mut)",
             DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.isDynamic()
         );
     }
 
-    public void testSpillMemoryLimitMinIsDynamic() {
-        assertTrue(
-            "datafusion.spill_memory_limit.min must be dynamic so the floor can be tuned without restart",
+    public void testSpillMemoryLimitMinIsStatic() {
+        assertFalse(
+            "datafusion.spill_memory_limit.min is intentionally static — see" + " DATAFUSION_SPILL_MEMORY_LIMIT for why",
             DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT_MIN.isDynamic()
         );
     }

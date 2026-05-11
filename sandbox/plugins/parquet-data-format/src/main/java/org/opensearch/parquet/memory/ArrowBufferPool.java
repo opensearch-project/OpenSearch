@@ -33,13 +33,19 @@ import java.io.Closeable;
  * <p>Child allocators are created per {@link org.opensearch.parquet.vsr.ManagedVSR} instance,
  * each capped by {@link ParquetSettings#CHILD_ALLOCATION} to provide memory isolation between
  * batches. The child cap is reduced to the root allocation when the configured value exceeds it.
+ *
+ * <p>Limits are runtime-mutable: {@link #applyLimits(Settings)} re-resolves the root and per-child
+ * caps and pushes the new values to the live root allocator and each existing child allocator via
+ * {@link BufferAllocator#setLimit(long)}. Lowering a cap below an allocator's currently-reserved
+ * memory does not reclaim memory; it only rejects future allocations until usage drains.
+ * {@code ParquetDataFormatPlugin} owns the cluster-settings listeners that drive this method.
  */
 public class ArrowBufferPool implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ArrowBufferPool.class);
 
     private final RootAllocator rootAllocator;
-    private final long maxChildAllocation;
+    private volatile long maxChildAllocation;
 
     /**
      * Creates a new ArrowBufferPool.
@@ -48,17 +54,7 @@ public class ArrowBufferPool implements Closeable {
      */
     public ArrowBufferPool(Settings settings) {
         long maxAllocationInBytes = resolveMaxAllocationBytes(settings);
-        long childAllocation = ParquetSettings.CHILD_ALLOCATION.get(settings).getBytes();
-        if (childAllocation > maxAllocationInBytes) {
-            logger.warn(
-                "[{}] ({}) is larger than [{}] ({}); capping child allocation to root allocation",
-                ParquetSettings.CHILD_ALLOCATION.getKey(),
-                new ByteSizeValue(childAllocation),
-                ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(),
-                new ByteSizeValue(maxAllocationInBytes)
-            );
-            childAllocation = maxAllocationInBytes;
-        }
+        long childAllocation = resolveChildAllocationBytes(settings, maxAllocationInBytes);
         logger.debug("ArrowBufferPool sized: root={} bytes, perChild={} bytes", maxAllocationInBytes, childAllocation);
         this.rootAllocator = new RootAllocator(maxAllocationInBytes);
         this.maxChildAllocation = childAllocation;
@@ -76,6 +72,42 @@ public class ArrowBufferPool implements Closeable {
     /** Returns the total bytes currently allocated by the root allocator. */
     public long getTotalAllocatedBytes() {
         return rootAllocator.getAllocatedMemory();
+    }
+
+    /** Returns the current root allocator memory limit in bytes. Visible for tests. */
+    public long getRootLimit() {
+        return rootAllocator.getLimit();
+    }
+
+    /** Returns the current per-child allocator cap in bytes. Visible for tests. */
+    public long getMaxChildAllocation() {
+        return maxChildAllocation;
+    }
+
+    /**
+     * Re-reads the four allocation settings ({@link ParquetSettings#MAX_NATIVE_ALLOCATION},
+     * {@link ParquetSettings#MIN_NATIVE_ALLOCATION},
+     * {@link ParquetSettings#MAX_NATIVE_ALLOCATION_CEILING},
+     * {@link ParquetSettings#CHILD_ALLOCATION}), pushes the resolved root limit to the live
+     * {@link RootAllocator} and pushes the new per-child cap to every live child allocator. New
+     * children created after this call also see the new cap via the volatile field.
+     */
+    public void applyLimits(Settings settings) {
+        long newRoot = resolveMaxAllocationBytes(settings);
+        long newChild = resolveChildAllocationBytes(settings, newRoot);
+        long previousRoot = rootAllocator.getLimit();
+        long previousChild = this.maxChildAllocation;
+        if (newRoot == previousRoot && newChild == previousChild) {
+            return;
+        }
+        rootAllocator.setLimit(newRoot);
+        this.maxChildAllocation = newChild;
+        // Update live children. setLimit doesn't reclaim memory below current usage; it just
+        // rejects future allocations until the child drains.
+        for (BufferAllocator child : rootAllocator.getChildAllocators()) {
+            child.setLimit(newChild);
+        }
+        logger.info("ArrowBufferPool limits updated: root {}B -> {}B, perChild {}B -> {}B", previousRoot, newRoot, previousChild, newChild);
     }
 
     @Override
@@ -118,5 +150,24 @@ public class ArrowBufferPool implements Closeable {
         }
 
         return ByteSizeValue.parseBytesSizeValue(configured, ParquetSettings.MAX_NATIVE_ALLOCATION.getKey()).getBytes();
+    }
+
+    /**
+     * Resolves the per-child allocator cap, capping at the root allocation when the configured
+     * value exceeds it.
+     */
+    static long resolveChildAllocationBytes(Settings settings, long rootBytes) {
+        long childAllocation = ParquetSettings.CHILD_ALLOCATION.get(settings).getBytes();
+        if (childAllocation > rootBytes) {
+            logger.warn(
+                "[{}] ({}) is larger than [{}] ({}); capping child allocation to root allocation",
+                ParquetSettings.CHILD_ALLOCATION.getKey(),
+                new ByteSizeValue(childAllocation),
+                ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(),
+                new ByteSizeValue(rootBytes)
+            );
+            childAllocation = rootBytes;
+        }
+        return childAllocation;
     }
 }

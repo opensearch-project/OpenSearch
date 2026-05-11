@@ -115,9 +115,9 @@ public final class ParquetSettings {
      * size (e.g. {@code "2gb"}). When a percentage is supplied, the resolved value is clamped by
      * {@link #MIN_NATIVE_ALLOCATION} and {@link #MAX_NATIVE_ALLOCATION_CEILING}.
      * <p>
-     * Dynamic in the cluster-settings sense: PUTs are accepted and persisted, but the Arrow
-     * {@code RootAllocator} budget is fixed at {@code ArrowBufferPool} construction time. The
-     * new value takes effect after the next node restart.
+     * Dynamic: changes take effect on the live Arrow {@code RootAllocator} via
+     * {@code BaseAllocator.setLimit}. Lowering below current usage rejects future allocations
+     * until reservations drain; it does not reclaim allocated memory.
      */
     public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
         "parquet.max_native_allocation",
@@ -154,9 +154,9 @@ public final class ParquetSettings {
      * Per-VSR child allocator cap. Bounds memory a single in-flight VectorSchemaRoot can hold,
      * preventing one writer from monopolizing the root allocator.
      * <p>
-     * Dynamic in the cluster-settings sense: PUTs are accepted and persisted, but the per-child
-     * cap is fixed at {@code ArrowBufferPool} construction time. The new value takes effect
-     * after the next node restart.
+     * Dynamic: changes are pushed to live child allocators via {@code BaseAllocator.setLimit}
+     * and to all children created subsequently. As with the root allocator, lowering below
+     * current usage rejects future allocations rather than reclaiming memory.
      */
     public static final Setting<ByteSizeValue> CHILD_ALLOCATION = Setting.byteSizeSetting(
         "parquet.arrow.child_allocation",
