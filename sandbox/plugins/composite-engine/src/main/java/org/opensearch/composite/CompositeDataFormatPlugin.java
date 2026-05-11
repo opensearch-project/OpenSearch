@@ -152,6 +152,7 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
     public CompositeDataFormatPlugin() {}
 
     @Override
