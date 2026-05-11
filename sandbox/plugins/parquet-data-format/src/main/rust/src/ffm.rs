@@ -405,6 +405,94 @@ pub unsafe extern "C" fn parquet_free_merge_result(
     }
 }
 
+/// Merges Parquet files reordering rows according to an external RowIdMapping.
+/// Used when Parquet is a secondary format.
+#[no_mangle]
+pub unsafe extern "C" fn parquet_merge_files_with_mapping(
+    input_ptrs: *const *const u8,
+    input_lens: *const i64,
+    input_count: i64,
+    output_ptr: *const u8,
+    output_len: i64,
+    index_name_ptr: *const u8,
+    index_name_len: i64,
+    mapping_ptr: *const i64,
+    mapping_len: i64,
+    gen_keys_ptr: *const i64,
+    gen_offsets_ptr: *const i32,
+    gen_sizes_ptr: *const i32,
+    gen_count: i64,
+    version_out: *mut i32,
+    num_rows_out: *mut i64,
+    created_by_buf: *mut u8,
+    created_by_buf_len: i64,
+    created_by_len_out: *mut i64,
+    crc32_out: *mut i64,
+) -> i64 {
+    let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
+        .map_err(|e| format!("parquet_merge_files_with_mapping inputs: {}", e))?;
+    let output_path = str_from_raw(output_ptr, output_len)
+        .map_err(|e| format!("parquet_merge_files_with_mapping output: {}", e))?;
+    let index_name = str_from_raw(index_name_ptr, index_name_len)
+        .map_err(|e| format!("parquet_merge_files_with_mapping index_name: {}", e))?;
+
+    // Read the external mapping from raw pointers
+    let mapping_count = mapping_len as usize;
+    let gen_n = gen_count as usize;
+
+    let mapping: Vec<i64> = if mapping_ptr.is_null() || mapping_count == 0 {
+        vec![]
+    } else {
+        slice::from_raw_parts(mapping_ptr, mapping_count).to_vec()
+    };
+
+    let gen_keys: Vec<i64> = if gen_keys_ptr.is_null() || gen_n == 0 {
+        vec![]
+    } else {
+        slice::from_raw_parts(gen_keys_ptr, gen_n).to_vec()
+    };
+
+    let gen_offsets: Vec<i32> = if gen_offsets_ptr.is_null() || gen_n == 0 {
+        vec![]
+    } else {
+        slice::from_raw_parts(gen_offsets_ptr, gen_n).to_vec()
+    };
+
+    let gen_sizes: Vec<i32> = if gen_sizes_ptr.is_null() || gen_n == 0 {
+        vec![]
+    } else {
+        slice::from_raw_parts(gen_sizes_ptr, gen_n).to_vec()
+    };
+
+    let external_mapping = merge::reordered::ExternalRowIdMapping {
+        mapping,
+        gen_keys,
+        gen_offsets,
+        gen_sizes,
+    };
+
+    let result = merge::merge_with_external_mapping(&input_files, output_path, index_name, &external_mapping)
+        .map_err(|e| format!("{}", e))?;
+
+    // Write Parquet file metadata to out-pointers
+    let fm = result.metadata.file_metadata();
+    if !version_out.is_null() { *version_out = fm.version(); }
+    if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
+    if let Some(cb) = fm.created_by() {
+        if !created_by_buf.is_null() && created_by_buf_len > 0 {
+            let bytes = cb.as_bytes();
+            let n = bytes.len().min(created_by_buf_len as usize);
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), created_by_buf, n);
+            if !created_by_len_out.is_null() { *created_by_len_out = n as i64; }
+        }
+    } else if !created_by_len_out.is_null() {
+        *created_by_len_out = -1;
+    }
+    if !crc32_out.is_null() { *crc32_out = result.crc32 as i64; }
+
+    Ok(0)
+}
+
 // ---------------------------------------------------------------------------
 // Parquet reader (for test verification)
 // ---------------------------------------------------------------------------

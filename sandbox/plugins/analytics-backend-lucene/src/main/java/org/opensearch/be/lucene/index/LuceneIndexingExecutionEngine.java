@@ -26,7 +26,11 @@ import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
+import org.opensearch.be.lucene.merge.LuceneMergeStrategy;
+import org.opensearch.be.lucene.merge.PrimaryLuceneMergeStrategy;
+import org.opensearch.be.lucene.merge.SecondaryLuceneMergeStrategy;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
@@ -88,17 +92,45 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
 
     /**
-     * Creates a new LuceneIndexingExecutionEngine with a specific analyzer.
-     *
-     * @param dataFormat      the Lucene data format descriptor
-     * @param luceneCommitter the committer that owns the shared IndexWriter
-     * @param store           the shard's store
+     * Creates a new LuceneIndexingExecutionEngine defaulting to secondary merge strategy.
+     * Used for backwards compatibility and tests.
      */
     public LuceneIndexingExecutionEngine(
         LuceneDataFormat dataFormat,
         LuceneCommitter luceneCommitter,
         MapperService mapperService,
         Store store
+    ) {
+        this(dataFormat, luceneCommitter, mapperService, store, new SecondaryLuceneMergeStrategy());
+    }
+
+    /**
+     * Creates a new LuceneIndexingExecutionEngine with a specific analyzer.
+     *
+     * @param dataFormat      the Lucene data format descriptor
+     * @param luceneCommitter the committer that owns the shared IndexWriter
+     * @param store           the shard's store
+     * @param indexSettings   the index settings for determining primary/secondary role
+     */
+    public LuceneIndexingExecutionEngine(
+        LuceneDataFormat dataFormat,
+        LuceneCommitter luceneCommitter,
+        MapperService mapperService,
+        Store store,
+        IndexSettings indexSettings
+    ) {
+        this(dataFormat, luceneCommitter, mapperService, store, resolveMergeStrategy(indexSettings));
+    }
+
+    /**
+     * Creates a new LuceneIndexingExecutionEngine with an explicit merge strategy.
+     */
+    public LuceneIndexingExecutionEngine(
+        LuceneDataFormat dataFormat,
+        LuceneCommitter luceneCommitter,
+        MapperService mapperService,
+        Store store,
+        LuceneMergeStrategy mergeStrategy
     ) {
         if (luceneCommitter == null) {
             throw new IllegalArgumentException("LuceneCommitter must not be null");
@@ -113,7 +145,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.codec = sharedWriter.getConfig().getCodec();
         this.fieldFactoryRegistry = new LuceneFieldFactoryRegistry();
 
-        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex());
+        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex(), mergeStrategy);
 
         // Create the lucene subdirectory if it doesn't exist
         try {
@@ -123,6 +155,14 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static LuceneMergeStrategy resolveMergeStrategy(IndexSettings indexSettings) {
+        String primaryFormat = indexSettings.getSettings().get("index.composite.primary_data_format", "");
+        if (LuceneDataFormat.LUCENE_FORMAT_NAME.equals(primaryFormat)) {
+            return new PrimaryLuceneMergeStrategy();
+        }
+        return new SecondaryLuceneMergeStrategy();
     }
 
     /**

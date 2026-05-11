@@ -82,7 +82,8 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
                 DATA_FORMAT,
                 luceneCommitter,
                 indexingEngineConfig.mapperService(),
-                indexingEngineConfig.store()
+                indexingEngineConfig.store(),
+                indexingEngineConfig.indexSettings()
             );
         }
         throw new IllegalStateException(

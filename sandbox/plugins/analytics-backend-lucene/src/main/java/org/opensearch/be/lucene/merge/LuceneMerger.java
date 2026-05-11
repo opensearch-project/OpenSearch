@@ -80,15 +80,17 @@ public class LuceneMerger implements Merger {
     private final Path storeDirectory;
     private final LuceneMergeStrategy strategy;
 
-    public LuceneMerger(MergeIndexWriter indexWriter, DataFormat dataFormat, Path storeDirectory) {
+    public LuceneMerger(MergeIndexWriter indexWriter, DataFormat dataFormat, Path storeDirectory, LuceneMergeStrategy strategy) {
         if (indexWriter == null) {
             throw new IllegalArgumentException("IndexWriter must not be null");
+        }
+        if (strategy == null) {
+            throw new IllegalArgumentException("LuceneMergeStrategy must not be null");
         }
         this.indexWriter = indexWriter;
         this.dataFormat = dataFormat;
         this.storeDirectory = storeDirectory;
-        // TODO implement primary and integrate the same here
-        this.strategy = new SecondaryLuceneMergeStrategy();
+        this.strategy = strategy;
     }
 
     @Override
@@ -136,6 +138,9 @@ public class LuceneMerger implements Merger {
         // Lucene invokes immediately before codec.segmentInfoFormat().write(...) — so the
         // attribute is persisted to the .si file and survives a writer reopen.
         MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping, mergeInput.newWriterGeneration());
+        if (oneMerge instanceof PrimaryOneMerge primaryOneMerge) {
+            primaryOneMerge.setIndexWriter(indexWriter);
+        }
         indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());
 
         // Build the merged WriterFileSet from the output segment info

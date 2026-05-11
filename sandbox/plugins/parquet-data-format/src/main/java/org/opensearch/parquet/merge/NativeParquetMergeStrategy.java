@@ -78,11 +78,23 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
         Path mergedFilePath = ParquetIndexingEngine.buildParquetFilePath(shardPath, writerGeneration, "merged");
         String mergedFileName = mergedFilePath.getFileName().toString();
 
+        RowIdMapping externalMapping = mergeInput.rowIdMapping();
+        boolean isSecondary = externalMapping != null;
+
         try {
-            // Merge files in Rust
-            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName, writerGeneration);
-            ParquetFileMetadata mergeMetadata = merged.metadata();
-            RowIdMapping rowIdMapping = merged.rowIdMapping();
+            ParquetFileMetadata mergeMetadata;
+            RowIdMapping outputMapping;
+
+            if (isSecondary) {
+                // Secondary mode: reorder rows according to external RowIdMapping from primary format
+                mergeMetadata = RustBridge.mergeParquetFilesWithMapping(filePaths, mergedFilePath.toString(), indexName, externalMapping);
+                outputMapping = null;
+            } else {
+                // Merge files in Rust
+                MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName, writerGeneration);
+                ParquetFileMetadata mergeMetadata = merged.metadata();
+                RowIdMapping rowIdMapping = merged.rowIdMapping();
+            }
 
             assert mergeMetadata.numRows() > 0 : "Merged file should contain at least one row";
 
@@ -107,7 +119,7 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
             );
             Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(dataFormat, mergedWriterFileSet);
 
-            return new MergeResult(mergedWriterFileSetMap, rowIdMapping);
+            return new MergeResult(mergedWriterFileSetMap, outputMapping);
 
         } catch (Exception exception) {
             logger.error(() -> new ParameterizedMessage("Merge failed while creating merged file [{}]", mergedFilePath), exception);

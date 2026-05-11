@@ -88,8 +88,6 @@ public class MergeIndexWriter extends IndexWriter {
 
     @Override
     protected void mergeSuccess(MergePolicy.OneMerge merge) {
-        // TODO update this for lucene as a primary engine
-        // https://github.com/opensearch-project/OpenSearch/issues/21505
         super.mergeSuccess(merge);
     }
 }
