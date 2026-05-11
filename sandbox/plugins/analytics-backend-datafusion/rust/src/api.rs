@@ -52,6 +52,7 @@ use datafusion::execution::{SessionState, SessionStateBuilder};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
+use object_store::ObjectStoreExt;
 
 use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
@@ -454,7 +455,7 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+    use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
@@ -472,7 +473,7 @@ pub unsafe fn sql_to_substrait(
                 table: None,
                 path: table_path.prefix().clone(),
             },
-            object_metas,
+            CachedFileList::new(object_metas.as_ref().clone()),
         );
         let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
             .with_cache_manager(
