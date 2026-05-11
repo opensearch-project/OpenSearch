@@ -43,6 +43,7 @@ mod metrics;
 mod multi_segment;
 mod null_columns;
 mod page_pruning;
+mod row_id_emission;
 mod schema_drift;
 mod streaming_at_scale;
 
@@ -221,6 +222,7 @@ async fn run_tree_and_plan(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
     };
 
     // Normalize NOT push-down; build one collector per Collector leaf in DFS order.
@@ -287,6 +289,7 @@ async fn run_tree_and_plan(
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
 
     let ctx = SessionContext::new();

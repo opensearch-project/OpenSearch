@@ -132,7 +132,92 @@ pub async fn create_object_metas(
 pub struct DataFusionRuntime {
     pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
     pub custom_cache_manager: Option<CustomCacheManager>,
-    pub(crate) dynamic_limit_handle: DynamicLimitHandle,
+    pub dynamic_limit_handle: DynamicLimitHandle,
+}
+
+/// Per-file metadata passed from Java at shard view creation time.
+/// Enables `row_base` computation without re-reading parquet footers.
+#[derive(Debug, Clone)]
+pub struct FileRowMetadata {
+    /// Row counts per row group in this file.
+    pub row_group_row_counts: Vec<u64>,
+}
+
+/// Per-file info used by `ShardTableProvider` to inject `row_base` as a
+/// partition column and to resolve global row IDs back to file positions.
+#[derive(Debug, Clone)]
+pub struct ShardFileInfo {
+    pub object_meta: object_store::ObjectMeta,
+    /// Cumulative row count from all preceding files.
+    pub row_base: i64,
+    /// Total rows in this file.
+    pub num_rows: u64,
+    /// Per-row-group row counts.
+    pub row_group_row_counts: Vec<u64>,
+}
+
+/// FFM wire format for per-file metadata.
+/// Must stay in lockstep with the Java `MemoryLayout`.
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct WireFileMetadata {
+    /// Number of row groups in this file.
+    pub num_row_groups: i32,
+    /// Pointer to array of i64 row counts (one per row group).
+    pub row_group_row_counts_ptr: i64,
+}
+
+/// Decode an array of `WireFileMetadata` from an FFM pointer.
+///
+/// # Safety
+/// `ptr` must be 0 or a valid pointer to `count` consecutive `WireFileMetadata` structs.
+/// Each `row_group_row_counts_ptr` must point to `num_row_groups` consecutive i64 values.
+pub unsafe fn decode_file_metadata(ptr: i64, count: usize) -> Option<Vec<FileRowMetadata>> {
+    if ptr == 0 || count == 0 {
+        return None;
+    }
+    let wire_slice = std::slice::from_raw_parts(ptr as *const WireFileMetadata, count);
+    let mut result = Vec::with_capacity(count);
+    for wire in wire_slice {
+        let num_rgs = wire.num_row_groups as usize;
+        let rg_counts = if wire.row_group_row_counts_ptr == 0 || num_rgs == 0 {
+            Vec::new()
+        } else {
+            let counts_ptr = wire.row_group_row_counts_ptr as *const i64;
+            std::slice::from_raw_parts(counts_ptr, num_rgs)
+                .iter()
+                .map(|&c| c as u64)
+                .collect()
+        };
+        result.push(FileRowMetadata {
+            row_group_row_counts: rg_counts,
+        });
+    }
+    Some(result)
+}
+
+/// Build `ShardFileInfo` from object metas and file metadata.
+/// Computes `row_base` as the cumulative prefix sum of file row counts.
+pub fn build_shard_files(
+    object_metas: &[object_store::ObjectMeta],
+    file_metadata: &[FileRowMetadata],
+) -> Vec<ShardFileInfo> {
+    let mut row_base: i64 = 0;
+    object_metas
+        .iter()
+        .zip(file_metadata.iter())
+        .map(|(meta, fm)| {
+            let num_rows: u64 = fm.row_group_row_counts.iter().sum();
+            let info = ShardFileInfo {
+                object_meta: meta.clone(),
+                row_base,
+                num_rows,
+                row_group_row_counts: fm.row_group_row_counts.clone(),
+            };
+            row_base += num_rows as i64;
+            info
+        })
+        .collect()
 }
 
 impl DataFusionRuntime {
@@ -150,6 +235,9 @@ impl DataFusionRuntime {
 pub struct ShardView {
     pub table_path: ListingTableUrl,
     pub object_metas: Arc<Vec<object_store::ObjectMeta>>,
+    /// Per-file row group counts, passed from Java at shard view creation.
+    /// When present, enables ShardTableProvider construction with row_base.
+    pub file_metadata: Option<Vec<FileRowMetadata>>,
 }
 
 /// Creates a DataFusion global runtime with the given resource limits.
@@ -273,6 +361,7 @@ pub fn create_reader(
     let shard_view = ShardView {
         table_path: table_url,
         object_metas: Arc::new(object_metas),
+        file_metadata: None,
     };
     Ok(Box::into_raw(Box::new(shard_view)) as i64)
 }

@@ -33,9 +33,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use datafusion::arrow::array::{Array, BooleanArray};
+use datafusion::arrow::array::{Array, BooleanArray, UInt64Array};
 use datafusion::arrow::compute::filter_record_batch;
-use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::Result;
 use datafusion::execution::SendableRecordBatchStream;
@@ -63,6 +63,15 @@ pub struct RowGroupInfo {
     pub index: usize,
     pub first_row: i64,
     pub num_rows: i64,
+}
+
+/// Schema for row-ID-only output mode.
+pub fn row_id_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![Field::new(
+        "_row_id",
+        DataType::UInt64,
+        false,
+    )]))
 }
 
 /// Test-only override for the per-RG `min_skip_run` selectivity heuristic.
@@ -270,6 +279,10 @@ pub struct IndexedExec {
     /// from the same query; read once per RG into local fields inside
     /// `IndexedStream` so the hot path never touches the Arc.
     pub(crate) query_config: Arc<DatafusionQueryConfig>,
+    /// Cumulative row offset for this segment within the shard.
+    pub(crate) global_base: u64,
+    /// When true, emit `_row_id` column instead of data.
+    pub(crate) emit_row_ids: bool,
 }
 
 impl fmt::Debug for IndexedExec {
@@ -362,6 +375,8 @@ impl ExecutionPlan for IndexedExec {
             self.query_config.min_skip_run_selectivity_threshold,
             self.query_config.indexed_pushdown_filters,
             self.query_config.batch_size,
+            self.global_base,
+            self.emit_row_ids,
         )))
     }
 }
@@ -424,6 +439,10 @@ struct IndexedStream {
     /// calling it twice (assert panic) and to signal "no more input
     /// will arrive; drain remaining completed batches."
     coalescer_finished: bool,
+    /// Cumulative row offset for this segment within the shard.
+    global_base: u64,
+    /// When true, emit `_row_id` column instead of data.
+    emit_row_ids: bool,
 }
 
 impl IndexedStream {
@@ -446,11 +465,19 @@ impl IndexedStream {
         min_skip_run_selectivity_threshold: f64,
         indexed_pushdown_filters: bool,
         target_batch_size: usize,
+        global_base: u64,
+        emit_row_ids: bool,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
-        let batch_coalescer = LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
+        let output_schema = if emit_row_ids {
+            row_id_schema()
+        } else {
+            schema.clone()
+        };
+        let batch_coalescer =
+            LimitedBatchCoalescer::new(output_schema.clone(), target_batch_size, None);
         Self {
-            schema,
+            schema: output_schema,
             full_schema,
             object_path,
             file_size,
@@ -480,6 +507,8 @@ impl IndexedStream {
             batch_coalescer,
             upstream_done: false,
             coalescer_finished: false,
+            global_base,
+            emit_row_ids,
         }
     }
 
@@ -556,6 +585,75 @@ impl IndexedStream {
             .map_err(|e| DataFusionError::External(e.into()))?;
         if let Some(ref t) = self.metrics.on_batch_mask_time {
             t.add_duration(t_on_batch.elapsed());
+        }
+
+        // If emit_row_ids mode, compute global row IDs for surviving
+        // rows before consuming the mask, then return early.
+        if self.emit_row_ids {
+            let batch_start_delivered = self.batch_offset;
+            let pm = self.current_position_map.as_ref();
+            let base = self.global_base + self.current_rg_first_row as u64;
+
+            let surviving_positions: Vec<u64> = match &eval_mask {
+                Some(mask) => (0..batch_len)
+                    .filter(|&i| mask.is_valid(i) && mask.value(i))
+                    .map(|i| {
+                        let delivered_idx = batch_start_delivered + i;
+                        let rg_pos = match pm {
+                            Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
+                            None => delivered_idx,
+                        };
+                        base + rg_pos as u64
+                    })
+                    .collect(),
+                None => match &self.current_mask {
+                    Some(mask) => {
+                        let mask_start = self.mask_offset;
+                        (0..batch_len)
+                            .filter(|&i| {
+                                let mi = mask_start + i;
+                                mi < mask.len() && mask.is_valid(mi) && mask.value(mi)
+                            })
+                            .map(|i| {
+                                let delivered_idx = batch_start_delivered + i;
+                                let rg_pos = match pm {
+                                    Some(p) => {
+                                        p.rg_position(delivered_idx).unwrap_or(delivered_idx)
+                                    }
+                                    None => delivered_idx,
+                                };
+                                base + rg_pos as u64
+                            })
+                            .collect()
+                    }
+                    None => (0..batch_len)
+                        .map(|i| {
+                            let delivered_idx = batch_start_delivered + i;
+                            let rg_pos = match pm {
+                                Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
+                                None => delivered_idx,
+                            };
+                            base + rg_pos as u64
+                        })
+                        .collect(),
+                },
+            };
+
+            // Advance offsets to stay in sync
+            self.mask_offset += batch_len;
+            self.batch_offset += batch_len;
+
+            if surviving_positions.is_empty() {
+                return Ok(RecordBatch::try_new_with_options(
+                    self.schema.clone(),
+                    vec![Arc::new(UInt64Array::from(Vec::<u64>::new()))],
+                    &datafusion::arrow::record_batch::RecordBatchOptions::new()
+                        .with_row_count(Some(0)),
+                )?);
+            }
+
+            let row_id_array = Arc::new(UInt64Array::from(surviving_positions));
+            return Ok(RecordBatch::try_new(self.schema.clone(), vec![row_id_array])?);
         }
 
         let output = match eval_mask {

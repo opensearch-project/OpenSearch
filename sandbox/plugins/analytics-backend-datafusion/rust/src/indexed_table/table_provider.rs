@@ -61,6 +61,9 @@ pub struct SegmentFileInfo {
     pub parquet_size: u64,
     pub row_groups: Vec<RowGroupInfo>,
     pub metadata: Arc<ParquetMetaData>,
+    /// Cumulative row count from all preceding segments. Used to compute
+    /// shard-global row IDs: `global_base + rg.first_row + position_in_rg`.
+    pub global_base: u64,
 }
 
 /// Factory: build a `RowGroupBitsetSource` for one `SegmentChunk`.
@@ -120,6 +123,9 @@ pub struct IndexedTableConfig {
     pub query_config: Arc<DatafusionQueryConfig>,
     /// Full-schema column indices referenced by BoolNode Predicate leaves.
     pub predicate_columns: Vec<usize>,
+    /// When true, output only a `_row_id: UInt64` column containing
+    /// shard-global row IDs of matching rows instead of actual data.
+    pub emit_row_ids: bool,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -182,8 +188,11 @@ impl TableProvider for IndexedTableProvider {
             Some(proj) => Arc::new(full_schema.project(proj)?),
             None => full_schema.clone(),
         };
-        // Read projection = output + predicate columns for evaluator
-        let read_projection: Option<Vec<usize>> = if self.config.predicate_columns.is_empty() {
+        // Read projection = output + predicate columns for evaluator.
+        // When emit_row_ids=true, we only need predicate columns (no output columns).
+        let read_projection: Option<Vec<usize>> = if self.config.emit_row_ids {
+            Some(self.config.predicate_columns.clone())
+        } else if self.config.predicate_columns.is_empty() {
             projection.cloned()
         } else {
             projection.map(|proj| {
@@ -197,7 +206,11 @@ impl TableProvider for IndexedTableProvider {
                 cols
             })
         };
-        let projected_schema = output_schema;
+        let projected_schema = if self.config.emit_row_ids {
+            super::stream::row_id_schema()
+        } else {
+            output_schema
+        };
 
         // Ignore DataFusion's `filters` argument. The `index_filter(...)`
         // UDF call would be in there (its body panics), and the
@@ -385,6 +398,8 @@ impl ExecutionPlan for QueryShardExec {
                 metrics: ExecutionPlanMetricsSet::new(),
                 stream_metrics: stream_metrics.clone(),
                 query_config: Arc::clone(&self.config.query_config),
+                global_base: segment.global_base,
+                emit_row_ids: self.config.emit_row_ids,
             };
             execs.push(Arc::new(exec));
         }
@@ -446,6 +461,7 @@ mod tests {
                 crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             ),
             predicate_columns: vec![],
+            emit_row_ids: false,
         }
     }
 

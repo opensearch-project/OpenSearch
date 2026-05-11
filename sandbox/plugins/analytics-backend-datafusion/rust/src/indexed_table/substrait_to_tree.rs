@@ -48,6 +48,76 @@ use super::bool_tree::BoolNode;
 /// The UDF name Calcite emits for indexed-column filter markers.
 pub const COLLECTOR_FUNCTION_NAME: &str = "delegated_predicate";
 
+/// UDF name for the global row ID marker in projections.
+pub const ROW_ID_FUNCTION_NAME: &str = "_global_row_id";
+
+/// Create the `_global_row_id()` scalar UDF. When present in the
+/// projection, signals the executor to emit computed row IDs instead of data.
+pub fn create_row_id_udf() -> ScalarUDF {
+    ScalarUDF::new_from_impl(RowIdUdf::new())
+}
+
+#[derive(Debug)]
+struct RowIdUdf {
+    signature: Signature,
+}
+
+impl RowIdUdf {
+    fn new() -> Self {
+        Self {
+            signature: Signature::exact(vec![], Volatility::Immutable),
+        }
+    }
+}
+
+impl std::hash::Hash for RowIdUdf {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name().hash(state);
+    }
+}
+
+impl PartialEq for RowIdUdf {
+    fn eq(&self, other: &Self) -> bool {
+        self.name() == other.name()
+    }
+}
+
+impl Eq for RowIdUdf {}
+
+impl ScalarUDFImpl for RowIdUdf {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn name(&self) -> &str {
+        ROW_ID_FUNCTION_NAME
+    }
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+    fn return_type(&self, _: &[DataType]) -> datafusion::common::Result<DataType> {
+        Ok(DataType::UInt64)
+    }
+    fn invoke_with_args(
+        &self,
+        _args: ScalarFunctionArgs,
+    ) -> datafusion::common::Result<ColumnarValue> {
+        Err(datafusion::common::DataFusionError::Internal(
+            "_global_row_id() must not be evaluated — it is a projection marker".into(),
+        ))
+    }
+}
+
+/// Walk the logical plan looking for `_global_row_id()` in a projection.
+pub fn plan_requests_row_ids(plan: &LogicalPlan) -> bool {
+    match plan {
+        LogicalPlan::Projection(proj) => proj.expr.iter().any(|e| match e {
+            Expr::ScalarFunction(func) => func.name() == ROW_ID_FUNCTION_NAME,
+            _ => false,
+        }),
+        _ => plan.inputs().iter().any(|child| plan_requests_row_ids(child)),
+    }
+}
+
 /// Classification of a query's filter expression — drives the evaluator choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterClass {

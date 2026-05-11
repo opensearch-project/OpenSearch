@@ -64,7 +64,9 @@ struct SingleCollectorState {
 /// extension) and has been removed; an OR-between-Collector-and-predicates
 /// shape routes to the multi-filter tree path today.
 pub struct SingleCollectorEvaluator {
-    collector: Arc<dyn RowGroupDocsCollector>,
+    /// The index-backed collector. `None` for predicate-only queries —
+    /// candidates default to the universe (all rows in RG pass candidate stage).
+    collector: Option<Arc<dyn RowGroupDocsCollector>>,
     page_pruner: Arc<PagePruner>,
     /// Residual pruning predicate: the non-Collector portion of the
     /// top-level AND, translated to a `PruningPredicate`. `None` means
@@ -108,12 +110,56 @@ impl SingleCollectorEvaluator {
         call_strategy: CollectorCallStrategy,
     ) -> Self {
         Self {
-            collector,
+            collector: Some(collector),
             page_pruner,
             pruning_predicate,
             residual_expr,
             page_prune_metrics,
             ffm_collector_calls,
+            call_strategy,
+        }
+    }
+
+    /// Evaluate a residual predicate against a batch, returning a BooleanArray mask.
+    fn evaluate_residual(
+        residual: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+        batch: &RecordBatch,
+        batch_len: usize,
+    ) -> Result<BooleanArray, String> {
+        let remapped = remap_expr_to_batch(residual, batch)
+            .map_err(|e| format!("SingleCollectorEvaluator: remap residual: {}", e))?;
+        let value = remapped
+            .evaluate(batch)
+            .map_err(|e| format!("SingleCollectorEvaluator: residual.evaluate: {}", e))?;
+        let array = value
+            .into_array(batch_len)
+            .map_err(|e| format!("SingleCollectorEvaluator: residual into_array: {}", e))?;
+        array
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .ok_or_else(|| {
+                "SingleCollectorEvaluator: residual did not produce BooleanArray".to_string()
+            })
+            .cloned()
+    }
+
+    /// Create evaluator without a Collector — predicate-only filtering.
+    /// Candidates default to the page-pruned universe; `on_batch_mask`
+    /// applies only the residual predicate (no collector bitmap AND).
+    pub fn predicate_only(
+        page_pruner: Arc<PagePruner>,
+        pruning_predicate: Option<Arc<PruningPredicate>>,
+        residual_expr: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+        page_prune_metrics: Option<PagePruneMetrics>,
+        call_strategy: CollectorCallStrategy,
+    ) -> Self {
+        Self {
+            collector: None,
+            page_pruner,
+            pruning_predicate,
+            residual_expr,
+            page_prune_metrics,
+            ffm_collector_calls: None,
             call_strategy,
         }
     }
@@ -149,62 +195,84 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 })
         });
 
-        // Dispatch collector call strategy.
-        let call_ranges: Vec<(i32, i32)> = match self.call_strategy {
-            CollectorCallStrategy::FullRange => vec![(min_doc, max_doc)],
-            CollectorCallStrategy::TightenOuterBounds => match &page_ranges {
-                Some(r) if r.is_empty() => return Ok(None),
-                Some(r) => vec![(r.first().unwrap().0, r.last().unwrap().1)],
-                None => vec![(min_doc, max_doc)],
-            },
-            CollectorCallStrategy::PageRangeSplit => match &page_ranges {
-                Some(r) if r.is_empty() => return Ok(None),
-                Some(r) => r.clone(),
-                None => vec![(min_doc, max_doc)],
-            },
-        };
-
-        // Call collector for each range, merge into one RG-relative bitmap.
-        let mut candidates = RoaringBitmap::new();
-        for (r_min, r_max) in &call_ranges {
-            let bitset = self
-                .collector
-                .collect_packed_u64_bitset(*r_min, *r_max)
-                .map_err(|e| {
-                    format!(
-                        "collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
-                        rg.index, r_min, r_max, e
-                    )
-                })?;
-            if let Some(ref c) = self.ffm_collector_calls {
-                c.add(1);
-            }
-            let offset = (*r_min as i64 - rg.first_row) as u32;
-            let num_docs = (*r_max - *r_min) as u32;
-            let bytes: &[u8] = unsafe {
-                std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
+        // Build candidate bitmap: from collector (if present) or page-pruned universe.
+        let mut candidates = if let Some(ref collector) = self.collector {
+            // Dispatch collector call strategy.
+            let call_ranges: Vec<(i32, i32)> = match self.call_strategy {
+                CollectorCallStrategy::FullRange => vec![(min_doc, max_doc)],
+                CollectorCallStrategy::TightenOuterBounds => match &page_ranges {
+                    Some(r) if r.is_empty() => return Ok(None),
+                    Some(r) => vec![(r.first().unwrap().0, r.last().unwrap().1)],
+                    None => vec![(min_doc, max_doc)],
+                },
+                CollectorCallStrategy::PageRangeSplit => match &page_ranges {
+                    Some(r) if r.is_empty() => return Ok(None),
+                    Some(r) => r.clone(),
+                    None => vec![(min_doc, max_doc)],
+                },
             };
-            let mut chunk = RoaringBitmap::from_lsb0_bytes(offset, bytes);
-            let upper = offset.saturating_add(num_docs);
-            if upper < u32::MAX {
-                chunk.remove_range(upper..);
-            }
-            candidates |= chunk;
-        }
 
-        // For FullRange and TightenOuterBounds, AND with page bitmap
-        // to remove rows in dead pages that the collector scanned.
-        if self.call_strategy != CollectorCallStrategy::PageRangeSplit {
-            if let Some(ref ranges) = page_ranges {
-                let mut allowed = RoaringBitmap::new();
-                for (r_min, r_max) in ranges {
-                    let lo = (*r_min as i64 - rg.first_row) as u32;
-                    let hi = (*r_max as i64 - rg.first_row) as u32;
-                    allowed.insert_range(lo..hi);
+            // Call collector for each range, merge into one RG-relative bitmap.
+            let mut candidates = RoaringBitmap::new();
+            for (r_min, r_max) in &call_ranges {
+                let bitset = collector
+                    .collect_packed_u64_bitset(*r_min, *r_max)
+                    .map_err(|e| {
+                        format!(
+                            "collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
+                            rg.index, r_min, r_max, e
+                        )
+                    })?;
+                if let Some(ref c) = self.ffm_collector_calls {
+                    c.add(1);
                 }
-                candidates &= allowed;
+                let offset = (*r_min as i64 - rg.first_row) as u32;
+                let num_docs = (*r_max - *r_min) as u32;
+                let bytes: &[u8] = unsafe {
+                    std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
+                };
+                let mut chunk = RoaringBitmap::from_lsb0_bytes(offset, bytes);
+                let upper = offset.saturating_add(num_docs);
+                if upper < u32::MAX {
+                    chunk.remove_range(upper..);
+                }
+                candidates |= chunk;
             }
-        }
+
+            // For FullRange and TightenOuterBounds, AND with page bitmap
+            // to remove rows in dead pages that the collector scanned.
+            if self.call_strategy != CollectorCallStrategy::PageRangeSplit {
+                if let Some(ref ranges) = page_ranges {
+                    let mut allowed = RoaringBitmap::new();
+                    for (r_min, r_max) in ranges {
+                        let lo = (*r_min as i64 - rg.first_row) as u32;
+                        let hi = (*r_max as i64 - rg.first_row) as u32;
+                        allowed.insert_range(lo..hi);
+                    }
+                    candidates &= allowed;
+                }
+            }
+            candidates
+        } else {
+            // No collector — candidates are page-pruned universe
+            match &page_ranges {
+                Some(r) if r.is_empty() => return Ok(None),
+                Some(r) => {
+                    let mut bm = RoaringBitmap::new();
+                    for (r_min, r_max) in r {
+                        let lo = (*r_min as i64 - rg.first_row) as u32;
+                        let hi = (*r_max as i64 - rg.first_row) as u32;
+                        bm.insert_range(lo..hi);
+                    }
+                    bm
+                }
+                None => {
+                    let mut bm = RoaringBitmap::new();
+                    bm.insert_range(0..rg.num_rows as u32);
+                    bm
+                }
+            }
+        };
 
         if candidates.is_empty() {
             return Ok(None);
@@ -244,11 +312,13 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         let Some(ref residual) = self.residual_expr else {
             return Ok(None);
         };
-        // Apply Collector bitmap AND residual predicate over the
-        // delivered batch. In row-granular mode (pushdown ON) this
-        // re-applies what parquet already did — redundant but correct.
-        // In block-granular mode (pushdown OFF) this is the only
-        // place the residual gets applied.
+
+        // No collector: just evaluate the residual predicate directly.
+        // No bitmap AND needed — all rows in the batch are candidates.
+        if self.collector.is_none() {
+            return Ok(Some(Self::evaluate_residual(residual, batch, batch_len)?));
+        }
+
         let state = rg_state
             .downcast_ref::<SingleCollectorState>()
             .ok_or_else(|| {
@@ -303,27 +373,13 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             }
         };
 
-        // Evaluate residual against the batch. The residual may use
-        // full-schema column indices; remap to batch positions by name.
-        let remapped_residual = remap_expr_to_batch(residual, batch)
-            .map_err(|e| format!("SingleCollectorEvaluator: remap residual: {}", e))?;
-        let residual_value = remapped_residual
-            .evaluate(batch)
-            .map_err(|e| format!("SingleCollectorEvaluator: residual.evaluate: {}", e))?;
-        let residual_array = residual_value
-            .into_array(batch_len)
-            .map_err(|e| format!("SingleCollectorEvaluator: residual into_array: {}", e))?;
-        let residual_mask = residual_array
-            .as_any()
-            .downcast_ref::<BooleanArray>()
-            .ok_or_else(|| {
-                "SingleCollectorEvaluator: residual did not produce BooleanArray".to_string()
-            })?;
+        // Evaluate residual against the batch.
+        let residual_mask = Self::evaluate_residual(residual, batch, batch_len)?;
 
         // AND with kleene semantics (NULL → exclude).
         let combined = datafusion::arrow::compute::kernels::boolean::and_kleene(
             &collector_mask,
-            residual_mask,
+            &residual_mask,
         )
         .map_err(|e| format!("SingleCollectorEvaluator: and_kleene: {}", e))?;
         Ok(Some(combined))

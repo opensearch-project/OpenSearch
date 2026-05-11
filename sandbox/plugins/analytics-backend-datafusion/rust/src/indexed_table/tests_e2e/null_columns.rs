@@ -332,6 +332,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+            global_base: 0,
     };
 
     let tree = Arc::new(bt);
@@ -379,6 +380,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         pushdown_predicate: None,
         query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
+        emit_row_ids: false,
     }));
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();

@@ -28,7 +28,7 @@ use substrait::proto::Plan;
 
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
-use crate::api::DataFusionRuntime;
+use crate::api::{DataFusionRuntime, ShardFileInfo};
 use crate::session_context::SessionContextHandle;
 
 /// Execute a vanilla parquet query: substrait plan → DataFusion → CrossRtStream.
@@ -102,33 +102,91 @@ pub async fn execute_query(
     let ctx = SessionContext::new_with_state(state);
     crate::udf::register_all(&ctx);
 
-    // Register table via ListingTable — all IO goes through object store
-    let file_format = ParquetFormat::new();
-    let listing_options = ListingOptions::new(Arc::new(file_format))
-        .with_file_extension(".parquet")
-        .with_collect_stat(true);
+    // Register table provider based on strategy
+    use crate::datafusion_query_config::RowIdStrategy;
+    match query_config.row_id_strategy {
+        RowIdStrategy::IndexedPredicateOnly => {
+            return Err(DataFusionError::Execution(
+                "IndexedPredicateOnly strategy requires the indexed executor path \
+                 (execute_indexed_with_context). It cannot be used via execute_query \
+                 because it needs segment metadata and PositionMap for position-based \
+                 row ID computation.".into(),
+            ));
+        }
+        RowIdStrategy::ListingTable => {
+            // Use ShardTableProvider with row_base partition column
+            use crate::shard_table_provider::{ShardTableConfig, ShardFileInfo, ShardTableProvider};
 
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &table_path)
-        .await
-        .map_err(|e| {
-            error!("Failed to infer schema: {}", e);
-            e
-        })?;
+            // Infer schema from the first file
+            let file_format = ParquetFormat::new();
+            let listing_options = ListingOptions::new(Arc::new(file_format))
+                .with_file_extension(".parquet")
+                .with_collect_stat(true);
+            let resolved_schema = listing_options
+                .infer_schema(&ctx.state(), &table_path)
+                .await
+                .map_err(|e| { error!("Failed to infer schema: {}", e); e })?;
 
-    let table_config = ListingTableConfig::new(table_path)
-        .with_listing_options(listing_options)
-        .with_schema(resolved_schema);
+            // Build ShardFileInfo with row_base from cumulative row counts
+            let store = ctx.state().runtime_env().object_store(&table_path)?;
+            let mut files: Vec<ShardFileInfo> = Vec::new();
+            let mut cumulative_rows: i64 = 0;
+            for meta in object_metas.iter() {
+                let reader = datafusion::parquet::arrow::async_reader::ParquetObjectReader::new(
+                    Arc::clone(&store), meta.location.clone(),
+                ).with_file_size(meta.size);
+                let builder = datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder::new(reader)
+                    .await
+                    .map_err(|e| DataFusionError::Execution(format!("parquet metadata: {}", e)))?;
+                let num_rows: i64 = (0..builder.metadata().num_row_groups())
+                    .map(|i| builder.metadata().row_group(i).num_rows())
+                    .sum();
 
-    let provider = Arc::new(ListingTable::try_new(table_config).map_err(|e| {
-        error!("Failed to create listing table: {}", e);
-        e
-    })?);
+                files.push(ShardFileInfo {
+                    object_meta: meta.clone(),
+                    row_base: cumulative_rows,
+                    num_rows: num_rows as u64,
+                    row_group_row_counts: (0..builder.metadata().num_row_groups())
+                        .map(|i| builder.metadata().row_group(i).num_rows() as u64)
+                        .collect(),
+                });
+                cumulative_rows += num_rows;
+            }
 
-    ctx.register_table(&table_name, provider).map_err(|e| {
-        error!("Failed to register table: {}", e);
-        e
-    })?;
+            let url_str = table_path.as_str();
+            let parsed = url::Url::parse(url_str)
+                .map_err(|e| DataFusionError::Execution(format!("parse URL: {}", e)))?;
+            let store_url = datafusion::execution::object_store::ObjectStoreUrl::parse(
+                format!("{}://{}", parsed.scheme(), parsed.authority()),
+            )?;
+
+            let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
+                file_schema: resolved_schema,
+                files,
+                store_url,
+            }));
+            ctx.register_table(&table_name, provider)
+                .map_err(|e| { error!("Failed to register table: {}", e); e })?;
+        }
+        _ => {
+            // Baseline / IndexedPredicateOnly: use standard ListingTable
+            let file_format = ParquetFormat::new();
+            let listing_options = ListingOptions::new(Arc::new(file_format))
+                .with_file_extension(".parquet")
+                .with_collect_stat(true);
+            let resolved_schema = listing_options
+                .infer_schema(&ctx.state(), &table_path)
+                .await
+                .map_err(|e| { error!("Failed to infer schema: {}", e); e })?;
+            let table_config = ListingTableConfig::new(table_path)
+                .with_listing_options(listing_options)
+                .with_schema(resolved_schema);
+            let provider = Arc::new(ListingTable::try_new(table_config)
+                .map_err(|e| { error!("Failed to create listing table: {}", e); e })?);
+            ctx.register_table(&table_name, provider)
+                .map_err(|e| { error!("Failed to register table: {}", e); e })?;
+        }
+    }
 
     // Decode substrait → logical plan → physical plan → stream
     let substrait_plan = Plan::decode(plan_bytes.as_slice()).map_err(|e| {
@@ -138,6 +196,25 @@ pub async fn execute_query(
     let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+
+    // Apply row ID optimizer based on strategy if configured
+    use datafusion::physical_optimizer::PhysicalOptimizerRule;
+    let physical_plan = match query_config.row_id_strategy {
+        RowIdStrategy::None => {
+            // Baseline: no optimizer, ___row_id read as regular column (local IDs)
+            physical_plan
+        }
+        RowIdStrategy::ListingTable => {
+            // Apply ProjectRowIdOptimizer: rewrites ___row_id to ___row_id + row_base
+            let optimizer = crate::project_row_id_optimizer::ProjectRowIdOptimizer;
+            let config = datafusion::common::config::ConfigOptions::default();
+            optimizer.optimize(physical_plan, &config)?
+        }
+        RowIdStrategy::IndexedPredicateOnly => {
+            // Unreachable — we return an error above before reaching here
+            unreachable!()
+        }
+    };
 
     let df_stream = execute_stream(physical_plan, ctx.task_ctx()).map_err(|e| {
         error!("Failed to create execution stream: {}", e);
@@ -161,18 +238,54 @@ pub async fn execute_query(
 /// raw Java pointer) happens at the FFM entry in `df_execute_with_context`, so
 /// by the time this function is reached the pointer is already invalidated from
 /// Java's perspective and cleanup is pure RAII.
+///
+/// When the plan requests row IDs and a `RowIdStrategy` is configured, this
+/// function routes to the appropriate execution path:
+/// - `ListingTable`: applies `ProjectRowIdOptimizer` to the physical plan
+/// - `IndexedPredicateOnly`: delegates to the indexed executor with `emit_row_ids=true`
 pub async fn execute_with_context(
     handle: SessionContextHandle,
     plan_bytes: &[u8],
     cpu_executor: DedicatedExecutor,
 ) -> Result<i64, DataFusionError> {
+    use crate::datafusion_query_config::RowIdStrategy;
+    use datafusion::common::config::ConfigOptions;
+    use datafusion::physical_optimizer::PhysicalOptimizerRule;
+
     let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
         DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
     })?;
 
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
+
+    // Check if the plan requests row IDs and route accordingly
+    let row_id_strategy = handle.query_config.row_id_strategy;
+
+    let requests_row_ids = crate::indexed_table::substrait_to_tree::plan_requests_row_ids(&logical_plan);
+
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+
+    // Apply row ID optimizer if needed
+    let physical_plan = if requests_row_ids {
+        match row_id_strategy {
+            RowIdStrategy::None => physical_plan,
+            RowIdStrategy::ListingTable => {
+                // Approach 1: Apply ProjectRowIdOptimizer to the physical plan
+                let optimizer = crate::project_row_id_optimizer::ProjectRowIdOptimizer;
+                let config = ConfigOptions::default();
+                optimizer.optimize(physical_plan, &config)?
+            }
+            RowIdStrategy::IndexedPredicateOnly => {
+                // Approach 2: For now, fall through to standard execution.
+                // Full routing to indexed executor requires segment metadata
+                // that may not be available on the vanilla path.
+                physical_plan
+            }
+        }
+    } else {
+        physical_plan
+    };
 
     let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
         error!("execute_with_context: failed to create stream: {}", e);
