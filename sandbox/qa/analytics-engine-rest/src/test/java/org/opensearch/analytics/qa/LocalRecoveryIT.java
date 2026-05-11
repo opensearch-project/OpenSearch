@@ -229,7 +229,7 @@ public class LocalRecoveryIT extends AnalyticsRestTestCase {
         client().performRequest(flushRequest);
 
         // Query before restart
-        String ppl = "source=" + indexName + " | sort age | fields name, age, score";
+        String ppl = "source=" + indexName + " | sort age, name | fields name, age, score";
         List<List<Object>> beforeRows = executePplRows(ppl);
         assertEquals("Should have " + totalDocs + " rows before restart", totalDocs, beforeRows.size());
 
