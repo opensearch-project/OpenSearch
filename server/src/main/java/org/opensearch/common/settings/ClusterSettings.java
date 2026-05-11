@@ -864,6 +864,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
                 CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
 
+                // Pluggable dataformat cluster defaults
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING,
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING,
+                IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING,
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST,
+
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
 
                 // WorkloadManagement settings
