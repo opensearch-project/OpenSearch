@@ -11,9 +11,33 @@
 use std::slice;
 use std::str;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
+use log::warn;
 use native_bridge_common::ffm_safe;
 use parking_lot::RwLock;
+
+/// Only log block_on durations exceeding this threshold.
+const BLOCK_ON_LOG_THRESHOLD: Duration = Duration::from_millis(1);
+
+/// Times a block_on call and logs a warning if it exceeds the threshold.
+#[inline(always)]
+fn timed_block_on<F: std::future::Future>(
+    runtime: &tokio::runtime::Runtime,
+    op_name: &str,
+    future: F,
+) -> F::Output {
+    let start = Instant::now();
+    let result = runtime.block_on(future);
+    let elapsed = start.elapsed();
+    if elapsed > BLOCK_ON_LOG_THRESHOLD {
+        warn!(
+            "[blocked-thread] block_on({}) held Java thread for {:?}",
+            op_name, elapsed
+        );
+    }
+    result
+}
 
 use crate::api;
 use crate::api::DataFusionRuntime;
@@ -164,8 +188,7 @@ pub unsafe extern "C" fn df_execute_query(
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let query_config =
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
-    mgr.io_runtime
-        .block_on(api::execute_query(
+    timed_block_on(&mgr.io_runtime, "execute_query", api::execute_query(
             shard_view_ptr,
             table_name,
             plan_bytes,
@@ -187,8 +210,7 @@ pub unsafe extern "C" fn df_stream_get_schema(stream_ptr: i64) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
     let mgr = get_rt_manager()?;
-    mgr.io_runtime
-        .block_on(api::stream_next(stream_ptr))
+    timed_block_on(&mgr.io_runtime, "stream_next", api::stream_next(stream_ptr))
         .map_err(|e| e.to_string())
 }
 
@@ -307,8 +329,7 @@ pub unsafe extern "C" fn df_execute_local_plan(
     // instead of the IO runtime. Without this, operator hash work runs on IO workers.
     // The IO runtime still drives the outer block_on (bridging the synchronous FFI
     // call to the async spawn handle).
-    mgr.io_runtime
-        .block_on(async move {
+    timed_block_on(&mgr.io_runtime, "execute_local_plan", async move {
             let inner_fut = async move {
                 unsafe { api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, 0).await }
             };

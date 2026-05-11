@@ -45,12 +45,9 @@ pub async fn execute_query(
     plan_bytes: Vec<u8>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
-    // Per-query memory pool, or None when context_id is 0 (tracking disabled).
-    // Not all query flows pass a context_id yet; this fallback allows queries
-    // to execute using the global pool. Can be made required once all flows
-    // wire up context_id correctly.
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
     query_config: &crate::datafusion_query_config::DatafusionQueryConfig,
+    phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
 ) -> Result<i64, DataFusionError> {
     // Pre-populate the list-files cache so DataFusion doesn't re-list the directory
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
@@ -147,6 +144,11 @@ pub async fn execute_query(
     // Wrap in CrossRtStream — CPU work runs on DedicatedExecutor
     let cross_rt_stream =
         CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
+    // Attach phantom corrector for self-correcting budget (if provided)
+    let cross_rt_stream = match phantom_corrector {
+        Some(corrector) => cross_rt_stream.with_phantom_corrector(corrector),
+        None => cross_rt_stream,
+    };
     let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
         cross_rt_stream.schema(),
         cross_rt_stream,
