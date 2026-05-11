@@ -9,8 +9,8 @@
 package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
+import org.opensearch.be.datafusion.stats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 
