@@ -12,8 +12,8 @@ import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
+import org.opensearch.be.datafusion.stats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.RestHandler;
@@ -67,7 +67,7 @@ public class DataFusionStatsActionTests extends OpenSearchTestCase {
         List<Route> routes = action.routes();
         assertEquals(1, routes.size());
         assertEquals(RestRequest.Method.GET, routes.get(0).getMethod());
-        assertEquals("_plugins/datafusion/stats", routes.get(0).getPath());
+        assertEquals("_plugins/analytics_backend_datafusion/stats", routes.get(0).getPath());
     }
 
     // ---- Test: getName() returns "datafusion_stats_action" (Requirement 1.1) ----
@@ -106,10 +106,11 @@ public class DataFusionStatsActionTests extends OpenSearchTestCase {
         // Verify the response
         assertEquals(200, channel.capturedResponse().status().getStatus());
         String responseBody = channel.capturedResponse().content().utf8ToString();
-        assertTrue("Response should contain native_executors", responseBody.contains("native_executors"));
-        assertTrue("Response should contain io_runtime", responseBody.contains("io_runtime"));
-        assertTrue("Response should contain task_monitors", responseBody.contains("task_monitors"));
-        assertTrue("Response should contain query_execution", responseBody.contains("query_execution"));
+        assertFalse("Response should NOT contain native_executors wrapper", responseBody.contains("native_executors"));
+        assertFalse("Response should NOT contain task_monitors wrapper", responseBody.contains("task_monitors"));
+        assertTrue("Response should contain io_runtime at top level", responseBody.contains("io_runtime"));
+        assertTrue("Response should contain cpu_runtime at top level", responseBody.contains("cpu_runtime"));
+        assertTrue("Response should contain query_execution at top level", responseBody.contains("query_execution"));
     }
 
     // ---- Test: prepareRequest returns 500 when service throws exception (Requirement 6.1) ----
