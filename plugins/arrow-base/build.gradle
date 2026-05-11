@@ -10,28 +10,26 @@ apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
   description = 'Bundles Apache Arrow and exposes the transport integration contracts ' +
-    '(ArrowBatchResponse, ArrowBatchResponseHandler, ArrowAllocatorProvider, VectorStreamInput). ' +
     'Plugins that carry native Arrow data declare extendedPlugins = [\'arrow-base\'] so they share ' +
     'one copy of Arrow classes across the cluster.'
   classname = 'org.opensearch.arrow.plugin.ArrowBasePlugin'
 }
 
 dependencies {
+  // Arrow core
   api "org.apache.arrow:arrow-vector:${versions.arrow}"
   api "org.apache.arrow:arrow-format:${versions.arrow}"
   api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
   api "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
   api "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
+
+  // Transitive deps required by Arrow at runtime
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-common:${versions.netty}"
   api "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  // arrow-vector's JsonStringArrayList static-initializes a Jackson ObjectMapper that registers
-  // JavaTimeModule. Without jsr310 on arrow-base's classpath, any reader of an Arrow
-  // ListVector (e.g. DataFusion's array-returning UDFs flowing through analytics-engine) hits
-  // a fatal NoClassDefFoundError that exits the JVM.
   api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
