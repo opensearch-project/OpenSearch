@@ -12,19 +12,18 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -213,7 +212,15 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
         );
         Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
         ShardPath shardPath = new ShardPath(false, path, path, shardId);
-        return new Store(shardId, indexSettings, dir, new DummyShardLock(shardId), Store.OnClose.EMPTY, shardPath, new FsDirectoryFactory());
+        return new Store(
+            shardId,
+            indexSettings,
+            dir,
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            shardPath,
+            new FsDirectoryFactory()
+        );
     }
 
     private void bootstrapStore(Store store, String translogUUID) throws IOException {
@@ -256,7 +263,14 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
                 .build()
         );
 
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false);
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
         DataFormatRegistry registry = createMockRegistry();
         CommitterFactory committerFactory = config -> new PersistentCommitter(store);
 
@@ -1013,10 +1027,7 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
             try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
                 CatalogSnapshot snapshot = ref.get();
                 List<org.opensearch.index.engine.exec.Segment> segments = snapshot.getSegments();
-                long distinctGenerations = segments.stream()
-                    .map(org.opensearch.index.engine.exec.Segment::generation)
-                    .distinct()
-                    .count();
+                long distinctGenerations = segments.stream().map(org.opensearch.index.engine.exec.Segment::generation).distinct().count();
                 assertThat("all segment generations must be unique", distinctGenerations, equalTo((long) segments.size()));
             }
         }

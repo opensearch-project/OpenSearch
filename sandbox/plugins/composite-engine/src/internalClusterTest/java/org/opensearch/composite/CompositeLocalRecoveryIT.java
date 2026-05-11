@@ -81,14 +81,8 @@ public class CompositeLocalRecoveryIT extends AbstractCompositeEngineIT {
             assertFalse("Snapshot must have segments after recovery", snapshot.getSegments().isEmpty());
 
             for (Segment segment : snapshot.getSegments()) {
-                assertTrue(
-                    "Each segment must have parquet files",
-                    segment.dfGroupedSearchableFiles().containsKey("parquet")
-                );
-                assertTrue(
-                    "Each segment must have lucene files",
-                    segment.dfGroupedSearchableFiles().containsKey("lucene")
-                );
+                assertTrue("Each segment must have parquet files", segment.dfGroupedSearchableFiles().containsKey("parquet"));
+                assertTrue("Each segment must have lucene files", segment.dfGroupedSearchableFiles().containsKey("lucene"));
             }
         }
     }

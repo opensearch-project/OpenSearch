@@ -126,12 +126,7 @@ public abstract class AbstractCompositeEngineIT extends OpenSearchIntegTestCase 
     }
 
     protected DataformatAwareCatalogSnapshot getCommittedSnapshot(String indexName) throws IOException {
-        IndicesStatsResponse statsResponse = client().admin()
-            .indices()
-            .prepareStats(indexName)
-            .clear()
-            .setDocs(true)
-            .get();
+        IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexName).clear().setDocs(true).get();
         ShardStats shardStats = statsResponse.getIndex(indexName).getShards()[0];
         CommitStats commitStats = shardStats.getCommitStats();
         assertNotNull("Commit stats must exist", commitStats);
