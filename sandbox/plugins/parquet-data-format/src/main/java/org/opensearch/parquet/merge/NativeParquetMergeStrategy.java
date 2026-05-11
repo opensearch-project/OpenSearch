@@ -74,23 +74,41 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
         assert filePaths.stream().allMatch(p -> java.nio.file.Files.exists(p)) : "all input files must exist on disk before merge: "
             + filePaths.stream().filter(p -> java.nio.file.Files.exists(p) == false).toList();
 
+        // Build per-input live-docs bitsets from MergeInput. A null entry means all rows alive.
+        long[][] liveBitsPerInput = new long[files.size()][];
+        boolean anyLiveDocs = false;
+        for (int i = 0; i < files.size(); i++) {
+            long[] bits = mergeInput.getLiveDocsForSegment(files.get(i).writerGeneration());
+            if (bits != null && bits.length > 0) {
+                liveBitsPerInput[i] = bits;
+                anyLiveDocs = true;
+            }
+        }
+        long[][] liveBitsArg = anyLiveDocs ? liveBitsPerInput : null;
+
         Path mergedFilePath = ParquetIndexingEngine.buildParquetFilePath(shardPath, writerGeneration, "merged");
         String mergedFileName = mergedFilePath.getFileName().toString();
 
         try {
             // Merge files in Rust
-            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName);
+            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, liveBitsArg, mergedFilePath.toString(), indexName);
             ParquetFileMetadata mergeMetadata = merged.metadata();
             RowIdMapping rowIdMapping = merged.rowIdMapping();
 
             assert mergeMetadata.numRows() > 0 : "Merged file should contain at least one row";
 
             long expectedRows = files.stream().mapToLong(WriterFileSet::numRows).sum();
-            assert mergeMetadata.numRows() == expectedRows : "Merged row count ["
+            // With live-docs, output is bounded by input sum. Without, strict equality.
+            assert mergeMetadata.numRows() <= expectedRows : "Merged row count ["
+                + mergeMetadata.numRows()
+                + "] must not exceed sum of input row counts ["
+                + expectedRows
+                + "]";
+            assert anyLiveDocs || mergeMetadata.numRows() == expectedRows : "Merged row count ["
                 + mergeMetadata.numRows()
                 + "] must equal sum of input row counts ["
                 + expectedRows
-                + "]";
+                + "] when no live-docs are supplied";
 
             WriterFileSet mergedWriterFileSet = WriterFileSet.builder()
                 .directory(mergedFilePath.getParent().toAbsolutePath())

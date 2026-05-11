@@ -50,7 +50,13 @@ public class CompositeMerger implements Merger {
     @Override
     public MergeResult merge(MergeInput mergeInput) throws IOException {
         Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(mergeInput.segments());
-        MergePlan plan = new MergePlan(mergeInput.newWriterGeneration(), primaryFormat, secondaryFormats, filesByFormat);
+        MergePlan plan = new MergePlan(
+            mergeInput.newWriterGeneration(),
+            primaryFormat,
+            secondaryFormats,
+            filesByFormat,
+            mergeInput.liveDocsPerSegment()
+        );
         return executor.execute(plan);
     }
 

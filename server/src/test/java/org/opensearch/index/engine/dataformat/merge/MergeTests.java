@@ -104,7 +104,7 @@ public class MergeTests extends OpenSearchTestCase {
 
     private MergeHandler createNoopHandler(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier) {
         Merger noopMerger = mergeInput -> new MergeResult(Map.of());
-        return new MergeHandler(snapshotSupplier, noopMerger, SHARD_ID, NOOP_MERGE_POLICY, NOOP_MERGE_LISTENER, () -> 1L);
+        return new MergeHandler(snapshotSupplier, noopMerger, SHARD_ID, NOOP_MERGE_POLICY, NOOP_MERGE_LISTENER, () -> 1L, null);
     }
 
     private MergeHandler createHandlerWithRealPolicy(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier, Merger merger) {
@@ -112,7 +112,7 @@ public class MergeTests extends OpenSearchTestCase {
             new IndexSettings(newIndexMeta("test", Settings.EMPTY), Settings.EMPTY).getMergePolicy(true),
             SHARD_ID
         );
-        return new MergeHandler(snapshotSupplier, merger, SHARD_ID, policy, policy, () -> 1L);
+        return new MergeHandler(snapshotSupplier, merger, SHARD_ID, policy, policy, () -> 1L, null);
     }
 
     private static Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplierOf(List<Segment> segments) {
@@ -313,7 +313,8 @@ public class MergeTests extends OpenSearchTestCase {
             SHARD_ID,
             NOOP_MERGE_POLICY,
             NOOP_MERGE_LISTENER,
-            () -> 1L
+            () -> 1L,
+            null
         );
         MergeResult result = handler.doMerge(new OneMerge(List.of(seg)));
 

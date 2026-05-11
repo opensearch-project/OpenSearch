@@ -367,7 +367,8 @@ public class DataFormatAwareEngine implements Indexer {
                     long gen = writerGenerationCounter.incrementAndGet();
                     assert gen > 0 : "merge generation must be positive but was: " + gen;
                     return gen;
-                }
+                },
+                indexingExecutionEngine.getDeleter()
             );
             this.mergeScheduler = new MergeScheduler(
                 mergeHandler,

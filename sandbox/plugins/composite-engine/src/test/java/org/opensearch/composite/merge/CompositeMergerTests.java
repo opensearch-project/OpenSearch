@@ -139,7 +139,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
             mock(MergeHandler.MergeListener.class),
-            () -> 1L
+            () -> 1L,
+            null
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -223,7 +224,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
             mock(MergeHandler.MergeListener.class),
-            () -> 1L
+            () -> 1L,
+            null
         );
 
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
@@ -374,7 +376,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
             mock(MergeHandler.MergeListener.class),
-            () -> 1L
+            () -> 1L,
+            null
         );
 
         MergeResult result = handler.doMerge(oneMerge);
@@ -569,7 +572,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
             mock(MergeHandler.MergeListener.class),
-            () -> 1L
+            () -> 1L,
+            null
         );
     }
 
@@ -588,7 +592,8 @@ public class CompositeMergerTests extends OpenSearchTestCase {
             SHARD_ID,
             policy,
             policy,
-            () -> 1L
+            () -> 1L,
+            null
         );
     }
 

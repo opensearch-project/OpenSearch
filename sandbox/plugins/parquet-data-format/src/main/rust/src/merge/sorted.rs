@@ -22,6 +22,8 @@ use super::io_task::get_merge_pool;
 use super::schema::ColumnMapping;
 
 /// Performs a streaming k-way merge with an explicit sort direction per column.
+/// `live_docs_per_input` is parallel to `input_files`; a `None` (or padded) entry
+/// disables filtering for that file (zero-copy fast path).
 pub fn merge_sorted(
     input_files: &[String],
     output_path: &str,
@@ -29,6 +31,7 @@ pub fn merge_sorted(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
+    live_docs_per_input: &[Option<Vec<u64>>],
 ) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -80,8 +83,12 @@ pub fn merge_sorted(
 
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
+        let live_bits = live_docs_per_input
+            .get(file_id)
+            .and_then(|opt| opt.as_ref())
+            .map(|bits| Arc::new(bits.clone()));
         let (cursor, projected_schema, parquet_descr, generation, row_count) =
-            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size)?;
+            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size, live_bits)?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());
         parquet_descriptors.push(parquet_descr);
@@ -102,15 +109,13 @@ pub fn merge_sorted(
         io_threads,
     )?;
 
-    // Precompute column mappings per cursor (avoids per-batch name lookups)
     let col_mappings: Vec<ColumnMapping> = arrow_schemas.iter()
         .map(|s| ColumnMapping::new(s, ctx.data_schema()))
         .collect();
 
-    // Row-ID mapping: pre-allocate the flat mapping array and compute offsets
-    // from file metadata row counts (known before reading any data).
+    // Row-ID mapping: sized to total source rows; dead rows map to -1.
     let total_rows: usize = file_row_counts.iter().sum();
-    let mut mapping: Vec<i64> = vec![0i64; total_rows];
+    let mut mapping: Vec<i64> = vec![-1i64; total_rows];
     let mut gen_keys: Vec<i64> = Vec::with_capacity(num_cursors);
     let mut gen_offsets: Vec<i32> = Vec::with_capacity(num_cursors);
     let mut gen_sizes: Vec<i32> = Vec::with_capacity(num_cursors);
@@ -124,8 +129,6 @@ pub fn merge_sorted(
         offset += size;
     }
 
-    // Per-file counters: tracks how many rows have been emitted from each file
-    let mut rows_emitted_per_file: Vec<usize> = vec![0; num_cursors];
     let mut new_row_id: i64 = 0;
 
     log_debug!(
@@ -138,6 +141,10 @@ pub fn merge_sorted(
     let reverse_sorts_arc = Arc::new(reverse_sorts.to_vec());
     let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(num_cursors);
     for cursor in &cursors {
+        // Cursors with all-dead data are already exhausted — skip.
+        if cursor.current_batch.is_none() {
+            continue;
+        }
         let sv = cursor.current_sort_values()?;
         heap.push(HeapItem {
             sort_values: sv,
@@ -152,21 +159,27 @@ pub fn merge_sorted(
 
         // TIER 1: Single cursor remaining — drain it
         if heap.is_empty() {
-            let cursor = &mut cursors[file_id];
-            let col_mapping = &col_mappings[file_id];
             let file_offset = gen_offsets[file_id] as usize;
             loop {
-                let remaining = cursor.batch_height() - cursor.row_idx;
+                let (remaining, start_idx, base_row_id) = {
+                    let cursor = &cursors[file_id];
+                    (cursor.batch_height() - cursor.row_idx, cursor.row_idx, cursor.base_row_id)
+                };
                 if remaining > 0 {
-                    let slice = cursor.take_slice(cursor.row_idx, remaining);
-                    for _ in 0..remaining {
-                        mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
-                        rows_emitted_per_file[file_id] += 1;
-                        new_row_id += 1;
+                    let slice = cursors[file_id].take_live_slice(start_idx, remaining)?;
+                    // Build mapping for surviving rows
+                    for i in 0..remaining {
+                        let abs = base_row_id + (start_idx + i) as u64;
+                        if cursors[file_id].is_row_id_alive(abs) {
+                            mapping[file_offset + abs as usize] = new_row_id;
+                            new_row_id += 1;
+                        }
                     }
-                    ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
+                    if slice.num_rows() > 0 {
+                        ctx.push_batch(col_mappings[file_id].pad_batch(&slice)?)?;
+                    }
                 }
-                if !cursor.advance_past_batch()? {
+                if !cursors[file_id].advance_past_batch()? {
                     break;
                 }
             }
@@ -174,74 +187,87 @@ pub fn merge_sorted(
         }
 
         // TIER 2 & 3: Multiple cursors active
-        let cursor = &mut cursors[file_id];
-        let col_mapping = &col_mappings[file_id];
         let file_offset = gen_offsets[file_id] as usize;
 
         loop {
             let heap_top = &heap.peek().unwrap().sort_values;
 
             // TIER 2: Entire remaining batch fits before heap top
-            let last_val = cursor.last_sort_values()?;
+            let last_val = cursors[file_id].last_sort_values()?;
             if cmp_sort_values(&last_val, heap_top, reverse_sorts) != Ordering::Greater {
-                let remaining = cursor.batch_height() - cursor.row_idx;
-                let slice = cursor.take_slice(cursor.row_idx, remaining);
-                for _ in 0..remaining {
-                    mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
-                    rows_emitted_per_file[file_id] += 1;
-                    new_row_id += 1;
+                let (remaining, start_idx, base_row_id) = {
+                    let cursor = &cursors[file_id];
+                    (cursor.batch_height() - cursor.row_idx, cursor.row_idx, cursor.base_row_id)
+                };
+                let slice = cursors[file_id].take_live_slice(start_idx, remaining)?;
+                for i in 0..remaining {
+                    let abs = base_row_id + (start_idx + i) as u64;
+                    if cursors[file_id].is_row_id_alive(abs) {
+                        mapping[file_offset + abs as usize] = new_row_id;
+                        new_row_id += 1;
+                    }
                 }
-                ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
+                if slice.num_rows() > 0 {
+                    ctx.push_batch(col_mappings[file_id].pad_batch(&slice)?)?;
+                }
 
-                if !cursor.advance_past_batch()? {
+                if !cursors[file_id].advance_past_batch()? {
                     break;
                 }
                 continue;
             }
 
             // TIER 3: Binary search for the exact boundary
-            let run_start = cursor.row_idx;
-            let batch_h = cursor.batch_height();
-            let batch = cursor.current_batch.as_ref().unwrap();
+            let run_start = cursors[file_id].row_idx;
+            let batch_h = cursors[file_id].batch_height();
+            let base_row_id = cursors[file_id].base_row_id;
 
             let mut lo = run_start;
             let mut hi = batch_h - 1;
 
-            while lo + 1 < hi {
-                let mid = lo + (hi - lo) / 2;
-                let mid_val = get_sort_values(
-                    batch,
-                    mid,
-                    &cursor.sort_col_indices,
-                    &cursor.sort_col_types,
-                    &cursor.nulls_first,
-                )?;
+            {
+                let cursor = &cursors[file_id];
+                let batch = cursor.current_batch.as_ref().unwrap();
+                while lo + 1 < hi {
+                    let mid = lo + (hi - lo) / 2;
+                    let mid_val = get_sort_values(
+                        batch,
+                        mid,
+                        &cursor.sort_col_indices,
+                        &cursor.sort_col_types,
+                        &cursor.nulls_first,
+                    )?;
 
-                if cmp_sort_values(&mid_val, heap_top, reverse_sorts) != Ordering::Greater {
-                    lo = mid;
-                } else {
-                    hi = mid;
+                    if cmp_sort_values(&mid_val, heap_top, reverse_sorts) != Ordering::Greater {
+                        lo = mid;
+                    } else {
+                        hi = mid;
+                    }
                 }
             }
             let run_end = lo;
-
             let run_len = run_end - run_start + 1;
+
             if run_len > 0 {
-                let slice = cursor.take_slice(run_start, run_len);
-                for _ in 0..run_len {
-                    mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
-                    rows_emitted_per_file[file_id] += 1;
-                    new_row_id += 1;
+                let slice = cursors[file_id].take_live_slice(run_start, run_len)?;
+                for i in 0..run_len {
+                    let abs = base_row_id + (run_start + i) as u64;
+                    if cursors[file_id].is_row_id_alive(abs) {
+                        mapping[file_offset + abs as usize] = new_row_id;
+                        new_row_id += 1;
+                    }
                 }
-                ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
+                if slice.num_rows() > 0 {
+                    ctx.push_batch(col_mappings[file_id].pad_batch(&slice)?)?;
+                }
             }
 
-            cursor.row_idx = run_end;
-            if !cursor.advance()? {
+            cursors[file_id].row_idx = run_end;
+            if !cursors[file_id].advance()? {
                 break;
             }
 
-            let next_val = cursor.current_sort_values()?;
+            let next_val = cursors[file_id].current_sort_values()?;
             if cmp_sort_values(&next_val, heap_top, reverse_sorts) == Ordering::Greater {
                 heap.push(HeapItem {
                     sort_values: next_val,

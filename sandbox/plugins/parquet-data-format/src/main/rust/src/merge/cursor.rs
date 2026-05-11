@@ -9,7 +9,8 @@
 use std::fs::File;
 use std::sync::{Arc, Mutex};
 
-use arrow::array::RecordBatch;
+use arrow::array::{BooleanArray, RecordBatch};
+use arrow::compute::filter_record_batch;
 use arrow::datatypes::{DataType as ArrowDataType, Schema as ArrowSchema};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::schema::types::SchemaDescriptor;
@@ -22,7 +23,9 @@ use super::schema::projection_indices_excluding_row_id;
 /// A cursor over a single sorted Parquet input file.
 ///
 /// Each cursor reads batches sequentially and prefetches the next batch on the
-/// shared Rayon pool to overlap IO with merge computation.
+/// shared Rayon pool to overlap IO with merge computation. When `live_bits` is
+/// `Some`, dead rows are skipped so `row_idx` always points at a live row (or the
+/// cursor is exhausted).
 pub struct FileCursor {
     reader: Arc<Mutex<parquet::arrow::arrow_reader::ParquetRecordBatchReader>>,
     prefetch_rx: std::sync::mpsc::Receiver<Option<MergeResult<RecordBatch>>>,
@@ -34,19 +37,47 @@ pub struct FileCursor {
     pub sort_col_indices: Vec<usize>,
     pub sort_col_types: Vec<ArrowDataType>,
     pub nulls_first: Vec<bool>,
+    /// Packed live-docs bitset in Lucene `FixedBitSet#getBits()` layout. `None` = all alive.
+    live_bits: Option<Arc<Vec<u64>>>,
+    /// Total source rows. Bits at indices `>= num_rows` are ignored.
+    num_rows: u64,
+    /// Source row-id offset at the start of the current batch.
+    pub base_row_id: u64,
 }
 
 impl FileCursor {
-    /// Opens a Parquet file and creates a cursor positioned at the first row.
+    /// Returns `true` if the given absolute source row id is alive.
+    #[inline]
+    pub fn is_row_id_alive(&self, abs_row_id: u64) -> bool {
+        match &self.live_bits {
+            None => true,
+            Some(bits) => {
+                // Bits beyond num_rows / bitset length are treated as alive (defensive).
+                if abs_row_id >= self.num_rows {
+                    return true;
+                }
+                let word = (abs_row_id / 64) as usize;
+                let bit = (abs_row_id % 64) as u64;
+                match bits.get(word) {
+                    Some(&w) => (w & (1u64 << bit)) != 0,
+                    None => true,
+                }
+            }
+        }
+    }
+
+    /// Opens a Parquet file and creates a cursor positioned at the first live row.
     ///
-    /// Returns `(cursor, projected_arrow_schema, parquet_schema_descriptor, writer_generation)`
-    /// so the caller can build union schemas without re-opening the file.
+    /// Returns `(cursor, projected_arrow_schema, parquet_schema_descriptor, writer_generation, total_row_count)`
+    /// so the caller can build union schemas and row-ID mappings without re-opening the file.
+    /// `live_bits` is an optional packed bitset of live rows (Lucene layout).
     pub fn new(
         path: &str,
         file_id: usize,
         sort_columns: &[String],
         nulls_first: &[bool],
         batch_size: usize,
+        live_bits: Option<Arc<Vec<u64>>>,
     ) -> MergeResult<(Self, Arc<ArrowSchema>, SchemaDescriptor, i64, usize)> {
         let file = File::open(path)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
@@ -125,11 +156,43 @@ impl FileCursor {
             sort_col_indices,
             sort_col_types,
             nulls_first: nulls_first.to_vec(),
+            live_bits,
+            num_rows: total_row_count as u64,
+            base_row_id: 0,
         };
 
         cursor.start_prefetch();
+        cursor.skip_to_next_live_row()?;
 
         Ok((cursor, projected_schema, parquet_schema_descr, writer_generation, total_row_count))
+    }
+
+    /// Returns `true` if the given absolute source row id is alive.
+    #[inline]
+    fn is_current_row_alive(&self) -> bool {
+        self.is_row_id_alive(self.base_row_id + self.row_idx as u64)
+    }
+
+    /// Advances `row_idx` past dead rows, loading successor batches as needed.
+    /// After this, either `row_idx` points at a live row or the cursor is exhausted.
+    fn skip_to_next_live_row(&mut self) -> MergeResult<()> {
+        if self.live_bits.is_none() {
+            return Ok(());
+        }
+        loop {
+            let Some(batch) = self.current_batch.as_ref() else {
+                return Ok(());
+            };
+            while self.row_idx < batch.num_rows() && !self.is_current_row_alive() {
+                self.row_idx += 1;
+            }
+            if self.row_idx < batch.num_rows() {
+                return Ok(());
+            }
+            if !self.load_next_batch()? {
+                return Ok(());
+            }
+        }
     }
 
     fn start_prefetch(&mut self) {
@@ -153,10 +216,12 @@ impl FileCursor {
     }
 
     pub fn load_next_batch(&mut self) -> MergeResult<bool> {
+        let prev_rows = self.current_batch.as_ref().map(|b| b.num_rows() as u64).unwrap_or(0);
         self.current_batch = None;
 
         match self.prefetch_rx.recv() {
             Ok(Some(Ok(batch))) => {
+                self.base_row_id += prev_rows;
                 self.current_batch = Some(batch);
                 self.row_idx = 0;
                 self.prefetch_pending = false;
@@ -183,19 +248,40 @@ impl FileCursor {
         get_sort_values(batch, self.row_idx, &self.sort_col_indices, &self.sort_col_types, &self.nulls_first)
     }
 
-    #[inline]
+    /// Returns sort values at the cursor's last live row in the current batch.
     pub fn last_sort_values(&self) -> MergeResult<Vec<SortKey>> {
         let batch = self
             .current_batch
             .as_ref()
             .ok_or_else(|| MergeError::Logic("Cursor exhausted".into()))?;
+        let end_excl = self.last_live_index_plus_one(batch.num_rows());
+        assert!(end_excl > self.row_idx, "last_sort_values called on cursor with no live row");
         get_sort_values(
             batch,
-            batch.num_rows() - 1,
+            end_excl - 1,
             &self.sort_col_indices,
             &self.sort_col_types,
             &self.nulls_first,
         )
+    }
+
+    /// One past the highest live-row index within `[0, batch_upper)`.
+    #[inline]
+    fn last_live_index_plus_one(&self, batch_upper: usize) -> usize {
+        match &self.live_bits {
+            None => batch_upper,
+            Some(_) => {
+                let mut i = batch_upper;
+                while i > 0 {
+                    let idx = i - 1;
+                    if self.is_row_id_alive(self.base_row_id + idx as u64) {
+                        return i;
+                    }
+                    i -= 1;
+                }
+                0
+            }
+        }
     }
 
     #[inline]
@@ -203,9 +289,23 @@ impl FileCursor {
         self.current_batch.as_ref().map_or(0, |b| b.num_rows())
     }
 
-    #[inline]
-    pub fn take_slice(&self, start: usize, len: usize) -> RecordBatch {
-        self.current_batch.as_ref().unwrap().slice(start, len)
+    /// Returns the sub-batch `[start, start+len)` with dead rows filtered out.
+    /// Zero-copy when `live_bits` is `None`.
+    pub fn take_live_slice(&self, start: usize, len: usize) -> MergeResult<RecordBatch> {
+        let batch = self.current_batch.as_ref().unwrap();
+        let slice = batch.slice(start, len);
+        match &self.live_bits {
+            None => Ok(slice),
+            Some(_) => {
+                let mut mask_values: Vec<bool> = Vec::with_capacity(len);
+                let start_abs = self.base_row_id + start as u64;
+                for i in 0..len {
+                    mask_values.push(self.is_row_id_alive(start_abs + i as u64));
+                }
+                let mask = BooleanArray::from(mask_values);
+                Ok(filter_record_batch(&slice, &mask)?)
+            }
+        }
     }
 
     pub fn advance(&mut self) -> MergeResult<bool> {
@@ -214,14 +314,25 @@ impl FileCursor {
         }
         self.row_idx += 1;
         if self.row_idx >= self.current_batch.as_ref().unwrap().num_rows() {
-            self.current_batch = None;
-            return self.load_next_batch();
+            if !self.load_next_batch()? {
+                return Ok(false);
+            }
+        }
+        if self.live_bits.is_some() {
+            self.skip_to_next_live_row()?;
+            return Ok(self.current_batch.is_some());
         }
         Ok(true)
     }
 
     pub fn advance_past_batch(&mut self) -> MergeResult<bool> {
-        self.current_batch = None;
-        self.load_next_batch()
+        if !self.load_next_batch()? {
+            return Ok(false);
+        }
+        if self.live_bits.is_some() {
+            self.skip_to_next_live_row()?;
+            return Ok(self.current_batch.is_some());
+        }
+        Ok(true)
     }
 }

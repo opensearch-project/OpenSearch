@@ -65,6 +65,36 @@ unsafe fn bool_array_from_raw(
     (0..n).map(|i| *vals.add(i) != 0).collect()
 }
 
+/// Decode a parallel array of (pointer, length) pairs into a vector of owned `u64` bitsets.
+/// Each entry corresponds to one input file. Null pointer or zero length ⇒ "all alive".
+/// Bitsets use Lucene `FixedBitSet#getBits()` layout.
+unsafe fn live_bits_array_from_raw(
+    ptrs: *const *const i64,
+    lens: *const i64,
+    count: i64,
+) -> Vec<Option<Vec<u64>>> {
+    if count == 0 || lens.is_null() {
+        return vec![];
+    }
+    let n = count as usize;
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let l = *lens.add(i);
+        if l <= 0 || ptrs.is_null() {
+            out.push(None);
+            continue;
+        }
+        let p = *ptrs.add(i);
+        if p.is_null() {
+            out.push(None);
+            continue;
+        }
+        let slice = slice::from_raw_parts(p as *const u64, l as usize);
+        out.push(Some(slice.to_vec()));
+    }
+    out
+}
+
 // ---------------------------------------------------------------------------
 // Writer lifecycle
 // ---------------------------------------------------------------------------
@@ -303,6 +333,11 @@ pub unsafe extern "C" fn parquet_merge_files(
     out_gen_offsets_ptr: *mut i64,
     out_gen_sizes_ptr: *mut i64,
     out_gen_count: *mut i64,
+    // Per-input live-docs bitsets (parallel to input_ptrs) in Lucene `FixedBitSet#getBits()`
+    // layout. Pass `live_bits_count == 0`, or per-file length 0, for "all alive".
+    live_bits_ptrs: *const *const i64,
+    live_bits_lens: *const i64,
+    live_bits_count: i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
@@ -310,6 +345,12 @@ pub unsafe extern "C" fn parquet_merge_files(
         .map_err(|e| format!("parquet_merge_files output: {}", e))?;
     let index_name = str_from_raw(index_name_ptr, index_name_len)
         .map_err(|e| format!("parquet_merge_files index_name: {}", e))?;
+
+    // Decode live-docs; pad with None to cover every input file.
+    let mut live_docs = live_bits_array_from_raw(live_bits_ptrs, live_bits_lens, live_bits_count);
+    if live_docs.len() < input_files.len() {
+        live_docs.resize(input_files.len(), None);
+    }
 
     let (sort_cols, reverse_flags, nulls_first_flags) = match SETTINGS_STORE.get(index_name) {
         Some(s) => {
@@ -331,7 +372,7 @@ pub unsafe extern "C" fn parquet_merge_files(
     };
 
     let result = if sort_cols.is_empty() {
-        merge::merge_unsorted(&input_files, output_path, index_name)
+        merge::merge_unsorted(&input_files, output_path, index_name, &live_docs)
     } else {
         merge::merge_sorted(
             &input_files,
@@ -340,6 +381,7 @@ pub unsafe extern "C" fn parquet_merge_files(
             &sort_cols,
             &reverse_flags,
             &nulls_first_flags,
+            &live_docs,
         )
     }
     .map_err(|e| format!("{}", e))?;
