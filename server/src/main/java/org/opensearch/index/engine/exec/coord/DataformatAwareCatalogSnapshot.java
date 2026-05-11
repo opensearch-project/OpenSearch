@@ -300,27 +300,6 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         this.lastCommitGeneration = commitGeneration;
     }
 
-    /**
-     * Builds a synthetic (zero-segment) Lucene {@code SegmentInfos} whose {@code userData} carries
-     * this snapshot's userData plus the serialized catalog snapshot, then serializes it to bytes.
-     * Invoked by {@code RemoteSegmentStoreDirectory.uploadMetadata} at upload time — no engine
-     * state is touched here; the upload listener has already refreshed checkpoints on this snapshot
-     * before calling.
-     */
-    @Override
-    public byte[] serialize() throws IOException {
-        return SyntheticSegmentInfos.serialize(this);
-    }
-
-    /**
-     * Serializes using {@code luceneInMemoryInfos} as the base {@link SegmentInfos} when
-     * non-null, otherwise falls back to an empty base. The catalog is layered into
-     * {@code userData} either way. Pass a non-null value when the primary engine has a
-     * Lucene {@code IndexWriter} so uploaded bytes carry real segment references.
-     */
-    public byte[] serialize(org.apache.lucene.index.SegmentInfos luceneInMemoryInfos) throws IOException {
-        return SyntheticSegmentInfos.serialize(this, luceneInMemoryInfos);
-    }
 
     @Override
     public SegmentInfos getSegmentInfos() {

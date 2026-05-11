@@ -198,14 +198,6 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
         return segmentInfos.getSegmentsFileName();
     }
 
-    /** Serializes the wrapped in-memory {@link SegmentInfos}. No disk read. */
-    @Override
-    public byte[] serialize() throws IOException {
-        ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
-        segmentInfos.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos"));
-        return byteBuffersIndexOutput.toArrayCopy();
-    }
-
     @Override
     public Collection<String> getFiles(boolean includeSegmentsFile) throws IOException {
         return segmentInfos.files(includeSegmentsFile);

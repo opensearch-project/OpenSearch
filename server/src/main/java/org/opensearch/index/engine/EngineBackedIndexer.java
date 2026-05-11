@@ -10,6 +10,8 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
@@ -410,6 +412,18 @@ public class EngineBackedIndexer implements Indexer {
         GatedCloseable<SegmentInfos> segmentInfosRef = engine.getSegmentInfosSnapshot();
         SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfosRef.get());
         return new GatedCloseable<>(snapshot, segmentInfosRef::close);
+    }
+
+    @Override
+    public byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot sicSnapshot) {
+            ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+            sicSnapshot.getSegmentInfos().write(new ByteBuffersIndexOutput(out, "DFA upload SegmentInfos", "DFA upload SegmentInfos"));
+            return out.toArrayCopy();
+        }
+        throw new IllegalStateException(
+            "EngineBackedIndexer expects SegmentInfosCatalogSnapshot but got: " + catalogSnapshot.getClass().getName()
+        );
     }
 
     @Override

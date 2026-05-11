@@ -41,4 +41,14 @@ public interface CommitFileManager {
      * @param fileName the file name to check
      */
     boolean isCommitManagedFile(String fileName);
+
+    /**
+     * Serializes the given {@link CatalogSnapshot} into bytes that can be uploaded as the
+     * Lucene {@code SegmentInfos} payload in the remote metadata. Default produces an empty
+     * byte array; format-specific implementations override (e.g., {@code LuceneCommitter}
+     * uses the {@link org.apache.lucene.index.DirectoryReader} registered for the snapshot).
+     */
+    default byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
+        return new byte[0];
+    }
 }

@@ -742,6 +742,11 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     }
 
     @Override
+    public byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
+        throw new UnsupportedOperationException("Replica engine does not produce upload metadata bytes");
+    }
+
+    @Override
     public void ensureOpen() {
         if (isClosed.get()) {
             throw new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
