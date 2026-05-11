@@ -23,8 +23,13 @@
 ///   is re-applied by NativeBridgeModule.createComponents() — these compile-time values are
 ///   only used until that point.
 /// - lg_tcache_max: NOT dynamically tunable by jemalloc — init-time only, requires process restart to change.
+/// - prof:true,prof_active:false: Enables profiling infrastructure at startup but keeps sampling
+///   inactive (zero overhead). This is required so that operators can activate/deactivate profiling
+///   at runtime via cluster settings without restarting the process. jemalloc does not allow
+///   enabling prof after initialization — it must be set at startup or not at all.
+/// - lg_prof_sample:17: sample every ~128KB of allocation when profiling is active.
 #[export_name = "malloc_conf"]
-pub static MALLOC_CONF: &[u8] = b"dirty_decay_ms:30000,muzzy_decay_ms:30000,lg_tcache_max:16\0";
+pub static MALLOC_CONF: &[u8] = b"dirty_decay_ms:30000,muzzy_decay_ms:30000,lg_tcache_max:16,prof:true,prof_active:false,lg_prof_sample:17\0";
 
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;

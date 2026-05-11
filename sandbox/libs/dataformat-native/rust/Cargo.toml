@@ -52,7 +52,7 @@ log = "0.4"
 # Without it, jemalloc uses initial-exec TLS which fails on aarch64 Linux with:
 #   "cannot allocate memory in static TLS block"
 # The feature switches to global-dynamic TLS model, compatible with runtime loading.
-tikv-jemallocator = { version = "0.6", features = ["disable_initial_exec_tls"] }
+tikv-jemallocator = { version = "0.6", features = ["disable_initial_exec_tls", "profiling"] }
 tikv-jemalloc-ctl = { version = "0.6", features = ["stats"] }
 
 # Misc
