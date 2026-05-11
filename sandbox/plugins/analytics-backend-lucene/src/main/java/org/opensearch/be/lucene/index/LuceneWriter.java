@@ -17,12 +17,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.engine.dataformat.DeleteInput;
+import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -32,6 +35,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * Per-generation Lucene writer that creates segments in an isolated temporary directory.
@@ -226,5 +230,27 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             logger.warn("Failed to close directory for generation[{}]: {}", writerGeneration, e);
         }
         IOUtils.rm(tempDirectory);
+    }
+
+    /**
+     * Deletes all documents containing the given term from this writer's {@link IndexWriter}.
+     *
+     * @param deleteInput the {@code _id} term identifying the document(s) to delete
+     * @return the result of the delete operation
+     * @throws IOException if a low-level I/O error occurs
+     */
+    @Override
+    public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
+        Term uid = new Term(deleteInput.fieldName(), deleteInput.value());
+        indexWriter.deleteDocuments(uid);
+        return new DeleteResult.Success(1L, 1L, 1L);
+    }
+
+    @Override
+    public Optional<Writer<?>> getWriterForFormat(String formatName) {
+        if (LuceneDataFormat.LUCENE_FORMAT_NAME.equals(formatName)) {
+            return Optional.of(this);
+        }
+        return Optional.empty();
     }
 }
