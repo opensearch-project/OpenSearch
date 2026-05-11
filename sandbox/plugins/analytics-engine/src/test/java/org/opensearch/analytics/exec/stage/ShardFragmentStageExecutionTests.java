@@ -21,7 +21,6 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
-import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -30,13 +29,11 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -73,7 +70,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         AtomicReference<StreamingResponseListener<FragmentExecutionArrowResponse>> capturedListener = new AtomicReference<>();
         CapturingSink sink = new CapturingSink();
 
-        ShardFragmentStageExecution exec = buildExecution(sink, true, capturedListener);
+        ShardFragmentStageExecution exec = buildExecution(sink, capturedListener);
         exec.start();
 
         assertNotNull("listener should have been captured by dispatch", capturedListener.get());
@@ -99,7 +96,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         AtomicReference<StreamingResponseListener<FragmentExecutionArrowResponse>> capturedListener = new AtomicReference<>();
         CapturingSink sink = new CapturingSink();
 
-        ShardFragmentStageExecution exec = buildExecution(sink, true, capturedListener);
+        ShardFragmentStageExecution exec = buildExecution(sink, capturedListener);
         exec.start();
 
         VectorSchemaRoot root = createTestBatch(3);
@@ -111,108 +108,24 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         sink.close();
     }
 
-    /**
-     * Verifies that non-Arrow (row codec) responses don't crash
-     * the release path on cancellation (they hold no Arrow resources).
-     */
-    public void testRowResponseSafeOnCancellation() {
-        AtomicReference<StreamingResponseListener<FragmentExecutionResponse>> capturedListener = new AtomicReference<>();
-        CapturingSink sink = new CapturingSink();
-
-        ShardFragmentStageExecution exec = buildExecution(sink, false, capturedListener);
-        exec.start();
-
-        exec.cancel("test");
-
-        FragmentExecutionResponse response = new FragmentExecutionResponse(new byte[0], 0);
-        capturedListener.get().onStreamResponse(response, true);
-
-        assertTrue("sink should not have received anything post-cancel", sink.fed.isEmpty());
-    }
-
-    /**
-     * Reproduces the lookahead-reordering bug: if the listener offloads
-     * {@code onStreamResponse} bodies onto a multi-threaded executor, the
-     * {@code isLast=true} task can complete before earlier batches' tasks
-     * have started — flipping the stage to SUCCEEDED so the still-queued
-     * earlier tasks short-circuit via {@code isDone()} and drop their data.
-     *
-     * <p>Forces the worst-case schedule deterministically with a manual
-     * executor that runs tasks in reverse submission order.
-     */
-    public void testListenerPreservesBatchesAcrossReorderedExecution() {
-        AtomicReference<StreamingResponseListener<FragmentExecutionArrowResponse>> capturedListener = new AtomicReference<>();
-        CapturingSink sink = new CapturingSink();
-        ManualExecutor manualExecutor = new ManualExecutor();
-
-        ShardFragmentStageExecution exec = buildExecution(sink, true, capturedListener, manualExecutor);
-        exec.start();
-
-        FragmentExecutionArrowResponse first = new FragmentExecutionArrowResponse(createTestBatch(2));
-        FragmentExecutionArrowResponse last = new FragmentExecutionArrowResponse(createTestBatch(3));
-
-        capturedListener.get().onStreamResponse(first, false);
-        capturedListener.get().onStreamResponse(last, true);
-
-        // Force the bug's worst case: isLast=true task runs first, transitions
-        // to SUCCEEDED; the earlier task then sees isDone()=true if the
-        // implementation is still offloading to the executor.
-        manualExecutor.runInReverseOrder();
-
-        assertEquals("both batches must be fed despite reverse-order execution", 2, sink.fed.size());
-        sink.close();
-    }
-
-    /**
-     * Verifies that RowResponseCodec rejects null allocator.
-     */
-    public void testRowResponseCodecRejectsNullAllocator() {
-        FragmentExecutionResponse response = new FragmentExecutionResponse(new byte[0], 0);
-        expectThrows(IllegalArgumentException.class, () -> RowResponseCodec.INSTANCE.decode(response, null));
-    }
-
     // ── helpers ──────────────────────────────────────────────────────────
 
-    @SuppressWarnings("unchecked")
-    private <T extends ActionResponse> ShardFragmentStageExecution buildExecution(
+    private ShardFragmentStageExecution buildExecution(
         CapturingSink sink,
-        boolean streaming,
-        AtomicReference<StreamingResponseListener<T>> listenerCapture
-    ) {
-        return buildExecution(sink, streaming, listenerCapture, Runnable::run);
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T extends ActionResponse> ShardFragmentStageExecution buildExecution(
-        CapturingSink sink,
-        boolean streaming,
-        AtomicReference<StreamingResponseListener<T>> listenerCapture,
-        Executor searchExecutor
+        AtomicReference<StreamingResponseListener<FragmentExecutionArrowResponse>> listenerCapture
     ) {
         Stage stage = mockStage();
-        QueryContext config = mockQueryContext(searchExecutor);
+        QueryContext config = mockQueryContext();
         ClusterService clusterService = mockClusterService();
         AnalyticsSearchTransportService dispatcher = mock(AnalyticsSearchTransportService.class);
-        when(dispatcher.isStreamingEnabled()).thenReturn(streaming);
 
-        if (streaming) {
-            doAnswer(invocation -> {
-                StreamingResponseListener<T> listener = (StreamingResponseListener<T>) invocation.getArgument(2);
-                listenerCapture.set(listener);
-                return null;
-            }).when(dispatcher).dispatchFragmentStreaming(any(), any(), any(), any(), any());
-        } else {
-            doAnswer(invocation -> {
-                StreamingResponseListener<T> listener = (StreamingResponseListener<T>) invocation.getArgument(2);
-                listenerCapture.set(listener);
-                return null;
-            }).when(dispatcher).dispatchFragment(any(), any(), any(), any(), any());
-        }
-
-        ResponseCodec<FragmentExecutionResponse> codec = (resp, alloc) -> {
-            VectorSchemaRoot vsr = createTestBatch(resp.getRowCount());
-            return vsr;
-        };
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            StreamingResponseListener<FragmentExecutionArrowResponse> listener = (StreamingResponseListener<
+                FragmentExecutionArrowResponse>) invocation.getArgument(2);
+            listenerCapture.set(listener);
+            return null;
+        }).when(dispatcher).dispatchFragmentStreaming(any(), any(), any(), any(), any());
 
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder = target -> new FragmentExecutionRequest(
             "test-query",
@@ -221,7 +134,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
             List.of(new FragmentExecutionRequest.PlanAlternative("test-backend", new byte[0], List.of()))
         );
 
-        return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, dispatcher, codec);
+        return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, dispatcher);
     }
 
     private VectorSchemaRoot createTestBatch(int rows) {
@@ -250,37 +163,12 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     }
 
     private QueryContext mockQueryContext() {
-        return mockQueryContext(Runnable::run);
-    }
-
-    private QueryContext mockQueryContext(Executor searchExecutor) {
         QueryContext config = mock(QueryContext.class);
-        when(config.searchExecutor()).thenReturn(searchExecutor);
+        when(config.searchExecutor()).thenReturn(Runnable::run);
         when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
         when(config.maxConcurrentShardRequests()).thenReturn(5);
         when(config.bufferAllocator()).thenReturn(allocator);
         return config;
-    }
-
-    /**
-     * Test executor that records submitted tasks instead of running them.
-     * Run them explicitly in any order to deterministically simulate the
-     * worst-case multi-thread completion order on a real pool.
-     */
-    private static final class ManualExecutor implements Executor {
-        private final List<Runnable> queue = new ArrayList<>();
-
-        @Override
-        public synchronized void execute(Runnable command) {
-            queue.add(command);
-        }
-
-        synchronized void runInReverseOrder() {
-            for (int i = queue.size() - 1; i >= 0; i--) {
-                queue.get(i).run();
-            }
-            queue.clear();
-        }
     }
 
     private ClusterService mockClusterService() {
