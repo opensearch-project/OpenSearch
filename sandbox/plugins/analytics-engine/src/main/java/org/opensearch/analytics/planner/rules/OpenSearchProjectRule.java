@@ -82,6 +82,8 @@ public class OpenSearchProjectRule extends RelOptRule {
         SqlStdOperatorTable.DIVIDE,
         SqlStdOperatorTable.UNARY_MINUS,
         SqlStdOperatorTable.UNARY_PLUS,
+        // Math (emitted by Calcite's AggregateReduceFunctionsRule for STDDEV: POWER(v, 0.5) = sqrt)
+        SqlStdOperatorTable.POWER,
         // Type coercion
         SqlStdOperatorTable.CAST,
         // Null handling

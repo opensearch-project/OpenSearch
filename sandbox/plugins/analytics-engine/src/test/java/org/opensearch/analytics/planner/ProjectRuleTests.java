@@ -262,8 +262,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     // ---- Nested expressions ----
 
     public void testNestedScalarFunctions() {
-        // POWER(CEIL(v_int), v_int) — outer and inner both capability-declared scalars so
-        // annotation happens at both levels. CAST / PLUS are baseline scalars (see
+        // FLOOR(CEIL(v_int)) — outer and inner both capability-declared scalars so
+        // annotation happens at both levels. CAST / PLUS / POWER are baseline scalars (see
         // OpenSearchProjectRule.BASELINE_SCALAR_OPS) and are deliberately not used here
         // because they bypass capability enforcement and would not produce an
         // AnnotatedProjectExpression.
@@ -271,36 +271,32 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             SqlStdOperatorTable.CEIL,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
         );
-        RexNode powerExpr = rexBuilder.makeCall(
-            SqlStdOperatorTable.POWER,
-            ceilExpr,
-            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
-        );
-        OpenSearchProject result = runProject(powerExpr);
+        RexNode outerExpr = rexBuilder.makeCall(SqlStdOperatorTable.FLOOR, ceilExpr);
+        OpenSearchProject result = runProject(outerExpr);
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
     }
 
     public void testStripAnnotationsRecursivelyUnwrapsNestedExpressions() {
-        // POWER(CEIL(value), value) — a non-baseline scalar call with another non-baseline
+        // FLOOR(CEIL(value)) — a non-baseline scalar call with another non-baseline
         // scalar call as an operand. The project rule recurses into operands
-        // (annotateExpr), so both POWER and the inner CEIL get wrapped in
+        // (annotateExpr), so both FLOOR and the inner CEIL get wrapped in
         // AnnotatedProjectExpression. stripAnnotations must remove every wrapper at every
         // depth before the plan reaches the backend FragmentConvertor — Substrait isthmus
         // has no converter for ANNOTATED_PROJECT_EXPR and would throw "Unable to convert
         // call".
         //
-        // PLUS was used previously but is baseline (see OpenSearchProjectRule
-        // .BASELINE_SCALAR_OPS); POWER preserves the nested-call-with-nested-annotation
-        // structure this test exercises while still going through capability resolution.
+        // PLUS / POWER are baseline (see OpenSearchProjectRule.BASELINE_SCALAR_OPS), so
+        // this test uses FLOOR+CEIL to preserve the nested-call-with-nested-annotation
+        // structure while still going through capability resolution.
         RexNode value = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1);
         RexNode ceilCall = rexBuilder.makeCall(SqlStdOperatorTable.CEIL, value);
-        RexNode powerCall = rexBuilder.makeCall(SqlStdOperatorTable.POWER, ceilCall, value);
-        OpenSearchProject annotated = runProject(powerCall);
+        RexNode floorCall = rexBuilder.makeCall(SqlStdOperatorTable.FLOOR, ceilCall);
+        OpenSearchProject annotated = runProject(floorCall);
 
         // Sanity: confirm the rule produced the nested-wrapper shape this test exercises.
         RexNode topLevel = annotated.getProjects().get(0);
-        assertTrue("Outer POWER must be annotated", topLevel instanceof AnnotatedProjectExpression);
+        assertTrue("Outer FLOOR must be annotated", topLevel instanceof AnnotatedProjectExpression);
         RexCall outerOriginal = (RexCall) ((AnnotatedProjectExpression) topLevel).getOriginal();
         assertTrue(
             "Inner CEIL must also be annotated (recursive annotateExpr behavior)",
