@@ -71,6 +71,13 @@ jsonpath-rust = "=0.7.5"
 # mvfind UDF — regex matching against stringified array elements
 regex = "=1.12.3"
 
+# Cryptographic hash UDFs. `sha1` is a dedicated crate (RFC 3174); DataFusion
+# only exposes SHA-2 variants via its `digest` UDF. `crc32fast` is a SIMD-accelerated
+# IEEE 802.3 CRC-32 implementation used by `crc32`; also pulled in via workspace
+# for parquet metadata (`crc32fast = "1.4"`) so adding it here is a zero-cost alias.
+sha1 = "0.11"
+crc32fast = { workspace = true }
+
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
