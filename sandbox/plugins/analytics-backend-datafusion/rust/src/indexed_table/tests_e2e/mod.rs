@@ -18,7 +18,7 @@
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-use datafusion::arrow::array::{Array, Int32Array, StringArray};
+use datafusion::arrow::array::{Array, Int32Array, Int64Array, StringArray};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::ScalarValue;
@@ -104,11 +104,13 @@ fn build_fixture_schema() -> SchemaRef {
         Field::new("price", DataType::Int32, false),
         Field::new("status", DataType::Utf8, false),
         Field::new("category", DataType::Utf8, false),
+        Field::new("___row_id", DataType::Int64, false),
     ]))
 }
 
 fn write_fixture_parquet() -> NamedTempFile {
     let schema = build_fixture_schema();
+    let row_ids: Vec<i64> = (0..16).collect();
     let batch = RecordBatch::try_new(
         schema.clone(),
         vec![
@@ -116,6 +118,7 @@ fn write_fixture_parquet() -> NamedTempFile {
             Arc::new(Int32Array::from(PRICES.to_vec())),
             Arc::new(StringArray::from(STATUSES.to_vec())),
             Arc::new(StringArray::from(CATEGORIES.to_vec())),
+            Arc::new(Int64Array::from(row_ids)),
         ],
     )
     .unwrap();

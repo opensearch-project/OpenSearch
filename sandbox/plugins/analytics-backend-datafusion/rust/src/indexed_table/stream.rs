@@ -281,8 +281,11 @@ pub struct IndexedExec {
     pub(crate) query_config: Arc<DatafusionQueryConfig>,
     /// Cumulative row offset for this segment within the shard.
     pub(crate) global_base: u64,
-    /// When true, emit `_row_id` column instead of data.
+    /// When true, the `___row_id` column is computed from position instead of read.
     pub(crate) emit_row_ids: bool,
+    /// Index in the OUTPUT schema where computed `___row_id` should be inserted.
+    /// `None` when `emit_row_ids=false` or `___row_id` is not in projection.
+    pub(crate) row_id_output_index: Option<usize>,
 }
 
 impl fmt::Debug for IndexedExec {
@@ -377,6 +380,7 @@ impl ExecutionPlan for IndexedExec {
             self.query_config.batch_size,
             self.global_base,
             self.emit_row_ids,
+            self.row_id_output_index,
         )))
     }
 }
@@ -441,8 +445,10 @@ struct IndexedStream {
     coalescer_finished: bool,
     /// Cumulative row offset for this segment within the shard.
     global_base: u64,
-    /// When true, emit `_row_id` column instead of data.
+    /// When true, the `___row_id` column is computed from position.
     emit_row_ids: bool,
+    /// Index in the output schema where computed `___row_id` is inserted.
+    row_id_output_index: Option<usize>,
 }
 
 impl IndexedStream {
@@ -467,17 +473,13 @@ impl IndexedStream {
         target_batch_size: usize,
         global_base: u64,
         emit_row_ids: bool,
+        row_id_output_index: Option<usize>,
     ) -> Self {
         let evaluator = Arc::clone(&index_reader.evaluator);
-        let output_schema = if emit_row_ids {
-            row_id_schema()
-        } else {
-            schema.clone()
-        };
         let batch_coalescer =
-            LimitedBatchCoalescer::new(output_schema.clone(), target_batch_size, None);
+            LimitedBatchCoalescer::new(schema.clone(), target_batch_size, None);
         Self {
-            schema: output_schema,
+            schema,
             full_schema,
             object_path,
             file_size,
@@ -509,6 +511,7 @@ impl IndexedStream {
             coalescer_finished: false,
             global_base,
             emit_row_ids,
+            row_id_output_index,
         }
     }
 
@@ -587,74 +590,17 @@ impl IndexedStream {
             t.add_duration(t_on_batch.elapsed());
         }
 
-        // If emit_row_ids mode, compute global row IDs for surviving
-        // rows before consuming the mask, then return early.
-        if self.emit_row_ids {
-            let batch_start_delivered = self.batch_offset;
-            let pm = self.current_position_map.as_ref();
-            let base = self.global_base + self.current_rg_first_row as u64;
-
-            let surviving_positions: Vec<u64> = match &eval_mask {
-                Some(mask) => (0..batch_len)
-                    .filter(|&i| mask.is_valid(i) && mask.value(i))
-                    .map(|i| {
-                        let delivered_idx = batch_start_delivered + i;
-                        let rg_pos = match pm {
-                            Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
-                            None => delivered_idx,
-                        };
-                        base + rg_pos as u64
-                    })
-                    .collect(),
-                None => match &self.current_mask {
-                    Some(mask) => {
-                        let mask_start = self.mask_offset;
-                        (0..batch_len)
-                            .filter(|&i| {
-                                let mi = mask_start + i;
-                                mi < mask.len() && mask.is_valid(mi) && mask.value(mi)
-                            })
-                            .map(|i| {
-                                let delivered_idx = batch_start_delivered + i;
-                                let rg_pos = match pm {
-                                    Some(p) => {
-                                        p.rg_position(delivered_idx).unwrap_or(delivered_idx)
-                                    }
-                                    None => delivered_idx,
-                                };
-                                base + rg_pos as u64
-                            })
-                            .collect()
-                    }
-                    None => (0..batch_len)
-                        .map(|i| {
-                            let delivered_idx = batch_start_delivered + i;
-                            let rg_pos = match pm {
-                                Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
-                                None => delivered_idx,
-                            };
-                            base + rg_pos as u64
-                        })
-                        .collect(),
-                },
-            };
-
-            // Advance offsets to stay in sync
-            self.mask_offset += batch_len;
-            self.batch_offset += batch_len;
-
-            if surviving_positions.is_empty() {
-                return Ok(RecordBatch::try_new_with_options(
-                    self.schema.clone(),
-                    vec![Arc::new(UInt64Array::from(Vec::<u64>::new()))],
-                    &datafusion::arrow::record_batch::RecordBatchOptions::new()
-                        .with_row_count(Some(0)),
-                )?);
-            }
-
-            let row_id_array = Arc::new(UInt64Array::from(surviving_positions));
-            return Ok(RecordBatch::try_new(self.schema.clone(), vec![row_id_array])?);
-        }
+        // Capture position info BEFORE mask is consumed (needed for row ID computation).
+        let row_id_pre = if self.row_id_output_index.is_some() {
+            Some((
+                self.batch_offset,
+                self.current_position_map.as_ref().cloned(),
+                self.global_base + self.current_rg_first_row as u64,
+                eval_mask.clone(),
+            ))
+        } else {
+            None
+        };
 
         let output = match eval_mask {
             Some(mask) => {
@@ -695,9 +641,93 @@ impl IndexedStream {
             }
         };
 
-        // Strip extra predicate columns to match output schema
+        // Strip extra predicate columns and inject computed ___row_id.
         let t_proj = Instant::now();
-        let output = if output.num_columns() > self.schema.fields().len() {
+        let output = if let Some(row_id_idx) = self.row_id_output_index {
+            // Compute row IDs for surviving rows in this batch.
+            let (batch_start_delivered, pm, base, pre_mask) = row_id_pre.unwrap();
+            let num_surviving = output.num_rows();
+            let row_ids: Vec<u64> = if num_surviving == 0 {
+                vec![]
+            } else {
+                match &pre_mask {
+                    Some(mask) => {
+                        (0..batch_len)
+                            .filter(|&i| mask.is_valid(i) && mask.value(i))
+                            .map(|i| {
+                                let delivered_idx = batch_start_delivered + i;
+                                let rg_pos = match &pm {
+                                    Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
+                                    None => delivered_idx,
+                                };
+                                base + rg_pos as u64
+                            })
+                            .collect()
+                    }
+                    None => match &self.current_mask {
+                        Some(candidate_mask) => {
+                            let mask_start = self.mask_offset.saturating_sub(batch_len);
+                            (0..batch_len)
+                                .filter(|&i| {
+                                    let mi = mask_start + i;
+                                    mi < candidate_mask.len()
+                                        && candidate_mask.is_valid(mi)
+                                        && candidate_mask.value(mi)
+                                })
+                                .map(|i| {
+                                    let delivered_idx = batch_start_delivered + i;
+                                    let rg_pos = match &pm {
+                                        Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
+                                        None => delivered_idx,
+                                    };
+                                    base + rg_pos as u64
+                                })
+                                .collect()
+                        }
+                        None => (0..batch_len)
+                            .map(|i| {
+                                let delivered_idx = batch_start_delivered + i;
+                                let rg_pos = match &pm {
+                                    Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
+                                    None => delivered_idx,
+                                };
+                                base + rg_pos as u64
+                            })
+                            .collect(),
+                    },
+                }
+            };
+
+            let row_id_array: Arc<dyn Array> = Arc::new(UInt64Array::from(row_ids));
+
+            // Build output columns: take data columns from filtered batch,
+            // insert row_id_array at the correct position.
+            let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(self.schema.fields().len());
+            let batch_schema = output.schema();
+            let mut data_col = 0usize;
+            for (i, field) in self.schema.fields().iter().enumerate() {
+                if i == row_id_idx {
+                    columns.push(Arc::clone(&row_id_array));
+                } else if let Ok(idx) = batch_schema.index_of(field.name()) {
+                    columns.push(Arc::clone(output.column(idx)));
+                    data_col += 1;
+                } else {
+                    columns.push(Arc::clone(output.column(data_col.min(output.num_columns() - 1))));
+                    data_col += 1;
+                }
+            }
+
+            if num_surviving == 0 {
+                RecordBatch::try_new_with_options(
+                    self.schema.clone(),
+                    columns,
+                    &datafusion::arrow::record_batch::RecordBatchOptions::new()
+                        .with_row_count(Some(0)),
+                )?
+            } else {
+                RecordBatch::try_new(self.schema.clone(), columns)?
+            }
+        } else if output.num_columns() > self.schema.fields().len() {
             let n = self.schema.fields().len();
             if n == 0 {
                 RecordBatch::try_new_with_options(

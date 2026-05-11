@@ -111,16 +111,16 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<u64> {
 
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
-    // SELECT * — the schema is overridden to [_row_id: UInt64] by the flag
-    let df = ctx.sql("SELECT * FROM t").await.unwrap();
+    // Project ___row_id — it will be computed from position, not read from parquet
+    let df = ctx.sql("SELECT \"___row_id\" FROM t").await.unwrap();
     let plan = df.create_physical_plan().await.unwrap();
     let task_ctx = ctx.task_ctx();
     let mut stream = datafusion::physical_plan::execute_stream(plan, task_ctx).unwrap();
     let mut row_ids: Vec<u64> = Vec::new();
     while let Some(batch) = stream.next().await {
         let b = batch.unwrap();
-        assert_eq!(b.num_columns(), 1, "should have only _row_id column");
-        assert_eq!(b.schema().field(0).name(), "_row_id");
+        assert_eq!(b.num_columns(), 1, "should have only ___row_id column");
+        assert_eq!(b.schema().field(0).name(), "___row_id");
         let col = b.column(0).as_any().downcast_ref::<UInt64Array>().unwrap();
         for i in 0..b.num_rows() {
             row_ids.push(col.value(i));
@@ -275,13 +275,14 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
 
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
-    let df = ctx.sql("SELECT * FROM t").await.unwrap();
+    let df = ctx.sql("SELECT \"___row_id\" FROM t").await.unwrap();
     let plan = df.create_physical_plan().await.unwrap();
     let task_ctx = ctx.task_ctx();
     let mut stream = datafusion::physical_plan::execute_stream(plan, task_ctx).unwrap();
     let mut row_ids: Vec<u64> = Vec::new();
     while let Some(batch) = stream.next().await {
         let b = batch.unwrap();
+        assert_eq!(b.schema().field(0).name(), "___row_id");
         let col = b.column(0).as_any().downcast_ref::<UInt64Array>().unwrap();
         for i in 0..b.num_rows() {
             row_ids.push(col.value(i));
@@ -466,6 +467,7 @@ async fn test_udf_detection_global_row_id() {
     ctx.register_udf(create_row_id_udf());
 
     // Create a simple table to query against
+    let row_ids: Vec<i64> = (0..16).collect();
     let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
         schema.clone(),
         vec![
@@ -473,6 +475,7 @@ async fn test_udf_detection_global_row_id() {
             Arc::new(datafusion::arrow::array::Int32Array::from(PRICES.to_vec())),
             Arc::new(datafusion::arrow::array::StringArray::from(STATUSES.to_vec())),
             Arc::new(datafusion::arrow::array::StringArray::from(CATEGORIES.to_vec())),
+            Arc::new(datafusion::arrow::array::Int64Array::from(row_ids)),
         ],
     )
     .unwrap();
