@@ -562,7 +562,7 @@ public class DataFormatAwareEngine implements Indexer {
         Writer currentWriter = null;
         long mappingVersion = currentMappingVersion();
         DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock(
-            h -> h.get().isSchemaMutable() || h.get().mappingVersion() == mappingVersion
+            h -> h.get().isSchemaMutable() || h.get().mappingVersion() >= mappingVersion
         );
         try {
             currentWriter = lockedWriter.get();

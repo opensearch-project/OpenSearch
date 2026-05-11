@@ -92,7 +92,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
         Map<DataFormat, Writer<DocumentInput<?>>> secondaries = new IdentityHashMap<>();
         for (IndexingExecutionEngine<?, ?> delegate : engine.getSecondaryDelegates()) {
             Writer<DocumentInput<?>> secondary = (Writer<DocumentInput<?>>) delegate.createWriter(config);
-            assert secondary.isSchemaMutable() || secondary.mappingVersion() == this.mappingVersion : "Secondary writer mapping version ["
+            assert secondary.isSchemaMutable() && secondary.mappingVersion() >= this.mappingVersion : "Secondary writer mapping version ["
                 + secondary.mappingVersion()
                 + "] must match primary ["
                 + this.mappingVersion

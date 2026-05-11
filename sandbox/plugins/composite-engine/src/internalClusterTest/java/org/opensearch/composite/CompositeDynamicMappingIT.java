@@ -8,6 +8,15 @@
 
 package org.opensearch.composite;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -38,6 +47,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -85,14 +95,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
      * 5. Verify all documents indexed, parquet files generated with correct segments
      */
     public void testDynamicMappingWithParquet() throws IOException {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.pluggable.dataformat.enabled", true)
-            .put("index.pluggable.dataformat", "composite")
-            .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
-            .build();
+        Settings indexSettings = parquetOnlySettings();
 
         // Create index with initial mapping
         CreateIndexResponse createResponse = client().admin()
@@ -124,22 +127,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         assertFalse("Mapping should NOT contain 'dynamic_long' yet", properties.containsKey("dynamic_long"));
 
         // Index documents with NEW dynamic fields
-        for (int i = 5; i < 10; i++) {
-            IndexResponse response = client().prepareIndex()
-                .setIndex(INDEX_NAME)
-                .setSource(
-                    "field_keyword",
-                    "value_" + i,
-                    "field_number",
-                    i,
-                    "dynamic_text",
-                    "dynamic_value_" + i,
-                    "dynamic_long",
-                    (long) i * 1000
-                )
-                .get();
-            assertEquals(RestStatus.CREATED, response.status());
-        }
+        indexDocsWithDynamicFields(INDEX_NAME, 5, 10);
 
         // Verify dynamic fields are now present in the mapping
         mappingsResponse = client().admin().indices().prepareGetMappings(INDEX_NAME).get();
@@ -156,40 +144,22 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         assertEquals(RestStatus.OK, flushResponse.getStatus());
 
         // Verify parquet files on disk
-        IndexShard shard = getIndexShard(
-            internalCluster().getDataNodeNames().iterator().next(),
-            new ShardId(resolveIndex(INDEX_NAME), 0),
-            INDEX_NAME
-        );
+        IndexShard shard = getIndexShard(INDEX_NAME);
         Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
         assertTrue("Parquet directory should exist", Files.isDirectory(parquetDir));
 
-        List<Path> parquetFiles;
-        try (Stream<Path> paths = Files.list(parquetDir)) {
-            parquetFiles = paths.filter(p -> p.toString().endsWith(".parquet")).collect(Collectors.toList());
-        }
+        List<Path> parquetFiles = listParquetFiles(parquetDir);
         assertFalse("Should have at least one parquet file", parquetFiles.isEmpty());
 
         // Verify row count from parquet file metadata
-        long totalRows = 0;
-        for (Path pf : parquetFiles) {
-            ParquetFileMetadata meta = RustBridge.getFileMetadata(pf.toString());
-            assertNotNull("Parquet file metadata should not be null: " + pf, meta);
-            totalRows += meta.numRows();
-        }
+        long totalRows = getParquetRowCount(parquetFiles);
         assertEquals("Total rows across parquet files should equal 10", 10, totalRows);
 
         // Verify content via readAsJson
-        List<Map<String, Object>> allRows = new ArrayList<>();
-        for (Path pf : parquetFiles) {
-            allRows.addAll(parseJsonRows(RustBridge.readAsJson(pf.toString())));
-        }
+        List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
         assertEquals(10, allRows.size());
         // Verify dynamic fields are present in the rows that should have them
-        long rowsWithDynamicFields = allRows.stream()
-            .filter(row -> row.containsKey("dynamic_text") && row.get("dynamic_text") != null)
-            .count();
-        assertEquals("5 rows should have dynamic_text field populated", 5, rowsWithDynamicFields);
+        assertDynamicFieldCount(allRows, "dynamic_text", 5);
 
         // After flush, the writer is now immutable. Index more docs with another new dynamic field
         // to verify schema evolution across writer generations (new writer created with fresh schema).
@@ -213,40 +183,80 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(INDEX_NAME).get();
 
         // Verify all 15 rows on disk
-        try (Stream<Path> paths = Files.list(parquetDir)) {
-            parquetFiles = paths.filter(p -> p.toString().endsWith(".parquet")).collect(Collectors.toList());
-        }
-        totalRows = 0;
-        for (Path pf : parquetFiles) {
-            totalRows += RustBridge.getFileMetadata(pf.toString()).numRows();
-        }
+        parquetFiles = listParquetFiles(parquetDir);
+        totalRows = getParquetRowCount(parquetFiles);
         assertEquals("Total rows across parquet files should equal 15", 15, totalRows);
 
         // Verify content
-        allRows.clear();
-        for (Path pf : parquetFiles) {
-            allRows.addAll(parseJsonRows(RustBridge.readAsJson(pf.toString())));
-        }
+        allRows = readAllParquetRows(parquetFiles);
         assertEquals(15, allRows.size());
-        long rowsWithExtra = allRows.stream().filter(row -> row.containsKey("dynamic_extra") && row.get("dynamic_extra") != null).count();
-        assertEquals("5 rows should have dynamic_extra field populated", 5, rowsWithExtra);
+        assertDynamicFieldCount(allRows, "dynamic_extra", 5);
 
         ensureGreen(INDEX_NAME);
+    }
+
+    /**
+     * Tests dynamic mapping with parquet primary + lucene secondary.
+     * Verifies that dynamically added fields appear in both formats.
+     *
+     * Note: The Lucene secondary writer stores inverted indexes for text/keyword fields
+     * (for search) and __row_id__ as doc values (for cross-format correlation).
+     * Numeric fields and field values are only in Parquet.
+     */
+    public void testDynamicMappingWithParquetPrimaryLuceneSecondary() throws Exception {
+        String indexName = "test-dynamic-composite";
+
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .setMapping("field_keyword", "type=keyword", "field_number", "type=integer")
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        // Index docs with initial schema
+        for (int i = 0; i < 5; i++) {
+            IndexResponse response = client().prepareIndex()
+                .setIndex(indexName)
+                .setSource("field_keyword", "value_" + i, "field_number", i)
+                .get();
+            assertEquals(RestStatus.CREATED, response.status());
+        }
+
+        // Index docs with dynamic fields
+        indexDocsWithDynamicFields(indexName, 5, 10);
+
+        // Refresh + flush
+        client().admin().indices().prepareRefresh(indexName).get();
+        client().admin().indices().prepareFlush(indexName).get();
+
+        // Verify parquet
+        IndexShard shard = getIndexShard(indexName);
+        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
+        List<Path> parquetFiles = listParquetFiles(parquetDir);
+        List<Map<String, Object>> parquetRows = readAllParquetRows(parquetFiles);
+        assertEquals("Parquet should have 10 rows", 10, parquetRows.size());
+        assertDynamicFieldCount(parquetRows, "dynamic_text", 5);
+        assertDynamicFieldCount(parquetRows, "dynamic_long", 5);
+
+        // Verify lucene secondary: doc count + indexed fields present
+        Path luceneDir = shard.shardPath().resolveIndex();
+        List<Map<String, Object>> luceneRows = readAllLuceneDocs(luceneDir);
+        assertEquals("Lucene should have 10 docs", 10, luceneRows.size());
+
+        // __row_id__ should be present in all docs (only doc values field in lucene secondary)
+        long rowsWithRowId = luceneRows.stream().filter(r -> r.containsKey("__row_id__")).count();
+        assertEquals("All 10 Lucene docs should have __row_id__", 10, rowsWithRowId);
+
+        // Verify that the lucene index has the expected indexed fields (inverted index)
+        assertLuceneIndexedFieldsPresent(luceneDir, Set.of("field_keyword", "dynamic_text", "dynamic_text.keyword"));
     }
 
     public void testConflictingDynamicMappings() {
         String indexName = "test-conflict";
 
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.pluggable.dataformat.enabled", true)
-            .put("index.pluggable.dataformat", "composite")
-            .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
-            .build();
-
-        CreateIndexResponse createResponse = client().admin().indices().prepareCreate(indexName).setSettings(indexSettings).get();
+        CreateIndexResponse createResponse = client().admin().indices().prepareCreate(indexName).setSettings(parquetOnlySettings()).get();
         assertTrue(createResponse.isAcknowledged());
         ensureGreen(indexName);
 
@@ -269,7 +279,82 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
     public void testConcurrentDynamicUpdates() throws Throwable {
         String indexName = "test-concurrent";
 
-        Settings indexSettings = Settings.builder()
+        CreateIndexResponse createResponse = client().admin().indices().prepareCreate(indexName).setSettings(parquetOnlySettings()).get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        final int numThreads = 32;
+        runConcurrentIndexing(indexName, numThreads);
+
+        // Verify all 64 fields in mapping
+        assertConcurrentMappings(indexName, numThreads);
+
+        // Verify parquet content
+        IndexShard shard = getIndexShard(indexName);
+        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
+        List<Path> parquetFiles = listParquetFiles(parquetDir);
+
+        assertEquals("Total rows should equal 64", 64, getParquetRowCount(parquetFiles));
+
+        List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
+        assertEquals(64, allRows.size());
+        assertConcurrentFieldValues(allRows, numThreads);
+    }
+
+    /**
+     * Tests concurrent dynamic mapping updates with parquet primary + lucene secondary.
+     * Verifies both formats contain all dynamically created fields.
+     */
+    public void testConcurrentDynamicUpdatesWithLuceneSecondary() throws Throwable {
+        String indexName = "test-concurrent-composite";
+
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        final int numThreads = 32;
+        runConcurrentIndexing(indexName, numThreads);
+
+        // Verify mappings
+        assertConcurrentMappings(indexName, numThreads);
+
+        // Verify parquet
+        IndexShard shard = getIndexShard(indexName);
+        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
+        List<Path> parquetFiles = listParquetFiles(parquetDir);
+        assertEquals("Parquet total rows should be 64", 64, getParquetRowCount(parquetFiles));
+        List<Map<String, Object>> parquetRows = readAllParquetRows(parquetFiles);
+        assertEquals(64, parquetRows.size());
+        assertConcurrentFieldValues(parquetRows, numThreads);
+
+        // Verify lucene secondary: doc count + all dynamic fields indexed
+        Path luceneDir = shard.shardPath().resolveIndex();
+        List<Map<String, Object>> luceneRows = readAllLuceneDocs(luceneDir);
+        assertEquals("Lucene doc count should be 64", 64, luceneRows.size());
+
+        // __row_id__ present in all docs
+        long rowsWithRowId = luceneRows.stream().filter(r -> r.containsKey("__row_id__")).count();
+        assertEquals("All 64 Lucene docs should have __row_id__", 64, rowsWithRowId);
+
+        // Verify all dynamic fieldA_*/fieldB_* are indexed in Lucene
+        Set<String> expectedFields = new HashSet<>();
+        for (int i = 0; i < numThreads; i++) {
+            expectedFields.add("fieldA_" + i);
+            expectedFields.add("fieldB_" + i);
+        }
+        assertLuceneIndexedFieldsPresent(luceneDir, expectedFields);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Private helpers: index settings
+    // ══════════════════════════════════════════════════════════════════════
+
+    private Settings parquetOnlySettings() {
+        return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.pluggable.dataformat.enabled", true)
@@ -277,12 +362,43 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             .put("index.composite.primary_data_format", "parquet")
             .putList("index.composite.secondary_data_formats")
             .build();
+    }
 
-        CreateIndexResponse createResponse = client().admin().indices().prepareCreate(indexName).setSettings(indexSettings).get();
-        assertTrue(createResponse.isAcknowledged());
-        ensureGreen(indexName);
+    private Settings parquetPrimaryLuceneSecondarySettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats", "lucene")
+            .build();
+    }
 
-        final int numThreads = 32;
+    // ══════════════════════════════════════════════════════════════════════
+    // Private helpers: indexing
+    // ══════════════════════════════════════════════════════════════════════
+
+    private void indexDocsWithDynamicFields(String indexName, int from, int to) {
+        for (int i = from; i < to; i++) {
+            IndexResponse response = client().prepareIndex()
+                .setIndex(indexName)
+                .setSource(
+                    "field_keyword",
+                    "value_" + i,
+                    "field_number",
+                    i,
+                    "dynamic_text",
+                    "dynamic_value_" + i,
+                    "dynamic_long",
+                    (long) i * 1000
+                )
+                .get();
+            assertEquals(RestStatus.CREATED, response.status());
+        }
+    }
+
+    private void runConcurrentIndexing(String indexName, int numThreads) throws Throwable {
         final Thread[] indexThreads = new Thread[numThreads];
         final CountDownLatch startLatch = new CountDownLatch(1);
         final AtomicReference<Throwable> error = new AtomicReference<>();
@@ -311,63 +427,47 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             throw error.get();
         }
 
-        // Final refresh + flush to ensure everything is on disk
+        // Final refresh + flush
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();
+    }
 
-        // Verify all 64 fields (32 fieldA + 32 fieldB) in mapping
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings(indexName).get();
-        Map<String, Object> mappingSource = mappings.getMappings().get(indexName).sourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
-        for (int i = 0; i < numThreads; i++) {
-            assertTrue("Mapping should contain fieldA_" + i, properties.containsKey("fieldA_" + i));
-            assertTrue("Mapping should contain fieldB_" + i, properties.containsKey("fieldB_" + i));
-        }
+    // ══════════════════════════════════════════════════════════════════════
+    // Private helpers: shard access
+    // ══════════════════════════════════════════════════════════════════════
 
-        // Read parquet files and verify content
-        IndexShard shard = getIndexShard(
-            internalCluster().getDataNodeNames().iterator().next(),
-            new ShardId(resolveIndex(indexName), 0),
-            indexName
-        );
-        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
+    private IndexShard getIndexShard(String indexName) {
+        return getIndexShard(internalCluster().getDataNodeNames().iterator().next(), new ShardId(resolveIndex(indexName), 0), indexName);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Private helpers: parquet verification
+    // ══════════════════════════════════════════════════════════════════════
+
+    private List<Path> listParquetFiles(Path parquetDir) throws IOException {
         assertTrue("Parquet directory should exist", Files.isDirectory(parquetDir));
-
-        List<Path> parquetFiles;
         try (Stream<Path> paths = Files.list(parquetDir)) {
-            parquetFiles = paths.filter(p -> p.toString().endsWith(".parquet")).collect(Collectors.toList());
+            return paths.filter(p -> p.toString().endsWith(".parquet")).collect(Collectors.toList());
         }
+    }
 
-        // Verify row count
+    private long getParquetRowCount(List<Path> parquetFiles) throws IOException {
         long totalRows = 0;
         for (Path pf : parquetFiles) {
-            totalRows += RustBridge.getFileMetadata(pf.toString()).numRows();
+            ParquetFileMetadata meta = RustBridge.getFileMetadata(pf.toString());
+            assertNotNull("Parquet file metadata should not be null: " + pf, meta);
+            totalRows += meta.numRows();
         }
-        assertEquals("Total rows should equal 64 (32 threads * 2 docs each)", 64, totalRows);
+        return totalRows;
+    }
 
-        // Verify content
+    @SuppressForbidden(reason = "JSON parsing for test verification of parquet output")
+    private List<Map<String, Object>> readAllParquetRows(List<Path> parquetFiles) throws IOException {
         List<Map<String, Object>> allRows = new ArrayList<>();
         for (Path pf : parquetFiles) {
             allRows.addAll(parseJsonRows(RustBridge.readAsJson(pf.toString())));
         }
-        assertEquals(64, allRows.size());
-
-        // Verify each fieldA_{i} and fieldB_{i} has its value in exactly one row
-        Set<String> foundA = new HashSet<>();
-        Set<String> foundB = new HashSet<>();
-        for (Map<String, Object> row : allRows) {
-            for (int i = 0; i < numThreads; i++) {
-                if (("valueA_" + i).equals(row.get("fieldA_" + i))) {
-                    foundA.add("fieldA_" + i);
-                }
-                if (("valueB_" + i).equals(row.get("fieldB_" + i))) {
-                    foundB.add("fieldB_" + i);
-                }
-            }
-        }
-        assertEquals("All 32 fieldA values should be in parquet", numThreads, foundA.size());
-        assertEquals("All 32 fieldB values should be in parquet", numThreads, foundB.size());
+        return allRows;
     }
 
     @SuppressWarnings("unchecked")
@@ -381,6 +481,98 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             )
         ) {
             return parser.list().stream().map(o -> (Map<String, Object>) o).collect(Collectors.toList());
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Private helpers: lucene verification
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Reads all documents from a Lucene index directory, extracting doc values fields
+     * into a list of maps (one map per document).
+     */
+    private List<Map<String, Object>> readAllLuceneDocs(Path luceneDir) throws IOException {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        try (Directory dir = NIOFSDirectory.open(luceneDir); DirectoryReader reader = DirectoryReader.open(dir)) {
+            for (LeafReaderContext ctx : reader.leaves()) {
+                LeafReader leaf = ctx.reader();
+                for (int doc = 0; doc < leaf.maxDoc(); doc++) {
+                    Map<String, Object> row = new HashMap<>();
+                    for (FieldInfo fi : leaf.getFieldInfos()) {
+                        if (fi.getDocValuesType() == DocValuesType.SORTED_NUMERIC) {
+                            SortedNumericDocValues dv = leaf.getSortedNumericDocValues(fi.name);
+                            if (dv != null && dv.advanceExact(doc)) {
+                                row.put(fi.name, dv.nextValue());
+                            }
+                        } else if (fi.getDocValuesType() == DocValuesType.SORTED_SET) {
+                            SortedSetDocValues dv = leaf.getSortedSetDocValues(fi.name);
+                            if (dv != null && dv.advanceExact(doc)) {
+                                long ord = dv.nextOrd();
+                                if (ord >= 0) {
+                                    row.put(fi.name, dv.lookupOrd(ord).utf8ToString());
+                                }
+                            }
+                        }
+                    }
+                    rows.add(row);
+                }
+            }
+        }
+        return rows;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Private helpers: assertions
+    // ══════════════════════════════════════════════════════════════════════
+
+    private void assertDynamicFieldCount(List<Map<String, Object>> rows, String fieldName, long expectedCount) {
+        long count = rows.stream().filter(row -> row.containsKey(fieldName) && row.get(fieldName) != null).count();
+        assertEquals(expectedCount + " rows should have " + fieldName + " field populated", expectedCount, count);
+    }
+
+    private void assertConcurrentMappings(String indexName, int numThreads) throws IOException {
+        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings(indexName).get();
+        Map<String, Object> mappingSource = mappings.getMappings().get(indexName).sourceAsMap();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
+        for (int i = 0; i < numThreads; i++) {
+            assertTrue("Mapping should contain fieldA_" + i, properties.containsKey("fieldA_" + i));
+            assertTrue("Mapping should contain fieldB_" + i, properties.containsKey("fieldB_" + i));
+        }
+    }
+
+    private void assertConcurrentFieldValues(List<Map<String, Object>> rows, int numThreads) {
+        Set<String> foundA = new HashSet<>();
+        Set<String> foundB = new HashSet<>();
+        for (Map<String, Object> row : rows) {
+            for (int i = 0; i < numThreads; i++) {
+                if (("valueA_" + i).equals(row.get("fieldA_" + i))) foundA.add("fieldA_" + i);
+                if (("valueB_" + i).equals(row.get("fieldB_" + i))) foundB.add("fieldB_" + i);
+            }
+        }
+        assertEquals("All 32 fieldA values should be present", numThreads, foundA.size());
+        assertEquals("All 32 fieldB values should be present", numThreads, foundB.size());
+    }
+
+    /**
+     * Asserts that the given fields exist in the Lucene index as indexed fields (inverted index).
+     * The Lucene secondary stores inverted indexes for search but not doc values for field values.
+     */
+    private void assertLuceneIndexedFieldsPresent(Path luceneDir, Set<String> expectedFields) throws IOException {
+        try (Directory dir = NIOFSDirectory.open(luceneDir); DirectoryReader reader = DirectoryReader.open(dir)) {
+            Set<String> allFields = new HashSet<>();
+            for (LeafReaderContext ctx : reader.leaves()) {
+                for (FieldInfo fi : ctx.reader().getFieldInfos()) {
+                    allFields.add(fi.name);
+                }
+            }
+            for (String expected : expectedFields) {
+                assertTrue(
+                    "Lucene index should contain field '" + expected + "', found fields: " + allFields,
+                    allFields.contains(expected)
+                );
+            }
         }
     }
 }

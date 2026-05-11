@@ -77,6 +77,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
 
     private final LuceneDataFormat dataFormat;
     private final MergeIndexWriter sharedWriter;
+    private final MapperService mapperService;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
@@ -101,6 +102,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             throw new IllegalArgumentException("LuceneCommitter must not be null");
         }
         this.dataFormat = dataFormat;
+        this.mapperService = mapperService;
         this.sharedWriter = luceneCommitter.getIndexWriter();
         this.store = store;
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
@@ -158,8 +160,10 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     public Writer<LuceneDocumentInput> createWriter(WriterConfig config) {
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
+            long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
             return new LuceneWriter(
                 config.writerGeneration(),
+                mappingVersion,
                 dataFormat,
                 baseDirectory,
                 analyzer,
