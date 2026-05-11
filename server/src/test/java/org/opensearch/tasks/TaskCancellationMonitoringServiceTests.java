@@ -15,6 +15,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.plugin.stats.BackendStatsProvider;
+import org.opensearch.plugin.stats.DataFusionNativeNodeStats;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -308,6 +310,75 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         taskCancellationMonitoringService.doStart();
         taskCancellationMonitoringService.doStop();
         verify(scheduleFuture, times(1)).cancel();
+    }
+
+    public void testStatsIncludesNativeCountersWhenProviderAvailable() {
+        TaskCancellationMonitoringSettings settings = new TaskCancellationMonitoringSettings(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        TaskManager mockTaskManager = mock(TaskManager.class);
+        when(mockTaskManager.getCancellableTasks()).thenReturn(new java.util.HashMap<>());
+
+        DataFusionNativeNodeStats expectedNativeStats = new DataFusionNativeNodeStats(3, 100, 7, 500);
+        BackendStatsProvider mockProvider = mock(BackendStatsProvider.class);
+        when(mockProvider.getBackendStats()).thenReturn(expectedNativeStats);
+
+        TaskCancellationMonitoringService service = new TaskCancellationMonitoringService(
+            threadPool,
+            mockTaskManager,
+            settings,
+            mockProvider
+        );
+
+        TaskCancellationStats stats = service.stats();
+        assertNotNull(stats.getNativeStats());
+        assertEquals(3, stats.getNativeStats().getNativeSearchTaskCurrent());
+        assertEquals(100, stats.getNativeStats().getNativeSearchTaskTotal());
+        assertEquals(7, stats.getNativeStats().getNativeSearchShardTaskCurrent());
+        assertEquals(500, stats.getNativeStats().getNativeSearchShardTaskTotal());
+    }
+
+    public void testStatsReturnsNullNativeStatsWhenProviderIsNull() {
+        TaskCancellationMonitoringSettings settings = new TaskCancellationMonitoringSettings(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        TaskManager mockTaskManager = mock(TaskManager.class);
+        when(mockTaskManager.getCancellableTasks()).thenReturn(new java.util.HashMap<>());
+
+        // Use the 3-arg constructor which passes null for the provider
+        TaskCancellationMonitoringService service = new TaskCancellationMonitoringService(
+            threadPool,
+            mockTaskManager,
+            settings
+        );
+
+        TaskCancellationStats stats = service.stats();
+        assertNull(stats.getNativeStats());
+    }
+
+    public void testStatsHandlesProviderExceptionGracefully() {
+        TaskCancellationMonitoringSettings settings = new TaskCancellationMonitoringSettings(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        TaskManager mockTaskManager = mock(TaskManager.class);
+        when(mockTaskManager.getCancellableTasks()).thenReturn(new java.util.HashMap<>());
+
+        BackendStatsProvider mockProvider = mock(BackendStatsProvider.class);
+        when(mockProvider.getBackendStats()).thenThrow(new RuntimeException("Native runtime not initialized"));
+
+        TaskCancellationMonitoringService service = new TaskCancellationMonitoringService(
+            threadPool,
+            mockTaskManager,
+            settings,
+            mockProvider
+        );
+
+        TaskCancellationStats stats = service.stats();
+        // Should handle exception gracefully and return null native stats
+        assertNull(stats.getNativeStats());
     }
 
     @SuppressWarnings("unchecked")

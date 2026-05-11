@@ -18,8 +18,12 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.nativebridge.spi.FfmNativeMemoryService;
 import org.opensearch.nativebridge.spi.NativeAllocatorConfig;
 import org.opensearch.nativebridge.spi.NativeHeapProfiler;
+import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.nativebridge.spi.NativeMemoryService;
+import org.opensearch.nativebridge.spi.NativeMemoryServiceProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -38,8 +42,14 @@ import java.util.function.Supplier;
  * Registers dynamic cluster settings and applies changes at runtime via the FFM bridge.
  * Also registers the NativeHeapProfiler JMX MBean for on-demand heap profiling via
  * the opensearch-heap-prof CLI tool.
+ * <p>
+ * Implements {@link NativeMemoryServiceProvider} so that {@code Node.java} can discover
+ * the {@link FfmNativeMemoryService} via {@code filterPlugins()} without a direct compile
+ * dependency on the JDK 25+ {@code dataformat-native} library.
  */
-public class NativeBridgeModule extends Plugin {
+public class NativeBridgeModule extends Plugin implements NativeMemoryServiceProvider {
+
+    private volatile NativeMemoryService nativeMemoryService;
 
     private static final Logger logger = LogManager.getLogger(NativeBridgeModule.class);
 
@@ -104,7 +114,17 @@ public class NativeBridgeModule extends Plugin {
             logger.warn("Native allocator config unavailable — native library may not be loaded", t);
         }
 
+        // Instantiate NativeMemoryService if native library is loaded
+        if (NativeLibraryLoader.isLoaded()) {
+            this.nativeMemoryService = new FfmNativeMemoryService(settings);
+        }
+
         return Collections.emptyList();
+    }
+
+    @Override
+    public NativeMemoryService getNativeMemoryService() {
+        return nativeMemoryService;
     }
 
     @Override

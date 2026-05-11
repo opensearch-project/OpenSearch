@@ -10,6 +10,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -17,6 +18,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.plugin.stats.BackendStatsProvider;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -100,5 +102,17 @@ public interface SearchBackEndPlugin<R> {
         DataFormatRegistry dataFormatRegistry
     ) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns the backend's stats provider, or {@code null} if not available.
+     * <p>
+     * The server uses this to discover stats providers from backend plugins
+     * (e.g., for native task cancellation counters).
+     *
+     * @return the backend stats provider, or null
+     */
+    default @Nullable BackendStatsProvider getBackendStatsProvider() {
+        return null;
     }
 }

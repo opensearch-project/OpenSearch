@@ -15,6 +15,15 @@
 dependencies {
     api project(':libs:opensearch-core')
     api project(':libs:opensearch-common')
+
+    testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+    testImplementation "junit:junit:${versions.junit}"
+    testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+    testImplementation(project(":test:framework")) {
+        exclude group: 'org.opensearch', module: 'opensearch-core'
+        exclude group: 'org.opensearch', module: 'opensearch-common'
+        exclude group: 'org.opensearch.sandbox', module: 'plugin-stats-spi'
+    }
 }
 
 testingConventions.enabled = false
