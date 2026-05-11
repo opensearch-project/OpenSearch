@@ -165,44 +165,71 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.SCALAR_MAX,
         ScalarFunction.SCALAR_MIN,
         // Date-part extractors rewrite to date_part(<unit>, ts) via DatePartAdapters.
-        // Functions whose DF-builtin semantics diverge from legacy PPL (SECOND / DAYOFWEEK /
-        // SYSDATE / DATE_FORMAT / TIME_FORMAT / STRFTIME, plus 2-arg FROM_UNIXTIME / DATETIME)
-        // are omitted here and stay on the legacy engine until a dedicated Rust UDF lands —
-        // matching the convert_tz / to_unixtime pattern already in this plugin.
+        // SECOND / SECOND_OF_MINUTE / DAYOFWEEK / DAY_OF_WEEK use dedicated adapters
+        // (FLOOR cast for SECOND, +1 offset for DAYOFWEEK) to preserve PPL's MySQL
+        // semantics on top of DF's date_part; see SecondAdapter / DayOfWeekAdapter.
         ScalarFunction.YEAR,
         ScalarFunction.QUARTER,
         ScalarFunction.MONTH,
         ScalarFunction.MONTH_OF_YEAR,
         ScalarFunction.DAY,
         ScalarFunction.DAYOFMONTH,
+        ScalarFunction.DAYOFWEEK,
+        ScalarFunction.DAY_OF_WEEK,
         ScalarFunction.DAYOFYEAR,
         ScalarFunction.DAY_OF_YEAR,
         ScalarFunction.HOUR,
         ScalarFunction.HOUR_OF_DAY,
         ScalarFunction.MINUTE,
         ScalarFunction.MINUTE_OF_HOUR,
+        ScalarFunction.SECOND,
+        ScalarFunction.SECOND_OF_MINUTE,
         ScalarFunction.MICROSECOND,
         ScalarFunction.WEEK,
         ScalarFunction.WEEK_OF_YEAR,
-        // Niladic now/current_* family maps 1:1 to DF builtins.
+        // Niladic now/current_* family maps 1:1 to DF builtins. SYSDATE is an
+        // approximation — PPL SYSDATE uses the systemClock (call-time) while NOW
+        // uses queryStartClock; the wall-clock difference is sub-millisecond on a
+        // single-statement OLAP query so routing both to DF `now` is acceptable.
         ScalarFunction.NOW,
         ScalarFunction.CURRENT_TIMESTAMP,
         ScalarFunction.CURRENT_DATE,
         ScalarFunction.CURDATE,
         ScalarFunction.CURRENT_TIME,
         ScalarFunction.CURTIME,
+        ScalarFunction.SYSDATE,
         ScalarFunction.CONVERT_TZ,
         ScalarFunction.UNIX_TIMESTAMP,
-        // DATE(expr) / TIME(expr) / MAKETIME(h,m,s) are intentionally not advertised:
-        // PPL's Calcite binding for these returns VARCHAR rather than DATE/TIME, so
-        // downstream `year(date(ts))` / `hour(maketime(...))` lowers to
-        // date_part(string, string?) — no matching DataFusion signature. Left on the
-        // legacy engine until PPL wires them to produce real DATE/TIME types.
-        // EXTRACT(unit FROM ts) is also not advertised: isthmus resolves SqlKind.EXTRACT
-        // through scalar-function lookup rather than emitting a native Substrait extract,
-        // and we'd need a dedicated adapter + yaml entry to route it to DataFusion's
-        // date_part. Left on legacy engine until that adapter lands; PPL date-part
-        // functions cover the same semantics.
+        ScalarFunction.STRFTIME,
+        // PPL `time(expr)` / `date(expr)` — extract time-of-day / date component
+        // from a TIMESTAMP / DATE / TIME / string value. Route to DataFusion's
+        // builtins `to_time` / `to_date` via TimeAdapter / DateAdapter. Safe on
+        // the analytics-engine path because sql-repo PR #5408
+        // (DatetimeUdtNormalizeRule) rewrites EXPR_TIME / EXPR_DATE → standard
+        // Calcite TIME / DATE on the RexCall return type, so downstream consumers
+        // see a real time/date type and Isthmus serializes accordingly.
+        ScalarFunction.TIME,
+        ScalarFunction.DATE,
+        // PPL `datetime(expr)` — parse/cast into a TIMESTAMP. Routes to DF's
+        // builtin `to_timestamp` via DatetimeAdapter. The single-arg
+        // `timestamp(expr)` form shares these semantics but its ScalarFunction
+        // slot is already bound to TimestampFunctionAdapter for VARCHAR literal
+        // folding, so it stays on the legacy engine.
+        ScalarFunction.DATETIME,
+        // PPL extract / make* / format / from_unixtime are implemented as Rust UDFs
+        // to preserve MySQL semantics that DataFusion builtins don't match: EXTRACT
+        // supports 10 composite units (DAY_SECOND → ddHHmmss etc.) that are not a
+        // single date_part; MAKETIME / MAKEDATE / FROM_UNIXTIME need DOUBLE inputs
+        // and PPL-specific NULL-on-negative / year-wraparound behavior; DATE_FORMAT
+        // / TIME_FORMAT / STR_TO_DATE translate MySQL format tokens (%i / %s / %p …)
+        // that DataFusion's `to_char` does not recognize.
+        ScalarFunction.EXTRACT,
+        ScalarFunction.FROM_UNIXTIME,
+        ScalarFunction.MAKETIME,
+        ScalarFunction.MAKEDATE,
+        ScalarFunction.DATE_FORMAT,
+        ScalarFunction.TIME_FORMAT,
+        ScalarFunction.STR_TO_DATE,
         ScalarFunction.ASCII,
         ScalarFunction.CONCAT_WS,
         ScalarFunction.LEFT,
@@ -366,6 +393,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 DateTimeAdapters.NowAdapter now = new DateTimeAdapters.NowAdapter();
                 DateTimeAdapters.CurrentDateAdapter currentDate = new DateTimeAdapters.CurrentDateAdapter();
                 DateTimeAdapters.CurrentTimeAdapter currentTime = new DateTimeAdapters.CurrentTimeAdapter();
+                DayOfWeekAdapter dayOfWeek = new DayOfWeekAdapter();
+                SecondAdapter second = new SecondAdapter();
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
@@ -382,13 +411,20 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.CURRENT_TIME, currentTime),
                     Map.entry(ScalarFunction.CURRENT_TIMESTAMP, now),
                     Map.entry(ScalarFunction.CURTIME, currentTime),
+                    Map.entry(ScalarFunction.DATE, new DateTimeAdapters.DateAdapter()),
+                    Map.entry(ScalarFunction.DATETIME, new DateTimeAdapters.DatetimeAdapter()),
+                    Map.entry(ScalarFunction.DATE_FORMAT, new RustUdfDateTimeAdapters.DateFormatAdapter()),
                     Map.entry(ScalarFunction.DAY, day),
                     Map.entry(ScalarFunction.DAYOFMONTH, day),
+                    Map.entry(ScalarFunction.DAYOFWEEK, dayOfWeek),
                     Map.entry(ScalarFunction.DAYOFYEAR, dayOfYear),
+                    Map.entry(ScalarFunction.DAY_OF_WEEK, dayOfWeek),
                     Map.entry(ScalarFunction.DAY_OF_YEAR, dayOfYear),
                     Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
                     Map.entry(ScalarFunction.E, new EConstantAdapter()),
                     Map.entry(ScalarFunction.EXPM1, new Expm1Adapter()),
+                    Map.entry(ScalarFunction.EXTRACT, new RustUdfDateTimeAdapters.ExtractAdapter()),
+                    Map.entry(ScalarFunction.FROM_UNIXTIME, new RustUdfDateTimeAdapters.FromUnixtimeAdapter()),
                     Map.entry(ScalarFunction.HOUR, hour),
                     Map.entry(ScalarFunction.HOUR_OF_DAY, hour),
                     Map.entry(ScalarFunction.JSON_APPEND, new JsonFunctionAdapters.JsonAppendAdapter()),
@@ -400,6 +436,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
                     Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),
+                    Map.entry(ScalarFunction.MAKEDATE, new RustUdfDateTimeAdapters.MakedateAdapter()),
+                    Map.entry(ScalarFunction.MAKETIME, new RustUdfDateTimeAdapters.MaketimeAdapter()),
                     Map.entry(ScalarFunction.MICROSECOND, DatePartAdapters.microsecond()),
                     Map.entry(ScalarFunction.MINUTE, minute),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
@@ -414,11 +452,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
                     Map.entry(ScalarFunction.SCALAR_MAX, nameMapping(SqlLibraryOperators.GREATEST)),
                     Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
+                    Map.entry(ScalarFunction.SECOND, second),
+                    Map.entry(ScalarFunction.SECOND_OF_MINUTE, second),
                     Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
                     Map.entry(ScalarFunction.STRCMP, new StrcmpFunctionAdapter()),
+                    Map.entry(ScalarFunction.STRFTIME, new StrftimeFunctionAdapter()),
+                    Map.entry(ScalarFunction.STR_TO_DATE, new RustUdfDateTimeAdapters.StrToDateAdapter()),
                     Map.entry(ScalarFunction.SUBSTR, nameMapping(SqlStdOperatorTable.SUBSTRING)),
                     Map.entry(ScalarFunction.SUBSTRING, nameMapping(SqlStdOperatorTable.SUBSTRING)),
+                    Map.entry(ScalarFunction.SYSDATE, now),
+                    Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
+                    Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
