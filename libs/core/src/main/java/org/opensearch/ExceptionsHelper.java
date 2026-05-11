@@ -132,7 +132,17 @@ public final class ExceptionsHelper {
             case JsonParseException ignored -> RestStatus.BAD_REQUEST;
             case NotXContentException ignored -> RestStatus.BAD_REQUEST;
             case OpenSearchRejectedExecutionException ignored -> RestStatus.TOO_MANY_REQUESTS;
-            case null, default -> RestStatus.INTERNAL_SERVER_ERROR;
+            case null -> RestStatus.INTERNAL_SERVER_ERROR;
+            default -> {
+                // Handle fasterxml Jackson exceptions by class name since libs/core
+                // does not depend on com.fasterxml.jackson.core directly
+                String className = t.getClass().getName();
+                if (className.equals("com.fasterxml.jackson.core.JsonParseException")
+                    || className.equals("com.fasterxml.jackson.core.exc.InputCoercionException")) {
+                    yield RestStatus.BAD_REQUEST;
+                }
+                yield RestStatus.INTERNAL_SERVER_ERROR;
+            }
         };
     }
 
@@ -143,7 +153,16 @@ public final class ExceptionsHelper {
             case InputCoercionException ignored -> ErrorMessages.JSON_COERCION_FAILED;
             case JsonParseException ignored -> ErrorMessages.JSON_PARSE_FAILED;
             case OpenSearchRejectedExecutionException ignored -> ErrorMessages.TOO_MANY_REQUESTS;
-            case null, default -> "Internal failure";
+            case null -> "Internal failure";
+            default -> {
+                String className = t.getClass().getName();
+                if (className.equals("com.fasterxml.jackson.core.JsonParseException")) {
+                    yield ErrorMessages.JSON_PARSE_FAILED;
+                } else if (className.equals("com.fasterxml.jackson.core.exc.InputCoercionException")) {
+                    yield ErrorMessages.JSON_COERCION_FAILED;
+                }
+                yield "Internal failure";
+            }
         };
     }
 
