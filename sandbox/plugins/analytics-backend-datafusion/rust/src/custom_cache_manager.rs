@@ -162,29 +162,23 @@ impl CustomCacheManager {
             let mut errors = Vec::new();
 
             // Remove from metadata cache
-            match create_object_meta_from_file(file_path) {
-                Ok(object_metas) => {
-                    if let Some(cache) = &self.file_metadata_cache {
-                        match cache.inner.lock() {
-                            Ok(cache_guard) => {
-                                if let Some(object_meta) = object_metas.first() {
-                                    if cache_guard.remove(object_meta).is_some() {
-                                        any_removed = true;
-                                    } else {
-                                        debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                errors.push(format!("Metadata cache: Cache remove failed: {}", e));
+            {
+                let path = Path::from(file_path.clone());
+                if let Some(cache) = &self.file_metadata_cache {
+                    match cache.inner.lock() {
+                        Ok(cache_guard) => {
+                            if cache_guard.remove(&path).is_some() {
+                                any_removed = true;
+                            } else {
+                                debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
                             }
                         }
-                    } else {
-                        errors.push("No metadata cache configured".to_string());
+                        Err(e) => {
+                            errors.push(format!("Metadata cache: Cache remove failed: {}", e));
+                        }
                     }
-                }
-                Err(e) => {
-                    errors.push(format!("Failed to get object metadata: {}", e));
+                } else {
+                    errors.push("No metadata cache configured".to_string());
                 }
             }
 
@@ -214,18 +208,12 @@ impl CustomCacheManager {
         let mut found = false;
 
         // Check metadata cache
-        match create_object_meta_from_file(file_path) {
-            Ok(object_metas) => {
-                if let Some(cache) = &self.file_metadata_cache {
-                    if let Some(object_meta) = object_metas.first() {
-                        if cache.get(object_meta).is_some() {
-                            found = true;
-                        }
-                    }
+        {
+            let path = Path::from(file_path);
+            if let Some(cache) = &self.file_metadata_cache {
+                if cache.get(&path).is_some() {
+                    found = true;
                 }
-            }
-            Err(e) => {
-                error!("Failed to get object metadata for {}: {}", file_path, e);
             }
         }
 
@@ -244,10 +232,10 @@ impl CustomCacheManager {
     pub fn contains_file_by_type(&self, file_path: &str, cache_type: &str) -> bool {
         match cache_type {
             crate::cache::CACHE_TYPE_METADATA => {
-                create_object_meta_from_file(file_path)
-                    .ok()
-                    .and_then(|metas| metas.first().cloned())
-                    .and_then(|meta| self.file_metadata_cache.as_ref()?.get(&meta))
+                let path = Path::from(file_path);
+                self.file_metadata_cache
+                    .as_ref()
+                    .and_then(|cache| cache.get(&path))
                     .is_some()
             }
             crate::cache::CACHE_TYPE_STATS => {
@@ -393,7 +381,8 @@ impl CustomCacheManager {
         // Verify the metadata was cached properly
         match cache_ref.inner.lock() {
             Ok(cache_guard) => {
-                if cache_guard.contains_key(object_meta) {
+                let path = Path::from(file_path.to_string());
+                if cache_guard.contains_key(&path) {
                     Ok(true)
                 } else {
                     debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
@@ -429,7 +418,7 @@ impl CustomCacheManager {
                     version: None,
                 };
 
-                cache.put_with_extra(&path, Arc::new(stats), &meta);
+                cache.put_statistics(&path, Arc::new(stats), &meta);
                 Ok(true)
             }
             Err(e) => {
@@ -466,7 +455,7 @@ impl CustomCacheManager {
                         version: None,
                     };
 
-                    cache.put_with_extra(&path, Arc::new(stats), &meta);
+                    cache.put_statistics(&path, Arc::new(stats), &meta);
                     success_count += 1;
                 }
                 Err(e) => {
