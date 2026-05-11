@@ -33,6 +33,27 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         assertTrue("datafusion.memory_pool_limit_bytes must have node scope", DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT.hasNodeScope());
     }
 
+    public void testMemoryPoolLimitMinIsDynamic() {
+        assertTrue(
+            "datafusion.memory_pool_limit.min must be dynamic so the floor can be tuned without restart",
+            DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT_MIN.isDynamic()
+        );
+    }
+
+    public void testSpillMemoryLimitIsDynamic() {
+        assertTrue(
+            "datafusion.spill_memory_limit_bytes must be dynamic for cluster-settings PUTs",
+            DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.isDynamic()
+        );
+    }
+
+    public void testSpillMemoryLimitMinIsDynamic() {
+        assertTrue(
+            "datafusion.spill_memory_limit.min must be dynamic so the floor can be tuned without restart",
+            DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT_MIN.isDynamic()
+        );
+    }
+
     public void testPluginRegistersMemoryPoolLimitSetting() {
         try (DataFusionPlugin plugin = new DataFusionPlugin()) {
             List<Setting<?>> settings = plugin.getSettings();
@@ -83,7 +104,7 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
     public void testGetSettingsReturnsTotalExpectedCount() {
         try (DataFusionPlugin plugin = new DataFusionPlugin()) {
             List<Setting<?>> settings = plugin.getSettings();
-            assertEquals(20, settings.size());
+            assertEquals(18, settings.size());
         } catch (Exception e) {
             throw new AssertionError(e);
         }

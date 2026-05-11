@@ -114,12 +114,17 @@ public final class ParquetSettings {
      * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "10%"}) or an absolute byte
      * size (e.g. {@code "2gb"}). When a percentage is supplied, the resolved value is clamped by
      * {@link #MIN_NATIVE_ALLOCATION} and {@link #MAX_NATIVE_ALLOCATION_CEILING}.
+     * <p>
+     * Dynamic in the cluster-settings sense: PUTs are accepted and persisted, but the Arrow
+     * {@code RootAllocator} budget is fixed at {@code ArrowBufferPool} construction time. The
+     * new value takes effect after the next node restart.
      */
     public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
         "parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
         ParquetSettings::validateMemorySizeOrPercentage,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /** Floor applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. */
@@ -128,7 +133,8 @@ public final class ParquetSettings {
         DEFAULT_MIN_NATIVE_ALLOCATION,
         new ByteSizeValue(0, ByteSizeUnit.BYTES),
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -140,19 +146,25 @@ public final class ParquetSettings {
         DEFAULT_MAX_NATIVE_ALLOCATION_CEILING,
         new ByteSizeValue(-1),
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
      * Per-VSR child allocator cap. Bounds memory a single in-flight VectorSchemaRoot can hold,
      * preventing one writer from monopolizing the root allocator.
+     * <p>
+     * Dynamic in the cluster-settings sense: PUTs are accepted and persisted, but the per-child
+     * cap is fixed at {@code ArrowBufferPool} construction time. The new value takes effect
+     * after the next node restart.
      */
     public static final Setting<ByteSizeValue> CHILD_ALLOCATION = Setting.byteSizeSetting(
         "parquet.arrow.child_allocation",
         DEFAULT_CHILD_ALLOCATION,
         new ByteSizeValue(1, ByteSizeUnit.MB),
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /** Maximum rows per VectorSchemaRoot before rotation is triggered (default 50000). */
