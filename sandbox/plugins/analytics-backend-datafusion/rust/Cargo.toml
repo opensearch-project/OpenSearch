@@ -101,3 +101,7 @@ harness = false
 [[bench]]
 name = "cross_rt_throughput_bench"
 harness = false
+
+[[bench]]
+name = "fair_spill_bench"
+harness = false
