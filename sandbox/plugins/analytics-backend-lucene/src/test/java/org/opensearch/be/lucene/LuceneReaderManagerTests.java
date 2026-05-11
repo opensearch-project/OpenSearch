@@ -192,11 +192,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public byte[] serialize() throws IOException {
-                return new byte[0];
-            }
-
-            @Override
             public org.apache.lucene.index.SegmentInfos getSegmentInfos() {
                 throw new UnsupportedOperationException("stub");
             }
@@ -241,7 +236,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testAfterRefreshCreatesReader() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader(), new java.util.concurrent.ConcurrentHashMap<>());
         CatalogSnapshot snap = stubSnapshot(1);
 
         expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
@@ -250,7 +245,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testAfterRefreshNoOpWhenDidRefreshFalse() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader(), new java.util.concurrent.ConcurrentHashMap<>());
         CatalogSnapshot snap = stubSnapshot(1);
 
         rm.afterRefresh(false, snap);
@@ -258,7 +253,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testMultipleRefreshesWithIndexing() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader(), new java.util.concurrent.ConcurrentHashMap<>());
 
         // Empty initial reader — no segments yet.
         CatalogSnapshot snap1 = stubSnapshot(1);
@@ -291,7 +286,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testOnDeletedClosesReader() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader(), new java.util.concurrent.ConcurrentHashMap<>());
         CatalogSnapshot snap = stubSnapshot(1);
         rm.afterRefresh(true, snap);
 
@@ -303,17 +298,17 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testOnDeletedUnknownSnapshotIsNoOp() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader(), new java.util.concurrent.ConcurrentHashMap<>());
         rm.onDeleted(stubSnapshot(99));
     }
 
     public void testGetReaderThrowsForUnknownSnapshot() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader(), new java.util.concurrent.ConcurrentHashMap<>());
         expectThrows(IllegalStateException.class, () -> rm.getReader(stubSnapshot(42)));
     }
 
     public void testDuplicateAfterRefreshIsIdempotent() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader(), new java.util.concurrent.ConcurrentHashMap<>());
         CatalogSnapshot snap = stubSnapshot(1);
 
         rm.afterRefresh(true, snap);

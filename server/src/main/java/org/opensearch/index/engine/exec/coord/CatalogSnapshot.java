@@ -240,13 +240,15 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     }
 
     /**
-     * Creates a clone without acquiring a reference count.
+     * Creates a clone without acquiring a reference count on this instance.
+     * Returns a new {@link CatalogSnapshot} with a fresh reference count of 1,
+     * delegating to the subclass's {@link #clone()} implementation.
      * Used for Lucene compatibility where clone is required.
      *
-     * @return this catalog snapshot instance
+     * @return a new {@link CatalogSnapshot} with the same logical state
      */
     public CatalogSnapshot cloneNoAcquire() {
-        return this;
+        return clone();
     }
 
     /**
@@ -320,16 +322,6 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     public long getLastCommitGeneration() {
         return getGeneration();
     }
-
-    /**
-     * Returns the Lucene {@link SegmentInfos} bytes written into the remote metadata file. Bytes
-     * must describe this snapshot's commit — implementations must not re-read {@code segments_N}
-     * from disk at call time (would race with concurrent flush).
-     *
-     * @throws IOException on serialization error
-     * @throws IllegalStateException if bytes were expected to be pre-captured but weren't
-     */
-    public abstract byte[] serialize() throws IOException;
 
     /**
      * Returns the underlying SegmentInfos for Lucene-backed snapshots.
