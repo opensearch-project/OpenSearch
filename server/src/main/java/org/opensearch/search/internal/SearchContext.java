@@ -623,16 +623,6 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    @ExperimentalApi
-    public void setFlushMode(FlushMode flushMode) {
-        // no-op
-    }
-
-    @ExperimentalApi
-    public boolean hasCachedFlushMode() {
-        return false;
-    }
-
     public String getPartitionStrategy() {
         return CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getDefault(Settings.EMPTY);
     }

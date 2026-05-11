@@ -106,7 +106,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;
-    private boolean streamingSearch = false;
     private String streamingSearchMode = null;
 
     // these are the only mutable fields, as they are subject to rewriting
@@ -176,7 +175,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
 
-        this.streamingSearch = searchRequest.getStreamingSearchMode() != null;
         this.streamingSearchMode = searchRequest.getStreamingSearchMode();
     }
 
@@ -238,7 +236,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = readerId;
         this.keepAlive = keepAlive;
 
-        this.streamingSearch = false;
         this.streamingSearchMode = null;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
@@ -277,10 +274,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
 
         if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
-            streamingSearch = in.readBoolean();
             streamingSearchMode = in.readOptionalString();
         } else {
-            streamingSearch = false;
             streamingSearchMode = null;
         }
     }
@@ -306,7 +301,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
-        this.streamingSearch = clone.streamingSearch;
         this.streamingSearchMode = clone.streamingSearchMode;
     }
 
@@ -317,7 +311,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         OriginalIndices.writeOriginalIndices(originalIndices, out);
 
         if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
-            out.writeBoolean(streamingSearch);
             out.writeOptionalString(streamingSearchMode);
         }
     }
@@ -418,14 +411,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public void setInboundNetworkTime(long newTime) {
         this.inboundNetworkTime = newTime;
-    }
-
-    public boolean isStreamingSearch() {
-        return streamingSearch;
-    }
-
-    public void setStreamingSearch(boolean streamingSearch) {
-        this.streamingSearch = streamingSearch;
     }
 
     public String getStreamingSearchMode() {

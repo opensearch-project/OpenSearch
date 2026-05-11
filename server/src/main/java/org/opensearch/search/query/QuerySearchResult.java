@@ -397,7 +397,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeNamedWriteable(sortValueFormats[i]);
             }
         }
-        // Ensure a non-null TopDocs payload on the wire.
+        // Streaming chunks may not represent final top-doc state, and consumed results no longer retain top docs.
+        // Keep the wire format stable by writing an empty payload when top docs are absent.
         TopDocsAndMaxScore toWrite = topDocsAndMaxScore;
         if (toWrite == null) {
             toWrite = new TopDocsAndMaxScore(

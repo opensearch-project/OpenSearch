@@ -39,6 +39,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Booleans;
@@ -151,7 +152,11 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        final boolean streamModeRequested = searchRequest.getStreamingSearchMode() != null || request.hasParam("stream_scoring_mode");
+        if (request.hasParam("stream_scoring_mode")) {
+            throw new IllegalArgumentException("stream_scoring_mode is no longer supported. Use streaming_mode=no_scoring.");
+        }
+
+        final boolean streamModeRequested = searchRequest.getStreamingSearchMode() != null;
         final boolean streamTransportEnabled = FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
         final boolean streamSearchEnabled = streamTransportEnabled && clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED);
         if (streamModeRequested || streamSearchEnabled) {
@@ -161,13 +166,17 @@ public class RestSearchAction extends BaseRestHandler {
             if (streamModeRequested && streamSearchEnabled == false) {
                 throw new IllegalArgumentException("Stream search is disabled. Enable [stream.search.enabled] to use stream search.");
             }
+            if (streamModeRequested && "no_scoring".equals(searchRequest.getStreamingSearchMode()) == false) {
+                throw new IllegalArgumentException(
+                    "Unsupported streaming_mode [" + searchRequest.getStreamingSearchMode() + "]. Only [no_scoring] is supported."
+                );
+            }
             if (canUseStreamSearch(searchRequest)) {
-                String scoringMode = request.param("stream_scoring_mode");
-                if (scoringMode != null) {
-                    searchRequest.setStreamingSearchMode(scoringMode);
-                }
-                if (streamModeRequested && searchRequest.getStreamingSearchMode() == null) {
+                if (streamModeRequested == false && searchRequest.getStreamingSearchMode() == null) {
                     searchRequest.setStreamingSearchMode("no_scoring");
+                }
+                if (searchRequest.searchType() == SearchType.DFS_QUERY_THEN_FETCH) {
+                    throw new IllegalArgumentException("Stream search is not supported with search type [dfs_query_then_fetch]");
                 }
                 return channel -> {
                     RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());

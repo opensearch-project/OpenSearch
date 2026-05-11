@@ -14,6 +14,7 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.query.QuerySearchResult;
 
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -31,7 +32,8 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         SearchProgressListener progressListener,
         NamedWriteableRegistry namedWriteableRegistry,
         int expectedResultSize,
-        Consumer<Exception> onPartialMergeFailure
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled
     ) {
         super(
             request,
@@ -41,7 +43,8 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
             progressListener,
             namedWriteableRegistry,
             expectedResultSize,
-            onPartialMergeFailure
+            onPartialMergeFailure,
+            isTaskCancelled
         );
     }
 

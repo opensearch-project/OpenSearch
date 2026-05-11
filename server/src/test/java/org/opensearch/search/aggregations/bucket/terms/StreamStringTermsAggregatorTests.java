@@ -1462,11 +1462,16 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocument(doc);
                 }
 
-                assertTrue(debugInfo.containsKey("streaming_enabled"));
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
 
-                // Assert other metric keys are present
-                assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
-                assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(3)
+                        .shardSize(3)
+                        .order(BucketOrder.aggregation("max_value", false))
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
 
                     IndexSettings indexSettings = new IndexSettings(
                         IndexMetadata.builder("_index")

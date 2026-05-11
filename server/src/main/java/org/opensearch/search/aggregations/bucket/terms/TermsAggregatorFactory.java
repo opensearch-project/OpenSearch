@@ -34,6 +34,8 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -76,7 +78,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implements StreamingCostEstimable {
     private static final Logger logger = LogManager.getLogger(TermsAggregatorFactory.class);
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 

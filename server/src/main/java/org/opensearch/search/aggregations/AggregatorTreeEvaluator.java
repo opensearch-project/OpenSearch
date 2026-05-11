@@ -15,7 +15,6 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.FlushMode;
-import org.opensearch.search.streaming.FlushModeResolver;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,7 +26,7 @@ import java.util.List;
  * <p>
  * Evaluates whether streaming aggregations will be beneficial by analyzing the
  * entire
- * collector tree using {@link FlushModeResolver}. When streaming is determined
+ * collector tree using cached flush-mode decisions. When streaming is determined
  * to be
  * inefficient, recreates the aggregator tree with traditional (non-streaming)
  * aggregators.
@@ -88,22 +87,11 @@ public final class AggregatorTreeEvaluator {
      * @return the resolved flush mode for this query
      */
     private static FlushMode getFlushMode(Collector collector, SearchContext searchContext) {
-        if (searchContext.hasCachedFlushMode()) {
+        if (searchContext.getFlushMode() != null) {
             return searchContext.getFlushMode();
         }
 
-        long maxBucketCount = searchContext.getStreamingMaxEstimatedBucketCount();
-
-        double minCardinalityRatio = searchContext.getStreamingMinCardinalityRatio();
-        long minBucketCount = searchContext.getStreamingMinEstimatedBucketCount();
-        FlushMode mode = FlushModeResolver.resolve(
-            searchContext,
-            collector,
-            FlushMode.PER_SHARD,
-            maxBucketCount,
-            minCardinalityRatio,
-            minBucketCount
-        );
+        FlushMode mode = FlushMode.PER_SHARD;
 
         if (!searchContext.setFlushModeIfAbsent(mode)) {
             // this could happen in case of race condition, we go ahead with what's been set

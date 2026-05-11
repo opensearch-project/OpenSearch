@@ -109,6 +109,8 @@ import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -305,9 +307,7 @@ final class DefaultSearchContext extends SearchContext {
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
-        if (request.getStreamingSearchMode() != null) {
-            this.streamingMode = StreamingSearchMode.fromString(request.getStreamingSearchMode());
-        }
+        this.streamingMode = resolveStreamingMode(request.getStreamingSearchMode(), isStreamSearch);
     }
 
     DefaultSearchContext(
@@ -1324,6 +1324,16 @@ final class DefaultSearchContext extends SearchContext {
         return false;
     }
 
+    private static StreamingSearchMode resolveStreamingMode(String streamingSearchMode, boolean isStreamSearch) {
+        if (streamingSearchMode != null) {
+            return StreamingSearchMode.fromString(streamingSearchMode);
+        }
+        if (isStreamSearch) {
+            return StreamingSearchMode.NO_SCORING;
+        }
+        return null;
+    }
+
     public void setStreamChannelListener(StreamSearchChannelListener listener) {
         this.isStreamSearch = true;
         this.listener = listener;
@@ -1365,11 +1375,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public boolean setFlushModeIfAbsent(FlushMode flushMode) {
         return cachedFlushMode.trySet(flushMode);
-    }
-
-    @Override
-    public boolean hasCachedFlushMode() {
-        return cachedFlushMode.get() != null;
     }
 
     @Override
