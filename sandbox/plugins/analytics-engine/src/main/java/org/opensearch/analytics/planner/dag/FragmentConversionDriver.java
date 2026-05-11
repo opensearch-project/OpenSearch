@@ -134,19 +134,7 @@ public class FragmentConversionDriver {
             } else {
                 factory.createShardScanNode().ifPresent(instructions::add);
             }
-            if (plan.resolvedFragment() instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
-                factory.createPartialAggregateNode().ifPresent(instructions::add);
-            }
         }
-        // Coord-side reduce stages (OpenSearchStageInputScan leaf) intentionally don't
-        // register FinalAggregateInstructionHandler. That handler routes through Rust's
-        // apply_aggregate_mode(Mode::Final), whose strip leaves DataFusion's Final with
-        // dangling intermediate-column refs (cnt[sum]/cnt[count]) that the wire schema
-        // doesn't carry. The legacy executeLocalPlan path handles every coord-side reduce
-        // (aggregate, join, sort, ...) uniformly — DataFusion plans Partial+Final itself
-        // and the math is correct because all aggregates that reach the FINAL stage have
-        // associative reducers (SUM-of-SUMs, MIN-of-MINs, COUNT->SUM after function-swap).
-
         return instructions;
     }
 

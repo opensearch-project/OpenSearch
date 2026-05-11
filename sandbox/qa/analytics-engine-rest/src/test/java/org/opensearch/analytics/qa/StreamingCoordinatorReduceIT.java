@@ -75,7 +75,7 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
      */
     public void testAvgAcrossShards() throws Exception {
         createParquetBackedIndex();
-        int total = NUM_SHARDS * DOCS_PER_SHARD
+        int total = NUM_SHARDS * DOCS_PER_SHARD;
         indexValuedDocs(i -> i);
 
         // Expected: AVG(0, 1, ..., total-1) = (total - 1) / 2.0
@@ -146,10 +146,6 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
      *
      * <p>Expected: sample stddev of (0..19) = sqrt(sum((i - mean)^2) / (N - 1)) = sqrt(35) ≈ 5.916.
      */
-    @org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix(
-        bugUrl = "OpenSearchAggregateReduceRule excludes STDDEV_SAMP — Calcite's reduction emits a"
-            + " CASE-WHEN-boolean guard that OpenSearchProject.stripAnnotations doesn't unwrap."
-    )
     public void testStddevSampAcrossShards() throws Exception {
         createParquetBackedIndex();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
@@ -200,10 +196,6 @@ public class StreamingCoordinatorReduceIT extends AnalyticsRestTestCase {
      *
      * <p>Expected: sample variance of (0..19) = 35.0.
      */
-    @org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix(
-        bugUrl = "OpenSearchAggregateReduceRule excludes VAR_SAMP — Calcite's reduction emits a"
-            + " CASE-WHEN-boolean guard that OpenSearchProject.stripAnnotations doesn't unwrap."
-    )
     public void testVarSampAcrossShards() throws Exception {
         createParquetBackedIndex();
         int total = NUM_SHARDS * DOCS_PER_SHARD;

@@ -32,24 +32,28 @@ import java.util.EnumSet;
  * primitive aggregate calls, and the Volcano split rule downstream operates on those
  * primitives.
  *
- * <p><b>Reduction set</b>: {@code AVG} + {@code STDDEV_POP/VAR_POP}. AVG reduces to
- * SUM/COUNT/DIVIDE/CAST. STDDEV_POP/VAR_POP additionally emit {@code MULTIPLY} (for
- * {@code x*x}) and {@code POWER(variance, 0.5)} (sqrt) — both expected in
- * {@link OpenSearchProjectRule#BASELINE_SCALAR_OPS}. All emitted aggregates are SUM/COUNT
- * primitives that the resolver decomposes through the standard single-field path.
- *
- * <p><b>Excluded: {@code STDDEV_SAMP} / {@code VAR_SAMP}.</b> The sample variants emit a
- * {@code CASE WHEN count > 1 THEN ... ELSE NULL END} guard for Bessel's correction. The
- * boolean comparison inside the CASE gets wrapped in {@code AnnotatedProjectExpression}
- * by {@link OpenSearchProjectRule}, and the current {@code stripAnnotations} doesn't
- * unwrap boolean operands — so substrait conversion fails with "Unable to convert call
- * ANNOTATED_PROJECT_EXPR(boolean)". Re-add once that strip path is extended.
+ * <p><b>Reduction set</b>: {@code AVG} + {@code STDDEV_POP}/{@code VAR_POP} +
+ * {@code STDDEV_SAMP}/{@code VAR_SAMP}. AVG reduces to SUM/COUNT/DIVIDE/CAST.
+ * STDDEV/VAR additionally emit {@code MULTIPLY} (for {@code x*x}) and
+ * {@code POWER(variance, 0.5)} (sqrt). The {@code SAMP} variants also emit a
+ * {@code CASE WHEN count > 1 THEN sqrt(variance) ELSE NULL END} Bessel's-correction
+ * guard — the {@code >} comparison operator is in
+ * {@link OpenSearchProjectRule#BASELINE_SCALAR_OPS} so it flows through without being
+ * wrapped in {@code AnnotatedProjectExpression}. All emitted aggregates are
+ * SUM/COUNT primitives that the resolver decomposes through the standard single-field
+ * path.
  *
  * @opensearch.internal
  */
 public class OpenSearchAggregateReduceRule extends AggregateReduceFunctionsRule {
 
-    private static final EnumSet<SqlKind> FUNCTIONS_TO_REDUCE = EnumSet.of(SqlKind.AVG, SqlKind.STDDEV_POP, SqlKind.VAR_POP);
+    private static final EnumSet<SqlKind> FUNCTIONS_TO_REDUCE = EnumSet.of(
+        SqlKind.AVG,
+        SqlKind.STDDEV_POP,
+        SqlKind.STDDEV_SAMP,
+        SqlKind.VAR_POP,
+        SqlKind.VAR_SAMP
+    );
 
     public OpenSearchAggregateReduceRule() {
         super(LogicalAggregate.class, RelBuilder.proto(Contexts.empty()), FUNCTIONS_TO_REDUCE);

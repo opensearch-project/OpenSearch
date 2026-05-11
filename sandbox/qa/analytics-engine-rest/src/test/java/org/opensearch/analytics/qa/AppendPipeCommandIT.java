@@ -14,8 +14,10 @@ import org.opensearch.client.ResponseException;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Self-contained integration test for PPL {@code appendpipe} on the analytics-engine route.
@@ -64,7 +66,7 @@ public class AppendPipeCommandIT extends AnalyticsRestTestCase {
         // The concrete invariant: the distinct buckets FURNITURE/OFFICE SUPPLIES/TECHNOLOGY all
         // appear, and the two branches' rows are identical modulo ordering, so the multiset
         // count of each bucket is at least 1 and no bucket count exceeds 2.
-        java.util.List<java.util.List<Object>> actual = getRows(
+        List<List<Object>> actual = getRows(
             "source="
                 + DATASET.indexName
                 + " | stats sum(int0) as sum_int0_by_str0 by str0 | sort str0"
@@ -72,14 +74,14 @@ public class AppendPipeCommandIT extends AnalyticsRestTestCase {
                 + " | head 5"
         );
         assertEquals("head 5 must return 5 rows", 5, actual.size());
-        java.util.Map<String, Integer> bucketCounts = new java.util.HashMap<>();
-        for (java.util.List<Object> r : actual) {
+        Map<String, Integer> bucketCounts = new HashMap<>();
+        for (List<Object> r : actual) {
             String bucket = (String) r.get(1);
             bucketCounts.merge(bucket, 1, Integer::sum);
         }
         assertEquals(
             "all three buckets must appear",
-            java.util.Set.of("FURNITURE", "OFFICE SUPPLIES", "TECHNOLOGY"),
+            Set.of("FURNITURE", "OFFICE SUPPLIES", "TECHNOLOGY"),
             bucketCounts.keySet()
         );
         for (Map.Entry<String, Integer> e : bucketCounts.entrySet()) {
@@ -88,9 +90,9 @@ public class AppendPipeCommandIT extends AnalyticsRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private java.util.List<java.util.List<Object>> getRows(String ppl) throws IOException {
+    private List<List<Object>> getRows(String ppl) throws IOException {
         Map<String, Object> response = executePpl(ppl);
-        return (java.util.List<java.util.List<Object>>) response.get("rows");
+        return (List<List<Object>>) response.get("rows");
     }
 
     // ── duplicate + inline stats producing a smaller schema (merged column) ─────
