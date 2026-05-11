@@ -30,6 +30,7 @@ import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.io.IOException;
 import java.util.List;
@@ -58,6 +59,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final AnalyticsOperationListener listener;
     private final BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private TaskResourceTrackingService taskResourceTrackingService;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
         this(backends, List.of(), null);
@@ -83,6 +85,10 @@ public class AnalyticsSearchService implements AutoCloseable {
         allocator.close();
     }
 
+    public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
+        this.taskResourceTrackingService = service;
+    }
+
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
         ResolvedFragment resolved = resolveFragment(request, shard);
         try {
@@ -93,6 +99,8 @@ public class AnalyticsSearchService implements AutoCloseable {
         } catch (Exception e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw new RuntimeException("Failed to start streaming fragment on " + shard.shardId(), e);
+        } finally {
+            backends.get(resolved.plan.getBackendId()).clearTaskTracking();
         }
     }
 
@@ -125,6 +133,10 @@ public class AnalyticsSearchService implements AutoCloseable {
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
                 FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
                 backend.configureFilterDelegation(handle, backendContext);
+
+                if (task != null && taskResourceTrackingService != null) {
+                    backend.configureTaskTracking(taskResourceTrackingService, task.getId());
+                }
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);

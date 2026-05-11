@@ -573,4 +573,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // (createProvider, createCollector, collectDocs, release*) route to it.
         FilterTreeCallbacks.setHandle(handle);
     }
+
+    @Override
+    public void configureTaskTracking(org.opensearch.tasks.TaskResourceTrackingService trackingService, long taskId) {
+        FilterTreeCallbacks.setTaskTracking(trackingService, taskId);
+    }
+
+    @Override
+    public void clearTaskTracking() {
+        FilterTreeCallbacks.setTaskTracking(null, -1);
+    }
 }

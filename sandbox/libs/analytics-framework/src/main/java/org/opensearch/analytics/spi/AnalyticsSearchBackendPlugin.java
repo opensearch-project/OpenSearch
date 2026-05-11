@@ -113,4 +113,16 @@ public interface AnalyticsSearchBackendPlugin {
     default void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
         throw new UnsupportedOperationException("configureFilterDelegation not implemented for [" + name() + "]");
     }
+
+    /**
+     * Configure task-level resource tracking for delegation callbacks executing on foreign threads.
+     * Called after {@link #configureFilterDelegation}. Backends should wrap their callback dispatch
+     * with start/finish tracking calls for the given task.
+     */
+    default void configureTaskTracking(org.opensearch.tasks.TaskResourceTrackingService trackingService, long taskId) {}
+
+    /**
+     * Clear task tracking state after fragment execution completes.
+     */
+    default void clearTaskTracking() {}
 }

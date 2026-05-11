@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
+import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,6 +36,8 @@ public final class FilterTreeCallbacks {
     private static final Logger LOGGER = LogManager.getLogger(FilterTreeCallbacks.class);
 
     private static final AtomicReference<FilterDelegationHandle> HANDLE = new AtomicReference<>();
+    private static final AtomicReference<TaskResourceTrackingService> TRACKING_SERVICE = new AtomicReference<>();
+    private static long currentTaskId = -1;
 
     private FilterTreeCallbacks() {}
 
@@ -47,12 +50,35 @@ public final class FilterTreeCallbacks {
         HANDLE.set(handle);
     }
 
+    /**
+     * Configure task resource tracking. All subsequent callbacks will attribute
+     * CPU/heap to the given task until cleared.
+     */
+    public static void setTaskTracking(TaskResourceTrackingService trackingService, long taskId) {
+        TRACKING_SERVICE.set(trackingService);
+        currentTaskId = taskId;
+    }
+
+    private static long trackStart() {
+        TaskResourceTrackingService tracker = TRACKING_SERVICE.get();
+        if (tracker == null || currentTaskId < 0) return -1;
+        long threadId = Thread.currentThread().threadId();
+        tracker.taskExecutionStartedOnThread(currentTaskId, threadId);
+        return threadId;
+    }
+
+    private static void trackEnd(long threadId) {
+        if (threadId < 0) return;
+        TRACKING_SERVICE.get().taskExecutionFinishedOnThread(currentTaskId, threadId);
+    }
+
     // ── Provider lifecycle (cold path, once per query) ────────────────
 
     /**
      * {@code createProvider(annotationId) -> providerKey|-1}.
      */
     public static int createProvider(int annotationId) {
+        long tid = trackStart();
         try {
             FilterDelegationHandle handle = HANDLE.get();
             if (handle == null) {
@@ -62,6 +88,8 @@ public final class FilterTreeCallbacks {
         } catch (Throwable throwable) {
             LOGGER.error("createProvider failed for annotationId=" + annotationId, throwable);
             return -1;
+        } finally {
+            trackEnd(tid);
         }
     }
 
@@ -85,6 +113,7 @@ public final class FilterTreeCallbacks {
      * {@code createCollector(providerKey, segmentOrd, minDoc, maxDoc) -> collectorKey|-1}.
      */
     public static int createCollector(int providerKey, int segmentOrd, int minDoc, int maxDoc) {
+        long tid = trackStart();
         try {
             FilterDelegationHandle handle = HANDLE.get();
             if (handle == null) {
@@ -103,6 +132,8 @@ public final class FilterTreeCallbacks {
                 throwable
             );
             return -1;
+        } finally {
+            trackEnd(tid);
         }
     }
 
@@ -110,6 +141,7 @@ public final class FilterTreeCallbacks {
      * {@code collectDocs(collectorKey, minDoc, maxDoc, outPtr, outWordCap) -> wordsWritten|-1}.
      */
     public static long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment outPtr, long outWordCap) {
+        long tid = trackStart();
         try {
             FilterDelegationHandle handle = HANDLE.get();
             if (handle == null) {
@@ -125,6 +157,8 @@ public final class FilterTreeCallbacks {
                 throwable
             );
             return -1L;
+        } finally {
+            trackEnd(tid);
         }
     }
 
