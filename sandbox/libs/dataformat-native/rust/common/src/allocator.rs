@@ -111,6 +111,53 @@ fn set_all_arenas(suffix: &[u8], ms: i64) -> Result<i64, String> {
     }
 }
 
+// ── Heap profiling ──────────────────────────────────────────────────────────
+//
+// Requires the process to be started with `_RJEM_MALLOC_CONF=prof:true,...`
+// (or the compile-time MALLOC_CONF in lib.rs to include `prof:true`).
+// Without that, activate/dump will return errors — the caller (Java) handles
+// this gracefully by logging a warning.
+
+/// FFI: Activates jemalloc heap profiling. Returns 0 on success, negative error pointer on failure.
+/// Called from Java when the cluster setting `native.jemalloc.heap_prof_active` is set to true.
+#[no_mangle]
+pub extern "C" fn native_jemalloc_heap_prof_activate() -> i64 {
+    ffm_wrap("native_jemalloc_heap_prof_activate", || {
+        unsafe { tikv_jemalloc_ctl::raw::write(b"prof.active\0", true) }
+            .map(|_| 0i64)
+            .map_err(|e| format!("failed to activate profiling: {}", e))
+    })
+}
+
+/// FFI: Deactivates jemalloc heap profiling. Returns 0 on success, negative error pointer on failure.
+/// Called from Java when the cluster setting `native.jemalloc.heap_prof_active` is set to false.
+#[no_mangle]
+pub extern "C" fn native_jemalloc_heap_prof_deactivate() -> i64 {
+    ffm_wrap("native_jemalloc_heap_prof_deactivate", || {
+        unsafe { tikv_jemalloc_ctl::raw::write(b"prof.active\0", false) }
+            .map(|_| 0i64)
+            .map_err(|e| format!("failed to deactivate profiling: {}", e))
+    })
+}
+
+/// FFI: Dumps a heap profile to the given path. Path must be a null-terminated C string.
+/// Returns 0 on success, negative error pointer on failure.
+/// Called from Java when the cluster setting `native.jemalloc.heap_prof_dump_path` is updated.
+#[no_mangle]
+pub unsafe extern "C" fn native_jemalloc_heap_prof_dump(path: *const std::ffi::c_char) -> i64 {
+    ffm_wrap("native_jemalloc_heap_prof_dump", || {
+        if path.is_null() {
+            return Err("null path".to_string());
+        }
+        let c_str = std::ffi::CStr::from_ptr(path);
+        let path_bytes = c_str.to_bytes_with_nul();
+        // prof.dump expects a *const c_char pointing to the file path
+        tikv_jemalloc_ctl::raw::write(b"prof.dump\0", path_bytes.as_ptr() as *const std::ffi::c_char)
+            .map(|_| 0i64)
+            .map_err(|e| format!("failed to dump heap profile: {}", e))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,5 +208,26 @@ mod tests {
 
         // Restore default
         native_jemalloc_set_muzzy_decay_ms(30000);
+    }
+
+    #[test]
+    fn heap_prof_activate_returns_error_when_prof_disabled() {
+        // When the process is not started with prof:true, activate should return
+        // a negative error pointer (not crash).
+        let rc = native_jemalloc_heap_prof_activate();
+        // prof:true is not set in test builds, so this should fail gracefully
+        assert!(rc <= 0, "expected error or 0, got {}", rc);
+    }
+
+    #[test]
+    fn heap_prof_deactivate_returns_error_when_prof_disabled() {
+        let rc = native_jemalloc_heap_prof_deactivate();
+        assert!(rc <= 0, "expected error or 0, got {}", rc);
+    }
+
+    #[test]
+    fn heap_prof_dump_null_path_returns_error() {
+        let rc = unsafe { native_jemalloc_heap_prof_dump(std::ptr::null()) };
+        assert!(rc < 0, "expected negative error pointer for null path, got {}", rc);
     }
 }

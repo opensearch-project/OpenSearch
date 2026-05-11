@@ -23,6 +23,11 @@
 ///   is re-applied by NativeBridgeModule.createComponents() — these compile-time values are
 ///   only used until that point.
 /// - lg_tcache_max: NOT dynamically tunable by jemalloc — init-time only, requires process restart to change.
+///
+/// NOTE: prof:true is baked into jemalloc at compile time via JEMALLOC_SYS_WITH_MALLOC_CONF
+/// in .cargo/config.toml. This ensures profiling works even when the library is loaded via
+/// dlopen/FFM (where the malloc_conf symbol is not read by jemalloc). Profiling is inactive
+/// by default (prof_active:false) and activated on-demand via cluster settings.
 #[export_name = "malloc_conf"]
 pub static MALLOC_CONF: &[u8] = b"dirty_decay_ms:30000,muzzy_decay_ms:30000,lg_tcache_max:16\0";
 

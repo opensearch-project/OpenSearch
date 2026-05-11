@@ -1,2 +1,5 @@
 [build]
 rustflags = ["--cfg", "tokio_unstable", "-C", "force-frame-pointers=yes", "-C", "symbol-mangling-version=v0"]
+
+[env]
+JEMALLOC_SYS_WITH_MALLOC_CONF = "prof:true,prof_active:false,lg_prof_sample:17"
