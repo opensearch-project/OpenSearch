@@ -145,6 +145,20 @@ public interface Indexer
     GatedCloseable<CatalogSnapshot> acquireSnapshot();
 
     /**
+     * Serializes the given {@link CatalogSnapshot} to a byte array in the format expected by the
+     * remote-store metadata file (Lucene {@code SegmentInfos} layout). Implementations:
+     * <ul>
+     *   <li>Non-DFA (segrep Lucene engine): writes the real Lucene {@code SegmentInfos}.</li>
+     *   <li>DFA primary: delegates to the {@link org.opensearch.index.engine.exec.coord.CatalogSnapshotManager},
+     *       which dispatches to the {@link org.opensearch.index.engine.exec.CommitFileManager}
+     *       for the shard's Lucene format; that implementation uses the reader registered for
+     *       the snapshot to produce bytes strictly consistent with the catalog's Lucene files.</li>
+     *   <li>DFA replica (NRT): unsupported — replicas don't produce upload bytes.</li>
+     * </ul>
+     */
+    byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException;
+
+    /**
      * Acquires a safe index commit for snapshot or recovery operations.
      * The commit is guaranteed to be consistent and will not be deleted while held.
      *

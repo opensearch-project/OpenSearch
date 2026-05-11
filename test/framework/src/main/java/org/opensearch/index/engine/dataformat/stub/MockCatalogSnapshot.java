@@ -113,11 +113,6 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public byte[] serialize() throws IOException {
-        return new byte[0];
-    }
-
-    @Override
     public Collection<String> getFiles(boolean includeSegmentsFile) {
         return List.of();
     }

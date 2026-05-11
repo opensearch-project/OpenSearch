@@ -488,13 +488,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         catalogSnapshotCloned.setUserData(userData, false);
 
-        // For DFA primaries with a Lucene-backed committer, capture IndexWriter's in-memory
-        // SegmentInfos so uploaded bytes reference real Lucene segments. Non-DFA paths return
-        // null and fall back to the existing synthetic-empty behavior.
-        org.apache.lucene.index.SegmentInfos luceneInMemoryInfos = null;
-        if (indexShard.getIndexer() instanceof DataFormatAwareEngine dfaEngine) {
-            luceneInMemoryInfos = dfaEngine.captureInMemoryLuceneSegmentInfos();
-        }
+        // Pass the serializer from the indexer. For DFA primary it delegates to the
+        // CatalogSnapshotManager → LuceneCommitter.serializeToCommitFormat which uses the
+        // reader registered for this snapshot to produce bytes strictly consistent with the
+        // catalog's Lucene files — no race between catalog acquisition and IndexWriter re-capture.
+        org.opensearch.common.CheckedFunction<CatalogSnapshot, byte[], IOException> serializer = indexShard
+            .catalogSnapshotToRemoteMetadataSerializer();
 
         Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
@@ -508,7 +507,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 translogFileGeneration,
                 replicationCheckpoint,
                 indexShard.getNodeId(),
-                luceneInMemoryInfos
+                serializer
             );
         }
     }

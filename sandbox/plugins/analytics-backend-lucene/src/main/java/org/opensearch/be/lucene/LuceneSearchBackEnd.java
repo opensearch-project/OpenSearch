@@ -17,8 +17,11 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Static helpers for creating Lucene-based {@link EngineReaderManager} instances.
@@ -51,12 +54,14 @@ final class LuceneSearchBackEnd {
         IndexStoreProvider provider = settings.indexStoreProvider()
             .orElseThrow(() -> new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager"));
         DirectoryReader directoryReader;
+        Map<CatalogSnapshot, DirectoryReader> readers = new ConcurrentHashMap<>();
         if (provider.getStore(settings.format()) instanceof LuceneIndexingExecutionEngine.LuceneFormatStore luceneProvider) {
             directoryReader = DirectoryReader.open(luceneProvider.writer());
+            readers = luceneProvider.readers();
         } else {
             logger.warn("Initialising it with a DirectorReader instead of a writer");
             directoryReader = StandardDirectoryReader.open(provider.getStore(settings.format()).store().directory());
         }
-        return new LuceneReaderManager(settings.format(), directoryReader);
+        return new LuceneReaderManager(settings.format(), directoryReader, readers);
     }
 }

@@ -47,7 +47,7 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
 public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     private final DataFormat dataFormat;
-    private final Map<CatalogSnapshot, LuceneReader> readers = new HashMap<>();
+    private final Map<CatalogSnapshot, LuceneReader> readers;
     private volatile DirectoryReader currentReader;
 
     /**
@@ -57,10 +57,11 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
      * @param initialReader the initial DirectoryReader, must not be null
      * @throws NullPointerException if initialReader is null
      */
-    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader) {
+    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader, Map<CatalogSnapshot, LuceneReader> readers) {
         this.dataFormat = dataFormat;
         Objects.requireNonNull(initialReader, "initialReader must not be null");
         this.currentReader = initialReader;
+        this.readers = readers;
     }
 
     @Override

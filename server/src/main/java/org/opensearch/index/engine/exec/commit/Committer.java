@@ -86,18 +86,4 @@ public interface Committer extends CommitFileManager, Closeable {
      * @throws IOException if reading commits fails
      */
     List<CatalogSnapshot> listCommittedSnapshots() throws IOException;
-
-    /**
-     * Returns the committer's current in-memory commit state as a Lucene
-     * {@link org.apache.lucene.index.SegmentInfos} — no durable commit.
-     *
-     * <p>Used by the remote-store upload path to carry real Lucene segment references so
-     * recovery preserves on-disk Lucene files ({@code .si}/{@code .cfe}/{@code .cfs}).
-     * Default returns {@code null} for committers without in-memory Lucene state.
-     *
-     * @return in-memory {@link org.apache.lucene.index.SegmentInfos}, or {@code null}
-     */
-    default org.apache.lucene.index.SegmentInfos captureInMemorySegmentInfos() throws IOException {
-        return null;
-    }
 }

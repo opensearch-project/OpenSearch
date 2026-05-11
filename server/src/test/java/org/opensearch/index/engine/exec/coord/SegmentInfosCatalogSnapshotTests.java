@@ -80,14 +80,6 @@ public class SegmentInfosCatalogSnapshotTests extends OpenSearchTestCase {
         assertEquals(segmentInfos.files(true), new java.util.HashSet<>(uploadNames));
     }
 
-    public void testSerializeProducesValidBytes() throws Exception {
-        SegmentInfos segmentInfos = randomSegmentInfos();
-        SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfos);
-        byte[] bytes = snapshot.serialize();
-        assertNotNull(bytes);
-        assertTrue(bytes.length > 0);
-    }
-
     public void testGetFormatVersionForUnmappedFileDefaultsToLatest() {
         SegmentInfos segmentInfos = randomSegmentInfos();
         SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfos);

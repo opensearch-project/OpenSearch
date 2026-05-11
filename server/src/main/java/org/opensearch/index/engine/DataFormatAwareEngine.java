@@ -1368,6 +1368,11 @@ public class DataFormatAwareEngine implements Indexer {
         return catalogSnapshotManager.acquireSnapshot();
     }
 
+    @Override
+    public byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
+        return catalogSnapshotManager.serializeToCommitFormat(catalogSnapshot);
+    }
+
     // Todo: We need to update this api to return catalogSnapshot instead of IndexCommit to make it decoupled with lucene.
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
@@ -1389,16 +1394,6 @@ public class DataFormatAwareEngine implements Indexer {
         ensureOpen();
         return catalogSnapshotManager.acquireCommittedSnapshot(true);
 
-    }
-
-    /**
-     * Captures the committer's Lucene in-memory {@link org.apache.lucene.index.SegmentInfos}
-     * for the remote-store upload path. Returns {@code null} if the committer has no Lucene
-     * in-memory state.
-     */
-    public org.apache.lucene.index.SegmentInfos captureInMemoryLuceneSegmentInfos() throws IOException {
-        ensureOpen();
-        return committer.captureInMemorySegmentInfos();
     }
 
     /**

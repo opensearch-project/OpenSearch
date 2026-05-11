@@ -6089,6 +6089,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getIndexer().acquireSnapshot();
     }
 
+    /**
+     * Returns a {@link CheckedFunction} that serializes the given {@link CatalogSnapshot} into
+     * the Lucene {@code SegmentInfos} bytes to be uploaded as remote-store metadata. Delegates
+     * to {@code getIndexer().serializeSnapshotToRemoteMetadata(...)}.
+     *
+     * <p>Passed into {@link org.opensearch.index.store.RemoteSegmentStoreDirectory#uploadMetadata}
+     * so that the final bytes are produced at the point where the upload lock is held, using
+     * the reader registered for the snapshot — eliminating the race between catalog acquisition
+     * and an on-demand {@code IndexWriter} re-capture.
+     */
+    public org.opensearch.common.CheckedFunction<CatalogSnapshot, byte[], IOException> catalogSnapshotToRemoteMetadataSerializer() {
+        return cs -> getIndexer().serializeSnapshotToRemoteMetadata(cs);
+    }
+
     private TimeValue getRemoteTranslogUploadBufferInterval(Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier) {
         assert Objects.nonNull(clusterRemoteTranslogBufferIntervalSupplier) : "remote translog buffer interval supplier is null";
         if (indexSettings().isRemoteTranslogBufferIntervalExplicit()) {
