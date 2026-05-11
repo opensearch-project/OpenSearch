@@ -757,6 +757,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
                 ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING,
                 ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING,
+                ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING,
+                ResourceTrackerSettings.NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING,
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,

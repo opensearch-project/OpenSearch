@@ -235,8 +235,9 @@ grant {
   permission java.io.FilePermission "/proc/self/mountinfo", "read";
   permission java.io.FilePermission "/proc/diskstats", "read";
 
-  // memory stats on Linux
-  permission java.io.FilePermission "/proc/meminfo", "read";
+  // native memory stats on Linux (RssAnon from /proc/self/status)
+  permission java.io.FilePermission "/proc/self/status", "read";
+
 
   // control group stats on Linux
   // TODO: update later when wildcard is supported in policy

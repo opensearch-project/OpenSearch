@@ -253,7 +253,7 @@ public class OsProbe {
         try {
             return readRssAnonFromProcSelfStatus();
         } catch (IOException e) {
-            logger.debug("failed to read /proc/self/status", e);
+            logger.warn("failed to read /proc/self/status", e);
             return -1L;
         }
     }
@@ -282,15 +282,15 @@ public class OsProbe {
                             }
                             return kb * 1024L;
                         } catch (NumberFormatException nfe) {
-                            logger.debug("malformed RssAnon value in /proc/self/status", nfe);
+                            logger.warn("malformed RssAnon value in /proc/self/status", nfe);
                             return -1L;
                         }
                     }
-                    logger.debug("RssAnon line has unexpected shape: [{}]", line);
+                    logger.warn("RssAnon line has unexpected shape: [{}]", line);
                     return -1L;
                 }
             }
-            logger.debug("RssAnon line not found in /proc/self/status");
+            logger.warn("RssAnon line not found in /proc/self/status");
             return -1L;
         }
     }

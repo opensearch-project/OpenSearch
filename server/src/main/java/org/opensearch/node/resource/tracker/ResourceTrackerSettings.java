@@ -11,6 +11,7 @@ package org.opensearch.node.resource.tracker;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 /**
  * Settings related to resource usage trackers such as polling interval, window duration etc
@@ -82,6 +83,30 @@ public class ResourceTrackerSettings {
     public static final Setting<TimeValue> GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
         "node.resource.tracker.global_native_memory_usage.window_duration",
         TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_SECONDS),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Absolute native-memory budget for this node, in bytes. When the value is {@link ByteSizeValue#ZERO}
+     * (default) the tracker treats the budget as unconfigured and reports {@code 0%}.
+     */
+    public static final Setting<ByteSizeValue> NODE_NATIVE_MEMORY_LIMIT_SETTING = Setting.byteSizeSetting(
+        "node.native_memory.limit",
+        ByteSizeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Percentage of the native-memory limit that is reserved as buffer (not usable). The effective
+     * native memory the tracker divides against is {@code limit - (limit * bufferPercent / 100)}.
+     */
+    public static final Setting<Integer> NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING = Setting.intSetting(
+        "node.native_memory.buffer_percent",
+        0,
+        0,
+        100,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
