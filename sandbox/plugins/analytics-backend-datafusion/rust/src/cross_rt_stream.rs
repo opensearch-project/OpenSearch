@@ -39,7 +39,7 @@ impl CrossRtStream {
         F: FnOnce(Sender<Result<RecordBatch, DataFusionError>>) -> Fut,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let (tx, rx) = channel(1);
+        let (tx, rx) = channel(2);
         let driver = f(tx).boxed();
         Self {
             driver,
