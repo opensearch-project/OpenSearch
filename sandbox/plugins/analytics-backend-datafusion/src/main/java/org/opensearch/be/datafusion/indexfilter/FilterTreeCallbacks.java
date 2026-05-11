@@ -115,6 +115,9 @@ public final class FilterTreeCallbacks {
             if (handle == null) {
                 return -1L;
             }
+            if (handle.isCancelled()) {
+                return -1L;
+            }
             int maxWords = (int) Math.min(outWordCap, (long) Integer.MAX_VALUE);
             MemorySegment view = outPtr.reinterpret((long) maxWords * Long.BYTES);
             int wordsWritten = handle.collectDocs(collectorKey, minDoc, maxDoc, view);

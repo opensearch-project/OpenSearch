@@ -74,4 +74,13 @@ public interface FilterDelegationHandle extends Closeable {
      * Release resources for a provider.
      */
     void releaseProvider(int providerKey);
+
+    /**
+     * Returns {@code true} if the owning query has been cancelled.
+     *
+     * @return whether the query is cancelled
+     */
+    default boolean isCancelled() {
+        return false;
+    }
 }

@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 /**
  * Lucene implementation of {@link FilterDelegationHandle}. Compiles delegated expressions
@@ -49,6 +50,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     private final Map<Integer, Query> queriesByAnnotationId;
     private final DirectoryReader directoryReader;
     private final List<LeafReaderContext> leaves;
+    private final BooleanSupplier isCancelledSupplier;
 
     private final ConcurrentHashMap<Integer, Weight> weightsByProviderKey = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, ScorerHandle> scorersByCollectorKey = new ConcurrentHashMap<>();
@@ -61,11 +63,13 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         List<DelegatedExpression> expressions,
         QueryShardContext queryShardContext,
         DirectoryReader directoryReader,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier isCancelledSupplier
     ) {
         this.directoryReader = directoryReader;
         this.leaves = directoryReader.leaves();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
+        this.isCancelledSupplier = isCancelledSupplier;
     }
 
     private static Map<Integer, Query> compileQueries(
@@ -126,6 +130,11 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             LOGGER.error("createCollector failed for providerKey=" + providerKey + ", seg=" + segmentOrd, exception);
             return -1;
         }
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return isCancelledSupplier != null && isCancelledSupplier.getAsBoolean();
     }
 
     @Override

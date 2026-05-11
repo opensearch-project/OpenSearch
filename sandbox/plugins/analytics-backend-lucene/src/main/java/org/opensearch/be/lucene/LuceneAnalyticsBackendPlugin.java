@@ -26,11 +26,14 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.Task;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 /**
  * Analytics SPI extension for the Lucene backend. Declares filter capabilities
@@ -142,7 +145,17 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         DirectoryReader directoryReader = shardCtx.getReader().getReader(plugin.getDataFormat(), DirectoryReader.class);
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
-        return new LuceneFilterDelegationHandle(expressions, queryShardContext, directoryReader, shardCtx.getNamedWriteableRegistry());
+        BooleanSupplier isCancelled = () -> {
+            Task task = shardCtx.getTask();
+            return task instanceof CancellableTask ct && ct.isCancelled();
+        };
+        return new LuceneFilterDelegationHandle(
+            expressions,
+            queryShardContext,
+            directoryReader,
+            shardCtx.getNamedWriteableRegistry(),
+            isCancelled
+        );
     }
 
     private QueryShardContext buildMinimalQueryShardContext(ShardScanExecutionContext ctx, IndexSearcher searcher) {
