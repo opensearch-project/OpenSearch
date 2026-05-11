@@ -23,7 +23,9 @@ java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = Ja
 // declared below carries the published 3.7.x.x-SNAPSHOT artifacts; for local
 // development against an unpublished sql-repo HEAD, run
 // `./gradlew :ppl:publishUnifiedQueryPublicationToMavenLocal` from the sql repo first.
-def sqlUnifiedQueryVersion = '3.7.0.0-SNAPSHOT'
+// Override via `-PsqlUnifiedQueryVersion=<version>` for local development against an
+// out-of-tree SQL plugin checkout (e.g. feature/mustang-ppl-integration).
+def sqlUnifiedQueryVersion = providers.gradleProperty('sqlUnifiedQueryVersion').getOrElse('3.7.0.0-SNAPSHOT')
 
 opensearchplugin {
   description = 'Test PPL front-end: REST endpoint backed by the unified PPL pipeline.'
@@ -32,11 +34,18 @@ opensearchplugin {
 }
 
 repositories {
-  mavenLocal()
   maven {
     name = 'OpenSearch Snapshots'
     url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
   }
+  // Force mavenLocal to position 0. Declaring `mavenLocal()` first inside this block isn't
+  // enough: `apply plugin: 'opensearch.test'` above contributes its own remote repos at
+  // plugin-application time (before this block runs), so any mavenLocal() here lands at
+  // position 5+ and gradle resolves the remote SNAPSHOT first. Sandbox-only; CI's empty
+  // `~/.m2/` makes this a no-op there.
+  def local = mavenLocal()
+  remove(local)
+  add(0, local)
 }
 
 // Guava comes transitively from calcite-core and unified-query — forbidden on

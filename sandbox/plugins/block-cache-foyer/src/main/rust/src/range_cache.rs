@@ -72,7 +72,7 @@ impl CacheKey {
 ///
 /// # Example
 /// ```
-/// use opensearch_page_cache::range_cache::range_cache_key;
+/// use opensearch_block_cache::range_cache::range_cache_key;
 /// let key = range_cache_key("data/nodes/0/_0.parquet", 0, 4096);
 /// assert_eq!(key.as_str(), "data/nodes/0/_0.parquet\x1f0-4096");
 /// ```

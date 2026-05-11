@@ -87,13 +87,14 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
 
     private StreamingResponseListener<FragmentExecutionArrowResponse> responseListener() {
         return new StreamingResponseListener<>() {
+            // Runs inline on the per-stream virtual thread driving handleStreamResponse.
+            // Must NOT offload to a thread pool: reordering across batches would let the
+            // isLast=true task race ahead, flip state to SUCCEEDED, and drop queued
+            // earlier batches via the isDone() short-circuit.
             @Override
             public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
                 if (isDone()) {
-                    VectorSchemaRoot root = response.getRoot();
-                    if (root != null) {
-                        root.close();
-                    }
+                    releaseResponseResources(response);
                     return;
                 }
 
@@ -123,6 +124,12 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                 onShardTerminated();
             }
         };
+    }
+
+    private static <T> void releaseResponseResources(T response) {
+        if (response instanceof ArrowBatchResponse arrowResp && arrowResp.getRoot() != null) {
+            arrowResp.getRoot().close();
+        }
     }
 
     private void onShardTerminated() {
