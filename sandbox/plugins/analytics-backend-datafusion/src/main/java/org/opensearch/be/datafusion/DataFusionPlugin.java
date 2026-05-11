@@ -163,6 +163,14 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private volatile DatafusionSettings datafusionSettings;
     /** Most recent raw value of {@link #DATAFUSION_MEMORY_POOL_LIMIT}; updated by its listener. */
     private volatile String currentMemoryPoolLimitRaw = DEFAULT_MEMORY_POOL_LIMIT;
+    /**
+     * Most recent value of {@link #DATAFUSION_MEMORY_POOL_LIMIT_MIN}; updated by its listener.
+     * We cache it in this volatile field rather than reading {@code clusterService.getSettings()}
+     * inside the listener — {@code AbstractScopedSettings} only writes {@code lastSettingsApplied}
+     * after all updaters run, so a listener that re-reads via {@code .get(getSettings())} sees the
+     * pre-update value.
+     */
+    private volatile ByteSizeValue currentMemoryPoolMin = DEFAULT_MEMORY_POOL_LIMIT_MIN;
 
     /**
      * Creates the DataFusion plugin.
@@ -188,6 +196,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         this.clusterService = clusterService;
         Settings settings = environment.settings();
         this.currentMemoryPoolLimitRaw = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
+        this.currentMemoryPoolMin = DATAFUSION_MEMORY_POOL_LIMIT_MIN.get(settings);
         long memoryPoolLimit = resolveMemoryPoolBytes(settings);
         long spillMemoryLimit = resolveSpillMemoryBytes(settings);
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
@@ -323,22 +332,21 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     }
 
     /**
-     * Cluster-settings listener for {@link #DATAFUSION_MEMORY_POOL_LIMIT_MIN}. Re-resolves the
-     * current raw limit against the new floor and propagates the result. Only meaningful when the
-     * limit is configured as a percentage — absolute byte sizes ignore the floor.
+     * Cluster-settings listener for {@link #DATAFUSION_MEMORY_POOL_LIMIT_MIN}. Caches the new
+     * floor and re-resolves the current raw limit against it. Only meaningful when the limit is
+     * configured as a percentage — absolute byte sizes ignore the floor.
      */
     private void onMemoryPoolMinChanged(ByteSizeValue newMin) {
+        this.currentMemoryPoolMin = newMin;
         applyMemoryPoolLimit(currentMemoryPoolLimitRaw);
     }
 
     private void applyMemoryPoolLimit(String rawValue) {
-        ClusterService cs = clusterService;
-        if (cs == null) {
-            logger.debug("ClusterService not yet initialized; ignoring memory pool limit update");
-            return;
-        }
-        ByteSizeValue floor = DATAFUSION_MEMORY_POOL_LIMIT_MIN.get(cs.getSettings());
-        long newLimitBytes = resolveBytes(rawValue, floor, DATAFUSION_MEMORY_POOL_LIMIT.getKey());
+        // Read floor from our volatile cache rather than from clusterService.getSettings().
+        // AbstractScopedSettings updates lastSettingsApplied only after all listener callbacks
+        // run, so reading via .get(cs.getSettings()) inside a listener returns the pre-update
+        // value. See ArrowBufferPoolRegistry for the same pattern on the parquet side.
+        long newLimitBytes = resolveBytes(rawValue, currentMemoryPoolMin, DATAFUSION_MEMORY_POOL_LIMIT.getKey());
         updateMemoryPoolLimit(newLimitBytes);
     }
 
