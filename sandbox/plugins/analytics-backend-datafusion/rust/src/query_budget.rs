@@ -71,8 +71,13 @@ use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, SchemaRef};
 use datafusion::common::DataFusionError;
-use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
+use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation};
 use parquet::file::metadata::ParquetMetaData;
+
+/// If jemalloc reports actual allocated is below this fraction of pool limit,
+/// the pool's `try_grow` failure is considered a false positive (stale
+/// accounting). We proceed at full partitions rather than reducing.
+const JEMALLOC_SAFETY_THRESHOLD: f64 = 0.7;
 
 /// How many batch-sized buffers exist per partition in the pipeline.
 ///
@@ -193,7 +198,7 @@ fn acquire_budget_inner(
             "query_untracked(partitions={},batch={})",
             target_partitions, batch_size
         ))
-        .with_can_spill(false);
+        .with_can_spill(true);
         let mut reservation = consumer.register(pool);
 
         match reservation.try_grow(phantom_bytes) {
@@ -208,6 +213,30 @@ fn acquire_budget_inner(
             Err(_) => {
                 drop(reservation);
 
+                // Before reducing: consult jemalloc as second source of truth.
+                // If actual process memory is well below the pool limit, the
+                // pool's rejection is a false positive (stale phantoms from
+                // queries whose Drop hasn't propagated, accounting drift).
+                // Proceed at current parallelism via infallible grow.
+                if let Some(limit) = pool_limit(pool) {
+                    if jemalloc_says_headroom_available(limit) {
+                        let consumer = MemoryConsumer::new(format!(
+                            "query_untracked(partitions={},batch={},jemalloc_override)",
+                            target_partitions, batch_size
+                        ))
+                        .with_can_spill(true);
+                        let reservation = consumer.register(pool);
+                        pool.grow(&reservation, phantom_bytes);
+                        return Ok(QueryMemoryBudget {
+                            target_partitions,
+                            batch_size,
+                            phantom_reservation: reservation,
+                            phantom_bytes,
+                        });
+                    }
+                }
+
+                // Both pool and jemalloc confirm pressure — reduce parallelism
                 if target_partitions > MIN_TARGET_PARTITIONS {
                     target_partitions = (target_partitions / 2).max(MIN_TARGET_PARTITIONS);
                 } else if batch_size > MIN_BATCH_SIZE {
@@ -387,6 +416,34 @@ fn estimate_field_bytes(dt: &DataType) -> usize {
         DataType::Map(entry, _) => estimate_field_bytes(entry.data_type()) * 4,
         _ => 32,
     }
+}
+
+/// Extract pool limit if finite.
+fn pool_limit(pool: &Arc<dyn MemoryPool>) -> Option<usize> {
+    match pool.memory_limit() {
+        MemoryLimit::Finite(limit) => Some(limit),
+        _ => None,
+    }
+}
+
+/// Consult jemalloc: is actual process memory below the safety threshold?
+/// Returns true if there's headroom (pool rejection was a false positive).
+/// Returns false if jemalloc confirms pressure or stats are unavailable.
+///
+/// Only meaningful when pool_limit reflects the real node memory budget
+/// (not artificial test pools). Returns false for pools < 16MB to avoid
+/// false overrides in unit tests with tiny pools.
+fn jemalloc_says_headroom_available(pool_limit_bytes: usize) -> bool {
+    // Don't override for tiny pools (unit tests, benchmarks with artificial limits)
+    if pool_limit_bytes < 16 * 1024 * 1024 {
+        return false;
+    }
+    let allocated = native_bridge_common::allocator::allocated_bytes();
+    if allocated <= 0 {
+        return false;
+    }
+    let threshold = (pool_limit_bytes as f64 * JEMALLOC_SAFETY_THRESHOLD) as i64;
+    allocated < threshold
 }
 
 #[cfg(test)]

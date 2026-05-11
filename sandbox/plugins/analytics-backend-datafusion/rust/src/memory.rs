@@ -17,29 +17,20 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use datafusion::common::DataFusionError;
-use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
-use parking_lot::Mutex;
+use datafusion::execution::memory_pool::{MemoryPool, MemoryReservation};
 
-/// A `MemoryPool` with dynamic limit AND fair-spill semantics.
+/// A `MemoryPool` whose limit can be changed at runtime.
 ///
-/// Combines two features:
-/// - **Dynamic limit**: limit can be changed at runtime via [`DynamicLimitHandle`].
-/// - **Fair spill**: spillable consumers share available capacity equally.
-///   No single consumer can use more than `(limit - unspillable) / num_spillable`.
+/// Behaviour matches `GreedyMemoryPool` exactly, except the limit is stored
+/// in an `AtomicUsize` shared with a [`DynamicLimitHandle`].
 ///
-/// This prevents one large query's hash table from starving other queries'
-/// phantom reservations and operators.
+/// - Increasing the limit takes effect immediately for new allocations.
+/// - Decreasing the limit takes effect for new allocations only.
+///   Existing reservations that exceed the new limit are NOT reclaimed.
 #[derive(Debug)]
 pub struct DynamicLimitPool {
+    used: AtomicUsize,
     dynamic_limit: Arc<AtomicUsize>,
-    state: Mutex<FairState>,
-}
-
-#[derive(Debug)]
-struct FairState {
-    num_spillable: usize,
-    spillable_used: usize,
-    unspillable_used: usize,
 }
 
 /// Handle to change the pool limit at runtime.
@@ -73,12 +64,8 @@ impl DynamicLimitPool {
             limit: limit.clone(),
         };
         let pool = Self {
+            used: AtomicUsize::new(0),
             dynamic_limit: limit,
-            state: Mutex::new(FairState {
-                num_spillable: 0,
-                spillable_used: 0,
-                unspillable_used: 0,
-            }),
         };
         (pool, handle)
     }
@@ -90,35 +77,19 @@ impl DynamicLimitPool {
 }
 
 impl MemoryPool for DynamicLimitPool {
-    fn register(&self, consumer: &MemoryConsumer) {
-        if consumer.can_spill() {
-            self.state.lock().num_spillable += 1;
-        }
+    fn grow(&self, _reservation: &MemoryReservation, additional: usize) {
+        // `grow` is an infallible accounting call; the caller is responsible
+        // for pairing it with a successful `try_grow`, so under well-behaved
+        // callers `used + additional` cannot overflow `usize`. Use a saturating
+        // CAS loop so that a buggy caller (or a malicious `additional == usize::MAX`)
+        // cannot wrap the counter.
+        let _ = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+            Some(used.saturating_add(additional))
+        });
     }
 
-    fn unregister(&self, consumer: &MemoryConsumer) {
-        if consumer.can_spill() {
-            let mut state = self.state.lock();
-            state.num_spillable = state.num_spillable.saturating_sub(1);
-        }
-    }
-
-    fn grow(&self, reservation: &MemoryReservation, additional: usize) {
-        let mut state = self.state.lock();
-        if reservation.consumer().can_spill() {
-            state.spillable_used = state.spillable_used.saturating_add(additional);
-        } else {
-            state.unspillable_used = state.unspillable_used.saturating_add(additional);
-        }
-    }
-
-    fn shrink(&self, reservation: &MemoryReservation, shrink: usize) {
-        let mut state = self.state.lock();
-        if reservation.consumer().can_spill() {
-            state.spillable_used = state.spillable_used.saturating_sub(shrink);
-        } else {
-            state.unspillable_used = state.unspillable_used.saturating_sub(shrink);
-        }
+    fn shrink(&self, _reservation: &MemoryReservation, shrink: usize) {
+        self.used.fetch_sub(shrink, Ordering::Relaxed);
     }
 
     fn try_grow(
@@ -126,52 +97,39 @@ impl MemoryPool for DynamicLimitPool {
         reservation: &MemoryReservation,
         additional: usize,
     ) -> Result<(), DataFusionError> {
-        let mut state = self.state.lock();
-        let limit = self.dynamic_limit.load(Ordering::Acquire);
-
-        if reservation.consumer().can_spill() {
-            // Fair share: each spillable consumer gets at most
-            // (limit - unspillable) / num_spillable
-            let spill_available = limit.saturating_sub(state.unspillable_used);
-            let per_consumer = spill_available
-                .checked_div(state.num_spillable)
-                .unwrap_or(spill_available);
-
-            if reservation.size() + additional > per_consumer {
-                return Err(DataFusionError::ResourcesExhausted(format!(
-                    "Failed to allocate {} bytes for {} ({} already reserved) \
-                     — fair share is {} out of {} (spillable: {}, consumers: {})",
-                    additional,
-                    reservation.consumer().name(),
-                    reservation.size(),
-                    per_consumer,
-                    limit,
-                    state.spillable_used,
-                    state.num_spillable,
-                )));
-            }
-            state.spillable_used += additional;
-        } else {
-            let available = limit.saturating_sub(state.unspillable_used + state.spillable_used);
-            if available < additional {
-                return Err(DataFusionError::ResourcesExhausted(format!(
+        // Load the limit inside the closure so every CAS retry sees the current
+        // value. A concurrent `set_limit` that raises the limit while we are
+        // spinning here should be honoured; loading once outside the closure
+        // would miss that update.
+        let dynamic_limit = &self.dynamic_limit;
+        self.used
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+                let limit = dynamic_limit.load(Ordering::Acquire);
+                let new_used = used.checked_add(additional)?;
+                (new_used <= limit).then_some(new_used)
+            })
+            .map_err(|used| {
+                // Re-load the limit for the error message. This can be a slightly newer
+                // value than the limit used in the decision above under a concurrent
+                // `set_limit`, but we prefer "most-recent" for operator visibility. The
+                // allocation decision itself was already made against a consistent
+                // snapshot inside the closure.
+                let limit = dynamic_limit.load(Ordering::Acquire);
+                DataFusionError::ResourcesExhausted(format!(
                     "Failed to allocate {} bytes for {} ({} already reserved) \
                      — {} available out of {} (dynamic limit)",
                     additional,
                     reservation.consumer().name(),
                     reservation.size(),
-                    available,
+                    limit.saturating_sub(used),
                     limit,
-                )));
-            }
-            state.unspillable_used += additional;
-        }
+                ))
+            })?;
         Ok(())
     }
 
     fn reserved(&self) -> usize {
-        let state = self.state.lock();
-        state.spillable_used + state.unspillable_used
+        self.used.load(Ordering::Relaxed)
     }
 }
 
