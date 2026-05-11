@@ -622,4 +622,8 @@ public abstract class SearchContext implements Releasable {
     public boolean shouldUseIntraSegmentSearch() {
         return false;
     }
+
+    public boolean splitAggsAndHits() {
+        return false;
+    }
 }

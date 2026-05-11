@@ -240,7 +240,7 @@ public class QueryPhase {
                 hasFilterCollector = true;
             }
 
-            // plug in additional collectors, like aggregations except global aggregations
+            // Acquire aggregations to execute them once per collector, except global aggregations
             final List<CollectorManager<? extends Collector, ReduceableSearchResult>> managersExceptGlobalAgg = searchContext
                 .queryCollectorManagers()
                 .entrySet()
@@ -248,7 +248,11 @@ public class QueryPhase {
                 .filter(entry -> !(entry.getKey().equals(GlobalAggCollectorManager.class)))
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
-            if (managersExceptGlobalAgg.isEmpty() == false) {
+
+            // We should separate Aggs from TopHits and execute them once per collector
+            final boolean splitAggsAndHits = managersExceptGlobalAgg.isEmpty() == false && shouldSplitAggsAndHits(searchContext);
+
+            if (managersExceptGlobalAgg.isEmpty() == false && splitAggsAndHits == false) {
                 collectors.add(createMultiCollectorContext(managersExceptGlobalAgg));
             }
 
@@ -280,6 +284,10 @@ public class QueryPhase {
             }
 
             try {
+                if (splitAggsAndHits) {
+                    runAggregationsOnlyPass(searchContext, searcher, query, managersExceptGlobalAgg);
+                }
+
                 boolean shouldRescore = queryPhaseSearcher.searchWith(
                     searchContext,
                     searcher,
@@ -394,6 +402,43 @@ public class QueryPhase {
             }
         }
         return true;
+    }
+
+    /** Determine eligibility for aggregation + TopDocs two-pass optimization. */
+    private boolean shouldSplitAggsAndHits(SearchContext searchContext) {
+        if (searchContext.splitAggsAndHits() == false) {
+            return false;
+        }
+        if (searchContext.minimumScore() != null) {
+            return false;
+        }
+        if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+            return false;
+        }
+        if (searchContext.scrollContext() != null) {
+            return false;
+        }
+        if (searchContext.getProfilers() != null) {
+            return false;
+        }
+        return true;
+    }
+
+    private static void runAggregationsOnlyPass(
+        SearchContext searchContext,
+        ContextIndexSearcher searcher,
+        Query query,
+        List<CollectorManager<? extends Collector, ReduceableSearchResult>> aggManagers
+    ) throws IOException {
+        for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : aggManagers) {
+            final ReduceableSearchResult result;
+            try {
+                result = searcher.search(query, manager);
+            } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
+                continue;
+            }
+            result.reduce(searchContext.queryResult());
+        }
     }
 
     /**

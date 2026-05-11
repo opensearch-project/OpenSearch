@@ -287,6 +287,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     );
 
     /**
+     *
+     * Controls whether to split TopDocs and non-global aggregation into two separate rounds.
+     * Refer to the discussion in LUCENE-10110 for details. Disabled by default to preserve the original behavior.
+     */
+    public static final Setting<Boolean> SEARCH_SPLIT_AGGS_AND_HITS_SETTING = Setting.boolSetting(
+        "search.split_aggs_and_hits.enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * Controls the threshold for the number of term queries on the same field that triggers
      * the TermsMergingRewriter to combine them into a single terms query. For example,
      * if set to 16 (default), when 16 or more term queries target the same field within
@@ -579,6 +591,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
 
+        splitAggsAndHits = SEARCH_SPLIT_AGGS_AND_HITS_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_SPLIT_AGGS_AND_HITS_SETTING, this::setSplitAggsAndHits);
+
         IndexSearcher.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, IndexSearcher::setMaxClauseCount);
 
@@ -680,6 +695,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    private volatile boolean splitAggsAndHits = true;
+
+    private void setSplitAggsAndHits(boolean enabled) {
+        splitAggsAndHits = enabled;
     }
 
     @Override
@@ -1385,7 +1406,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 indexSearcherExecutor,
                 this::aggReduceContextBuilder,
                 concurrentSearchDeciderFactories,
-                isStreamSearch
+                isStreamSearch,
+                splitAggsAndHits
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
