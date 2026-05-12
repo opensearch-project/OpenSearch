@@ -66,6 +66,7 @@ dependencies {
   api "software.amazon.awssdk:aws-query-protocol:${versions.aws}"
   api "software.amazon.awssdk:aws-json-protocol:${versions.aws}"
   api "software.amazon.awssdk:third-party-jackson-core:${versions.aws}"
+  api "software.amazon.awssdk:imds:${versions.aws}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"

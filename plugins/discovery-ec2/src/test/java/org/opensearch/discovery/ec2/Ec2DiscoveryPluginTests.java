@@ -32,35 +32,43 @@
 
 package org.opensearch.discovery.ec2;
 
+import com.sun.net.httpserver.HttpServer;
+
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.imds.Ec2MetadataClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URI;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.instanceOf;
 
+@SuppressForbidden(reason = "use a http server")
 public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
-    private Settings getNodeAttributes(Settings settings, String url) {
-        final Settings realSettings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true).put(settings).build();
-        return Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(realSettings, url);
+
+    private static Ec2MetadataClient buildTestClient(URI endpoint) {
+        return Ec2MetadataClient.builder().endpoint(endpoint).httpClient(ApacheHttpClient.builder().useIdleConnectionReaper(false)).build();
     }
 
-    private void assertNodeAttributes(Settings settings, String url, String expected) {
-        final Settings additional = getNodeAttributes(settings, url);
+    private void assertNodeAttributes(Settings settings, Ec2MetadataClient client, String expected) {
+        final Settings realSettings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true).put(settings).build();
+        final Settings additional = Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(realSettings, client);
         if (expected == null) {
             assertTrue(additional.isEmpty());
         } else {
@@ -70,34 +78,50 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
 
     public void testNodeAttributesDisabled() {
         final Settings settings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), false).build();
-        assertNodeAttributes(settings, "bogus", null);
+        final Settings result = Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(settings);
+        assertTrue(result.isEmpty());
     }
 
     public void testNodeAttributes() throws Exception {
-        final Path zoneUrl = createTempFile();
-        Files.write(zoneUrl, Arrays.asList("us-east-1c"));
-        assertNodeAttributes(Settings.EMPTY, zoneUrl.toUri().toURL().toString(), "us-east-1c");
-    }
-
-    public void testNodeAttributesBogusUrl() {
-        final UncheckedIOException e = expectThrows(UncheckedIOException.class, () -> getNodeAttributes(Settings.EMPTY, "bogus"));
-        assertNotNull(e.getCause());
-        final String msg = e.getCause().getMessage();
-        assertTrue(msg, msg.contains("no protocol: bogus"));
-    }
-
-    public void testNodeAttributesEmpty() throws Exception {
-        final Path zoneUrl = createTempFile();
-        final IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> getNodeAttributes(Settings.EMPTY, zoneUrl.toUri().toURL().toString())
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("no ec2 metadata returned"));
+        final HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        // IMDSv2: drain the PUT body, echo back the TTL header, respond with a token
+        server.createContext("/latest/api/token", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            final String ttl = exchange.getRequestHeaders().getFirst("x-aws-ec2-metadata-token-ttl-seconds");
+            final byte[] token = "test-token".getBytes(UTF_8);
+            exchange.getResponseHeaders().set("x-aws-ec2-metadata-token-ttl-seconds", ttl != null ? ttl : "21600");
+            exchange.sendResponseHeaders(200, token.length);
+            exchange.getResponseBody().write(token);
+            exchange.getResponseBody().close();
+        });
+        server.createContext("/latest/meta-data/placement/availability-zone", exchange -> {
+            final String token = exchange.getRequestHeaders().getFirst("x-aws-ec2-metadata-token");
+            if (!"test-token".equals(token)) {
+                exchange.sendResponseHeaders(401, 0);
+                exchange.getResponseBody().close();
+                return;
+            }
+            final byte[] response = "us-east-1c".getBytes(UTF_8);
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+        try {
+            final InetSocketAddress address = server.getAddress();
+            final URI endpoint = URI.create("http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort());
+            try (Ec2MetadataClient client = buildTestClient(endpoint)) {
+                assertNodeAttributes(Settings.EMPTY, client, "us-east-1c");
+            }
+        } finally {
+            server.stop(0);
+        }
     }
 
     public void testNodeAttributesErrorLenient() throws Exception {
-        final Path dne = createTempDir().resolve("dne");
-        assertNodeAttributes(Settings.EMPTY, dne.toUri().toURL().toString(), null);
+        try (Ec2MetadataClient client = buildTestClient(URI.create("dne"))) {
+            assertNodeAttributes(Settings.EMPTY, client, null);
+        }
     }
 
     public void testDefaultEndpoint() throws IOException {

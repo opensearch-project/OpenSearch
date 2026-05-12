@@ -32,12 +32,12 @@
 
 package org.opensearch.discovery.ec2;
 
-import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.imds.Ec2MetadataClient;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.SpecialPermission;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -49,19 +49,12 @@ import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.secure_sm.AccessController;
 import org.opensearch.transport.TransportService;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
-import java.net.URL;
-import java.net.URLConnection;
-import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
@@ -127,56 +120,46 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
 
     @Override
     public Settings additionalSettings() {
-        final Settings.Builder builder = Settings.builder();
-
-        // Adds a node attribute for the ec2 availability zone
-        Optional<String> ec2MetadataServiceEndpoint = SdkSystemSetting.AWS_EC2_METADATA_SERVICE_ENDPOINT.getStringValue();
-        if (ec2MetadataServiceEndpoint.isPresent()) {
-            builder.put(
-                getAvailabilityZoneNodeAttributes(
-                    settings,
-                    ec2MetadataServiceEndpoint.get() + "/latest/meta-data/placement/availability-zone"
-                )
-            );
-        }
-        return builder.build();
+        return getAvailabilityZoneNodeAttributes(settings);
     }
 
     // pkg private for testing
-    @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
-    static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl) {
+    static Settings getAvailabilityZoneNodeAttributes(Settings settings) {
         if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return Settings.EMPTY;
         }
-        final Settings.Builder attrs = Settings.builder();
-
-        final URL url;
-        final URLConnection urlConnection;
-        try {
-            url = new URL(azMetadataUrl);
-            // Obtain the current EC2 instance availability zone from IMDS.
-            // Same as curl http://169.254.169.254/latest/meta-data/placement/availability-zone/.
-            // TODO: use EC2MetadataUtils::getAvailabilityZone that was added in AWS SDK v2 instead of rolling our own
-            logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
-            urlConnection = AccessController.doPrivilegedChecked(() -> url.openConnection());
-            urlConnection.setConnectTimeout(2000);
-        } catch (final IOException e) {
-            // should not happen, we know the url is not malformed, and openConnection does not actually hit network
-            throw new UncheckedIOException(e);
-        }
 
         try (
-            InputStream in = AccessController.doPrivilegedChecked(urlConnection::getInputStream);
-            BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
+            Ec2MetadataClient client = AccessController.doPrivilegedChecked(
+                () -> Ec2MetadataClient.builder()
+                    .httpClient(ApacheHttpClient.builder().connectionTimeout(Duration.ofSeconds(2)).socketTimeout(Duration.ofSeconds(2)))
+                    .build()
+            )
         ) {
+            return getAvailabilityZoneNodeAttributes(settings, client);
+        } catch (final Exception e) {
+            // this is lenient so the plugin does not fail when installed outside of ec2
+            logger.error("failed to get metadata for [placement/availability-zone]", e);
+            return Settings.EMPTY;
+        }
+    }
 
-            final String metadataResult = urlReader.readLine();
-            if ((metadataResult == null) || (metadataResult.length() == 0)) {
-                throw new IllegalStateException("no ec2 metadata returned from " + url);
+    // pkg private for testing
+    static Settings getAvailabilityZoneNodeAttributes(Settings settings, Ec2MetadataClient client) {
+        final Settings.Builder attrs = Settings.builder();
+
+        try {
+            logger.debug("obtaining ec2 [placement/availability-zone] from IMDS");
+            final String az = AccessController.doPrivilegedChecked(
+                () -> client.get("/latest/meta-data/placement/availability-zone").asString()
+            );
+
+            if (az == null || az.isEmpty()) {
+                throw new IllegalStateException("no ec2 metadata returned from IMDS");
             } else {
-                attrs.put(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone", metadataResult);
+                attrs.put(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone", az);
             }
-        } catch (final IOException e) {
+        } catch (final Exception e) {
             // this is lenient so the plugin does not fail when installed outside of ec2
             logger.error("failed to get metadata for [placement/availability-zone]", e);
         }
