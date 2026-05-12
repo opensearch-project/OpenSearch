@@ -82,6 +82,16 @@ public class OpenSearchProjectRule extends RelOptRule {
         SqlStdOperatorTable.DIVIDE,
         SqlStdOperatorTable.UNARY_MINUS,
         SqlStdOperatorTable.UNARY_PLUS,
+        // Math (emitted by Calcite's AggregateReduceFunctionsRule for STDDEV: POWER(v, 0.5) = sqrt)
+        SqlStdOperatorTable.POWER,
+        // Comparison (emitted by Calcite's AggregateReduceFunctionsRule for STDDEV_SAMP / VAR_SAMP:
+        // CASE WHEN count > 1 THEN sqrt(variance) ELSE NULL END — Bessel's correction guard)
+        SqlStdOperatorTable.GREATER_THAN,
+        SqlStdOperatorTable.GREATER_THAN_OR_EQUAL,
+        SqlStdOperatorTable.LESS_THAN,
+        SqlStdOperatorTable.LESS_THAN_OR_EQUAL,
+        SqlStdOperatorTable.EQUALS,
+        SqlStdOperatorTable.NOT_EQUALS,
         // Type coercion
         SqlStdOperatorTable.CAST,
         // Null handling

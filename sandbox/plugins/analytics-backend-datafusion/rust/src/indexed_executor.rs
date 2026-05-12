@@ -32,7 +32,7 @@ use datafusion::{
     catalog::Session,
     common::tree_node::{TreeNode, TreeNodeRecursion},
     datasource::{TableProvider, TableType},
-    execution::cache::cache_manager::CacheManagerConfig,
+    execution::cache::cache_manager::{CacheManagerConfig, CachedFileList},
     execution::cache::{CacheAccessor, DefaultListFilesCache, TableScopedPath},
     execution::memory_pool::MemoryPool,
     execution::object_store::ObjectStoreUrl,
@@ -103,7 +103,7 @@ pub async fn execute_indexed_query(
         table: None,
         path: shard_view.table_path.prefix().clone(),
     };
-    list_file_cache.put(&table_scoped_path, shard_view.object_metas.clone());
+    list_file_cache.put(&table_scoped_path, CachedFileList::new(shard_view.object_metas.as_ref().clone()));
 
     let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
         .with_cache_manager(

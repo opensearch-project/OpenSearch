@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion.nativelib;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
@@ -665,7 +666,7 @@ public final class NativeBridge {
             var cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
 
             // Task monitors
-            var taskMonitors = new LinkedHashMap<String, NativeExecutorsStats.TaskMonitorStats>();
+            var taskMonitors = new LinkedHashMap<String, TaskMonitorStats>();
             for (NativeExecutorsStats.OperationType op : NativeExecutorsStats.OperationType.values()) {
                 taskMonitors.put(op.key(), StatsLayout.readTaskMonitor(seg, op.key()));
             }

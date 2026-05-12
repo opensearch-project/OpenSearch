@@ -258,7 +258,7 @@ pub struct IndexedExec {
     pub(crate) store_url: datafusion::execution::object_store::ObjectStoreUrl,
     pub(crate) row_groups: Vec<RowGroupInfo>,
     pub(crate) projection: Option<Vec<usize>>,
-    pub(crate) properties: PlanProperties,
+    pub(crate) properties: Arc<PlanProperties>,
     pub(crate) metadata: Arc<ParquetMetaData>,
     pub(crate) predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     /// Pluggable bitset source (SingleCollector or RustTree).
@@ -309,7 +309,7 @@ impl ExecutionPlan for IndexedExec {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
-    fn properties(&self) -> &PlanProperties {
+    fn properties(&self) -> &Arc<PlanProperties> {
         &self.properties
     }
     fn children(&self) -> Vec<&Arc<dyn ExecutionPlan>> {
