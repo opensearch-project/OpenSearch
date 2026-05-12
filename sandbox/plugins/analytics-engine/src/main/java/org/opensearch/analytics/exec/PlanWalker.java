@@ -16,6 +16,7 @@ import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.tasks.CancellableTask;
@@ -71,24 +72,80 @@ public class PlanWalker {
     /**
      * Phase 1: Build the execution graph without starting any stages.
      * All stages are in {@link StageExecution.State#CREATED} state.
-     * Listeners are wired. The graph is inspectable for EXPLAIN.
+     * The graph is inspectable for EXPLAIN.
+     *
+     * <p>The completion listener is NOT wired here — call {@link #wireCompletion()}
+     * after build succeeds and before exposing the walker to cancellation triggers.
+     * Build-time failures bubble unchecked; partial-graph cleanup runs in finally
+     * to release any native handles backend factories had already allocated.
      *
      * @return the fully-wired execution graph
      */
     public ExecutionGraph build() {
         Map<Integer, StageExecution> executions = new HashMap<>();
-
         Stage rootStage = config.dag().rootStage();
-        final StageExecution rootExec = stageExecutionBuilder.buildRootExecution(rootStage, config);
-        wireCompletionListener(rootExec);
-        executions.put(rootStage.getStageId(), rootExec);
+        boolean success = false;
+        try {
+            StageExecution rootExec = stageExecutionBuilder.buildRootExecution(rootStage, config);
+            executions.put(rootStage.getStageId(), rootExec);
 
-        buildChildrenRecursively(executions, rootExec, rootStage);
+            buildChildrenRecursively(executions, rootExec, rootStage);
 
-        List<StageExecution> leaves = findLeaves(executions, rootStage);
+            List<StageExecution> leaves = findLeaves(executions, rootStage);
+            this.graph = new ExecutionGraph(config.queryId(), executions, rootExec, leaves);
+            success = true;
+            return this.graph;
+        } finally {
+            if (!success) cancelPartialBuild(executions);
+        }
+    }
 
-        this.graph = new ExecutionGraph(config.queryId(), executions, rootExec, leaves);
-        return this.graph;
+    /**
+     * Wires the completion listener on the root execution. Must be called after
+     * {@link #build()} succeeds and before {@link #start(ExecutionGraph)} or any
+     * external cancellation trigger ({@link #cancelAll(String)}). The listener
+     * fires once on the root's terminal transition (SUCCEEDED / FAILED /
+     * CANCELLED) — see {@link #wireCompletionListener(StageExecution)}.
+     */
+    public void wireCompletion() {
+        ExecutionGraph g = this.graph;
+        if (g == null) {
+            throw new IllegalStateException("wireCompletion must be called after build() succeeds");
+        }
+        wireCompletionListener(g.rootExecution());
+    }
+
+    /**
+     * Cancels every stage built before {@link #build()} threw. If a stage's cancel itself
+     * throws, subsequent stages still get a chance to cancel — the first cancel failure
+     * is rethrown at the end with later ones attached as suppressed.
+     */
+    private void cancelPartialBuild(Map<Integer, StageExecution> executions) {
+        String reason = "stage-build failure";
+        IllegalStateException primary = null;
+        for (StageExecution exec : executions.values()) {
+            try {
+                exec.cancel(reason);
+            } catch (IllegalStateException t) {
+                if (primary == null) {
+                    primary = t;
+                } else {
+                    primary.addSuppressed(t);
+                }
+            }
+        }
+        assert allTerminal(executions) : "cancelPartialBuild left non-terminal stages";
+        if (primary != null) throw primary;
+    }
+
+    private static boolean allTerminal(Map<Integer, StageExecution> executions) {
+        for (StageExecution exec : executions.values()) {
+            StageExecution.State s = exec.getState();
+            if (s != StageExecution.State.SUCCEEDED && s != StageExecution.State.FAILED && s != StageExecution.State.CANCELLED) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -104,11 +161,13 @@ public class PlanWalker {
     }
 
     /**
-     * Legacy single-call entry point. Builds the graph and starts
-     * execution in one shot. Equivalent to {@code start(build())}.
+     * Legacy single-call entry point. Builds the graph, wires the completion
+     * listener, and starts execution in one shot.
      */
     public void walk() {
-        start(build());
+        ExecutionGraph g = build();
+        wireCompletion();
+        start(g);
     }
 
     /**
@@ -211,6 +270,23 @@ public class PlanWalker {
             switch (to) {
                 case SUCCEEDED -> fireTerminal(() -> completionListener.onResponse(producer.outputSource().readResult()));
                 case FAILED, CANCELLED -> {
+                    // Release any batches the root producer already accumulated before
+                    // teardown. Success path closes batches in batchesToRows; failure path
+                    // skips that, so without this the VSRs sitting in the terminal sink
+                    // leak into the per-query allocator close check.
+                    if (producer.outputSource() instanceof ExchangeSink sink) {
+                        try {
+                            sink.close();
+                        } catch (IllegalStateException e) {
+                            // Arrow's allocator and FFI close paths throw IllegalStateException
+                            // on leak / double-release. Don't let a close failure replace the
+                            // primary stage failure en route to the completion listener.
+                            logger.warn(
+                                new ParameterizedMessage("[PlanWalker] terminal sink close failed on {}", to),
+                                e
+                            );
+                        }
+                    }
                     Exception failure = rootExec.getFailure();
                     if (config.parentTask() instanceof CancellableTask ct && ct.isCancelled()) {
                         fireTerminal(() -> completionListener.onFailure(new TaskCancelledException("query cancelled")));
