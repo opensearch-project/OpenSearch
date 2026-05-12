@@ -101,6 +101,15 @@ public enum ScalarFunction {
     REX_EXTRACT(Category.STRING, SqlKind.OTHER_FUNCTION),
     REX_EXTRACT_MULTI(Category.STRING, SqlKind.OTHER_FUNCTION),
     REX_OFFSET(Category.STRING, SqlKind.OTHER_FUNCTION),
+    NUM(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    AUTO(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MEMK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    RMCOMMA(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    RMUNIT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DUR2SEC(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MSTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    CTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MKTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── Cryptographic hash ─────────────────────────────────────────────
     // md5(x), sha1(x), sha2(x, bitLen) with bitLen ∈ {224,256,384,512}, crc32(x).

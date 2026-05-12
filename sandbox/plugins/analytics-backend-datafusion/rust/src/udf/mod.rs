@@ -121,6 +121,7 @@ pub(crate) fn coerce_args(
 }
 
 pub mod convert_tz;
+pub mod conversion;
 pub mod crc32;
 pub mod date_format;
 pub mod extract;
@@ -148,6 +149,7 @@ pub mod sha1;
 pub mod span_bucket;
 pub mod str_to_date;
 pub mod strftime;
+pub mod time_conversion;
 pub mod time_format;
 pub mod tonumber;
 pub mod tostring;
@@ -162,6 +164,7 @@ pub mod width_bucket;
 // and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
     convert_tz::register_all(ctx);
+    conversion::register_all(ctx);
     crc32::register_all(ctx);
     date_format::register_all(ctx);
     extract::register_all(ctx);
@@ -187,6 +190,7 @@ pub fn register_all(ctx: &SessionContext) {
     span_bucket::register_all(ctx);
     str_to_date::register_all(ctx);
     strftime::register_all(ctx);
+    time_conversion::register_all(ctx);
     time_format::register_all(ctx);
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
