@@ -385,7 +385,19 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             public Set<WindowCapability> windowCapabilities() {
                 return Set.of(
                     new WindowCapability(
-                        Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                        Set.of(
+                            WindowFunction.SUM,
+                            WindowFunction.AVG,
+                            WindowFunction.COUNT,
+                            WindowFunction.MIN,
+                            WindowFunction.MAX,
+                            // ROW_NUMBER backs PPL `dedup` lowering (ROW_NUMBER OVER PARTITION BY ... <= N).
+                            // isthmus's RexExpressionConverter.visitOver serializes the RexOver inline as a
+                            // Substrait WindowFunctionInvocation; DataFusion's substrait consumer splits it
+                            // into a dedicated LogicalPlan::Window. No adapter or Rust UDF is needed —
+                            // row_number is a Substrait-stdlib window function and a DataFusion built-in.
+                            WindowFunction.ROW_NUMBER
+                        ),
                         Set.copyOf(plugin.getSupportedFormats())
                     )
                 );
