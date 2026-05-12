@@ -169,6 +169,21 @@ public enum ScalarFunction {
     CURTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     CONVERT_TZ(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     UNIX_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    STRFTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DATETIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    SYSDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYOFWEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAY_OF_WEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    SECOND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    SECOND_OF_MINUTE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    FROM_UNIXTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MAKETIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MAKEDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DATE_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    TIME_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    STR_TO_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
@@ -177,7 +192,60 @@ public enum ScalarFunction {
     JSON_EXTEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTRACT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
-    JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── Array ────────────────────────────────────────────────────────
+    /**
+     * PPL {@code array(a, b, …)} constructor — resolves through the SQL plugin's
+     * {@code ArrayFunctionImpl} UDF named {@code "array"}. DataFusion's native
+     * equivalent is {@code make_array}, so a backend that supports this needs a
+     * name-mapping adapter (see {@code MakeArrayAdapter} in the DataFusion backend).
+     */
+    ARRAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    ARRAY_SLICE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    ARRAY_DISTINCT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * Calcite's {@code ARRAY_JOIN} — joins array elements with a separator. PPL
+     * {@code mvjoin} is registered to this operator. DataFusion's native equivalent
+     * is named {@code array_to_string}, so the DataFusion backend rewrites to that
+     * via a name-mapping adapter.
+     */
+    ARRAY_JOIN(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * Calcite's {@code SqlStdOperatorTable.ITEM} — element access ({@code arr[N]}).
+     * PPL's {@code mvindex(arr, N)} single-element form lowers through
+     * {@code MVIndexFunctionImp.resolveSingleElement} to ITEM with a 1-based index
+     * (already converted from PPL's 0-based input). DataFusion's native equivalent
+     * is {@code array_element}, also 1-based; the DataFusion backend renames via a
+     * name-mapping adapter.
+     */
+    ITEM(Category.SCALAR, SqlKind.ITEM),
+    /**
+     * PPL {@code mvzip(left, right [, sep])} — element-wise zip of two arrays into an
+     * array of strings, joined per pair by a separator (default {@code ","}). Resolves
+     * through the SQL plugin's {@code MVZipFunctionImpl} UDF named {@code "mvzip"}.
+     * No DataFusion stdlib equivalent — the analytics-backend-datafusion plugin ships
+     * a custom Rust UDF (`udf::mvzip`) registered on its session context.
+     */
+    MVZIP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code mvfind(arr, regex)} — find the 0-based index of the first array
+     * element matching a regex, or NULL if no match. Resolves through the SQL
+     * plugin's {@code MVFindFunctionImpl} UDF named {@code "mvfind"}. No
+     * DataFusion stdlib equivalent — the analytics-backend-datafusion plugin
+     * ships a custom Rust UDF (`udf::mvfind`) registered on its session context.
+     */
+    MVFIND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code mvappend(arg1, arg2, …)} — flatten a mixed list of array and
+     * scalar arguments into one array, dropping null args and null elements.
+     * Resolves through the SQL plugin's {@code MVAppendFunctionImpl} UDF named
+     * {@code "mvappend"}. DataFusion's {@code array_concat} only accepts arrays
+     * and preserves nulls, so the analytics-backend-datafusion plugin ships a
+     * custom Rust UDF ({@code udf::mvappend}) registered on its session context.
+     */
+    MVAPPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.

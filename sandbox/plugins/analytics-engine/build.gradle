@@ -14,9 +14,6 @@
 
 apply plugin: 'opensearch.internal-cluster-test'
 
-// SQL Unified Query API version (aligned with OpenSearch build version)
-def sqlUnifiedQueryVersion = '3.6.0.0-SNAPSHOT'
-
 opensearchplugin {
   description = 'Analytics engine hub: discovers and wires query extensions via ExtensiblePlugin SPI.'
   classname = 'org.opensearch.analytics.AnalyticsPlugin'
@@ -27,6 +24,17 @@ opensearchplugin {
 }
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
+// Force mavenLocal to position 0 so the transitive unified-query SNAPSHOT (pulled in via the
+// `:sandbox:plugins:test-ppl-frontend` project dep) resolves against a freshly-published
+// local SQL plugin checkout instead of ci.opensearch.org. Sandbox-only; CI's empty `~/.m2/`
+// makes this a no-op there. Transitive resolution uses the consumer's repo list, not the
+// dependee's, so test-ppl-frontend's own mavenLocal precedence isn't enough.
+repositories {
+  def local = mavenLocal()
+  remove(local)
+  add(0, local)
+}
 
 // Guava comes transitively from calcite-core and unified-query — forbidden on
 // compile classpaths by OpenSearch. Main sources don't need it; test sources do
@@ -104,9 +112,14 @@ dependencies {
   // so bundle it into analytics-engine's own zip.
   runtimeOnly "org.apache.commons:commons-math3:3.6.1"
 
-  // commons-text — Calcite's SqlFunctions.<clinit> references
-  // org.apache.commons.text.similarity.LevenshteinDistance. Must be loaded via
-  // the same classloader as calcite-core so that <clinit> succeeds.
+  // commons-text — Calcite's SqlFunctions class statically references
+  // org.apache.commons.text.similarity.LevenshteinDistance (used by SQL fuzzy-match
+  // helpers, also pulled in transitively when constant-folding array literals via
+  // ReduceExpressionsRule). Must be loaded via the same classloader as calcite-core
+  // so that SqlFunctions.<clinit> succeeds; otherwise it throws NoClassDefFoundError
+  // on first use and poisons every subsequent Calcite operation in the JVM — symptom
+  // is a single failing analytics query taking the cluster's planner thread offline
+  // for the rest of the run.
   runtimeOnly "org.apache.commons:commons-text:1.11.0"
 
   // httpcore5/httpclient5 — Avatica's BuiltInConnectionProperty static initializer references
@@ -127,17 +140,6 @@ dependencies {
   testRuntimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
   testRuntimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   testRuntimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
-
-  // SQL Unified Query API for PPL parsing
-  testImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-  testImplementation("org.opensearch.query:unified-query-core:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-  testImplementation("org.opensearch.query:unified-query-ppl:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
 
   // Arrow Flight streaming transport for ITs
   internalClusterTestImplementation project(':plugins:arrow-flight-rpc')

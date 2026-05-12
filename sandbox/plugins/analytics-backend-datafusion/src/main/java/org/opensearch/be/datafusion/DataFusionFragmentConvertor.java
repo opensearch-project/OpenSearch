@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import com.google.common.collect.ImmutableList;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptSchema;
@@ -129,12 +130,27 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(DateTimeAdapters.LOCAL_NOW_OP, "now"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_DATE_OP, "current_date"),
         FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_TIME_OP, "current_time"),
+        // PPL time(expr) → DF builtin to_time (TimeAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_TIME_OP, "to_time"),
+        // PPL date(expr) → DF builtin to_date (DateAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_OP, "to_date"),
+        // PPL datetime(expr) → DF builtin to_timestamp (DatetimeAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, "to_timestamp"),
+        // PPL datetime + format functions → Rust UDFs registered in rust/src/udf/mod.rs.
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "extract"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, "from_unixtime"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKEDATE_OP, "makedate"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKETIME_OP, "maketime"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_DATE_FORMAT_OP, "date_format"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_TIME_FORMAT_OP, "time_format"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_STR_TO_DATE_OP, "str_to_date"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlLibraryOperators.REVERSE, "reverse"),
         FunctionMappings.s(PositionAdapter.STRPOS, "strpos"),
+        FunctionMappings.s(StrftimeFunctionAdapter.STRFTIME, "strftime"),
         FunctionMappings.s(ToNumberFunctionAdapter.TONUMBER, "tonumber"),
         FunctionMappings.s(ToStringFunctionAdapter.TOSTRING, "tostring"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
@@ -153,8 +169,68 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
-        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace")
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        // Array S0 ladder — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS /
+        // ARRAY_RETURNING_PROJECT_OPS for the capability registration. ARRAY_LENGTH /
+        // ARRAY_SLICE / ARRAY_DISTINCT pass through under their Calcite-stdlib names
+        // (DataFusion's substrait consumer resolves them natively). MakeArrayAdapter /
+        // ArrayToStringAdapter / ArrayElementAdapter rewrite PPL `array(...)` /
+        // `mvjoin(...)` / `mvindex(...)` single-element to locally-declared SqlFunctions
+        // so isthmus emits Substrait calls with DataFusion's native function names.
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_SLICE, "array_slice"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_DISTINCT, "array_distinct"),
+        FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),
+        FunctionMappings.s(ArrayToStringAdapter.LOCAL_ARRAY_TO_STRING_OP, "array_to_string"),
+        FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
+        FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
+        FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
+        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
     );
+
+    /**
+     * Maps aggregate operators to their Substrait extension names so isthmus serializes
+     * them through our {@code SimpleExtension} catalog instead of the default Substrait
+     * names.
+     *
+     * <p>{@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} → {@code approx_distinct}
+     * (declared in {@code opensearch_aggregate_functions.yaml}) routes to DataFusion's
+     * native HyperLogLog {@code APPROX_DISTINCT} aggregate. Wiring this through isthmus'
+     * {@code ADDITIONAL_AGGREGATE_SIGS} alone is not enough because isthmus's default
+     * aggregate catalog already binds {@code APPROX_COUNT_DISTINCT} to substrait's
+     * standard {@code approx_count_distinct} URN; when signatures merge, the default
+     * binding overwrites ours in the matcher map. {@link OpenSearchAggregateFunctionConverter}
+     * fixes that by filtering the stock sig out of the default list so our entry is the
+     * only one that resolves to this operator.
+     */
+    private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
+    );
+
+    /**
+     * Subclassed {@link AggregateFunctionConverter} that removes isthmus's default binding
+     * for {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} from the signature merge.
+     * Without this, the default {@code approx_count_distinct} URN binding would shadow
+     * our entry in {@link #ADDITIONAL_AGGREGATE_SIGS} and the YAML-declared
+     * {@code approx_distinct} extension would never be reached.
+     */
+    private static final class OpenSearchAggregateFunctionConverter extends AggregateFunctionConverter {
+        OpenSearchAggregateFunctionConverter(
+            List<SimpleExtension.AggregateFunctionVariant> functions,
+            List<FunctionMappings.Sig> additionalSignatures,
+            RelDataTypeFactory typeFactory,
+            TypeConverter typeConverter
+        ) {
+            super(functions, additionalSignatures, typeFactory, typeConverter);
+        }
+
+        @Override
+        protected ImmutableList<FunctionMappings.Sig> getSigs() {
+            return super.getSigs().stream()
+                .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
+                .collect(ImmutableList.toImmutableList());
+        }
+    }
 
     private final SimpleExtension.ExtensionCollection extensions;
 
@@ -214,7 +290,19 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
-        Rel substraitRel = visitor.apply(root.rel);
+        Rel substraitRel;
+        try {
+            substraitRel = visitor.apply(root.rel);
+        } catch (AssertionError e) {
+            // Substrait validators (e.g. VariadicParameterConsistencyValidator,
+            // RelOptUtil.eq via Litmus.THROW) throw AssertionError directly via Java
+            // code rather than via the `assert` keyword, so JVM -da doesn't gate them.
+            // If one fires inside a search thread, OpenSearchUncaughtExceptionHandler
+            // exits the cluster JVM. Convert to IllegalStateException so the analytics-
+            // engine error path treats it as a normal per-query failure (HTTP 500 with
+            // a bucketable message) instead of taking down the cluster.
+            throw new IllegalStateException("Substrait conversion rejected the plan: " + e.getMessage(), e);
+        }
 
         List<String> fieldNames = root.fields.stream().map(field -> field.getValue()).toList();
 
@@ -363,7 +451,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             typeFactory,
             typeConverter
         );
-        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
+        AggregateFunctionConverter aggConverter = new OpenSearchAggregateFunctionConverter(
+            extensions.aggregateFunctions(),
+            ADDITIONAL_AGGREGATE_SIGS,
+            typeFactory,
+            typeConverter
+        );
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,

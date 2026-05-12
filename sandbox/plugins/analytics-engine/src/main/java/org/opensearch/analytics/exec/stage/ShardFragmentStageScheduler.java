@@ -11,7 +11,6 @@ package org.opensearch.analytics.exec.stage;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
-import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
@@ -31,31 +30,16 @@ import java.util.function.Function;
  * and doesn't care whether it is a root sink or a parent-provided child sink
  * — {@link StageExecutionBuilder} resolves that distinction before calling.
  *
- * <p>Injects a {@link ResponseCodec} into the execution to decouple the wire
- * format from stage logic. The default codec ({@link RowResponseCodec}) handles
- * the current {@code Object[]} row format; a future Arrow IPC codec would be
- * swapped in here.
- *
  * @opensearch.internal
  */
 final class ShardFragmentStageScheduler implements StageScheduler {
 
     private final ClusterService clusterService;
     private final AnalyticsSearchTransportService transport;
-    private final ResponseCodec<FragmentExecutionResponse> responseCodec;
 
     ShardFragmentStageScheduler(ClusterService clusterService, AnalyticsSearchTransportService transport) {
-        this(clusterService, transport, RowResponseCodec.INSTANCE);
-    }
-
-    ShardFragmentStageScheduler(
-        ClusterService clusterService,
-        AnalyticsSearchTransportService transport,
-        ResponseCodec<FragmentExecutionResponse> responseCodec
-    ) {
         this.clusterService = clusterService;
         this.transport = transport;
-        this.responseCodec = responseCodec;
     }
 
     @Override
@@ -73,7 +57,7 @@ final class ShardFragmentStageScheduler implements StageScheduler {
         // This keeps target resolution out of the build phase so cancellation before
         // dispatch doesn't pay for cluster-state routing, and leaves room for shuffle
         // reads whose targets depend on child manifests only available at dispatch time.
-        return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, transport, responseCodec);
+        return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, transport);
     }
 
     private static List<FragmentExecutionRequest.PlanAlternative> buildPlanAlternatives(Stage stage) {

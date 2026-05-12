@@ -1,0 +1,13 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:aggregate_functions
+aggregate_functions:
+  - name: approx_distinct
+    description: >-
+      Approximate distinct count using HyperLogLog. Maps to DataFusion's
+      approx_distinct aggregate function via its Substrait consumer.
+    impls:
+      - args:
+          - value: any
+            name: "input"
+        return: i64
