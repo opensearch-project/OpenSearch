@@ -673,9 +673,12 @@ pub unsafe extern "C" fn df_execute_with_context(
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let cpu_executor = mgr.cpu_executor();
     // Route based on whether the session was configured for indexed execution
-    if session_handle.indexed_config.is_some() {
-        // TODO: refactor execute_indexed_with_context to take SessionContextHandle directly
-        // (like execute_with_context) instead of i64 raw pointer — avoids this re-boxing.
+    // or if the plan projects __row_id__ (QTF query phase).
+    let has_row_id = plan_bytes.windows(b"__row_id__".len()).any(|w| w == b"__row_id__");
+    let row_id_strategy = session_handle.query_config.row_id_strategy;
+    let use_indexed = session_handle.indexed_config.is_some()
+        || (has_row_id && row_id_strategy != crate::datafusion_query_config::RowIdStrategy::ListingTable);
+    if use_indexed {
         let ptr = Box::into_raw(Box::new(session_handle)) as i64;
         mgr.io_runtime
             .block_on(crate::indexed_executor::execute_indexed_with_context(

@@ -185,9 +185,9 @@ impl TableProvider for IndexedTableProvider {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let full_schema = self.config.schema.clone();
 
-        // Detect ___row_id in the output projection when emit_row_ids=true.
+        // Detect __row_id__ in the output projection when emit_row_ids=true.
         // If present, we strip it from the parquet read and compute it from position.
-        let row_id_col_in_full_schema = full_schema.index_of("___row_id").ok();
+        let row_id_col_in_full_schema = full_schema.index_of("__row_id__").ok();
         let row_id_output_index: Option<usize> = if self.config.emit_row_ids {
             match projection {
                 Some(proj) => proj.iter().position(|&idx| Some(idx) == row_id_col_in_full_schema),
@@ -206,7 +206,7 @@ impl TableProvider for IndexedTableProvider {
             };
             if let Some(idx) = row_id_output_index {
                 let mut fields: Vec<Field> = base.fields().iter().map(|f| f.as_ref().clone()).collect();
-                fields[idx] = Field::new("___row_id", DataType::UInt64, false);
+                fields[idx] = Field::new("__row_id__", DataType::UInt64, false);
                 Arc::new(Schema::new(fields))
             } else {
                 base

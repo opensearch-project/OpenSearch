@@ -111,8 +111,15 @@ impl TableProvider for ShardTableProvider {
         .with_file_groups(file_groups);
 
         if let Some(proj) = projection {
+            // Always include the row_base partition column (index = num_file_cols)
+            // so ProjectRowIdOptimizer can compute __row_id__ + row_base.
+            let row_base_idx = num_file_cols;
+            let mut proj_with_row_base = proj.clone();
+            if !proj_with_row_base.contains(&row_base_idx) {
+                proj_with_row_base.push(row_base_idx);
+            }
             builder = builder
-                .with_projection_indices(Some(proj.clone()))
+                .with_projection_indices(Some(proj_with_row_base))
                 .map_err(|e| datafusion::error::DataFusionError::Internal(format!("{}", e)))?;
         }
 

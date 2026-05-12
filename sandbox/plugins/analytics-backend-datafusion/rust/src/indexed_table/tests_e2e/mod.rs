@@ -104,7 +104,7 @@ fn build_fixture_schema() -> SchemaRef {
         Field::new("price", DataType::Int32, false),
         Field::new("status", DataType::Utf8, false),
         Field::new("category", DataType::Utf8, false),
-        Field::new("___row_id", DataType::Int64, false),
+        Field::new("__row_id__", DataType::Int64, false),
     ]))
 }
 

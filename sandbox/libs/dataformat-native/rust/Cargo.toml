@@ -81,11 +81,11 @@ opensearch-repository-azure = { path = "../../../plugins/native-repository-azure
 opensearch-repository-fs = { path = "../../../plugins/native-repository-fs/src/main/rust" }
 
 [profile.release]
-lto = true
-codegen-units = 1
-incremental = true
 debug = "line-tables-only"
 strip = false
+lto = false
+codegen-units = 4
+incremental = true
 
 [profile.dev]
 opt-level = 1
@@ -94,3 +94,10 @@ codegen-units = 16
 incremental = true
 debug = "full"
 strip = false
+
+
+[profile.release-fast]
+inherits = "release"
+lto = false
+codegen-units = 4
+incremental = true

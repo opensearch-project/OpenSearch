@@ -112,6 +112,7 @@ pub fn plan_requests_row_ids(plan: &LogicalPlan) -> bool {
     match plan {
         LogicalPlan::Projection(proj) => proj.expr.iter().any(|e| match e {
             Expr::ScalarFunction(func) => func.name() == ROW_ID_FUNCTION_NAME,
+            Expr::Column(col) => col.name() == "__row_id__",
             _ => false,
         }),
         _ => plan.inputs().iter().any(|child| plan_requests_row_ids(child)),

@@ -464,7 +464,6 @@ pub async unsafe fn execute_indexed_with_context(
             Some(e) => classify_filter(&e.tree),
         },
     };
-
     // Derive the parquet pushdown predicate from the BoolNode tree.
     // `scan()` ignores DataFusion's filters argument (which contains
     // the `delegated_predicate` UDF marker whose body panics) and uses this

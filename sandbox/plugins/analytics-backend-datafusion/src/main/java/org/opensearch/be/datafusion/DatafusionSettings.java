@@ -162,6 +162,22 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Fetch strategy for query-then-fetch (QTF).
+     * <p>
+     * 0 = None (no row ID computation, baseline — reads __row_id__ as a regular column).
+     * 1 = ListingTable (ShardTableProvider + ProjectRowIdOptimizer, computes global row ID from __row_id__ + row_base).
+     * 2 = IndexedPredicateOnly (position-based computation via indexed pipeline, zero I/O for row ID).
+     */
+    public static final Setting<Integer> INDEXED_FETCH_STRATEGY = Setting.intSetting(
+        "datafusion.indexed.fetch_strategy",
+        0,
+        0,
+        2,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // ── All settings registered by the plugin ──
 
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
@@ -186,7 +202,8 @@ public final class DatafusionSettings {
         INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD,
         INDEXED_SINGLE_COLLECTOR_STRATEGY,
         INDEXED_TREE_COLLECTOR_STRATEGY,
-        INDEXED_MAX_COLLECTOR_PARALLELISM
+        INDEXED_MAX_COLLECTOR_PARALLELISM,
+        INDEXED_FETCH_STRATEGY
     );
 
     // ── Snapshot management ──
@@ -227,6 +244,7 @@ public final class DatafusionSettings {
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
+            .rowIdStrategy(INDEXED_FETCH_STRATEGY.get(settings))
             .build();
 
         registerListeners(clusterSettings);
@@ -249,6 +267,7 @@ public final class DatafusionSettings {
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
+            .rowIdStrategy(INDEXED_FETCH_STRATEGY.get(settings))
             .build();
     }
 
@@ -279,6 +298,10 @@ public final class DatafusionSettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_MAX_COLLECTOR_PARALLELISM, newValue -> {
             snapshot = WireConfigSnapshot.builder(snapshot).maxCollectorParallelism(newValue).build();
+        });
+
+        clusterSettings.addSettingsUpdateConsumer(INDEXED_FETCH_STRATEGY, newValue -> {
+            snapshot = WireConfigSnapshot.builder(snapshot).rowIdStrategy(newValue).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {

@@ -40,14 +40,11 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
         // with ___row_id in their output schema.
         plan.transform_up(|node| {
             let schema = node.schema();
-            // Check if this node's output schema has both ___row_id and row_base
-            let has_row_id = schema.column_with_name("___row_id").is_some();
+            let has_row_id = schema.column_with_name("__row_id__").is_some();
             let has_row_base = schema.column_with_name("row_base").is_some();
 
             if has_row_id && has_row_base {
-                // Insert a ProjectionExec that computes ___row_id + row_base
-                // and outputs it as ___row_id, dropping the raw row_base column.
-                let row_id_idx = schema.index_of("___row_id").unwrap();
+                let row_id_idx = schema.index_of("__row_id__").unwrap();
                 let row_base_idx = schema.index_of("row_base").unwrap();
 
                 // Build projection expressions: all columns except row_base,
@@ -66,7 +63,7 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
                         // Replace ___row_id with ___row_id + row_base
                         let row_id_col: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
                             Arc::new(datafusion::physical_expr::expressions::Column::new(
-                                "___row_id",
+                                "__row_id__",
                                 row_id_idx,
                             ));
                         let row_base_col: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
@@ -80,7 +77,7 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
                                 datafusion::logical_expr::Operator::Plus,
                                 row_base_col,
                             ));
-                        exprs.push((add_expr, "___row_id".to_string()));
+                        exprs.push((add_expr, "__row_id__".to_string()));
                     } else {
                         let col: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
                             Arc::new(datafusion::physical_expr::expressions::Column::new(

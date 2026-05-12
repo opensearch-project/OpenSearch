@@ -14,6 +14,12 @@ use datafusion::arrow::array::UInt64Array;
 
 use super::*;
 
+// Why it is complex -->
+// Optimizer + ComputeRowId --> @gbh --> optimizer --> for parquet only right
+
+// Lot of query shapes --> for the query sent, how will that translate into at the data node side?
+
+
 /// Helper: run a tree with `emit_row_ids: true` and return the collected row IDs.
 async fn run_tree_row_ids(tree: BoolNode) -> Vec<u64> {
     let tmp = write_fixture_parquet();
@@ -111,16 +117,16 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<u64> {
 
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
-    // Project ___row_id — it will be computed from position, not read from parquet
-    let df = ctx.sql("SELECT \"___row_id\" FROM t").await.unwrap();
+    // Project __row_id__ — it will be computed from position, not read from parquet
+    let df = ctx.sql("SELECT \"__row_id__\" FROM t").await.unwrap();
     let plan = df.create_physical_plan().await.unwrap();
     let task_ctx = ctx.task_ctx();
     let mut stream = datafusion::physical_plan::execute_stream(plan, task_ctx).unwrap();
     let mut row_ids: Vec<u64> = Vec::new();
     while let Some(batch) = stream.next().await {
         let b = batch.unwrap();
-        assert_eq!(b.num_columns(), 1, "should have only ___row_id column");
-        assert_eq!(b.schema().field(0).name(), "___row_id");
+        assert_eq!(b.num_columns(), 1, "should have only __row_id__ column");
+        assert_eq!(b.schema().field(0).name(), "__row_id__");
         let col = b.column(0).as_any().downcast_ref::<UInt64Array>().unwrap();
         for i in 0..b.num_rows() {
             row_ids.push(col.value(i));
@@ -275,14 +281,14 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
 
     let ctx = SessionContext::new();
     ctx.register_table("t", provider).unwrap();
-    let df = ctx.sql("SELECT \"___row_id\" FROM t").await.unwrap();
+    let df = ctx.sql("SELECT \"__row_id__\" FROM t").await.unwrap();
     let plan = df.create_physical_plan().await.unwrap();
     let task_ctx = ctx.task_ctx();
     let mut stream = datafusion::physical_plan::execute_stream(plan, task_ctx).unwrap();
     let mut row_ids: Vec<u64> = Vec::new();
     while let Some(batch) = stream.next().await {
         let b = batch.unwrap();
-        assert_eq!(b.schema().field(0).name(), "___row_id");
+        assert_eq!(b.schema().field(0).name(), "__row_id__");
         let col = b.column(0).as_any().downcast_ref::<UInt64Array>().unwrap();
         for i in 0..b.num_rows() {
             row_ids.push(col.value(i));
@@ -437,6 +443,141 @@ async fn test_all_query_types_match_fixture_positions() {
     assert_eq!(ids, expected, "Complex OR(AND,AND) mismatch");
 }
 
+/// Verify that __row_id__ is computed alongside data columns — not replacing them.
+/// Projects [__row_id__, brand, price] and verifies all three are present and correct.
+#[tokio::test]
+async fn test_row_id_with_data_columns() {
+    let tmp = write_fixture_parquet();
+    let path = tmp.path().to_path_buf();
+    let size = std::fs::metadata(&path).unwrap().len();
+
+    let file = std::fs::File::open(&path).unwrap();
+    let meta =
+        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let schema = meta.schema().clone();
+    let parquet_meta = meta.metadata().clone();
+    let mut rgs = Vec::new();
+    let mut offset = 0i64;
+    for i in 0..parquet_meta.num_row_groups() {
+        let n = parquet_meta.row_group(i).num_rows();
+        rgs.push(RowGroupInfo {
+            index: i,
+            first_row: offset,
+            num_rows: n,
+        });
+        offset += n;
+    }
+
+    let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
+    let segment = SegmentFileInfo {
+        segment_ord: 0,
+        max_doc: 16,
+        object_path,
+        parquet_size: size,
+        row_groups: rgs,
+        metadata: Arc::clone(&parquet_meta),
+        global_base: 0,
+    };
+
+    // Filter: brand = "amazon" (rows 0,1,2,3,12)
+    let tree = BoolNode::And(vec![index_leaf(0)]).push_not_down();
+    let collectors = wire_collectors(&tree);
+    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| (i as i32, c))
+        .collect();
+    let tree = Arc::new(tree);
+    let factory: super::super::table_provider::EvaluatorFactory = {
+        let per_leaf = per_leaf.clone();
+        let tree = Arc::clone(&tree);
+        let schema = schema.clone();
+        Arc::new(move |segment, _chunk, _stream_metrics| {
+            let resolved = tree.resolve(&per_leaf)?;
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
+                tree: Arc::new(resolved),
+                evaluator: Arc::new(BitmapTreeEvaluator),
+                leaves: Arc::new(
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
+                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
+                    },
+                ),
+                page_pruner: pruner,
+                cost_predicate: 1,
+                cost_collector: 10,
+                max_collector_parallelism: 1,
+                pruning_predicates: Arc::new(std::collections::HashMap::new()),
+                page_prune_metrics: Some(
+                    crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(
+                        _stream_metrics,
+                    ),
+                ),
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+            });
+            Ok(eval)
+        })
+    };
+
+    let store: Arc<dyn object_store::ObjectStore> =
+        Arc::new(object_store::local::LocalFileSystem::new());
+    let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
+        schema: schema.clone(),
+        segments: vec![segment],
+        store,
+        store_url,
+        evaluator_factory: factory,
+        pushdown_predicate: None,
+        query_config: Arc::new({
+            let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
+            qc.target_partitions = 1;
+            qc.force_strategy = Some(FilterStrategy::BooleanMask);
+            qc.force_pushdown = Some(false);
+            qc
+        }),
+        predicate_columns: vec![0, 1, 2, 3],
+        emit_row_ids: true,
+    }));
+
+    let ctx = SessionContext::new();
+    ctx.register_table("t", provider).unwrap();
+    // Project __row_id__ alongside data columns
+    let df = ctx
+        .sql("SELECT \"__row_id__\", brand, price FROM t")
+        .await
+        .unwrap();
+    let plan = df.create_physical_plan().await.unwrap();
+    let task_ctx = ctx.task_ctx();
+    let mut stream = datafusion::physical_plan::execute_stream(plan, task_ctx).unwrap();
+
+    let mut rows: Vec<(u64, String, i32)> = Vec::new();
+    while let Some(batch) = stream.next().await {
+        let b = batch.unwrap();
+        assert_eq!(b.num_columns(), 3, "should have 3 columns: __row_id__, brand, price");
+        assert_eq!(b.schema().field(0).name(), "__row_id__");
+        assert_eq!(b.schema().field(1).name(), "brand");
+        assert_eq!(b.schema().field(2).name(), "price");
+        let ids = b.column(0).as_any().downcast_ref::<UInt64Array>().unwrap();
+        let brands = b.column(1).as_any().downcast_ref::<StringArray>().unwrap();
+        let prices = b.column(2).as_any().downcast_ref::<Int32Array>().unwrap();
+        for i in 0..b.num_rows() {
+            rows.push((ids.value(i), brands.value(i).to_string(), prices.value(i)));
+        }
+    }
+
+    rows.sort_by_key(|r| r.0);
+
+    // brand="amazon" rows: 0,1,2,3,12
+    assert_eq!(rows.len(), 5);
+    assert_eq!(rows[0], (0, "amazon".to_string(), 50));
+    assert_eq!(rows[1], (1, "amazon".to_string(), 150));
+    assert_eq!(rows[2], (2, "amazon".to_string(), 80));
+    assert_eq!(rows[3], (3, "amazon".to_string(), 120));
+    assert_eq!(rows[4], (12, "amazon".to_string(), 30));
+}
+
 /// Verify UDF detection — `_global_row_id()` in SELECT triggers emit_row_ids mode.
 #[tokio::test]
 async fn test_udf_detection_global_row_id() {
@@ -497,4 +638,235 @@ async fn test_udf_detection_global_row_id() {
         !plan_requests_row_ids(plan2),
         "Should not detect _global_row_id() in normal projection"
     );
+}
+
+// ── Multi-segment row ID tests ──────────────────────────────────────────────
+
+/// Build fixture schema with `__row_id__` column name (double underscore prefix
+/// and suffix) matching what `IndexedTableProvider.scan()` looks for.
+fn build_row_id_fixture_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
+        Field::new("brand", DataType::Utf8, false),
+        Field::new("price", DataType::Int32, false),
+        Field::new("status", DataType::Utf8, false),
+        Field::new("category", DataType::Utf8, false),
+        Field::new("__row_id__", DataType::Int64, false),
+    ]))
+}
+
+/// Write fixture parquet with `__row_id__` column name for emit_row_ids tests.
+fn write_row_id_fixture_parquet() -> NamedTempFile {
+    let schema = build_row_id_fixture_schema();
+    let row_ids: Vec<i64> = (0..16).collect();
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(StringArray::from(BRANDS.to_vec())),
+            Arc::new(Int32Array::from(PRICES.to_vec())),
+            Arc::new(StringArray::from(STATUSES.to_vec())),
+            Arc::new(StringArray::from(CATEGORIES.to_vec())),
+            Arc::new(Int64Array::from(row_ids)),
+        ],
+    )
+    .unwrap();
+    let tmp = NamedTempFile::new().unwrap();
+    let props = datafusion::parquet::file::properties::WriterProperties::builder()
+        .set_max_row_group_size(8)
+        .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
+        .build();
+    let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
+    w.write(&batch).unwrap();
+    w.close().unwrap();
+    tmp
+}
+
+/// Helper: run a query with `emit_row_ids=true` across two segments and return sorted row IDs.
+/// Each segment is a separate parquet file with 16 rows. Segment 1 has global_base=0,
+/// segment 2 has global_base=16, so combined IDs span 0..31.
+async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<u64> {
+    let tmp1 = write_row_id_fixture_parquet();
+    let tmp2 = write_row_id_fixture_parquet();
+
+    let path1 = tmp1.path().to_path_buf();
+    let path2 = tmp2.path().to_path_buf();
+    let size1 = std::fs::metadata(&path1).unwrap().len();
+    let size2 = std::fs::metadata(&path2).unwrap().len();
+
+    // Load metadata for segment 1
+    let file1 = std::fs::File::open(&path1).unwrap();
+    let meta1 =
+        ArrowReaderMetadata::load(&file1, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let schema = meta1.schema().clone();
+    let parquet_meta1 = meta1.metadata().clone();
+    let mut rgs1 = Vec::new();
+    let mut offset = 0i64;
+    for i in 0..parquet_meta1.num_row_groups() {
+        let n = parquet_meta1.row_group(i).num_rows();
+        rgs1.push(RowGroupInfo {
+            index: i,
+            first_row: offset,
+            num_rows: n,
+        });
+        offset += n;
+    }
+
+    // Load metadata for segment 2
+    let file2 = std::fs::File::open(&path2).unwrap();
+    let meta2 =
+        ArrowReaderMetadata::load(&file2, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let parquet_meta2 = meta2.metadata().clone();
+    let mut rgs2 = Vec::new();
+    let mut offset = 0i64;
+    for i in 0..parquet_meta2.num_row_groups() {
+        let n = parquet_meta2.row_group(i).num_rows();
+        rgs2.push(RowGroupInfo {
+            index: i,
+            first_row: offset,
+            num_rows: n,
+        });
+        offset += n;
+    }
+
+    let object_path1 = object_store::path::Path::from(path1.to_string_lossy().as_ref());
+    let object_path2 = object_store::path::Path::from(path2.to_string_lossy().as_ref());
+
+    let segment1 = SegmentFileInfo {
+        segment_ord: 0,
+        max_doc: 16,
+        object_path: object_path1,
+        parquet_size: size1,
+        row_groups: rgs1,
+        metadata: Arc::clone(&parquet_meta1),
+        global_base: 0,
+    };
+    let segment2 = SegmentFileInfo {
+        segment_ord: 1,
+        max_doc: 16,
+        object_path: object_path2,
+        parquet_size: size2,
+        row_groups: rgs2,
+        metadata: Arc::clone(&parquet_meta2),
+        global_base: 16,
+    };
+
+    let tree = tree.push_not_down();
+    let collectors = wire_collectors(&tree);
+    let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> = collectors
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| (i as i32, c))
+        .collect();
+    let tree = Arc::new(tree);
+    let factory: super::super::table_provider::EvaluatorFactory = {
+        let per_leaf = per_leaf.clone();
+        let tree = Arc::clone(&tree);
+        let schema = schema.clone();
+        Arc::new(move |segment, _chunk, _stream_metrics| {
+            let resolved = tree.resolve(&per_leaf)?;
+            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
+                tree: Arc::new(resolved),
+                evaluator: Arc::new(BitmapTreeEvaluator),
+                leaves: Arc::new(
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
+                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
+                    },
+                ),
+                page_pruner: pruner,
+                cost_predicate: 1,
+                cost_collector: 10,
+                max_collector_parallelism: 1,
+                pruning_predicates: Arc::new(std::collections::HashMap::new()),
+                page_prune_metrics: Some(
+                    crate::indexed_table::page_pruner::PagePruneMetrics::from_stream_metrics(
+                        _stream_metrics,
+                    ),
+                ),
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+            });
+            Ok(eval)
+        })
+    };
+
+    let store: Arc<dyn object_store::ObjectStore> =
+        Arc::new(object_store::local::LocalFileSystem::new());
+    let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
+        schema: schema.clone(),
+        segments: vec![segment1, segment2],
+        store,
+        store_url,
+        evaluator_factory: factory,
+        pushdown_predicate: None,
+        query_config: Arc::new({
+            let mut qc = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
+            qc.target_partitions = 1;
+            qc.force_strategy = Some(FilterStrategy::BooleanMask);
+            qc.force_pushdown = Some(false);
+            qc
+        }),
+        predicate_columns: vec![0, 1, 2, 3],
+        emit_row_ids: true,
+    }));
+
+    let ctx = SessionContext::new();
+    ctx.register_table("t", provider).unwrap();
+    let df = ctx.sql("SELECT \"__row_id__\" FROM t").await.unwrap();
+    let plan = df.create_physical_plan().await.unwrap();
+    let task_ctx = ctx.task_ctx();
+    let mut stream = datafusion::physical_plan::execute_stream(plan, task_ctx).unwrap();
+    let mut row_ids: Vec<u64> = Vec::new();
+    while let Some(batch) = stream.next().await {
+        let b = batch.unwrap();
+        assert_eq!(b.num_columns(), 1, "should have only __row_id__ column");
+        assert_eq!(b.schema().field(0).name(), "__row_id__");
+        let col = b.column(0).as_any().downcast_ref::<UInt64Array>().unwrap();
+        for i in 0..b.num_rows() {
+            row_ids.push(col.value(i));
+        }
+    }
+    row_ids.sort();
+    row_ids
+}
+
+/// Test: two segments produce globally unique row IDs.
+/// Segment 1 has rows 0..15 (global_base=0), segment 2 has rows 0..15 (global_base=16).
+/// Combined unfiltered query should produce IDs 0..31 with no gaps.
+#[tokio::test]
+async fn test_emit_row_ids_two_segments_global_base() {
+    // No filter — use a predicate that matches all rows (price >= 0)
+    let tree = BoolNode::And(vec![pred_int("price", Operator::GtEq, 0)]);
+    let ids = run_two_segments_row_ids(tree).await;
+
+    // Each segment has 16 rows. With global_base=0 and global_base=16,
+    // we expect all IDs from 0 through 31 inclusive.
+    let expected: Vec<u64> = (0..32).collect();
+    assert_eq!(ids.len(), 32, "should have 32 row IDs (16 per segment)");
+    assert_eq!(ids, expected, "row IDs should cover 0..31 with no gaps");
+
+    // Verify uniqueness explicitly
+    let unique: std::collections::HashSet<u64> = ids.iter().copied().collect();
+    assert_eq!(unique.len(), 32, "all 32 row IDs should be unique");
+}
+
+/// Test: filtered query across two segments returns correct global IDs.
+/// brand="amazon" matches rows 0,1,2,3,12 within each segment.
+/// Segment 1 (global_base=0) gives IDs: 0,1,2,3,12
+/// Segment 2 (global_base=16) gives IDs: 16,17,18,19,28
+#[tokio::test]
+async fn test_emit_row_ids_two_segments_with_filter() {
+    // Collector tag 0 = brand_eq("amazon") — matches rows 0,1,2,3,12
+    let tree = BoolNode::And(vec![index_leaf(0)]);
+    let ids = run_two_segments_row_ids(tree).await;
+
+    // Segment 1: amazon rows at positions 0,1,2,3,12 + global_base 0 = 0,1,2,3,12
+    // Segment 2: amazon rows at positions 0,1,2,3,12 + global_base 16 = 16,17,18,19,28
+    let expected: Vec<u64> = vec![0, 1, 2, 3, 12, 16, 17, 18, 19, 28];
+    assert_eq!(
+        ids.len(),
+        10,
+        "should have 10 row IDs (5 amazon rows per segment)"
+    );
+    assert_eq!(ids, expected, "filtered row IDs should be offset by global_base");
 }

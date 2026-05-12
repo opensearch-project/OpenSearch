@@ -318,7 +318,7 @@ mod tests {
         assert_eq!(c.force_pushdown, Some(false));
         assert_eq!(c.cost_predicate, 3);
         assert_eq!(c.cost_collector, 17);
-        assert_eq!(c.row_id_strategy, RowIdStrategy::IndexedPredicateOnly);
+        assert_eq!(c.row_id_strategy, RowIdStrategy::ListingTable);
     }
 
     #[test]

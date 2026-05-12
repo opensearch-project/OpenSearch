@@ -252,14 +252,70 @@ pub async fn execute_with_context(
     use datafusion::common::config::ConfigOptions;
     use datafusion::physical_optimizer::PhysicalOptimizerRule;
 
+    let row_id_strategy = handle.query_config.row_id_strategy;
+
+    // If ListingTable strategy: replace the default ListingTable with ShardTableProvider
+    // that adds row_base partition column for ProjectRowIdOptimizer.
+    if row_id_strategy == RowIdStrategy::ListingTable {
+        use crate::shard_table_provider::{ShardTableConfig, ShardFileInfo as ShardFile, ShardTableProvider};
+
+        handle.ctx.deregister_table(&handle.table_name)?;
+
+        let store = handle.ctx.state().runtime_env().object_store(&handle.table_path)?;
+
+        // Infer schema from existing files
+        let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
+            .with_file_extension(".parquet")
+            .with_collect_stat(true);
+        let resolved_schema = listing_options
+            .infer_schema(&handle.ctx.state(), &handle.table_path)
+            .await?;
+
+        // Build ShardFileInfo with cumulative row_base
+        let mut files: Vec<ShardFile> = Vec::new();
+        let mut cumulative_rows: i64 = 0;
+        for meta in handle.object_metas.iter() {
+            let reader = datafusion::parquet::arrow::async_reader::ParquetObjectReader::new(
+                Arc::clone(&store), meta.location.clone(),
+            ).with_file_size(meta.size);
+            let builder = datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder::new(reader)
+                .await
+                .map_err(|e| DataFusionError::Execution(format!("parquet metadata: {}", e)))?;
+            let num_rows: i64 = (0..builder.metadata().num_row_groups())
+                .map(|i| builder.metadata().row_group(i).num_rows())
+                .sum();
+
+            files.push(ShardFile {
+                object_meta: meta.clone(),
+                row_base: cumulative_rows,
+                num_rows: num_rows as u64,
+                row_group_row_counts: (0..builder.metadata().num_row_groups())
+                    .map(|i| builder.metadata().row_group(i).num_rows() as u64)
+                    .collect(),
+            });
+            cumulative_rows += num_rows;
+        }
+
+        let url_str = handle.table_path.as_str();
+        let parsed = url::Url::parse(url_str)
+            .map_err(|e| DataFusionError::Execution(format!("parse URL: {}", e)))?;
+        let store_url = datafusion::execution::object_store::ObjectStoreUrl::parse(
+            format!("{}://{}", parsed.scheme(), parsed.authority()),
+        )?;
+
+        let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
+            file_schema: resolved_schema,
+            files,
+            store_url,
+        }));
+        handle.ctx.register_table(&handle.table_name, provider)?;
+    }
+
     let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
         DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
     })?;
 
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
-
-    // Check if the plan requests row IDs and route accordingly
-    let row_id_strategy = handle.query_config.row_id_strategy;
 
     let requests_row_ids = crate::indexed_table::substrait_to_tree::plan_requests_row_ids(&logical_plan);
 
@@ -271,17 +327,11 @@ pub async fn execute_with_context(
         match row_id_strategy {
             RowIdStrategy::None => physical_plan,
             RowIdStrategy::ListingTable => {
-                // Approach 1: Apply ProjectRowIdOptimizer to the physical plan
                 let optimizer = crate::project_row_id_optimizer::ProjectRowIdOptimizer;
                 let config = ConfigOptions::default();
                 optimizer.optimize(physical_plan, &config)?
             }
-            RowIdStrategy::IndexedPredicateOnly => {
-                // Approach 2: For now, fall through to standard execution.
-                // Full routing to indexed executor requires segment metadata
-                // that may not be available on the vanilla path.
-                physical_plan
-            }
+            RowIdStrategy::IndexedPredicateOnly => physical_plan,
         }
     } else {
         physical_plan

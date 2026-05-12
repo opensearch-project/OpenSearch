@@ -38,7 +38,7 @@ mod tests {
         rows_per_rg: usize,
     ) -> (PathBuf, Vec<u64>) {
         let schema = Arc::new(Schema::new(vec![
-            Field::new("___row_id", DataType::Int64, false),
+            Field::new("__row_id__", DataType::Int64, false),
             Field::new("value", DataType::Int32, false),
             Field::new("name", DataType::Utf8, true),
         ]));

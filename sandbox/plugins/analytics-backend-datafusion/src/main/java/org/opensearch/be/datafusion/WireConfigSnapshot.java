@@ -26,7 +26,7 @@ import java.lang.foreign.ValueLayout;
 public final class WireConfigSnapshot {
 
     /** Total byte size of the wire struct ({@code WireDatafusionQueryConfig}). */
-    public static final long BYTE_SIZE = 68;
+    public static final long BYTE_SIZE = 72;
 
     private final int batchSize;
     private final int targetPartitions;
@@ -36,6 +36,7 @@ public final class WireConfigSnapshot {
     private final int maxCollectorParallelism;
     private final int singleCollectorStrategy;
     private final int treeCollectorStrategy;
+    private final int rowIdStrategy;
 
     private WireConfigSnapshot(Builder builder) {
         this.batchSize = builder.batchSize;
@@ -46,6 +47,7 @@ public final class WireConfigSnapshot {
         this.maxCollectorParallelism = builder.maxCollectorParallelism;
         this.singleCollectorStrategy = builder.singleCollectorStrategy;
         this.treeCollectorStrategy = builder.treeCollectorStrategy;
+        this.rowIdStrategy = builder.rowIdStrategy;
     }
 
     public static Builder builder() {
@@ -64,7 +66,8 @@ public final class WireConfigSnapshot {
             .minSkipRunSelectivityThreshold(current.minSkipRunSelectivityThreshold)
             .maxCollectorParallelism(current.maxCollectorParallelism)
             .singleCollectorStrategy(current.singleCollectorStrategy)
-            .treeCollectorStrategy(current.treeCollectorStrategy);
+            .treeCollectorStrategy(current.treeCollectorStrategy)
+            .rowIdStrategy(current.rowIdStrategy);
     }
 
     public int batchSize() {
@@ -99,6 +102,10 @@ public final class WireConfigSnapshot {
         return treeCollectorStrategy;
     }
 
+    public int rowIdStrategy() {
+        return rowIdStrategy;
+    }
+
     /**
      * Writes this snapshot into a {@code MemorySegment} matching the
      * {@code WireDatafusionQueryConfig} {@code #[repr(C)]} layout.
@@ -122,8 +129,9 @@ public final class WireConfigSnapshot {
      * 56      4     max_collector_parallelism            i32      from snapshot
      * 60      4     single_collector_strategy            i32      from snapshot
      * 64      4     tree_collector_strategy              i32      from snapshot
+     * 68      4     row_id_strategy                      i32      from snapshot (0/1/2)
      * ──────  ────
-     * Total: 68 bytes
+     * Total: 72 bytes
      * </pre>
      *
      * @param segment the target memory segment (at least 68 bytes)
@@ -155,6 +163,8 @@ public final class WireConfigSnapshot {
         segment.set(ValueLayout.JAVA_INT, 60, singleCollectorStrategy);
         // Offset 64: tree_collector_strategy (i32)
         segment.set(ValueLayout.JAVA_INT, 64, treeCollectorStrategy);
+        // Offset 68: row_id_strategy (i32) — 0 = None, 1 = ListingTable, 2 = IndexedPredicateOnly
+        segment.set(ValueLayout.JAVA_INT, 68, rowIdStrategy);
     }
 
     /**
@@ -170,6 +180,7 @@ public final class WireConfigSnapshot {
         private int maxCollectorParallelism = 1;
         private int singleCollectorStrategy = 2; // PageRangeSplit
         private int treeCollectorStrategy = 1;   // TightenOuterBounds
+        private int rowIdStrategy = 1;           // ListingTable (ShardTableProvider + ProjectRowIdOptimizer)
 
         private Builder() {}
 
@@ -210,6 +221,11 @@ public final class WireConfigSnapshot {
 
         public Builder treeCollectorStrategy(int treeCollectorStrategy) {
             this.treeCollectorStrategy = treeCollectorStrategy;
+            return this;
+        }
+
+        public Builder rowIdStrategy(int rowIdStrategy) {
+            this.rowIdStrategy = rowIdStrategy;
             return this;
         }
 
