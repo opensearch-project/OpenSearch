@@ -33,11 +33,18 @@ scalar_functions:
       sig's `str_…` form. An `options:` declaration would serialize under a
       `req`/`opt` key and never match.
 
-      The value slot is declared with the concrete timestamp family
+      The value slot is declared with the concrete date/time families
       (`precision_timestamp<P>` / `date`) rather than `any1`: Calcite's `date`
       field type emits `precision_timestamp<0>?` at the Rex level, and
       matchKeys encodes the nullable-precision metadata into the probe key;
       `any1` cannot bind through the composite 2-arg key in this context.
+
+      TIME is deferred. Calcite emits `precision_time<P>?` for TIME operands,
+      but declaring `value: precision_time<P>` in this yaml is rejected at
+      plugin boot with "Only type literals and parameterized types can be used
+      in functions." and plain `value: time` binds only literal `time` (no
+      precision parameter) which Calcite never emits. A TIME path requires an
+      adapter that casts TIME to TIMESTAMP or a parser-level change.
     impls:
       - args:
           - { value: string, name: "part" }
