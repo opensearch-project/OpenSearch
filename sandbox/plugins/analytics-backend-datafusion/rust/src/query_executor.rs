@@ -126,6 +126,7 @@ pub async fn execute_query(
             error!("Failed to infer schema: {}", e);
             e
         })?;
+    let resolved_schema = crate::schema_coerce::coerce_for_substrait(resolved_schema);
 
     let table_config = ListingTableConfig::new(table_path)
         .with_listing_options(listing_options)

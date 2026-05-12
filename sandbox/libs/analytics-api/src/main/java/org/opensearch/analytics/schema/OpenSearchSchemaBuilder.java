@@ -68,18 +68,22 @@ public class OpenSearchSchemaBuilder {
      *
      * <p>Type mapping:
      * <ul>
-     *   <li>keyword/text -> VARCHAR</li>
+     *   <li>keyword/text/match_only_text -> VARCHAR</li>
      *   <li>long -> BIGINT</li>
+     *   <li>unsigned_long -> BIGINT</li>
      *   <li>integer -> INTEGER</li>
      *   <li>short -> SMALLINT</li>
      *   <li>byte -> TINYINT</li>
      *   <li>double -> DOUBLE</li>
-     *   <li>float -> FLOAT</li>
+     *   <li>float -> REAL</li>
+     *   <li>scaled_float -> BIGINT</li>
      *   <li>boolean -> BOOLEAN</li>
      *   <li>date -> TIMESTAMP</li>
-     *   <li>ip -> VARCHAR</li>
+     *   <li>date_nanos -> TIMESTAMP</li>
+     *   <li>ip -> VARBINARY</li>
+     *   <li>binary -> VARBINARY</li>
      *   <li>nested/object -> skip (not mapped)</li>
-     *   <li>unknown -> VARCHAR (default)</li>
+     *   <li>unknown -> throws IllegalArgumentException</li>
      * </ul>
      *
      * @param opensearchType the OpenSearch field type string
@@ -88,9 +92,13 @@ public class OpenSearchSchemaBuilder {
         switch (opensearchType) {
             case "keyword":
             case "text":
-            case "ip":
+            case "match_only_text":
                 return SqlTypeName.VARCHAR;
             case "long":
+            case "unsigned_long":
+                // unsigned_long: values above 2^63 - 1 wrap into negatives because BIGINT is
+                // signed and Substrait has no unsigned integer types. Smaller values are safe.
+            case "scaled_float":
                 return SqlTypeName.BIGINT;
             case "integer":
                 return SqlTypeName.INTEGER;
@@ -101,13 +109,17 @@ public class OpenSearchSchemaBuilder {
             case "double":
                 return SqlTypeName.DOUBLE;
             case "float":
-                return SqlTypeName.FLOAT;
+                return SqlTypeName.REAL;
             case "boolean":
                 return SqlTypeName.BOOLEAN;
             case "date":
+            case "date_nanos":
                 return SqlTypeName.TIMESTAMP;
+            case "ip":
+            case "binary":
+                return SqlTypeName.VARBINARY;
             default:
-                return SqlTypeName.VARCHAR;
+                throw new IllegalArgumentException("Unsupported OpenSearch field type: " + opensearchType);
         }
     }
 
