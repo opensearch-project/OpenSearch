@@ -38,6 +38,13 @@ dependencies {
   // DataFusion backend exercised end-to-end. Test-only — production analytics-engine
   // doesn't link against a specific backend.
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+  // Substrait core for CoordinatorReduceStressIT, which builds Substrait bytes via
+  // DataFusionFragmentConvertor exactly like DatafusionReduceSinkTests does. The
+  // analytics-backend-datafusion plugin uses substrait-core internally, but its public
+  // API exposes io.substrait.extension.SimpleExtension.ExtensionCollection
+  // (DataFusionFragmentConvertor's constructor parameter), so we need substrait-core
+  // on the test classpath to satisfy that signature.
+  internalClusterTestImplementation "io.substrait:core:0.89.1"
 
   // Parquet data format — primary data format for the resilience tests.
   internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
@@ -123,7 +130,10 @@ internalClusterTest {
   jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
   jvmArgs '--enable-native-access=ALL-UNNAMED'
-  jvmArgs '-Darrow.memory.debug.allocator=false'
+  // Enable Arrow's debug allocator so leaks print the allocation call-site stack.
+  // Small perf hit, acceptable for ITs; CoordinatorResilienceIT specifically asserts
+  // no leak on failure paths and needs the allocator's per-buffer provenance info.
+  jvmArgs '-Darrow.memory.debug.allocator=true'
   systemProperty 'io.netty.allocator.numDirectArenas', '1'
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
