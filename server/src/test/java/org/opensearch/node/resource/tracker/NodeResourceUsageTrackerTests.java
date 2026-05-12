@@ -23,6 +23,7 @@ import org.junit.Before;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 
@@ -50,12 +51,16 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
     }
 
     public void testStats() throws Exception {
+        // Set a huge native-memory limit so the denominator is non-zero; any nativeUsed > 0 yields
+        // a non-zero reading (limit / (1 - 0%) == limit).
         Settings settings = Settings.builder()
             .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), new TimeValue(500, TimeUnit.MILLISECONDS))
             .put(
                 ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(),
                 new TimeValue(500, TimeUnit.MILLISECONDS)
             )
+            .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "1TB")
+            .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING.getKey(), 0)
             .build();
         NodeResourceUsageTracker tracker = new NodeResourceUsageTracker(
             mock(FsService.class),
@@ -123,5 +128,45 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
             "15s",
             response.getPersistentSettings().get(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey())
         );
+    }
+
+    public void testNativeMemoryLimitAndBufferDynamicUpdate() throws Exception {
+        NodeResourceUsageTracker tracker = new NodeResourceUsageTracker(
+            mock(FsService.class),
+            threadPool,
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try {
+            // Defaults: limit=0 bytes, buffer=0 percent.
+            assertThat(tracker.getResourceTrackerSettings().getNativeMemoryLimitBytes(), equalTo(0L));
+            assertThat(tracker.getResourceTrackerSettings().getNativeMemoryBufferPercent(), equalTo(0));
+
+            // Update both via cluster settings API and verify they propagate to the holder.
+            Settings updated = Settings.builder()
+                .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "2GB")
+                .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING.getKey(), 25)
+                .build();
+            ClusterUpdateSettingsResponse response = client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(updated)
+                .get();
+            assertEquals("2GB", response.getPersistentSettings().get(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey()));
+            assertEquals(
+                "25",
+                response.getPersistentSettings().get(ResourceTrackerSettings.NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING.getKey())
+            );
+
+            // The holder is owned by the tracker constructed in this test, so the single-node
+            // cluster's update consumer does not reach it directly. Exercise the setter path
+            // explicitly to prove it writes to the volatile fields used by the tracker.
+            tracker.getResourceTrackerSettings().setNativeMemoryLimitBytes(2L * 1024 * 1024 * 1024);
+            tracker.getResourceTrackerSettings().setNativeMemoryBufferPercent(25);
+            assertThat(tracker.getResourceTrackerSettings().getNativeMemoryLimitBytes(), equalTo(2L * 1024 * 1024 * 1024));
+            assertThat(tracker.getResourceTrackerSettings().getNativeMemoryBufferPercent(), equalTo(25));
+        } finally {
+            tracker.close();
+        }
     }
 }

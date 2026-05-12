@@ -13,6 +13,7 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.monitor.fs.FsService;
 import org.opensearch.node.IoUsageStats;
 import org.opensearch.threadpool.ThreadPool;
@@ -23,7 +24,6 @@ import org.opensearch.threadpool.ThreadPool;
 public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     private ThreadPool threadPool;
     private final ClusterSettings clusterSettings;
-    private final Settings settings;
     private AverageCpuUsageTracker cpuUsageTracker;
     private AverageMemoryUsageTracker memoryUsageTracker;
     private AverageIoUsageTracker ioUsageTracker;
@@ -36,7 +36,6 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     public NodeResourceUsageTracker(FsService fsService, ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         this.fsService = fsService;
         this.threadPool = threadPool;
-        this.settings = settings;
         this.clusterSettings = clusterSettings;
         this.resourceTrackerSettings = new ResourceTrackerSettings(settings);
         initialize();
@@ -128,12 +127,17 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
             threadPool,
             resourceTrackerSettings.getNativeMemoryPollingInterval(),
             resourceTrackerSettings.getNativeMemoryWindowDuration(),
-            settings
+            resourceTrackerSettings
         );
         if (Constants.LINUX) {
             clusterSettings.addSettingsUpdateConsumer(
                 ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING,
                 this::setNativeMemoryWindowDuration
+            );
+            clusterSettings.addSettingsUpdateConsumer(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING, this::setNativeMemoryLimit);
+            clusterSettings.addSettingsUpdateConsumer(
+                ResourceTrackerSettings.NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING,
+                this::setNativeMemoryBufferPercent
             );
         }
     }
@@ -156,6 +160,14 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     private void setNativeMemoryWindowDuration(TimeValue windowDuration) {
         nativeMemoryUsageTracker.setWindowSize(windowDuration);
         resourceTrackerSettings.setNativeMemoryWindowDuration(windowDuration);
+    }
+
+    private void setNativeMemoryLimit(ByteSizeValue newLimit) {
+        resourceTrackerSettings.setNativeMemoryLimitBytes(newLimit.getBytes());
+    }
+
+    private void setNativeMemoryBufferPercent(int newBufferPercent) {
+        resourceTrackerSettings.setNativeMemoryBufferPercent(newBufferPercent);
     }
 
     /**

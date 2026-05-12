@@ -119,6 +119,8 @@ public class ResourceTrackerSettings {
     private volatile TimeValue ioPollingInterval;
     private volatile TimeValue nativeMemoryWindowDuration;
     private volatile TimeValue nativeMemoryPollingInterval;
+    private volatile long nativeMemoryLimitBytes;
+    private volatile int nativeMemoryBufferPercent;
 
     public ResourceTrackerSettings(Settings settings) {
         this.cpuPollingInterval = GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
@@ -129,6 +131,8 @@ public class ResourceTrackerSettings {
         this.ioWindowDuration = GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
         this.nativeMemoryPollingInterval = GLOBAL_NATIVE_MEMORY_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
         this.nativeMemoryWindowDuration = GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
+        this.nativeMemoryLimitBytes = NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings).getBytes();
+        this.nativeMemoryBufferPercent = NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING.get(settings);
     }
 
     public TimeValue getCpuWindowDuration() {
@@ -177,5 +181,21 @@ public class ResourceTrackerSettings {
 
     public void setNativeMemoryWindowDuration(TimeValue nativeMemoryWindowDuration) {
         this.nativeMemoryWindowDuration = nativeMemoryWindowDuration;
+    }
+
+    public long getNativeMemoryLimitBytes() {
+        return nativeMemoryLimitBytes;
+    }
+
+    public void setNativeMemoryLimitBytes(long nativeMemoryLimitBytes) {
+        this.nativeMemoryLimitBytes = nativeMemoryLimitBytes;
+    }
+
+    public int getNativeMemoryBufferPercent() {
+        return nativeMemoryBufferPercent;
+    }
+
+    public void setNativeMemoryBufferPercent(int nativeMemoryBufferPercent) {
+        this.nativeMemoryBufferPercent = nativeMemoryBufferPercent;
     }
 }
