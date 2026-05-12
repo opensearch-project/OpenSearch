@@ -10,7 +10,6 @@ package org.opensearch.blockcache.foyer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.blockcache.stats.BlockCacheStats;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 
@@ -139,32 +138,35 @@ public final class FoyerBridge {
     /**
      * Snapshot the cache statistics from the native Foyer runtime.
      *
-     * <p>Returns a {@code long[]} containing two equal-sized sections:
-     * {@code overall} (cross-tier rollup) followed by {@code block_level} (disk tier).
-     * Each section contains one value per {@link BlockCacheStats.Field} constant,
-     * in ordinal order.
+     * <p>Returns a {@code long[14]} buffer containing two equal-sized sections:
+     * {@code overall} (cross-tier rollup, indices 0–6) followed by
+     * {@code block_level} (disk tier, indices 7–13).
+     * Each section carries the 7 counters in the order defined by
+     * {@code FoyerAggregatedStats.Field}: HIT_COUNT, HIT_BYTES, MISS_COUNT,
+     * MISS_BYTES, EVICTION_COUNT, EVICTION_BYTES, USED_BYTES.
      *
-     * <p>The buffer size and per-section field layout are driven by
-     * {@link BlockCacheStats.Field} — no separate size constants to maintain.
+     * <p>The buffer size (14 = 7 fields × 2 sections) must stay in sync with
+     * the Rust {@code foyer_snapshot_stats} implementation.
      */
     public static long[] snapshotStats(long ptr) {
-        // Allocate exactly BlockCacheStats.Field.COUNT values per section, two sections total.
-        // The native side must write the same number of values; a length mismatch means
-        // the Java Field enum and the Rust snapshot() array are out of sync.
-        final int bufferSize = BlockCacheStats.Field.COUNT * 2;
+        // 7 counters per section (must match FoyerAggregatedStats.Field ordinals)
+        // × 2 sections (overall + block_level) = 14 longs total.
+        final int bufferSize = 14;
         try (Arena arena = Arena.ofConfined()) {
-            var out = arena.allocateArray(ValueLayout.JAVA_LONG, bufferSize);
+            // Arena.allocate(ValueLayout, count) is the Java 22+ replacement for
+            // the removed Arena.allocateArray(ValueLayout, count).
+            var out = arena.allocate(ValueLayout.JAVA_LONG, bufferSize);
             try (var call = new NativeCall()) {
                 call.invoke(FOYER_SNAPSHOT_STATS, ptr, out);
             }
             // toArray copies the entire allocated segment.
             long[] result = out.toArray(ValueLayout.JAVA_LONG);
             if (result.length != bufferSize) {
-                // Native/Java field count mismatch — log and return zeros rather than silently
-                // mismap fields, which would produce corrupted stats silently.
+                // Native/Java buffer size mismatch — log and return zeros rather than
+                // silently mismap fields, which would corrupt stats.
                 logger.error(
                     "foyer_snapshot_stats: expected {} values but got {}; "
-                    + "BlockCacheStats.Field and Rust snapshot() are out of sync",
+                    + "Rust snapshot() and Java FoyerAggregatedStats.Field are out of sync",
                     bufferSize, result.length
                 );
                 return new long[bufferSize];

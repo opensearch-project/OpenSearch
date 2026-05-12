@@ -70,7 +70,8 @@ public class NodeCacheOrchestrator implements Closeable {
      */
     private final List<BlockCache> blockCaches = new CopyOnWriteArrayList<>();
 
-    private NodeCacheOrchestrator(FileCache fileCache, long virtualBlockCacheBytes) {
+    /** Package-private for testing — use {@link #create} in production. */
+    NodeCacheOrchestrator(FileCache fileCache, long virtualBlockCacheBytes) {
         this.fileCache = fileCache;
         this.virtualBlockCacheBytes = virtualBlockCacheBytes;
     }
@@ -206,7 +207,9 @@ public class NodeCacheOrchestrator implements Closeable {
         }
     }
 
-    private void addBlockCache(BlockCache blockCache) {
+    /** Package-private for testing. */
+    void addBlockCache(BlockCache blockCache) {
+        if (blockCache == null) return;
         blockCaches.add(blockCache);
         logger.info("Block cache registered (disk bytes used so far: {})",
             new ByteSizeValue(blockCache.stats().diskBytesUsed()));

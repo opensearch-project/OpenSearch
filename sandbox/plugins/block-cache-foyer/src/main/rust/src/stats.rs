@@ -98,3 +98,87 @@ impl FoyerStatsCounter {
         ]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::Ordering;
+
+    #[test]
+    fn new_returns_all_zeros() {
+        let c = FoyerStatsCounter::new();
+        let snap = c.snapshot();
+        assert_eq!(snap, [0i64; 7]);
+    }
+
+    #[test]
+    fn snapshot_returns_7_values() {
+        let snap = FoyerStatsCounter::new().snapshot();
+        assert_eq!(snap.len(), 7);
+    }
+
+    // Verify exact field-to-index mapping: each field maps to a distinct index.
+    // A bug in the `snapshot()` array literal order would break Java parsing.
+
+    #[test]
+    fn hit_count_is_index_0() {
+        let c = FoyerStatsCounter::new();
+        c.hit_count.store(42, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[0], 42);
+    }
+
+    #[test]
+    fn hit_bytes_is_index_1() {
+        let c = FoyerStatsCounter::new();
+        c.hit_bytes.store(1024, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[1], 1024);
+    }
+
+    #[test]
+    fn miss_count_is_index_2() {
+        let c = FoyerStatsCounter::new();
+        c.miss_count.store(7, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[2], 7);
+    }
+
+    #[test]
+    fn miss_bytes_is_index_3() {
+        let c = FoyerStatsCounter::new();
+        c.miss_bytes.store(512, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[3], 512);
+    }
+
+    #[test]
+    fn eviction_count_is_index_4() {
+        let c = FoyerStatsCounter::new();
+        c.eviction_count.store(3, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[4], 3);
+    }
+
+    #[test]
+    fn eviction_bytes_is_index_5() {
+        let c = FoyerStatsCounter::new();
+        c.eviction_bytes.store(2048, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[5], 2048);
+    }
+
+    #[test]
+    fn used_bytes_is_index_6() {
+        let c = FoyerStatsCounter::new();
+        c.used_bytes.store(999, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[6], 999);
+    }
+
+    #[test]
+    fn all_fields_independent() {
+        let c = FoyerStatsCounter::new();
+        c.hit_count.store(1, Ordering::Relaxed);
+        c.hit_bytes.store(2, Ordering::Relaxed);
+        c.miss_count.store(3, Ordering::Relaxed);
+        c.miss_bytes.store(4, Ordering::Relaxed);
+        c.eviction_count.store(5, Ordering::Relaxed);
+        c.eviction_bytes.store(6, Ordering::Relaxed);
+        c.used_bytes.store(7, Ordering::Relaxed);
+        assert_eq!(c.snapshot(), [1, 2, 3, 4, 5, 6, 7]);
+    }
+}

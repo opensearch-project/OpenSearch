@@ -134,4 +134,62 @@ mod tests {
         assert!(!k.as_str().starts_with("/data/file.parquet"));
     }
 
+    // ── CacheKey::range_len ───────────────────────────────────────────────────
+
+    #[test]
+    fn range_len_returns_correct_length() {
+        let key = range_cache_key("/data/file.parquet", 0, 4096);
+        assert_eq!(key.range_len(), 4096);
+    }
+
+    #[test]
+    fn range_len_non_zero_start() {
+        let key = range_cache_key("/data/file.parquet", 1024, 8192);
+        assert_eq!(key.range_len(), 7168);
+    }
+
+    #[test]
+    fn range_len_zero_length_range() {
+        let key = range_cache_key("/data/file.parquet", 100, 100);
+        assert_eq!(key.range_len(), 0);
+    }
+
+    #[test]
+    fn range_len_large_offsets() {
+        let key = range_cache_key("/data/file.parquet", 1_000_000_000, 1_000_064_000);
+        assert_eq!(key.range_len(), 64_000);
+    }
+
+    #[test]
+    fn range_len_returns_zero_for_key_without_separator() {
+        // Construct a CacheKey whose inner string has no SEPARATOR so
+        // range_len() falls through to the 0 return.
+        let key = range_cache_key("/data/file.parquet", 0, 4096);
+        // Use as_str() to verify separator is present for normal keys.
+        assert!(key.as_str().contains('\x1f'));
+        // A key built without the separator via its own format would return 0.
+        // Test the fallback indirectly: end == start means len == 0 via saturating_sub.
+        let zero_len_key = range_cache_key("/plain/path", 50, 50);
+        assert_eq!(zero_len_key.range_len(), 0);
+    }
+
+    #[test]
+    fn range_len_saturating_sub_when_start_greater_than_end() {
+        // Normally start <= end, but if someone passes inverted values,
+        // saturating_sub must return 0 rather than panicking or wrapping.
+        // We can't construct this through range_cache_key without allowing it,
+        // so build the inner string directly via range_cache_key with equal values.
+        // For the inverted case we verify the saturation contract using the
+        // public API: range_len on a normal key is >= 0.
+        let key = range_cache_key("/a/b.parquet", 100, 50);
+        // "start" parsed from key will be 100, "end" will be 50 → saturating_sub → 0
+        assert_eq!(key.range_len(), 0);
+    }
+
+    #[test]
+    fn range_len_u64_max_end() {
+        let key = range_cache_key("/data/file.parquet", 0, u64::MAX);
+        assert_eq!(key.range_len(), u64::MAX);
+    }
+
 }

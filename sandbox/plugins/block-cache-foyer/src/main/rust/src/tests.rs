@@ -407,3 +407,97 @@ fn ffm_create_destroy_lifecycle_no_leak() {
         assert_eq!(result, 0);
     }
 }
+
+// ── foyer_snapshot_stats ──────────────────────────────────────────────────────
+
+#[test]
+fn snapshot_stats_returns_zero_for_fresh_cache() {
+    let dir = TempDir::new().unwrap();
+    let dir_str = dir.path().to_str().unwrap();
+    let engine = IO_ENGINE.as_bytes();
+    let ptr = unsafe { foyer_create_cache(
+        64 * 1024 * 1024,
+        dir_str.as_ptr(), dir_str.len() as u64,
+        BLOCK_SIZE as u64,
+        engine.as_ptr(), engine.len() as u64,
+    )};
+    assert!(ptr > 0);
+
+    let mut out = [i64::MAX; 14];
+    let rc = unsafe { crate::foyer::ffm::foyer_snapshot_stats(ptr, out.as_mut_ptr()) };
+    assert_eq!(rc, 0, "foyer_snapshot_stats should return 0 on success");
+
+    // A freshly created cache has no hits, misses, evictions, or used bytes.
+    // Sections 0 and 1 are identical (Foyer is currently single-tier).
+    for i in 0..14 {
+        assert_eq!(out[i], 0, "out[{i}] should be 0 for a fresh cache, got {}", out[i]);
+    }
+
+    let destroy_rc = unsafe { foyer_destroy_cache(ptr) };
+    assert_eq!(destroy_rc, 0);
+}
+
+#[test]
+fn snapshot_stats_returns_error_for_null_out_ptr() {
+    let dir = TempDir::new().unwrap();
+    let dir_str = dir.path().to_str().unwrap();
+    let engine = IO_ENGINE.as_bytes();
+    let ptr = unsafe { foyer_create_cache(
+        64 * 1024 * 1024,
+        dir_str.as_ptr(), dir_str.len() as u64,
+        BLOCK_SIZE as u64,
+        engine.as_ptr(), engine.len() as u64,
+    )};
+    assert!(ptr > 0);
+
+    let rc = unsafe { crate::foyer::ffm::foyer_snapshot_stats(ptr, std::ptr::null_mut()) };
+    assert!(rc < 0, "foyer_snapshot_stats with null out should return < 0, got {rc}");
+
+    let destroy_rc = unsafe { foyer_destroy_cache(ptr) };
+    assert_eq!(destroy_rc, 0);
+}
+
+#[test]
+fn snapshot_stats_returns_error_for_invalid_ptr() {
+    let mut out = [0i64; 14];
+    let rc = unsafe { crate::foyer::ffm::foyer_snapshot_stats(0, out.as_mut_ptr()) };
+    assert!(rc < 0, "foyer_snapshot_stats with ptr=0 should return < 0, got {rc}");
+}
+
+#[test]
+fn snapshot_stats_two_sections_identical_for_single_tier() {
+    // Foyer is currently disk-only (single tier): overall == block_level.
+    // Put an entry so used_bytes becomes non-zero, then confirm sections match.
+    let (cache, _dir) = test_cache();
+    let key = range_cache_key("/data/file.parquet", 0, 512);
+    cache.put(&key, Bytes::from(vec![0u8; 512]));
+
+    // Snapshot via the FFM function using the Arc-into-raw handle pattern.
+    let arc = std::sync::Arc::new(cache);
+    // Temporarily leak the Arc to get a valid raw pointer for the FFM call.
+    let raw_ptr = std::sync::Arc::into_raw(std::sync::Arc::clone(&arc)) as i64;
+
+    let mut out = [0i64; 14];
+    let rc = unsafe { crate::foyer::ffm::foyer_snapshot_stats(raw_ptr, out.as_mut_ptr()) };
+    assert_eq!(rc, 0);
+
+    // Drop the extra strong count we added via into_raw/clone.
+    unsafe { drop(std::sync::Arc::from_raw(raw_ptr as *const FoyerCache)); }
+
+    // Section 0 (indices 0–6) and section 1 (indices 7–13) must be identical.
+    assert_eq!(&out[0..7], &out[7..14],
+        "overall and block_level sections should be identical for single-tier Foyer");
+}
+
+#[test]
+fn snapshot_stats_used_bytes_reflects_put() {
+    let (cache, _dir) = test_cache();
+    let data = vec![0xABu8; 1024];
+    let key = range_cache_key("/data/file.parquet", 0, 1024);
+    cache.put(&key, Bytes::copy_from_slice(&data));
+
+    // used_bytes counter is updated synchronously on put().
+    // Verify it is reflected immediately (index 6 = used_bytes).
+    let snap = cache.stats.snapshot();
+    assert_eq!(snap[6], 1024, "used_bytes should be 1024 after a single 1KB put");
+}
