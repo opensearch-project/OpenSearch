@@ -94,10 +94,13 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     public boolean failFromChild(Exception cause) {
         logger.error(new ParameterizedMessage("[LocalStage] failFromChild stageId={}", stage.getStageId()), cause);
         captureFailure(cause);
+        // Close sink BEFORE transitioning. transitionTo fires the walker terminal
+        // listener inline, which tears down the per-query allocator — if the
+        // sink's drain task is still importing, it would race a closed allocator.
+        try {
+            backendSink.close();
+        } catch (Exception ignore) {}
         if (transitionTo(State.FAILED)) {
-            try {
-                backendSink.close();
-            } catch (Exception ignore) {}
             metrics.incrementTasksFailed();
             return true;
         }
@@ -107,10 +110,9 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     @Override
     public void cancel(String reason) {
         logger.info("[LocalStage] cancel stageId={} reason={}", stage.getStageId(), reason);
-        if (transitionTo(State.CANCELLED)) {
-            try {
-                backendSink.close();
-            } catch (Exception ignore) {}
-        }
+        try {
+            backendSink.close();
+        } catch (Exception ignore) {}
+        transitionTo(State.CANCELLED);
     }
 }
