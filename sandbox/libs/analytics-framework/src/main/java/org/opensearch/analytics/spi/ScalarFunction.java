@@ -41,6 +41,11 @@ public enum ScalarFunction {
     IN(Category.COMPARISON, SqlKind.IN),
     LIKE(Category.COMPARISON, SqlKind.LIKE),
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+
+    // ── Logical connectives ─────────────────────────────────────────
+    AND(Category.SCALAR, SqlKind.AND),
+    OR(Category.SCALAR, SqlKind.OR),
+    NOT(Category.SCALAR, SqlKind.NOT),
     /** Calcite's Sarg fold for IN / NOT IN / BETWEEN / range-union. Backends expand it before substrait. */
     SARG_PREDICATE(Category.SCALAR, SqlKind.SEARCH),
 

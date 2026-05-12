@@ -269,7 +269,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // PPL `mvfind` returns INTEGER (the 0-based index of the first match, or NULL); backed
         // by a custom Rust UDF on the DataFusion session context (`udf::mvfind`), routed via
         // {@link MvfindAdapter}.
-        ScalarFunction.MVFIND
+        ScalarFunction.MVFIND,
+        // Logical connectives — emitted in projections where boolean expressions are composed:
+        // `case(a = 0 and b = 0, …)`, `eval x = a or b`, `eval x = NOT y`. DataFusion's substrait
+        // consumer handles them natively.
+        ScalarFunction.AND,
+        ScalarFunction.OR,
+        ScalarFunction.NOT
     );
 
     /**
