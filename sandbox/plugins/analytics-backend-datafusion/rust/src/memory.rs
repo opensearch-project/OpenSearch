@@ -19,11 +19,6 @@ use std::sync::Arc;
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryPool, MemoryReservation};
 
-/// If jemalloc reports actual allocated below this fraction of the pool limit,
-/// allow try_grow to succeed even when pool accounting says "full".
-/// This prevents stale phantom reservations from causing unnecessary operator spills.
-const JEMALLOC_GROW_OVERRIDE_THRESHOLD: f64 = 0.85;
-
 /// A `MemoryPool` whose limit can be changed at runtime.
 ///
 /// Behaviour matches `GreedyMemoryPool` exactly, except the limit is stored
@@ -126,19 +121,14 @@ impl MemoryPool for DynamicLimitPool {
         // haven't been released yet.
         let limit = dynamic_limit.load(Ordering::Acquire);
         let used = self.used.load(Ordering::Relaxed);
-        // Only attempt override if the allocation is plausible (won't overflow)
-        // and the pool is production-sized (not a unit test with tiny limits).
-        if limit >= 16 * 1024 * 1024 && used.checked_add(additional).is_some() {
-            let allocated = native_bridge_common::allocator::allocated_bytes();
-            if allocated > 0 {
-                let threshold = (limit as f64 * JEMALLOC_GROW_OVERRIDE_THRESHOLD) as i64;
-                if allocated < threshold {
-                    // jemalloc confirms headroom — allow the grow via infallible path
-                    let _ = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |u| {
-                        u.checked_add(additional)
-                    });
-                    return Ok(());
-                }
+        // Only attempt override if the allocation is plausible (won't overflow).
+        if used.checked_add(additional).is_some() {
+            if crate::memory_guard::should_override(limit, crate::memory_guard::OverrideContext::Operator) {
+                // jemalloc confirms headroom — allow the grow
+                let _ = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |u| {
+                    u.checked_add(additional)
+                });
+                return Ok(());
             }
         }
 

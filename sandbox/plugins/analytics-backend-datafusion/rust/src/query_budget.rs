@@ -74,10 +74,6 @@ use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation};
 use parquet::file::metadata::ParquetMetaData;
 
-/// If jemalloc reports actual allocated is below this fraction of pool limit,
-/// the pool's `try_grow` failure is considered a false positive (stale
-/// accounting). We proceed at full partitions rather than reducing.
-const JEMALLOC_SAFETY_THRESHOLD: f64 = 0.7;
 
 /// How many batch-sized buffers exist per partition in the pipeline.
 ///
@@ -426,24 +422,9 @@ fn pool_limit(pool: &Arc<dyn MemoryPool>) -> Option<usize> {
     }
 }
 
-/// Consult jemalloc: is actual process memory below the safety threshold?
-/// Returns true if there's headroom (pool rejection was a false positive).
-/// Returns false if jemalloc confirms pressure or stats are unavailable.
-///
-/// Only meaningful when pool_limit reflects the real node memory budget
-/// (not artificial test pools). Returns false for pools < 16MB to avoid
-/// false overrides in unit tests with tiny pools.
+/// Delegates to the common memory guard for admission-level override check.
 fn jemalloc_says_headroom_available(pool_limit_bytes: usize) -> bool {
-    // Don't override for tiny pools (unit tests, benchmarks with artificial limits)
-    if pool_limit_bytes < 16 * 1024 * 1024 {
-        return false;
-    }
-    let allocated = native_bridge_common::allocator::allocated_bytes();
-    if allocated <= 0 {
-        return false;
-    }
-    let threshold = (pool_limit_bytes as f64 * JEMALLOC_SAFETY_THRESHOLD) as i64;
-    allocated < threshold
+    crate::memory_guard::should_override(pool_limit_bytes, crate::memory_guard::OverrideContext::Admission)
 }
 
 #[cfg(test)]
