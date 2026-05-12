@@ -50,8 +50,13 @@ public class DeploymentManagerService {
         AckedRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        validateDeploymentId(deploymentId);
-        validateAttributes(nodeAttributes);
+        try {
+            validateDeploymentId(deploymentId);
+            validateAttributes(nodeAttributes);
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(e);
+            return;
+        }
 
         clusterService.submitStateUpdateTask("start-deployment-" + deploymentId, new AckedClusterStateUpdateTask<>(request, listener) {
             @Override
@@ -171,11 +176,13 @@ public class DeploymentManagerService {
         if (existingDeployments.isEmpty()) {
             return;
         }
-        Set<String> existingKeys = existingDeployments.values().iterator().next().getNodeAttributes().keySet();
-        if (!existingKeys.equals(newAttributes.keySet())) {
-            throw new IllegalArgumentException(
-                "deployment attribute keys " + newAttributes.keySet() + " must match existing deployment keys " + existingKeys
-            );
+        for (Deployment existingDeployment : existingDeployments.values()) {
+            Set<String> existingKeys = existingDeployment.getNodeAttributes().keySet();
+            if (!existingKeys.equals(newAttributes.keySet())) {
+                throw new IllegalArgumentException(
+                    "deployment attribute keys " + newAttributes.keySet() + " must match existing deployment keys " + existingKeys
+                );
+            }
         }
     }
 
