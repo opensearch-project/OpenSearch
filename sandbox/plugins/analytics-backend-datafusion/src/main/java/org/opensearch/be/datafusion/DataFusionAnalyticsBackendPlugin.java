@@ -33,6 +33,7 @@ import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -557,7 +558,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
                 return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
             }
-            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
+            return new DatafusionReduceSink(
+                ctx,
+                svc.getNativeRuntime(),
+                svc.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                preparedState
+            );
         };
     }
 

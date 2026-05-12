@@ -18,6 +18,7 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -41,6 +42,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final String spillDirectory;
     private final int cpuThreads;
     private final ClusterSettings clusterSettings;
+    private final ThreadPool threadPool;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
@@ -60,6 +62,16 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.spillDirectory = builder.spillDirectory;
         this.cpuThreads = builder.cpuThreads;
         this.clusterSettings = builder.clusterSettings;
+        this.threadPool = builder.threadPool;
+    }
+
+    /**
+     * Returns the node-level {@link ThreadPool}. The coordinator-reduce sink uses this
+     * to dispatch its drain task on the {@link ThreadPool.Names#SEARCH} pool — no
+     * separate executor pool is needed.
+     */
+    public ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     /** Creates a new builder. */
@@ -230,6 +242,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private String spillDirectory = System.getProperty("java.io.tmpdir");
         private int cpuThreads = Runtime.getRuntime().availableProcessors();
         private ClusterSettings clusterSettings;
+        private ThreadPool threadPool;
 
         private Builder() {}
 
@@ -275,6 +288,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder clusterSettings(ClusterSettings clusterSettings) {
             this.clusterSettings = clusterSettings;
+            return this;
+        }
+
+        /**
+         * Sets the node-level thread pool. Required: the coordinator-reduce sink
+         * dispatches its drain task on {@link ThreadPool.Names#SEARCH}.
+         */
+        public Builder threadPool(ThreadPool threadPool) {
+            this.threadPool = threadPool;
             return this;
         }
 

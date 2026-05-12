@@ -142,6 +142,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             .spillMemoryLimit(spillMemoryLimit)
             .spillDirectory(spillDir)
             .clusterSettings(clusterService.getClusterSettings())
+            .threadPool(threadPool)
             .build();
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
