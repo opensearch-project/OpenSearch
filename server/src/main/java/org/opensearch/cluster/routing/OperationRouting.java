@@ -339,7 +339,12 @@ public class OperationRouting {
                 builder.addShard(shardRouting);
             }
         }
-        return builder.build();
+        IndexShardRoutingTable filtered = builder.build();
+        if (filtered.size() == 0) {
+            // Fall back to original if all shards were filtered out
+            return shard;
+        }
+        return filtered;
     }
 
     private Set<IndexShardRoutingTable> computeTargetedShards(

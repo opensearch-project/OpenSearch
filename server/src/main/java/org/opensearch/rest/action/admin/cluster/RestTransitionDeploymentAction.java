@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.rest.RestRequest.Method.POST;
@@ -34,10 +35,7 @@ public class RestTransitionDeploymentAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Arrays.asList(
-            new Route(POST, "/_cluster/deployment/{deployment_id}/drain"),
-            new Route(POST, "/_cluster/deployment/{deployment_id}/finish")
-        );
+        return Arrays.asList(new Route(POST, "/_cluster/deployment/{deployment_id}/{action}"));
     }
 
     @Override
@@ -48,17 +46,15 @@ public class RestTransitionDeploymentAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String deploymentId = request.param("deployment_id");
-        String action = extractAction(request.path());
+        String action = request.param("action");
 
         TransitionDeploymentRequest transitionRequest = new TransitionDeploymentRequest();
         transitionRequest.deploymentId(deploymentId);
-
-        if ("drain".equals(action)) {
-            transitionRequest.targetState(DeploymentState.DRAIN);
+        DeploymentState targetState = DeploymentState.valueOf(action.toUpperCase(Locale.ROOT));
+        transitionRequest.targetState(targetState);
+        if (targetState == DeploymentState.DRAIN) {
             Map<String, String> attributes = parseAttributes(request);
             transitionRequest.attributes(attributes);
-        } else {
-            transitionRequest.targetState(DeploymentState.FINISH);
         }
 
         return channel -> client.execute(TransitionDeploymentAction.INSTANCE, transitionRequest, new RestToXContentListener<>(channel));
