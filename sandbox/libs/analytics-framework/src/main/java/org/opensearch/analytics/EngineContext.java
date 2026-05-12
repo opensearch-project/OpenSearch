@@ -38,4 +38,16 @@ public interface EngineContext {
      * by at least one registered back-end engine.
      */
     SqlOperatorTable operatorTable();
+
+    /**
+     * Converts a backend-specific exception into an appropriate OpenSearch exception type.
+     * Called at the coordinator when a query fails, before surfacing the error to the REST layer.
+     * Default implementation performs no conversion.
+     *
+     * @param e the exception from query execution
+     * @return converted exception with correct HTTP status semantics, or {@code e} unchanged
+     */
+    default Exception convertException(Exception e) {
+        return e;
+    }
 }

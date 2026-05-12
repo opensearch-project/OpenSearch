@@ -243,6 +243,18 @@ pub unsafe fn get_memory_pool_limit(ptr: i64) -> i64 {
     runtime.dynamic_limit_handle.limit() as i64
 }
 
+/// Returns memory pool usage (bytes reserved) and tripped count as a pair.
+/// Output: [usage, tripped] written to the provided pointer.
+///
+/// # Safety
+/// `ptr` must be a valid pointer returned by `create_global_runtime`.
+/// `out_ptr` must point to a buffer of at least 2 i64 values.
+pub unsafe fn get_memory_pool_stats(ptr: i64, out_ptr: *mut i64) {
+    let runtime = &*(ptr as *const DataFusionRuntime);
+    *out_ptr = runtime.runtime_env.memory_pool.reserved() as i64;
+    *out_ptr.add(1) = runtime.dynamic_limit_handle.tripped_count() as i64;
+}
+
 /// Sets the memory pool limit at runtime. Takes effect for new allocations only.
 /// Returns an error if `new_limit` is negative.
 ///

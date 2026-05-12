@@ -127,6 +127,17 @@ pub unsafe extern "C" fn df_get_memory_pool_limit(runtime_ptr: i64) -> i64 {
     Ok(api::get_memory_pool_limit(runtime_ptr))
 }
 
+/// Returns memory pool stats (usage + tripped count) in a single call.
+/// Writes [usage_bytes, tripped_count] to the output buffer.
+/// Java: MethodHandle(JAVA_LONG, ADDRESS → void)
+#[no_mangle]
+pub unsafe extern "C" fn df_get_memory_pool_stats(runtime_ptr: i64, out_ptr: *mut i64) {
+    if runtime_ptr == 0 || out_ptr.is_null() {
+        return;
+    }
+    api::get_memory_pool_stats(runtime_ptr, out_ptr);
+}
+
 /// Sets the memory pool limit at runtime. Takes effect for new allocations only.
 /// Java: MethodHandle(JAVA_LONG, JAVA_LONG → JAVA_LONG)
 #[ffm_safe]

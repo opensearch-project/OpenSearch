@@ -234,19 +234,26 @@ fn acquire_budget_inner(
 
                 // Both pool and jemalloc confirm pressure — reduce parallelism
                 if target_partitions > MIN_TARGET_PARTITIONS {
+                    let prev = target_partitions;
                     target_partitions = (target_partitions / 2).max(MIN_TARGET_PARTITIONS);
+                    native_bridge_common::log_info!(
+                        "Memory pressure: reducing target_partitions {} -> {} (phantom {} bytes failed)",
+                        prev, target_partitions, phantom_bytes
+                    );
                 } else if batch_size > MIN_BATCH_SIZE {
+                    let prev = batch_size;
                     batch_size = (batch_size / 2).max(MIN_BATCH_SIZE);
+                    native_bridge_common::log_info!(
+                        "Memory pressure: reducing batch_size {} -> {} at target_partitions={} (phantom {} bytes failed)",
+                        prev, batch_size, target_partitions, phantom_bytes
+                    );
                 } else {
-                    return Err(DataFusionError::ResourcesExhausted(format!(
-                        "Cannot reserve untracked memory budget: {} bytes required at \
-                         minimum parallelism (partitions={}, batch_size={}, avg_row_bytes={}). \
-                         Pool capacity exhausted.",
+                    return Err(crate::native_error::admission_rejected_error(
                         compute_untracked_bytes(MIN_TARGET_PARTITIONS, MIN_BATCH_SIZE, avg_row_bytes),
                         MIN_TARGET_PARTITIONS,
                         MIN_BATCH_SIZE,
                         avg_row_bytes,
-                    )));
+                    ));
                 }
             }
         }

@@ -27,6 +27,7 @@ pub mod io;
 pub mod local_executor;
 pub mod memory;
 pub mod memory_guard;
+pub mod native_error;
 pub mod partition_stream;
 pub mod phantom_corrector;
 pub mod query_budget;

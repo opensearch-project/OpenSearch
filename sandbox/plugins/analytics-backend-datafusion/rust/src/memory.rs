@@ -31,6 +31,7 @@ use datafusion::execution::memory_pool::{MemoryPool, MemoryReservation};
 pub struct DynamicLimitPool {
     used: AtomicUsize,
     dynamic_limit: Arc<AtomicUsize>,
+    tripped_count: Arc<AtomicUsize>,
 }
 
 /// Handle to change the pool limit at runtime.
@@ -41,6 +42,7 @@ pub struct DynamicLimitPool {
 #[derive(Debug, Clone)]
 pub struct DynamicLimitHandle {
     limit: Arc<AtomicUsize>,
+    tripped: Arc<AtomicUsize>,
 }
 
 impl DynamicLimitHandle {
@@ -53,6 +55,11 @@ impl DynamicLimitHandle {
     pub fn limit(&self) -> usize {
         self.limit.load(Ordering::Acquire)
     }
+
+    /// Number of times try_grow was rejected.
+    pub fn tripped_count(&self) -> usize {
+        self.tripped.load(Ordering::Relaxed)
+    }
 }
 
 impl DynamicLimitPool {
@@ -60,12 +67,15 @@ impl DynamicLimitPool {
     /// Returns the pool and a handle to change the limit later.
     pub fn new(initial_limit: usize) -> (Self, DynamicLimitHandle) {
         let limit = Arc::new(AtomicUsize::new(initial_limit));
+        let tripped = Arc::new(AtomicUsize::new(0));
         let handle = DynamicLimitHandle {
             limit: limit.clone(),
+            tripped: tripped.clone(),
         };
         let pool = Self {
             used: AtomicUsize::new(0),
             dynamic_limit: limit,
+            tripped_count: tripped,
         };
         (pool, handle)
     }
@@ -73,6 +83,11 @@ impl DynamicLimitPool {
     /// Read the current limit.
     pub fn limit(&self) -> usize {
         self.dynamic_limit.load(Ordering::Acquire)
+    }
+
+    /// Number of times try_grow was rejected (after jemalloc confirmation).
+    pub fn tripped_count(&self) -> usize {
+        self.tripped_count.load(Ordering::Relaxed)
     }
 }
 
@@ -133,16 +148,15 @@ impl MemoryPool for DynamicLimitPool {
         }
 
         // Both pool and jemalloc confirm pressure — reject (operator will spill)
+        self.tripped_count.fetch_add(1, Ordering::Relaxed);
         let used = self.used.load(Ordering::Relaxed);
-        Err(DataFusionError::ResourcesExhausted(format!(
-            "Failed to allocate {} bytes for {} ({} already reserved) \
-             — {} available out of {} (dynamic limit, confirmed by jemalloc)",
+        Err(crate::native_error::pool_limit_error(
             additional,
             reservation.consumer().name(),
             reservation.size(),
             limit.saturating_sub(used),
             limit,
-        )))
+        ))
     }
 
     fn reserved(&self) -> usize {

@@ -20,15 +20,19 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.NativeStoreHandle;
+import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -55,7 +59,12 @@ import io.substrait.extension.SimpleExtension;
  * Analytics query capabilities are declared in {@link DataFusionAnalyticsBackendPlugin},
  * which is SPI-discovered and receives this plugin instance via its constructor.
  */
-public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader>, AnalyticsSearchBackendPlugin, ActionPlugin {
+public class DataFusionPlugin extends Plugin
+    implements
+        SearchBackEndPlugin<DatafusionReader>,
+        AnalyticsSearchBackendPlugin,
+        ActionPlugin,
+        CircuitBreakerPlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -110,6 +119,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
     private volatile DatafusionSettings datafusionSettings;
+    private volatile CircuitBreaker nativeBreaker;
 
     /**
      * Creates the DataFusion plugin.
@@ -276,6 +286,21 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             return Collections.emptyList();
         }
         return List.of(new DataFusionStatsAction(dataFusionService));
+    }
+
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settings) {
+        long limit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
+        return new BreakerSettings("native_request", limit, 1.0, CircuitBreaker.Type.MEMORY, CircuitBreaker.Durability.TRANSIENT, () -> {
+            long currentLimit = nativeBreaker != null ? nativeBreaker.getLimit() : limit;
+            long[] stats = dataFusionService != null ? dataFusionService.getMemoryPoolStats() : new long[] { 0, 0 };
+            return new CircuitBreakerStats("native_request", currentLimit, stats[0], 1.0, stats[1]);
+        });
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        this.nativeBreaker = circuitBreaker;
     }
 
     @Override
