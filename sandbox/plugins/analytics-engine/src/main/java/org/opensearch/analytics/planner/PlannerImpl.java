@@ -75,9 +75,7 @@ public class PlannerImpl {
 
         // Phase 0: PPL frontend folds. Scalar `where earliest("-7d", @ts)` /
         // `where latest(...)` is rewritten to a plain timestamp comparison
-        // before the marking rules run. The EARLIEST/LATEST UDFs aren't in any
-        // backend's ScalarFunction registry, so reaching OpenSearchFilterRule
-        // unrewritten throws "Unrecognized filter operator".
+        // before the marking rules run.
         rawRelNode = EarliestLatestAdapter.foldRelativeTimePredicates(rawRelNode);
 
         // Phase 1a: Pre-marking logical optimizations (constant expression reduction)

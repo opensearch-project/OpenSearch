@@ -91,6 +91,10 @@ public final class EarliestLatestAdapter {
      *
      * <p>Returns the input unchanged if no rewrites apply, so the calling convertor
      * can chain this freely.
+     *
+     * <p>TODO: if any other function or operator needs a plan-phase "now" timestamp,
+     * lift {@code nowMillis} out of here and onto a planner context so all folds
+     * see the same instant for a given query.
      */
     public static RelNode foldRelativeTimePredicates(RelNode root) {
         long nowMillis = System.currentTimeMillis();
