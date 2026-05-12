@@ -39,7 +39,17 @@ class DayOfWeekAdapter implements ScalarFunctionAdapter {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         RelDataType varchar = cluster.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
         RexNode partLiteral = rexBuilder.makeLiteral("dow", varchar, true);
-        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, original.getOperands().get(0));
+        RexNode arg = original.getOperands().get(0);
+        if (arg.getType().getSqlTypeName() == SqlTypeName.TIME) {
+            RexNode synthesized = DatetimeLiteralHelper.unwrapTimeLiteralToTimestamp(arg, rexBuilder);
+            if (synthesized != null) {
+                arg = synthesized;
+            } else {
+                RelDataType nullableVarchar = cluster.getTypeFactory().createTypeWithNullability(varchar, arg.getType().isNullable());
+                arg = rexBuilder.makeCast(nullableVarchar, arg);
+            }
+        }
+        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, arg);
         RexNode sum = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, datePart, rexBuilder.makeExactLiteral(BigDecimal.ONE));
         return rexBuilder.makeCast(original.getType(), sum);
     }
