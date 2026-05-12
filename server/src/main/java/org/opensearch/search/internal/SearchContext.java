@@ -624,6 +624,6 @@ public abstract class SearchContext implements Releasable {
     }
 
     public boolean splitAggsAndHits() {
-        return false;
+        return true;
     }
 }

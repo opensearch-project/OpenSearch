@@ -293,7 +293,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public static final Setting<Boolean> SEARCH_SPLIT_AGGS_AND_HITS_SETTING = Setting.boolSetting(
         "search.split_aggs_and_hits.enabled",
-        false,
+        true,
         Property.Dynamic,
         Property.NodeScope
     );

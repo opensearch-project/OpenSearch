@@ -405,7 +405,7 @@ public class QueryPhase {
     }
 
     /** Determine eligibility for aggregation + TopDocs two-pass optimization. */
-    private boolean shouldSplitAggsAndHits(SearchContext searchContext) {
+    private static boolean shouldSplitAggsAndHits(SearchContext searchContext) {
         if (searchContext.splitAggsAndHits() == false) {
             return false;
         }
