@@ -31,6 +31,8 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
@@ -359,6 +361,17 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.ARRAY), formats, true));
                 }
                 return Set.copyOf(caps);
+            }
+
+            @Override
+            public Set<WindowCapability> windowCapabilities() {
+                Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
+                // ROW_NUMBER inside a project (e.g. PPL dedup's row-number filter) goes through
+                // isthmus's RexExpressionConverter.visitOver → Substrait WindowFunctionInvocation
+                // → DataFusion's Substrait consumer splits it into LogicalPlan::Window. No adapter
+                // or Rust UDF is needed — row_number is a Substrait-stdlib window function and a
+                // DataFusion built-in.
+                return Set.of(new WindowCapability(WindowFunction.ROW_NUMBER, formats));
             }
 
             @Override

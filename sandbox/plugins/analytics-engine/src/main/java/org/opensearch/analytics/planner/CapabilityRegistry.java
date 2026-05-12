@@ -20,6 +20,8 @@ import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.util.ArrayList;
@@ -62,6 +64,7 @@ public class CapabilityRegistry {
     private final Map<ScalarKey, Map<String, List<String>>> filterIndex = new HashMap<>();
     private final Map<AggregateKey, Map<String, List<String>>> aggregateIndex = new HashMap<>();
     private final Map<ScalarKey, Map<String, List<String>>> scalarIndex = new HashMap<>();
+    private final Map<WindowFunction, Map<String, List<String>>> windowIndex = new HashMap<>();
     // Backends that declared supportsLiteralEvaluation=true for a (function, fieldType)
     private final Map<ScalarKey, List<String>> literalScalarIndex = new HashMap<>();
     // Opaque operations keyed by name (e.g. "painless") rather than a typed key
@@ -80,6 +83,7 @@ public class CapabilityRegistry {
     private final Set<String> filterCapableBackends = new HashSet<>();
     private final Set<String> aggregateCapableBackends = new HashSet<>();
     private final Set<String> projectCapableBackends = new HashSet<>();
+    private final Set<String> windowCapableBackends = new HashSet<>();
 
     public CapabilityRegistry(
         List<AnalyticsSearchBackendPlugin> backends,
@@ -169,6 +173,13 @@ public class CapabilityRegistry {
                 }
                 projectCapableBackends.add(name);
             }
+            for (WindowCapability cap : caps.windowCapabilities()) {
+                Map<String, List<String>> formatMap = windowIndex.computeIfAbsent(cap.function(), k -> new HashMap<>());
+                for (String format : cap.formats()) {
+                    formatMap.computeIfAbsent(format, k -> new ArrayList<>()).add(name);
+                }
+                windowCapableBackends.add(name);
+            }
         }
     }
 
@@ -202,6 +213,15 @@ public class CapabilityRegistry {
 
     public Set<String> projectCapableBackends() {
         return projectCapableBackends;
+    }
+
+    public Set<String> windowCapableBackends() {
+        return windowCapableBackends;
+    }
+
+    /** All backends declaring window-function support for {@code function} ignoring storage formats. */
+    public List<String> windowBackendsAnyFormat(WindowFunction function) {
+        return allBackends(windowIndex.getOrDefault(function, Map.of()));
     }
 
     // ---- Scan lookups ----
