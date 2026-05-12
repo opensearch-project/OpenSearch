@@ -9,6 +9,9 @@
 package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.be.datafusion.stats.DataFusionStats;
+import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
@@ -18,6 +21,7 @@ import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.LinkedHashMap;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -73,9 +77,14 @@ public final class NativeBridge {
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
+    private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
+    private static final MethodHandle STATS;
+    private static final MethodHandle PREPARE_PARTIAL_PLAN;
+    private static final MethodHandle PREPARE_FINAL_PLAN;
+    private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -284,6 +293,22 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        CREATE_SESSION_CONTEXT_INDEXED = linker.downcallHandle(
+            lib.find("df_create_session_context_indexed").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -361,6 +386,31 @@ public final class NativeBridge {
             lib.find("df_execute_with_context").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
+
+        // i64 df_stats(out_ptr, out_cap)
+        STATS = linker.downcallHandle(
+            lib.find("df_stats").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // ── Distributed aggregate: prepare partial/final plans ──
+        // i64 df_prepare_partial_plan(handle_ptr, bytes_ptr, bytes_len)
+        PREPARE_PARTIAL_PLAN = linker.downcallHandle(
+            lib.find("df_prepare_partial_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_prepare_final_plan(session_ptr, bytes_ptr, bytes_len)
+        PREPARE_FINAL_PLAN = linker.downcallHandle(
+            lib.find("df_prepare_final_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
+        // i64 df_execute_local_prepared_plan(session_ptr)
+        EXECUTE_LOCAL_PREPARED_PLAN = linker.downcallHandle(
+            lib.find("df_execute_local_prepared_plan").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
     }
 
     private NativeBridge() {}
@@ -374,7 +424,7 @@ public final class NativeBridge {
             MethodHandle createProvider = lookup.findStatic(
                 cb,
                 "createProvider",
-                java.lang.invoke.MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, long.class)
+                java.lang.invoke.MethodType.methodType(int.class, int.class)
             );
             MethodHandle releaseProvider = lookup.findStatic(
                 cb,
@@ -406,7 +456,7 @@ public final class NativeBridge {
 
             java.lang.foreign.MemorySegment createProviderStub = linker.upcallStub(
                 createProvider,
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT),
                 arena
             );
             java.lang.foreign.MemorySegment releaseProviderStub = linker.upcallStub(
@@ -595,6 +645,36 @@ public final class NativeBridge {
         NativeCall.invokeVoid(CANCEL_QUERY, contextId);
     }
 
+    // ---- Stats collection ----
+
+    /**
+     * Collects all native executor metrics in a single FFM call.
+     * Decodes directly from the MemorySegment — no intermediate long[].
+     *
+     * @return a fully constructed {@link DataFusionStats}
+     * @throws IllegalStateException if the runtime manager is not initialized
+     */
+    public static DataFusionStats stats() {
+        try (var call = new NativeCall()) {
+            var seg = call.buf((int) StatsLayout.LAYOUT.byteSize());
+            call.invoke(STATS, seg, StatsLayout.LAYOUT.byteSize());
+
+            // IO runtime (always present — zeroed if not yet initialized)
+            var ioRuntime = StatsLayout.readRuntimeMetrics(seg, "io_runtime");
+
+            // CPU runtime (always present — zeroed when absent)
+            var cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
+
+            // Task monitors
+            var taskMonitors = new LinkedHashMap<String, TaskMonitorStats>();
+            for (NativeExecutorsStats.OperationType op : NativeExecutorsStats.OperationType.values()) {
+                taskMonitors.put(op.key(), StatsLayout.readTaskMonitor(seg, op.key()));
+            }
+
+            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors));
+        }
+    }
+
     // ---- Stubs ----
 
     public static byte[] sqlToSubstrait(long readerPtr, String tableName, String sql, long runtimePtr) {
@@ -732,13 +812,56 @@ public final class NativeBridge {
     /**
      * Creates a SessionContext with the default ListingTable registered.
      * Returns a tracked handle consumed by {@link #executeWithContextAsync}.
+     *
+     * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      */
-    public static SessionContextHandle createSessionContext(long readerPtr, long runtimePtr, String tableName, long contextId) {
+    public static SessionContextHandle createSessionContext(
+        long readerPtr,
+        long runtimePtr,
+        String tableName,
+        long contextId,
+        long queryConfigPtr
+    ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
         try (var call = new NativeCall()) {
             var table = call.str(tableName);
-            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId);
+            long ptr = call.invoke(CREATE_SESSION_CONTEXT, readerPtr, runtimePtr, table.segment(), table.len(), contextId, queryConfigPtr);
+            return new SessionContextHandle(ptr);
+        }
+    }
+
+    /**
+     * Creates a SessionContext configured for indexed execution with filter delegation.
+     * Registers the delegated_predicate UDF and stores treeShape + delegatedPredicateCount
+     * on the Rust handle for use during execution.
+     *
+     * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
+     */
+    public static SessionContextHandle createSessionContextForIndexedExecution(
+        long readerPtr,
+        long runtimePtr,
+        String tableName,
+        long contextId,
+        int treeShapeOrdinal,
+        int delegatedPredicateCount,
+        long queryConfigPtr
+    ) {
+        NativeHandle.validatePointer(readerPtr, "reader");
+        NativeHandle.validatePointer(runtimePtr, "runtime");
+        try (NativeCall call = new NativeCall()) {
+            NativeCall.Str table = call.str(tableName);
+            long ptr = call.invoke(
+                CREATE_SESSION_CONTEXT_INDEXED,
+                readerPtr,
+                runtimePtr,
+                table.segment(),
+                table.len(),
+                contextId,
+                treeShapeOrdinal,
+                delegatedPredicateCount,
+                queryConfigPtr
+            );
             return new SessionContextHandle(ptr);
         }
     }
@@ -790,6 +913,53 @@ public final class NativeBridge {
 
     public static void destroyCustomCacheManager(long ptr) {
         NativeCall.invokeVoid(DESTROY_CUSTOM_CACHE_MANAGER, ptr);
+    }
+
+    // ---- Distributed aggregate: prepare partial/final plans ----
+
+    /**
+     * Prepares a partial-aggregate physical plan on the session context handle.
+     * The plan is stored on the Rust handle for later execution.
+     *
+     * @param handlePtr pointer returned by {@link #createSessionContext}
+     * @param substraitBytes Substrait plan bytes
+     */
+    public static void preparePartialPlan(long handlePtr, byte[] substraitBytes) {
+        NativeHandle.validatePointer(handlePtr, "sessionContext");
+        try (var call = new NativeCall()) {
+            call.invoke(PREPARE_PARTIAL_PLAN, handlePtr, call.bytes(substraitBytes), (long) substraitBytes.length);
+        }
+    }
+
+    /**
+     * Prepares a final-aggregate physical plan on a local session.
+     * The plan is stored on the Rust session for later execution via
+     * {@link #executeLocalPreparedPlan}.
+     *
+     * @param sessionPtr pointer returned by {@link #createLocalSession}
+     * @param substraitBytes Substrait plan bytes
+     */
+    public static void prepareFinalPlan(long sessionPtr, byte[] substraitBytes) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        try (var call = new NativeCall()) {
+            call.invoke(PREPARE_FINAL_PLAN, sessionPtr, call.bytes(substraitBytes), (long) substraitBytes.length);
+        }
+    }
+
+    /**
+     * Executes the previously prepared final-aggregate plan on a local session.
+     * Returns a stream pointer that can be drained via {@link #streamNext} and
+     * freed by {@link #streamClose}.
+     *
+     * @param sessionPtr pointer returned by {@link #createLocalSession} with a plan
+     *                   already prepared via {@link #prepareFinalPlan}
+     * @return opaque stream pointer
+     */
+    public static long executeLocalPreparedPlan(long sessionPtr) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        try (var call = new NativeCall()) {
+            return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr);
+        }
     }
 
     public static void createCache(long cacheManagerPtr, String cacheType, long sizeLimit, String evictionType) {

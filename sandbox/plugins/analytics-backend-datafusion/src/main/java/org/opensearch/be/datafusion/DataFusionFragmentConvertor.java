@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import com.google.common.collect.ImmutableList;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptSchema;
@@ -26,6 +27,7 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,7 +71,7 @@ import io.substrait.relation.Sort;
  *   <li>{@link #attachPartialAggOnTop(RelNode, byte[])} and
  *       {@link #attachFragmentOnTop(RelNode, byte[])} — convert the wrapping
  *       operator standalone, then rewire its input to the decoded inner plan's
- *       root via {@link #rewire(Plan, Rel)}.</li>
+ *       root via {@link #rewire(Plan, Rel, List)}.</li>
  * </ul>
  *
  * @opensearch.internal
@@ -80,26 +82,155 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /**
      * Maps backend-specific Calcite operators to their Substrait extension names so Isthmus
-     * serializes them through our {@code SimpleExtension} catalog:
+     * serializes them through our {@code SimpleExtension} catalog. One entry per line so
+     * parallel per-UDF PRs append without hotspot conflicts.
      * <ul>
      *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
      *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
      *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
+     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of YearAdapter's rewrite).</li>
+     *   <li>{@link ConvertTzAdapter#LOCAL_CONVERT_TZ_OP} → {@code convert_tz} (Rust UDF).</li>
+     *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonAppendAdapter#LOCAL_JSON_APPEND_OP} →
+     *       {@code json_append} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonArrayLengthAdapter#LOCAL_JSON_ARRAY_LENGTH_OP} →
+     *       {@code json_array_length} (Rust UDF).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonDeleteAdapter#LOCAL_JSON_DELETE_OP} →
+     *       {@code json_delete} (Rust UDF, homogeneous-string variadic).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonExtendAdapter#LOCAL_JSON_EXTEND_OP} →
+     *       {@code json_extend} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonExtractAdapter#LOCAL_JSON_EXTRACT_OP} →
+     *       {@code json_extract} (Rust UDF, homogeneous-string variadic).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonKeysAdapter#LOCAL_JSON_KEYS_OP} →
+     *       {@code json_keys} (Rust UDF).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonSetAdapter#LOCAL_JSON_SET_OP} →
+     *       {@code json_set} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
      *   <li>{@link SqlLibraryOperators#REGEXP_CONTAINS} → {@code regex_match} (boolean regex match;
      *       resolved by DataFusion's substrait consumer to {@code Operator::RegexMatch}, the same
      *       binary operator that backs PostgreSQL's {@code ~} regex match). Lowering target for PPL
      *       {@code regex} command and {@code regexp_match()} function.</li>
+     *   <li>{@link SqlStdOperatorTable#REPLACE} → {@code replace} (literal string replacement;
+     *       lowering target for PPL `replace` command on non-wildcard patterns).</li>
+     *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_3} → {@code regexp_replace} (regex string
+     *       replacement; lowering target for PPL `replace` command on wildcard patterns and for
+     *       PPL `replace()` / `regexp_replace()` functions in `eval`).</li>
      * </ul>
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
+        FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
+        FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),
+        FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
-        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
-        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match")
+        // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
+        FunctionMappings.s(DateTimeAdapters.LOCAL_NOW_OP, "now"),
+        FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_DATE_OP, "current_date"),
+        FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_TIME_OP, "current_time"),
+        // PPL time(expr) → DF builtin to_time (TimeAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_TIME_OP, "to_time"),
+        // PPL date(expr) → DF builtin to_date (DateAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_OP, "to_date"),
+        // PPL datetime(expr) → DF builtin to_timestamp (DatetimeAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, "to_timestamp"),
+        // PPL datetime + format functions → Rust UDFs registered in rust/src/udf/mod.rs.
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "extract"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, "from_unixtime"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKEDATE_OP, "makedate"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKETIME_OP, "maketime"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_DATE_FORMAT_OP, "date_format"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_TIME_FORMAT_OP, "time_format"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_STR_TO_DATE_OP, "str_to_date"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlLibraryOperators.REVERSE, "reverse"),
+        FunctionMappings.s(PositionAdapter.STRPOS, "strpos"),
+        FunctionMappings.s(StrftimeFunctionAdapter.STRFTIME, "strftime"),
+        FunctionMappings.s(ToNumberFunctionAdapter.TONUMBER, "tonumber"),
+        FunctionMappings.s(ToStringFunctionAdapter.TOSTRING, "tostring"),
+        FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
+        FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
+        FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
+        FunctionMappings.s(SqlStdOperatorTable.PI, "pi"),
+        FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
+        FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
+        FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME),
+        FunctionMappings.s(JsonFunctionAdapters.JsonAppendAdapter.LOCAL_JSON_APPEND_OP, "json_append"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonArrayLengthAdapter.LOCAL_JSON_ARRAY_LENGTH_OP, "json_array_length"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtendAdapter.LOCAL_JSON_EXTEND_OP, "json_extend"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        // Array S0 ladder — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS /
+        // ARRAY_RETURNING_PROJECT_OPS for the capability registration. ARRAY_LENGTH /
+        // ARRAY_SLICE / ARRAY_DISTINCT pass through under their Calcite-stdlib names
+        // (DataFusion's substrait consumer resolves them natively). MakeArrayAdapter /
+        // ArrayToStringAdapter / ArrayElementAdapter rewrite PPL `array(...)` /
+        // `mvjoin(...)` / `mvindex(...)` single-element to locally-declared SqlFunctions
+        // so isthmus emits Substrait calls with DataFusion's native function names.
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_SLICE, "array_slice"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_DISTINCT, "array_distinct"),
+        FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),
+        FunctionMappings.s(ArrayToStringAdapter.LOCAL_ARRAY_TO_STRING_OP, "array_to_string"),
+        FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
+        FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
+        FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
+        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
     );
+
+    /**
+     * Maps aggregate operators to their Substrait extension names so isthmus serializes
+     * them through our {@code SimpleExtension} catalog instead of the default Substrait
+     * names.
+     *
+     * <p>{@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} → {@code approx_distinct}
+     * (declared in {@code opensearch_aggregate_functions.yaml}) routes to DataFusion's
+     * native HyperLogLog {@code APPROX_DISTINCT} aggregate. Wiring this through isthmus'
+     * {@code ADDITIONAL_AGGREGATE_SIGS} alone is not enough because isthmus's default
+     * aggregate catalog already binds {@code APPROX_COUNT_DISTINCT} to substrait's
+     * standard {@code approx_count_distinct} URN; when signatures merge, the default
+     * binding overwrites ours in the matcher map. {@link OpenSearchAggregateFunctionConverter}
+     * fixes that by filtering the stock sig out of the default list so our entry is the
+     * only one that resolves to this operator.
+     */
+    private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
+    );
+
+    /**
+     * Subclassed {@link AggregateFunctionConverter} that removes isthmus's default binding
+     * for {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} from the signature merge.
+     * Without this, the default {@code approx_count_distinct} URN binding would shadow
+     * our entry in {@link #ADDITIONAL_AGGREGATE_SIGS} and the YAML-declared
+     * {@code approx_distinct} extension would never be reached.
+     */
+    private static final class OpenSearchAggregateFunctionConverter extends AggregateFunctionConverter {
+        OpenSearchAggregateFunctionConverter(
+            List<SimpleExtension.AggregateFunctionVariant> functions,
+            List<FunctionMappings.Sig> additionalSignatures,
+            RelDataTypeFactory typeFactory,
+            TypeConverter typeConverter
+        ) {
+            super(functions, additionalSignatures, typeFactory, typeConverter);
+        }
+
+        @Override
+        protected ImmutableList<FunctionMappings.Sig> getSigs() {
+            return super.getSigs().stream()
+                .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
+                .collect(ImmutableList.toImmutableList());
+        }
+    }
 
     private final SimpleExtension.ExtensionCollection extensions;
 
@@ -118,7 +249,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         LOGGER.debug("Attaching partial aggregate on top of {} inner bytes", innerBytes.length);
         Plan inner = decodePlan(innerBytes);
         Rel wrapper = convertStandalone(partialAggFragment);
-        Plan rewired = rewire(inner, withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE));
+        Plan rewired = rewire(
+            inner,
+            withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE),
+            fieldNames(partialAggFragment)
+        );
         return serializePlan(rewired);
     }
 
@@ -142,15 +277,32 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // the visitor still walks them top-down to build the wrapper rel.
         RelNode rewritten = rewriteStageInputScans(fragment);
         Rel wrapper = convertStandalone(rewritten);
-        return serializePlan(rewire(inner, wrapper));
+        return serializePlan(rewire(inner, wrapper, fieldNames(fragment)));
     }
 
     // ── Core conversion helpers ─────────────────────────────────────────────────
 
     private byte[] convertToSubstrait(RelNode fragment) {
-        RelRoot root = RelRoot.of(fragment, SqlKind.SELECT);
-        SubstraitRelVisitor visitor = createVisitor(fragment);
-        Rel substraitRel = visitor.apply(root.rel);
+        // Rewrite SqlTypeName.NULL literals (Calcite's untyped null, emitted for the
+        // implicit ELSE arm of CASE) to typed nulls — isthmus' TypeConverter rejects NULL
+        // with "Unable to convert the type NULL". The widening only changes literal type
+        // tags; semantics and field names (used by Plan.Root.names) are unchanged.
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+        RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
+        SubstraitRelVisitor visitor = createVisitor(preprocessed);
+        Rel substraitRel;
+        try {
+            substraitRel = visitor.apply(root.rel);
+        } catch (AssertionError e) {
+            // Substrait validators (e.g. VariadicParameterConsistencyValidator,
+            // RelOptUtil.eq via Litmus.THROW) throw AssertionError directly via Java
+            // code rather than via the `assert` keyword, so JVM -da doesn't gate them.
+            // If one fires inside a search thread, OpenSearchUncaughtExceptionHandler
+            // exits the cluster JVM. Convert to IllegalStateException so the analytics-
+            // engine error path treats it as a normal per-query failure (HTTP 500 with
+            // a bucketable message) instead of taking down the cluster.
+            throw new IllegalStateException("Substrait conversion rejected the plan: " + e.getMessage(), e);
+        }
 
         List<String> fieldNames = root.fields.stream().map(field -> field.getValue()).toList();
 
@@ -170,11 +322,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * children (e.g. the {@code attachPartialAggOnTop} caller passes a
      * {@code LogicalAggregate} whose input is the already-stripped inner tree); we
      * deliberately discard those children by taking only the outermost rel of the
-     * conversion and rewiring its input during {@link #rewire(Plan, Rel)}.
+     * conversion and rewiring its input during {@link #rewire(Plan, Rel, List)}.
      */
     private Rel convertStandalone(RelNode operator) {
-        SubstraitRelVisitor visitor = createVisitor(operator);
-        return visitor.apply(operator);
+        // Same untyped-NULL preprocessing rationale as convertToSubstrait — the standalone
+        // wrapper conversion is just as susceptible to a SqlTypeName.NULL literal lurking in
+        // a CASE call attached on top of an inner plan.
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
+        SubstraitRelVisitor visitor = createVisitor(preprocessed);
+        return visitor.apply(preprocessed);
     }
 
     /**
@@ -183,15 +339,28 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * {@code wrapper(inner.root)}. Supports the known single-input wrappers emitted
      * by our four SPI methods ({@link Aggregate}, {@link Sort}, {@link Filter},
      * {@link Project}).
+     *
+     * <p>{@code wrapperNames} must be the wrapper's output column names — typically
+     * derived from the wrapper {@link RelNode}'s row type. For schema-preserving
+     * wrappers (Sort, Filter, Fetch) these match the inner plan's names; for
+     * schema-reshaping wrappers (Aggregate, Project) they don't, and using the
+     * inner's names there causes DataFusion's substrait consumer to reject the
+     * Plan with a "Names list must match exactly to nested schema" error in
+     * {@code make_renamed_schema}.
      */
-    static Plan rewire(Plan inner, Rel wrapper) {
+    static Plan rewire(Plan inner, Rel wrapper, List<String> wrapperNames) {
         if (inner.getRoots().isEmpty()) {
             throw new IllegalArgumentException("Inner Substrait plan has no root relation to rewire under wrapper");
         }
         Plan.Root innerRoot = inner.getRoots().get(0);
         Rel innerRel = innerRoot.getInput();
         Rel rewired = replaceInput(wrapper, innerRel);
-        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(innerRoot.getNames()).build()).build();
+        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(wrapperNames).build()).build();
+    }
+
+    /** Extracts a wrapper's output column names from its Calcite row type. */
+    private static List<String> fieldNames(RelNode fragment) {
+        return fragment.getRowType().getFieldList().stream().map(RelDataTypeField::getName).toList();
     }
 
     private static Rel replaceInput(Rel wrapper, Rel newInput) {
@@ -282,7 +451,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             typeFactory,
             typeConverter
         );
-        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
+        AggregateFunctionConverter aggConverter = new OpenSearchAggregateFunctionConverter(
+            extensions.aggregateFunctions(),
+            ADDITIONAL_AGGREGATE_SIGS,
+            typeFactory,
+            typeConverter
+        );
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,

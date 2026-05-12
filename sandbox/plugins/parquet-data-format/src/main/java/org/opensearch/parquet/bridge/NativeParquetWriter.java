@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>Wraps the stateless JNI methods in {@link RustBridge} with a file-scoped lifecycle:
  * <ol>
- *   <li>{@code new NativeParquetWriter(filePath, indexName, schemaAddress, sortConfig)} — creates the native writer</li>
+ *   <li>{@code new NativeParquetWriter(filePath, indexName, schemaAddress, sortConfig, writerGeneration)} — creates the native writer</li>
  *   <li>{@link #write(long, long)} — sends one or more Arrow batches (repeatable)</li>
  *   <li>{@link #flush()} — finalizes the Parquet file and returns metadata</li>
  *   <li>{@link #sync()} — fsyncs the file to durable storage (calls flush if needed)</li>
@@ -36,15 +36,17 @@ public class NativeParquetWriter {
     /**
      * Creates a new NativeParquetWriter.
      *
-     * @param filePath      the path to the Parquet file to write
-     * @param indexName     the index name for settings lookup
-     * @param schemaAddress the native memory address of the Arrow schema
-     * @param sortConfig    the sort configuration for the Parquet file
+     * @param filePath          the path to the Parquet file to write
+     * @param indexName         the index name for settings lookup
+     * @param schemaAddress     the native memory address of the Arrow schema
+     * @param sortConfig        the sort configuration for the Parquet file
+     * @param writerGeneration  the writer generation to store in file metadata
      * @throws IOException if the native writer creation fails
      */
-    public NativeParquetWriter(String filePath, String indexName, long schemaAddress, ParquetSortConfig sortConfig) throws IOException {
+    public NativeParquetWriter(String filePath, String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration)
+        throws IOException {
         this.filePath = filePath;
-        RustBridge.createWriter(filePath, indexName, schemaAddress, sortConfig);
+        RustBridge.createWriter(filePath, indexName, schemaAddress, sortConfig, writerGeneration);
     }
 
     /**

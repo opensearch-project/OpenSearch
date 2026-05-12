@@ -52,6 +52,7 @@ use datafusion::execution::{SessionState, SessionStateBuilder};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
+use object_store::ObjectStoreExt;
 
 use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
@@ -69,6 +70,10 @@ pub struct QueryStreamHandle {
     /// Held for its `Drop` impl — marks the query completed when the
     /// stream is closed.
     _query_tracking_context: QueryTrackingContext,
+    /// Keeps the SessionContext alive while the stream is being consumed.
+    /// The physical plan may reference state (e.g. RuntimeEnv, caches) owned
+    /// by the session; dropping it prematurely causes use-after-free.
+    _session_ctx: Option<datafusion::prelude::SessionContext>,
 }
 
 impl QueryStreamHandle {
@@ -79,6 +84,19 @@ impl QueryStreamHandle {
         Self {
             stream,
             _query_tracking_context: query_context,
+            _session_ctx: None,
+        }
+    }
+
+    pub fn with_session_context(
+        stream: RecordBatchStreamAdapter<CrossRtStream>,
+        query_context: QueryTrackingContext,
+        ctx: datafusion::prelude::SessionContext,
+    ) -> Self {
+        Self {
+            stream,
+            _query_tracking_context: query_context,
+            _session_ctx: Some(ctx),
         }
     }
 }
@@ -115,6 +133,17 @@ pub struct DataFusionRuntime {
     pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
     pub custom_cache_manager: Option<CustomCacheManager>,
     pub(crate) dynamic_limit_handle: DynamicLimitHandle,
+}
+
+impl DataFusionRuntime {
+    pub fn new_for_bench(runtime_env: datafusion::execution::runtime_env::RuntimeEnv) -> Self {
+        let (_pool, handle) = DynamicLimitPool::new(0);
+        Self {
+            runtime_env,
+            custom_cache_manager: None,
+            dynamic_limit_handle: handle,
+        }
+    }
 }
 
 /// Opaque shard view handle returned to the caller.
@@ -296,14 +325,13 @@ pub async unsafe fn execute_query(
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
 
-    let query_future = async {
+    let query_future = async move {
         if is_indexed {
             let qc = Arc::new(query_config);
             crate::indexed_executor::execute_indexed_query(
                 plan_bytes.to_vec(),
                 table_name.to_string(),
                 shard_view,
-                qc.target_partitions.max(1),
                 runtime,
                 cpu_executor,
                 query_memory_pool,
@@ -427,7 +455,7 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+    use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
@@ -445,7 +473,7 @@ pub unsafe fn sql_to_substrait(
                 table: None,
                 path: table_path.prefix().clone(),
             },
-            object_metas,
+            CachedFileList::new(object_metas.as_ref().clone()),
         );
         let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
             .with_cache_manager(
@@ -632,9 +660,14 @@ pub unsafe fn sender_send(
 
     // `from_ffi` takes the array by value (consumes it) and the schema by
     // reference (it is still dropped when `ffi_schema` goes out of scope).
-    let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+    let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
         DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
     })?;
+
+    // Buffers from Java's Flight RPC deserialization may not meet Rust's
+    // native alignment requirements. align_buffers() is a no-op for
+    // already-aligned buffers; only misaligned ones are reallocated.
+    array_data.align_buffers();
 
     let struct_array = StructArray::from(array_data);
     let batch = RecordBatch::from(struct_array);

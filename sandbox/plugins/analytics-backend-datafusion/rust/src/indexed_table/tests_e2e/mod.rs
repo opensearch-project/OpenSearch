@@ -269,23 +269,23 @@ async fn run_tree_and_plan(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    // Force BooleanMask so batches contain the entire RG and batch_offset
+    // equals the row-index-within-RG. Phase 2 bitmap_to_batch_mask
+    // relies on this alignment. RowSelection would still work for Path B
+    // (no Phase-2 mask), but Path C tree eval requires BooleanMask today.
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .force_pushdown(Some(false))
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments: vec![segment],
         store,
         store_url,
         evaluator_factory: factory,
-        target_partitions: 1,
-        // Force BooleanMask so batches contain the entire RG and batch_offset
-        // equals the row-index-within-RG. Phase 2 bitmap_to_batch_mask
-        // relies on this alignment. RowSelection would still work for Path B
-        // (no Phase-2 mask), but Path C tree eval requires BooleanMask today.
-        force_strategy: Some(FilterStrategy::BooleanMask),
-        force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(
-            crate::datafusion_query_config::DatafusionQueryConfig::default(),
-        ),
+        query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
     }));
 
@@ -327,7 +327,7 @@ async fn run_tree_and_plan(
 
 fn index_leaf(tag: u8) -> BoolNode {
     BoolNode::Collector {
-        query_bytes: Arc::from(&[tag][..]),
+        annotation_id: tag as i32,
     }
 }
 
@@ -375,8 +375,8 @@ fn wire(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>) {
     match node {
         BoolNode::And(c) | BoolNode::Or(c) => c.iter().for_each(|x| wire(x, out)),
         BoolNode::Not(inner) => wire(inner, out),
-        BoolNode::Collector { query_bytes } => {
-            let c: Arc<dyn RowGroupDocsCollector> = match query_bytes.first().copied() {
+        BoolNode::Collector { annotation_id } => {
+            let c: Arc<dyn RowGroupDocsCollector> = match Some(*annotation_id as u8) {
                 Some(0) => brand_eq("amazon"),
                 Some(1) => brand_eq("apple"),
                 Some(2) => status_eq("archived"),

@@ -289,7 +289,7 @@ impl LeafId {
         // Collector leaves first.
         if let Some(provider_id) = self.as_collector_provider_id() {
             return BoolNode::Collector {
-                query_bytes: Arc::from(&[provider_id][..]),
+                annotation_id: provider_id as i32,
             };
         }
         // Simple comparison leaves via ReferencePred.

@@ -29,6 +29,7 @@ sourceSets.test.compileClasspath += configurations.calciteCompile
 
 dependencies {
   compileOnly project(':server')
+  compileOnly project(':sandbox:libs:analytics-api')
   compileOnly project(':sandbox:libs:analytics-framework')
   compileOnly project(':sandbox:plugins:analytics-engine')
   // TODO: Consume Calcite dependency from Analytics Framework instead of declaring it separately.
@@ -39,6 +40,8 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 
   internalClusterTestImplementation project(':server')
   internalClusterTestImplementation project(':test:framework')

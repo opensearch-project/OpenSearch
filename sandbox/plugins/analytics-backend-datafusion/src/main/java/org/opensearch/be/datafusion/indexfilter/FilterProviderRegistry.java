@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion.indexfilter;
 
+import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.IndexFilterProvider;
 import org.opensearch.analytics.spi.IndexFilterProviderFactory;
 
@@ -114,5 +115,32 @@ public final class FilterProviderRegistry {
             return -1;
         }
         return collectors.registerCollector(provider, inner);
+    }
+
+    // ── Delegation handle path (replaces factory-based createProvider) ──
+
+    private final AtomicReference<FilterDelegationHandle> delegationHandle = new AtomicReference<>();
+
+    /**
+     * Register a {@link FilterDelegationHandle} for annotation-ID-based provider creation.
+     * When Rust calls createProvider(annotationId), the handle is used instead of the factory.
+     */
+    public void registerDelegationHandle(FilterDelegationHandle handle) {
+        this.delegationHandle.set(handle);
+    }
+
+    /**
+     * Create a provider by annotation ID using the registered delegation handle.
+     * Called by the updated FFM callback path (annotationId instead of query bytes).
+     *
+     * @return provider key {@code >= 1}, or {@code -1} on failure
+     */
+    // TODO: remove the old createProvider(byte[]) path once all callers migrate to annotation-ID-based delegation
+    int createProviderByAnnotationId(int annotationId) {
+        FilterDelegationHandle handle = this.delegationHandle.get();
+        if (handle == null) {
+            return -1;
+        }
+        return handle.createProvider(annotationId);
     }
 }

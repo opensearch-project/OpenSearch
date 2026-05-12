@@ -6,6 +6,8 @@
  * compatible open source license.
  */
 
+import org.opensearch.gradle.test.RestIntegTestTask
+
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
@@ -30,37 +32,87 @@ dependencies {
     testImplementation project(':sandbox:plugins:test-ppl-frontend')
 }
 
-testClusters.integTest {
-    plugin ':plugins:arrow-flight-rpc'
-    plugin ':sandbox:plugins:analytics-engine'
-    plugin ':sandbox:plugins:analytics-backend-datafusion'
-    plugin ':sandbox:plugins:analytics-backend-lucene'
-    plugin ':sandbox:plugins:dsl-query-executor'
-    plugin ':sandbox:plugins:composite-engine'
-    plugin ':sandbox:plugins:parquet-data-format'
-    plugin ':sandbox:plugins:test-ppl-frontend'
+// ── Shared cluster configuration closure ─────────────────────────────────────
+// All test clusters share the same plugin set and JVM flags; only node count
+// and feature-specific settings differ per task.
+def configureAnalyticsCluster = { cluster ->
+    cluster.plugin ':plugins:arrow-flight-rpc'
+    cluster.plugin ':sandbox:plugins:analytics-engine'
+    cluster.plugin ':sandbox:plugins:analytics-backend-datafusion'
+    cluster.plugin ':sandbox:plugins:analytics-backend-lucene'
+    cluster.plugin ':sandbox:plugins:dsl-query-executor'
+    cluster.plugin ':sandbox:plugins:composite-engine'
+    cluster.plugin ':sandbox:plugins:parquet-data-format'
+    cluster.plugin ':sandbox:plugins:test-ppl-frontend'
 
     // Arrow/Flight JVM flags for DataFusion native library
-    jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
-    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    cluster.jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+    cluster.jvmArgs '--enable-native-access=ALL-UNNAMED'
 
     // Arrow memory allocator needs Netty unsafe access on JDK 25; mirrors
     // gradle/run.gradle's arrow-flight-rpc overrides so AnalyticsSearchService
     // can construct its RootAllocator at node start.
-    systemProperty 'io.netty.allocator.numDirectArenas', '1'
-    systemProperty 'io.netty.noUnsafe', 'false'
-    systemProperty 'io.netty.tryUnsafe', 'true'
-    systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+    cluster.systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    cluster.systemProperty 'io.netty.noUnsafe', 'false'
+    cluster.systemProperty 'io.netty.tryUnsafe', 'true'
+    cluster.systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
 
     // Native library path for DataFusion
-    systemProperty 'java.library.path', "${project(':sandbox:libs:dataformat-native').ext.nativeLibPath.parent}"
+    cluster.systemProperty 'java.library.path', "${project(':sandbox:libs:dataformat-native').ext.nativeLibPath.parent}"
 
     // Enable pluggable dataformat feature flag
-    systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+    cluster.systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+
+    // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
+    cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
+}
+
+// ── Default integTest cluster ────────────────────────────────────────────────
+// TODO: enable numberOfNodes = 2 once partial aggs is handled
+testClusters.integTest {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
 }
 
 integTest {
     systemProperty 'tests.security.manager', 'false'
+    exclude '**/CoordinatorReduceMemtableIT.class'
+    exclude '**/StreamingCoordinatorReduceIT.class'
+}
+
+// ── Memtable variant: 2 nodes, datafusion.reduce.input_mode=memtable ─────────
+task integTestMemtable(type: RestIntegTestTask) {
+    description = 'Runs coordinator-reduce tests with memtable sink mode'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.CoordinatorReduceMemtableIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestMemtable)
+
+testClusters.integTestMemtable {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+    setting 'datafusion.reduce.input_mode', 'memtable'
+}
+
+// ── Streaming variant: 2 nodes, Arrow Flight stream transport enabled ────────
+task integTestStreaming(type: RestIntegTestTask) {
+    description = 'Runs coordinator-reduce tests with Arrow Flight streaming'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.StreamingCoordinatorReduceIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+}
+check.dependsOn(integTestStreaming)
+
+testClusters.integTestStreaming {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
 }
 
 // Run against an external cluster (no testClusters lifecycle):
