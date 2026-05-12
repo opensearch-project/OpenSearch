@@ -16,6 +16,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler;
 import org.opensearch.index.store.checksum.LuceneChecksumHandler;
@@ -278,6 +279,24 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      */
     public String calculateUploadChecksum(String name) throws IOException {
         return Long.toString(calculateChecksum(name));
+    }
+
+    /**
+     * Returns CRC32 of the full file contents, for object-store transfer validation (e.g., S3
+     * CRC32 header). Uses {@code crc32_combine} for Lucene-format files (whose stored footer
+     * checksum covers only bytes {@code [0, length-8)}); other formats' strategies already
+     * return full-file CRC32. Distinct from {@link #calculateUploadChecksum}, which returns the
+     * metadata checksum used for segment replication comparison.
+     */
+    public long calculateTransferChecksum(String name) throws IOException {
+        FileMetadata fm = toFileMetadata(name);
+        if (isDefaultFormat(fm.dataFormat())) {
+            String fileIdentifier = toFileIdentifier(fm);
+            try (IndexInput input = openInput(fileIdentifier, IOContext.READONCE)) {
+                return RemoteTransferContainer.checksumOfChecksum(input, 8);
+            }
+        }
+        return calculateChecksum(fm);
     }
 
     /**
