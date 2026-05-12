@@ -95,14 +95,17 @@ public class SearchShardTask extends WorkloadGroupTask implements SearchBackpres
     }
 
     /**
-     * Registers a listener that is called immediately when this task is cancelled.
+     * Registers a listener that is called exactly once when this task is cancelled.
      * Only one listener is supported; registering a second one replaces the first.
      * If the task is already cancelled when the listener is registered, it fires immediately.
      */
     public void setCancellationListener(Runnable listener) {
         cancellationListener.set(listener);
-        if (isCancelled() && listener != null) {
-            listener.run();
+        if (isCancelled()) {
+            Runnable taken = cancellationListener.getAndSet(null);
+            if (taken != null) {
+                taken.run();
+            }
         }
     }
 
@@ -114,7 +117,7 @@ public class SearchShardTask extends WorkloadGroupTask implements SearchBackpres
     @Override
     protected void onCancelled() {
         super.onCancelled();
-        Runnable listener = cancellationListener.get();
+        Runnable listener = cancellationListener.getAndSet(null);
         if (listener != null) {
             listener.run();
         }
