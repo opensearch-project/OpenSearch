@@ -227,9 +227,10 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             }
 
             DataFormatRegistry registry = engineConfig.getDataFormatRegistry();
+
+            Map<String, Supplier<DataFormatDescriptor>> allDescriptors = registry.getFormatDescriptors(engineConfig.getIndexSettings());
             Map<DataFormat, EngineReaderManager<?>> aggregated = new HashMap<>();
-            Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(engineConfig.getIndexSettings());
-            for (String formatName : descriptors.keySet()) {
+            for (String formatName : allDescriptors.keySet()) {
                 DataFormat format = registry.format(formatName);
                 aggregated.putAll(
                     registry.getReaderManager(new ReaderManagerConfig(Optional.empty(), format, registry, store.shardPath()))

@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.util.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -268,37 +267,25 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     public abstract CatalogSnapshot clone();
 
     /**
-     * Returns the major version of the format that wrote the given file.
-     * For Lucene files, this is the Lucene major version from SegmentInfo.
-     * For non-Lucene files (e.g., parquet), this is the format-specific version.
+     * Returns the format-version string for the given file. Empty string means pre-versioning
+     * (legacy / BWC). The string is plugin-defined and MUST NOT be compared across formats.
      *
      * @param file the file name
-     * @return the format major version
+     * @return the format version string
      */
-    public abstract Version getFormatVersionForFile(String file);
+    public abstract String getFormatVersionForFile(String file);
 
     /**
-     * Initial seed for {@code maxVersion} in {@link org.opensearch.index.store.Store.MetadataSnapshot
-     * #loadMetadata(CatalogSnapshot, org.apache.lucene.store.Directory, org.apache.logging.log4j.Logger,
-     * boolean)}. SI-backed snapshots return {@code segmentInfos.getMinSegmentLuceneVersion()};
-     * DFA snapshots return {@code null}. May be {@code null} even on SI (in-memory infos).
+     * Returns the minimum segment format version string. Returns empty string for multi-format
+     * catalogs (cross-format comparison is not supported).
      */
-    public abstract Version getMinSegmentFormatVersion();
+    public abstract String getMinSegmentFormatVersion();
 
     /**
-     * Returns the version snapshot was committed under.
-     * Used to populate remote-store checkpoint metadata so downstream consumers can interpret
-     * per-file encodings consistently.
-     *
-     * <p>Implementations:
-     * <ul>
-     *   <li>Lucene-backed snapshots return the version read from {@code SegmentInfos}.</li>
-     *   <li>DFA snapshots return the version tracked at commit time for their underlying format.</li>
-     * </ul>
-     *
-     * @return the commit-time Lucene version
+     * Returns the commit-time format version string. Returns empty string for multi-format
+     * catalogs (cross-format comparison is not supported).
      */
-    public abstract Version getCommitDataFormatVersion();
+    public abstract String getCommitDataFormatVersion();
 
     /** Total number of live documents in this snapshot. SI → Lucene live docs; DFA → 0 (TODO). */
     public abstract long getNumDocs();

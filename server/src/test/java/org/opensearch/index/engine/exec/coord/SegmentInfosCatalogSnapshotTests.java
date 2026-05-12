@@ -84,8 +84,8 @@ public class SegmentInfosCatalogSnapshotTests extends OpenSearchTestCase {
         SegmentInfos segmentInfos = randomSegmentInfos();
         SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfos);
         // File not in segmentFileVersionMap and not the segments file → falls through to LATEST.
-        Version version = snapshot.getFormatVersionForFile("nonexistent_file.xyz");
-        assertEquals(Version.LATEST, version);
+        String version = snapshot.getFormatVersionForFile("nonexistent_file.xyz");
+        assertEquals(Version.LATEST.toString(), version);
     }
 
     public void testSetUserDataDelegatesToSegmentInfos() {

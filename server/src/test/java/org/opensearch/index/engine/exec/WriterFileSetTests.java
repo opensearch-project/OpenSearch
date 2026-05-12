@@ -34,7 +34,7 @@ public class WriterFileSetTests extends OpenSearchTestCase {
     public void testDirectoryNotSerialized() throws Exception {
         String originalDirectory = "/tmp/original";
         String differentDirectory = "/tmp/different";
-        WriterFileSet original = new WriterFileSet(originalDirectory, 1L, Set.of("a.dat"), 10);
+        WriterFileSet original = new WriterFileSet(originalDirectory, 1L, Set.of("a.dat"), 10, "");
 
         WriterFileSet deserialized = copyWriteable(
             original,
@@ -49,6 +49,21 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         assertEquals(original.numRows(), deserialized.numRows());
     }
 
+    public void testStreamRoundTripPreservesFormatVersion() throws Exception {
+        WriterFileSet original = new WriterFileSet("/tmp/dir", 1L, Set.of("a.dat"), 10, "1.0.0.0");
+        WriterFileSet copy = copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new WriterFileSet(in, "/tmp/dir")
+        );
+        assertEquals("1.0.0.0", copy.formatVersion());
+    }
+
+    public void testNullFormatVersionNormalizedToEmpty() {
+        WriterFileSet wfs = new WriterFileSet("/tmp/dir", 1L, Set.of("a.dat"), 0, null);
+        assertEquals("", wfs.formatVersion());
+    }
+
     // --- helpers ---
 
     private WriterFileSet randomWriterFileSet() {
@@ -58,6 +73,6 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom("cfs", "si", "dat", "parquet"));
         }
-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000));
+        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000), "");
     }
 }

@@ -15,6 +15,14 @@ use crate::native_settings::NativeSettings;
 /// Parquet file-level metadata key for the writer generation.
 pub const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
 
+/// Parquet file-level metadata key for the opensearch-defined parquet format version.
+pub const FORMAT_VERSION_KEY: &str = "opensearch.format_version";
+
+/// Current parquet format version produced by this writer. Plugin-defined namespace —
+/// NOT comparable to Lucene or other format versions. Must stay in sync with the Java
+/// constant `ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION`.
+pub const FORMAT_VERSION: &str = "1.0.0.0";
+
 /// Reads the writer generation from a Parquet file's key-value metadata.
 /// Returns the generation value, or falls back to `file_index` if not present.
 pub fn read_writer_generation(metadata: &FileMetaData, file_index: usize) -> i64 {
@@ -27,6 +35,21 @@ pub fn read_writer_generation(metadata: &FileMetaData, file_index: usize) -> i64
                 .and_then(|v| v.parse::<i64>().ok())
         })
         .unwrap_or(file_index as i64)
+}
+
+/// Reads the opensearch format version from a Parquet file's key-value metadata.
+/// Returns the stamped version string, or an empty string if the metadata is absent
+/// (pre-versioning / legacy file). Callers should treat empty-string as "unknown"
+/// rather than rejecting the file; compatibility decisions are plugin-owned.
+pub fn read_format_version(metadata: &FileMetaData) -> String {
+    metadata
+        .key_value_metadata()
+        .and_then(|kvs| {
+            kvs.iter()
+                .find(|kv| kv.key == FORMAT_VERSION_KEY)
+                .and_then(|kv| kv.value.clone())
+        })
+        .unwrap_or_default()
 }
 
 /// Builder for converting NativeSettings into Parquet WriterProperties.
@@ -80,12 +103,18 @@ impl WriterPropertiesBuilder {
         // Apply field-level configurations
         builder = Self::apply_field_configs(builder, config);
 
-        // Store writer generation in file-level key-value metadata
+        // Build the full KV metadata vector. Format version is always stamped; writer
+        // generation is stamped only when provided.
+        let mut kv_metadata = vec![
+            KeyValue::new(FORMAT_VERSION_KEY.to_string(), Some(FORMAT_VERSION.to_string())),
+        ];
         if let Some(gen) = writer_generation {
-            builder = builder.set_key_value_metadata(Some(vec![
-                KeyValue::new(WRITER_GENERATION_KEY.to_string(), Some(gen.to_string())),
-            ]));
+            kv_metadata.push(KeyValue::new(
+                WRITER_GENERATION_KEY.to_string(),
+                Some(gen.to_string()),
+            ));
         }
+        builder = builder.set_key_value_metadata(Some(kv_metadata));
 
         builder.build()
     }
@@ -267,5 +296,26 @@ mod tests {
         let col_path = parquet::schema::types::ColumnPath::from("test_col");
         let bf_props = props.bloom_filter_properties(&col_path);
         assert!(bf_props.is_some(), "Default should have bloom filter enabled");
+    }
+
+    #[test]
+    fn test_build_stamps_format_version() {
+        let config = NativeSettings::default();
+        let props = WriterPropertiesBuilder::build(&config);
+        let kv = props.key_value_metadata().expect("KV metadata missing");
+        let found = kv.iter().find(|k| k.key == FORMAT_VERSION_KEY);
+        let entry = found.expect("format_version KV entry missing");
+        assert_eq!(entry.value.as_deref(), Some(FORMAT_VERSION));
+    }
+
+    #[test]
+    fn test_build_with_generation_stamps_both() {
+        let config = NativeSettings::default();
+        let props = WriterPropertiesBuilder::build_with_generation(&config, Some(42));
+        let kv = props.key_value_metadata().expect("KV metadata missing");
+        let has_format = kv.iter().any(|k| k.key == FORMAT_VERSION_KEY && k.value.as_deref() == Some(FORMAT_VERSION));
+        let has_gen = kv.iter().any(|k| k.key == WRITER_GENERATION_KEY && k.value.as_deref() == Some("42"));
+        assert!(has_format, "format_version stamp missing");
+        assert!(has_gen, "writer_generation stamp missing");
     }
 }

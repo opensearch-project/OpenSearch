@@ -95,6 +95,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
@@ -1370,9 +1371,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final Map<String, String> commitUserDataBuilder = new HashMap<>(catalogSnapshot.getUserData());
             final Map<String, StoreFileMetadata> builder = new HashMap<>();
 
-            Version maxVersion = catalogSnapshot.getMinSegmentFormatVersion();
+            Version maxVersion = LuceneVersionConverter.toLuceneOrLatest(catalogSnapshot.getMinSegmentFormatVersion());
             for (String file : catalogSnapshot.getFiles(false)) {
-                final Version version = catalogSnapshot.getFormatVersionForFile(file);
+                final Version version = LuceneVersionConverter.toLuceneOrLatest(catalogSnapshot.getFormatVersionForFile(file));
                 if (maxVersion == null || version.onOrAfter(maxVersion)) {
                     maxVersion = version;
                 }
