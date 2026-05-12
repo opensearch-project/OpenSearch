@@ -47,6 +47,14 @@ public interface BackendCapabilityProvider {
         return Set.of();
     }
 
+    /** Window functions this backend can evaluate when a {@link org.apache.calcite.rex.RexOver}
+     *  appears inside a project. Reported separately from {@link #projectCapabilities()} so
+     *  the planner can pick a window-capable backend without conflating window evaluation with
+     *  ordinary scalar projection. */
+    default Set<WindowCapability> windowCapabilities() {
+        return Set.of();
+    }
+
     /**
      * Delegation types this backend can initiate — it has a custom physical operator
      * that calls Analytics Core's delegation API to offload work to another backend.

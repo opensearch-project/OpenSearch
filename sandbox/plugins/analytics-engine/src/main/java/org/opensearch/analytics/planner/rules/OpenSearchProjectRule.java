@@ -15,6 +15,7 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -27,6 +28,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.WindowFunction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -167,6 +169,17 @@ public class OpenSearchProjectRule extends RelOptRule {
             return expr;
         }
 
+        // Window functions (RexOver) — Calcite emits these from rules like PPL's dedup
+        // (ROW_NUMBER() OVER (PARTITION BY ...)). isthmus's RexExpressionConverter.visitOver
+        // serializes them inline as Substrait WindowFunctionInvocation expressions, and the
+        // consumer (DataFusion) splits them into a dedicated Window plan node. The planner's
+        // job here is only to confine the project to a backend that declared support for the
+        // specific WindowFunction; no scalar-style annotation walk applies because RexOver's
+        // operands are window arguments, not subordinate scalar expressions to resolve.
+        if (rexCall instanceof RexOver rexOver) {
+            return annotateWindow(rexOver, childViableBackends);
+        }
+
         // Baseline operators — arithmetic, CAST, null-handling, conditional — are assumed
         // supported by every backend and are not subject to capability-registry enforcement.
         // Recurse into operands so a non-baseline function nested inside (e.g.
@@ -217,6 +230,27 @@ public class OpenSearchProjectRule extends RelOptRule {
 
         RexCall target = changed ? rexCall.clone(rexCall.getType(), newOperands) : rexCall;
         return new AnnotatedProjectExpression(target.getType(), target, scalarViable, context.nextAnnotationId());
+    }
+
+    private RexNode annotateWindow(RexOver rexOver, List<String> childViableBackends) {
+        SqlOperator op = rexOver.getOperator();
+        WindowFunction windowFn = WindowFunction.fromOperator(op);
+        if (windowFn == null) {
+            throw new IllegalStateException("Unsupported window function [" + op.getName() + "]");
+        }
+        List<String> windowCapable = context.getCapabilityRegistry().windowBackendsAnyFormat(windowFn);
+        List<String> viable = new ArrayList<>();
+        for (String candidate : childViableBackends) {
+            if (windowCapable.contains(candidate)) {
+                viable.add(candidate);
+            }
+        }
+        if (viable.isEmpty()) {
+            throw new IllegalStateException(
+                "No backend supports window function [" + windowFn + "] among " + childViableBackends
+            );
+        }
+        return new AnnotatedProjectExpression(rexOver.getType(), rexOver, viable, context.nextAnnotationId());
     }
 
     private List<String> resolveOpaqueViableBackends(String funcName, List<String> childViableBackends) {
